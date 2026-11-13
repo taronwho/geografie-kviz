@@ -27,7 +27,7 @@ const serveFile = (pathname) => {
     if (file.endsWith('.html')) headers['content-security-policy'] = CSP;
     return { status: 200, headers, body: fs.readFileSync(file) };
 };
-const USERS = { 'tok-u1': { id: 'u-1', name: 'Jana Nováková' } };
+const USERS = { 'tok-u1': { id: 'u-1', name: 'Jana Nováková' }, 'tok-u2': { id: 'u-2', name: 'Petr Svoboda' } };
 const login = (token) => ({ 'mudrlant.auth': JSON.stringify({ access_token: token, refresh_token: 'r', expires_at: 4102444800, user: { id: USERS[token].id, email: 'x@example.com', name: USERS[token].name } }) });
 const player = (id, name, avatar, extra = {}) => ({ id, display_name: name, avatar, color: 'sky', frame: null, title_pref: null, owl: null, ...extra });
 const uuid = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -56,15 +56,20 @@ const backend = async (context, db) => {
         const body = request.postData() ? JSON.parse(request.postData()) : null;
         const rpc = /^\/rest\/v1\/rpc\/(.+)$/.exec(url.pathname);
         const name = rpc ? rpc[1] : '';
-        if (url.pathname === '/rest/v1/profiles') return json(db.profiles[(url.searchParams.get('id') || '').replace('eq.', '')] ? [db.profiles['u-1']] : []);
+        if (url.pathname === '/rest/v1/profiles') { const pid = (url.searchParams.get('id') || '').replace('eq.', ''); return json(db.profiles[pid] ? [db.profiles[pid]] : []); }
+        // Přátelé (db.friends: hráč → id přátel); bez nich nikdo
+        if (name === 'friends_list') return json(((db.friends || {})[me.id] || []).map(fid => ({ ...db.profiles[fid], rating: 1000, last_seen: NOW, status: 'accepted', direction: 'out', since: NOW, wins: 0, losses: 0, draws: 0 })));
         if (!name.startsWith('conquest_') && !name.startsWith('dev_conquest_')) return json(/^(friends_list|reactions|my_groups)$/.test(name) ? [] : {});
         db.calls.push({ name, body });
         const fail = (message, status = 400) => json({ code: 'P0001', message }, status);
         const find = (id) => db.games.find(g => g.id === id);
         const mapOf = (g) => MAPS[g.map];
         const players = (g) => g.players.map(p => ({ ...db.profiles[p.user], seat: p.seat, flag_color: p.flag_color, emblem: p.emblem, ready: p.ready, score: p.score || 0, score_at: p.score_at || null, place: p.place || null, me: p.user === me.id }));
+        // Pozvánky (blok 24): db.invites = [{ game, user, by, declined }]; čekající pozvané vidí jen hráči hry v lobby
+        const waiting = (g) => (db.invites || []).filter(i => i.game === g.id && !i.declined && !g.players.some(p => p.user === i.user));
         const summary = (g) => ({ id: g.id, map: g.map, max_players: g.max_players, hours: g.hours, period: g.period, actions: g.actions, visibility: g.visibility, preset: g.preset, status: g.status,
-            created_at: g.created_at, started_at: g.started_at || null, ends_at: g.ends_at || null, mine: g.players.some(p => p.user === me.id), creator: g.creator === me.id, code: g.code, players: players(g) });
+            created_at: g.created_at, started_at: g.started_at || null, ends_at: g.ends_at || null, mine: g.players.some(p => p.user === me.id), creator: g.creator === me.id, code: g.code, players: players(g),
+            invited: g.status === 'lobby' && g.players.some(p => p.user === me.id) ? waiting(g).map(i => ({ ...db.profiles[i.user], by_me: i.by === me.id })) : null });
         const mine = (g) => g.players.find(p => p.user === me.id);
         // penalty: v období g.penaltyPeriod hráč kvůli ztracenému hradu o tah méně (schéma 23)
         const budget = (g) => { const used = (g.moves || []).filter(m => m.u === me.id && ['attack', 'fortify'].includes(m.k) && (m.n || 0) === (g.periodNo || 0)).length; const penalty = g.penaltyPeriod !== undefined && g.penaltyPeriod === (g.periodNo || 0) ? 1 : 0; return { period: g.periodNo || 0, base: g.actions, regions: 0, treasures: 0, loot: 0, penalty, used, total: g.actions - penalty, left: Math.max(0, g.actions - penalty - used), period_ends_at: '2026-11-12T10:00:00Z' }; };
@@ -125,9 +130,30 @@ const backend = async (context, db) => {
             if (db.autoJoin) g.players.push({ user: 'u-2', seat: 1, flag_color: 'cervena', emblem: 'orel', ready: true });
             return json(summary(g));
         }
+        if (name === 'conquest_invite') {
+            const g = find(body.game);
+            if (!g || !mine(g)) return fail('Tuhle hru nehraješ.');
+            if (body.friends.some(fid => !((db.friends || {})[me.id] || []).includes(fid))) return fail('Pozvat můžeš jen své přátele.');
+            const fresh = body.friends.filter(fid => !g.players.some(p => p.user === fid) && !waiting(g).some(i => i.user === fid));
+            if (waiting(g).length + fresh.length > g.max_players - g.players.length) return fail(`Volná místa ve hře: ${g.max_players - g.players.length - waiting(g).length}. Vyber méně přátel.`);
+            db.invites = [...(db.invites || []).filter(i => !(i.game === g.id && fresh.includes(i.user))), ...fresh.map(fid => ({ game: g.id, user: fid, by: me.id, declined: false }))];
+            return json(summary(g));
+        }
+        if (name === 'conquest_invites_mine') {
+            return json((db.invites || []).filter(i => i.user === me.id && !i.declined).map(i => ({ invite: i, g: find(i.game) }))
+                .filter(({ g }) => g && g.status === 'lobby' && !mine(g) && g.players.length < g.max_players)
+                .map(({ invite, g }) => ({ ...summary(g), code: g.code, invited_at: NOW, invited_by: db.profiles[invite.by] })));
+        }
+        if (name === 'conquest_decline_invite') {
+            (db.invites || []).filter(i => i.game === body.game && i.user === me.id).forEach(i => { i.declined = true; });
+            return route.fulfill({ status: 204, body: '' });
+        }
         if (name === 'conquest_join') {
             const g = body.join_code ? db.games.find(x => x.code === body.join_code) : find(body.game);
             if (!g) return fail('Hra s tímhle kódem není. Zkontroluj ho.');
+            // Soukromá hra podle id jen s pozvánkou; přidáním pozvánka zmizí
+            if (!body.join_code && g.visibility === 'private' && !(db.invites || []).some(i => i.game === g.id && i.user === me.id && !i.declined)) return fail('Hra s tímhle kódem není. Zkontroluj ho.');
+            db.invites = (db.invites || []).filter(i => !(i.game === g.id && i.user === me.id));
             if (g.players.some(p => p.flag_color === body.colour)) return fail('Tuhle barvu už má jiný hráč. Vyber jinou.');
             g.players.push({ user: me.id, seat: g.players.length, flag_color: body.colour, emblem: body.emblem_id, ready: false });
             if (g.players.length >= g.max_players) start(g);
@@ -573,5 +599,113 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();
+    });
+
+    // Okno přes celou výšku: nevyčnívá z obrazovky a samo se neposouvá (seznam přátel se posouvá uvnitř)
+    const dialogFits = (tab, height) => tab.evaluate((h) => { const box = document.querySelector('#dialog-overlay > div'); const rect = box.getBoundingClientRect(); return box.scrollHeight - box.clientHeight <= 0 && rect.top >= 0 && rect.bottom <= h; }, height);
+    const toast = (tab, pattern) => tab.waitForFunction((source) => new RegExp(source).test(((document.getElementById('toast') || {}).textContent || '').trim()), pattern.source);
+    await t.test('pozvánky přátel (blok 24): při zakládání výběr přátel, v lobby „Pozváno“ a Pozvat přátele; pozvaný vidí pozvánku na kartě i v Mých hrách, z upozornění i tlačítkem se přidá, jinou odmítne', async () => {
+        const db = newDb();
+        db.friends = { 'u-1': ['u-2', 'u-3'], 'u-2': ['u-1', 'u-3'] };
+        // Eva (u-3) už dřív pozvala Petra do své hry na Asii
+        db.games.push({ id: uuid(3), creator: 'u-3', map: 'asie', max_players: 3, hours: 24, period: 'day', actions: 4, visibility: 'public', code: 'ASI234', preset: null, status: 'lobby', created_at: NOW,
+            players: [{ user: 'u-3', seat: 0, flag_color: 'zelena', emblem: 'drak', ready: false }] });
+        db.invites = [{ game: uuid(3), user: 'u-2', by: 'u-3', declined: false }];
+        const host = await start(db);
+        let { tab, log } = host;
+        await tab.click('#conquest-card [data-action="conquest-open"]');
+        await tab.waitForSelector('#conquest-hub');
+        // Založit hru: Evropa, 4 hráči, soukromá; Pozvat přátele vedle Barvy a znaku
+        await tab.click('[role="tab"][data-cq-tab="create"]');
+        await tab.click('[data-cq-set="map"][data-value="evropa"]');
+        await tab.click('[data-cq-set="visibility"][data-value="private"]');
+        while (Number(await tab.textContent('[data-cq-value="players"]')) > 4) await tab.click('[data-cq-step="players"][data-delta="-1"]');
+        while (Number(await tab.textContent('[data-cq-value="players"]')) < 4) await tab.click('[data-cq-step="players"][data-delta="1"]');
+        assert.match((await tab.textContent('[data-cq="invite-pick"]')).replace(/\s+/g, ' ').trim(), /^Pozvat přátele\s*Zatím nikoho$/);
+        await tab.click('[data-cq="invite-pick"]');
+        await tab.waitForSelector('[data-cq-friend="u-3"]');
+        assert.equal(await tab.getAttribute('#dialog-overlay', 'data-title'), 'Pozvat přátele');
+        assert.match(await tab.textContent('[data-cq-invite-hint]'), /Volná místa: 3\. Pozvánky odejdou, hned jak hru založíš\./);
+        assert.ok(await dialogFits(tab, 640), 'okno Pozvat přátele se vejde na 360×640');
+        await tab.click('[data-cq-friend="u-2"]');
+        await tab.click('[data-cq-friend="u-3"]');
+        assert.deepEqual(await tab.$$eval('[data-cq-friend]', els => els.map(el => el.getAttribute('aria-checked'))), ['true', 'true']);
+        assert.match(await tab.textContent('[data-cq="invite-done"]'), /Pozvat \(2\)/);
+        await shot(tab, 'pozvat-pratele-360');
+        await tab.click('[data-cq="invite-done"]');
+        await tab.waitForFunction(() => !document.getElementById('dialog-overlay'));
+        assert.match((await tab.textContent('[data-cq="invite-pick"]')).replace(/\s+/g, ' ').trim(), /Pozvánky \(2\)\s*Petr Svoboda, Eva Mistr$/);
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 }, 'formulář s pozvanými se vejde na 360×640');
+        await shot(tab, 'zalozit-pozvanky-360');
+        await tab.click('[data-cq-form] button[type="submit"]');
+        await tab.waitForSelector('[data-cq-lobby-detail] [data-cq-invited]');
+        await toast(tab, /^Hra je založená\. Pozvánky jsou odeslané \(2\)\.$/);
+        const created = db.games.find(g => g.creator === 'u-1');
+        assert.deepEqual(db.calls.filter(call => call.name === 'conquest_invite').map(call => call.body), [{ game: created.id, friends: ['u-2', 'u-3'] }]);
+        // Lobby: pozvaní zašedlí „Pozváno“, Pozvat přátele (volné místo zbývá); vejde se na 360×640
+        assert.deepEqual(await tab.$$eval('[data-cq-invited]', els => els.map(el => el.dataset.cqInvited)), ['u-2', 'u-3']);
+        assert.match((await tab.textContent('[data-cq-lobby-detail] ul')).replace(/\s+/g, ' '), /Jana Nováková \(ty\) Čeká \S*Petr Svoboda Pozváno \S*Eva Mistr Pozváno\s*Volná místa: 3\./);
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 }, 'lobby s pozvanými se vejde na 360×640');
+        await shot(tab, 'lobby-pozvano-360');
+        // Pozvat přátele z lobby: oba už pozvaní (zašedlí), volné místo 1
+        await tab.click('[data-cq-lobby-detail] [data-cq="invite-pick"]');
+        await tab.waitForSelector('[data-cq-friend="u-2"][disabled]');
+        assert.match((await tab.textContent('[data-cq-friend="u-2"]')).replace(/\s+/g, ' '), /Petr Svoboda Pozváno/);
+        assert.match(await tab.textContent('[data-cq-invite-hint]'), /Volná místa: 1\. Vyber, koho pozveš\./);
+        assert.equal(await tab.getAttribute('[data-cq="invite-done"]', 'disabled'), '', 'bez výběru nejde poslat');
+        await tab.keyboard.press('Escape');
+        await tab.waitForFunction(() => !document.getElementById('dialog-overlay'));
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await host.context.close();
+
+        // Petr (390×780, tmavý režim): pozvánka na kartě Dobývání (od Jany, novější první) a v Mých hrách
+        db.invites.sort((a, b) => (a.by === 'u-1' ? -1 : b.by === 'u-1' ? 1 : 0));
+        const guest = await start(db, { viewport: { width: 390, height: 780 }, colorScheme: 'dark', storage: login('tok-u2') });
+        ({ tab, log } = guest);
+        await tab.waitForSelector('#conquest-card [data-action="conquest-invite"]', { timeout: 15000 });
+        assert.match((await tab.textContent('#conquest-card')).replace(/\s+/g, ' '), /Dobývání\s*Pozvánka od Jana Nováková Evropa · 3 dny · \+1 Přidat se/);
+        await shot(tab, 'karta-pozvanka-390-dark');
+        // Přidat se z karty: otevře se rozcestník (pozvánky v Mých hrách) a nad ním Barva a znak; zatím zavřít
+        await tab.click('#conquest-card [data-action="conquest-invite"]');
+        await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Tvoje barva a znak');
+        await tab.waitForSelector(`#conquest-hub [data-cq-invite="${created.id}"]`);
+        await tab.keyboard.press('Escape');
+        await tab.waitForFunction(() => !document.getElementById('dialog-overlay'));
+        assert.equal((await tab.textContent('[data-cq-tab="mine"] [data-cq-invite-count]')).replace(/\s+/g, ' ').trim(), 'Pozvánky: 2');
+        assert.match((await tab.textContent(`[data-cq-invite="${created.id}"]`)).replace(/\s+/g, ' '), /Jana Nováková tě zve do hry Evropa · 3 dny · 1\/4 Přidat se Odmítnout/);
+        assert.match((await tab.textContent(`[data-cq-invite="${uuid(3)}"]`)).replace(/\s+/g, ' '), /Eva Mistr tě zve do hry Asie · 1 den · 1\/3/);
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 }, 'Moje hry s pozvánkami se vejdou na 390×780');
+        await shot(tab, 'moje-hry-pozvanky-390-dark');
+        // Odmítnout Evinu pozvánku
+        await tab.click(`[data-cq-decline="${uuid(3)}"]`);
+        await toast(tab, /^Pozvánka odmítnuta\.$/);
+        await tab.waitForFunction((gid) => !document.querySelector(`[data-cq-invite="${gid}"]`), uuid(3));
+        assert.ok(db.invites.find(i => i.game === uuid(3)).declined);
+        // Klepnutí na upozornění „Jana Nováková tě zve do hry“: rovnou Barva a znak (barvu Jany vybrat nejde)
+        await tab.evaluate((value) => navigator.serviceWorker.dispatchEvent(new MessageEvent('message', { data: { type: 'push-open', tab: '', vyzva: '', dobyvani: value, kind: 'conquest_invite' } })), created.code);
+        await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Tvoje barva a znak');
+        assert.equal(await tab.getAttribute('[data-cq-color="cervena"]', 'disabled'), '', 'barva Jany je obsazená');
+        await tab.keyboard.press('Escape');
+        await tab.waitForFunction(() => !document.getElementById('dialog-overlay'));
+        // Přidat se tlačítkem v Mých hrách: barva a znak, pak lobby hry (bez kódu, i když je soukromá)
+        await tab.click(`[data-cq-accept="${created.id}"]`);
+        await tab.waitForSelector('[data-cq-color="modra"]');
+        await tab.click('[data-cq-color="modra"]');
+        await tab.click('[data-cq="look-done"]');
+        await tab.waitForSelector(`[data-cq-lobby-detail="${created.id}"]`);
+        const join = db.calls.filter(call => call.name === 'conquest_join').pop().body;
+        assert.deepEqual([join.game, join.join_code, join.colour], [created.id, '', 'modra']);
+        assert.match((await tab.textContent('[data-cq-lobby-detail] ul')).replace(/\s+/g, ' '), /Jana Nováková Čeká Petr Svoboda \(ty\) Čeká \S*Eva Mistr Pozváno\s*Volná místa: 2\./);
+        assert.equal(db.invites.filter(i => i.user === 'u-2' && !i.declined).length, 0, 'pozvánka po přidání zmizela');
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+        await shot(tab, 'pozvany-v-lobby-390-dark');
+        // V Mých hrách už pozvánky nejsou (Evina odmítnutá, do Janiny hry se Petr přidal)
+        await tab.click('#conquest-hub [data-cq-tab="mine"]');
+        await tab.waitForSelector(`[data-cq-lobby="${created.id}"]`);
+        assert.equal(await tab.locator('[data-cq-invite]').count(), 0);
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await guest.context.close();
     });
 });

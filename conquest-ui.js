@@ -1,5 +1,6 @@
-// Dobývání v prohlížeči (pravidla a vykreslení jsou v conquest.js): karta na záložce Více hráčů, rozcestník (Moje hry, Lobby,
-// Založit hru), detail otevřené hry (Chci hrát, Odejít, Pozvat, Barva a znak), obrazovka hry s mapou (posun a přiblížení prsty,
+// Dobývání v prohlížeči (pravidla a vykreslení jsou v conquest.js): karta na záložce Více hráčů, rozcestník (Moje hry s pozvánkami
+// od přátel, Lobby, Založit hru s výběrem přátel k pozvání), detail otevřené hry (Chci hrát, Odejít, Pozvat přátele, sdílení odkazu,
+// Barva a znak, pozvaní „Pozváno“), obrazovka hry s mapou (posun a přiblížení prsty,
 // kolečkem i dvojitým klepnutím), spodní list území, otázka tahu a animace výsledku (šipka útoku, rozlití inkoustu z místa útoku,
 // zapíchnutí vlaječky, pobourání a stavba opevnění, poklad, zlatý obrys celého regionu, zlomená šipka), kronika tažení, přehrání
 // hry a stupně vítězů s odměnou. Při omezeném pohybu (prefers-reduced-motion) jsou čekání krátká a CSS animace vypnuté.
@@ -25,7 +26,8 @@
     };
 
     // deps: Conquest (conquest.js), Social, appContent, signedUser, login, enter (obrazovka 'conquest'), isActive, renderHome, renderIcons,
-    // showDialog, closeDialog, showToast, loadMap(id), loadTopics(), award({ xp, badge, place }), share(payload), sound(name), touchTip, onCard()
+    // showDialog, closeDialog, showToast, loadMap(id), loadTopics(), award({ xp, badge, place }), share(payload), sound(name), touchTip, onCard(),
+    // avatarHtml(hráč, třídy) a friends() (přijatí přátelé pro okno Pozvat přátele; null = nenačetli se)
     const createUI = (deps) => {
         const C = deps.Conquest;
         const Social = deps.Social;
@@ -59,20 +61,27 @@
         };
 
         // --- Lobby a moje hry ---
-        let lobby = null;
+        let lobby = null; // { open, mine, invites (pozvánky od přátel, blok 24) }
         let lobbyAt = 0;
         let lobbyLoading = null;
         let lobbyError = '';
         let missing = false;
+        // Databáze bez pozvánek (blok 24 chybí, 404): Pozvat přátele se neukáže, zbytek Dobývání běží dál
+        let invitesOff = false;
+        const loadInvites = () => (invitesOff || !Social.conquestInvitesMine ? Promise.resolve([]) : Social.conquestInvitesMine().catch(error => {
+            if (error && error.status === 404) invitesOff = true;
+            return (lobby && lobby.invites) || [];
+        }));
         const loadLobby = () => {
             if (lobbyLoading) return lobbyLoading;
             lobbyLoading = (async () => {
                 try {
-                    const data = await Social.conquestLobby();
+                    const [data, invites] = await Promise.all([Social.conquestLobby(), loadInvites()]);
+                    data.invites = invites;
                     lobby = data;
                     lobbyAt = Date.now();
                     lobbyError = '';
-                    await Promise.all([...new Set([...data.mine, ...data.open].map(game => game.map))].map(id => ensureMap(id).catch(() => null)));
+                    await Promise.all([...new Set([...data.mine, ...data.open, ...invites].map(game => game.map))].map(id => ensureMap(id).catch(() => null)));
                     data.mine.filter(game => game.status === 'finished' && !game.claimed).forEach(game => claim(game.id));
                 } catch (error) {
                     if (error && error.status === 404) missing = true;
@@ -83,6 +92,8 @@
             return lobbyLoading;
         };
         const findGame = (id) => (lobby ? [...lobby.mine, ...lobby.open].find(game => game.id === id) : null) || null;
+        const findInvite = (id) => ((lobby && lobby.invites) || []).find(invite => invite.id === id) || null;
+        const dropInvite = (id) => { if (lobby && lobby.invites) lobby.invites = lobby.invites.filter(invite => invite.id !== id); };
         const upsertMine = (game) => {
             if (!game || !lobby) return;
             const known = lobby.mine.find(item => item.id === game.id);
@@ -91,7 +102,7 @@
         };
 
         // Karta na záložce Více hráčů
-        const cardHtml = () => (deps.signedUser() && !missing ? C.homeCardHtml({ games: lobby ? lobby.mine : null, maps, loading: Boolean(lobbyLoading) }) : '');
+        const cardHtml = () => (deps.signedUser() && !missing ? C.homeCardHtml({ games: lobby ? lobby.mine : null, invites: lobby ? lobby.invites : [], maps, loading: Boolean(lobbyLoading), avatar: deps.avatarHtml }) : '');
         const paintCard = () => {
             const card = doc.getElementById('conquest-card');
             if (!card) return;
@@ -108,11 +119,12 @@
             paintCard();
             if (active() && ui.kind !== 'game') renderHub();
         };
-        const reset = () => { lobby = null; lobbyAt = 0; missing = false; game = null; ui.kind = 'hub'; ui.tab = 'mine'; };
+        const reset = () => { lobby = null; lobbyAt = 0; missing = false; invitesOff = false; game = null; ui.kind = 'hub'; ui.tab = 'mine'; ui.invites = []; };
 
         // --- Rozcestník ---
         const prefs = readPrefs();
-        const ui = { kind: 'hub', tab: 'mine', gameId: null, busy: false, error: '', confirmLeave: false };
+        // invites = přátelé vybraní ve formuláři Založit hru (pozvou se hned po založení; jen v paměti, ne v úložišti)
+        const ui = { kind: 'hub', tab: 'mine', gameId: null, busy: false, error: '', confirmLeave: false, invites: [] };
         const draft = {
             map: 'evropa', hours: 72, players: 4, actions: 5, period: 'day', visibility: 'public',
             ...(prefs.draft || {}),
@@ -126,14 +138,16 @@
             if (!active() || ui.kind === 'game') return;
             const now = Date.now();
             let body;
+            const invites = lobby ? lobby.invites || [] : [];
+            const mine = () => C.mineHtml({ games: lobby ? lobby.mine : null, invites, maps, now, error: lobbyError, avatar: deps.avatarHtml });
             if (ui.kind === 'lobby') {
                 const found = findGame(ui.gameId);
-                body = found ? C.lobbyDetailHtml({ game: found, maps, busy: ui.confirmLeave ? 'leave' : ui.busy, error: ui.error, dev: devOn() }) : C.mineHtml({ games: lobby ? lobby.mine : null, maps, now, error: lobbyError });
+                body = found ? C.lobbyDetailHtml({ game: found, maps, busy: ui.confirmLeave ? 'leave' : ui.busy, error: ui.error, dev: devOn(), invitable: !invitesOff, avatar: deps.avatarHtml }) : mine();
             } else if (ui.tab === 'lobby') body = C.lobbyHtml({ games: lobby ? lobby.open : null, maps, now, error: lobbyError });
-            else if (ui.tab === 'create') body = C.createHtml({ draft, maps, busy: ui.busy, error: ui.error });
-            else body = C.mineHtml({ games: lobby ? lobby.mine : null, maps, now, error: lobbyError });
+            else if (ui.tab === 'create') { trimInvites(); body = C.createHtml({ draft, maps, busy: ui.busy, error: ui.error, invites: ui.invites, invitable: !invitesOff, avatar: deps.avatarHtml }); }
+            else body = mine();
             const keep = app.scrollTop;
-            app.innerHTML = C.hubHtml({ tab: ui.kind === 'lobby' ? 'mine' : ui.tab, body });
+            app.innerHTML = C.hubHtml({ tab: ui.kind === 'lobby' ? 'mine' : ui.tab, body, invites: invites.length });
             deps.renderIcons(app);
             app.scrollTop = keep;
             if (ui.tab === 'create' && ui.kind === 'hub' && !maps[draft.map]) ensureMap(draft.map).then(() => renderHub()).catch(() => {});
@@ -188,14 +202,15 @@
         };
         const takenColors = (found, meId) => (found ? found.players.filter(player => !player.me && player.id !== meId).map(player => player.flag_color) : []);
 
-        // Přidání: veřejná hra podle id, soukromá kódem
+        // Přidání: veřejná hra podle id, soukromá kódem, s pozvánkou od přítele podle id (i soukromá)
         const joinGame = ({ id = null, code = '' }) => {
-            const found = id ? findGame(id) : null;
+            const found = id ? findGame(id) || findInvite(id) : null;
             pickLook({
                 taken: takenColors(found), title: 'Tvoje barva a znak',
                 onDone: async ({ color, emblem }) => {
                     try {
                         const joined = await Social.conquestJoin({ game: id, code, color, emblem });
+                        dropInvite(joined.id);
                         upsertMine(joined);
                         if (!lobby) await loadLobby();
                         await ensureMap(joined.map).catch(() => null);
@@ -204,9 +219,104 @@
                         paintCard();
                     } catch (error) {
                         deps.showToast(errorText(error, 'Přidat se do hry se nepodařilo.'));
-                        loadLobby().then(() => renderHub());
+                        loadLobby().then(() => { renderHub(); paintCard(); });
                     }
                 }
+            });
+        };
+        // Pozvánka od přítele: Přidat se (barva a znak, pak do hry; nejdřív se otevře rozcestník, ať je za oknem vidět, kam hráč jde)
+        const acceptInvite = (id) => {
+            if (game && game.move) return;
+            if (!active() || ui.kind !== 'hub') { stopGame(); ui.kind = 'hub'; ui.tab = 'mine'; ui.error = ''; if (!active()) deps.enter(); renderHub(); schedule(); }
+            joinGame({ id });
+        };
+        // Z karty na záložce Více hráčů
+        const openInvite = (id) => {
+            if (!deps.signedUser()) { deps.login(); return; }
+            if (findInvite(id)) { acceptInvite(id); return; }
+            openHub('mine');
+        };
+        const declineInvite = async (id, button) => {
+            if (button) button.disabled = true;
+            try {
+                await Social.conquestDeclineInvite(id);
+                dropInvite(id);
+                deps.showToast('Pozvánka odmítnuta.');
+            } catch (error) {
+                deps.showToast(errorText(error, 'Pozvánku se nepodařilo odmítnout.'));
+            }
+            renderHub();
+            paintCard();
+        };
+
+        // Okno Pozvat přátele: target = hra v lobby (pozvánky odejdou hned), bez něj výběr do formuláře Založit hru (odejdou po založení)
+        const invitesWord = (count) => (count === 1 ? 'Pozvánka je odeslaná.' : `Pozvánky jsou odeslané (${count}).`);
+        const PICKER_TITLE = 'Pozvat přátele';
+        const createLimit = () => { const data = maps[draft.map]; return Math.max(0, Math.min(draft.players, data ? data.maxPlayers : C.MAX_PLAYERS) - 1); };
+        const trimInvites = () => { if (ui.invites.length > createLimit()) ui.invites = ui.invites.slice(0, createLimit()); };
+        const openInvitePicker = (targetId = null) => {
+            const create = !targetId;
+            const state = { friends: null, loading: true, selected: create ? ui.invites.map(friend => friend.id) : [], busy: false, error: '' };
+            const target = () => (create ? null : findGame(targetId));
+            const limit = () => {
+                if (create) return createLimit();
+                const found = target();
+                return found ? Math.max(0, found.max_players - found.players.length - (found.invited || []).length) : 0;
+            };
+            const open = () => { const overlay = doc.getElementById('dialog-overlay'); return Boolean(overlay && overlay.dataset.title === PICKER_TITLE); };
+            const render = () => {
+                const found = target();
+                // Seznam se posouvá uvnitř okna: po překreslení (zaškrtnutí) zůstane na místě
+                const list = doc.querySelector('[data-cq-friend-list]');
+                const keep = list ? list.scrollTop : 0;
+                deps.showDialog(PICKER_TITLE, C.friendsPickerHtml({
+                    friends: state.friends, loading: state.loading, selected: state.selected, limit: limit(), avatar: deps.avatarHtml, busy: state.busy, error: state.error, create,
+                    joined: found ? found.players.map(player => player.id) : [], invited: found ? (found.invited || []).map(player => player.id) : []
+                }), { onClick });
+                const fresh = doc.querySelector('[data-cq-friend-list]');
+                if (fresh) fresh.scrollTop = keep;
+            };
+            const send = async () => {
+                const found = target();
+                if (!found || state.busy || !state.selected.length) return;
+                state.busy = true;
+                state.error = '';
+                render();
+                try {
+                    const updated = await Social.conquestInvite(found.id, state.selected);
+                    upsertMine(updated);
+                    if (deps.touchTip) deps.touchTip('conquestInvite');
+                    deps.closeDialog();
+                    deps.showToast(invitesWord(state.selected.length));
+                    if (active() && ui.kind === 'lobby') renderHub();
+                } catch (error) {
+                    state.busy = false;
+                    state.error = errorText(error, 'Pozvánky se nepodařilo poslat.');
+                    if (open()) render();
+                }
+            };
+            const onClick = (event) => {
+                const row = event.target.closest('[data-cq-friend]');
+                if (row && !row.disabled && !state.busy) {
+                    const id = row.dataset.cqFriend;
+                    state.selected = state.selected.includes(id) ? state.selected.filter(other => other !== id) : [...state.selected, id];
+                    state.error = '';
+                    render();
+                    return;
+                }
+                if (!event.target.closest('[data-cq="invite-done"]')) return;
+                if (!create) { send(); return; }
+                ui.invites = (state.friends || []).filter(friend => state.selected.includes(friend.id)).slice(0, createLimit());
+                deps.closeDialog();
+                renderHub();
+            };
+            render();
+            Promise.resolve(deps.friends ? deps.friends() : []).catch(() => null).then(friends => {
+                state.friends = Array.isArray(friends) ? friends : null;
+                state.loading = false;
+                // Vybraní, kteří mezitím přestali být přáteli, z výběru vypadnou
+                if (state.friends) state.selected = state.selected.filter(id => state.friends.some(friend => friend.id === id));
+                if (open()) render();
             });
         };
         const openCode = (initial = '', lookup = true) => {
@@ -220,9 +330,11 @@
             }
             const state = { code: parseCode(initial) || '', error: '' };
             // Hra, kterou hráč už hraje (odkaz z upozornění na útok, vlastní pozvánka): rovnou mapa (nebo lobby), bez okna s kódem a barvou.
-            // Rozehraný tah (otázka) se nepřeruší, otevřená hra se jen obnoví. Kód cizí hry otevře okno s kódem jako dřív.
+            // Rozehraný tah (otázka) se nepřeruší, otevřená hra se jen obnoví. Hra, do které hráče pozval přítel (upozornění „X tě zve do hry“):
+            // rovnou Barva a znak a přidání. Kód cizí hry otevře okno s kódem jako dřív.
             if (lookup && state.code) {
                 const known = () => (lobby ? lobby.mine.find(found => found.code === state.code) : null);
+                const invited = () => ((lobby && lobby.invites) || []).find(invite => invite.code === state.code) || null;
                 const go = (found) => {
                     if (game && game.move) return;
                     if (game && game.id === found.id && ui.kind === 'game' && active()) { reloadGame(); return; }
@@ -230,7 +342,14 @@
                 };
                 const found = known();
                 if (found) { go(found); return; }
-                loadLobby().then(() => { const later = known(); if (later) go(later); else openCode(state.code, false); });
+                loadLobby().then(() => {
+                    const later = known();
+                    const invite = later ? null : invited();
+                    if (later) go(later);
+                    else if (invite) acceptInvite(invite.id);
+                    else openCode(state.code, false);
+                    paintCard();
+                });
                 return;
             }
             const render = () => deps.showDialog('Mám kód hry', `<form data-cq-code-form class="flex flex-col gap-3" autocomplete="off">
@@ -280,11 +399,25 @@
             try {
                 const data = await ensureMap(draft.map).catch(() => null);
                 const players = Math.min(draft.players, data ? data.maxPlayers : C.MAX_PLAYERS);
-                const created = await Social.conquestCreate({ map: draft.map, players, hours: draft.hours, period: draft.period, actions: draft.actions, visibility: draft.visibility, color: draft.color, emblem: draft.emblem });
+                let created = await Social.conquestCreate({ map: draft.map, players, hours: draft.hours, period: draft.period, actions: draft.actions, visibility: draft.visibility, color: draft.color, emblem: draft.emblem });
+                // Vybraní přátelé dostanou pozvánku hned po založení; když se to nepovede, hra zůstane a pozvat jde z jejího detailu
+                const friends = ui.invites.map(friend => friend.id).slice(0, players - 1);
+                let invited = 0;
+                let inviteFailed = false;
+                if (friends.length) {
+                    try {
+                        created = (await Social.conquestInvite(created.id, friends)) || created;
+                        invited = friends.length;
+                        if (deps.touchTip) deps.touchTip('conquestInvite');
+                    } catch (error) { inviteFailed = true; }
+                }
+                ui.invites = [];
                 ui.busy = false;
                 if (!lobby) await loadLobby();
                 upsertMine(created);
-                deps.showToast(draft.visibility === 'private' ? 'Hra je založená. Pošli ostatním kód.' : 'Hra je založená a čeká v Lobby na hráče.');
+                deps.showToast(inviteFailed ? 'Hra je založená, ale pozvánky se nepodařilo poslat. Pozvi přátele znovu v detailu hry.'
+                    : invited ? `Hra je založená. ${invitesWord(invited)}`
+                        : draft.visibility === 'private' ? 'Hra je založená. Pošli ostatním kód.' : 'Hra je založená a čeká v Lobby na hráče.');
                 openLobby(created.id);
                 paintCard();
             } catch (error) {
@@ -1007,6 +1140,11 @@
             if (play) { openGame(play.dataset.cqPlay); return; }
             const join = target.closest('[data-cq-join]');
             if (join) { joinGame({ id: join.dataset.cqJoin }); return; }
+            // Pozvánka od přítele (Moje hry): Přidat se, nebo Odmítnout
+            const accept = target.closest('[data-cq-accept]');
+            if (accept) { acceptInvite(accept.dataset.cqAccept); return; }
+            const decline = target.closest('[data-cq-decline]');
+            if (decline && !decline.disabled) { declineInvite(decline.dataset.cqDecline, decline); return; }
             const open = target.closest('[data-cq-lobby]');
             if (open) { openLobby(open.dataset.cqLobby); return; }
             const set = target.closest('[data-cq-set]');
@@ -1039,6 +1177,7 @@
             if (name === 'help') openHelp('zaklady');
             else if (name === 'code') openCode();
             else if (name === 'look') { if (ui.kind === 'lobby') changeLook(); else pickLook({ onDone: () => renderHub() }); }
+            else if (name === 'invite-pick') openInvitePicker(ui.kind === 'lobby' ? ui.gameId : null);
             else if (name === 'ready') toggleReady();
             else if (name === 'leave') leaveLobby();
             else if (name === 'share') shareGame(findGame(ui.gameId));
@@ -1101,7 +1240,7 @@
         // Probíhá tah (oslavy z app.js počkají)
         const busy = () => Boolean(game && game.move);
 
-        return { cardHtml, paintCard, refresh, reset, openHub, openGame, openCode, afterLogin, takeLink, back, busy, parseCode };
+        return { cardHtml, paintCard, refresh, reset, openHub, openGame, openCode, openInvite, afterLogin, takeLink, back, busy, parseCode };
     };
 
     return { createUI, STORE, LINK_PARAM, PENDING_KEY, parseCode };
