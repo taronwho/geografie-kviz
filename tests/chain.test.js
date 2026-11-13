@@ -267,7 +267,10 @@ test('vykreslení: bez inline stylů a skriptů, ikony z icons.js, obrázky exis
     const svg = Chain.linkSvg(['done', 'rescued', 'broken', 'current', 'todo', 'todo', 'todo'], { fresh: 1, label: 'Řetěz' });
     assert.equal((svg.match(/data-link="/g) || []).length, 7);
     assert.match(svg, /chain-click/);
-    assert.match(svg, /chain-half-l/);
+    assert.match(svg, /chain-link-broken"[^>]*><image href="icons\/retez\/prasknuty\.webp"/);
+    // Články jsou obrázky: střídavě zepředu a z boku, všechny soubory existují
+    for (const match of svg.matchAll(/href="(icons\/retez\/[a-z]+\.webp)"/g)) assert.ok(fs.existsSync(path.join(ROOT, match[1])), match[1]);
+    assert.match(svg, /icons\/retez\/celem\.webp[\s\S]*icons\/retez\/bokem\.webp/);
 });
 
 test('soubory aplikace: index.html, service worker, nasazení, Tailwind a app.js', () => {

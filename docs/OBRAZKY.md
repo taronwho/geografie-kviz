@@ -1968,7 +1968,7 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 
 ## 15. Řetězovka (č. 212–214)
 
-#### 212. `retezovka.png` – Sova se zlatým řetězem – čeká na dodání
+#### 212. `retezovka.png` – Sova se zlatým řetězem – ✅ dodáno, zapojeno
 
 Kam: dlaždice Řetězovka v řadě Výzvy na úvodu, úvod Řetězovky a tip. Do dodání `serie`. Přiložit: `branding/sova-original.jpg` (postava)
 
@@ -1976,7 +1976,7 @@ Kam: dlaždice Řetězovka v řadě Výzvy na úvodu, úvod Řetězovky a tip. D
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl mascot as the character: keep its face, monocle with chain, white eyebrows and whiskers, golden-brown feathers and wine-red academic robe with cap exactly as they are; change only the pose and props described here. The wine-red color must appear only on the robe and cap: all props must be in other colors (no red, pink or wine-colored props). Subject: The owl mascot proudly holding up a long shiny golden chain of big chunky oval links stretched between both wings like a garland, the last link at one end just clicking into place with a small bright sparkle, a satisfied, confident smile. The big golden chain is separate from the thin monocle chain. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 213. `clanek.png` – Zlatý článek řetězu – čeká na dodání
+#### 213. `clanek.png` – Zlatý článek řetězu – ✅ dodáno, zapojeno (ve čtyřech pohledech: `clanek`, `clanek-celem`, `clanek-bokem`, `clanek-sikmo`; pás řetězu skládá `scripts/chain-links.py` do `icons/retez`)
 
 Kam: řetěz v Řetězovce, který se skládá článek po článku (nový článek zacvakne), a celý řetěz ve výsledku. Musí být čitelný i jako malá ikona 24–32 px. Do dodání emoji 🔗. Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1984,7 +1984,7 @@ Kam: řetěz v Řetězovce, který se skládá článek po článku (nový člá
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 24 px icon (one simple bold shape, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: A single chunky golden chain link: one thick oval ring of polished gold, slightly tilted so it looks three-dimensional, a bright glint on its upper edge. Only one link, nothing else. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 214. `clanek-prasknuty.png` – Prasklý článek – čeká na dodání
+#### 214. `clanek-prasknuty.png` – Prasklý článek – ✅ dodáno, zapojeno
 
 Kam: přetržený řetěz po špatné odpovědi (článek se s krátkým zatřesením rozlomí) a konec řetězu ve výsledku. Musí být čitelný i jako malá ikona 24–32 px. Do dodání emoji 💥. Přiložit: `branding/sova-original.jpg` (vzor stylu) a hotový `clanek.png` (č. 213, vzor tvaru)
 
@@ -2412,6 +2412,18 @@ Kam: truhlička na neutrálním území s pokladem (na mapě je jich pět, dobyt
 
 ```text
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 28 px map icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: A small, open wooden treasure chest with golden bands, overflowing with a heap of shiny gold coins and a few colorful gems (blue, green, violet), two coins spilled on the ground in front of it, a bright sparkle on top; smaller and simpler than a reward chest. Colors: warm wood brown, gold, blue, green, violet. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+## 21. Dobývání – vybarvení území (č. 264)
+
+Obsazená území se barví jako ručně kolorovaná stará mapa: světlá lazura barvou hráče a sytější pruh barvy podél hranice uvnitř území. Textura přidá lazuře nerovnoměrnost skutečného akvarelu (místa, kde se barva slila, jemná zrnitost papíru). Je šedá, barvu hráče jí dá aplikace, takže jedna textura slouží všem barvám.
+
+#### 264. `textura-akvarel.png` – Akvarelová lazura (šedá) – čeká na dodání
+
+Kam: barva obsazených území na mapě Dobývání (lazura barvou hráče se touto texturou zvlní jako akvarel, násobením přes barvu). Do dodání rovnoměrná lazura s pruhem podél hranic. Nic nepřikládat.
+
+```text
+Seamless tileable background texture, painted watercolor on cold-press paper, in pure neutral grayscale only (no hue at all, every pixel grey). NOT a sticker: no outline, no border, no frame, no objects, no shapes, no characters, no symbols. Texture: one single even layer of watercolor wash covering the whole image: soft uneven pigment pooling, a few gentle cauliflower blooms with slightly darker soft rims, fine pigment granulation and visible paper grain, faint brush streaks in random directions. Mostly light grey (between #d8d8d8 and #f4f4f4) with a few softly blended mid-grey pools (around #b0b0b0); no pure white unpainted gaps, no hard edges, no lines, no stains with sharp borders. Even lighting with no vignette and no central focal point; the left edge must continue seamlessly into the right edge and the top edge into the bottom edge, so the image can be repeated as a tile without visible seams. Subtle and low contrast, because it will be tinted with a player color and laid over territories on an antique map under flags and icons. No text, no letters, no numbers, no logo, no watermark. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1 --tile
 ```
 
 ## Co udělám po dodání
