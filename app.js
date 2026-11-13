@@ -9994,7 +9994,7 @@
         appContent.innerHTML = `
             <div id="boss-fight" data-boss-fight class="flex min-h-full w-full flex-col bg-slate-50 dark:bg-slate-900">
                 ${Boss.stripHtml({ boss: fight.boss, status, slot: open.results.length, limit: Boss.timeLimit(Math.min(Boss.QUESTIONS - 1, open.results.length)) })}
-                <div id="boss-question" class="relative flex flex-1 flex-col gap-2 p-3 pt-2 short:gap-1.5 short:p-2.5 short:pt-1.5"></div>
+                <div id="boss-question" class="relative flex flex-1 flex-col gap-2 p-3 pt-2 [@media(max-height:770px)]:gap-1.5 [@media(max-height:770px)]:p-2.5 [@media(max-height:770px)]:pt-1.5"></div>
             </div>`;
         applyProgress(appContent);
         renderIcons(appContent);
@@ -10108,7 +10108,7 @@
             </form>`;
         box.innerHTML = `
             ${Boss.trickHtml(fight.slot)}
-            <h2 class="text-center text-[19px] font-black leading-tight tracking-tight text-slate-800 short:text-[17px] dark:text-slate-50">${escapeHtml(data.question.title)}</h2>
+            <h2 class="text-center text-[19px] font-black leading-tight tracking-tight text-slate-800 [@media(max-height:770px)]:text-[17px] dark:text-slate-50">${escapeHtml(data.question.title)}</h2>
             ${questionPanel(data)}
             <section data-boss-answers class="shrink-0">${typed ? form : `<div class="grid grid-cols-2 gap-2">${choices}</div>`}</section>
             <p class="sr-only" role="status" data-boss-verdict></p>`;

@@ -518,6 +518,8 @@
     };
 
     // --- Vykreslení (HTML; h = pomocné funkce z app.js: topicIcon, xpLine, medal) ---
+    // Zhuštění na nízkém displeji podle skutečné výšky okna ([@media(max-height:770px)]:), ne varianta short: – ta se zapíná i třídou
+    // fit-short, kterou nechává úvod (když se sám nevejde) i na ostatních obrazovkách, a aréna by pak na vyšším telefonu zbytečně zmenšila bosse
     const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
     // data-keep: obrázek bosse se nepřebarví podle obleku Mudrlanta (look-robes.js přebarvuje obrázky sova-*)
     const img = (name, cls, attrs = '') => (name ? `<img src="icons/topics/${esc(name)}.webp" alt="" data-keep ${attrs} class="${cls}">` : '');
@@ -611,7 +613,7 @@
                     : used ? `Nejlepší pokus: ${best} poškození · ${attemptsLeftText(left)}` : `${attemptsWord(ATTEMPTS)} na tento týden, počítá se nejlepší`;
         const button = open ? `Pokračovat v souboji · otázka ${Math.min(QUESTIONS, view.answered + 1 || 1)}/${QUESTIONS}` : used ? `Do souboje · ${used + 1}. pokus` : 'Do souboje';
         return `
-            <div id="boss-intro" data-boss="${esc(boss.id)}" class="boss-arena boss-theme-${esc(boss.id)} relative flex min-h-full w-full flex-col overflow-hidden px-4 pb-4 pt-2.5 text-white short:px-3 short:pb-3 short:pt-2">
+            <div id="boss-intro" data-boss="${esc(boss.id)}" class="boss-arena boss-theme-${esc(boss.id)} relative flex min-h-full w-full flex-col overflow-hidden px-4 pb-4 pt-2.5 text-white [@media(max-height:770px)]:px-3 [@media(max-height:770px)]:pb-3 [@media(max-height:770px)]:pt-2">
                 ${ART.arena ? img(ART.arena, 'pointer-events-none absolute inset-0 h-full w-full object-cover opacity-70', 'aria-hidden="true"') : ''}
                 <span class="boss-beams" aria-hidden="true"></span>
                 <div class="relative z-10 flex items-center justify-between gap-2">
@@ -619,15 +621,15 @@
                     <span class="flex shrink-0 items-center gap-1.5 rounded-full bg-black/35 px-2.5 py-1 text-[11px] font-black text-white/90 ring-1 ring-white/15">Pokusy ${attemptsDots(used)}</span>
                 </div>
                 <div class="relative z-10 mt-1 flex flex-col items-center">
-                    ${portraitHtml(boss, defeated ? 4 : stage, { size: 'h-48 w-48 short:h-28 short:w-28', id: 'boss-stage', enter, idle: !defeated })}
-                    <h1 class="boss-name -mt-1 text-center text-[26px] font-black leading-none tracking-tight short:text-[22px]">${esc(boss.name)}</h1>
+                    ${portraitHtml(boss, defeated ? 4 : stage, { size: 'h-48 w-48 [@media(max-height:770px)]:h-28 [@media(max-height:770px)]:w-28', id: 'boss-stage', enter, idle: !defeated })}
+                    <h1 class="boss-name -mt-1 text-center text-[26px] font-black leading-none tracking-tight [@media(max-height:770px)]:text-[22px]">${esc(boss.name)}</h1>
                     <p class="mt-1 text-[12px] font-bold uppercase tracking-widest text-white/80">${esc(boss.epithet)}${topicTitle ? ` · ${esc(topicTitle)}` : ''}</p>
                 </div>
-                <div id="boss-speech" class="boss-speech relative z-10 mt-2.5 rounded-2xl bg-white px-3.5 py-2.5 text-slate-900 shadow-lg short:mt-2 short:py-2" role="status">
+                <div id="boss-speech" class="boss-speech relative z-10 mt-2.5 rounded-2xl bg-white px-3.5 py-2.5 text-slate-900 shadow-lg [@media(max-height:770px)]:mt-2 [@media(max-height:770px)]:py-2" role="status">
                     <span class="boss-speech-tail" aria-hidden="true"></span>
-                    <p class="min-h-[2.6rem] text-[14px] font-bold leading-snug short:min-h-0 short:text-[13px]"><span class="sr-only">${esc(boss.name)}: ${esc(speech)}</span><span data-boss-speech-text aria-hidden="true">${esc(speech)}</span></p>
+                    <p class="min-h-[2.6rem] text-[14px] font-bold leading-snug [@media(max-height:770px)]:min-h-0 [@media(max-height:770px)]:text-[13px]"><span class="sr-only">${esc(boss.name)}: ${esc(speech)}</span><span data-boss-speech-text aria-hidden="true">${esc(speech)}</span></p>
                 </div>
-                <div class="relative z-10 mt-2.5 flex flex-col gap-2 short:mt-2 short:gap-1.5">
+                <div class="relative z-10 mt-2.5 flex flex-col gap-2 [@media(max-height:770px)]:mt-2 [@media(max-height:770px)]:gap-1.5">
                     <div class="flex items-center gap-2">
                         <span class="min-w-0 flex-1">${hpBarHtml(hp)}</span>
                         <button type="button" data-action="boss-rules" class="flex min-h-[2.5rem] shrink-0 items-center gap-1 rounded-xl bg-white/15 px-2.5 text-[12px] font-black text-white ring-1 ring-white/20"><i data-lucide="scroll-text" class="h-4 w-4"></i>Pravidla</button>
@@ -635,7 +637,7 @@
                     <p data-boss-status class="text-center text-[12.5px] font-bold leading-snug text-white/90">${esc(status)}</p>
                     ${view.community || ''}
                 </div>
-                <div class="relative z-10 mt-auto flex flex-col gap-1 pt-3 short:pt-2">
+                <div class="relative z-10 mt-auto flex flex-col gap-1 pt-3 [@media(max-height:770px)]:pt-2">
                     ${canFight ? `<button type="button" data-action="boss-start" class="${PRIMARY}"><i data-lucide="swords" class="h-5 w-5"></i> ${esc(button)}</button>`
                         : `<p data-boss-next class="rounded-2xl bg-black/35 px-3 py-2.5 text-center text-[13px] font-bold leading-snug text-white ring-1 ring-white/15">${next ? `V pondělí přijde ${esc(next.name)} (${esc(next.epithet.toLocaleLowerCase('cs'))}).` : 'V pondělí přijde nový boss.'}</p>`}
                     <div class="flex items-center justify-between gap-2">
@@ -650,8 +652,8 @@
     const stripHtml = ({ boss, status, slot = 0, limit = TIME_MS }) => `
         <section id="boss-strip" data-boss="${esc(boss.id)}" data-stage="${status.stage}" class="boss-arena boss-theme-${esc(boss.id)} boss-strip-stage-${status.stage} relative shrink-0 overflow-hidden text-white">
             <span class="boss-vignette" aria-hidden="true"></span>
-            <div class="relative z-10 flex items-center gap-3 px-3 pb-2 pt-2 short:gap-2.5 short:pt-1.5">
-                ${portraitHtml(boss, status.stage, { size: 'h-28 w-28 short:h-[4.5rem] short:w-[4.5rem]', id: 'boss-portrait' })}
+            <div class="relative z-10 flex items-center gap-3 px-3 pb-2 pt-2 [@media(max-height:770px)]:gap-2.5 [@media(max-height:770px)]:pt-1.5">
+                ${portraitHtml(boss, status.stage, { size: 'h-28 w-28 [@media(max-height:770px)]:h-[4.5rem] [@media(max-height:770px)]:w-[4.5rem]', id: 'boss-portrait' })}
                 <div class="min-w-0 flex-1">
                     <div class="flex items-center justify-between gap-2">
                         <p class="truncate text-[15px] font-black leading-tight">${esc(boss.name)}</p>
@@ -705,20 +707,20 @@
             </div>` : `<p data-boss-reward="again" class="rounded-2xl bg-black/30 px-3 py-2 text-center text-[12.5px] font-bold text-white/90 ring-1 ring-white/15">Emblém a titul „${esc(boss.title)}“ už máš z dřívějška. I tahle výhra se počítá!</p>`) : '';
         const again = !won && left > 0;
         return `
-            <div id="boss-result" data-boss="${esc(boss.id)}" data-boss-outcome="${won ? 'won' : 'lost'}" class="boss-arena boss-theme-${esc(boss.id)} relative flex min-h-full w-full flex-col gap-2.5 overflow-hidden px-4 pb-4 pt-3 text-white short:gap-2 short:px-3 short:pb-3 short:pt-2">
+            <div id="boss-result" data-boss="${esc(boss.id)}" data-boss-outcome="${won ? 'won' : 'lost'}" class="boss-arena boss-theme-${esc(boss.id)} relative flex min-h-full w-full flex-col gap-2.5 overflow-hidden px-4 pb-4 pt-3 text-white [@media(max-height:770px)]:gap-2 [@media(max-height:770px)]:px-3 [@media(max-height:770px)]:pb-3 [@media(max-height:770px)]:pt-2">
                 ${ART.arena ? img(ART.arena, 'pointer-events-none absolute inset-0 h-full w-full object-cover opacity-70', 'aria-hidden="true"') : ''}
                 <span class="boss-beams" aria-hidden="true"></span>
                 ${won ? `<span class="boss-confetti" aria-hidden="true">${'<i></i>'.repeat(14)}</span>` : ''}
                 <div class="relative z-10 flex items-center gap-3">
-                    ${portraitHtml(boss, stage, { size: 'h-28 w-28 short:h-24 short:w-24', id: 'boss-result-portrait', idle: !won })}
+                    ${portraitHtml(boss, stage, { size: 'h-28 w-28 [@media(max-height:770px)]:h-24 [@media(max-height:770px)]:w-24', id: 'boss-result-portrait', idle: !won })}
                     <div class="min-w-0 flex-1">
                         <p class="text-[11px] font-black uppercase tracking-widest text-gold-200">${won ? 'Boss poražen' : `${view.n}. pokus · Boss týdne`}</p>
-                        <h1 data-boss-verdict tabindex="-1" class="${won ? 'boss-victory-text' : ''} text-[30px] font-black leading-none tracking-tight outline-none short:text-[26px]">${won ? 'Vítězství!' : 'Boss odolal'}</h1>
+                        <h1 data-boss-verdict tabindex="-1" class="${won ? 'boss-victory-text' : ''} text-[30px] font-black leading-none tracking-tight outline-none [@media(max-height:770px)]:text-[26px]">${won ? 'Vítězství!' : 'Boss odolal'}</h1>
                         <p class="mt-1 text-[12.5px] font-bold leading-snug text-white/90">${won ? esc(`${boss.name} padl!`) : esc(`${boss.name} vydržel s ${status.percent} % životů.`)}</p>
                     </div>
                 </div>
                 <div class="boss-speech relative z-10 rounded-2xl bg-white px-3.5 py-2 text-slate-900 shadow-lg"><span class="boss-speech-tail" aria-hidden="true"></span><p class="text-[13.5px] font-bold leading-snug">${esc(line)}</p></div>
-                <div class="relative z-10 flex flex-col gap-2 short:gap-1.5">
+                <div class="relative z-10 flex flex-col gap-2 [@media(max-height:770px)]:gap-1.5">
                     ${hpBarHtml(won ? 0 : status.hp)}
                     ${statsRow}
                     ${reward}
