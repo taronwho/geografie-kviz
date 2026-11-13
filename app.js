@@ -77,7 +77,7 @@
     // 23 = Dobývání: o tah méně po ztrátě domovského hradu a upozornění na útoky (profiles.push_conquest; se starší databází se dlaždice
     // Dobývání v upozorněních neukáže). 24 = Dobývání: pozvánky pro přátele (conquest_invite, conquest_invites_mine, conquest_decline_invite;
     // se starší databází se Pozvat přátele neukáže).
-    const REQUIRED_SCHEMA = 24;
+    const REQUIRED_SCHEMA = 25;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
