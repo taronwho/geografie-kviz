@@ -872,6 +872,60 @@ test('bitvy o území (blok 25): obléhané území na mapě, okno bitvy s varov
     for (const html of [svg, sheet, asked, judged, wait, result, C.gameScreenHtml(view, { now: NOW })]) assert.doesNotMatch(html, /\sstyle=/);
 });
 
+test('Založit hru: tempo (Blesk, Rychlovka, Odpoledne, Tažení, Vlastní), shrnutí, délky hry podle kola, popisky v minutách', () => {
+    const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    const draft = { map: 'evropa', period: 'min5', minutes: 20, players: 4, actions: 5, visibility: 'public', color: 'modra', emblem: 'vlk' };
+    const blesk = C.createHtml({ draft, maps });
+    assert.match(text(blesk), /Evropa Blesk Hra 20 min · 4 kola po 5 min 5 tahů za kolo · až 4 hráčů · kdokoli/);
+    assert.deepEqual([...blesk.matchAll(/data-cq-tempo="([^"]+)"/g)].map(m => m[1]), ['blesk', 'rychlovka', 'odpoledne', 'tazeni']);
+    assert.match(blesk, /aria-checked="true" data-cq-tempo="blesk"/);
+    assert.doesNotMatch(blesk, /data-cq-set="minutes"/, 'předvolby bez řádků délky');
+    // Vlastní: délka kola a délka hry z nabídky pro to kolo (vždy aspoň 3 kola)
+    const custom = C.createHtml({ draft: { ...draft, custom: true, period: 'hour', minutes: 720 }, maps });
+    assert.match(text(custom), /Vlastní tempo[^]*Kolo 5 min 10 min 1 h 1 den Hra 6 h 12 h 1 den 2 dny/);
+    assert.match(custom, /aria-checked="true" data-cq-set="minutes" data-value="720"/);
+    for (const period of C.PERIODS) for (const minutes of C.LENGTHS[period]) assert.ok(minutes / C.PERIOD_MINUTES[period] >= 3, `${period} ${minutes}`);
+    // Hodiny a dny jsou délky, které server zná (hodiny), rychlé hry v minutách
+    for (const minutes of [...C.LENGTHS.hour, ...C.LENGTHS.day]) assert.ok(C.DURATIONS.includes(minutes / 60), String(minutes));
+    assert.deepEqual(C.TEMPOS.map(tempo => [tempo.period, C.minutesLabel(tempo.minutes)]), [['min5', '20 min'], ['min10', '1 h'], ['hour', '6 h'], ['day', '3 dny']]);
+    assert.equal(C.minutesLabel(90), '1 h 30 min');
+    assert.equal(C.gameMinutes({ hours: 12 }), 720);
+    assert.equal(C.gameMinutes({ minutes: 20, hours: 0 }), 20);
+    assert.match(C.paramChips({ map: 'evropa', minutes: 20, max_players: 4, players: [], actions: 5, period: 'min5', visibility: 'public' }), /20 min[^]*5 tahů za 5 min/);
+    for (const html of [blesk, custom]) { assert.doesNotMatch(html, /\sstyle=|NaN|undefined/); }
+});
+
+test('další kolo (blok 26): okno s hráči a fajfkami, Chci další kolo / čekání, odpočet 10 s, štítek; rychlá kola po sekundách', () => {
+    const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    const NOW = Date.parse('2026-11-12T10:20:00Z');
+    const state = { ...sampleState(), period: 'min5', started_at: '2026-11-12T10:00:00Z', ends_at: '2026-11-12T10:40:00Z',
+        round: { period: 3, started_at: '2026-11-12T10:15:00Z', ends_at: '2026-11-12T10:22:30Z', done: true, ready: ['B'], next_at: null, can_ready: true } };
+    const view = C.viewOf(state, maps.evropa, 'A');
+    const open = C.roundHtml(view, state.round, { now: NOW });
+    assert.match(text(open), /Kolo 4 dohráno Všichni odehráli své tahy\. Až budou fajfky u všech, další kolo začne za 10 s\./);
+    assert.match(open, /data-cq-round-player="A"[^]*cq-tick-off[^]*data-cq-round-player="B"[^]*cq-tick-on[^]*data-lucide="check"/);
+    assert.match(open, /data-cq="round-ready"[^>]*>[^]*Chci další kolo/);
+    assert.match(text(open), /Jinak začne samo za 2:30/);
+    // Já už chci: čekání (1/2 → 2/2 by spustilo odpočet na serveru) a Ještě ne
+    const waiting = C.roundHtml(view, { ...state.round, ready: ['A'] }, { now: NOW });
+    assert.match(text(waiting), /Čekáš na ostatní · 1\/2 Ještě ne/);
+    assert.doesNotMatch(waiting, /data-cq="round-ready"/);
+    // Všichni chtějí: odpočet s kruhem a fajfky u všech
+    const counting = C.roundHtml(view, { ...state.round, ready: ['A', 'B'], next_at: '2026-11-12T10:20:07Z' }, { now: NOW });
+    assert.match(counting, /Další kolo začíná[^]*data-cq-count-ring[^]*data-cq-count data-cq-next="\d+">7</);
+    assert.equal((counting.match(/cq-tick-on/g) || []).length, 2);
+    // Štítek po zavření okna; po odpočtu ani před dohráním ne
+    assert.match(text(C.roundChipHtml(view, state.round)), /Další kolo\? 1\/2/);
+    assert.equal(C.roundChipHtml(view, { ...state.round, done: false }), '');
+    assert.equal(C.roundChipHtml(view, { ...state.round, next_at: '2026-11-12T10:20:07Z' }), '');
+    // Konec kola od serveru (kolo mohlo začít dřív), rychlá kola po sekundách, texty v kolech
+    assert.equal(C.nextPeriodAt(state), Date.parse('2026-11-12T10:22:30Z'));
+    assert.equal(C.periodLine(view, NOW), 'Další kolo za 2:30');
+    assert.equal(C.periodStartText({ ...state, budget: { ...state.budget, period: 4 } }), 'Začalo 5. kolo.');
+    assert.equal(C.nextPeriodAt({ ...state, round: null, budget: { ...state.budget, period: 1 } }), Date.parse('2026-11-12T10:10:00Z'));
+    for (const html of [open, waiting, counting]) assert.doesNotMatch(html, /\sstyle=|NaN|undefined/);
+});
+
 test('stavby: domovský hrad podle úrovně (č. 275–277), střechy a vlaječky v barvě majitele, obrázky v mezipaměti', () => {
     // Domovský hrad roste s opevněním, ostatní území mají palisádu, hradbu a pevnost
     assert.deepEqual([0, 1, 2, 3].map(level => C.levelIcon(level, true)), ['castle', 'castle1', 'castle2', 'castle3']);

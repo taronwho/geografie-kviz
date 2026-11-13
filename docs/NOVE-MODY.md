@@ -159,14 +159,14 @@ Pravidla pro všechno nové (platí v celé hře):
 Hra více hráčů o území na mapě. Hráči si hry sami zakládají a přidávají se do nich v lobby. Bez chatu.
 
 **Hra a lobby**
-- **Založit hru**: kdo je přihlášený, zvolí parametry:
-  - mapa: Evropa, Asie, Afrika, Amerika, Česko (14 krajů), případně Svět;
-  - délka hry: 6 h, 12 h, 1, 2, 3, 5 nebo 7 dní;
-  - nejvýš 2–8 hráčů;
-  - počet tahů (1–10) za den, nebo za hodinu;
-  - veřejná (v lobby), nebo soukromá (kód a odkaz).
-  
-  Nastavení se ukáže s náhledem mapy.
+- **Založit hru** (pergamenová karta ve stylu map, vejde se na 360×640): nahoře shrnutí s náhledem mapy („Hra 20 min · 4 kola po 5 min ·
+  5 tahů za kolo · až 4 hráčů · kdokoli“), pod ním:
+  - mapa: Evropa, Afrika, Asie, Amerika, Česko (14 krajů);
+  - tempo (předvolby): **Blesk** (hra 20 min, kola po 5 min, 5 tahů), **Rychlovka** (1 h, kola po 10 min, 5 tahů), **Odpoledne** (6 h,
+    kola po hodině, 3 tahy), **Tažení** (3 dny, kola po dni, 5 tahů); nebo **Vlastní**: délka kola 5 min, 10 min, 1 h, 1 den a délka hry
+    z nabídky pro to kolo (vždy aspoň 3 kola: 20–60 min, 30–120 min, 6 h–2 dny, 3–7 dní);
+  - nejvýš 2–8 hráčů a tahy za kolo (1–10);
+  - kdo se přidá: kdokoli z Lobby, nebo jen s kódem; Barva a znak; Pozvat přátele.
 - **Lobby**: seznam otevřených veřejných her. U každé je náhled mapy, parametry, hráči s barvami a tlačítko „Přidat se“. Hráč si vybere, kam se přidá, nebo založí vlastní hru a čeká.
 - **Start**: hra začne sama, když je plná, nebo když jsou v ní aspoň 2 hráči a všichni zaškrtli „Chci hrát“. Pak ji hrají jen přihlášení hráči.
 - **Rychlá hra**: pro 2–3 výchozí nastavení drží server vždy jednu otevřenou hru. Jakmile se spustí, hned se otevře další se stejným nastavením.
@@ -182,7 +182,13 @@ Hra více hráčů o území na mapě. Hráči si hry sami zakládají a přidá
   „Dobývání: X tě zve do hry“ (jednou za pozvánku, vypíná ho dlaždice Dobývání) a přidá se i do soukromé hry bez kódu.
 
 **Pravidla na mapě**
-- **Tahy**: počet tahů za den nebo za hodinu (podle nastavení hry). Nevyužité tahy propadají. Bonusy navíc:
+- **Kola** (schéma 26 přidalo kola po 5 a 10 minutách): hra je rozdělená na kola (období) podle tempa. U rychlých kol běží pod názvem
+  mapy odpočet „Další kolo za 3:12“.
+- **Chci další kolo** (schéma 26): když všichni hráči odehrají své tahy, vyskočí okno „Kolo N dohráno“ s obrázky všech hráčů a políčkem
+  u každého. Kdo klepne na „Chci další kolo“, má fajfku (jde ji vzít zpět „Ještě ne“, okno jde zavřít a otevřít štítkem „Další kolo?“
+  na mapě). Až ji mají všichni, server spustí odpočet 10 s (kruh se každou sekundu vybije, číslo poskočí, poslední tři sekundy tikají)
+  a pak začne další kolo („Začalo 2. kolo.“). Jinak kolo začne samo podle času. Konec hry se nemění, rychlejší kola jen přidají kola.
+- **Tahy**: počet tahů za kolo (podle nastavení hry). Nevyužité tahy propadají. Bonusy navíc:
   - +1 za každý celý region;
   - +1 jednorázově za dobytý poklad;
   - +1 další období za dobyté hlavní město soupeře (kořist);
@@ -210,6 +216,17 @@ Hra více hráčů o území na mapě. Hráči si hry sami zakládají a přidá
   - Po odpovědi čekání na ostatní (kdo odpověděl, kdo přemýšlí s odpočtem); jde zavřít, výsledek přijde s pulsem. U bitvy více
     hráčů pak list „Výsledek bitvy“ s pořadím a časy. Majitel obléhané území neopevní.
   - Bez bloku 25 v databázi útočí aplikace postaru (okamžitá otázka přes `conquest_move`).
+- **Rychlé hry a další kolo** (schéma 26, blok 26; server a `social.js`):
+  - kolo (období) i 10 nebo 5 minut (`period` `'min10'`, `'min5'`) a délka hry 20, 30, 45, 60, 90 nebo 120 minut (`duration_minutes`,
+    `conquest_create(…, minutes)`); hra musí mít aspoň 3 kola („Hra musí mít aspoň 3 kola. Zvol delší hru, nebo kratší kolo.“);
+  - každý souhrn hry má `minutes` (délka v minutách i u her na hodiny a dny), `hours` je u rychlé hry null; Rychlá hra Blesk
+    (`blesk-20m`: Evropa, 4 hráči, 20 minut, kolo 5 minut, 5 tahů);
+  - kolo je hotové (`round.done`), když nikdo nemá tah (nebo nemá území, nebo nemá co hrát) a neběží žádná bitva; pak každý může
+    „Chci další kolo“ (`conquest_round_ready` / `Social.conquestRoundReady`); když chtějí všichni, za 10 s začne další kolo
+    (`round.next_at`), další kola jdou od něj po délce období a konec hry se nemění (v posledním kole další kolo chtít nejde);
+  - boti se počítají jako hotoví a připravení: své tahy odehrají hned, jakmile lidé dohráli;
+  - `conquest_state` a `conquest_pulse` vrací `round` = `{ period, started_at, ends_at, done, ready, next_at, can_ready, last }`;
+    konec kola je v `budget.period_ends_at` i `round.ends_at` (po předčasném kole už neplatí začátek hry + N × délka období).
 - **Pevnost na domovském hradu**: +1 tah za období (`conquest_budget`: fortress). Domovský hrad se s opevněním mění (č. 275–277)
   a střechy a praporky všech staveb mají barvu majitele (`scripts/building-art.py`).
 - **Otázky o území**: záhlaví („Útok na Francii“, „Opevnění Francie“, hvězdy podle opevnění) území prozradí, samotná otázka ho nejmenuje.

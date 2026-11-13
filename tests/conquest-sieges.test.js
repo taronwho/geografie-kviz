@@ -1,6 +1,6 @@
 // Bitvy o území v Dobývání (blok 25): volání v social.js (obléhání, přidání, odpověď, stav bitvy, puls; otázka se pošle bez příznaků
 // správnosti, české hlášky databáze projdou, databáze bez bloku 25 Dobývání nevypne), kronika s prohranou bitvou, nápověda (pravidla
-// bitvy a Pevnost +1 tah, bez rodu) a blok 25 ve schema.sql (pořadí, verze 25, tabulky jen přes funkce, oprávnění).
+// bitvy a Pevnost +1 tah, bez rodu) a blok 25 ve schema.sql (pořadí, verze aspoň 25, tabulky jen přes funkce, oprávnění).
 // Chování v databázi hlídá tests/sql-conquest.test.js.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -160,13 +160,14 @@ test('nápověda: záložka Útok s pravidly bitvy, Pevnost na domovském hradu 
     assert.doesNotMatch(all, /\b(zaútočil|zaútočila|odpověděl|odpověděla|přidal jsi|přidala jsi|prohrál|prohrála)\b/);
 });
 
-test('schema.sql: blok 25 před verzí schématu, verze 25 i v app.js; tabulky bitev jen přes funkce, prohraná bitva v tazích', () => {
+test('schema.sql: blok 25 před verzí schématu, verze aspoň 25 a shodná s app.js; tabulky bitev jen přes funkce, prohraná bitva v tazích', () => {
     const schema = fs.readFileSync(path.join(ROOT, 'supabase', 'schema.sql'), 'utf8');
     const start = schema.indexOf('-- ===== 25: Dobývání – bitvy o území (obléhání) =====');
     assert.ok(start > schema.indexOf('-- ===== 24: Dobývání – pozvánky pro přátele — KONEC BLOKU ====='));
     assert.ok(schema.indexOf('-- ===== 25: Dobývání – bitvy o území (obléhání) — KONEC BLOKU =====') < schema.indexOf('-- ===== Verze schématu ====='));
-    assert.match(schema, /language sql immutable as \$\$ select 25 \$\$;/);
-    assert.match(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8'), /const REQUIRED_SCHEMA = 25;/);
+    const version = Number(/language sql immutable as \$\$ select (\d+) \$\$;/.exec(schema)[1]);
+    assert.ok(version >= 25);
+    assert.equal(Number(/const REQUIRED_SCHEMA = (\d+);/.exec(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8'))[1]), version);
     assert.match(schema, /^-- 25: Dobývání – bitvy o území/m, 'řádek v seznamu verzí');
     assert.match(schema, /revoke all on public\.conquest_sieges, public\.conquest_siege_players from public, anon, authenticated;/);
     assert.match(schema, /result in \('home', 'respawn', 'capture', 'breach', 'fortify', 'fail', 'outrun'\)/);

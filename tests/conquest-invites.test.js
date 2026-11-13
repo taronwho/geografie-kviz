@@ -70,7 +70,7 @@ test('Založit hru: Pozvat přátele vedle Barvy a znaku (vybraní s obrázky a 
     const draft = { map: 'evropa', hours: 72, players: 4, actions: 5, period: 'day', visibility: 'private', color: 'modra', emblem: 'vlk' };
     const empty = C.createHtml({ draft, maps, invitable: true, avatar });
     clean(empty, 'formulář');
-    assert.match(empty, /<div class="grid grid-cols-2 gap-2"><button type="button" data-cq="look"[\s\S]*?<button type="button" data-cq="invite-pick"/);
+    assert.match(empty, /<div class="grid grid-cols-2 gap-1.5"><button type="button" data-cq="look"[\s\S]*?<button type="button" data-cq="invite-pick"/);
     assert.match(text(empty), /Barva a znak Modrá · Vlk Pozvat přátele Zatím nikoho/);
     const chosen = C.createHtml({ draft, maps, invitable: true, avatar, invites: friends.slice(0, 2) });
     assert.match(text(chosen), /Pozvánky \(2\) Petr Svoboda, Eva Mistr/);

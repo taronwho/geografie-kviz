@@ -1073,13 +1073,14 @@
     // (plná hra, obsazená barva, limity, tahy na období) se předají dál, jiné chyby nahradí obecný text.
     let conquestMissing = false;
     const CONQUEST_MISSING = 'Dobývání zatím není k dispozici (databáze potřebuje nejnovější schema.sql).';
-    // Části, které přibyly později (part): pozvánky přátel (blok 24) a bitvy o území (blok 25). Databáze bez nich (404) Dobývání nevypne,
-    // jen ta část nejde (chyba se status 404) a dál se o ni nežádá.
+    // Části, které přibyly později (part): pozvánky přátel (blok 24), bitvy o území (blok 25) a rychlé hry s dalším kolem (blok 26).
+    // Databáze bez nich (404) Dobývání nevypne, jen ta část nejde (chyba se status 404) a dál se o ni nežádá.
     const PART_MISSING = {
         invites: 'Pozvánky do Dobývání zatím nejdou (databáze potřebuje nejnovější schema.sql).',
-        sieges: 'Bitvy o území zatím nejdou (databáze potřebuje nejnovější schema.sql).'
+        sieges: 'Bitvy o území zatím nejdou (databáze potřebuje nejnovější schema.sql).',
+        rounds: 'Rychlé hry a další kolo zatím nejdou (databáze potřebuje nejnovější schema.sql).'
     };
-    const partMissing = { invites: false, sieges: false };
+    const partMissing = { invites: false, sieges: false, rounds: false };
     const conquestCall = async (name, body, fallback, part = null) => {
         if (conquestMissing) throw new SocialError(CONQUEST_MISSING, 404);
         if (part && partMissing[part]) throw new SocialError(PART_MISSING[part], 404);
@@ -1093,18 +1094,40 @@
     };
     const conquestId = (value) => { if (!isUuid(value)) throw new SocialError('Neplatná hra.', 400); return value; };
     const conquestText = (value, max = 24) => String(value || '').slice(0, max);
-    // invited = čekající pozvaní přátelé (blok 24, jen hráčům hry); starší databáze ho nemá
+    // Kolo (blok 26): { period, started_at, ends_at (začátek dalšího kola, nejpozději konec hry), done (všichni dohráli), ready: [id hráčů,
+    // kteří chtějí další kolo, i boti], next_at (začátek dalšího kola během odpočtu, jinak null), can_ready (můžu chtít další kolo), last
+    // (poslední kolo hry) }; bez kola (hra neběží, starší databáze) null
+    const conquestRound = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? {
+        period: wholeNumber(value.period, 1000000), started_at: value.started_at ? String(value.started_at) : null, ends_at: value.ends_at ? String(value.ends_at) : null,
+        done: value.done === true, ready: Array.isArray(value.ready) ? [...new Set(value.ready.filter(isUuid))] : [],
+        next_at: value.next_at ? String(value.next_at) : null, can_ready: value.can_ready === true, last: value.last === true } : null);
+    // Stav nebo puls běžící hry bez kola = databáze bez bloku 26 (conquestRoundsMissing)
+    const noteRound = (data) => { if (data && typeof data === 'object' && data.status === 'running' && !('round' in data)) partMissing.rounds = true; };
+    // invited = čekající pozvaní přátelé (blok 24, jen hráčům hry); starší databáze ho nemá. Délka hry: minutes (blok 26, každá hra), hours
+    // jen u her na hodiny a dny; round = kolo (jen stav běžící hry)
     const conquestGame = (value) => (value && typeof value === 'object' && isUuid(value.id) ? { ...value, players: Array.isArray(value.players) ? value.players.filter(row => row && row.id) : [],
-        invited: Array.isArray(value.invited) ? value.invited.filter(row => row && row.id) : [] } : null);
+        invited: Array.isArray(value.invited) ? value.invited.filter(row => row && row.id) : [], round: conquestRound(value.round) } : null);
     // { open: [hra], mine: [hra s budget, owners, claimed] }
     const conquestLobby = async () => {
         const data = (await conquestCall('conquest_lobby', {}, 'Hry se nepodařilo načíst. Zkontroluj připojení.')) || {};
         return { open: (Array.isArray(data.open) ? data.open : []).map(conquestGame).filter(Boolean), mine: (Array.isArray(data.mine) ? data.mine : []).map(conquestGame).filter(Boolean) };
     };
-    const conquestCreate = async ({ map, players, hours, period, actions, visibility, color, emblem }) => conquestGame(await conquestCall('conquest_create', {
-        map_id: conquestText(map), players: wholeNumber(players, 8), hours: wholeNumber(hours, 168), per: conquestText(period, 8), actions_per: wholeNumber(actions, 10),
-        vis: conquestText(visibility, 8), colour: conquestText(color), emblem_id: conquestText(emblem)
-    }, 'Hru se nepodařilo založit. Zkus to znovu.'));
+    // Založení: období (period) 'day' nebo 'hour' s délkou v hodinách (hours), rychlá hra s kolem 'min10' nebo 'min5' s délkou v minutách
+    // (minutes, blok 26; jinak null). Databáze bez bloku 26 (404): obyčejná hra se založí postaru (bez minutes), rychlá hra nejde.
+    const conquestCreate = async ({ map, players, hours, minutes = null, period, actions, visibility, color, emblem }) => {
+        const body = {
+            map_id: conquestText(map), players: wholeNumber(players, 8), hours: wholeNumber(hours, 168), per: conquestText(period, 8), actions_per: wholeNumber(actions, 10),
+            vis: conquestText(visibility, 8), colour: conquestText(color), emblem_id: conquestText(emblem),
+            minutes: minutes === null || minutes === undefined || minutes === '' ? null : wholeNumber(minutes, 10080)
+        };
+        const fallback = 'Hru se nepodařilo založit. Zkus to znovu.';
+        try { return conquestGame(await conquestCall('conquest_create', body, fallback, 'rounds')); } catch (error) {
+            if (!(error instanceof SocialError) || error.status !== 404 || !partMissing.rounds || body.minutes !== null) throw error;
+            const older = { ...body };
+            delete older.minutes;
+            return conquestGame(await conquestCall('conquest_create', older, fallback));
+        }
+    };
     // Přidání: veřejná hra podle id, soukromá kódem
     const conquestJoin = async ({ game = null, code = '', color, emblem }) => conquestGame(await conquestCall('conquest_join', {
         game: game ? conquestId(game) : null, join_code: conquestText(code, 12), colour: conquestText(color), emblem_id: conquestText(emblem)
@@ -1112,7 +1135,11 @@
     const conquestSetLook = async (game, color, emblem) => conquestGame(await conquestCall('conquest_set_look', { game: conquestId(game), colour: conquestText(color), emblem_id: conquestText(emblem) }, 'Barvu a znak se nepodařilo uložit.'));
     const conquestReady = async (game, ready) => conquestGame(await conquestCall('conquest_ready', { game: conquestId(game), is_ready: Boolean(ready) }, 'Nepodařilo se. Zkus to znovu.'));
     const conquestLeave = (game) => conquestCall('conquest_leave', { game: conquestId(game) }, 'Odejít ze hry se nepodařilo. Zkus to znovu.');
-    const conquestState = async (game) => conquestGame(await conquestCall('conquest_state', { game: conquestId(game) }, 'Hru se nepodařilo načíst. Zkontroluj připojení.'));
+    const conquestState = async (game) => {
+        const data = await conquestCall('conquest_state', { game: conquestId(game) }, 'Hru se nepodařilo načíst. Zkontroluj připojení.');
+        noteRound(data);
+        return conquestGame(data);
+    };
     // Tah: kind = 'attack' | 'fortify', correct = odpověď na otázku, source = vlastní území, odkud útok vede
     const conquestMove = async (game, territory, kind, correct, source = null) => conquestGame(await conquestCall('conquest_move', {
         game: conquestId(game), target: conquestText(territory, 16), move_kind: kind === 'fortify' ? 'fortify' : 'attack', is_correct: Boolean(correct), source: source ? conquestText(source, 16) : null
@@ -1199,14 +1226,23 @@
     // Stav bitvy (účastník: i otázka, moje odpověď a po vyhodnocení výsledek); bitvu po termínu server napřed vyhodnotí
     const conquestSiegeStatus = async (siege) => conquestSiege(await conquestCall('conquest_siege_status', { siege: siegeId(siege) }, 'Stav bitvy se nepodařilo načíst. Zkontroluj připojení.', 'sieges'));
     // Puls hry (každé 1,5–3 s): { now, status, ends_at, version (když se změní, načíst conquestState), sieges: otevřené bitvy s can_join,
-    // results: moje bitvy vyhodnocené v posledních 2 minutách }
+    // results: moje bitvy vyhodnocené v posledních 2 minutách, round: kolo (blok 26, conquestRound; null, když hra neběží) }
     const conquestPulse = async (game) => {
         const data = (await conquestCall('conquest_pulse', { game: conquestId(game) }, 'Hru se nepodařilo obnovit. Zkontroluj připojení.', 'sieges')) || {};
+        noteRound(data);
         return { ...data, version: String(data.version || ''), sieges: (Array.isArray(data.sieges) ? data.sieges : []).map(conquestSiege).filter(Boolean),
-            results: (Array.isArray(data.results) ? data.results : []).map(conquestSiege).filter(Boolean) };
+            results: (Array.isArray(data.results) ? data.results : []).map(conquestSiege).filter(Boolean), round: conquestRound(data.round) };
     };
     // Chybí v databázi bitvy (blok 25)? Zjistí se až prvním voláním (třeba conquestPulse), do té doby false.
     const conquestSiegesMissing = () => partMissing.sieges;
+
+    // Chci další kolo (blok 26): až všichni dohráli kolo (round.done), každý hráč může chtít další kolo (ready = true), nebo přestat (false,
+    // jen dokud neběží odpočet). Když chtějí všichni, další kolo začne za 10 s (round.next_at). Vrací kolo (conquestRound).
+    const conquestRoundReady = async (game, ready = true) => conquestRound(await conquestCall('conquest_round_ready', { game: conquestId(game), ready: ready !== false },
+        'Nepodařilo se. Zkus to znovu.', 'rounds'));
+    // Chybí v databázi rychlé hry a další kolo (blok 26)? Zjistí se prvním voláním (Chci další kolo, rychlá hra) nebo stavem či pulsem
+    // běžící hry bez kola, do té doby false.
+    const conquestRoundsMissing = () => partMissing.rounds;
 
     return { AVATARS, allAvatars, cleanAvatar, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
         tournamentTick, getTournaments, tournamentArchive, ARCHIVE_PAGE, inTournament, devTournament, devClientErrors, isDevAdmin, schemaVersion, reportQuestion, getQuestionReports, deleteQuestionReport, exportMyData, deleteMyAccount, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen,
@@ -1234,6 +1270,8 @@
         conquestInvite, conquestInvitesMine, conquestDeclineInvite,
         // Bitvy o území v Dobývání (blok 25)
         conquestSiegeBegin, conquestSiegeJoin, conquestSiegeAnswer, conquestSiegeStatus, conquestPulse, conquestSiegesMissing,
+        // Rychlé hry a další kolo v Dobývání (blok 26)
+        conquestRoundReady, conquestRoundsMissing,
         // Vývojářští boti v Dobývání (blok 22)
         devConquestAddBots, devConquestBotsPlay, devConquestNextPeriod,
         // Řetězovka dne (blok 21)

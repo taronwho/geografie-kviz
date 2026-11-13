@@ -1,7 +1,9 @@
 // Dobývání v databázi (PostgreSQL 16, blok „21: Dobývání“): mapy a sousedství shodné s data/dobyvani-*.json, lobby s Rychlými hrami,
 // založení a přidání (barva jen jednou, soukromá hra jen kódem, limity), Chci hrát a plná hra (domovy, poklady, body), pravidla řádků,
 // tahy (sousedství, vlastní území, opevnění 0–3, pobourání, dobytí, tahy za období, region, poklad, kořist, ztracený hrad, Návrat do hry), konec hry
-// (pořadí, shoda), odměna jen jednou, odchod z lobby a vypršení. Spouští se jen s psql a serverem (viz tests/sql-rating.test.js), jinak se přeskočí.
+// (pořadí, shoda), odměna jen jednou, odchod z lobby a vypršení; rychlé hry a Chci další kolo (blok 26: délka v minutách, aspoň 3 kola, předčasné
+// kolo s odpočtem, tahy a bonusy ve správném kole, boti, poslední kolo, oprávnění). Spouští se jen s psql a serverem (viz tests/sql-rating.test.js),
+// jinak se přeskočí.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -93,12 +95,15 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
 
     await t.test('lobby: Rychlé hry pro každou předvolbu, jen jednou', () => {
         const first = lobby(A);
-        assert.deepEqual(first.open.map(g => g.preset).sort(), ['afrika-7d', 'cesko-12h', 'evropa-3d']);
+        assert.deepEqual(first.open.map(g => g.preset).sort(), ['afrika-7d', 'blesk-20m', 'cesko-12h', 'evropa-3d']);
         assert.deepEqual(first.mine, []);
         lobby(B);
-        assert.equal(q(`select count(*) from conquest_games where preset is not null`), '3');
+        assert.equal(q(`select count(*) from conquest_games where preset is not null`), '4');
         const cesko = first.open.find(g => g.preset === 'cesko-12h');
-        assert.deepEqual([cesko.map, cesko.max_players, cesko.hours, cesko.period, cesko.actions], ['cesko', 4, 12, 'hour', 3]);
+        assert.deepEqual([cesko.map, cesko.max_players, cesko.hours, cesko.minutes, cesko.period, cesko.actions], ['cesko', 4, 12, 720, 'hour', 3]);
+        // Rychlá hra Blesk (blok 26): délka jen v minutách
+        const blesk = first.open.find(g => g.preset === 'blesk-20m');
+        assert.deepEqual([blesk.map, blesk.max_players, blesk.hours, blesk.minutes, blesk.period, blesk.actions], ['evropa', 4, null, 20, 'min5', 5]);
     });
 
     let game;
@@ -106,7 +111,7 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         denied(create(A, { map: 'mars' }), /mapa neexistuje/);
         denied(create(A, { map: 'cesko', players: 8 }), /2 až 6 hráčů/);
         denied(create(A, { hours: 30 }), /délku hry/);
-        denied(create(A, { per: 'week' }), /za den, nebo za hodinu/);
+        denied(create(A, { per: 'week' }), /Kolo trvá den, hodinu, 10 minut, nebo 5 minut\./);
         denied(create(A, { actions: 11 }), /1 až 10/);
         denied(create(A, { vis: 'secret' }), /veřejná, nebo soukromá/);
         denied(create(A, { colour: 'duhova' }), /barvu z nabídky/);
@@ -153,13 +158,13 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         const g1 = json(create(G, { colour: 'cerna', emblem: 'vlk' }));
         const g2 = json(create(G, { colour: 'cerna', emblem: 'vlk' }));
         denied(create(G, { colour: 'cerna', emblem: 'vlk' }), /nejvýš 2 vlastní/);
-        const presets = lobby(F).open.filter(g => g.preset);
+        const presets = lobby(F).open.filter(g => g.preset).slice(0, 3);
         for (const g of [...presets, g1, g2]) ok(join(F, { game: g.id, colour: 'ruzova', emblem: 'vlk' }));
         const own = json(create(F, { colour: 'ruzova', emblem: 'vlk' }));
         denied(join(F, { game: game.id, colour: 'ruzova' }), /nejvýš 6 her/);
         for (const g of [...presets, g1, g2, own]) ok(as(F, `select conquest_leave('${g.id}');`));
         assert.equal(q(`select count(*) from conquest_games where id = '${own.id}'`), '0');
-        assert.equal(q(`select count(*) from conquest_games where preset is not null`), '3', 'Rychlé hry zůstanou i prázdné');
+        assert.equal(q(`select count(*) from conquest_games where preset is not null`), '4', 'Rychlé hry zůstanou i prázdné');
     });
 
     let running;
@@ -332,7 +337,7 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         assert.ok(Number(before) > 3);
         clock = '2026-11-30T10:00:00Z';
         const after = lobby(A);
-        assert.deepEqual(after.open.map(g => g.preset).sort(), ['afrika-7d', 'cesko-12h', 'evropa-3d']);
+        assert.deepEqual(after.open.map(g => g.preset).sort(), ['afrika-7d', 'blesk-20m', 'cesko-12h', 'evropa-3d']);
         assert.ok(after.open.every(g => g.players.length === 0));
     });
 
@@ -481,6 +486,7 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         const [inv] = mine;
         assert.deepEqual([inv.id, inv.map, inv.hours, inv.max_players, inv.status, inv.code, inv.mine, inv.invited], [party.id, 'evropa', 72, 3, 'lobby', party.code, false, null]);
         assert.deepEqual([inv.invited_by.id, inv.invited_by.display_name, inv.players.length], [HOST, 'Velitel', 1]);
+        assert.equal(inv.minutes, 72 * 60, 'délka hry v minutách (blok 26)');
         assert.ok(inv.invited_at && 'avatar' in inv.invited_by && 'frame' in inv.invited_by);
         assert.deepEqual(invitesOf(P3), [], 'nepozvaný nic');
         // Bez pozvánky do soukromé hry podle id ne; s pozvánkou ano a pozvánka zmizí
@@ -645,7 +651,7 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
     await t.test('bitvy (blok 25): sám a správně = dobytí, sám a špatně = odraženo; tah rezervovaný hned, po vyhodnocení zapsaný (bez dvojího počítání); puls', () => {
         clock = '2026-12-10T08:00:00Z';
         const v0 = pulse(S2, war.id).version;
-        assert.match(v0, /^\d+\.\d+\.running$/);
+        assert.match(v0, /^\d+\.\d+\.\d+\.\d+\.running$/, 'tah, bitvy, Chci další kolo, kolo (blok 26), stav');
         const s = json(begin(S1, war.id, 'Q214', { source: 'Q213' }));
         assert.deepEqual([s.status, s.territory, s.mine, s.answered, s.started_by, s.correct_choice, s.answer], ['open', 'Q214', true, false, S1, null, null]);
         assert.ok(s.joined_at.startsWith('2026-12-10T08:00:00') && s.deadline.startsWith('2026-12-10T08:01:00') && s.join_until.startsWith('2026-12-10T08:01:00') && s.ends_at.startsWith('2026-12-10T08:01:00'), JSON.stringify(s));
@@ -910,6 +916,254 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         assert.deepEqual([gone.status, gone.late, gone.state.status], ['resolved', true, 'finished']);
         denied(begin(S2, war.id, 'Q214'), /skončila/);
         assert.equal(pulse(S1, war.id).status, 'finished');
+    });
+
+    // Rychlé hry a další kolo (blok 26): R1 a R2 hrají rychlou hru (Evropa, 20 minut, kolo 5 minut, 2 tahy); R3 je přítel na pozvánku
+    const [R1, R2, R3, DEV2] = [60, 61, 62, 63].map(id);
+    const createFast = (uid, { map = 'evropa', players = 2, hours = 0, minutes = 20, per = 'min5', actions = 2, vis = 'private', colour = 'cervena', emblem = 'lev' } = {}) =>
+        as(uid, `select conquest_create(${lit(map)}, ${players}, ${hours}, ${lit(per)}, ${actions}, ${lit(vis)}, ${lit(colour)}, ${lit(emblem)}, ${minutes === null ? 'null' : minutes});`);
+    const roundReady = (uid, game, on = true) => as(uid, `select conquest_round_ready(${lit(game)}, ${on});`);
+    const at = (value) => (value === null || value === undefined ? value : new Date(value).toISOString());
+    const roundView = (round) => round && { ...round, started_at: at(round.started_at), ends_at: at(round.ends_at), next_at: at(round.next_at) };
+    let fast;
+
+    await t.test('rychlé hry (blok 26): kolo 10 nebo 5 minut, délka v minutách a aspoň 3 kola; minutes v každém souhrnu; staré volání funguje; oprávnění', () => {
+        clock = '2026-12-20T10:00:00Z';
+        q(`insert into auth.users (id, email, raw_user_meta_data) select u, 'r' || n || '@example.com', jsonb_build_object('full_name', name)
+            from unnest(array['${R1}', '${R2}', '${R3}', '${DEV2}']::uuid[], array['Rychlík', 'Blesk', 'Kamarád', 'Vývojářka']) with ordinality as x (u, name, n)`);
+        denied(createFast(R1, { minutes: null }), /Vyber délku hry z nabídky\./, 'rychlá hra bez minut');
+        denied(createFast(R1, { minutes: 25 }), /Vyber délku hry z nabídky\./);
+        denied(createFast(R1, { minutes: 180 }), /Vyber délku hry z nabídky\./);
+        denied(createFast(R1, { per: 'min10', minutes: 20 }), /Hra musí mít aspoň 3 kola\. Zvol delší hru, nebo kratší kolo\./, '2 kola po 10 minutách');
+        denied(createFast(R1, { per: 'min2' }), /Kolo trvá den, hodinu, 10 minut, nebo 5 minut\./);
+        denied(createFast(R1, { per: 'hour', hours: 7 }), /Vyber délku hry z nabídky\./, 'hra na hodiny dál podle hodin');
+        // Kolo 10 minut a 30 minut = 3 kola; u hry na hodiny se minuty nepoužijí
+        const ten = json(createFast(R1, { per: 'min10', minutes: 30 }));
+        assert.deepEqual([ten.hours, ten.minutes, ten.period, ten.status], [null, 30, 'min10', 'lobby']);
+        assert.equal(q(`select duration_hours is null and duration_minutes = 30 from conquest_games where id = '${ten.id}'`), 't');
+        const hourly = json(createFast(R1, { per: 'hour', hours: 6, minutes: 20 }));
+        assert.deepEqual([hourly.hours, hourly.minutes, hourly.period], [6, 360, 'hour']);
+        // Moje hry v lobby mají minutes taky (hra na hodiny = hodiny × 60; pozvánky hlídá test bloku 24)
+        assert.deepEqual(lobby(R1).mine.map(g => [g.id, g.hours, g.minutes]).sort(), [[ten.id, null, 30], [hourly.id, 6, 360]].sort());
+        ok(as(R1, `select conquest_leave('${ten.id}');`));
+        ok(as(R1, `select conquest_leave('${hourly.id}');`));
+        // Jako PostgREST se jmény parametrů: bez minutes (starší aplikace) i s nimi
+        const named = json(as(R1, `select conquest_create(map_id => 'cesko', players => 2, hours => 12, per => 'hour', actions_per => 2, vis => 'private', colour => 'cervena', emblem_id => 'lev');`));
+        assert.deepEqual([named.hours, named.minutes], [12, 720]);
+        ok(as(R1, `select conquest_leave('${named.id}');`));
+        const namedFast = json(as(R1, `select conquest_create(map_id => 'cesko', players => 2, hours => null, per => 'min5', actions_per => 2, vis => 'private', colour => 'cervena', emblem_id => 'lev', minutes => 45);`));
+        assert.deepEqual([namedFast.hours, namedFast.minutes, namedFast.period], [null, 45, 'min5']);
+        ok(as(R1, `select conquest_leave('${namedFast.id}');`));
+        // Databáze nepustí nesouhlasnou délku ani přímo
+        for (const values of [`'min5', 6, null`, `'min5', null, 25`, `'day', null, 20`, `'hour', 6, 20`, `'day', null, null`]) {
+            const r = psql(dbName, `insert into conquest_games (map, max_players, period, duration_hours, duration_minutes, actions, visibility, code) values ('evropa', 2, ${values}, 1, 'public', 'ZZZZZ2')`);
+            assert.notEqual(r.status, 0, values);
+            assert.match(r.stderr, /conquest_games_values/, values);
+        }
+        assert.equal(lobby(R1).open.find(g => g.preset === 'evropa-3d').minutes, 72 * 60);
+        // Oprávnění: jen Chci další kolo a nové založení; stará podoba založení zmizela; pomocné funkce a značky nikdo zvenčí
+        const can = (role, fn) => q(`select has_function_privilege('${role}', 'public.${fn}', 'execute')`);
+        for (const fn of ['conquest_round_ready(uuid, boolean)', 'conquest_create(text, integer, integer, text, integer, text, text, text, integer)']) {
+            assert.deepEqual([can('authenticated', fn), can('anon', fn), can('public', fn)], ['t', 'f', 'f'], fn);
+        }
+        for (const fn of ['conquest_minutes(public.conquest_games)', 'conquest_period_start(public.conquest_games, integer)', 'conquest_period_end(public.conquest_games, integer)',
+            'conquest_round_countdown()', 'conquest_round_player_done(public.conquest_games, uuid)', 'conquest_round_done(public.conquest_games)',
+            'conquest_round_json(public.conquest_games, uuid)', 'conquest_presets()', 'conquest_period(public.conquest_games)']) {
+            assert.deepEqual([can('authenticated', fn), can('anon', fn), can('public', fn)], ['f', 'f', 'f'], fn);
+        }
+        assert.equal(q(`select to_regprocedure('public.conquest_create(text, integer, integer, text, integer, text, text, text)') is null`), 't', 'stará podoba se osmi parametry');
+        assert.equal(q(`select relrowsecurity from pg_class where oid = 'public.conquest_round_marks'::regclass`), 't');
+        denied(as(R1, 'select * from conquest_round_marks;'), /permission denied/, 'značky jen přes funkce');
+        denied(as(R1, `select conquest_round_done(g) from conquest_games g limit 1;`), /permission denied/);
+        denied(as(null, `select conquest_round_ready('${id(999)}', true);`, 'anon'), null, 'anon nic');
+        denied(roundReady(R1, id(999)), /nehraješ/);
+    });
+
+    await t.test('další kolo (blok 26): kolo je hotové, až nikdo nemá tah a neběží bitva; všichni chtějí → odpočet 10 s → nové kolo s novými tahy; konec hry se nemění', () => {
+        clock = '2026-12-20T11:00:00Z';
+        fast = json(createFast(R1, { actions: 2 }));
+        denied(roundReady(R1, fast.id), /Hra ještě nezačala\./);
+        ok(join(R2, { code: fast.code, colour: 'modra' }));
+        let st = json(state(R1, fast.id));
+        assert.equal(st.status, 'running');
+        assert.deepEqual([at(st.started_at), at(st.ends_at), st.minutes, st.hours], ['2026-12-20T11:00:00.000Z', '2026-12-20T11:20:00.000Z', 20, null]);
+        assert.deepEqual(roundView(st.round), { period: 0, started_at: '2026-12-20T11:00:00.000Z', ends_at: '2026-12-20T11:05:00.000Z', done: false, ready: [],
+            next_at: null, can_ready: false, last: false });
+        assert.equal(at(st.budget.period_ends_at), '2026-12-20T11:05:00.000Z');
+        clearMap(fast.id);
+        place(fast.id, 'Q213', R1, { home: true });   // Česko
+        place(fast.id, 'Q36', R2, { home: true });    // Polsko
+        denied(roundReady(R1, fast.id), /Další kolo jde chtít, až všichni dohrají své tahy\./);
+        // R1 dohraje, R2 ještě ne
+        json(move(R1, fast.id, 'Q214', 'attack', true));
+        st = json(move(R1, fast.id, 'Q40', 'attack', false));
+        assert.deepEqual([st.budget.left, st.round.done, st.round.can_ready], [0, false, false]);
+        denied(roundReady(R1, fast.id), /Další kolo jde chtít/);
+        // R2: opevnění a obléhání (rezervovaný tah) – tahy nemá nikdo, ale bitva běží
+        json(move(R2, fast.id, 'Q36', 'fortify', true));
+        const s = json(begin(R2, fast.id, 'Q183', { source: 'Q36' }));
+        assert.equal(s.budget.left, 0);
+        assert.equal(json(state(R1, fast.id)).round.done, false, 'otevřená bitva');
+        denied(roundReady(R2, fast.id), /Další kolo jde chtít/);
+        clock = '2026-12-20T11:00:05Z';
+        assert.equal(json(answer(R2, s.id, 0)).status, 'resolved');
+        st = json(state(R1, fast.id));
+        assert.deepEqual([st.round.done, st.round.can_ready, st.round.ready, st.round.next_at], [true, true, [], null]);
+        // R1 chce další kolo (opakovaně beze změny), pak už ne a zase chce; R2 to vidí v pulsu, verze se mění
+        const v0 = pulse(R2, fast.id).version;
+        const first = json(roundReady(R1, fast.id));
+        assert.deepEqual([first.ready, first.next_at, first.can_ready, first.done], [[R1], null, false, true]);
+        assert.deepEqual(json(roundReady(R1, fast.id)).ready, [R1], 'podruhé beze změny');
+        const seen = pulse(R2, fast.id);
+        assert.deepEqual([seen.round.ready, seen.round.can_ready], [[R1], true]);
+        assert.notEqual(seen.version, v0, 'značka verze se změnila');
+        assert.deepEqual(json(roundReady(R1, fast.id, false)).ready, []);
+        assert.deepEqual(json(roundReady(R1, fast.id, false)).ready, [], 'přestat podruhé beze změny');
+        assert.deepEqual(json(roundReady(R1, fast.id)).ready, [R1]);
+        // Poslední chce i R2: za 10 s začne další kolo; do té doby běží kolo 0 a tahy nikdo nemá
+        clock = '2026-12-20T11:00:20Z';
+        const go = roundView(json(roundReady(R2, fast.id)));
+        assert.deepEqual(go, { period: 0, started_at: '2026-12-20T11:00:00.000Z', ends_at: '2026-12-20T11:00:30.000Z', done: true, ready: [R1, R2],
+            next_at: '2026-12-20T11:00:30.000Z', can_ready: false, last: false });
+        denied(roundReady(R1, fast.id, false), /Odpočet už běží, další kolo začne za chvíli\./, 'odpočet nejde zrušit');
+        assert.equal(at(json(roundReady(R1, fast.id)).next_at), '2026-12-20T11:00:30.000Z', 'znovu chtít nic nezmění');
+        assert.deepEqual(roundView(pulse(R1, fast.id).round).next_at, '2026-12-20T11:00:30.000Z');
+        clock = '2026-12-20T11:00:29Z';
+        st = json(state(R1, fast.id));
+        assert.deepEqual([st.budget.period, st.budget.left, at(st.budget.period_ends_at)], [0, 0, '2026-12-20T11:00:30.000Z']);
+        denied(move(R1, fast.id, 'Q213', 'fortify', true), /Tahy na tohle období už nemáš/);
+        const vCountdown = pulse(R1, fast.id).version;
+        // Nové kolo: znovu 2 tahy, nikdo zatím nechce další kolo, konec kola za 5 minut od předčasného začátku, konec hry stejný
+        clock = '2026-12-20T11:00:31Z';
+        st = json(state(R1, fast.id));
+        assert.deepEqual([st.budget.period, st.budget.used, st.budget.left, at(st.budget.period_ends_at)], [1, 0, 2, '2026-12-20T11:05:30.000Z']);
+        assert.deepEqual(roundView(st.round), { period: 1, started_at: '2026-12-20T11:00:30.000Z', ends_at: '2026-12-20T11:05:30.000Z', done: false, ready: [],
+            next_at: null, can_ready: false, last: false });
+        assert.equal(at(st.ends_at), '2026-12-20T11:20:00.000Z');
+        assert.notEqual(pulse(R1, fast.id).version, vCountdown, 'nové kolo změní značku verze');
+        assert.equal(json(state(R2, fast.id)).budget.left, 2);
+        // Další kola jdou po 5 minutách od předčasného začátku
+        clock = '2026-12-20T11:05:29Z';
+        assert.equal(json(state(R1, fast.id)).budget.period, 1);
+        clock = '2026-12-20T11:05:31Z';
+        st = json(state(R1, fast.id));
+        assert.deepEqual([st.budget.period, at(st.round.started_at), at(st.round.ends_at)], [2, '2026-12-20T11:05:30.000Z', '2026-12-20T11:10:30.000Z']);
+    });
+
+    await t.test('další kolo (blok 26): kořist, ztracený hrad, Návrat do hry a Pevnost v předčasném kole; hráč bez území kolo dohrál; upozornění o dalším kole', () => {
+        // Kolo 2 (od 11:05:30): R1 má domov Rakousko s Pevností (+1 tah), R2 jen domov Slovinsko
+        clearMap(fast.id);
+        place(fast.id, 'Q40', R1, { home: true, level: 3 });
+        place(fast.id, 'Q215', R2, { home: true });
+        q(`update conquest_players set lost_period = null where game_id = '${fast.id}'`);
+        let st = json(state(R1, fast.id));
+        assert.deepEqual([st.budget.period, st.budget.fortress, st.budget.total], [2, 1, 3]);
+        const taken = json(move(R1, fast.id, 'Q215', 'attack', true, 'Q40'));
+        assert.deepEqual([taken.move.r, taken.move.h, taken.move.n], ['capture', true, 2]);
+        // R2 nemá území (čeká na Návrat do hry): kolo dohrál, i když mu tahy zbývají
+        const lost = json(state(R2, fast.id));
+        assert.deepEqual([lost.territories.filter(item => item.o === R2).length, lost.budget.left, lost.round.done], [0, 2, false]);
+        json(move(R1, fast.id, 'Q213', 'attack', false, 'Q40'));
+        st = json(move(R1, fast.id, 'Q214', 'attack', false, 'Q40'));
+        assert.deepEqual([st.budget.left, st.round.done, st.round.can_ready], [0, true, true]);
+        assert.equal(json(state(R2, fast.id)).round.can_ready, true, 'i hráč bez území může chtít další kolo');
+        // Upozornění pro R2 (rychlá hra): o dalším kole; jen útoky z posledních 30 minut
+        const pushRows = () => { const text = q(`select title || '|' || body from conquest_push_items() where user_id = '${R2}'`); return text ? text.split('\n').map(line => line.split('|')) : []; };
+        q(`update conquest_moves set at = now() - interval '20 minutes' where game_id = '${fast.id}' and kind = 'attack'`);
+        assert.deepEqual(pushRows(), [['Dobývání: padl tvůj domovský hrad', 'Útočník: Rychlík. V dalším kole dostaneš nové domovské území, ale o tah méně.']]);
+        q(`update conquest_moves set at = now() - interval '40 minutes' where game_id = '${fast.id}' and kind = 'attack'`);
+        assert.deepEqual(pushRows(), [], 'v rychlé hře jen čerstvé útoky');
+        // Oba chtějí další kolo v 11:06:00: kolo 3 začne v 11:06:10
+        clock = '2026-12-20T11:06:00Z';
+        ok(roundReady(R2, fast.id));
+        assert.equal(at(json(roundReady(R1, fast.id)).next_at), '2026-12-20T11:06:10.000Z');
+        assert.equal(json(state(R2, fast.id)).territories.filter(item => item.o === R2).length, 0, 'během odpočtu ještě bez Návratu do hry');
+        // Kolo 3: R1 kořist a Pevnost (2 + 1 + 1), R2 Návrat do hry a o tah méně (2 − 1)
+        clock = '2026-12-20T11:06:11Z';
+        const back = json(state(R2, fast.id));
+        assert.equal(back.budget.period, 3);
+        assert.deepEqual(back.territories.filter(item => item.o === R2).map(item => item.h), [true], 'Návrat do hry');
+        assert.ok(back.moves.some(m => m.r === 'respawn' && m.u === R2 && m.n === 3));
+        assert.deepEqual([back.budget.penalty, back.budget.total], [1, 1]);
+        const winner = json(state(R1, fast.id)).budget;
+        assert.deepEqual([winner.period, winner.loot, winner.fortress, winner.total, winner.left], [3, 1, 1, 4, 4]);
+        // Opakované spuštění schema.sql s rozehranou rychlou hrou a předčasnými koly nic nerozbije
+        ok(psql(dbName, '', schema));
+        assert.deepEqual([json(state(R1, fast.id)).budget.period, json(state(R1, fast.id)).budget.left, json(state(R1, fast.id)).minutes], [3, 4, 20]);
+        // Kdo nemá co hrát (celá mapa jeho a všechno opevněné naplno), kolo dohrál, i když mu tahy zbývají
+        const playerDone = (uid) => q(`set mudrlant.test_now = '${clock}'; select conquest_round_player_done(g, '${uid}') from conquest_games g where g.id = '${fast.id}'`);
+        assert.equal(playerDone(R1), 'f', 'R1 má tahy a kam útočit');
+        q(`update conquest_territories set owner = '${R1}', level = case when home then 3 else 2 end where game_id = '${fast.id}'`);
+        assert.deepEqual([playerDone(R1), playerDone(R2), json(state(R1, fast.id)).round.done], ['t', 't', true]);
+        assert.ok(json(state(R1, fast.id)).budget.left > 0);
+        // Poslední kolo (kola 3, 4 a 5 od 11:06:10, kolo 5 končí s hrou v 11:20): další kolo chtít nejde
+        clock = '2026-12-20T11:17:00Z';
+        st = json(state(R1, fast.id));
+        assert.deepEqual([st.round.period, st.round.last, at(st.round.ends_at), at(st.budget.period_ends_at)], [5, true, '2026-12-20T11:20:00.000Z', '2026-12-20T11:20:00.000Z']);
+        q(`insert into conquest_moves (game_id, user_id, period, kind, territory, success, result) select '${fast.id}', u, 5, 'fortify', 'Q40', false, 'fail'
+            from unnest(array['${R1}', '${R2}']::uuid[]) u, generate_series(1, 6)`);
+        st = json(state(R1, fast.id));
+        assert.deepEqual([st.round.done, st.round.can_ready, st.round.last], [true, false, true]);
+        denied(roundReady(R1, fast.id), /Tohle kolo je poslední\. Hra skončí, až vyprší čas\./);
+        // Konec hry v ends_at jako dosud: kolo už není
+        clock = '2026-12-20T11:20:01Z';
+        const final = json(state(R1, fast.id));
+        assert.deepEqual([final.status, final.round], ['finished', null]);
+        assert.equal(pulse(R2, fast.id).round, null);
+        denied(roundReady(R1, fast.id), /Hra už skončila\./);
+        assert.equal(json(as(R1, `select conquest_claim('${fast.id}');`)).eligible, false, 'rychlá hra dvou hráčů odměnu nedává');
+    });
+
+    await t.test('rychlé hry (blok 26): pozvánka „hra na 20 minut“; Rychlá hra Blesk začne plná a hned se doplní', () => {
+        clock = '2026-12-20T12:00:00Z';
+        befriend(R1, R3);
+        const lobbyGame = json(createFast(R1, { players: 3 }));
+        ok(invite(R1, lobbyGame.id, [R3]));
+        assert.deepEqual(q(`select body from conquest_invite_push_items() where user_id = '${R3}'`), 'Mapa Evropa · hra na 20 minut. Vyber si barvu a přidej se.');
+        assert.equal(invitesOf(R3)[0].minutes, 20);
+        ok(as(R1, `select conquest_leave('${lobbyGame.id}');`));
+        const blesk = lobby(R1).open.find(g => g.preset === 'blesk-20m');
+        [R1, R2, R3, DEV2].forEach((uid, i) => ok(join(uid, { game: blesk.id, colour: ['cervena', 'modra', 'zelena', 'zluta'][i], emblem: 'sova' })));
+        const started = json(state(R1, blesk.id));
+        assert.deepEqual([started.status, started.minutes, started.period, started.budget.left, at(started.round.ends_at)], ['running', 20, 'min5', 5, '2026-12-20T12:05:00.000Z']);
+        assert.deepEqual([at(started.started_at), at(started.ends_at)], ['2026-12-20T12:00:00.000Z', '2026-12-20T12:20:00.000Z']);
+        const fresh = lobby(R1).open.find(g => g.preset === 'blesk-20m');
+        assert.ok(fresh && fresh.id !== blesk.id, 'nová Rychlá hra Blesk');
+        q(`delete from conquest_games where id = '${blesk.id}'`);
+    });
+
+    await t.test('další kolo (blok 26): boti kolo dohrají, jakmile lidé dohráli, a chtějí další kolo sami; vývojářské další období posune i předčasná kola', () => {
+        clock = '2026-12-21T08:00:00Z';
+        q(`insert into dev_admins (user_id) values ('${DEV2}') on conflict do nothing`);
+        const game = json(createFast(DEV2, { players: 4, actions: 2, colour: 'zluta' }));
+        const summary = json(as(DEV2, `select dev_conquest_add_bots('${game.id}', 3);`));
+        assert.equal(summary.status, 'running');
+        const bots = summary.players.filter(p => !p.me).map(p => p.id);
+        const botMoves = () => Number(q(`select count(*) from conquest_moves where game_id = '${game.id}' and user_id <> '${DEV2}' and kind in ('attack', 'fortify')`));
+        let st = json(state(DEV2, game.id));
+        assert.deepEqual([botMoves(), st.round.done, st.round.ready.length], [0, false, 3], 'boti zatím nehrají, ale další kolo chtějí');
+        assert.deepEqual([...st.round.ready].sort(), [...bots].sort());
+        const home = st.territories.find(item => item.o === DEV2 && item.h).t;
+        json(move(DEV2, game.id, home, 'fortify', false));
+        assert.equal(botMoves(), 0, 'dokud mám tah, boti hrají podle času');
+        st = json(move(DEV2, game.id, home, 'fortify', false));
+        assert.ok(botMoves() > 0, 'po mém posledním tahu boti hned dohráli');
+        const idle = q(`set mudrlant.test_now = '${clock}'; select count(*) from conquest_players p where p.game_id = '${game.id}' and p.user_id <> '${DEV2}'
+            and exists (select 1 from conquest_territories t where t.game_id = p.game_id and t.owner = p.user_id) and (conquest_budget(p.game_id, p.user_id) ->> 'left')::integer > 0`);
+        assert.equal(idle, '0', 'botům s územím nezbyl žádný tah');
+        assert.deepEqual([st.round.done, st.round.can_ready], [true, true]);
+        // Jsem jediný člověk: moje Chci další kolo hned spustí odpočet
+        clock = '2026-12-21T08:00:30Z';
+        const go = json(roundReady(DEV2, game.id));
+        assert.deepEqual([go.ready.length, at(go.next_at)], [4, '2026-12-21T08:00:40.000Z']);
+        // Vývojářské další období během odpočtu: hra je o kolo dál (kolo 1) a o 5 minut kratší, odpočet skončil
+        const endsBefore = Date.parse(json(state(DEV2, game.id)).ends_at);
+        st = json(as(DEV2, `select dev_conquest_next_period('${game.id}');`));
+        assert.deepEqual([st.budget.period, st.round.period, st.round.next_at, endsBefore - Date.parse(st.ends_at)], [1, 1, null, 5 * 60e3]);
+        st = json(as(DEV2, `select dev_conquest_next_period('${game.id}');`));
+        assert.deepEqual([st.budget.period, st.budget.used, st.round.period], [2, 0, 2]);
+        ok(as(DEV2, 'select dev_tournament_clear_bots();'));
+        assert.equal(q(`select count(*) from conquest_games where id = '${game.id}'`), '0');
     });
 });
 // Osmý hráč scénáře (Rychlá hra Česko)

@@ -67,7 +67,7 @@ const backend = async (context, db) => {
         const players = (g) => g.players.map(p => ({ ...db.profiles[p.user], seat: p.seat, flag_color: p.flag_color, emblem: p.emblem, ready: p.ready, score: p.score || 0, score_at: p.score_at || null, place: p.place || null, me: p.user === me.id }));
         // Pozvánky (blok 24): db.invites = [{ game, user, by, declined }]; čekající pozvané vidí jen hráči hry v lobby
         const waiting = (g) => (db.invites || []).filter(i => i.game === g.id && !i.declined && !g.players.some(p => p.user === i.user));
-        const summary = (g) => ({ id: g.id, map: g.map, max_players: g.max_players, hours: g.hours, period: g.period, actions: g.actions, visibility: g.visibility, preset: g.preset, status: g.status,
+        const summary = (g) => ({ id: g.id, map: g.map, max_players: g.max_players, hours: g.hours, ...(g.minutes ? { minutes: g.minutes } : {}), period: g.period, actions: g.actions, visibility: g.visibility, preset: g.preset, status: g.status,
             created_at: g.created_at, started_at: g.started_at || null, ends_at: g.ends_at || null, mine: g.players.some(p => p.user === me.id), creator: g.creator === me.id, code: g.code, players: players(g),
             invited: g.status === 'lobby' && g.players.some(p => p.user === me.id) ? waiting(g).map(i => ({ ...db.profiles[i.user], by_me: i.by === me.id })) : null });
         const mine = (g) => g.players.find(p => p.user === me.id);
@@ -103,7 +103,9 @@ const backend = async (context, db) => {
                 correct_choice: mineP.answered || s.status === 'resolved' ? s.correct : null, result: mineP.result || null, move: mineP.move || null } : {}) };
         };
         const battles = (g) => (db.battles && g.status !== 'lobby' ? { sieges: (g.sieges || []).filter(s => s.status === 'open').map(s => siegeJson(g, s)), version: `${g.moves.length}.${g.siegeRev || 0}.${g.status}` } : {});
-        const state = (g) => ({ ...summary(g), now: NOW, ...(g.status === 'lobby' ? {} : { territories: g.territories, budget: g.status === 'running' ? budget(g) : null, moves: g.moves.slice(-150), claimed: Boolean(mine(g) && mine(g).claimed),
+        // Další kolo (blok 26), jen s db.rounds: stav hry a puls mají round (g.round řídí test); db.now = čas serveru (jinak NOW)
+        const rounds = (g) => (db.rounds && g.round ? { round: g.round } : {});
+        const state = (g) => ({ ...summary(g), now: db.now || NOW, ...rounds(g), ...(g.status === 'lobby' ? {} : { territories: g.territories, budget: g.status === 'running' ? budget(g) : null, moves: g.moves.slice(-150), claimed: Boolean(mine(g) && mine(g).claimed),
             history: g.status === 'finished' ? g.moves.filter(m => ['home', 'respawn', 'capture'].includes(m.r)) : null, ...battles(g) }) });
         // Vyhodnocení bitvy: vítěz = správně s nejkratším časem (dobude, nebo pobourá), ostatní fail / outrun
         const resolveSiege = (g, s) => {
@@ -207,9 +209,19 @@ const backend = async (context, db) => {
         if (name === 'conquest_leave') { const g = find(body.game); g.players = g.players.filter(p => p.user !== me.id); return route.fulfill({ status: 204, body: '' }); }
         if (name === 'conquest_state') return json(state(find(body.game)));
         if (name === 'conquest_pulse') {
-            if (!db.battles) return fail('Not found', 404);
+            if (!db.battles && !db.rounds) return fail('Not found', 404);
             const g = find(body.game);
-            return json({ id: g.id, now: NOW, status: g.status, ends_at: g.ends_at, ...battles(g), results: (g.sieges || []).filter(s => s.status === 'resolved' && s.participants.some(p => p.user === me.id)).map(s => siegeJson(g, s)) });
+            return json({ id: g.id, now: db.now || NOW, status: g.status, ends_at: g.ends_at, ...battles(g), ...rounds(g), results: (g.sieges || []).filter(s => s.status === 'resolved' && s.participants.some(p => p.user === me.id)).map(s => siegeJson(g, s)) });
+        }
+        if (name === 'conquest_round_ready') {
+            if (!db.rounds) return fail('Not found', 404);
+            const g = find(body.game);
+            if (!g.round.done) return fail('Další kolo jde chtít, až všichni dohrají své tahy.');
+            if (!g.round.next_at) {
+                g.round.ready = body.ready === false ? g.round.ready.filter(id => id !== me.id) : [...new Set([...g.round.ready, me.id])];
+                if (g.players.every(p => g.round.ready.includes(p.user))) g.round.next_at = new Date(Date.parse(db.now || NOW) + 10000).toISOString();
+            }
+            return json(g.round);
         }
         if (name === 'conquest_siege_begin') {
             const g = find(body.game);
@@ -352,7 +364,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         await tab.click('[data-cq="help"]');
         await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Jak se hraje Dobývání');
         // Čtyři záložky (Základy, Útok, Regiony, Konec), každá se vejde; tlačítko Dál vede na další
-        for (const [tabId, pattern] of [['zaklady', /Období:[\s\S]*Tahy:/], ['utok', /Správně:[\s\S]*Opevnění:/], ['regiony', /Region: Skupina sousedních území[\s\S]*Britské ostrovy/], ['konec', /Body:[\s\S]*Odměny:/]]) {
+        for (const [tabId, pattern] of [['zaklady', /Kola:[\s\S]*Chci další kolo[\s\S]*Tahy:/], ['utok', /Správně:[\s\S]*Opevnění:/], ['regiony', /Region: Skupina sousedních území[\s\S]*Britské ostrovy/], ['konec', /Body:[\s\S]*Odměny:/]]) {
             await tab.waitForSelector(`[data-cq-help="${tabId}"]`);
             assert.match(await tab.textContent('[data-cq-help]'), pattern, tabId);
             const helpFit = await tab.evaluate(() => { const box = document.querySelector('#dialog-overlay > div'); const rect = box.getBoundingClientRect(); return { over: box.scrollHeight - box.clientHeight, top: rect.top, bottom: rect.bottom }; });
@@ -370,11 +382,16 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         assert.match((await tab.textContent(`[data-cq-game="${uuid(2)}"]`)).replace(/\s+/g, ' '), /Česko\s*Rychlá hra\s*12 h · 3 tahy za hodinu/);
         await tab.waitForFunction(() => document.querySelectorAll('[data-cq-game] .cq-thumb path').length > 10, null, { timeout: 15000 });
         await shot(tab, 'lobby-360');
-        // Založit hru: Česko, 12 h, hodina, soukromá; barva a znak
+        // Založit hru: Česko, tempo Blesk ve shrnutí, pak Vlastní: kolo 1 h, hra 12 h, soukromá; barva a znak
         await tab.click('[role="tab"][data-cq-tab="create"]');
         await tab.click('[data-cq-set="map"][data-value="cesko"]');
-        await tab.click('[data-cq-set="hours"][data-value="12"]');
+        await tab.click('[data-cq-tempo="blesk"]');
+        assert.match((await tab.textContent('[data-cq-form]')).replace(/\s+/g, ' '), /Česko\s*Blesk\s*Hra 20 min · 4 kola po 5 min\s*5 tahů za kolo/);
+        await shot(tab, 'zalozit-tempo-360');
+        await tab.click('[data-cq="tempo-custom"]');
         await tab.click('[data-cq-set="period"][data-value="hour"]');
+        await tab.click('[data-cq-set="minutes"][data-value="720"]');
+        assert.match(await tab.textContent('[data-cq-summary]'), /Hra 12 h · 12 kol po 1 h/);
         await tab.click('[data-cq-set="visibility"][data-value="private"]');
         for (let i = 0; i < 6; i++) await tab.click('[data-cq-step="players"][data-delta="1"]:not([disabled])').catch(() => {});
         assert.equal(await tab.textContent('[data-cq-value="players"]'), '6', 'Česko: nejvýš 6 hráčů');
@@ -815,6 +832,59 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         assert.deepEqual(slow.log.errors, []);
         assert.deepEqual(slow.log.csp, []);
         await slow.context.close();
+    });
+
+    // Další kolo (blok 26): rychlá hra (kola po 5 min); když všichni dohrají, okno s fajfkami, Chci další kolo a odpočet 10 s
+    await t.test('další kolo na 360×640: Blesk s koly po 5 min, okno Kolo dohráno s fajfkami, zavřít a otevřít štítkem, Chci další kolo, odpočet, nové kolo', async () => {
+        const db = running();
+        db.rounds = true;
+        const g = db.games[0];
+        Object.assign(g, { period: 'min5', minutes: 20, hours: 0, ends_at: '2026-11-11T10:20:00Z' });
+        g.round = { period: 0, started_at: NOW, ends_at: '2026-11-11T10:03:00Z', done: false, ready: [], next_at: null, can_ready: false };
+        const { context, tab, log } = await start(db);
+        await tab.waitForFunction(() => /Tahy 5\/5/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
+        await tab.click('#conquest-card [data-action="conquest-play"]');
+        await tab.waitForSelector('#conquest-game [data-cq-map] svg');
+        assert.equal(await tab.textContent('[data-cq-next]'), 'Další kolo za 3:00', 'rychlá kola po sekundách');
+        assert.ok(await tab.locator('[data-cq-round]').evaluate(el => el.classList.contains('hidden')), 'dokud všichni nedohrají, okno není');
+        // Všichni dohráli: okno s hráči a prázdnými políčky
+        Object.assign(g.round, { done: true, can_ready: true });
+        await tab.waitForSelector('[data-cq-round] [data-cq="round-ready"]', { timeout: 10000 });
+        assert.match((await tab.textContent('[data-cq-round]')).replace(/\s+/g, ' '), /Kolo 1 dohráno[\s\S]*Až budou fajfky u všech, další kolo začne za 10 s\.[\s\S]*Ty[\s\S]*Petr Svoboda[\s\S]*Chci další kolo[\s\S]*Jinak začne samo za 3:00/);
+        assert.equal(await tab.locator('[data-cq-round] .cq-tick-on').count(), 0);
+        // Zavřít: štítek Další kolo? na mapě, klepnutím zpět
+        await tab.click('[data-cq="round-close"]');
+        await tab.waitForSelector('[data-cq-chips] [data-cq="round-open"]');
+        assert.match(await tab.textContent('[data-cq="round-open"]'), /Další kolo\?\s*0\/2/);
+        await tab.click('[data-cq-chips] [data-cq="round-open"]');
+        await tab.waitForSelector('[data-cq-round] [data-cq="round-ready"]');
+        // Petr chce další kolo: u něj se objeví fajfka
+        g.round.ready = ['u-2'];
+        await tab.waitForSelector('[data-cq-round-player="u-2"] .cq-tick-on', { timeout: 10000 });
+        assert.equal(await tab.locator('[data-cq-round-player="u-1"] .cq-tick-on').count(), 0);
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+        await tab.waitForTimeout(400);
+        await shot(tab, 'dalsi-kolo-360');
+        // Chci další kolo: všichni chtějí, server spustí odpočet 10 s
+        await tab.click('[data-cq="round-ready"]');
+        await tab.waitForSelector('[data-cq-round] [data-cq-count]');
+        assert.deepEqual(db.calls.filter(call => call.name === 'conquest_round_ready').pop().body, { game: g.id, ready: true });
+        assert.equal(await tab.textContent('[data-cq-count]'), '10');
+        assert.match(await tab.textContent('[data-cq-round]'), /Další kolo začíná/);
+        assert.equal(await tab.locator('[data-cq-round] .cq-tick-on').count(), 2);
+        await tab.waitForTimeout(450);
+        await shot(tab, 'dalsi-kolo-odpocet-360');
+        // Po odpočtu nové kolo: okno zmizí, toast Začalo 2. kolo.
+        g.periodNo = 1;
+        g.round = { period: 1, started_at: '2026-11-11T10:00:10Z', ends_at: '2026-11-11T10:05:10Z', done: false, ready: [], next_at: null, can_ready: false };
+        db.now = '2026-11-11T10:00:11Z';
+        await tab.clock.setFixedTime(new Date(db.now));
+        await tab.waitForFunction(() => document.querySelector('[data-cq-round]').classList.contains('hidden'), null, { timeout: 10000 });
+        await tab.waitForFunction(() => /Začalo 2\. kolo\./.test(document.body.textContent), null, { timeout: 10000 });
+        assert.match(await tab.textContent('[data-cq-next]'), /^Další kolo za 4:59$/);
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
     });
 
     await t.test('Česko na 360×640: mapa krajů, hodinové tahy, otázka o kraji', async () => {
