@@ -210,6 +210,17 @@ Hra více hráčů o území na mapě. Hráči si hry sami zakládají a přidá
   - Po odpovědi čekání na ostatní (kdo odpověděl, kdo přemýšlí s odpočtem); jde zavřít, výsledek přijde s pulsem. U bitvy více
     hráčů pak list „Výsledek bitvy“ s pořadím a časy. Majitel obléhané území neopevní.
   - Bez bloku 25 v databázi útočí aplikace postaru (okamžitá otázka přes `conquest_move`).
+- **Rychlé hry a další kolo** (schéma 26, blok 26; server a `social.js`):
+  - kolo (období) i 10 nebo 5 minut (`period` `'min10'`, `'min5'`) a délka hry 20, 30, 45, 60, 90 nebo 120 minut (`duration_minutes`,
+    `conquest_create(…, minutes)`); hra musí mít aspoň 3 kola („Hra musí mít aspoň 3 kola. Zvol delší hru, nebo kratší kolo.“);
+  - každý souhrn hry má `minutes` (délka v minutách i u her na hodiny a dny), `hours` je u rychlé hry null; Rychlá hra Blesk
+    (`blesk-20m`: Evropa, 4 hráči, 20 minut, kolo 5 minut, 5 tahů);
+  - kolo je hotové (`round.done`), když nikdo nemá tah (nebo nemá území, nebo nemá co hrát) a neběží žádná bitva; pak každý může
+    „Chci další kolo“ (`conquest_round_ready` / `Social.conquestRoundReady`); když chtějí všichni, za 10 s začne další kolo
+    (`round.next_at`), další kola jdou od něj po délce období a konec hry se nemění (v posledním kole další kolo chtít nejde);
+  - boti se počítají jako hotoví a připravení: své tahy odehrají hned, jakmile lidé dohráli;
+  - `conquest_state` a `conquest_pulse` vrací `round` = `{ period, started_at, ends_at, done, ready, next_at, can_ready, last }`;
+    konec kola je v `budget.period_ends_at` i `round.ends_at` (po předčasném kole už neplatí začátek hry + N × délka období).
 - **Pevnost na domovském hradu**: +1 tah za období (`conquest_budget`: fortress). Domovský hrad se s opevněním mění (č. 275–277)
   a střechy a praporky všech staveb mají barvu majitele (`scripts/building-art.py`).
 - **Otázky o území**: záhlaví („Útok na Francii“, „Opevnění Francie“, hvězdy podle opevnění) území prozradí, samotná otázka ho nejmenuje.

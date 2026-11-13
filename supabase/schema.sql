@@ -3900,7 +3900,8 @@ grant execute on function public.boss_submit(date, integer, integer, boolean), p
 
 -- ===== 21: Dobývání — ZAČÁTEK BLOKU =====
 -- Hry o mapu (conquest.js, conquest-ui.js): kdokoli přihlášený založí hru s mapou (Evropa, Afrika, Asie, Amerika, Česko), délkou
--- (6 h až 7 dní), počtem hráčů (2–8), počtem tahů za období (1–10, období = den nebo hodina od začátku hry) a viditelností (veřejná
+-- (6 h až 7 dní, rychlá hra 20–120 minut), počtem hráčů (2–8), počtem tahů za období (1–10, období = den, hodina, 10 nebo 5 minut od začátku
+-- hry; když všichni dohrají a chtějí další kolo, začne další období dřív, blok 26) a viditelností (veřejná
 -- v lobby, nebo soukromá jen kódem či pozvánkou od přítele, blok 24). Hráč si při založení i přidání vybere barvu (v jedné hře každou jen jeden hráč) a znak.
 -- Hra začne sama, když je plná, nebo když jsou v ní aspoň 2 hráči a všichni mají „Chci hrát“: každý dostane domovské území co nejdál
 -- od ostatních, na neutrálních územích se rozmístí poklady. Tah = otázka (správnost posílá aplikace, hrají spolu lidé, kteří se znají
@@ -3952,11 +3953,24 @@ create table if not exists public.conquest_games (
     started_at timestamptz,
     ends_at timestamptz
 );
+-- Rychlé hry a další kolo (blok 26; sloupce jsou tady, protože je čtou funkce bloků 21–25 a kontrola níž):
+-- duration_minutes = délka rychlé hry (období 'min10' nebo 'min5'; duration_hours je pak null, u období den a hodina naopak);
+-- round_no a round_at = kolo (období) round_no začalo v round_at (null = started_at), další jdou po délce období; round_at v budoucnu =
+-- odpočet do předčasného začátku kola, do té doby běží kolo round_no − 1, které začalo v round_prev_at; round_rev = počítadlo změn
+-- „Chci další kolo“ (značka verze conquest_version)
+alter table public.conquest_games add column if not exists duration_minutes integer;
+alter table public.conquest_games alter column duration_hours drop not null;
+alter table public.conquest_games add column if not exists round_no integer not null default 0;
+alter table public.conquest_games add column if not exists round_at timestamptz;
+alter table public.conquest_games add column if not exists round_prev_at timestamptz;
+alter table public.conquest_games add column if not exists round_rev integer not null default 0;
 alter table public.conquest_games drop constraint if exists conquest_games_values;
 alter table public.conquest_games add constraint conquest_games_values check (
-    max_players between 2 and 8 and duration_hours in (6, 12, 24, 48, 72, 120, 168) and period in ('day', 'hour') and actions between 1 and 10
+    max_players between 2 and 8 and actions between 1 and 10
+    and ((period in ('day', 'hour') and duration_minutes is null and coalesce(duration_hours in (6, 12, 24, 48, 72, 120, 168), false))
+        or (period in ('min10', 'min5') and duration_hours is null and coalesce(duration_minutes in (20, 30, 45, 60, 90, 120), false)))
     and visibility in ('public', 'private') and status in ('lobby', 'running', 'finished') and code ~ '^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$'
-    and (status = 'lobby' or (started_at is not null and ends_at is not null)));
+    and (status = 'lobby' or (started_at is not null and ends_at is not null)) and round_no >= 0 and round_rev >= 0);
 create unique index if not exists conquest_games_code_key on public.conquest_games (code);
 create index if not exists conquest_games_status_idx on public.conquest_games (status, visibility, created_at desc);
 create index if not exists conquest_games_preset_idx on public.conquest_games (preset, status);
@@ -5001,11 +5015,14 @@ language sql immutable as $$ select array['cervena', 'oranzova', 'zluta', 'zelen
 create or replace function public.conquest_emblems() returns text[]
 language sql immutable as $$ select array['lev', 'orel', 'sova', 'drak', 'koruna', 'mec', 'kotva', 'strom', 'hvezda', 'slunce', 'mesic', 'blesk',
     'vez', 'klic', 'kladivo', 'lod', 'jelen', 'medved', 'vlk', 'lilie', 'stit', 'srdce', 'plamen', 'kosatka']::text[] $$;
--- Předvolby Rychlé hry: server drží pro každou jednu otevřenou veřejnou hru
-create or replace function public.conquest_presets() returns table (preset text, map text, max_players integer, hours integer, period text, actions integer)
+-- Předvolby Rychlé hry: server drží pro každou jednu otevřenou veřejnou hru. Délka v hodinách (období den a hodina), nebo v minutách
+-- (rychlé hry s obdobím 'min10' a 'min5', blok 26); seznam sloupců se v bloku 26 změnil, proto drop
+drop function if exists public.conquest_presets();
+create function public.conquest_presets() returns table (preset text, map text, max_players integer, hours integer, minutes integer, period text, actions integer)
 language sql immutable as $$
-    select * from (values ('evropa-3d', 'evropa', 6, 72, 'day', 5), ('cesko-12h', 'cesko', 4, 12, 'hour', 3), ('afrika-7d', 'afrika', 8, 168, 'day', 5))
-        v (preset, map, max_players, hours, period, actions)
+    select * from (values ('evropa-3d', 'evropa', 6, 72, null::integer, 'day', 5), ('cesko-12h', 'cesko', 4, 12, null, 'hour', 3),
+            ('afrika-7d', 'afrika', 8, 168, null, 'day', 5), ('blesk-20m', 'evropa', 4, null, 20, 'min5', 5))
+        v (preset, map, max_players, hours, minutes, period, actions)
 $$;
 create or replace function public.conquest_check_look(colour text, emblem_id text) returns void
 language plpgsql immutable set search_path = public as $$
@@ -5031,12 +5048,34 @@ begin
 end;
 $$;
 
--- Období hry (od 0): kolik celých dní nebo hodin uplynulo od začátku
+-- Délka období: den, hodina, 10 nebo 5 minut (rychlé hry, blok 26)
 create or replace function public.conquest_period_length(per text) returns interval
-language sql immutable as $$ select case when per = 'hour' then interval '1 hour' else interval '1 day' end $$;
+language sql immutable as $$
+    select case per when 'hour' then interval '1 hour' when 'min10' then interval '10 minutes' when 'min5' then interval '5 minutes' else interval '1 day' end
+$$;
+-- Délka hry v minutách (hry na hodiny i rychlé hry na minuty, blok 26)
+create or replace function public.conquest_minutes(g public.conquest_games) returns integer
+language sql immutable as $$ select coalesce(g.duration_minutes, g.duration_hours * 60) $$;
+-- Období hry (kolo, od 0). Bez předčasného začátku (blok 26) kolik celých období uplynulo od začátku hry; jinak kolo round_no začalo
+-- v round_at a další jdou po délce období. Během odpočtu do round_at (všichni chtěli další kolo) běží ještě kolo round_no − 1.
 create or replace function public.conquest_period(g public.conquest_games) returns integer
 language sql stable set search_path = public as $$
-    select greatest(0, floor(extract(epoch from (public.conquest_now() - g.started_at)) / extract(epoch from public.conquest_period_length(g.period))))::integer
+    select case when g.started_at is null then 0
+        when g.round_at is not null and public.conquest_now() < g.round_at then greatest(0, g.round_no - 1)
+        else greatest(0, g.round_no + floor(extract(epoch from (public.conquest_now() - coalesce(g.round_at, g.started_at)))
+            / extract(epoch from public.conquest_period_length(g.period)))::integer) end
+$$;
+-- Začátek období p (kola od round_no podle round_at, kolo před ním během odpočtu z round_prev_at, bez předčasného začátku od začátku hry)
+create or replace function public.conquest_period_start(g public.conquest_games, p integer) returns timestamptz
+language sql stable set search_path = public as $$
+    select case when p >= g.round_no then coalesce(g.round_at, g.started_at) + (p - g.round_no) * public.conquest_period_length(g.period)
+        when p = g.round_no - 1 and g.round_prev_at is not null then g.round_prev_at
+        else g.started_at + p * public.conquest_period_length(g.period) end
+$$;
+-- Konec období p = začátek dalšího (nebo odpočet do předčasného začátku), nejpozději konec hry
+create or replace function public.conquest_period_end(g public.conquest_games, p integer) returns timestamptz
+language sql stable set search_path = public as $$
+    select least(g.ends_at, public.conquest_period_start(g, p + 1))
 $$;
 -- Kolik celých regionů hráč drží
 create or replace function public.conquest_regions_owned(gid uuid, map_id text, uid uuid) returns integer
@@ -5095,7 +5134,8 @@ declare g public.conquest_games; p record; home_id text; treasure_count integer;
 begin
     select * into g from public.conquest_games where id = gid for update;
     if g.id is null or g.status <> 'lobby' then return; end if;
-    update public.conquest_games set status = 'running', started_at = public.conquest_now(), ends_at = public.conquest_now() + make_interval(hours => g.duration_hours)
+    update public.conquest_games set status = 'running', started_at = public.conquest_now(), ends_at = public.conquest_now() + make_interval(mins => public.conquest_minutes(g)),
+        round_no = 0, round_at = null, round_prev_at = null
     where id = gid returning * into g;
     insert into public.conquest_territories (game_id, territory) select gid, r.territory from public.conquest_regions r where r.map = g.map on conflict do nothing;
     for p in select * from public.conquest_players where game_id = gid order by seat loop
@@ -5162,6 +5202,7 @@ $$;
 -- + pevnost (fortress 1, když hráč drží domovské území opevněné na Pevnost; blok 25) − ztráta hradu (penalty 1, když hráči soupeř v minulém
 -- období dobyl domovské území; blok 23); nikdy méně než 0. Použité tahy (used) = zapsané útoky a opevnění období + reserved = účasti
 -- v otevřených bitvách přidaných v tomto období (blok 25; po vyhodnocení bitvy je místo nich zapsaný tah téhož období).
+-- period_ends_at = konec období (začátek dalšího kola, i předčasný, blok 26; nejpozději konec hry).
 create or replace function public.conquest_budget(gid uuid, uid uuid) returns jsonb
 language plpgsql stable set search_path = public as $$
 declare g public.conquest_games; p integer; regions integer; treasures integer; loot integer; used integer; penalty integer; total integer;
@@ -5190,7 +5231,7 @@ begin
     total := greatest(0, g.actions + regions + treasures + loot + fortress - penalty);
     return jsonb_build_object('period', p, 'base', g.actions, 'regions', regions, 'treasures', treasures, 'loot', loot, 'fortress', fortress, 'penalty', penalty,
         'used', used, 'reserved', reserved, 'total', total, 'left', greatest(0, total - used),
-        'period_ends_at', least(g.ends_at, g.started_at + (p + 1) * public.conquest_period_length(g.period)));
+        'period_ends_at', public.conquest_period_end(g, p));
 end;
 $$;
 -- Pozvaní přátelé, kteří se do hry ještě nepřidali (pozvánky z bloku 24; v lobby „Pozváno“): jen hráčům hry a jen před začátkem, jinak null.
@@ -5207,10 +5248,11 @@ begin
 end;
 $$;
 -- Souhrn hry: nastavení, hráči (veřejné údaje profilu, barva hry flag_color, znak, připravenost, body, místo); kód soukromé hry jen hráčům;
--- invited = čekající pozvaní přátelé (jen hráčům, conquest_invited_json)
+-- invited = čekající pozvaní přátelé (jen hráčům, conquest_invited_json). Délka hry: minutes u každé hry (blok 26), hours jen u her
+-- na hodiny a dny (u rychlé hry na minuty null).
 create or replace function public.conquest_summary(g public.conquest_games, uid uuid) returns jsonb
 language sql stable set search_path = public as $$
-    select jsonb_build_object('id', g.id, 'map', g.map, 'max_players', g.max_players, 'hours', g.duration_hours, 'period', g.period, 'actions', g.actions,
+    select jsonb_build_object('id', g.id, 'map', g.map, 'max_players', g.max_players, 'hours', g.duration_hours, 'minutes', public.conquest_minutes(g), 'period', g.period, 'actions', g.actions,
         'visibility', g.visibility, 'preset', g.preset, 'status', g.status, 'created_at', g.created_at, 'started_at', g.started_at, 'ends_at', g.ends_at,
         'mine', exists (select 1 from public.conquest_players c where c.game_id = g.id and c.user_id = uid), 'creator', g.creator is not null and g.creator = uid,
         'code', case when g.visibility = 'public' or exists (select 1 from public.conquest_players c where c.game_id = g.id and c.user_id = uid) then g.code end,
@@ -5228,8 +5270,8 @@ begin
     for p in select * from public.conquest_presets() loop
         if exists (select 1 from public.conquest_maps m where m.id = p.map)
             and not exists (select 1 from public.conquest_games g where g.preset = p.preset and g.status = 'lobby') then
-            insert into public.conquest_games (creator, map, max_players, duration_hours, period, actions, visibility, code, preset, created_at)
-            values (null, p.map, p.max_players, p.hours, p.period, p.actions, 'public', public.conquest_new_code(), p.preset, public.conquest_now());
+            insert into public.conquest_games (creator, map, max_players, duration_hours, duration_minutes, period, actions, visibility, code, preset, created_at)
+            values (null, p.map, p.max_players, p.hours, p.minutes, p.period, p.actions, 'public', public.conquest_new_code(), p.preset, public.conquest_now());
         end if;
     end loop;
 end;
@@ -5275,17 +5317,27 @@ begin
 end;
 $$;
 
--- Založení hry: zakladatel je hned jejím hráčem
-create or replace function public.conquest_create(map_id text, players integer, hours integer, per text, actions_per integer, vis text, colour text, emblem_id text) returns jsonb
+-- Založení hry: zakladatel je hned jejím hráčem. Období (per) den nebo hodina: délka v hodinách (hours); rychlá hra s obdobím 10 nebo
+-- 5 minut (blok 26): délka v minutách (minutes, nepovinný parametr navíc, starší volání s osmi parametry funguje dál) a aspoň 3 kola.
+-- Dřívější podoba s osmi parametry se maže, ať PostgREST volání se jmény parametrů nenajde dvě funkce.
+drop function if exists public.conquest_create(text, integer, integer, text, integer, text, text, text);
+create or replace function public.conquest_create(map_id text, players integer, hours integer, per text, actions_per integer, vis text, colour text, emblem_id text,
+    minutes integer default null) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare uid uuid := auth.uid(); m public.conquest_maps; g public.conquest_games;
+declare uid uuid := auth.uid(); m public.conquest_maps; g public.conquest_games; fast boolean := per in ('min10', 'min5');
 begin
     if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
     select * into m from public.conquest_maps where id = map_id;
     if m.id is null then raise exception 'Tahle mapa neexistuje.' using errcode = '22023'; end if;
     if players is null or players < 2 or players > m.max_players then raise exception 'Na mapě % může hrát 2 až % hráčů.', m.title, m.max_players using errcode = '22023'; end if;
-    if hours is null or not (hours = any (array[6, 12, 24, 48, 72, 120, 168])) then raise exception 'Vyber délku hry z nabídky.' using errcode = '22023'; end if;
-    if per is null or per not in ('day', 'hour') then raise exception 'Tahy jsou za den, nebo za hodinu.' using errcode = '22023'; end if;
+    if per is null or per not in ('day', 'hour', 'min10', 'min5') then raise exception 'Kolo trvá den, hodinu, 10 minut, nebo 5 minut.' using errcode = '22023'; end if;
+    if fast then
+        if minutes is null or not (minutes = any (array[20, 30, 45, 60, 90, 120])) then raise exception 'Vyber délku hry z nabídky.' using errcode = '22023'; end if;
+        if make_interval(mins => minutes) < 3 * public.conquest_period_length(per) then
+            raise exception 'Hra musí mít aspoň 3 kola. Zvol delší hru, nebo kratší kolo.' using errcode = '22023';
+        end if;
+    elsif hours is null or not (hours = any (array[6, 12, 24, 48, 72, 120, 168])) then raise exception 'Vyber délku hry z nabídky.' using errcode = '22023';
+    end if;
     if actions_per is null or actions_per < 1 or actions_per > 10 then raise exception 'Tahů za období může být 1 až 10.' using errcode = '22023'; end if;
     if vis is null or vis not in ('public', 'private') then raise exception 'Hra je veřejná, nebo soukromá.' using errcode = '22023'; end if;
     perform public.conquest_check_look(colour, emblem_id);
@@ -5294,8 +5346,9 @@ begin
         raise exception 'Otevřené můžeš mít nejvýš 2 vlastní hry. Počkej, až některá začne, nebo z ní odejdi.' using errcode = 'P0001';
     end if;
     if public.conquest_active_count(uid) >= 6 then raise exception 'Hrát můžeš nejvýš 6 her najednou. Nejdřív nějakou dohraj, nebo z lobby odejdi.' using errcode = 'P0001'; end if;
-    insert into public.conquest_games (creator, map, max_players, duration_hours, period, actions, visibility, code, created_at)
-    values (uid, m.id, players, hours, per, actions_per, vis, public.conquest_new_code(), public.conquest_now()) returning * into g;
+    insert into public.conquest_games (creator, map, max_players, duration_hours, duration_minutes, period, actions, visibility, code, created_at)
+    values (uid, m.id, players, case when fast then null else hours end, case when fast then minutes end, per, actions_per, vis, public.conquest_new_code(), public.conquest_now())
+    returning * into g;
     perform public.conquest_add_player(g, uid, colour, emblem_id);
     select * into g from public.conquest_games where id = g.id;
     return public.conquest_summary(g, uid);
@@ -5378,7 +5431,7 @@ $$;
 
 -- Stav hry: souhrn; hráčům rozehrané nebo dohrané hry navíc území (t, o = majitel, l = úroveň, h = domov, p = poklad), moje tahy
 -- v období, posledních 150 událostí pro kroniku, po konci všechny změny majitelů pro přehrání (nejvýš 3000), otevřené bitvy (sieges)
--- a značka verze (version) jako conquest_pulse (blok 25)
+-- a značka verze (version) jako conquest_pulse (blok 25) a kolo (round: conquest_round_json, blok 26; u hry, která neběží, null)
 create or replace function public.conquest_move_json(m public.conquest_moves) returns jsonb
 language sql stable set search_path = public as $$
     select jsonb_build_object('id', m.id, 'u', m.user_id, 'k', m.kind, 't', m.territory, 's', m.source, 'ok', m.success, 'r', m.result, 'v', m.victim,
@@ -5386,7 +5439,7 @@ language sql stable set search_path = public as $$
 $$;
 create or replace function public.conquest_state(game uuid) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare uid uuid := auth.uid(); g public.conquest_games; member boolean; sieges jsonb := '[]'::jsonb; ver text;
+declare uid uuid := auth.uid(); g public.conquest_games; member boolean; sieges jsonb := '[]'::jsonb; ver text; round_info jsonb;
 begin
     if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
     select * into g from public.conquest_games where id = game;
@@ -5394,7 +5447,7 @@ begin
     if g.id is null or (not member and not (g.status = 'lobby' and g.visibility = 'public')) then raise exception 'Tahle hra neexistuje, nebo ji nehraješ.' using errcode = '42501'; end if;
     if g.status = 'running' then
         perform public.conquest_housekeep(game);
-        -- vývojářští boti (blok 22) odehrají, co jim podle času v období patří
+        -- vývojářští boti (blok 22) odehrají, co jim podle času v období patří (když lidé dohráli kolo, hned všechno; blok 26)
         if member then perform public.conquest_bots_due(game); end if;
         select * into g from public.conquest_games where id = game;
     end if;
@@ -5403,10 +5456,12 @@ begin
         sieges := public.conquest_sieges_json(game, uid);
         ver := public.conquest_version(g);
     end if;
+    if to_regprocedure('public.conquest_round_json(public.conquest_games, uuid)') is not null then round_info := public.conquest_round_json(g, uid); end if;
     return public.conquest_summary(g, uid) || jsonb_build_object(
         'now', public.conquest_now(),
         'sieges', sieges,
         'version', ver,
+        'round', round_info,
         'territories', coalesce((select jsonb_agg(jsonb_build_object('t', t.territory, 'o', t.owner, 'l', t.level, 'h', t.home, 'p', t.treasure) order by t.territory)
             from public.conquest_territories t where t.game_id = game), '[]'::jsonb),
         'budget', public.conquest_budget(game, uid),
@@ -5531,7 +5586,7 @@ begin
     if g.status <> 'finished' then raise exception 'Hra ještě neskončila.' using errcode = 'P0001'; end if;
     select count(*) into total from public.conquest_players where game_id = game;
     select count(*) into moves from public.conquest_moves where game_id = game and user_id = uid and kind in ('attack', 'fortify');
-    eligible := (total >= 3 or g.duration_hours >= 24) and moves >= 3 and me.score > 0;
+    eligible := (total >= 3 or public.conquest_minutes(g) >= 24 * 60) and moves >= 3 and me.score > 0;
     fresh := not me.claimed;
     if fresh then update public.conquest_players set claimed = true where game_id = game and user_id = uid; end if;
     return jsonb_build_object('place', me.place, 'players', total, 'score', me.score, 'moves', moves, 'eligible', eligible, 'claimed_now', fresh);
@@ -5541,15 +5596,16 @@ $$;
 -- Oprávnění: hráč volá jen funkce hry (anon nic); pomocné funkce zvenčí nikdo, conquest_is_player a conquest_is_open jen kvůli pravidlům řádků
 revoke all on function public.conquest_now(), public.conquest_colors(), public.conquest_emblems(), public.conquest_presets(), public.conquest_check_look(text, text),
     public.conquest_new_code(), public.conquest_period_length(text), public.conquest_period(public.conquest_games), public.conquest_regions_owned(uuid, text, uuid),
+    public.conquest_minutes(public.conquest_games), public.conquest_period_start(public.conquest_games, integer), public.conquest_period_end(public.conquest_games, integer),
     public.conquest_rescore(uuid, uuid), public.conquest_far_territory(uuid, text), public.conquest_start(uuid), public.conquest_finish(uuid), public.conquest_respawn(uuid),
     public.conquest_housekeep(uuid), public.conquest_budget(uuid, uuid), public.conquest_invited_json(public.conquest_games, uuid), public.conquest_summary(public.conquest_games, uuid), public.conquest_ensure_lobbies(),
     public.conquest_active_count(uuid), public.conquest_add_player(public.conquest_games, uuid, text, text), public.conquest_move_json(public.conquest_moves),
     public.conquest_besieged(uuid), public.conquest_attack_check(public.conquest_games, uuid, text, text), public.conquest_attack_apply(uuid, uuid, text, text, integer, boolean)
     from public, anon, authenticated;
-revoke all on function public.conquest_is_player(uuid), public.conquest_is_open(uuid), public.conquest_lobby(), public.conquest_create(text, integer, integer, text, integer, text, text, text),
+revoke all on function public.conquest_is_player(uuid), public.conquest_is_open(uuid), public.conquest_lobby(), public.conquest_create(text, integer, integer, text, integer, text, text, text, integer),
     public.conquest_join(uuid, text, text, text), public.conquest_set_look(uuid, text, text), public.conquest_ready(uuid, boolean), public.conquest_leave(uuid),
     public.conquest_state(uuid), public.conquest_move(uuid, text, text, boolean, text), public.conquest_claim(uuid) from public, anon;
-grant execute on function public.conquest_is_player(uuid), public.conquest_is_open(uuid), public.conquest_lobby(), public.conquest_create(text, integer, integer, text, integer, text, text, text),
+grant execute on function public.conquest_is_player(uuid), public.conquest_is_open(uuid), public.conquest_lobby(), public.conquest_create(text, integer, integer, text, integer, text, text, text, integer),
     public.conquest_join(uuid, text, text, text), public.conquest_set_look(uuid, text, text), public.conquest_ready(uuid, boolean), public.conquest_leave(uuid),
     public.conquest_state(uuid), public.conquest_move(uuid, text, text, boolean, text), public.conquest_claim(uuid) to authenticated;
 -- ===== 21: Dobývání — KONEC BLOKU =====
@@ -5558,7 +5614,8 @@ grant execute on function public.conquest_is_player(uuid), public.conquest_is_op
 -- Boti jsou stejní jako v turnajích: řádky v auth.users s e-mailem bot-…@bots.invalid (dev_is_bot), přidává je jen účet z dev_admins
 -- do hry, kterou sám hraje (dev_conquest_add_bots). Každý bot má vlastní úspěšnost 45–80 % (jako v turnaji), u opevněného cíle o 8 bodů
 -- za úroveň nižší. Hrají sami: tahy si rozloží do období (začnou v prvních 20 % období, do 70 % mají odehráno), kdykoli se na hru někdo
--- podívá (conquest_state) nebo aplikace zavolá tournament_tick (otevření aplikace, plánovač). Vývojář je může popohnat
+-- podívá (conquest_state) nebo aplikace zavolá tournament_tick (otevření aplikace, plánovač); když všichni lidé kolo dohráli (blok 26:
+-- conquest_round_done), odehrají hned všechno, co jim v kole zbývá, ať může začít další kolo. Vývojář je může popohnat
 -- (dev_conquest_bots_play: hned všechny tahy období) a posunout hru o období (dev_conquest_next_period).
 create or replace function public.conquest_bot_skill(uid uuid) returns numeric
 language sql immutable as $$ select 0.45 + 0.35 * (('x' || substr(md5(uid::text), 1, 6))::bit(24)::integer % 1000) / 1000.0 $$;
@@ -5609,10 +5666,12 @@ begin
     return true;
 end;
 $$;
--- Boti hry odehrají, co jim podle času v období patří (play_all = hned všechny tahy období). Vrací počet tahů.
+-- Boti hry odehrají, co jim podle času v období patří (play_all = hned všechny tahy období; samo, když lidé kolo dohráli, blok 26).
+-- Podíl uplynulého období se počítá od začátku kola do jeho konce (předčasný začátek i poslední kolo zkrácené koncem hry). Vrací počet tahů.
 create or replace function public.conquest_bots_due(gid uuid, play_all boolean default false) returns integer
 language plpgsql set search_path = public as $$
 declare g public.conquest_games; p integer; frac numeric; b record; budget jsonb; total integer; want integer; steps integer; made integer := 0;
+    starts timestamptz; ends timestamptz;
 begin
     select * into g from public.conquest_games where id = gid;
     if g.id is null or g.status <> 'running' then return 0; end if;
@@ -5622,7 +5681,11 @@ begin
     select * into g from public.conquest_games where id = gid;
     if g.status <> 'running' then return 0; end if;
     p := public.conquest_period(g);
-    frac := extract(epoch from (public.conquest_now() - (g.started_at + p * public.conquest_period_length(g.period)))) / extract(epoch from public.conquest_period_length(g.period));
+    starts := public.conquest_period_start(g, p);
+    ends := public.conquest_period_end(g, p);
+    frac := extract(epoch from (public.conquest_now() - starts)) / greatest(1, extract(epoch from (ends - starts)));
+    -- Lidé kolo dohráli (blok 26): boti dohrají hned, ať se může začít další kolo
+    if not play_all and to_regprocedure('public.conquest_round_done(public.conquest_games)') is not null then play_all := public.conquest_round_done(g); end if;
     for b in select pl.user_id from public.conquest_players pl where pl.game_id = gid order by pl.seat loop
         continue when not public.dev_is_bot(b.user_id);
         steps := 0;
@@ -5706,15 +5769,19 @@ begin
     return public.conquest_bots_due(game, true);
 end;
 $$;
--- Vývojář: skok na další období (začátek i konec hry se posunou o jedno období dozadu, takže hra je o období dál a o období kratší);
--- pak se hra uklidí (konec, Návrat do hry) a boti odehrají, co jim v novém období patří. Vrací stav hry.
+-- Vývojář: skok na další období (začátek i konec hry a začátky kol po předčasném začátku, blok 26, se posunou o jedno období dozadu,
+-- takže hra je o období dál a o období kratší; běžící odpočet do dalšího kola tím skončí); pak se hra uklidí (konec, Návrat do hry)
+-- a boti odehrají, co jim v novém období patří. Vrací stav hry.
 create or replace function public.dev_conquest_next_period(game uuid) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare g public.conquest_games;
 begin
     g := public.dev_conquest_check(game);
     if g.status <> 'running' then raise exception 'Hra neběží.' using errcode = 'P0001'; end if;
-    update public.conquest_games set started_at = started_at - public.conquest_period_length(period), ends_at = ends_at - public.conquest_period_length(period) where id = game;
+    update public.conquest_games set started_at = started_at - public.conquest_period_length(period), ends_at = ends_at - public.conquest_period_length(period),
+        round_at = round_at - public.conquest_period_length(period), round_prev_at = round_prev_at - public.conquest_period_length(period),
+        round_rev = round_rev + 1
+    where id = game;
     perform public.conquest_housekeep(game);
     return public.conquest_state(game);
 end;
@@ -5826,7 +5893,8 @@ grant execute on function public.chain_submit(date, integer, integer, boolean), 
 -- (dobytí, pobourání opevnění i odražený útok), dostane za každou rozehranou hru jedno souhrnné upozornění. Nadpis jmenuje nejzávažnější
 -- událost (padlý domovský hrad > dobytá území > pobořené opevnění > odražený útok) a kolik dalších útoků přišlo, text útočníka a co dělat.
 -- Počítají se jen útoky, které hráč v upozornění ještě neměl (číslo posledního ohlášeného tahu je 4. částí klíče cq:hra:hráč:tah v push_sent),
--- a jen čerstvé: ve hře s obdobím hodina 2 hodiny, s obdobím den 12 hodin (útoky z nočního klidu tak přijdou ráno). Upozornění z Dobývání
+-- a jen čerstvé: ve hře s obdobím hodina 2 hodiny, v rychlé hře s kolem 10 nebo 5 minut (blok 26) 30 minut, s obdobím den 12 hodin
+-- (útoky z nočního klidu tak přijdou ráno); v rychlé hře texty mluví o dalším kole místo dalšího období. Upozornění z Dobývání
 -- přijde nejvýš jednou za 10 minut (ostatní druhy jednou za 55 minut); vypne ho profiles.push_conquest (Nastavení, dlaždice Dobývání).
 -- Boti upozornění nedostávají. Názvy území databáze nezná (jsou jen v data/dobyvani-<mapa>.json), texty proto území nejmenují.
 -- Bitvy o území (blok 25) zapíšou tahy všech účastníků až při vyhodnocení, takže upozornění je ukáže stejně: vítěz jako dobytí nebo
@@ -5851,13 +5919,15 @@ language sql stable set search_path = public as $$
         group by s.user_id, split_part(s.dedupe_key, ':', 2)
     ), hits as (
         select m.id, m.game_id, m.victim, m.user_id as attacker, m.territory, m.level, m.at, g.map, g.code,
+            case when g.period in ('min10', 'min5') then 'V dalším kole' else 'V dalším období' end as next_round,
             case when m.result = 'capture' and m.home then 4 when m.result = 'capture' then 3 when m.result = 'breach' then 2 else 1 end as severity
         from public.conquest_moves m
         join public.conquest_games g on g.id = m.game_id and g.status = 'running'
         join public.profiles me on me.id = m.victim and me.push_conquest
         left join sent s on s.user_id = m.victim and s.game = m.game_id::text
         where m.kind = 'attack' and m.victim is not null and m.at > now() - interval '12 hours'
-            and m.at > now() - case when g.period = 'hour' then interval '2 hours' else interval '12 hours' end
+            and m.at > now() - case g.period when 'hour' then interval '2 hours' when 'min10' then interval '30 minutes' when 'min5' then interval '30 minutes'
+                else interval '12 hours' end
             -- bez 'outrun' (prohraná bitva, blok 25): bitvu ohlásí tah jejího vítěze
             and m.user_id is distinct from m.victim and m.result in ('capture', 'breach', 'fail')
             and m.id > coalesce(s.last_id, 0) and not public.dev_is_bot(m.victim)
@@ -5877,9 +5947,9 @@ language sql stable set search_path = public as $$
             else 'útok na tvé území odražen' end
             || public.conquest_push_more((r.total - case when r.severity = 3 then r.captures else 1 end)::integer),
         'Útočník: ' || coalesce(nullif(btrim(a.display_name), ''), 'Soupeř') || '. ' || case
-            when r.severity = 4 and not x.landed then 'V dalším období dostaneš nové domovské území, ale o tah méně.'
-            when r.severity = 4 then 'V dalším období máš o tah méně. Opevni se, nebo vrať úder.'
-            when r.severity = 3 and not x.landed then 'V dalším období dostaneš nové domovské území.'
+            when r.severity = 4 and not x.landed then r.next_round || ' dostaneš nové domovské území, ale o tah méně.'
+            when r.severity = 4 then r.next_round || ' máš o tah méně. Opevni se, nebo vrať úder.'
+            when r.severity = 3 and not x.landed then r.next_round || ' dostaneš nové domovské území.'
             when r.severity = 3 and r.captures = 1 and x.near then 'Území sousedí s tvými, můžeš ho dobýt zpět.'
             when r.severity = 3 then 'Opevni ostatní území, nebo vrať úder.'
             when r.severity = 2 and r.level > 0 then 'Zbývá ' || (array['palisáda', 'hradba', 'pevnost'])[least(r.level, 3)] || ', opevni se znovu.'
@@ -5992,7 +6062,7 @@ begin
 end;
 $$;
 
--- Délka hry do upozornění („hra na 12 hodin“, „na 1 den“, „na 3 dny“, „na 7 dní“)
+-- Délka hry do upozornění („hra na 12 hodin“, „na 1 den“, „na 3 dny“, „na 7 dní“; rychlá hra na minuty, blok 26: „na 20 minut“)
 create or replace function public.conquest_push_length(hours integer) returns text
 language sql immutable as $$
     select case when hours < 24 then hours || ' hodin' when hours / 24 = 1 then '1 den' when hours / 24 between 2 and 4 then (hours / 24) || ' dny' else (hours / 24) || ' dní' end
@@ -6003,7 +6073,7 @@ create or replace function public.conquest_invite_push_items() returns table (us
 language sql stable set search_path = public as $$
     select i.user_id, 'conquest_invite'::text,
         'Dobývání: ' || coalesce(nullif(btrim(a.display_name), ''), 'Kamarád') || ' tě zve do hry',
-        'Mapa ' || m.title || ' · hra na ' || public.conquest_push_length(g.duration_hours) || '. Vyber si barvu a přidej se.',
+        'Mapa ' || m.title || ' · hra na ' || coalesce(g.duration_minutes || ' minut', public.conquest_push_length(g.duration_hours)) || '. Vyber si barvu a přidej se.',
         './?dobyvani=' || g.code,
         'cqi:' || i.game_id || ':' || i.user_id,
         i.created_at::text
@@ -6096,11 +6166,12 @@ language sql immutable as $$ select interval '60 seconds' $$;
 create or replace function public.conquest_siege_grace() returns interval
 language sql immutable as $$ select interval '3 seconds' $$;
 
--- Značka verze hry pro conquest_pulse a conquest_state: nejvyšší id tahu, počítadlo změn bitev a stav hry („812.14.running“).
--- Když se změní, aplikace si načte celý stav (conquest_state).
+-- Značka verze hry pro conquest_pulse a conquest_state: nejvyšší id tahu, počítadlo změn bitev, počítadlo „Chci další kolo“ (round_rev),
+-- číslo kola u běžící hry (blok 26) a stav hry („812.14.3.5.running“). Když se změní, aplikace si načte celý stav (conquest_state).
 create or replace function public.conquest_version(g public.conquest_games) returns text
 language sql stable set search_path = public as $$
-    select coalesce((select max(m.id) from public.conquest_moves m where m.game_id = g.id), 0) || '.' || g.siege_rev || '.' || g.status
+    select coalesce((select max(m.id) from public.conquest_moves m where m.game_id = g.id), 0) || '.' || g.siege_rev || '.' || g.round_rev
+        || '.' || case when g.status = 'running' then public.conquest_period(g) else 0 end || '.' || g.status
 $$;
 
 -- Otázka bitvy od útočníka: objekt nejvýš 40 kB se 2–8 možnostmi (choices: objekty nebo texty) a platným indexem správné možnosti.
@@ -6367,11 +6438,12 @@ end;
 $$;
 
 -- Puls hry (aplikace ho volá každé 1,5–3 s, levný): čas serveru (now), stav a konec hry, značka verze (version; když se změní, načíst
--- conquest_state), otevřené bitvy (sieges: conquest_siege_json + can_join) a moje bitvy vyhodnocené v posledních 2 minutách (results).
+-- conquest_state), otevřené bitvy (sieges: conquest_siege_json + can_join), moje bitvy vyhodnocené v posledních 2 minutách (results)
+-- a kolo (round: conquest_round_json, blok 26; jen hráčům běžící hry, jinak null).
 -- Bitvy po termínu a konec hry napřed líně uklidí. Stejná pravidla viditelnosti jako conquest_state (ne hráčům jen otevřená veřejná hra).
 create or replace function public.conquest_pulse(game uuid) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare uid uuid := auth.uid(); g public.conquest_games; member boolean; now_ts timestamptz := public.conquest_now();
+declare uid uuid := auth.uid(); g public.conquest_games; member boolean; now_ts timestamptz := public.conquest_now(); round_info jsonb;
 begin
     if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
     select * into g from public.conquest_games where id = game;
@@ -6381,7 +6453,8 @@ begin
         perform public.conquest_siege_tick(g);
         select * into g from public.conquest_games where id = game;
     end if;
-    return jsonb_build_object('id', g.id, 'now', now_ts, 'status', g.status, 'ends_at', g.ends_at, 'version', public.conquest_version(g),
+    if member and to_regprocedure('public.conquest_round_json(public.conquest_games, uuid)') is not null then round_info := public.conquest_round_json(g, uid); end if;
+    return jsonb_build_object('id', g.id, 'now', now_ts, 'status', g.status, 'ends_at', g.ends_at, 'version', public.conquest_version(g), 'round', round_info,
         'sieges', case when member then public.conquest_sieges_json(game, uid) else '[]'::jsonb end,
         'results', case when member then coalesce((select jsonb_agg(public.conquest_siege_json(s, uid) order by s.resolved_at, s.id)
             from public.conquest_sieges s where s.game_id = game and s.status = 'resolved' and s.started_at > now_ts - interval '5 minutes'
@@ -6400,6 +6473,136 @@ revoke all on function public.conquest_siege_begin(uuid, text, jsonb, smallint, 
 grant execute on function public.conquest_siege_begin(uuid, text, jsonb, smallint, text), public.conquest_siege_join(uuid, text), public.conquest_siege_answer(uuid, smallint),
     public.conquest_siege_status(uuid), public.conquest_pulse(uuid) to authenticated;
 -- ===== 25: Dobývání – bitvy o území (obléhání) — KONEC BLOKU =====
+
+-- ===== 26: Dobývání – rychlé hry a další kolo =====
+-- Rychlé hry: období (kolo) 10 nebo 5 minut ('min10', 'min5') a délka hry v minutách (conquest_games.duration_minutes: 20, 30, 45, 60, 90
+-- nebo 120; duration_hours je u nich null), aspoň 3 kola; conquest_create má nepovinný parametr minutes navíc (starší volání s osmi parametry
+-- funguje dál). Každý souhrn hry (lobby, Moje hry, stav, pozvánky) má minutes = délka hry v minutách i u her na hodiny a dny (conquest_minutes).
+-- Rychlá hra Blesk (předvolba 'blesk-20m'): Evropa, 4 hráči, 20 minut, kolo 5 minut, 5 tahů za kolo.
+-- Další kolo dřív: kolo je hotové (done), když ve hře neběží žádná bitva a každý hráč kolo dohrál: nemá tah (budget left = 0), nemá žádné
+-- území (čeká na Návrat do hry), nebo nemá co hrát (žádné cizí sousední území a všechno opevněné naplno); boti se počítají jako hotoví
+-- i připravení a své tahy dohrají hned, jakmile lidé dohráli (conquest_bots_due). Pak může každý hráč chtít další kolo (conquest_round_ready;
+-- značky v conquest_round_marks podle hry, kola a hráče, jen přes funkce; chtít jde přestat, dokud neběží odpočet). Jakmile chtějí všichni
+-- lidé, za 10 s (odpočet; nejpozději v řádném začátku dalšího kola) začne další kolo: round_no = další kolo, round_at = jeho začátek,
+-- round_prev_at = začátek dohraného kola (conquest_period, conquest_period_start a conquest_period_end v bloku 21); kola po něm jdou zase
+-- po délce období. Tahy, kořist, ztracený hrad, Pevnost, Návrat do hry, bitvy i boti se řídí číslem kola (conquest_period) jako dosud.
+-- Konec hry (ends_at) se nemění: předčasné kolo přidá kola navíc, poslední kolo skončí s koncem hry a další kolo po něm chtít nejde.
+-- Kolo (round) vracejí conquest_state i conquest_pulse: { period, started_at, ends_at (začátek dalšího kola, i během odpočtu, nejpozději
+-- konec hry), done, ready (id hráčů, kteří chtějí další kolo, i boti), next_at (začátek dalšího kola během odpočtu, jinak null), can_ready
+-- (volající teď může chtít další kolo), last (poslední kolo hry) }; značka verze (conquest_version) má i round_rev a číslo kola.
+-- Upozornění na útoky v rychlé hře mluví o dalším kole a počítají útoky z posledních 30 minut (blok 23), pozvánka „hra na 20 minut“ (blok 24).
+create table if not exists public.conquest_round_marks (
+    game_id uuid not null references public.conquest_games (id) on delete cascade,
+    period integer not null,
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    at timestamptz not null default now(),
+    primary key (game_id, period, user_id)
+);
+alter table public.conquest_round_marks enable row level security;
+revoke all on public.conquest_round_marks from public, anon, authenticated;
+
+-- Odpočet do předčasného začátku dalšího kola
+create or replace function public.conquest_round_countdown() returns interval
+language sql immutable as $$ select interval '10 seconds' $$;
+
+-- Dohrál hráč kolo? Bot vždy; člověk, když nemá žádné území (čeká na Návrat do hry), nemá tah, nebo nemá co hrát (žádné cizí sousední
+-- území a všechno má opevněné naplno). Otevřené bitvy hlídá conquest_round_done.
+create or replace function public.conquest_round_player_done(g public.conquest_games, uid uuid) returns boolean
+language plpgsql stable set search_path = public as $$
+begin
+    if public.dev_is_bot(uid) then return true; end if;
+    if not exists (select 1 from public.conquest_territories t where t.game_id = g.id and t.owner = uid) then return true; end if;
+    if coalesce((public.conquest_budget(g.id, uid) ->> 'left')::integer, 0) <= 0 then return true; end if;
+    return not exists (select 1 from public.conquest_territories s join public.conquest_links l on l.map = g.map and l.a = s.territory
+            join public.conquest_territories c on c.game_id = g.id and c.territory = l.b and c.owner is distinct from uid
+            where s.game_id = g.id and s.owner = uid)
+        and not exists (select 1 from public.conquest_territories t where t.game_id = g.id and t.owner = uid and t.level < case when t.home then 3 else 2 end);
+end;
+$$;
+
+-- Dohráli kolo všichni? Hra běží, žádná otevřená bitva a každý hráč kolo dohrál; během odpočtu do dalšího kola ano (nikdo už tah nemá).
+create or replace function public.conquest_round_done(g public.conquest_games) returns boolean
+language plpgsql stable set search_path = public as $$
+begin
+    if g.id is null or g.status <> 'running' then return false; end if;
+    if g.round_at is not null and g.round_at > public.conquest_now() then return true; end if;
+    if exists (select 1 from public.conquest_sieges s where s.game_id = g.id and s.status = 'open') then return false; end if;
+    return not exists (select 1 from public.conquest_players pl where pl.game_id = g.id and not public.conquest_round_player_done(g, pl.user_id));
+end;
+$$;
+
+-- Kolo pro hráče uid (jen běžící hra, jinak null): číslo, začátek a konec, done, kdo chce další kolo (ready, boti vždy), začátek dalšího
+-- kola během odpočtu (next_at), jestli volající teď může chtít další kolo (can_ready) a jestli je kolo poslední (last)
+create or replace function public.conquest_round_json(g public.conquest_games, uid uuid) returns jsonb
+language plpgsql stable set search_path = public as $$
+declare p integer; now_ts timestamptz := public.conquest_now(); next_at timestamptz; ends timestamptz; done boolean; is_last boolean; human boolean; marked boolean;
+begin
+    if g.id is null or g.status <> 'running' then return null; end if;
+    p := public.conquest_period(g);
+    next_at := case when g.round_at > now_ts then g.round_at end;
+    ends := public.conquest_period_end(g, p);
+    is_last := next_at is null and ends >= g.ends_at;
+    done := public.conquest_round_done(g);
+    human := uid is not null and not public.dev_is_bot(uid) and exists (select 1 from public.conquest_players c where c.game_id = g.id and c.user_id = uid);
+    marked := exists (select 1 from public.conquest_round_marks r where r.game_id = g.id and r.period = p and r.user_id = uid);
+    return jsonb_build_object('period', p, 'started_at', public.conquest_period_start(g, p), 'ends_at', ends, 'done', done,
+        'ready', coalesce((select jsonb_agg(c.user_id order by c.seat) from public.conquest_players c where c.game_id = g.id
+            and (public.dev_is_bot(c.user_id) or exists (select 1 from public.conquest_round_marks r where r.game_id = g.id and r.period = p and r.user_id = c.user_id))), '[]'::jsonb),
+        'next_at', next_at, 'can_ready', human and done and not is_last and next_at is null and not marked, 'last', is_last);
+end;
+$$;
+
+-- Chci další kolo (ready = true), nebo už ne (false): jen hráč běžící hry. Chtít jde, až všichni kolo dohráli (done) a když kolo není
+-- poslední; přestat chtít jde, dokud neběží odpočet. Opakované volání nic nezmění. Napřed se hra uklidí a boti dohrají své tahy (když lidé
+-- dohráli). Když chtějí všichni lidé (boti se počítají sami), začne odpočet: další kolo začne za 10 s (nejpozději v řádném začátku dalšího
+-- kola), staré značky zmizí. Vrací kolo (conquest_round_json).
+create or replace function public.conquest_round_ready(game uuid, ready boolean default true) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); g public.conquest_games; p integer; now_ts timestamptz := public.conquest_now(); changed integer := 0;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    select * into g from public.conquest_games where id = game for update;
+    if g.id is null or not exists (select 1 from public.conquest_players c where c.game_id = game and c.user_id = uid) then
+        raise exception 'Tahle hra neexistuje, nebo ji nehraješ.' using errcode = '42501';
+    end if;
+    if g.status = 'lobby' then raise exception 'Hra ještě nezačala.' using errcode = 'P0001'; end if;
+    perform public.conquest_housekeep(game);
+    perform public.conquest_bots_due(game);
+    select * into g from public.conquest_games where id = game;
+    if g.status <> 'running' then raise exception 'Hra už skončila.' using errcode = 'P0001'; end if;
+    p := public.conquest_period(g);
+    if coalesce(ready, true) then
+        -- Odpočet už běží: všichni chtějí, beze změny
+        if g.round_at is not null and g.round_at > now_ts then return public.conquest_round_json(g, uid); end if;
+        if not public.conquest_round_done(g) then raise exception 'Další kolo jde chtít, až všichni dohrají své tahy.' using errcode = 'P0001'; end if;
+        if public.conquest_period_end(g, p) >= g.ends_at then raise exception 'Tohle kolo je poslední. Hra skončí, až vyprší čas.' using errcode = 'P0001'; end if;
+        insert into public.conquest_round_marks (game_id, period, user_id, at) values (game, p, uid, now_ts) on conflict do nothing;
+        get diagnostics changed = row_count;
+        if not exists (select 1 from public.conquest_players c where c.game_id = game and not public.dev_is_bot(c.user_id)
+                and not exists (select 1 from public.conquest_round_marks r where r.game_id = game and r.period = p and r.user_id = c.user_id)) then
+            update public.conquest_games set round_prev_at = public.conquest_period_start(g, p), round_no = p + 1,
+                round_at = least(now_ts + public.conquest_round_countdown(), public.conquest_period_end(g, p))
+            where id = game;
+            delete from public.conquest_round_marks where game_id = game and period < p;
+            changed := 1;
+        end if;
+    else
+        if g.round_at is not null and g.round_at > now_ts then raise exception 'Odpočet už běží, další kolo začne za chvíli.' using errcode = 'P0001'; end if;
+        delete from public.conquest_round_marks where game_id = game and period = p and user_id = uid;
+        get diagnostics changed = row_count;
+    end if;
+    if changed > 0 then update public.conquest_games set round_rev = round_rev + 1 where id = game; end if;
+    select * into g from public.conquest_games where id = game;
+    return public.conquest_round_json(g, uid);
+end;
+$$;
+
+-- Oprávnění: hráč volá jen Chci další kolo (anon nic); pomocné funkce jen interně
+revoke all on function public.conquest_round_countdown(), public.conquest_round_player_done(public.conquest_games, uuid), public.conquest_round_done(public.conquest_games),
+    public.conquest_round_json(public.conquest_games, uuid) from public, anon, authenticated;
+revoke all on function public.conquest_round_ready(uuid, boolean) from public, anon;
+grant execute on function public.conquest_round_ready(uuid, boolean) to authenticated;
+-- ===== 26: Dobývání – rychlé hry a další kolo — KONEC BLOKU =====
 
 -- ===== Verze schématu =====
 -- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.
@@ -6452,7 +6655,12 @@ grant execute on function public.conquest_siege_begin(uuid, text, jsonb, smallin
 --     v conquest_attack_apply a kontrola v conquest_attack_check; conquest_budget: reserved a fortress = +1 tah za Pevnost na domovském území;
 --     conquest_state: sieges a version; bitvy se vyhodnotí v conquest_housekeep a před koncem v conquest_finish; boti a Návrat do hry
 --     obléhaná území vynechají přes conquest_besieged).
+-- 26: Dobývání – rychlé hry a další kolo (období 'min10' a 'min5', conquest_games.duration_minutes, round_no, round_at, round_prev_at a round_rev;
+--     conquest_create s nepovinným minutes, minutes v souhrnu hry přes conquest_minutes, předvolba 'blesk-20m' a conquest_presets s minutes;
+--     kola po předčasném začátku v conquest_period, conquest_period_start a conquest_period_end; conquest_round_marks a conquest_round_ready,
+--     round v conquest_state a conquest_pulse přes conquest_round_json, conquest_round_done a conquest_round_player_done; boti dohrají tahy, když
+--     lidé dohráli; conquest_version s round_rev a číslem kola; upozornění rychlých her o dalším kole).
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 25 $$;
+language sql immutable as $$ select 26 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;
