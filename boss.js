@@ -34,9 +34,11 @@
         olympan: ['sova-titul-11', 'sova-titul-11', 'sova-titul-11', 'sova-prohra'],
         // č. 222 boss-reziser, 251 boss-reziser-zraneny, 259 boss-reziser-vkoncich, 230 boss-reziser-porazeny
         reziser: ['sova-oslava-ruzova', 'sova-oslava-ruzova', 'sova-oslava-ruzova', 'sova-prohra-ruzova'],
-        // č. 231 textura-arena: pozadí arény (na výšku); do dodání prázdné a arénu kreslí CSS přechod .boss-arena
-        arena: ''
+        // Arény (pozadí úvodu a výsledku souboje na výšku, icons/topics/<jméno>.webp), každý boss má vlastní: č. 231 arena-maestro
+        // (divadelní jeviště), 268–274 ostatní (docs/OBRAZKY.md). Do dodání prázdné a arénu kreslí CSS přechod .boss-arena
+        arena: { kapitan: '', rytir: '', alchymista: '', amper: '', maestro: '', druid: '', olympan: '', reziser: '' }
     };
+    const arenaOf = (boss) => (boss && ART.arena && ART.arena[boss.id]) || '';
 
     // --- Pravidla ---
     const HP = 700;
@@ -614,7 +616,7 @@
         const button = open ? `Pokračovat v souboji · otázka ${Math.min(QUESTIONS, view.answered + 1 || 1)}/${QUESTIONS}` : used ? `Do souboje · ${used + 1}. pokus` : 'Do souboje';
         return `
             <div id="boss-intro" data-boss="${esc(boss.id)}" class="boss-arena boss-theme-${esc(boss.id)} relative flex min-h-full w-full flex-col overflow-hidden px-4 pb-4 pt-2.5 text-white [@media(max-height:770px)]:px-3 [@media(max-height:770px)]:pb-3 [@media(max-height:770px)]:pt-2">
-                ${ART.arena ? img(ART.arena, 'pointer-events-none absolute inset-0 h-full w-full object-cover opacity-70', 'aria-hidden="true"') : ''}
+                ${arenaOf(boss) ? img(arenaOf(boss), 'pointer-events-none absolute inset-0 h-full w-full object-cover opacity-70', 'aria-hidden="true"') : ''}
                 <span class="boss-beams" aria-hidden="true"></span>
                 <div class="relative z-10 flex items-center justify-between gap-2">
                     <p class="flex min-w-0 items-center gap-1.5 rounded-full bg-black/35 py-1 pl-1 pr-2.5 text-[11px] font-black uppercase tracking-widest text-gold-200 ring-1 ring-white/15">${h.topicIcon ? h.topicIcon(boss.topic) : ''}<span class="truncate">Boss týdne · ${esc(weekLabel(week))}</span></p>
@@ -708,7 +710,7 @@
         const again = !won && left > 0;
         return `
             <div id="boss-result" data-boss="${esc(boss.id)}" data-boss-outcome="${won ? 'won' : 'lost'}" class="boss-arena boss-theme-${esc(boss.id)} relative flex min-h-full w-full flex-col gap-2.5 overflow-hidden px-4 pb-4 pt-3 text-white [@media(max-height:770px)]:gap-2 [@media(max-height:770px)]:px-3 [@media(max-height:770px)]:pb-3 [@media(max-height:770px)]:pt-2">
-                ${ART.arena ? img(ART.arena, 'pointer-events-none absolute inset-0 h-full w-full object-cover opacity-70', 'aria-hidden="true"') : ''}
+                ${arenaOf(boss) ? img(arenaOf(boss), 'pointer-events-none absolute inset-0 h-full w-full object-cover opacity-70', 'aria-hidden="true"') : ''}
                 <span class="boss-beams" aria-hidden="true"></span>
                 ${won ? `<span class="boss-confetti" aria-hidden="true">${'<i></i>'.repeat(14)}</span>` : ''}
                 <div class="relative z-10 flex items-center gap-3">

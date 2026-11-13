@@ -276,7 +276,7 @@ Do dodání hra používá existující obrázky. Po dodání stačí vyměnit k
 | 214 | `clanek-prasknuty` | Prasklý článek |
 | 215–222 | `boss-<id>` | Portréty osmi bossů (útočná póza) |
 | 223–230 | `boss-<id>-porazeny` | Poražení bossové (hvězdičky kolem hlavy) |
-| 231 | `textura-arena` | Pozadí arény (na výšku) |
+| 231, 268–274 | `arena-<boss>` | Arény bossů (na výšku): Maestro jeviště, Kapitán paluba, Rytíř kolbiště, Alchymista laboratoř, Ampér elektrická laboratoř, Druid kamenný kruh, Olympan chrám na Olympu, Režisér filmový ateliér |
 | 232 | `textura-pergamen` | Bezešvý starý pergamen |
 | 233 | `textura-more` | Bezešvé moře starých map |
 | 234 | `dobyvani` | Sova dobyvatel s helmou a mapou (karta, tip, odznak) |
