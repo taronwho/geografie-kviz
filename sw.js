@@ -42,12 +42,14 @@ const APP_SHELL = [
         // Zlatá otázka (gold.js ART, č. 206–209 a 211)
         'zlata-otazka', 'zlaty-stripek', 'zlata-truhla', 'zlata-truhla-otevrena', 'zlatokop',
         // Dobývání (conquest.js ART, č. 234–239 a 260–263)
-        'dobyvani', 'palisada', 'hradba', 'pevnost', 'hrad-domov', 'poklad', 'vetrna-ruzice', 'plachetnice', 'morska-prisera', 'kartuse-sirka',
+        'dobyvani', 'hrad-domov', 'poklad', 'vetrna-ruzice', 'plachetnice', 'morska-prisera', 'kartuse-sirka',
         'pecet', 'vavrin', 'sova-dobyvatel', 'mince', 'mince-hromadka', 'sova-sazka',
         // Řetězovka (chain.js ART a výsledek, č. 212 a 214: sova s řetězem, prasklý článek)
         'retezovka', 'clanek-prasknuty'].map(id => `icons/topics/${id}.webp`),
     // Boss týdne (boss.js ART): čtyři stupně každého bosse a jeho aréna
     ...['kapitan', 'rytir', 'alchymista', 'amper', 'maestro', 'druid', 'olympan', 'reziser'].flatMap(id => [`boss-${id}`, `boss-${id}-zraneny`, `boss-${id}-vkoncich`, `boss-${id}-porazeny`, `arena-${id}`]).map(id => `icons/topics/${id}.webp`),
+    // Stavby na mapě Dobývání (conquest.js BUILDINGS, scripts/building-art.py): základ a vrstva střech a vlaječek v barvě hráče
+    ...['palisada', 'hradba', 'pevnost', 'hrad-domov', 'hrad-domov-1', 'hrad-domov-2', 'hrad-domov-3'].flatMap(id => [`icons/stavby/${id}.webp`, `icons/stavby/${id}-barva.webp`]),
     // Články řetězu v pásu Řetězovky (chain.js linkSvg, scripts/chain-links.py)
     ...['celem', 'bokem', 'prasknuty'].map(id => `icons/retez/${id}.webp`),
     // Bezešvé textury (zlatá fólie Zlaté otázky, pergamen a moře map Dobývání; č. 210, 232, 233)

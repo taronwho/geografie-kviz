@@ -19,10 +19,14 @@
     // --- Obrázky (docs/OBRAZKY.md): do dodání existující obrázky nebo kresby SVG; po dodání stačí doplnit název souboru ---
     const ART = {
         card: 'dobyvani',         // č. 234 sova dobyvatel s helmou a mapou (karta, tip)
+        // Stavby na mapě: icons/stavby/<název>.webp + <název>-barva.webp (střechy a vlaječky v barvě hráče, scripts/building-art.py)
         palisade: 'palisada',     // č. 260 opevnění 1 (null = kresba SVG, ICON_SHAPES)
         wall: 'hradba',           // č. 239 opevnění 2
         fortress: 'pevnost',      // č. 261 opevnění 3 (jen domovské území)
-        castle: 'hrad-domov',     // č. 262 domovské území
+        castle: 'hrad-domov',     // č. 262 domovské území (karta tipu bere icons/topics/hrad-domov.webp)
+        castle1: 'hrad-domov-1',  // č. 275 domovský hrad s palisádou
+        castle2: 'hrad-domov-2',  // č. 276 domovský hrad s hradbami
+        castle3: 'hrad-domov-3',  // č. 277 domovský hrad jako pevnost (citadela s korunou)
         treasure: 'poklad',       // č. 263 truhla s pokladem
         compass: 'vetrna-ruzice', // č. 235
         ship: 'plachetnice',      // č. 238
@@ -1318,9 +1322,31 @@
         treasure: '<path d="M3 11h18v10H3z" fill="#9a5b22" stroke="#3a210b" stroke-width="1.1"/><path d="M3 11c0-4 3.6-6.4 9-6.4S21 7 21 11z" fill="#b8722e" stroke="#3a210b" stroke-width="1.1"/><path d="M3 13.6h18M7 4.9V21M17 4.9V21" stroke="#e8b923" stroke-width="1.6"/><rect x="10.2" y="12" width="3.6" height="4.2" rx="0.8" fill="#f2cf4d" stroke="#3a210b" stroke-width="0.8"/>',
         chestLid: '<path d="M3 11c0-4 3.6-6.4 9-6.4S21 7 21 11z" fill="#b8722e" stroke="#3a210b" stroke-width="1.1"/><path d="M7 4.9V11M17 4.9V11" stroke="#e8b923" stroke-width="1.6"/>'
     };
-    const ICON_ART = { palisade: 'palisade', wall: 'wall', fortress: 'fortress', castle: 'castle', treasure: 'treasure' };
-    const iconMarkup = (kind) => (ART[ICON_ART[kind]] ? `<image href="${artUrl(ART[ICON_ART[kind]])}" x="0" y="0" width="24" height="24"/>` : ICON_SHAPES[kind]);
-    const levelIcon = (level, home) => (home ? 'castle' : ['', 'palisade', 'wall', 'fortress'][level] || '');
+    // Stavby: základ a nad ním vrstva střech a vlaječek, kterou filtr cqb-<barva> (buildingTint v defs mapy) vynásobí barvou majitele
+    const BUILDINGS = ['palisade', 'wall', 'fortress', 'castle', 'castle1', 'castle2', 'castle3'];
+    const buildingUrl = (name, layer = '') => `icons/stavby/${name}${layer}.webp`;
+    const iconMarkup = (kind, colorId = null) => {
+        if (BUILDINGS.includes(kind) && ART[kind]) {
+            const tint = colorId ? `<image class="cq-tint" href="${buildingUrl(ART[kind], '-barva')}" x="0" y="0" width="24" height="24" filter="url(#cqb-${colorOf(colorId).id})"/>` : '';
+            return `<image href="${buildingUrl(ART[kind])}" x="0" y="0" width="24" height="24"/>${tint}`;
+        }
+        if (kind === 'treasure' && ART.treasure) return `<image href="${artUrl(ART.treasure)}" x="0" y="0" width="24" height="24"/>`;
+        return ICON_SHAPES[kind] || ICON_SHAPES[kind.replace(/\d$/, '')];
+    };
+    // Domovský hrad roste s opevněním (palisáda, hradby, pevnost); bez obrázku úrovně zůstane základní hrad s kamínky úrovně
+    const levelIcon = (level, home) => {
+        if (home) return level && ART[`castle${level}`] ? `castle${level}` : 'castle';
+        return ['', 'palisade', 'wall', 'fortress'][level] || '';
+    };
+    // Filtr barvy majitele pro střechy a vlaječky: šedá vrstva (prostřední jas 0,78) × barva × 1,28 = plná barva, světlá strana
+    // střechy světlejší, stinná tmavší. Tmavé barvy (černá) se zesvětlí, jinak by střecha splynula s obrysem.
+    const buildingTint = (colorId) => {
+        const color = colorOf(colorId);
+        let rgb = hexRgb(color.hex).map(value => value / 255);
+        if (rgb[0] * 0.299 + rgb[1] * 0.587 + rgb[2] * 0.114 < 0.2) rgb = rgb.map(value => value + (1 - value) * 0.32);
+        const [r, g, b] = rgb.map(value => (value * 1.28).toFixed(3));
+        return `<filter id="cqb-${color.id}" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="${r} 0 0 0 0 0 ${g} 0 0 0 0 0 ${b} 0 0 0 0 0 1 0"/></filter>`;
+    };
 
     // --- Vlaječka hráče se znakem (SVG): na mapě i v HTML ---
     // Praporec 0–30 × 0–22 (cíp vpravo), znak uprostřed
@@ -1402,6 +1428,7 @@
         const tile = Math.round(Math.max(w, h) / 3);
         if (ART.sea) defs.push(`<pattern id="${prefix}-seatex" width="${tile}" height="${tile}" patternUnits="userSpaceOnUse"><image href="icons/textury/${ART.sea}.webp" width="${tile}" height="${tile}" class="cq-seatex"/></pattern>`);
         players.forEach(player => defs.push(hatchPattern(player.seat, player.flag_color, prefix)));
+        [...new Set(players.map(player => colorOf(player.flag_color).id))].forEach(colorId => defs.push(buildingTint(colorId)));
         const kraje = MAP_BY_ID[data.id] && MAP_BY_ID[data.id].kraje;
         // U krajů je „mořem“ cizina kolem Česka (pozadí dat je celý výřez)
         const allLand = kraje ? data.t.map(item => item.d).join('') : `${data.land}${data.t.map(item => item.d).join('')}`;
@@ -1482,7 +1509,7 @@
     };
     // Značky na území: opevnění nebo domovský hrad, poklad, vlaječka majitele (velikost 24 jednotek mapy; aplikace je při přiblížení zmenšuje)
     const MARK = 22;
-    const ICON_SCALE = { castle: 1.3, fortress: 1.25, wall: 1.18, palisade: 1.12, treasure: 0.7 };
+    const ICON_SCALE = { castle: 1.3, castle1: 1.34, castle2: 1.38, castle3: 1.44, fortress: 1.25, wall: 1.18, palisade: 1.16, treasure: 0.7 };
     const marksFor = (item, view) => {
         const info = view.owners.get(item.id);
         if (!info) return '';
@@ -1492,7 +1519,7 @@
         const icon = levelIcon(info.level, info.home);
         // Hrad a opevnění větší, poklad menší (je to jen bonus, ne stavba); spodní okraj ikon zůstává na stejné čáře
         const iconAt = (k, left) => `translate(${(left * k * MARK).toFixed(2)} ${(-(k - 0.05) * MARK).toFixed(2)}) scale(${(k * MARK / 24).toFixed(3)})`;
-        if (icon) inner += `<g class="cq-icon" data-icon="${icon}" transform="${iconAt(ICON_SCALE[icon] || 1, -0.05)}">${iconMarkup(icon)}${info.home && info.level ? levelPips(info.level) : ''}</g>`;
+        if (icon) inner += `<g class="cq-icon" data-icon="${icon}" transform="${iconAt(ICON_SCALE[icon] || 1, -0.05)}">${iconMarkup(icon, owner ? owner.flag_color : null)}${icon === 'castle' && info.level ? levelPips(info.level) : ''}</g>`;
         if (info.treasure && !owner) inner += `<g class="cq-icon cq-treasure" data-icon="treasure" transform="${iconAt(ICON_SCALE.treasure, -0.5)}">${iconMarkup('treasure')}</g>`;
         if (owner) inner += `<g class="cq-pin" data-pin="${item.id}" transform="translate(${icon ? -MARK * 0.55 : -MARK * 0.1} 0)"><path d="M0 2V${-MARK * 1.25}" stroke="#3b2a1a" stroke-width="1.6" stroke-linecap="round"/><circle cx="0" cy="${-MARK * 1.25}" r="1.6" fill="#c9a227"/>`
             + `<g transform="translate(0.8 ${-MARK * 1.22}) scale(${(MARK * 0.75 / 30).toFixed(3)})">${pennantGroup(owner.flag_color, owner.emblem)}</g></g>`;
