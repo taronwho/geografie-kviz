@@ -747,3 +747,14 @@ test('obtížnost: Základní (k: 1) ⊂ Mudrlant ⊂ Mudrlant Expert (x: 1 jen 
     assert.deepEqual(core.filterItems(items).map(item => item.q), ['a', 'b', 'c', 'd'], 'bez úrovně všechno');
     assert.deepEqual(items.map(core.levelOf), [1, 2, 3, 2]);
 });
+
+test('jiný název hned za zakrytou odpovědí patří do stejného bloku ([***] nebo iont je…, [***], též X, …)', () => {
+    assert.equal(core.swallowAliases('[***] nebo iont je kladně nebo záporně elektricky nabitá částice.'), '[***] je kladně nebo záporně elektricky nabitá částice.');
+    assert.equal(core.swallowAliases('[***], též Wilsonova komora, je přístroj.'), '[***] je přístroj.');
+    assert.equal(core.swallowAliases('[***] (zvaný Velký Bratr) byl symbol.'), '[***] byl symbol.');
+    assert.equal(core.swallowAliases('[***], známý jako Bílá paní, je duch.'), '[***] je duch.');
+    assert.equal(core.swallowAliases('[***] nebo jen Brno, je město.'), '[***] je město.');
+    // Výčet uprostřed věty a „nebo“ bez slovesa zůstane
+    assert.equal(core.swallowAliases('Kladně nebo záporně nabitý [***] je částice.'), 'Kladně nebo záporně nabitý [***] je částice.');
+    assert.equal(core.swallowAliases('[***] nebo kladně nabitý ion se liší.'), '[***] nebo kladně nabitý ion se liší.');
+});

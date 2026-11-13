@@ -917,6 +917,25 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
     .cq-tone-fortify { background: rgb(34 197 94 / 0.18); color: #86efac; }
     .cq-tone-defend { background: rgb(59 130 246 / 0.2); color: #93c5fd; }
 }
+/* Okno Barva a znak: kožené záložky, pečeti a razítka na pergamenu */
+.cq-look-tabs { background: rgb(120 90 50 / 0.16); box-shadow: inset 0 1px 2px rgb(60 40 20 / 0.25); }
+.cq-look-tab { color: #6b4a2a; }
+.cq-look-tab[aria-selected="true"] { background: linear-gradient(#7a4f2c, #5c3a1e); color: #fbeacb; box-shadow: inset 0 0 0 1px rgb(255 230 180 / 0.25), 0 2px 4px -1px rgb(60 40 20 / 0.5); }
+.cq-seal-pick { transition: transform 0.15s ease; }
+.cq-seal-pick svg { filter: drop-shadow(0 2px 2px rgb(60 40 20 / 0.35)); }
+.cq-seal-pick[aria-checked="true"] { background: radial-gradient(circle, rgb(255 236 170 / 0.75) 0 45%, transparent 70%); }
+.cq-seal-pick[aria-checked="true"] svg { transform: scale(1.12); filter: drop-shadow(0 0 4px rgb(214 151 37 / 0.9)) drop-shadow(0 2px 2px rgb(60 40 20 / 0.4)); }
+.cq-seal-pick:disabled svg { filter: grayscale(1) opacity(0.35); }
+.cq-seal-lock { color: #6b4a2a; }
+.cq-stamp { background: rgb(255 250 238 / 0.55); box-shadow: inset 0 0 0 1px rgb(164 123 69 / 0.45); }
+.cq-stamp[aria-checked="true"] { background: radial-gradient(circle, rgb(255 236 170 / 0.8) 0 40%, transparent 72%); box-shadow: inset 0 0 0 1.5px #d69725; }
+@media (prefers-color-scheme: dark) {
+    .cq-look-tabs { background: rgb(0 0 0 / 0.25); }
+    .cq-look-tab { color: #d6c7a6; }
+    .cq-seal-lock { color: #d6c7a6; }
+    .cq-stamp { background: rgb(255 255 255 / 0.05); box-shadow: inset 0 0 0 1px rgb(214 151 37 / 0.3); }
+    .cq-seal-pick[aria-checked="true"], .cq-stamp[aria-checked="true"] { background: radial-gradient(circle, rgb(214 151 37 / 0.35) 0 40%, transparent 72%); }
+}
 .cq-map-wrap { box-shadow: 0 0 0 1px rgb(107 74 42 / 0.45), 0 8px 18px -10px rgb(60 40 20 / 0.6); }
 .cq-vignette { box-shadow: inset 0 0 28px rgb(92 60 26 / 0.45), inset 0 0 3px rgb(92 60 26 / 0.6); }
 .cq-map { cursor: grab; }

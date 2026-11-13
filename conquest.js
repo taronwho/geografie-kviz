@@ -1342,17 +1342,41 @@
         </form>`;
     };
 
-    // Okno Barva a znak: přepínač Barva (3 × 3 políčka) / Znak (6 × 4 políčka), obsazené barvy ve hře nejdou; náhled vlaječky
+    // Vosková pečeť v barvě hráče s vytlačeným znakem (výběr barvy v okně Barva a znak): nepravidelný okraj s kapkami vosku, stín,
+    // vtlačený kruh a znak tmavší barvou s jemným světlým okrajem (vypadá vytlačeně). Do dodání obrázku pečeti (č. 265) jen SVG.
+    const SEAL_EDGE = (() => {
+        const points = [];
+        for (let i = 0; i < 48; i++) {
+            const angle = i / 48 * Math.PI * 2;
+            const r = 20 + 1.3 * Math.sin(angle * 9) + 0.7 * Math.sin(angle * 5 + 1.3) + (i % 11 === 3 ? 1.6 : 0);
+            points.push(`${(24 + r * Math.cos(angle)).toFixed(2)} ${(24 + r * Math.sin(angle)).toFixed(2)}`);
+        }
+        return `M${points.join('L')}Z`;
+    })();
+    const sealSvg = (colorId, emblemId, cls = 'h-14 w-14') => {
+        const hex = colorOf(colorId).hex;
+        const dark = mix(hex, '#000000', 0.38), deep = mix(hex, '#000000', 0.55), light = mix(hex, '#ffffff', 0.38);
+        const emblem = emblemOf(emblemId);
+        return `<svg viewBox="0 0 48 50" class="${cls}" aria-hidden="true" focusable="false">`
+            + `<path d="${SEAL_EDGE}" fill="${deep}" transform="translate(0 2)" opacity="0.55"/>`
+            + `<path d="${SEAL_EDGE}" fill="${hex}" stroke="${dark}" stroke-width="1.2" stroke-linejoin="round"/>`
+            + `<circle cx="24" cy="24" r="14.2" fill="${mix(hex, '#000000', 0.12)}" stroke="${dark}" stroke-width="1.4"/>`
+            + `<circle cx="24" cy="24" r="12.4" fill="none" stroke="${light}" stroke-width="0.7" stroke-opacity="0.55"/>`
+            + `<path d="M10.5 17.5A15.5 15.5 0 0 1 20 9.2" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="2" stroke-linecap="round"/>`
+            + `<g transform="translate(14.6 15.2) scale(0.78)">${emblem.draw(light)}</g><g transform="translate(14.6 14.6) scale(0.78)">${emblem.draw(deep)}</g></svg>`;
+    };
+    // Okno Barva a znak ve stylu map Dobývání: pergamen, náhled praporce s pečetí, přepínač Barva / Znak jako kožené záložky.
+    // Barvy jako voskové pečeti 3 × 3 (obsazené jiným hráčem zašedlé a nejdou), znaky jako razítka na pergamenu 6 × 4
     const lookHtml = ({ color, emblem, taken = [], tab = 'color', error = '' }) => `
-        <div class="flex flex-col gap-2" data-cq-look>
-            <div class="flex items-center justify-center gap-3">${pennantSvg(color, emblem, 'h-12 w-16')}<span class="text-[14px] font-black text-slate-800 dark:text-slate-100">${esc(colorOf(color).name)} · ${esc(emblemOf(emblem).name)}</span></div>
-            <div role="tablist" class="flex gap-1 rounded-2xl bg-slate-200/70 p-1 dark:bg-slate-800">${[['color', 'Barva'], ['emblem', 'Znak']].map(([id, label]) => `<button type="button" role="tab" aria-selected="${tab === id}" data-cq-look-tab="${id}" class="flex min-h-[2.5rem] flex-1 items-center justify-center rounded-xl text-[13px] font-black ${tab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-300'}">${label}</button>`).join('')}</div>
-            ${tab === 'color' ? `<div role="radiogroup" aria-label="Barva" class="grid grid-cols-3 gap-1.5">${COLORS.map(item => {
+        <div class="cq-look cq-card-paper flex flex-col gap-2 rounded-2xl p-2.5" data-cq-look>
+            <div class="flex items-center justify-center gap-3">${pennantSvg(color, emblem, 'h-12 w-16')}<span class="flex flex-col"><span class="cq-ledger-title text-[16px]">${esc(colorOf(color).name)} · ${esc(emblemOf(emblem).name)}</span><span class="text-[11.5px] font-semibold text-amber-900/75 dark:text-gold-200/80">Takhle tě uvidí ostatní na mapě</span></span></div>
+            <div role="tablist" class="cq-look-tabs flex gap-1 rounded-xl p-1">${[['color', 'Barva', 'palette'], ['emblem', 'Znak', 'shield']].map(([id, label, icon]) => `<button type="button" role="tab" aria-selected="${tab === id}" data-cq-look-tab="${id}" class="cq-look-tab flex min-h-[2.5rem] flex-1 items-center justify-center gap-1.5 rounded-lg text-[13px] font-black"><i data-lucide="${icon}" class="h-4 w-4"></i>${label}</button>`).join('')}</div>
+            ${tab === 'color' ? `<div role="radiogroup" aria-label="Barva" class="grid grid-cols-3 gap-1">${COLORS.map(item => {
                 const off = taken.includes(item.id) && item.id !== color;
-                return `<button type="button" role="radio" aria-checked="${item.id === color}" aria-label="${esc(item.name)}${off ? ' (má jiný hráč)' : ''}" data-cq-color="${item.id}" ${off ? 'disabled' : ''} class="relative h-11 rounded-xl disabled:opacity-25 ${item.id === color ? 'ring-[3px] ring-brand-700 ring-offset-2 dark:ring-gold-300 dark:ring-offset-slate-900' : 'ring-1 ring-black/15'}"><svg viewBox="0 0 10 10" preserveAspectRatio="none" class="h-full w-full rounded-xl" aria-hidden="true"><rect width="10" height="10" fill="${item.hex}"/></svg>${off ? `<i data-lucide="x" class="absolute inset-0 m-auto h-5 w-5 ${emblemInk(item.id) === '#ffffff' ? 'text-white' : 'text-slate-900'}"></i>` : ''}</button>`;
+                return `<button type="button" role="radio" aria-checked="${item.id === color}" aria-label="${esc(item.name)}${off ? ' (má jiný hráč)' : ''}" data-cq-color="${item.id}" ${off ? 'disabled' : ''} class="cq-seal-pick relative flex h-[4.25rem] items-center justify-center rounded-xl">${sealSvg(item.id, emblem, 'h-14 w-14')}${off ? '<i data-lucide="lock" class="cq-seal-lock absolute bottom-1 right-2 h-4 w-4"></i>' : ''}</button>`;
             }).join('')}</div>`
-            : `<div role="radiogroup" aria-label="Znak" class="grid grid-cols-6 gap-1.5">${EMBLEMS.map(item => `<button type="button" role="radio" aria-checked="${item.id === emblem}" aria-label="${esc(item.name)}" title="${esc(item.name)}" data-cq-emblem="${item.id}" class="flex h-11 items-center justify-center rounded-xl ${item.id === emblem ? 'ring-[3px] ring-brand-700 ring-offset-2 dark:ring-gold-300 dark:ring-offset-slate-900' : 'ring-1 ring-black/15'}"><svg viewBox="0 0 24 24" class="h-11 w-full rounded-xl" aria-hidden="true"><rect width="24" height="24" fill="${colorOf(color).hex}"/><g transform="translate(3 3) scale(0.75)">${item.draw(emblemInk(color))}</g></svg></button>`).join('')}</div>`}
-            <button type="button" data-cq="look-done" class="${BRAND_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="check" class="h-5 w-5"></i> Hotovo</button>
+            : `<div role="radiogroup" aria-label="Znak" class="grid grid-cols-6 gap-1">${EMBLEMS.map(item => `<button type="button" role="radio" aria-checked="${item.id === emblem}" aria-label="${esc(item.name)}" title="${esc(item.name)}" data-cq-emblem="${item.id}" class="cq-stamp flex h-11 items-center justify-center rounded-lg">${item.id === emblem ? sealSvg(color, item.id, 'h-10 w-10') : emblemSvg(item.id, 'currentColor', 'h-6 w-6 text-[#5a3416] dark:text-[#e2cfa4]')}</button>`).join('')}</div>`}
+            <button type="button" data-cq="look-done" class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="check" class="h-5 w-5"></i> Hotovo</button>
             ${error ? `<p class="text-[13px] font-semibold text-rose-700 dark:text-rose-400" role="status">${esc(error)}</p>` : ''}
         </div>`;
 
@@ -1637,7 +1661,7 @@
         durationLabel, periodLabel, actionsLabel, timeLeft, movesWord, pointsWord, playersWord, territoriesWord, regionsWord, nextPeriodAt, agoLabel, periodLine,
         indexMap, parseRings, pointInRings, project, territoryAt, isAdjacent, viewOf, rank, sourcesFor, actionsFor,
         buildQuestion, kindsFor, placesOf, poolsOf, formsOf, FAMILY_IDS, flagUrl, flagFallback, THUMB, feedItems, replaySteps, capturedWord, hatchPattern, levelIcon, iconMarkup,
-        pennantSvg, pennantGroup, emblemSvg, mapSvg, thumbSvg, marksFor, homeCardHtml, hubHtml, mineHtml, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,
+        pennantSvg, pennantGroup, emblemSvg, sealSvg, mapSvg, thumbSvg, marksFor, homeCardHtml, hubHtml, mineHtml, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,
         gameScreenHtml, playersStripHtml, recentHtml, sheetHtml, devBarHtml, questionHtml, feedHtml, resultHtml, helpHtml, HELP_TABS, mapTitle, paramChips
     };
 });
