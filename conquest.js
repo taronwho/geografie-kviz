@@ -1856,7 +1856,7 @@
             <div class="flex shrink-0 items-center gap-1.5">
                 <button type="button" data-cq="hub" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl btn-3d-light bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-200" aria-label="Moje hry"><i data-lucide="chevron-left" class="h-5 w-5"></i></button>
                 <div class="flex min-w-0 flex-1 justify-center">
-                    <div class="${ART.cartouche ? 'cq-cartouche-art aspect-[29/10] h-14 max-w-full px-[15%] pb-[3px]' : 'cq-cartouche h-10 w-full rounded-xl px-2'} flex min-w-0 flex-col items-center justify-center text-center">
+                    <div class="${ART.cartouche ? 'cq-cartouche-art aspect-[29/10] h-[3.75rem] max-w-full px-[15%] pt-[3px]' : 'cq-cartouche h-10 w-full rounded-xl px-2'} flex min-w-0 flex-col items-center justify-center text-center">
                         <span class="cq-cartouche-title max-w-full truncate">${esc(mapTitle(game.map))}</span>
                         <span class="max-w-full truncate text-[10.5px] font-bold leading-3 text-amber-900/80" data-cq-clock>${esc(status)}</span>
                     </div>

@@ -1027,7 +1027,7 @@
             if (!holder || !game) return;
             holder.innerHTML = `<div class="cq-sheet cq-result-sheet cq-sheet-in max-h-[78vh] overflow-y-auto rounded-t-2xl p-2.5 pb-3" role="dialog" aria-label="Výsledky">
                 <div class="flex items-start gap-1"><span class="w-10 shrink-0"></span>
-                <div class="flex min-w-0 flex-1 justify-center"><div class="cq-cartouche-art aspect-[29/10] h-16 max-w-full px-[15%] pb-[3px] flex min-w-0 flex-col items-center justify-center text-center"><h2 class="cq-cartouche-title max-w-full truncate">Konec tažení</h2><span class="max-w-full truncate text-[10.5px] font-bold leading-3 text-amber-900/80">${esc(C.mapTitle(game.state.map))}</span></div></div>
+                <div class="flex min-w-0 flex-1 justify-center"><div class="cq-cartouche-art aspect-[29/10] h-[4.5rem] max-w-full px-[15%] pt-[4px] flex min-w-0 flex-col items-center justify-center text-center"><h2 class="cq-cartouche-title max-w-full truncate">Konec tažení</h2><span class="max-w-full truncate text-[10.5px] font-bold leading-3 text-amber-900/80">${esc(C.mapTitle(game.state.map))}</span></div></div>
                 <button type="button" data-cq="sheet-close" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 dark:text-slate-400" aria-label="Zavřít"><i data-lucide="x" class="h-5 w-5"></i></button></div>
                 ${C.resultHtml(game.view, { reward: rewards.get(game.id) || null })}</div>`;
             deps.renderIcons(holder);
@@ -1066,7 +1066,7 @@
             const names = winners.map(player => (player.me ? 'Ty' : player.display_name || 'Hráč')).join(', ');
             wrap.insertAdjacentHTML('beforeend', `<div data-cq-finale class="cq-finale-banner pointer-events-none absolute inset-x-0 top-[12%] flex flex-col items-center px-3" role="status">
                 ${me ? `<img src="icons/topics/${C.ART.victory || 'sova-vitez'}.webp" alt="" class="cq-finale-owl h-24 w-24 object-contain">` : `<span class="cq-finale-flag relative flex h-20 w-24 items-center justify-center">${C.ART.laurel ? `<img src="icons/topics/${C.ART.laurel}.webp" alt="" class="absolute inset-0 h-full w-full object-contain">` : ''}<span class="relative -mt-2">${C.pennantSvg(winner.flag_color, winner.emblem, 'h-10 w-[3.4rem]')}</span></span>`}
-                <div class="cq-finale-scroll cq-cartouche-art aspect-[29/10] h-16 max-w-full px-[15%] pb-[3px] flex flex-col items-center justify-center text-center"><span class="cq-cartouche-title text-[18px]">${esc(title)}</span><span class="max-w-full truncate text-[11px] font-bold text-amber-900/85">${esc(names)} · ${esc(C.pointsWord(winner.score))}</span></div>
+                <div class="cq-finale-scroll cq-cartouche-art aspect-[29/10] h-20 max-w-full px-[15%] pt-[4px] flex flex-col items-center justify-center text-center"><span class="cq-cartouche-title cq-cartouche-big">${esc(title)}</span><span class="max-w-full truncate text-[10.5px] font-bold leading-[1.2] text-amber-900/85">${esc(names)} · ${esc(C.pointsWord(winner.score))}</span></div>
                 ${Array.from({ length: 10 }, () => '<i class="cq-finale-spark" aria-hidden="true"></i>').join('')}</div>`);
             wrap.querySelectorAll('.cq-finale-spark').forEach((spark, i) => {
                 const angle = (i / 10) * Math.PI * 2;
