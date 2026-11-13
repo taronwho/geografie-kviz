@@ -153,7 +153,7 @@
         const now_ = `
             <section data-season-now class="rounded-2xl bg-gradient-to-br from-brand-700 to-brand-900 p-3 text-white shadow-sm short:p-2.5">
                 <div class="flex items-center gap-3">
-                    <span class="flex h-14 w-14 shrink-0 items-center justify-center short:h-12 short:w-12">${cur ? h.emblem(cur.league, 'h-full w-full') : h.emblem('bronz', 'h-full w-full opacity-40 grayscale')}</span>
+                    <span class="flex h-14 w-14 shrink-0 items-center justify-center short:h-12 short:w-12">${cur ? h.emblem(cur.league, 'h-full w-full') : h.art ? h.art('ligova-sezona', 'h-full w-full') : h.emblem('bronz', 'h-full w-full opacity-40 grayscale')}</span>
                     <div class="min-w-0 flex-1">
                         <p class="text-[11px] font-black uppercase tracking-widest text-gold-300">Ligová sezóna ${h.esc(monthLabel(data.month))}</p>
                         <p class="text-lg font-black leading-tight" data-season-peak>${cur ? `Nejvýš zatím: ${h.esc(leagueName(cur.league))}` : 'Zatím bez výsledku'}</p>
@@ -195,7 +195,7 @@
                 <p class="min-w-0 flex-1 text-[12px] font-semibold leading-snug text-slate-600 dark:text-slate-300"><b class="block text-[13px] font-black capitalize text-slate-800 dark:text-slate-100">${h.esc(monthLabel(selected))}: ${h.esc(leagueName(pick.league))}</b>${pick.peak} · ${plural(pick.games, 'výzva', 'výzvy', 'výzev')}</p>
                 ${showcase ? showcase.toggle(`l:${selected}:${pick.league}`) : ''}
             </div>`
-            : `<p data-season-detail class="flex min-h-[3rem] items-center rounded-xl px-1 text-[12px] font-semibold leading-snug text-slate-500 dark:text-slate-400">${played
+            : `<p data-season-detail class="flex min-h-[3rem] items-center gap-2 rounded-xl px-1 text-[12px] font-semibold leading-snug text-slate-500 dark:text-slate-400">${!played && h.art ? h.art('ligova-sezona', 'h-10 w-10 shrink-0') : ''}${played
                 ? (showcase ? 'Klepni na minulou sezónu a můžeš ji vystavit ve svém profilu.' : 'Klepni na minulou sezónu a uvidíš její výsledek.')
                 : 'Minulé sezóny tu přibudou, až odehraješ výzvy proti jiným hráčům.'}</p>`;
         return `

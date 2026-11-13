@@ -1252,7 +1252,7 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 
 ### Ligové sezóny, album a vitrína
 
-#### 147. `ligova-sezona.png` – Ligová sezóna (karta ligy a výsledky sezón)
+#### 147. `ligova-sezona.png` – Ligová sezóna (karta ligy a výsledky sezón) – ✅ dodáno, zapojeno (tip a okno Ligové sezóny)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1904,7 +1904,7 @@ Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same p
 
 ### Mudrlantova kronika
 
-#### 205. `sova-kronika.png` – Sova s kronikou týdne – čeká na dodání
+#### 205. `sova-kronika.png` – Sova s kronikou týdne – ✅ dodáno, zapojeno
 
 Kam: pruh „Tvůj týden v kostce je hotový“ na úvodu (neděle večer a pondělí). Do dodání je v pruhu sova titulu týdne; po dodání stačí v `chronicle.js` nastavit `STRIP_ART = 'sova-kronika'` (a vyrobit barvy obleku). Přiložit: `branding/sova-original.jpg` (postava)
 
@@ -1918,7 +1918,7 @@ Obrázky k pěti novým módům ze zadání `docs/NOVE-MODY.md` (oddíly 14–20
 
 **Textury** (č. 210, 231, 232 a 233) nejsou samolepky: nemají obrys ani krémový okraj a pozadí se u nich nevyřezává. Bezešvé dlaždice (všechny kromě arény) zkontrolujte tak, že obrázek položíte 2 × 2 vedle sebe: švy nesmějí být vidět (drobné švy dorovnám). Na konci jejich promptů je kromě `--ar` i `--tile`, parametr Midjourney pro bezešvou dlaždici; jinde ho smažte.
 
-#### 206. `zlata-otazka.png` – Sova s lupou nad zlatým otazníkem – čeká na dodání
+#### 206. `zlata-otazka.png` – Sova s lupou nad zlatým otazníkem – ✅ dodáno, zapojeno
 
 Kam: bublina s pravidly u první zlaté otázky v životě a tip ke Zlaté otázce. Do dodání `sova-tip`. Přiložit: `branding/sova-original.jpg` (postava)
 
@@ -1926,7 +1926,7 @@ Kam: bublina s pravidly u první zlaté otázky v životě a tip ke Zlaté otáz
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl mascot as the character: keep its face, monocle with chain, white eyebrows and whiskers, golden-brown feathers and wine-red academic robe with cap exactly as they are; change only the pose and props described here. The wine-red color must appear only on the robe and cap: all props must be in other colors (no red, pink or wine-colored props). Subject: The owl mascot leaning forward with wide amazed eyes, examining through a big brass magnifying glass a large shiny golden question mark that floats in front of it and glows softly, small golden sparkles and glints around the question mark, a delighted expression of discovery. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 207. `zlaty-stripek.png` – Zlatý střípek – čeká na dodání
+#### 207. `zlaty-stripek.png` – Zlatý střípek – ✅ dodáno, zapojeno
 
 Kam: střípek, který po správné odpovědi na zlatou otázku přiletí do počítadla, a počítadlo střípků v Mém postupu. Musí být čitelný i jako malá ikona 24–32 px. Do dodání `odznak-hvezdy`. Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1934,7 +1934,7 @@ Kam: střípek, který po správné odpovědi na zlatou otázku přiletí do po�
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 24 px icon (one simple bold shape, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: A single golden shard: a small faceted, jagged crystal fragment of shiny gold, like a sharp piece broken off a big golden gem, three or four large flat facets in light and deep gold, a bright glint on one facet and one tiny sparkle beside it. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 208. `zlata-truhla.png` – Zlatá truhla, zavřená – čeká na dodání
+#### 208. `zlata-truhla.png` – Zlatá truhla, zavřená – ✅ dodáno, zapojeno
 
 Kam: Zlatá truhla v Mém postupu (otevře ji 5 střípků) a začátek jejího otevírání, které běží stejně jako u Truhly Mudrlanta. Do dodání `truhla`. Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1942,7 +1942,7 @@ Kam: Zlatá truhla v Mém postupu (otevře ji 5 střípků) a začátek jejího 
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A special festive treasure chest, more precious than an ordinary one, seen from a slight three-quarter front view, lid firmly closed, a big sparkling gem lock in the front, simple bold shapes readable even as a small 64 px icon. Material: SOLID GOLD. The whole chest is made of shiny polished gold with ornate raised golden bands and corners, set with colorful gems (sapphire blue, emerald green, amethyst violet and ruby red) along the bands, a row of five small faceted golden shard crystals set in an arc on the lid, a big sparkling sapphire-blue gem lock, a soft golden glow and a few cream sparkles around it. The whole lid must be visible. Colors: rich gold, sapphire blue, emerald green, amethyst violet. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 209. `zlata-truhla-otevrena.png` – Zlatá truhla, otevřená – čeká na dodání
+#### 209. `zlata-truhla-otevrena.png` – Zlatá truhla, otevřená – ✅ dodáno, zapojeno
 
 Kam: otevírání Zlaté truhly (zavřená truhla se prolne s otevřenou a vystoupá z ní vzácná věc). Do dodání `truhla-otevrena`. Přiložit: vygenerovanou zavřenou `zlata-truhla.png` (č. 208), ať sedí tvar i pohled.
 
@@ -1950,7 +1950,7 @@ Kam: otevírání Zlaté truhly (zavřená truhla se prolne s otevřenou a vysto
 Edit the attached image. Keep the chest EXACTLY the same size, position, perspective, colors and style. Only open the lid (tilted back) and fill the opening with a brilliant golden glow, with golden sparkles, tiny gem glints and small golden rays rising out of the chest. Do not add anything else, no items inside. Keep the plain flat dark grey background #2d3034 and the thin cream sticker border.
 ```
 
-#### 210. `textura-zlato.png` – Textura zlaté fólie – čeká na dodání
+#### 210. `textura-zlato.png` – Textura zlaté fólie – ✅ dodáno, zapojeno
 
 Kam: zlatý rámeček a jemný podklad karty zlaté otázky. Do dodání CSS přechod. Přiložit: `branding/sova-original.jpg` (vzor stylu, jen kvůli barvám)
 
@@ -1958,7 +1958,7 @@ Kam: zlatý rámeček a jemný podklad karty zlaté otázky. Do dodání CSS př
 Seamless tileable background texture for a mobile game user interface, in painterly hand-painted game-UI quality. Use the attached owl mascot image only as a loose color reference; do not draw the owl and do not copy its outline or sticker style. NOT a sticker: no outline, no border, no frame, no objects, no characters, no symbols. Texture: shiny gold foil in one warm mid-tone gold, with very soft, gentle crinkles, smooth light reflections and a few tiny faint sparkles spread evenly over the whole surface. Even lighting with no vignette and no central focal point; the left edge must continue seamlessly into the right edge and the top edge into the bottom edge, so the image can be repeated as a tile without visible seams. Subtle and low contrast, because it will be used as a background texture behind the question text and in the golden frame of a quiz card, and the text on top must stay readable. No text, no letters, no numbers, no logo, no watermark. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1 --tile
 ```
 
-#### 211. `zlatokop.png` – Sova zlatokop – čeká na dodání
+#### 211. `zlatokop.png` – Sova zlatokop – ✅ dodáno, zapojeno
 
 Kam: symbol odznaků Zlatokop I, II a III (10, 50 a 100 správně zodpovězených zlatých otázek) v Mém postupu; kreslí se bez kolečka medaile jako ostatní symboly odznaků. Do dodání `odznak-odpovedi`. Přiložit: `branding/sova-original.jpg` (postava)
 
@@ -2144,7 +2144,7 @@ Tall background illustration for a mobile game screen, in painterly hand-painted
 
 Mapy her Dobývání leží na starém pergamenu a moře má vzor starých map (obě textury jsou bezešvé dlaždice, viz oddíl 14). Ozdoby mapy jsou samolepky jako ostatní obrázky, jen s nádechem rytin ze starých map; do dodání se nekreslí. Opevnění a další značky na mapě jsou v oddíle 20.
 
-#### 232. `textura-pergamen.png` – Starý pergamen – čeká na dodání
+#### 232. `textura-pergamen.png` – Starý pergamen – ✅ dodáno, zapojeno
 
 Kam: podklad map Dobývání (pod územími v barvách hráčů) a náhledy map v lobby a na kartě Dobývání. Do dodání CSS přechod. Přiložit: `branding/sova-original.jpg` (vzor stylu, jen kvůli barvám)
 
@@ -2152,7 +2152,7 @@ Kam: podklad map Dobývání (pod územími v barvách hráčů) a náhledy map 
 Seamless tileable background texture for a mobile game user interface, in painterly hand-painted game-UI quality. Use the attached owl mascot image only as a loose color reference; do not draw the owl and do not copy its outline or sticker style. NOT a sticker: no outline, no border, no frame, no objects, no characters, no symbols. Texture: old parchment paper in warm light cream and pale beige, with soft blotchy aging, faint paper fibers and a few very subtle light-brown stains spread evenly; no torn or burnt edges, no folds, no writing, no map lines, no drawings. Even lighting with no vignette and no central focal point; the left edge must continue seamlessly into the right edge and the top edge into the bottom edge, so the image can be repeated as a tile without visible seams. Subtle and low contrast, because it will be used as a background texture under a map with colored territories and dark labels, and the text on top must stay readable. No text, no letters, no numbers, no logo, no watermark. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1 --tile
 ```
 
-#### 233. `textura-more.png` – Moře starých map – čeká na dodání
+#### 233. `textura-more.png` – Moře starých map – ✅ dodáno, zapojeno
 
 Kam: moře na mapách Dobývání. Do dodání CSS přechod. Přiložit: `branding/sova-original.jpg` (vzor stylu, jen kvůli barvám)
 
@@ -2160,7 +2160,7 @@ Kam: moře na mapách Dobývání. Do dodání CSS přechod. Přiložit: `brandi
 Seamless tileable background texture for a mobile game user interface, in painterly hand-painted game-UI quality. Use the attached owl mascot image only as a loose color reference; do not draw the owl and do not copy its outline or sticker style. NOT a sticker: no outline, no border, no frame, no objects, no characters, no symbols. Texture: the sea as painted on antique maps: muted grey-blue and soft teal water (not saturated), covered evenly with fine engraving-style wave lines, short parallel hatched ripples in loose rows, slightly lighter than the water, like on old copper-engraved maps; no coastline, no land, no ships, no creatures, no compass. Even lighting with no vignette and no central focal point; the left edge must continue seamlessly into the right edge and the top edge into the bottom edge, so the image can be repeated as a tile without visible seams. Subtle and low contrast, because it will be used as a background texture for the sea around the territories on a map, under shapes and labels, and the text on top must stay readable. No text, no letters, no numbers, no logo, no watermark. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1 --tile
 ```
 
-#### 234. `dobyvani.png` – Sova dobyvatel s helmou a mapou – čeká na dodání
+#### 234. `dobyvani.png` – Sova dobyvatel s helmou a mapou – ✅ dodáno, zapojeno
 
 Kam: karta Dobývání ve Více hráčích (i stav bez her „Najdi hru, nebo založ vlastní“), tip k Dobývání a symbol odznaku Dobyvatel (bez kolečka medaile). Do dodání `rezim-mapa`. Přiložit: `branding/sova-original.jpg` (postava)
 
@@ -2168,7 +2168,7 @@ Kam: karta Dobývání ve Více hráčích (i stav bez her „Najdi hru, nebo za
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl mascot as the character: keep its face, monocle with chain, white eyebrows and whiskers, golden-brown feathers and wine-red academic robe with cap exactly as they are; change only the pose and props described here. The wine-red color must appear only on the robe and cap: all props must be in other colors (no red, pink or wine-colored props). Subject: The owl mascot as a cheerful, determined conqueror: a shiny bronze ancient-style helmet with a tall golden-yellow crest (not red) worn on its head over its cap, a half-unrolled cream parchment map in one wing showing a few simple colored territory patches and tiny flag pins (simple shapes only, no real borders, no text), the other wing pointing boldly ahead, a small teal pennant flag on a short pole planted beside it. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 235. `vetrna-ruzice.png` – Větrná růžice – čeká na dodání
+#### 235. `vetrna-ruzice.png` – Větrná růžice – ✅ dodáno, zapojeno
 
 Kam: ozdoba v rohu mapy Dobývání, na moři. Do dodání se nekreslí. Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2176,7 +2176,7 @@ Kam: ozdoba v rohu mapy Dobývání, na moři. Do dodání se nekreslí. Přilo�
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A classic compass rose drawn like a decoration on an antique map, with a hint of fine engraved hatching in the shading, but in the same cartoon sticker style: an eight-pointed star with four long and four shorter points, each point split into a light cream half and a darker teal or gold half, a thin outer ring with small tick marks, a small fleur-de-lis on the top point. No letters at the points (no N, E, S or W). Colors: cream parchment, gold, deep teal, sepia brown. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 236. `kartuse.png` – Prázdná ozdobná kartuše na název – čeká na dodání
+#### 236. `kartuse.png` – Prázdná ozdobná kartuše na název – ✅ dodáno, zapojeno
 
 Kam: kartuše s názvem na mapě Dobývání; název do ní píše hra, obrázek proto musí být bez písmen. Do dodání je název bez kartuše. Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2184,7 +2184,7 @@ Kam: kartuše s názvem na mapě Dobývání; název do ní píše hra, obrázek
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 90 % of the image width with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: An empty ornate title cartouche drawn like a decoration on an antique map, with a hint of fine engraved hatching in the shading, but in the same cartoon sticker style: a wide horizontal cream parchment plaque with both ends curling into scrolls, framed by gold baroque scrollwork with small laurel leaves and two tiny seashells at the corners. The central field is completely EMPTY and smooth plain cream: no text, no letters, no lines that look like writing, no symbols, because the game will write the title there. Colors: cream parchment, gold, a touch of teal. Wide image, aspect ratio 2:1 (for example 2048 × 1024 px). --ar 2:1
 ```
 
-#### 237. `morska-prisera.png` – Roztomilá mořská příšerka – čeká na dodání
+#### 237. `morska-prisera.png` – Roztomilá mořská příšerka – ✅ dodáno, zapojeno
 
 Kam: ozdoba na moři mapy Dobývání. Do dodání se nekreslí. Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2192,7 +2192,7 @@ Kam: ozdoba na moři mapy Dobývání. Do dodání se nekreslí. Přiložit: `br
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A cute, friendly sea serpent drawn like a decoration on an antique map, with a hint of fine engraved hatching in the shading, but in the same cartoon sticker style: a teal-green body arching out of the water in three round humps, a curly orange fin crest along its back, a cream belly, a big round head with huge friendly eyes and a playful toothless grin, a small water spout, a few stylized curly waves at its base. Colors: teal green, orange, cream, blue waves. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 238. `plachetnice.png` – Plachetnice – čeká na dodání
+#### 238. `plachetnice.png` – Plachetnice – ✅ dodáno, zapojeno
 
 Kam: ozdoba na moři mapy Dobývání. Do dodání se nekreslí. Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2200,7 +2200,7 @@ Kam: ozdoba na moři mapy Dobývání. Do dodání se nekreslí. Přiložit: `br
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A small plump sailing ship drawn like a decoration on an antique map, with a hint of fine engraved hatching in the shading, but in the same cartoon sticker style: a round wooden hull, two masts with full cream sails puffed by the wind, a small plain teal pennant at the top of the main mast (no symbols), sitting on a few stylized curly waves. Colors: warm wood brown, cream sails, teal, blue waves. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 239. `hradba.png` – Kamenná hradba s věží – čeká na dodání
+#### 239. `hradba.png` – Kamenná hradba s věží – ✅ dodáno, zapojeno
 
 Kam: ikona opevnění 2. stupně (Hradba) na území mapy Dobývání (vyroste ze země s obláčkem prachu, po úspěšném útoku praskne) a v kartě území; 1. stupeň je Palisáda (č. 260), 3. stupeň Pevnost (č. 261). Musí být čitelná i jako ikona 28–36 px. Do dodání jednoduchá značka ze SVG. Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2382,7 +2382,7 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 
 Opevnění území má tři stupně, které k sobě patří a viditelně rostou: 1. Palisáda (č. 260), 2. Hradba (č. 239) a 3. Pevnost (č. 261). Mají stejný pohled, stejnou šířku základny a stejný styl: nejdřív vygenerujte hradbu č. 239 a k palisádě i pevnosti ji přiložte jako vzor. Všechny značky na mapě musí být čitelné i jako ikona 28–36 px a mít neutrální barvy (kámen, dřevo, zlato), aby byly dobře vidět na území v barvě kteréhokoli hráče.
 
-#### 260. `palisada.png` – Dřevěná palisáda – čeká na dodání
+#### 260. `palisada.png` – Dřevěná palisáda – ✅ dodáno, zapojeno
 
 Kam: ikona opevnění 1. stupně (Palisáda) na území mapy Dobývání (vyroste ze země s obláčkem prachu) a v kartě území. Do dodání jednoduchá značka ze SVG. Přiložit: `branding/sova-original.jpg` (vzor stylu) a hotovou `hradba.png` (č. 239, vzor pohledu a velikosti)
 
@@ -2390,7 +2390,7 @@ Kam: ikona opevnění 1. stupně (Palisáda) na území mapy Dobývání (vyrost
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 28 px map icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: This is one of three matching fortification icons that clearly escalate in strength (level 1: a low wooden stake palisade, level 2: a stone wall with a small tower, level 3: a tall stone fortress tower with a pennant); all three share the same three-quarter front view, the same base width (about 80 % of the image width), the bottom edge on the same flat ground line (no grass, no ground patch) and the same colors of stone and wood, and each level is taller and grander than the one before. If an image of another level is attached, match its view, size and style exactly. LEVEL 1: a low palisade of sharpened wooden stakes of slightly different heights, tied together with rope and standing in a gentle arc, light warm brown wood with darker rings on the pointed tips, no stone, no tower, no flag. Colors: warm wood brown, rope beige. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 261. `pevnost.png` – Kamenná pevnost s praporkem – čeká na dodání
+#### 261. `pevnost.png` – Kamenná pevnost s praporkem – ✅ dodáno, zapojeno
 
 Kam: ikona opevnění 3. stupně (Pevnost) na mapě Dobývání a v kartě území; tak vysoko jde opevnit jen domovské území. Do dodání jednoduchá značka ze SVG. Přiložit: `branding/sova-original.jpg` (vzor stylu) a hotovou `hradba.png` (č. 239, vzor pohledu a velikosti)
 
@@ -2398,7 +2398,7 @@ Kam: ikona opevnění 3. stupně (Pevnost) na mapě Dobývání a v kartě územ
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 28 px map icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: This is one of three matching fortification icons that clearly escalate in strength (level 1: a low wooden stake palisade, level 2: a stone wall with a small tower, level 3: a tall stone fortress tower with a pennant); all three share the same three-quarter front view, the same base width (about 80 % of the image width), the bottom edge on the same flat ground line (no grass, no ground patch) and the same colors of stone and wood, and each level is taller and grander than the one before. If an image of another level is attached, match its view, size and style exactly. LEVEL 3: a tall, massive stone fortress: a thick round keep tower with crenellated battlements and narrow arrow slits rising behind a short section of the same crenellated stone wall, an iron-banded wooden gate, and a big plain golden pennant flying from a pole on top of the tower (no symbols). Colors: warm grey stone, wood brown, gold. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 262. `hrad-domov.png` – Hrádek domovského území – čeká na dodání
+#### 262. `hrad-domov.png` – Hrádek domovského území – ✅ dodáno, zapojeno
 
 Kam: hrad na domovském území (hlavním městě) hráče na mapě Dobývání a v kartě území. Do dodání jednoduchá značka ze SVG. Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2406,7 +2406,7 @@ Kam: hrad na domovském území (hlavním městě) hráče na mapě Dobývání 
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 28 px map icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: A small, cozy fairy-tale castle that marks a player's home territory (the capital): a central stone keep with a pointed slate-blue cone roof, flanked by two smaller round towers with matching cone roofs, a wooden gate, and a small golden flag with a simple white five-pointed star on the top of the keep; clearly different from the plain battle fortifications. Colors: warm grey stone, slate blue roofs, gold. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 263. `poklad.png` – Truhlička s pokladem – čeká na dodání
+#### 263. `poklad.png` – Truhlička s pokladem – ✅ dodáno, zapojeno
 
 Kam: truhlička na neutrálním území s pokladem (na mapě je jich pět, dobytí dá hned +1 tah) a v kartě území. Do dodání jednoduchá značka ze SVG. Přiložit: `branding/sova-original.jpg` (vzor stylu)
 

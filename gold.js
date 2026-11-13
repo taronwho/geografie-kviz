@@ -16,14 +16,14 @@
     else root.MudrlantGold = api;
 })(typeof self !== 'undefined' ? self : this, (Rewards, Look) => {
     'use strict';
-    // Obrázky (icons/topics/<název>.webp). Nové obrázky č. 206–211 (docs/NOVE-MODY.md) se po dodání vymění tady, každý jedním řádkem.
+    // Obrázky (icons/topics/<název>.webp, textura icons/textury/<název>.webp; docs/OBRAZKY.md č. 206–211)
     const ART = {
-        owl: 'sova-dalekohled', // č. 206 zlata-otazka (sova s lupou nad zlatým otazníkem): vysvětlení první zlaté otázky, okno Zlatá otázka, tip
-        shard: null, // č. 207 zlaty-stripek; do dodání se střípek kreslí z CSS (.gold-shard v src/input.css)
-        chest: 'truhla', // č. 208 zlata-truhla; do dodání Truhla Mudrlanta pozlacená filtrem (.gold-tint, viz chestLook)
-        chestOpen: 'truhla-otevrena', // č. 209 zlata-truhla-otevrena
-        texture: null, // č. 210 textura-zlato; do dodání zlatá fólie z CSS přechodů (.gold-card)
-        badge: 'liga-zlato' // č. 211 zlatokop (symbol odznaků Zlatokop)
+        owl: 'zlata-otazka', // č. 206 sova s lupou nad zlatým otazníkem: vysvětlení první zlaté otázky, okno Zlatá otázka, tip
+        shard: 'zlaty-stripek', // č. 207 (null = střípek z CSS, .gold-shard v src/input.css)
+        chest: 'zlata-truhla', // č. 208 ('truhla' = Truhla Mudrlanta pozlacená filtrem .gold-tint, viz chestLook)
+        chestOpen: 'zlata-truhla-otevrena', // č. 209
+        texture: 'textura-zlato', // č. 210 bezešvá dlaždice pod průsvitnou vrstvou karty (null = zlatá fólie z CSS přechodů, .gold-card)
+        badge: 'zlatokop' // č. 211 symbol odznaků Zlatokop
     };
     const KEY = 'mudrlant.gold';
     const CHANCE = 1 / 50;
@@ -203,7 +203,7 @@
     const owlHtml = (cls) => `<img src="icons/topics/${ART.owl}.webp" alt="" class="${cls} shrink-0 object-contain drop-shadow-sm">`;
     const chestLook = () => ({ closed: ART.chest, open: ART.chestOpen, tint: ART.chest === 'truhla' });
     const chestArt = (cls = 'h-7 w-7', open = false) => `<img src="icons/topics/${open ? ART.chestOpen : ART.chest}.webp" alt="" class="${cls} shrink-0 object-contain drop-shadow-sm${chestLook().tint ? ' gold-tint' : ''}">`;
-    const textureUrl = () => (ART.texture ? `icons/topics/${ART.texture}.webp` : null);
+    const textureUrl = () => (ART.texture ? `icons/textury/${ART.texture}.webp` : null);
     // Pět okének na střípky: plná zlatá, prázdná s obrysem; fresh = index střípku, který právě přiletí (zatím prázdný, app.js ho naplní)
     const slotsHtml = (filled, { fresh = -1, size = 'h-5 w-5', cls = '' } = {}) => `
         <span data-gold-slots="${filled}" class="flex shrink-0 items-center gap-1 ${cls}" role="img" aria-label="Zlaté střípky: ${Math.min(SHARDS, filled)} z ${SHARDS}">${Array.from({ length: SHARDS }, (_, index) => {

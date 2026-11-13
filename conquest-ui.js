@@ -454,13 +454,13 @@
             const zoom = zoomOf();
             const markScale = (13 * Math.pow(zoom, 0.35) * upp) / 16.5;
             svg.querySelectorAll('.cq-mark-scale').forEach(element => element.setAttribute('transform', `scale(${markScale.toFixed(3)})`));
+            // Název jen u vybraného území (ostatní názvy by napovídaly), vždy aspoň 12 a nejvýš 16 px na displeji
             svg.querySelectorAll('.cq-label').forEach(element => {
                 const base = Number(element.dataset.size) || 10;
-                const px = base / upp;
-                const hide = px < 8;
+                const hide = element.dataset.label !== game.selected;
                 element.classList.toggle('cq-hide', hide);
                 if (hide) return;
-                const size = Math.min(base, 15 * upp);
+                const size = Math.max(12 * upp, Math.min(base, 16 * upp));
                 const item = game.view.index.byId.get(element.dataset.label);
                 element.setAttribute('font-size', size.toFixed(2));
                 if (item) element.setAttribute('y', (item.a[1] + size * 1.2).toFixed(2));
@@ -541,6 +541,7 @@
             if (!layer || !game) return;
             const item = game.selected ? game.view.index.byId.get(game.selected) : null;
             layer.innerHTML = item ? `<path d="${item.d}"/>` : '';
+            updateDetail();
         };
         const sheet = () => app.querySelector('[data-cq-sheet]');
         const selectTerritory = (id) => {
@@ -719,6 +720,11 @@
             if (!holder || !move || !move.question) return;
             holder.innerHTML = C.questionHtml(move.question, { title: questionTitle(move), item: game.view.index.byId.get(move.target), data: game.data, answered: move.answered });
             deps.renderIcons(holder);
+            // Vlajka, jejíž náhled se nenačetl, se zkusí jednou z původního souboru (bez obrázku by na otázku nešlo odpovědět)
+            holder.querySelectorAll('img[data-cq-fallback]').forEach(img => {
+                const swap = () => { const file = img.dataset.cqFallback; if (file && img.src !== file) { delete img.dataset.cqFallback; img.src = file; } };
+                if (img.complete && img.naturalWidth === 0) swap(); else img.addEventListener('error', swap, { once: true });
+            });
         };
         const answer = async (index) => {
             const move = game && game.move;

@@ -295,3 +295,20 @@ test('vykreslení: mapa, náhled, obrazovky a okna bez inline stylů (CSP), klep
     assert.match(C.homeCardHtml({ games: [], maps }), /Najdi hru nebo založ vlastní/);
     assert.match(C.homeCardHtml({ games: [{ ...state, budget: state.budget }], maps }), /Tahy 4\/5/);
 });
+
+test('vlajky a znaky v otázkách: náhled ve standardní šířce Commons (160 px Wikimedia odmítá), záloha na původní soubor', () => {
+    const fl = ['Flag of Serbia.svg', 'ff'];
+    assert.equal(C.FLAG_WIDTH, 250);
+    assert.equal(C.flagUrl(fl), 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/ff/Flag_of_Serbia.svg/250px-Flag_of_Serbia.svg.png');
+    assert.equal(C.flagFile(fl), 'https://upload.wikimedia.org/wikipedia/commons/f/ff/Flag_of_Serbia.svg');
+    // Otázka na vlajku má u každé možnosti obrázek i zálohu a HTML zálohu nese (conquest-ui.js ji použije, když se náhled nenačte)
+    const data = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'dobyvani-evropa.json'), 'utf8'));
+    const serbia = data.t.find(item => item.n === 'Srbsko');
+    let question = null;
+    for (let seed = 0; seed < 80 && !(question && question.kind === 'flag'); seed++) question = C.buildQuestion({ data, territory: serbia.id, level: 1, topics: {}, seed: `v${seed}` });
+    assert.equal(question && question.kind, 'flag', 'některé semínko dá otázku na vlajku');
+    {
+        assert.ok(question.choices.every(choice => /\/250px-/.test(choice.image) && /^https:\/\/upload\.wikimedia\.org\/wikipedia\/commons\/[0-9a-f]\//.test(choice.fallback)));
+        assert.match(C.questionHtml(question, { title: 'Útok', item: serbia, data, answered: null }), /data-cq-fallback="https:\/\/upload\.wikimedia\.org/);
+    }
+});

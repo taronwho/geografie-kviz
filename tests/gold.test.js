@@ -218,7 +218,9 @@ test('HTML: štítek, bublina, výsledek, okénko, dlaždice a okno bez inline s
     const options = G.chestOptions();
     const card = Rewards.chestHtml({ look: options });
     assert.match(card, /gold-chest[\s\S]*5 zlatých střípků[\s\S]*Zlatá truhla/);
-    assert.match(card, /chest-body grid h-full w-full gold-tint/);
+    // Vlastní obrázky Zlaté truhly (č. 208–209): bez pozlacení filtrem
+    assert.ok(G.chestLook().tint === (G.ART.chest === 'truhla'));
+    if (!G.chestLook().tint) assert.doesNotMatch(card, /gold-tint/);
     const opened = Rewards.chestHtml({ opened: { gift: { category: 'frames', item: Look.find('frames', 'ruze') }, xp: 0 }, look: options });
     assert.match(opened, /Vzácný rámeček, který jinak najdeš jen v truhlách\. Teď je tvůj\./);
     assert.match(Rewards.chestHtml({ opened: { gift: null, xp: G.CHEST_XP }, look: options }), /\+300 XP[\s\S]*Všechny vzácné věci už máš/);
@@ -278,9 +280,15 @@ test('napojení: modul, service worker, nasazení, Tailwind, odznaky Zlatokop (a
     assert.match(app, /touchTip\('gold'\)/);
     // Obrázky (zástupné do dodání č. 206–211) existují a jsou v mezipaměti service workeru
     const sw = read('sw.js');
-    for (const name of [G.ART.owl, G.ART.chest, G.ART.chestOpen, G.ART.badge, G.ART.shard, G.ART.texture].filter(Boolean)) {
+    for (const name of [G.ART.owl, G.ART.chest, G.ART.chestOpen, G.ART.badge, G.ART.shard].filter(Boolean)) {
         assert.ok(fs.existsSync(path.join(ROOT, 'icons', 'topics', `${name}.webp`)), `${name}.webp`);
         assert.ok(sw.includes(`'${name}'`), `${name} v mezipaměti`);
+    }
+    // Textura zlaté fólie je bezešvá dlaždice v icons/textury
+    if (G.ART.texture) {
+        assert.equal(G.textureUrl(), `icons/textury/${G.ART.texture}.webp`);
+        assert.ok(fs.existsSync(path.join(ROOT, 'icons', 'textury', `${G.ART.texture}.webp`)));
+        assert.ok(sw.includes(`'${G.ART.texture}'`), 'textura v mezipaměti');
     }
     // Bleskovka: čas stojí i pod bublinou vysvětlení a pod Zlatou truhlou
     assert.match(app, /const MODE_OVERLAYS = \[[^\]]*'gold-bubble'/);

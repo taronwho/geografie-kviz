@@ -13,7 +13,9 @@ GLOW = {'sova-titul-9': (0.52, 0.0, 0.92, 0.40)}
 # Samolepka s uzavřeným krémovým okrajem (sova-titul-11: kulatý odznak s tmavou galaxií): uvnitř okraje nic průhledné není
 # (tmavě modré nebe má skoro barvu pozadí, ale mezera to není) a vně okraje zmizí vše (jiskry se září vedle žezla).
 # truhla-otevrena: jiskry kolem a světlo z mezery pod víkem by na světlém pozadí nechaly tmavé lemy; jiskry a záři kreslí CSS (.chest-*)
-STICKER = {'sova-titul-11', 'truhla-otevrena'}
+# Zlatá otázka (č. 206–211): jiskry a záře kolem zlatých předmětů (otazník, truhly, střípek, rýžovací miska) zmizí stejně
+# ligova-sezona: konfety kolem poháru, sova-kronika: jiskry kolem knihy
+STICKER = {'sova-titul-11', 'truhla-otevrena', 'ligova-sezona', 'sova-kronika', 'zlata-otazka', 'zlata-truhla', 'zlata-truhla-otevrena', 'zlaty-stripek', 'zlatokop'}
 
 def cream_like(a, bg, cream, full):
     # Barva na přímce pozadí → krémový obrys (full=False: i přechod z pozadí do krémové, full=True: jen skoro krémová)

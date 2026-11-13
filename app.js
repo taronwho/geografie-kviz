@@ -6985,7 +6985,8 @@
         const me = myProfile || { avatar: '🦉', color: 'emerald' };
         return avatarHtml({ avatar: me.avatar, color: me.color, owl: me.owl ? myOwlText() || me.owl : null, frame }, cls);
     };
-    const seasonHelpers = () => ({ esc: escapeHtml, emblem: (league, cls) => leagueEmblem({ id: league }, cls), frameAvatar: framePreview });
+    // art = obrázek z icons/topics (pohár Ligové sezóny č. 147, dokud hráč v sezóně nemá výsledek)
+    const seasonHelpers = () => ({ esc: escapeHtml, emblem: (league, cls) => leagueEmblem({ id: league }, cls), frameAvatar: framePreview, art: (name, cls) => uiArt(name, cls) });
     // Pruh sezóny pod kartou ligy (jen když databáze sezóny zná)
     const leagueSeasonStrip = () => (LeagueSeasons && leagueSeasons
         ? LeagueSeasons.stripHtml({ data: leagueSeasons, best: leagueBestNow(), rating: myRating ? myRating.rating : null, now: new Date() }, seasonHelpers()) : '');

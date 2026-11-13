@@ -13,19 +13,19 @@
 
     // --- Obrázky (docs/OBRAZKY.md): do dodání existující obrázky nebo kresby SVG; po dodání stačí doplnit název souboru ---
     const ART = {
-        card: 'sova-dalekohled',  // č. 234 'dobyvani' – sova dobyvatel s helmou a mapou (karta, tip, odznak)
-        palisade: null,           // č. 260 'palisada' – opevnění 1 (do dodání kresba SVG)
-        wall: null,               // č. 239 'hradba' – opevnění 2
-        fortress: null,           // č. 261 'pevnost' – opevnění 3 (jen domovské území)
-        castle: null,             // č. 262 'hrad-domov' – domovské území
-        treasure: null,           // č. 263 'poklad' – truhla s pokladem
-        compass: null,            // č. 235 'vetrna-ruzice'
-        ship: null,               // č. 238 'plachetnice'
-        monster: null,            // č. 237 'morska-prisera'
-        cartouche: null,          // č. 236 'kartuse' – kartuše s názvem mapy (do dodání CSS .cq-cartouche)
-        // Textury (icons/textury/<název>.webp): pergamen doplní background-image ve třídě .cq-paper (src/input.css), moře vzor v SVG
-        paper: null,              // č. 232 'textura-pergamen'
-        sea: null,                // č. 233 'textura-more'
+        card: 'dobyvani',         // č. 234 sova dobyvatel s helmou a mapou (karta, tip)
+        palisade: 'palisada',     // č. 260 opevnění 1 (null = kresba SVG, ICON_SHAPES)
+        wall: 'hradba',           // č. 239 opevnění 2
+        fortress: 'pevnost',      // č. 261 opevnění 3 (jen domovské území)
+        castle: 'hrad-domov',     // č. 262 domovské území
+        treasure: 'poklad',       // č. 263 truhla s pokladem
+        compass: 'vetrna-ruzice', // č. 235
+        ship: 'plachetnice',      // č. 238
+        monster: 'morska-prisera', // č. 237
+        cartouche: 'kartuse',     // č. 236 kartuše s názvem mapy v liště hry (větší náhled icons/topics/kartuse-sirka.webp, .cq-cartouche-art)
+        // Textury (icons/textury/<název>.webp): pergamen je background-image ve třídě .cq-paper (src/input.css), moře vzor v SVG
+        paper: 'textura-pergamen', // č. 232
+        sea: 'textura-more',      // č. 233
         frame: null               // č. 240 'ramecek-dobyvatel' – rámeček vítěze (look.js ART_FRAMES s badge: 'dobyvatel', až bude obrázek)
     };
     const artUrl = (name) => `icons/topics/${name}.webp`;
@@ -303,7 +303,11 @@
 
     // --- Otázky o území (4 možnosti). Obtížnost roste s úrovní opevnění cíle ---
     // topics = { zemepis, vlajky, architektura } (pole položek z data/<téma>.json, chybějící se vynechá)
-    const flagUrl = (fl, width = 160) => (fl && core && core.commonsPhotoUrl ? core.commonsPhotoUrl(fl[0], fl[1], width) : '');
+    // Náhled vlajky (znaku kraje) z Commons: jen ve standardní šířce (Wikimedia jiné šířky jako 160 px odmítne a vlajka by chyběla);
+    // když se náhled nenačte, conquest-ui.js přepne na původní soubor (flagFile)
+    const FLAG_WIDTH = 250;
+    const flagUrl = (fl, width = FLAG_WIDTH) => (fl && core && core.commonsPhotoUrl ? core.commonsPhotoUrl(fl[0], fl[1], width) : '');
+    const flagFile = (fl) => (fl && core && core.commonsFileUrl ? core.commonsFileUrl(fl[0], fl[1]) : '');
     const PLACE_KINDS = {
         mesto: ['Které z těchto měst leží', 'Které z těchto měst leží'],
         hora: ['Která z těchto hor je', 'Která z těchto hor je'],
@@ -382,7 +386,7 @@
             if (!item.fl) return null;
             const wrong = nearby.filter(other => other.fl).slice(0, 6);
             const picked = shuffle(wrong.slice(0, 5), rng).slice(0, 3);
-            const choices = options({ label: item.n, image: flagUrl(item.fl) }, picked.map(other => ({ label: other.n, image: flagUrl(other.fl) })));
+            const choices = options({ label: item.n, image: flagUrl(item.fl), fallback: flagFile(item.fl) }, picked.map(other => ({ label: other.n, image: flagUrl(other.fl), fallback: flagFile(other.fl) })));
             return choices && { kind, prompt: kraje ? `Který znak má ${item.n}?` : `Kterou vlajku má ${item.n}?`, choices, images: true };
         }
         if (kind === 'neighbour') {
@@ -639,10 +643,10 @@
         parts.push(`<g class="cq-hits">${data.t.map(item => `<path class="cq-hit" data-t="${item.id}" d="${item.d}"/>`).join('')}</g>`);
         if (!opts.thumb) {
             parts.push('<g class="cq-select" pointer-events="none"></g>');
-            // Popisky (velikost podle místa v území; malé se schovají, dokud se mapa nepřiblíží)
+            // Popisky: na mapě nejsou (názvy států by napovídaly), ukáže se jen název území, na které hráč klepne (conquest-ui.js updateDetail)
             const labels = data.t.map(item => {
                 const size = Math.max(7, Math.min(30, item.r * 0.5));
-                return `<text class="cq-label" data-label="${item.id}" data-size="${size.toFixed(1)}" x="${item.a[0]}" y="${(item.a[1] + size * 1.25).toFixed(1)}" font-size="${size.toFixed(1)}">${esc(item.n)}</text>`;
+                return `<text class="cq-label cq-hide" data-label="${item.id}" data-size="${size.toFixed(1)}" x="${item.a[0]}" y="${(item.a[1] + size * 1.25).toFixed(1)}" font-size="${size.toFixed(1)}">${esc(item.n)}</text>`;
             });
             parts.push(`<g class="cq-labels" pointer-events="none">${labels.join('')}</g>`);
             parts.push(`<g class="cq-marks" pointer-events="none">${view ? data.t.map(item => marksFor(item, view)).join('') : ''}</g>`);
@@ -876,9 +880,11 @@
         return `<div id="conquest-game" data-game="${esc(game.id)}" class="cq-screen relative flex h-full min-h-0 flex-col gap-1.5 overflow-hidden p-2 short:gap-1 short:p-1.5">
             <div class="flex shrink-0 items-center gap-1.5">
                 <button type="button" data-cq="hub" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl btn-3d-light bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-200" aria-label="Moje hry"><i data-lucide="chevron-left" class="h-5 w-5"></i></button>
-                <div class="cq-cartouche flex h-10 min-w-0 flex-1 flex-col items-center justify-center rounded-xl px-2 text-center">
-                    <span class="cq-cartouche-title max-w-full truncate">${esc(mapTitle(game.map))}</span>
-                    <span class="max-w-full truncate text-[10.5px] font-bold leading-3 text-amber-900/80" data-cq-clock>${esc(status)}</span>
+                <div class="flex min-w-0 flex-1 justify-center">
+                    <div class="${ART.cartouche ? 'cq-cartouche-art aspect-[29/10] h-12 max-w-full px-[14%]' : 'cq-cartouche h-10 w-full rounded-xl px-2'} flex min-w-0 flex-col items-center justify-center text-center">
+                        <span class="cq-cartouche-title max-w-full truncate">${esc(mapTitle(game.map))}</span>
+                        <span class="max-w-full truncate text-[10.5px] font-bold leading-3 text-amber-900/80" data-cq-clock>${esc(status)}</span>
+                    </div>
                 </div>
                 ${budget ? `<span data-cq-budget class="flex h-10 shrink-0 items-center gap-1 rounded-xl bg-white px-2 text-[13px] font-black text-slate-800 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700" title="Tahy v tomto období">
                     <i data-lucide="swords" class="h-4 w-4 text-brand-700 dark:text-gold-300"></i><span class="sr-only">Tahy </span>${budget.left}/${budget.total}</span>` : ''}
@@ -963,7 +969,7 @@
         const grid = question.images ? 'grid grid-cols-2 gap-1.5' : question.kind === 'map' ? 'grid grid-cols-4 gap-1.5' : 'grid grid-cols-1 gap-1.5';
         const options = question.choices.map((choice, i) => {
             const state = answered === null ? '' : choice.correct ? ' cq-choice-ok' : answered === i ? ' cq-choice-bad' : ' opacity-60';
-            const inner = question.images ? `<img src="${esc(choice.image)}" alt="" class="h-12 w-full object-contain short:h-10" referrerpolicy="no-referrer"><span class="sr-only">Možnost ${i + 1}</span>` : esc(choice.label);
+            const inner = question.images ? `<img src="${esc(choice.image)}"${choice.fallback ? ` data-cq-fallback="${esc(choice.fallback)}"` : ''} alt="" class="h-12 w-full object-contain short:h-10" referrerpolicy="no-referrer"><span class="sr-only">Možnost ${i + 1}</span>` : esc(choice.label);
             return `<button type="button" data-cq-answer="${i}" ${answered !== null ? 'disabled' : ''} class="cq-choice${state} flex min-h-[2.75rem] items-center justify-center rounded-xl px-2 py-1 text-center text-[14px] font-bold leading-tight text-slate-800 dark:text-slate-100">${inner}</button>`;
         }).join('');
         const after = answered === null ? '' : question.kind === 'map' ? `<p class="text-center text-[12.5px] font-bold text-slate-600 dark:text-slate-300">${esc(question.answerLabel)} je bod ${esc(question.choices.find(c => c.correct).label)}.</p>`
@@ -1052,7 +1058,7 @@
         COLORS, COLOR_BY_ID, EMBLEMS, EMBLEM_BY_ID, colorOf, emblemOf, inkOf, emblemInk, luminance, maxLevel, rewardFor,
         durationLabel, periodLabel, actionsLabel, timeLeft, movesWord, pointsWord, playersWord, territoriesWord,
         indexMap, parseRings, pointInRings, project, territoryAt, isAdjacent, viewOf, rank, sourcesFor, actionsFor,
-        buildQuestion, kindsFor, placesOf, feedItems, replaySteps, capturedWord, hatchPattern, levelIcon, iconMarkup,
+        buildQuestion, kindsFor, placesOf, flagUrl, flagFile, FLAG_WIDTH, feedItems, replaySteps, capturedWord, hatchPattern, levelIcon, iconMarkup,
         pennantSvg, pennantGroup, emblemSvg, mapSvg, thumbSvg, marksFor, homeCardHtml, hubHtml, mineHtml, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,
         gameScreenHtml, playersStripHtml, recentHtml, sheetHtml, devBarHtml, questionHtml, feedHtml, resultHtml, helpHtml, HELP_TABS, mapTitle, paramChips
     };
