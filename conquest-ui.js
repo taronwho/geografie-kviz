@@ -1,7 +1,8 @@
 // Dobývání v prohlížeči (pravidla a vykreslení jsou v conquest.js): karta na záložce Více hráčů, rozcestník (Moje hry s pozvánkami
 // od přátel, Lobby, Založit hru s výběrem přátel k pozvání), detail otevřené hry (Chci hrát, Odejít, Pozvat přátele, sdílení odkazu,
 // Barva a znak, pozvaní „Pozváno“), obrazovka hry s mapou (posun a přiblížení prsty,
-// kolečkem i dvojitým klepnutím), spodní list území, otázka tahu a animace výsledku (šipka útoku, rozlití inkoustu z místa útoku,
+// kolečkem i dvojitým klepnutím), spodní list území, otázka tahu (připraví se už při otevření listu; otázka Mudrlanta s popisem,
+// fakty nebo obrázkem přes celou obrazovku hry, ostatní ve spodním listu) a animace výsledku (šipka útoku, rozlití inkoustu z místa útoku,
 // zapíchnutí vlaječky, pobourání a stavba opevnění, poklad, zlatý obrys celého regionu, zlomená šipka), kronika tažení, přehrání
 // hry a stupně vítězů s odměnou. Při omezeném pohybu (prefers-reduced-motion) jsou čekání krátká a CSS animace vypnuté.
 // app.js předá pomocné funkce (createUI) a napojí obrazovku 'conquest', tlačítko Zpět, akce karty a odkaz …?dobyvani=KÓD.
@@ -16,6 +17,10 @@
     const PENDING_KEY = 'mudrlant.pendingConquest';
     const MAX_ZOOM = 8;
     const POLL_GAME = 20000;
+    // Bitvy o území (blok 25): puls hry každé 3 s, během bitvy (moje nebo otevřená na mapě) každých 1,5 s; čas na odpověď 60 s
+    const POLL_PULSE = 3000;
+    const POLL_BATTLE = 1500;
+    const BATTLE_MS = 60000;
     const POLL_LOBBY = 7000;
     const CODE_PATTERN = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/;
     const parseCode = (text) => {
@@ -26,7 +31,8 @@
     };
 
     // deps: Conquest (conquest.js), Social, appContent, signedUser, login, enter (obrazovka 'conquest'), isActive, renderHome, renderIcons,
-    // showDialog, closeDialog, showToast, loadMap(id), loadTopics(), award({ xp, badge, place }), share(payload), sound(name), touchTip, onCard(),
+    // showDialog, closeDialog, showToast, loadMap(id), loadTopics(), roundFor(požadavek otázky Mudrlanta → obsah, conquest.js prepareQuestion),
+    // award({ xp, badge, place }), share(payload), sound(name), touchTip, onCard(),
     // avatarHtml(hráč, třídy) a friends() (přijatí přátelé pro okno Pozvat přátele; null = nenačetli se)
     const createUI = (deps) => {
         const C = deps.Conquest;
@@ -58,6 +64,26 @@
         const topics = () => {
             if (!topicsLoad) topicsLoad = deps.loadTopics().catch(error => { topicsLoad = null; throw error; });
             return topicsLoad;
+        };
+        // Otázka tahu (conquest.js prepareQuestion): chystá se už při otevření listu území, takže popis z Wikipedie a obrázek
+        // (deps.roundFor, app.js) se načítají, než hráč klepne na Zaútočit; po ROUND_TIMEOUT nebo bez sítě místní otázka. Stejné
+        // semínko (hra, druh tahu, období, tahy, počet otázek ve hře) dá i po znovuotevření stejnou otázku. window.MUDRLANT_CONQUEST_ONLY
+        // = jen tato forma otázky (testy)
+        let prepared = null; // { key, promise }
+        const prepare = (target, kind) => {
+            const info = game.view.owners.get(target) || { level: 0 };
+            const budget = game.view.budget || { period: 0, used: 0 };
+            const asked = askedIn(game.id);
+            const only = typeof root.MUDRLANT_CONQUEST_ONLY === 'string' ? root.MUDRLANT_CONQUEST_ONLY : null;
+            const seed = `${game.id}|${kind}|${budget.period}|${budget.used}|${asked.answers.length}`;
+            const key = `${target}|${info.level || 0}|${seed}|${only || ''}`;
+            if (prepared && prepared.key === key) return prepared.promise;
+            const data = game.data;
+            const promise = topics().catch(() => ({})).then(loaded => C.prepareQuestion({ data, territory: target, level: info.level || 0, topics: loaded, seed, avoid: asked, only,
+                roundFor: deps.roundFor || null, timeout: C.ROUND_TIMEOUT }));
+            promise.catch(() => null);
+            prepared = { key, promise };
+            return promise;
         };
 
         // --- Lobby a moje hry ---
@@ -504,7 +530,10 @@
                 const data = await ensureMap(state.map);
                 if (!active() || ui.kind !== 'game' || ui.gameId !== id) return;
                 if (state.status === 'lobby') { upsertMine(state); openLobby(id); return; }
-                game = { id, state, data, view: viewFor(state, data), vb: null, selected: null, source: null, move: null };
+                game = { id, state, data, view: viewFor(state, data), vb: null, selected: null, source: null, move: null,
+                    offset: 0, version: state.version || '', loadedAt: Date.now(), siegeKey: siegeKey(state.sieges),
+                    // Bitvy, o kterých hráč už ví (při otevření hry ty, co už běží), a výsledky, které už viděl
+                    seenSieges: new Set((state.sieges || []).map(siege => siege.id)), seenResults: new Set() };
                 renderGame();
                 if (penaltyNews(state)) deps.showToast(C.PENALTY_TEXT);
                 // Témata a zásoby otázek pro mapu se připraví hned (první otázka pak nečeká na jejich sestavení)
@@ -516,7 +545,7 @@
                 if (active()) openHub('mine');
             }
         };
-        const stopGame = () => { if (game && game.move) clearFx(); game = null; };
+        const stopGame = () => { if (game && game.move) clearFx(); clearTimeout(waitTimer); game = null; };
         // Ztracený hrad (budget.penalty): o tahu méně řekne toast jednou za období hry (po otevření hry, nebo se začátkem období)
         const penaltySeen = new Set();
         const penaltyNews = (state) => {
@@ -537,6 +566,8 @@
             if (wrap) wrap.style.aspectRatio = `${game.data.w} / ${game.data.h}`;
             mountMap();
             if (game.selected) showSheet(game.selected);
+            paintChips();
+            startClock();
         };
         // Jen mapa a čísla (po tahu, při obnovení), bez přestavby celé obrazovky
         const repaintMap = () => {
@@ -553,6 +584,7 @@
             if (budget) deps.renderIcons(budget);
             mountMap();
             highlight();
+            paintChips();
         };
         const setState = (state) => {
             game.state = state;
@@ -705,6 +737,15 @@
             updateDetail();
         };
         const sheet = () => app.querySelector('[data-cq-sheet]');
+        // Obsah spodního listu; full = otázka Mudrlanta přes celou obrazovku hry (list sahá až nahoru)
+        const fillSheet = (html, full = false) => {
+            const holder = sheet();
+            if (!holder) return null;
+            holder.classList.toggle('top-0', Boolean(full));
+            holder.innerHTML = html;
+            if (html) deps.renderIcons(holder);
+            return holder;
+        };
         const selectTerritory = (id) => {
             if (!game) return;
             game.selected = id;
@@ -713,14 +754,14 @@
             showSheet(id);
         };
         const showSheet = (id) => {
-            const holder = sheet();
-            if (!holder || !game) return;
-            holder.innerHTML = C.sheetHtml(game.view, id, { source: game.source });
-            deps.renderIcons(holder);
+            if (!sheet() || !game) return;
+            fillSheet(C.sheetHtml(game.view, id, { source: game.source, offset: game.offset, now: Date.now() }));
+            // Otázka tahu se chystá hned (popis a obrázek se načítají, než hráč klepne na Zaútočit nebo Opevnit)
+            const actions = C.actionsFor(game.view, id);
+            if (actions.attack || actions.fortify) prepare(id, actions.attack ? 'attack' : 'fortify');
         };
         const closeSheet = () => {
-            const holder = sheet();
-            if (holder) holder.innerHTML = '';
+            fillSheet('');
             clearFinale();
             if (game) { game.selected = null; game.source = null; }
             highlight();
@@ -853,32 +894,32 @@
         const startMove = async (kind, source) => {
             if (!game || !game.selected || game.move) return;
             const target = game.selected;
-            const info = game.view.owners.get(target) || { level: 0 };
-            const budget = game.view.budget || { period: 0, used: 0 };
             const move = { kind, target, source: kind === 'attack' ? (source || C.sourcesFor(game.view, target)[0] || null) : null, phase: 'loading', answered: null };
             game.move = move;
-            const holder = sheet();
-            if (holder) { holder.innerHTML = '<div class="cq-sheet rounded-t-2xl p-4 text-center text-sm font-bold text-slate-600 dark:text-slate-300">Připravuji otázku…</div>'; }
-            let loaded = {};
-            try { loaded = await topics(); } catch (error) { loaded = {}; }
+            fillSheet('<div class="cq-sheet rounded-t-2xl p-4 text-center text-sm font-bold text-slate-600 dark:text-slate-300" role="status">Připravuji otázku…</div>');
+            let question = null;
+            try { question = await prepare(target, kind); } catch (error) { question = null; }
             if (!game || game.move !== move) return;
-            const asked = askedIn(game.id);
-            move.question = C.buildQuestion({ data: game.data, territory: target, level: info.level || 0, topics: loaded, seed: `${game.id}|${kind}|${budget.period}|${budget.used}|${asked.answers.length}`, avoid: asked });
+            prepared = null;
+            move.question = question;
             if (!move.question) { game.move = null; deps.showToast('Otázku se nepodařilo připravit. Zkus jiné území.'); showSheet(target); return; }
             rememberAsked(game.id, move.question);
-            move.phase = 'question';
+            const battle = kind === 'attack' && battlesOn();
+            move.phase = battle ? 'loading' : 'question';
             showMoveFx(move);
-            if (holder) holder.innerHTML = '';
+            if (!battle) fillSheet('');
             await wait(kind === 'attack' ? 700 : 250);
             if (!game || game.move !== move) return;
+            // Bitva: otázka se ukáže, až server obléhání založí (od té chvíle běží 60 s)
+            if (battle) { beginBattle(move); return; }
             renderQuestion();
         };
-        // Otázky, které hráč v této hře už dostal (v zařízení): odpovědi se ve hře neopakují a stejný druh otázky nejde dvakrát po sobě
+        // Otázky, které hráč v této hře už dostal (v zařízení): položka se ve hře neopakuje a stejná forma otázky nejde dvakrát po sobě
         const ASKED_KEY = 'mudrlant.conquestAsked';
         const askedAll = () => { try { const s = storage(); const value = s ? JSON.parse(s.getItem(ASKED_KEY) || '{}') : {}; return value && typeof value === 'object' && !Array.isArray(value) ? value : {}; } catch (error) { return {}; } };
         const askedIn = (gameId) => {
             const entry = askedAll()[gameId] || {};
-            return { answers: Array.isArray(entry.a) ? entry.a.map(String) : [], families: Array.isArray(entry.f) ? entry.f.map(String) : [] };
+            return { answers: Array.isArray(entry.a) ? entry.a.map(String) : [], forms: Array.isArray(entry.f) ? entry.f.map(String) : [] };
         };
         const rememberAsked = (gameId, question) => {
             try {
@@ -887,36 +928,40 @@
                 const all = askedAll();
                 const entry = askedIn(gameId);
                 const key = C.answerKey(question);
-                all[gameId] = { a: [...entry.answers, key].filter(Boolean).slice(-300), f: [...entry.families, question.family].slice(-6), t: Date.now() };
+                all[gameId] = { a: [...entry.answers, key].filter(Boolean).slice(-300), f: [...entry.forms, question.form || question.family].slice(-6), t: Date.now() };
                 // Jen posledních 20 her
                 const keep = Object.entries(all).sort((x, y) => (y[1].t || 0) - (x[1].t || 0)).slice(0, 20);
                 s.setItem(ASKED_KEY, JSON.stringify(Object.fromEntries(keep)));
             } catch (error) { /* bez úložiště se jen může otázka zopakovat */ }
         };
-        const questionTitle = (move) => {
-            const name = game.view.index.byId.get(move.target).n;
-            if (move.kind === 'fortify') {
-                const info = game.view.owners.get(move.target) || { level: 0 };
-                return `Opevnění: ${name} → ${C.LEVELS[info.level + 1].name}`;
-            }
-            return move.source ? `Útok: ${game.view.index.byId.get(move.source).n} → ${name}` : `Útok: ${name}`;
-        };
+        // Otázka tahu: ve spodním listu, otázka Mudrlanta (popis, fakta, obrázek) přes celou obrazovku hry; záhlaví „Útok na Francii“
+        // nebo „Opevnění Francie“ (v bitvě „Bitva o Francii“) s hvězdami obtížnosti
+        const questionTitle = (move, item) => (move.battle ? `Bitva o ${C.accusativeOf(item)}` : C.moveTitle(move.kind, item));
         const renderQuestion = () => {
-            const holder = sheet();
             const move = game && game.move;
-            if (!holder || !move || !move.question) return;
-            holder.innerHTML = C.questionHtml(move.question, { title: questionTitle(move), item: game.view.index.byId.get(move.target), data: game.data, answered: move.answered });
+            if (!sheet() || !move || !move.question) return;
+            const item = game.view.index.byId.get(move.target);
+            const battle = move.battle ? { deadline: move.deadline, now: Date.now(), fighters: move.fighters || [] } : null;
+            // Čekání v bitvě: krátce ve spodním listu (moje odpověď a kdo ještě odpovídá), i u otázky Mudrlanta
+            const footer = move.battle && move.phase === 'waiting' && move.siege ? C.battleWaitHtml(game.view, move.siege, { ...(move.mine || {}), offset: game.offset, now: Date.now() }) : '';
+            const holder = fillSheet(C.questionHtml(move.question, { title: questionTitle(move, item), item, data: game.data, answered: move.answered, kind: move.kind,
+                correctIndex: move.correctIndex ?? null, battle, view: game.view, footer, compact: Boolean(footer) }), C.isFullQuestion(move.question) && !footer);
+            if (!holder) return;
+            // List vyjede jen poprvé; po odpovědi (a v bitvě při čekání) se jen překreslí
+            if (move.shown) { const panel = holder.firstElementChild; if (panel) panel.classList.remove('cq-sheet-in'); }
+            move.shown = true;
+            if (battle) battleClock();
             // Náhled vlajky nebo znaku z Commons, který nejde načíst, nahradí původní soubor (data-fallback, jednou)
             holder.querySelectorAll('img[data-fallback]').forEach(img => {
                 const swap = () => { const next = img.dataset.fallback; img.removeAttribute('data-fallback'); if (next && img.src !== next) img.src = next; };
                 if (img.complete && img.naturalWidth === 0 && img.src) swap();
                 else img.addEventListener('error', swap, { once: true });
             });
-            deps.renderIcons(holder);
         };
         const answer = async (index) => {
             const move = game && game.move;
             if (!move || move.phase !== 'question' || !move.question.choices[index]) return;
+            if (move.battle) { answerBattle(index); return; }
             const correct = Boolean(move.question.choices[index].correct);
             move.answered = index;
             move.phase = 'sending';
@@ -930,8 +975,7 @@
                 wait(1200)
             ]);
             if (!game || game.move !== move) return;
-            const holder = sheet();
-            if (holder) holder.innerHTML = '';
+            fillSheet('');
             game.selected = null;
             highlight();
             if (failure || !result) {
@@ -960,7 +1004,7 @@
                 burstAt(impact);
                 crumbleIcon(target);
                 await wait(850);
-            } else if (done.r === 'fail' && move.kind === 'attack') {
+            } else if ((done.r === 'fail' || done.r === 'outrun') && move.kind === 'attack') {
                 breakArrow(move);
                 shakeTerritory(target);
                 await wait(800);
@@ -991,9 +1035,297 @@
             } else if (done.r === 'fortify') {
                 riseIcon(target);
                 banner(`${name}: ${C.LEVELS[done.l].name}`, 'shield-check');
+            } else if (move.battle) {
+                // Bitva: kdo vyhrál (rychlejší správná odpověď), nebo proč tah propadl
+                const winner = move.siegeResult ? move.siegeResult.participants.find(player => player.winner) : null;
+                const who = winner ? (game.view.byId.get(winner.id) || winner).display_name || 'soupeř' : '';
+                if (done.r === 'outrun') banner(`Správně, ale rychlejší odpověď: ${who || 'soupeř'}. Tah propadl.`, 'timer');
+                else if (who) banner(`Bitvu vyhrává ${who}.`, 'swords');
+                else banner(move.answered === -1 ? 'Čas vypršel. Tah propadl.' : info.owner ? 'Útok odražen.' : 'Útok nevyšel.', 'x');
             } else banner(move.kind === 'attack' ? (info.owner ? 'Útok odražen.' : 'Útok nevyšel.') : 'Opevnění se nepovedlo.', 'x');
             game.move = null;
             paintCard();
+        };
+
+        // --- Bitvy o území (blok 25): obléhání, přidání, odpočet 60 s, čekání na ostatní a výsledek ---
+        // Databáze bitvy umí (conquest_state vrací sieges) a puls nehlásí, že blok 25 chybí; jinak útok postaru (conquestMove)
+        const battlesOn = () => Boolean(game && game.view.battles && Social.conquestPulse && !(Social.conquestSiegesMissing && Social.conquestSiegesMissing()));
+        const siegeKey = (sieges) => JSON.stringify((sieges || []).map(siege => [siege.id, siege.participants ? siege.participants.length : 0, Boolean(siege.can_join), Boolean(siege.answered)]));
+        // Posun hodin serveru proti zařízení (odhad ze středu dotazu); všechny termíny bitev jsou serverové
+        const serverCall = async (work) => {
+            const sentAt = Date.now();
+            const result = await work();
+            const time = Date.parse((result && result.now) || '');
+            if (game && Number.isFinite(time)) game.offset = time - (sentAt + Date.now()) / 2;
+            return result;
+        };
+        const applyBudget = (budget) => {
+            if (!game || !budget) return;
+            game.state = { ...game.state, budget };
+            game.view = viewFor(game.state, game.data);
+            const chip = app.querySelector('[data-cq-budget]');
+            if (chip) { chip.innerHTML = C.budgetInnerHtml(budget); chip.title = C.budgetTitle(budget); deps.renderIcons(chip); }
+        };
+        const failBattle = (move, error, fallback) => {
+            if (!game || game.move !== move) return;
+            clearFx();
+            game.move = null;
+            deps.showToast(errorText(error, fallback));
+            pulse().then(() => { if (game && game.selected) showSheet(game.selected); });
+        };
+        // Útočník: obléhání začne a hned se ukáže otázka
+        const beginBattle = async (move) => {
+            let res;
+            try { res = await serverCall(() => Social.conquestSiegeBegin(game.id, move.target, move.question, null, move.source)); } catch (error) { failBattle(move, error, 'Útok se nepodařilo zahájit.'); return; }
+            if (!game || game.move !== move) return;
+            enterBattle(move, res);
+        };
+        // Přidání do bitvy: šipka z vlastního sousedního území, otázka od serveru (stejná pro všechny, bez správné odpovědi)
+        const joinBattle = async () => {
+            if (!game || !game.selected || game.move) return;
+            const target = game.selected;
+            const siege = game.view.sieges.get(target);
+            if (!siege) return;
+            const move = { kind: 'attack', target, source: C.sourcesFor(game.view, target)[0] || null, phase: 'loading', answered: null, battle: true };
+            game.move = move;
+            fillSheet('<div class="cq-sheet rounded-t-2xl p-4 text-center text-sm font-bold text-slate-600 dark:text-slate-300" role="status">Vstupuješ do bitvy…</div>');
+            showMoveFx(move);
+            let res;
+            try { res = await serverCall(() => Social.conquestSiegeJoin(siege.id, move.source)); } catch (error) { failBattle(move, error, 'Přidat se do bitvy se nepodařilo.'); return; }
+            if (!game || game.move !== move) return;
+            if (!res || !res.question || !Array.isArray(res.question.choices)) { failBattle(move, null, 'Otázku k bitvě se nepodařilo načíst.'); return; }
+            move.question = res.question;
+            sound('bossHit');
+            enterBattle(move, res);
+        };
+        // Návrat do rozehrané bitvy (zavřená aplikace, jiná obrazovka): otázka a zbývající čas od serveru
+        const resumeBattle = async (territory) => {
+            if (!game || game.move) return;
+            const siege = game.view.sieges.get(territory);
+            if (!siege) return;
+            game.selected = territory;
+            highlight();
+            const mineRow = siege.participants.find(player => player.me) || {};
+            const move = { kind: 'attack', target: territory, source: mineRow.source || C.sourcesFor(game.view, territory)[0] || null, phase: 'loading', answered: null, battle: true };
+            game.move = move;
+            fillSheet('<div class="cq-sheet rounded-t-2xl p-4 text-center text-sm font-bold text-slate-600 dark:text-slate-300" role="status">Vracíš se do bitvy…</div>');
+            showMoveFx(move);
+            let res;
+            try { res = await serverCall(() => Social.conquestSiegeStatus(siege.id)); } catch (error) { failBattle(move, error, 'Bitvu se nepodařilo načíst.'); return; }
+            if (!game || game.move !== move) return;
+            if (!res || !res.question) { failBattle(move, null, 'Bitva už skončila.'); return; }
+            move.question = res.question;
+            if (res.status === 'resolved' || res.answer) {
+                move.correctIndex = Number.isInteger(res.correct_choice) ? res.correct_choice : null;
+                move.answered = res.answer && Number.isInteger(res.answer.choice) ? res.answer.choice : -1;
+                move.mine = res.answer ? { correct: res.answer.correct === true, answerMs: res.answer.answer_ms ?? null, late: res.answer.late === true } : { correct: false };
+                move.siege = res;
+                move.fighters = res.participants;
+                move.deadline = C.localTime(res.deadline, game.offset) ?? Date.now();
+                if (res.status === 'resolved') { settleBattle(move, res); return; }
+                move.phase = 'waiting';
+                renderQuestion();
+                waitBattle(move);
+                return;
+            }
+            enterBattle(move, res);
+        };
+        const enterBattle = (move, res) => {
+            move.battle = true;
+            move.siege = res;
+            move.fighters = res.participants || [];
+            move.deadline = C.localTime(res.deadline, game.offset) ?? Date.now() + BATTLE_MS;
+            move.phase = 'question';
+            applyBudget(res.budget);
+            renderQuestion();
+            startClock();
+        };
+        // Kdo se k mé bitvě přidal: vyskakovací zpráva nad otázkou, zvuk a praporek mezi účastníky
+        const noteJoins = (move, participants) => {
+            if (!move || !Array.isArray(participants)) return;
+            const known = new Set((move.fighters || []).map(player => player.id));
+            const fresh = participants.filter(player => !known.has(player.id) && !player.me);
+            move.fighters = participants;
+            if (!fresh.length || !game || game.move !== move) return;
+            const row = app.querySelector('[data-cq-fighters]');
+            if (row) { row.innerHTML = C.fightersHtml(game.view, participants); deps.renderIcons(row); }
+            const holder = app.querySelector('[data-cq-joined]');
+            if (holder) {
+                holder.innerHTML = C.joinedHtml(game.view, fresh[fresh.length - 1]);
+                deps.renderIcons(holder);
+                const shown = holder.firstElementChild;
+                setTimeout(() => { if (shown && shown.isConnected) shown.remove(); }, reduced() ? 2500 : 3200);
+            }
+            sound('bossHit');
+            try { if (root.navigator && root.navigator.vibrate) root.navigator.vibrate(60); } catch (error) { /* bez vibrace */ }
+        };
+        // Odpověď v bitvě (index, nebo null po vypršení času): vyhodnotí server; pak čekání na ostatní, nebo rovnou výsledek
+        const answerBattle = async (index) => {
+            const move = game && game.move;
+            if (!move || !move.battle || move.phase !== 'question') return;
+            move.answered = index === null ? -1 : index;
+            move.phase = 'sending';
+            renderQuestion();
+            let res;
+            try { res = await serverCall(() => Social.conquestSiegeAnswer(move.siege.id, index)); } catch (error) {
+                if (!game || game.move !== move) return;
+                // Před koncem času jde odpověď poslat znovu; po něm rozhodne server bez ní (výsledek přijde s pulsem)
+                if (Date.now() < move.deadline - 500) { move.phase = 'question'; move.answered = null; renderQuestion(); deps.showToast(errorText(error, 'Odpověď se nepodařilo odeslat.')); return; }
+                move.mine = { correct: false };
+                move.phase = 'waiting';
+                renderQuestion();
+                waitBattle(move);
+                return;
+            }
+            if (!game || game.move !== move) return;
+            move.correctIndex = res.correct_choice;
+            move.mine = { correct: res.correct, answerMs: res.answer_ms, late: res.late && index !== null };
+            if (index !== null) sound(res.correct ? 'correct' : 'wrong');
+            if (res.siege) { noteJoins(move, res.siege.participants); move.siege = res.siege; }
+            if (res.status === 'resolved' && res.state) {
+                renderQuestion();
+                await wait(900);
+                if (!game || game.move !== move) return;
+                finishBattle(move, res.siege, res.move, res.state);
+                return;
+            }
+            move.phase = 'waiting';
+            renderQuestion();
+            waitBattle(move);
+        };
+        // Čekání na ostatní: stav bitvy každých 1,5 s (kdo už odpověděl), po vyhodnocení výsledek
+        let waitTimer = 0;
+        const waitBattle = (move) => {
+            clearTimeout(waitTimer);
+            const step = async () => {
+                if (!game || game.move !== move || move.phase !== 'waiting') return;
+                try {
+                    const siege = await serverCall(() => Social.conquestSiegeStatus(move.siege.id));
+                    if (!game || game.move !== move) return;
+                    noteJoins(move, siege.participants);
+                    move.siege = siege;
+                    if (siege.status === 'resolved') { settleBattle(move, siege); return; }
+                    const box = app.querySelector('[data-cq-wait]');
+                    if (box) { box.outerHTML = C.battleWaitHtml(game.view, siege, { ...(move.mine || {}), offset: game.offset, now: Date.now() }); deps.renderIcons(sheet()); }
+                } catch (error) { /* další pokus */ }
+                waitTimer = setTimeout(step, POLL_BATTLE);
+            };
+            waitTimer = setTimeout(step, POLL_BATTLE);
+        };
+        // Bitva skončila, když jsem čekal: čerstvý stav hry a výsledek
+        const settleBattle = async (move, siege) => {
+            let state = null;
+            try { state = await Social.conquestState(game.id); } catch (error) { state = null; }
+            if (!game || game.move !== move) return;
+            if (!state) { clearFx(); game.move = null; closeSheet(); reloadGame(); return; }
+            finishBattle(move, siege, siege.move, state);
+        };
+        const finishBattle = async (move, siege, myMove, state) => {
+            clearTimeout(waitTimer);
+            if (siege) game.seenResults.add(siege.id);
+            move.siegeResult = siege;
+            const before = game.view;
+            fillSheet('');
+            game.selected = null;
+            highlight();
+            game.version = state.version || game.version;
+            game.siegeKey = siegeKey(state.sieges);
+            game.loadedAt = Date.now();
+            await playResult(before, { ...state, move: myMove || { r: 'fail' } }, move);
+            if (game && siege && siege.participants.length > 1) showBattleResult(siege);
+        };
+        const showBattleResult = (siege) => {
+            if (!sheet() || !game || game.move) return;
+            fillSheet(C.battleResultHtml(game.view, siege));
+        };
+        // Zavřít čekání: bitva běží dál, výsledek přijde s pulsem (results)
+        const hideBattle = () => {
+            const move = game && game.move;
+            if (!move || !move.battle || move.phase !== 'waiting') return;
+            clearTimeout(waitTimer);
+            clearFx();
+            game.move = null;
+            closeSheet();
+        };
+        // Štítky bitev dole na mapě (Přidat se / Vrátit se do bitvy)
+        const paintChips = () => {
+            const holder = app.querySelector('[data-cq-chips]');
+            if (!holder || !game) return;
+            const html = game.move ? '' : C.siegeChipsHtml(game.view, { offset: game.offset, now: Date.now() });
+            if (holder.dataset.html === html) return;
+            holder.dataset.html = html;
+            holder.innerHTML = html;
+            deps.renderIcons(holder);
+        };
+        // Hodiny bitev: pruh odpočtu v otázce (posledních 5 s tiká), odpočty u štítků a v oknech (data-cq-until); konec času = odpověď null
+        let clockTimer = 0;
+        const startClock = () => { if (!clockTimer) clockTimer = setInterval(uiClock, 250); };
+        const battleClock = () => {
+            const move = game && game.move;
+            if (!move || !move.battle || !move.deadline) return;
+            const left = move.deadline - Date.now();
+            const fill = app.querySelector('[data-cq-timer]');
+            if (fill) { fill.style.transform = `scaleX(${Math.max(0, Math.min(1, left / BATTLE_MS)).toFixed(4)})`; fill.classList.toggle('cq-timer-low', left < 10000); }
+            const text = app.querySelector('[data-cq-timer-text]');
+            if (text) text.textContent = move.phase === 'question' ? C.clockText(left) : '';
+            if (move.phase !== 'question') return;
+            const secs = Math.ceil(left / 1000);
+            if (secs >= 1 && secs <= 5 && secs !== move.lastTick) { move.lastTick = secs; sound(secs === 1 ? 'tickLast' : 'tick'); }
+            if (left <= 0) answerBattle(null);
+        };
+        const uiClock = () => {
+            if (!game || !active() || ui.kind !== 'game') { clearInterval(clockTimer); clockTimer = 0; return; }
+            battleClock();
+            const now = Date.now();
+            let expired = false;
+            app.querySelectorAll('[data-cq-until]').forEach(element => {
+                const left = Number(element.dataset.cqUntil) - now;
+                element.textContent = C.clockText(left);
+                if (left <= 0) expired = true;
+            });
+            if (expired && !game.move) paintChips();
+        };
+        // Puls hry: nové bitvy (upozornění, štítky, značky na mapě), kdo se přidal k mé bitvě, výsledky mých bitev a změny hry (version)
+        const pulse = async () => {
+            if (!game || !battlesOn()) return;
+            const id = game.id;
+            let res;
+            try { res = await serverCall(() => Social.conquestPulse(id)); } catch (error) { return; }
+            if (!game || game.id !== id) return;
+            const move = game.move;
+            const meId = game.view.me ? game.view.me.id : null;
+            if (move && move.battle && move.siege) {
+                const mine = res.sieges.find(siege => siege.id === move.siege.id);
+                if (mine) noteJoins(move, mine.participants);
+            }
+            const fresh = res.sieges.filter(siege => !game.seenSieges.has(siege.id));
+            fresh.forEach(siege => game.seenSieges.add(siege.id));
+            const key = siegeKey(res.sieges);
+            if (key !== game.siegeKey) {
+                game.siegeKey = key;
+                game.state = { ...game.state, sieges: res.sieges };
+                game.view = viewFor(game.state, game.data);
+                if (!move) { repaintMap(); if (game.selected) showSheet(game.selected); }
+            }
+            if (!move) {
+                for (const siege of fresh) {
+                    if (siege.started_by === meId || siege.mine) continue;
+                    const item = game.view.index.byId.get(siege.territory);
+                    if (!item) continue;
+                    if (game.view.ownerOf(siege.territory) === meId) { banner(`${item.n}: tvoje území je obléhané!`, 'swords'); sound('bossHit'); }
+                    else if (siege.can_join) { banner(`Bitva o ${C.accusativeOf(item)}: můžeš se přidat!`, 'swords'); sound('tick'); }
+                }
+            }
+            // Výsledky mých bitev, na které jsem nečekal v listu (zavřené čekání, návrat do hry)
+            const results = res.results.filter(siege => !game.seenResults.has(siege.id) && !(move && move.siege && move.siege.id === siege.id));
+            results.forEach(siege => game.seenResults.add(siege.id));
+            const changed = res.version && res.version !== game.version;
+            if (res.version) game.version = res.version;
+            if (!move && (changed || results.length || (res.status === 'finished' && !game.view.finished))) {
+                await reloadGame(true);
+                const last = results[results.length - 1];
+                if (last && game && !game.move && !(sheet() && sheet().innerHTML)) showBattleResult(last);
+            }
         };
         const reloadGame = async () => {
             if (!game) return;
@@ -1001,7 +1333,10 @@
             try {
                 const state = await Social.conquestState(id);
                 if (!game || game.id !== id || game.move) return;
-                const changed = JSON.stringify([state.status, state.territories, (state.moves || []).slice(-1), state.budget]) !== JSON.stringify([game.state.status, game.state.territories, (game.state.moves || []).slice(-1), game.state.budget]);
+                game.loadedAt = Date.now();
+                if (state.version) game.version = state.version;
+                game.siegeKey = siegeKey(state.sieges);
+                const changed = JSON.stringify([state.status, state.territories, (state.moves || []).slice(-1), state.budget, state.sieges]) !== JSON.stringify([game.state.status, game.state.territories, (game.state.moves || []).slice(-1), game.state.budget, game.state.sieges]);
                 const finishedNow = state.status === 'finished' && !game.view.finished;
                 const newPeriod = state.budget && game.state.budget && state.budget.period !== game.state.budget.period;
                 setState(state);
@@ -1025,6 +1360,7 @@
         const showResult = () => {
             const holder = sheet();
             if (!holder || !game) return;
+            holder.classList.remove('top-0');
             holder.innerHTML = `<div class="cq-sheet cq-result-sheet cq-sheet-in max-h-[78vh] overflow-y-auto rounded-t-2xl p-2.5 pb-3" role="dialog" aria-label="Výsledky">
                 <div class="flex items-start gap-1"><span class="w-10 shrink-0"></span>
                 <div class="flex min-w-0 flex-1 justify-center"><div class="cq-cartouche-art aspect-[29/10] h-[4.5rem] max-w-full px-[15%] pt-[4px] flex min-w-0 flex-col items-center justify-center text-center"><h2 class="cq-cartouche-title max-w-full truncate">Konec tažení</h2><span class="max-w-full truncate text-[10.5px] font-bold leading-3 text-amber-900/80">${esc(C.mapTitle(game.state.map))}</span></div></div>
@@ -1084,8 +1420,7 @@
             if (!game || !game.state.history) return;
             const token = ++replaying;
             const steps = C.replaySteps(game.state.history);
-            const holder = sheet();
-            if (holder) holder.innerHTML = '';
+            fillSheet('');
             const final = game.state;
             const owners = {};
             const unit = final.period === 'hour' ? 'Hodina' : 'Den';
@@ -1189,6 +1524,12 @@
                 renderHub();
                 return;
             }
+            const chip = target.closest('[data-cq-siege-open]');
+            if (chip && game && !game.move) {
+                const siege = game.view.sieges.get(chip.dataset.cqSiegeOpen);
+                if (siege && siege.mine && !siege.answered) resumeBattle(siege.territory); else selectTerritory(chip.dataset.cqSiegeOpen);
+                return;
+            }
             const source = target.closest('[data-cq-source]');
             if (source && game) { game.source = source.dataset.cqSource; showSheet(game.selected); return; }
             const answerButton = target.closest('[data-cq-answer]');
@@ -1209,6 +1550,9 @@
             else if (name === 'sheet-close') closeSheet();
             else if (name === 'attack') startMove('attack', action.dataset.source || game.source);
             else if (name === 'fortify') startMove('fortify');
+            else if (name === 'siege-join') joinBattle();
+            else if (name === 'siege-resume' && game && game.selected) resumeBattle(game.selected);
+            else if (name === 'battle-hide') hideBattle();
             else if (name === 'replay') replay();
             else if (name === 'dev-bot') devAddBots(1);
             else if (name === 'dev-bots-full') { const found = findGame(ui.gameId); if (found) devAddBots(found.max_players - found.players.length); }
@@ -1229,13 +1573,18 @@
         const schedule = () => {
             clearTimeout(timer);
             if (!active()) return;
-            const delay = ui.kind === 'game' ? POLL_GAME : ui.kind === 'lobby' ? POLL_LOBBY : 30000;
+            const battling = game && (game.move ? game.move.battle : game.view.sieges.size > 0);
+            const delay = ui.kind === 'game' ? (battlesOn() ? (battling ? POLL_BATTLE : POLL_PULSE) : POLL_GAME) : ui.kind === 'lobby' ? POLL_LOBBY : 30000;
             timer = setTimeout(tick, delay);
         };
         const tick = async () => {
             if (!active()) return;
             if (!doc.hidden) {
-                if (ui.kind === 'game' && game && !game.move && !replaying) await reloadGame();
+                if (ui.kind === 'game' && game && !replaying && battlesOn()) {
+                    await pulse();
+                    // Pojistka: celý stav aspoň jednou za minutu
+                    if (game && !game.move && Date.now() - (game.loadedAt || 0) > 60000) await reloadGame();
+                } else if (ui.kind === 'game' && game && !game.move && !replaying) await reloadGame();
                 else if (ui.kind === 'lobby' && ui.gameId) {
                     try {
                         const state = await Social.conquestState(ui.gameId);
@@ -1252,6 +1601,11 @@
 
         // Zpět (tlačítko telefonu, app.js goBack): list → mapa → rozcestník → úvod
         const back = () => {
+            if (game && game.move && game.move.battle) {
+                // Bitva běží na serveru: otázku nejde zahodit (tah je rezervovaný), čekání jde zavřít
+                if (game.move.phase === 'waiting') hideBattle(); else if (game.move.phase === 'question') deps.showToast('Bitva běží: odpověz, než vyprší čas.');
+                return true;
+            }
             if (game && game.move) { if (game.move.phase === 'sending') return true; clearFx(); game.move = null; closeSheet(); return true; }
             if (replaying && game) { replaying++; setState(game.state); repaintMap(); return true; }
             if (game && sheet() && sheet().innerHTML) { closeSheet(); return true; }

@@ -72,7 +72,8 @@ const backend = async (context, db) => {
             invited: g.status === 'lobby' && g.players.some(p => p.user === me.id) ? waiting(g).map(i => ({ ...db.profiles[i.user], by_me: i.by === me.id })) : null });
         const mine = (g) => g.players.find(p => p.user === me.id);
         // penalty: v období g.penaltyPeriod hráč kvůli ztracenému hradu o tah méně (schéma 23)
-        const budget = (g) => { const used = (g.moves || []).filter(m => m.u === me.id && ['attack', 'fortify'].includes(m.k) && (m.n || 0) === (g.periodNo || 0)).length; const penalty = g.penaltyPeriod !== undefined && g.penaltyPeriod === (g.periodNo || 0) ? 1 : 0; return { period: g.periodNo || 0, base: g.actions, regions: 0, treasures: 0, loot: 0, penalty, used, total: g.actions - penalty, left: Math.max(0, g.actions - penalty - used), period_ends_at: '2026-11-12T10:00:00Z' }; };
+        const budget = (g) => { const used = (g.moves || []).filter(m => m.u === me.id && ['attack', 'fortify'].includes(m.k) && (m.n || 0) === (g.periodNo || 0)).length
+            + (g.sieges || []).filter(s => s.status === 'open' && s.participants.some(p => p.user === me.id)).length; const penalty = g.penaltyPeriod !== undefined && g.penaltyPeriod === (g.periodNo || 0) ? 1 : 0; return { period: g.periodNo || 0, base: g.actions, regions: 0, treasures: 0, loot: 0, penalty, used, total: g.actions - penalty, left: Math.max(0, g.actions - penalty - used), period_ends_at: '2026-11-12T10:00:00Z' }; };
         const rescore = (g) => g.players.forEach(p => { const score = g.territories.filter(t => t.o === p.user).length; if (score !== p.score) { p.score = score; p.score_at = NOW; } });
         const start = (g) => {
             g.status = 'running'; g.started_at = NOW; g.ends_at = '2026-11-14T10:00:00Z';
@@ -83,8 +84,45 @@ const backend = async (context, db) => {
             if (treasure) treasure.p = true;
             rescore(g);
         };
+        // Bitvy o území (blok 25), jen s db.battles: stav hry má sieges a version. g.sieges = [{ id, territory, started_by, question, correct, status,
+        // participants: [{ user, source, answered, picked, correct, answer_ms, result, move }], winner, outcome }]; čas stojí (NOW), termíny NOW + 50 s
+        const LATER = '2026-11-11T10:00:50Z';
+        const siegeJson = (g, s) => {
+            const t = g.territories.find(x => x.t === s.territory);
+            const mineP = s.participants.find(p => p.user === me.id);
+            const done = s.status === 'resolved';
+            return { id: s.id, game: g.id, territory: s.territory, status: s.status, started_by: s.started_by, started_at: NOW, join_until: LATER, ends_at: LATER, resolved_at: done ? NOW : null,
+                winner: s.winner || null, outcome: s.outcome || null, mine: Boolean(mineP), answered: Boolean(mineP && mineP.answered), joined_at: mineP ? NOW : null, deadline: mineP ? LATER : null,
+                can_join: !done && !mineP && t.o !== me.id,
+                participants: s.participants.map(p => { const gp = g.players.find(x => x.user === p.user); return { ...db.profiles[p.user], seat: gp.seat, flag_color: gp.flag_color, emblem: gp.emblem, source: p.source || null, joined_at: NOW, deadline: LATER, answered: Boolean(p.answered), me: p.user === me.id,
+                    ...(done ? { correct: Boolean(p.correct), answer_ms: p.answered ? p.answer_ms : null, result: p.result, winner: s.winner === p.user, move: p.move } : {}) }; }) };
+        };
+        const siegeView = (g, s) => {
+            const mineP = s.participants.find(p => p.user === me.id);
+            return { ...siegeJson(g, s), now: NOW, ...(mineP ? { question: s.question, answer: mineP.answered ? { choice: mineP.picked, correct: Boolean(mineP.correct), answer_ms: mineP.answer_ms, late: false } : null,
+                correct_choice: mineP.answered || s.status === 'resolved' ? s.correct : null, result: mineP.result || null, move: mineP.move || null } : {}) };
+        };
+        const battles = (g) => (db.battles && g.status !== 'lobby' ? { sieges: (g.sieges || []).filter(s => s.status === 'open').map(s => siegeJson(g, s)), version: `${g.moves.length}.${g.siegeRev || 0}.${g.status}` } : {});
         const state = (g) => ({ ...summary(g), now: NOW, ...(g.status === 'lobby' ? {} : { territories: g.territories, budget: g.status === 'running' ? budget(g) : null, moves: g.moves.slice(-150), claimed: Boolean(mine(g) && mine(g).claimed),
-            history: g.status === 'finished' ? g.moves.filter(m => ['home', 'respawn', 'capture'].includes(m.r)) : null }) });
+            history: g.status === 'finished' ? g.moves.filter(m => ['home', 'respawn', 'capture'].includes(m.r)) : null, ...battles(g) }) });
+        // Vyhodnocení bitvy: vítěz = správně s nejkratším časem (dobude, nebo pobourá), ostatní fail / outrun
+        const resolveSiege = (g, s) => {
+            const t = g.territories.find(x => x.t === s.territory);
+            const win = s.participants.filter(p => p.correct).sort((a, b) => a.answer_ms - b.answer_ms)[0] || null;
+            for (const p of s.participants.filter(x => x !== win)) {
+                const move = { id: db.seq++, u: p.user, k: 'attack', t: t.t, s: p.source || null, ok: Boolean(p.correct), v: t.o, n: 0, at: NOW, p: false, h: false, l: t.l, r: p.correct ? 'outrun' : 'fail' };
+                g.moves.push(move); p.result = move.r; p.move = move;
+            }
+            if (win) {
+                const move = { id: db.seq++, u: win.user, k: 'attack', t: t.t, s: win.source || null, ok: true, v: t.o, n: 0, at: NOW, p: false, h: false, l: t.l };
+                if (t.l > 0) { t.l -= 1; move.r = 'breach'; } else { move.p = t.p; move.h = t.h && Boolean(t.o); Object.assign(t, { o: win.user, l: 0, h: false, p: false }); move.r = 'capture'; }
+                move.l = t.l; g.moves.push(move); win.result = move.r; win.move = move;
+            }
+            Object.assign(s, { status: 'resolved', winner: win ? win.user : null, outcome: win ? win.result : 'fail' });
+            g.siegeRev = (g.siegeRev || 0) + 1;
+            rescore(g);
+        };
+        const siegeOf = (id) => { for (const g of db.games) { const s = (g.sieges || []).find(x => x.id === id); if (s) return { g, s }; } return {}; };
         // Vývojářští boti (blok 22): do lobby (chtějí hrát, plná hra začne), jejich tahy hned (každý bot dobude jedno volné území), další období
         if (name === 'dev_conquest_add_bots') {
             const g = find(body.game);
@@ -168,6 +206,42 @@ const backend = async (context, db) => {
         if (name === 'conquest_set_look') { const g = find(body.game); Object.assign(mine(g), { flag_color: body.colour, emblem: body.emblem_id }); return json(summary(g)); }
         if (name === 'conquest_leave') { const g = find(body.game); g.players = g.players.filter(p => p.user !== me.id); return route.fulfill({ status: 204, body: '' }); }
         if (name === 'conquest_state') return json(state(find(body.game)));
+        if (name === 'conquest_pulse') {
+            if (!db.battles) return fail('Not found', 404);
+            const g = find(body.game);
+            return json({ id: g.id, now: NOW, status: g.status, ends_at: g.ends_at, ...battles(g), results: (g.sieges || []).filter(s => s.status === 'resolved' && s.participants.some(p => p.user === me.id)).map(s => siegeJson(g, s)) });
+        }
+        if (name === 'conquest_siege_begin') {
+            const g = find(body.game);
+            if ((g.sieges || []).some(s => s.status === 'open' && s.territory === body.target)) return fail('Na území právě probíhá bitva. Můžeš se přidat.');
+            const s = { id: uuid(db.seq++), territory: body.target, started_by: me.id, question: body.question, correct: body.correct, status: 'open', participants: [{ user: me.id, source: body.source }] };
+            g.sieges = [...(g.sieges || []), s];
+            g.siegeRev = (g.siegeRev || 0) + 1;
+            return json({ ...siegeView(g, s), budget: budget(g) });
+        }
+        if (name === 'conquest_siege_join') {
+            const { g, s } = siegeOf(body.siege);
+            if (s.status !== 'open') return fail('Bitva už skončila.');
+            if (!s.participants.some(p => p.user === me.id)) s.participants.push({ user: me.id, source: body.source });
+            g.siegeRev += 1;
+            return json({ ...siegeView(g, s), budget: budget(g) });
+        }
+        if (name === 'conquest_siege_answer') {
+            const { g, s } = siegeOf(body.siege);
+            const p = s.participants.find(x => x.user === me.id);
+            if (!p.answered && s.status === 'open') {
+                Object.assign(p, { answered: true, picked: body.choice, correct: body.choice === s.correct, answer_ms: (db.answerMs || {})[me.id] || 4200 });
+                g.siegeRev += 1;
+                if (s.participants.every(x => x.answered)) resolveSiege(g, s);
+            }
+            const done = s.status === 'resolved';
+            return json({ correct: Boolean(p.correct), status: done ? 'resolved' : 'waiting', late: false, answer_ms: p.answer_ms, correct_choice: s.correct, siege: siegeView(g, s), now: NOW, ...(done ? { move: p.move, state: state(g) } : {}) });
+        }
+        if (name === 'conquest_siege_status') {
+            const { g, s } = siegeOf(body.siege);
+            if (s.status === 'open' && s.participants.every(x => x.answered)) resolveSiege(g, s);
+            return json(siegeView(g, s));
+        }
         if (name === 'conquest_move') {
             const g = find(body.game);
             const t = g.territories.find(x => x.t === body.target);
@@ -196,9 +270,13 @@ const backend = async (context, db) => {
     });
 };
 
-const setup = async (browser, { viewport = { width: 360, height: 640 }, colorScheme = 'light', reducedMotion = 'no-preference', storage = {} } = {}) => {
+// only = jen tato forma otázky tahu (window.MUDRLANT_CONQUEST_ONLY), wiki = 'article' (úvod článku s názvem položky), 'abort' (bez sítě)
+// nebo 'hang' (neodpoví), images = 'abort' (obrázky z Commons nejdou)
+const ARTICLE = (title) => `${title} je velmi známé místo nebo osobnost, o které se píše v učebnicích, průvodcích i novinách celého světa. ${title} patří k tomu nejznámějšímu, co území nabízí, a každý rok přibývají další knihy, filmy a výstavy. Popis pokračuje dalšími větami o historii, lidech a místech, aby byl delší než rámeček otázky na malém telefonu a posouval se uvnitř něj, ne celá stránka. Další věta přidává podrobnosti o tom, jak se o něm mluví doma i v cizině, a ještě jedna o tom, proč ho zná skoro každý.`;
+const setup = async (browser, { viewport = { width: 360, height: 640 }, colorScheme = 'light', reducedMotion = 'no-preference', storage = {}, only = null, wiki = null, images = null } = {}) => {
     const context = await browser.newContext({ serviceWorkers: 'block', colorScheme, viewport, reducedMotion, deviceScaleFactor: 1 });
     await context.addInitScript(() => { window.MUDRLANT_NUMERIC_RATE = 0; });
+    if (only) await context.addInitScript(value => { window.MUDRLANT_CONQUEST_ONLY = value; }, only);
     await context.addInitScript(entries => {
         if (sessionStorage.getItem('test-storage-set')) return;
         sessionStorage.setItem('test-storage-set', '1');
@@ -212,8 +290,14 @@ const setup = async (browser, { viewport = { width: 360, height: 640 }, colorSch
     await context.route('**/*', route => {
         const url = new URL(route.request().url());
         if (url.origin === ORIGIN || url.hostname === 'proj.supabase.co') return route.fallback();
-        if (url.hostname === 'cs.wikipedia.org') return route.fulfill({ json: { query: { pages: {} } } });
-        if (/\.(png|jpe?g|webp)$/.test(url.pathname)) return route.fulfill({ contentType: 'image/png', body: PNG });
+        if (url.hostname === 'cs.wikipedia.org') {
+            if (wiki === 'abort') return route.abort();
+            if (wiki === 'hang') return null;
+            const title = url.searchParams.get('titles') || '';
+            return route.fulfill({ json: { query: { pages: wiki === 'article' ? { 1: { title, extract: ARTICLE(title) } } : {} } } });
+        }
+        if (url.hostname === 'upload.wikimedia.org' && images === 'abort') return route.abort();
+        if (/\.(png|jpe?g|webp)$/i.test(url.pathname)) return route.fulfill({ contentType: 'image/png', body: PNG });
         return route.abort();
     });
     await tab.clock.setFixedTime(new Date(NOW));
@@ -520,6 +604,218 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             await context.close();
         });
     }
+
+    // Bitvy o území (blok 25): stejný server s db.battles (puls, obléhání, přidání, odpověď, stav bitvy)
+    await t.test('bitva o území, útočník na 360×640: odpočet, „Do bitvy vstupuje…“, čekání na ostatní, pomalejší správná odpověď prohrává', async () => {
+        const db = running();
+        db.battles = true;
+        db.answerMs = { 'u-1': 4200, 'u-2': 2100 };
+        const g = db.games[0];
+        const { context, tab, log } = await start(db);
+        await tab.waitForFunction(() => /Tahy 5\/5/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
+        await tab.click('#conquest-card [data-action="conquest-play"]');
+        await tab.waitForSelector('#conquest-game [data-cq-map] svg');
+        await tapTerritory(tab, 'Q40');
+        await tab.waitForSelector('[data-cq-sheet] [data-cq="attack"]');
+        assert.match(await tab.textContent('[data-cq-sheet]'), /Na odpověď máš 60 s\. Kdo s územím sousedí, může se k bitvě přidat/);
+        await tab.click('[data-cq-sheet] [data-cq="attack"]');
+        await tab.waitForSelector('[data-cq-answer]', { timeout: 30000 });
+        const begin = db.calls.find(call => call.name === 'conquest_siege_begin').body;
+        assert.equal(begin.target, 'Q40');
+        assert.ok(Number.isInteger(begin.correct) && !/"correct"/.test(JSON.stringify(begin.question)), 'správná odpověď jde zvlášť, ne v otázce');
+        assert.equal(await tab.textContent('[data-cq-timer-text]'), '0:50');
+        assert.match(await tab.textContent('[data-cq-sheet]'), /Bitva o Rakousko/);
+        assert.match(await tab.textContent('[data-cq-budget]'), /4\/5/, 'tah je rezervovaný');
+        // Petr se přidá: během otázky vyskočí zpráva a jeho praporek přibude mezi účastníky
+        const siege = g.sieges[0];
+        siege.participants.push({ user: 'u-2', source: 'Q183' });
+        g.siegeRev += 1;
+        await tab.waitForSelector('[data-cq-joined] .cq-joined', { timeout: 10000 });
+        assert.match(await tab.textContent('[data-cq-joined]'), /Do bitvy vstupuje Petr Svoboda!/);
+        assert.match(await tab.textContent('[data-cq-fighters]'), /ty[\s\S]*Petr Svoboda/);
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+        await shot(tab, 'bitva-otazka-360');
+        // Odpovím správně, Petr ještě přemýšlí: čekání s odpočtem
+        await tab.click(`[data-cq-answer="${begin.correct}"]`);
+        await tab.waitForSelector('[data-cq-wait]');
+        assert.ok(await tab.evaluate(() => document.querySelector('[data-cq-wait]').getBoundingClientRect().bottom <= window.innerHeight), 'čekání je celé vidět');
+        assert.match((await tab.textContent('[data-cq-wait]')).replace(/\s+/g, ' '), /Čeká se na ostatní[\s\S]*ty\s*správně · 4,2 s[\s\S]*Petr Svoboda\s*přemýšlí · 0:50[\s\S]*Teď rozhoduje čas/);
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+        await tab.waitForTimeout(400);
+        await shot(tab, 'bitva-cekani-360');
+        // Petr odpoví správně rychleji: území je jeho, můj tah propadl
+        Object.assign(siege.participants[1], { answered: true, picked: siege.correct, correct: true, answer_ms: 2100 });
+        await tab.waitForFunction(() => /Správně, ale rychlejší odpověď: Petr Svoboda\. Tah propadl\./.test((document.querySelector('[data-cq-banner]') || {}).textContent || ''), null, { timeout: 15000 });
+        await tab.waitForSelector('[data-cq-sheet] [aria-label="Výsledek bitvy"]', { timeout: 15000 });
+        assert.match((await tab.textContent('[data-cq-sheet]')).replace(/\s+/g, ' '), /Rakousko\s*Vyhrává Petr Svoboda a získává území\.[\s\S]*Petr Svoboda\s*vítězství · 2,1 s[\s\S]*ty\s*správně, pomaleji · 4,2 s/);
+        assert.equal(g.territories.find(x => x.t === 'Q40').o, 'u-2');
+        assert.match(await tab.textContent('[data-cq-budget]'), /4\/5/);
+        assert.equal(await tab.locator('.cq-siege-zone').count(), 0, 'po bitvě už území obléhané není');
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+        await tab.waitForTimeout(400);
+        await shot(tab, 'bitva-vysledek-360');
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    await t.test('bitva o území, kdo se přidá, na 390×780 (tmavý režim): obléhání na mapě a štítek, okno bitvy s varováním, Přidat se, stejná otázka, vítězství', async () => {
+        const db = running();
+        db.battles = true;
+        db.answerMs = { 'u-2': 3100 };
+        const g = db.games[0];
+        const question = { kind: 'text', family: 'capital', prompt: 'Které město je hlavním městem tohoto státu?', difficulty: 1, choices: ['Vídeň', 'Štýrský Hradec', 'Linec', 'Salcburk'].map(label => ({ label })) };
+        g.sieges = [{ id: uuid(77), territory: 'Q40', started_by: 'u-1', question, correct: 0, status: 'open', participants: [{ user: 'u-1', source: 'Q213' }] }];
+        g.siegeRev = 1;
+        const { context, tab, log } = await start(db, { viewport: { width: 390, height: 780 }, colorScheme: 'dark', storage: login('tok-u2') });
+        await tab.waitForFunction(() => /Tahy 5\/5/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
+        await tab.click('#conquest-card [data-action="conquest-play"]');
+        await tab.waitForSelector('#conquest-game [data-cq-map] svg');
+        assert.equal(await tab.locator('[data-siege-zone="Q40"]').count(), 1, 'obléhané území má rudý lem');
+        assert.equal(await tab.locator('[data-mark="Q40"] .cq-siege-badge').count(), 1, 'pečeť se zkříženými meči');
+        await tab.waitForSelector('[data-cq-siege-open="Q40"]');
+        assert.match(await tab.textContent('[data-cq-siege-open="Q40"]'), /Bitva o Rakousko\s*0:50/);
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+        await shot(tab, 'bitva-mapa-390-dark');
+        await tab.click('[data-cq-siege-open="Q40"]');
+        await tab.waitForSelector('[data-cq-sheet] [data-cq="siege-join"]');
+        assert.match((await tab.textContent('[data-cq-sheet]')).replace(/\s+/g, ' '), /Probíhá bitva\s*přidat se: 0:50[\s\S]*Jana Nováková[\s\S]*Riskantní: [\s\S]*nezíská nic a tah ztratí\.[\s\S]*Přidat se do bitvy/);
+        assert.equal(await tab.locator('[data-cq-sheet] [data-cq="attack"]').count(), 0, 'zaútočit jinak než přidáním nejde');
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+        await tab.waitForTimeout(400);
+        await shot(tab, 'bitva-pridat-390-dark');
+        await tab.click('[data-cq-sheet] [data-cq="siege-join"]');
+        await tab.waitForSelector('[data-cq-answer]');
+        const join = db.calls.filter(call => call.name === 'conquest_siege_join').pop().body;
+        assert.deepEqual([join.siege, join.source], [uuid(77), 'Q183']);
+        assert.match(await tab.textContent('[data-cq-sheet]'), /Bitva o Rakousko[\s\S]*Které město je hlavním městem tohoto státu\?[\s\S]*Vídeň/);
+        assert.match(await tab.textContent('[data-cq-budget]'), /4\/5/);
+        await shot(tab, 'bitva-otazka-390-dark');
+        await tab.click('[data-cq-answer="0"]');
+        await tab.waitForSelector('[data-cq-wait]');
+        assert.match(await tab.textContent('[data-cq-sheet]'), /Tvoje odpověď: Vídeň/, 'při čekání jen moje odpověď (vejde se i seznam účastníků)');
+        assert.equal(await tab.locator('[data-cq-answer]').count(), 0);
+        // Jana odpoví špatně: vyhrávám, území s pokladem je moje
+        Object.assign(g.sieges[0].participants[0], { answered: true, picked: 2, correct: false, answer_ms: 5000 });
+        await tab.waitForSelector('[data-cq-sheet] [aria-label="Výsledek bitvy"]', { timeout: 15000 });
+        assert.match((await tab.textContent('[data-cq-sheet]')).replace(/\s+/g, ' '), /Vyhráváš a území je tvoje\.[\s\S]*ty\s*vítězství · 3,1 s[\s\S]*Jana Nováková\s*špatně/);
+        assert.equal(g.territories.find(x => x.t === 'Q40').o, 'u-2');
+        assert.ok(await tab.locator('[data-wash="Q40"]').count() === 1);
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+        await tab.waitForTimeout(400);
+        await shot(tab, 'bitva-vitezstvi-390-dark');
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    // Otázka Mudrlanta přes celou obrazovku hry: vejde se (stránka ani obrazovka hry se neposouvá, popis se posouvá ve svém rámečku)
+    const fullFits = (tab, height) => tab.evaluate((h) => {
+        const full = document.querySelector('[data-cq-full]');
+        const rect = full.getBoundingClientRect();
+        const answers = [...full.querySelectorAll('[data-cq-answer]')].map(button => button.getBoundingClientRect());
+        const game = document.getElementById('conquest-game');
+        return { top: rect.top >= 0, bottom: rect.bottom <= h + 0.5, answers: answers.every(box => box.bottom <= rect.bottom + 0.5 && box.height >= 40), over: full.scrollHeight - full.clientHeight, game: game.scrollHeight - game.clientHeight };
+    }, height);
+    const openRunning = async (options) => {
+        const db = running();
+        const page = await start(db, options);
+        await page.tab.waitForFunction(() => /Tahy 5\/5/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
+        await page.tab.click('#conquest-card [data-action="conquest-play"]');
+        await page.tab.waitForSelector('#conquest-game [data-cq-map] svg');
+        return { db, ...page };
+    };
+    const attackWith = async (tab, db, territory, form) => {
+        if (form) await tab.evaluate((value) => { window.MUDRLANT_CONQUEST_ONLY = value; }, form);
+        await tapTerritory(tab, territory);
+        await tab.waitForSelector('[data-cq-sheet] [data-cq="attack"]');
+        db.force.push('capture');
+        await tab.click('[data-cq-sheet] [data-cq="attack"]');
+    };
+    // Odpověď a konec tahu (dobytí: vlaječka se zapíchne, další klepnutí na mapu už jde)
+    const answerCapture = async (tab, index, territory) => {
+        await tab.click(`[data-cq-answer="${index}"]`);
+        await tab.waitForSelector(`[data-pin="${territory}"].cq-pin-drop`, { timeout: 15000 });
+        await tab.waitForSelector('[data-cq-banner] .cq-banner');
+    };
+    for (const [width, height, colorScheme] of [[360, 640, 'light'], [390, 780, 'dark']]) {
+        await t.test(`otázka Mudrlanta ${width}×${height} (${colorScheme === 'dark' ? 'tmavý' : 'světlý'} režim): popis se zakrytým názvem, fakta a obrázek přes celou obrazovku hry, záhlaví „Útok na…“, vejde se bez posouvání, odpověď`, async () => {
+            const { db, context, tab, log } = await openRunning({ viewport: { width, height }, colorScheme, only: 'text', wiki: 'article' });
+            // Popis: Rakousko (neutrální, bez opevnění)
+            await attackWith(tab, db, 'Q40', null);
+            await tab.waitForSelector('[data-cq-full] [data-cq-qtext]', { timeout: 20000 });
+            assert.equal((await tab.textContent('[data-cq-full] h2')).trim(), 'Útok na Rakousko');
+            assert.equal(await tab.locator('[data-cq-full] [aria-label="Obtížnost 1 ze 3"]').count(), 1, 'hvězdy obtížnosti');
+            assert.match(await tab.textContent('[data-cq-full] [data-cq-qtext]'), /„\[\*\*\*\] je velmi známé místo nebo osobnost/);
+            assert.doesNotMatch(await tab.textContent('[data-cq-full] [data-cq-qtext]'), /Rakousko je velmi/);
+            assert.equal(await tab.locator('[data-cq-full] [data-cq-answer]').count(), 4);
+            assert.match(await tab.textContent('[data-cq-full] p'), /\?$/);
+            // Po vyjetí listu (animace cq-sheet-in)
+            await tab.waitForTimeout(400);
+            await shot(tab, `mudrlant-popis-${width}-${colorScheme}`);
+            assert.deepEqual(await fullFits(tab, height), { top: true, bottom: true, answers: true, over: 0, game: 0 }, 'popis se vejde');
+            assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 }, 'stránka se neposouvá');
+            const scroll = await tab.evaluate(() => { const box = document.querySelector('[data-cq-qtext]'); return getComputedStyle(box).overflowY; });
+            assert.equal(scroll, 'auto', 'popis se posouvá ve svém rámečku');
+            await answerCapture(tab, 0, 'Q40');
+            assert.equal(await tab.locator('[data-cq-full]').count(), 0, 'po odpovědi zpět na mapu');
+            assert.equal(await tab.evaluate(() => document.querySelector('[data-cq-sheet]').classList.contains('top-0')), false);
+            // Fakta: Polsko
+            await attackWith(tab, db, 'Q36', 'facts');
+            await tab.waitForSelector('[data-cq-full] dl', { timeout: 20000 });
+            assert.ok(await tab.locator('[data-cq-full] .cq-fact').count() >= 2, 'aspoň dvě fakta');
+            assert.equal((await tab.textContent('[data-cq-full] h2')).trim(), 'Útok na Polsko');
+            await tab.waitForTimeout(400);
+            await shot(tab, `mudrlant-fakta-${width}-${colorScheme}`);
+            assert.deepEqual(await fullFits(tab, height), { top: true, bottom: true, answers: true, over: 0, game: 0 }, 'fakta se vejdou');
+            await answerCapture(tab, 1, 'Q36');
+            // Obrázek: Maďarsko
+            await attackWith(tab, db, 'Q28', 'photo');
+            await tab.waitForSelector('[data-cq-full] .cq-qimg img', { timeout: 20000 });
+            assert.match(await tab.getAttribute('[data-cq-full] .cq-qimg img', 'src'), /^https:\/\/upload\.wikimedia\.org\//);
+            assert.ok(await tab.evaluate(() => { const img = document.querySelector('[data-cq-full] .cq-qimg img'); return img.getBoundingClientRect().height > 120; }), 'obrázek je velký');
+            await tab.waitForTimeout(400);
+            await shot(tab, `mudrlant-obrazek-${width}-${colorScheme}`);
+            assert.deepEqual(await fullFits(tab, height), { top: true, bottom: true, answers: true, over: 0, game: 0 }, 'obrázek se vejde');
+            await tab.click('[data-cq-full] [data-cq-answer="2"]');
+            await tab.waitForFunction(() => document.querySelector('[data-cq-full] .cq-choice-ok') && /Správně/.test(document.querySelector('[data-cq-full]').textContent), null, { timeout: 5000 });
+            await tab.waitForSelector('[data-pin="Q28"].cq-pin-drop', { timeout: 15000 });
+            assert.deepEqual(db.calls.filter(call => call.name === 'conquest_move').map(call => call.body.target), ['Q40', 'Q36', 'Q28']);
+            // Otázky se v zařízení pamatují podle položky a formy (žádná položka dvakrát)
+            const asked = await tab.evaluate(() => Object.values(JSON.parse(localStorage.getItem('mudrlant.conquestAsked')))[0]);
+            assert.equal(new Set(asked.a).size, 3);
+            assert.deepEqual(asked.f.slice(-3), ['text', 'facts', 'photo']);
+            assert.deepEqual(log.errors, []);
+            assert.deepEqual(log.csp, []);
+            await context.close();
+        });
+    }
+
+    await t.test('bez sítě: když Wikipedie a obrázky nejdou, nebo Wikipedie neodpoví do 4 s, přijde místní otázka ve spodním listu', async () => {
+        // Obrázky ani Wikipedie nejdou: otázka na obrázek se nesloží a hned přijde místní otázka
+        const blocked = await openRunning({ only: 'photo', wiki: 'abort', images: 'abort' });
+        const started = Date.now();
+        await attackWith(blocked.tab, blocked.db, 'Q40', null);
+        await blocked.tab.waitForSelector('[data-cq-answer]', { timeout: 15000 });
+        assert.ok(Date.now() - started < 8000, `místní otázka do 8 s (${Date.now() - started} ms)`);
+        assert.equal(await blocked.tab.locator('[data-cq-full]').count(), 0, 'místo obrázku místní otázka');
+        assert.deepEqual(await fits(blocked.tab), { vertical: 0, page: 0, content: 0 });
+        await shot(blocked.tab, 'mudrlant-bez-site-360');
+        await answerCapture(blocked.tab, 0, 'Q40');
+        assert.deepEqual(blocked.log.errors, []);
+        await blocked.context.close();
+        // Wikipedie neodpoví: po ROUND_TIMEOUT (4 s) místní otázka, ne čekání na Wikipedii
+        const slow = await openRunning({ only: 'text', wiki: 'hang' });
+        const begun = Date.now();
+        await attackWith(slow.tab, slow.db, 'Q40', null);
+        await slow.tab.waitForSelector('[data-cq-answer]', { timeout: 15000 });
+        const waited = Date.now() - begun;
+        assert.ok(waited >= 3000 && waited < 9000, `místní otázka po asi 4 s (${waited} ms)`);
+        assert.equal(await slow.tab.locator('[data-cq-full]').count(), 0);
+        assert.deepEqual(slow.log.errors, []);
+        assert.deepEqual(slow.log.csp, []);
+        await slow.context.close();
+    });
 
     await t.test('Česko na 360×640: mapa krajů, hodinové tahy, otázka o kraji', async () => {
         const db = newDb();

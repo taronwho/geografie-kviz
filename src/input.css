@@ -1008,6 +1008,42 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
     .cq-choice-ok { background: #14532d; box-shadow: 0 0 0 2px #4ade80; }
     .cq-choice-bad { background: #4c0519; box-shadow: 0 0 0 2px #fb7185; }
 }
+/* Bitvy o území (blok 25): obléhané území s rudým lemem, který obíhá kolem hranice, pečeť se zkříženými meči, okno bitvy v listu,
+   varování před rizikem, odpočet 60 s (posledních 10 s rudě), vyskakovací „Do bitvy vstupuje…“, čekání na ostatní a štítky bitev na mapě */
+.cq-siege-zone { fill: rgb(217 45 32 / 0.1); stroke: #b42318; stroke-width: 2.4; stroke-dasharray: 7 5; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.cq-siege-seal { fill: #fff4dc; stroke: #9f1f17; stroke-width: 1.6; }
+.cq-siege-pulse { fill: none; stroke: #d92d20; stroke-width: 1.6; opacity: 0; }
+.cq-siege-swords path { fill: none; stroke: #7a1414; stroke-width: 2.7; stroke-linecap: round; stroke-linejoin: round; }
+.cq-siege-box { background: linear-gradient(#fff1ee, #fde3dd); box-shadow: inset 0 0 0 1px rgb(180 35 24 / 0.45); color: #7a1414; }
+.cq-risk { background: #fff7e0; box-shadow: inset 0 0 0 1px rgb(180 120 20 / 0.5); color: #7a4a06; }
+.cq-timer { background: rgb(120 80 40 / 0.18); }
+.cq-timer-fill { background: linear-gradient(90deg, #d9a03b, #f2c14e); transform-origin: left center; transition: transform 250ms linear; }
+.cq-timer-fill.cq-timer-low { background: linear-gradient(90deg, #b42318, #ef4444); }
+.cq-choice-picked { background: #fff3c4; box-shadow: 0 0 0 2px #d9a03b; }
+.cq-dot-picked circle { fill: #f2c14e; }
+.cq-joined { background: linear-gradient(#fff1ee, #f9c9bf); box-shadow: inset 0 0 0 1.5px #b42318, 0 8px 18px -6px rgb(60 20 10 / 0.7); color: #6b1010; font-family: Georgia, 'Times New Roman', serif; font-weight: 700; }
+.cq-wait { background: #fbf3e0; box-shadow: inset 0 0 0 1px rgb(164 123 69 / 0.5); color: #4a2c12; }
+.cq-siege-chip { background: linear-gradient(#fff4dc, #f7dcc8); box-shadow: inset 0 0 0 1.5px #b42318, 0 4px 10px -4px rgb(60 20 10 / 0.6); color: #7a1414; }
+@media (prefers-color-scheme: dark) {
+    .cq-siege-box { background: linear-gradient(#3a2422, #301e1c); box-shadow: inset 0 0 0 1px rgb(248 113 113 / 0.45); color: #fecaca; }
+    .cq-risk { background: #3a2f1a; box-shadow: inset 0 0 0 1px rgb(242 193 78 / 0.4); color: #fde68a; }
+    .cq-timer { background: rgb(255 255 255 / 0.12); }
+    .cq-choice-picked { background: #4a3d16; box-shadow: 0 0 0 2px #f2c14e; }
+    .cq-wait { background: #2c2f34; box-shadow: inset 0 0 0 1px rgb(214 151 37 / 0.3); color: #f3e4c2; }
+}
+@media (prefers-reduced-motion: no-preference) {
+    .cq-siege-zone { animation: cqSiegeMarch 1.2s linear infinite; }
+    .cq-siege-pulse { transform-box: fill-box; transform-origin: center; animation: cqSiegePulse 1.6s ease-out infinite; }
+    .cq-siege-chip i, .cq-siege-chip svg:first-child { animation: cqSiegeShake 2.4s ease-in-out infinite; }
+    .cq-timer-fill.cq-timer-low { animation: cqTimerLow 0.8s ease-in-out infinite; }
+    .cq-joined-in { animation: cqJoinedIn 3.2s ease-in-out forwards; }
+}
+@media (prefers-reduced-motion: reduce) { .cq-siege-pulse { opacity: 0.5; } }
+@keyframes cqSiegeMarch { to { stroke-dashoffset: -24; } }
+@keyframes cqSiegePulse { 0% { opacity: 0.85; transform: scale(1); } 100% { opacity: 0; transform: scale(1.75); } }
+@keyframes cqSiegeShake { 0%, 80%, 100% { transform: rotate(0); } 85% { transform: rotate(-14deg); } 90% { transform: rotate(12deg); } 95% { transform: rotate(-6deg); } }
+@keyframes cqTimerLow { 50% { opacity: 0.55; } }
+@keyframes cqJoinedIn { 0% { opacity: 0; transform: translateY(10px) scale(0.92); } 10% { opacity: 1; transform: translateY(0) scale(1.04); } 16% { transform: scale(1); } 85% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-6px); } }
 .cq-qmap-land { fill: #f3e4c2; stroke: #6b4a2a; stroke-width: 1.4; vector-effect: non-scaling-stroke; }
 .cq-dot circle { fill: #fffaf0; stroke: #5b3a1e; stroke-width: 1.6; vector-effect: non-scaling-stroke; }
 .cq-dot text { font-family: system-ui, sans-serif; font-weight: 900; fill: #3b2a1a; }
@@ -1017,6 +1053,19 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 .cq-thumb-bg { fill: #d8c7a3; }
 .cq-thumb-land { fill: #f1e2bf; stroke: #8a6d4a; stroke-width: 0.6; vector-effect: non-scaling-stroke; }
 .cq-thumb-owned { stroke: #3b2a1a; stroke-width: 0.8; vector-effect: non-scaling-stroke; fill-opacity: 0.9; }
+/* Otázka Mudrlanta přes celou obrazovku hry: pergamen, rámeček s popisem nebo fakty jako list v knize, obrázek na tmavém plátně */
+.cq-qfull { background: linear-gradient(rgb(255 250 238 / 0.62), rgb(247 236 213 / 0.9)), url(icons/textury/textura-pergamen-svetly.webp); background-size: auto, 320px; }
+.cq-qbox { background: rgb(255 252 244 / 0.82); box-shadow: inset 0 0 0 1px rgb(164 123 69 / 0.5), inset 0 0 0 3px rgb(255 250 238 / 0.6); }
+.cq-qimg { background: #2a2219; }
+.cq-fact { background: rgb(255 255 255 / 0.62); box-shadow: inset 0 0 0 1px rgb(164 123 69 / 0.28); }
+.cq-qtype { background: rgb(250 240 214 / 0.95); color: #5a3416; box-shadow: inset 0 0 0 1px rgb(164 123 69 / 0.45); }
+@media (prefers-color-scheme: dark) {
+    .cq-qfull { background: linear-gradient(#2d3034, #262a2e); }
+    .cq-qbox { background: rgb(0 0 0 / 0.2); box-shadow: inset 0 0 0 1px rgb(214 151 37 / 0.3); }
+    .cq-qimg { background: #161719; }
+    .cq-fact { background: rgb(255 255 255 / 0.05); box-shadow: inset 0 0 0 1px rgb(214 151 37 / 0.2); }
+    .cq-qtype { background: rgb(45 48 52 / 0.95); color: #ead7ab; box-shadow: inset 0 0 0 1px rgb(214 151 37 / 0.4); }
+}
 /* Výsledek: kamenné podstavce (zlatý, stříbrný, bronzový lem), vavřínový věnec vítěze, vlající praporce a zlatá pečeť odměny */
 .cq-result-sheet { background: linear-gradient(rgb(255 250 238 / 0.6), rgb(247 236 213 / 0.85)), url(icons/textury/textura-pergamen-svetly.webp); background-size: auto, 320px; }
 .cq-podium { border-bottom: 2px solid rgb(107 74 42 / 0.45); }

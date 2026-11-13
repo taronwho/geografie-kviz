@@ -1073,14 +1073,18 @@
     // (plná hra, obsazená barva, limity, tahy na období) se předají dál, jiné chyby nahradí obecný text.
     let conquestMissing = false;
     const CONQUEST_MISSING = 'Dobývání zatím není k dispozici (databáze potřebuje nejnovější schema.sql).';
-    // Pozvánky přátel (blok 24) přibyly později: databáze bez nich (404) Dobývání nevypne, jen pozvánky nejdou
-    let invitesMissing = false;
-    const INVITES_MISSING = 'Pozvánky do Dobývání zatím nejdou (databáze potřebuje nejnovější schema.sql).';
-    const conquestCall = async (name, body, fallback, invites = false) => {
+    // Části, které přibyly později (part): pozvánky přátel (blok 24) a bitvy o území (blok 25). Databáze bez nich (404) Dobývání nevypne,
+    // jen ta část nejde (chyba se status 404) a dál se o ni nežádá.
+    const PART_MISSING = {
+        invites: 'Pozvánky do Dobývání zatím nejdou (databáze potřebuje nejnovější schema.sql).',
+        sieges: 'Bitvy o území zatím nejdou (databáze potřebuje nejnovější schema.sql).'
+    };
+    const partMissing = { invites: false, sieges: false };
+    const conquestCall = async (name, body, fallback, part = null) => {
         if (conquestMissing) throw new SocialError(CONQUEST_MISSING, 404);
-        if (invites && invitesMissing) throw new SocialError(INVITES_MISSING, 404);
+        if (part && partMissing[part]) throw new SocialError(PART_MISSING[part], 404);
         try { return await request('POST', `rpc/${name}`, { body }); } catch (error) {
-            if (error instanceof SocialError && error.status === 404 && invites) { invitesMissing = true; throw new SocialError(INVITES_MISSING, 404); }
+            if (error instanceof SocialError && error.status === 404 && part) { partMissing[part] = true; throw new SocialError(PART_MISSING[part], 404); }
             if (error instanceof SocialError && error.status === 404) { conquestMissing = true; throw new SocialError(CONQUEST_MISSING, 404); }
             if (error instanceof SocialError && error.status === 401) throw new SocialError('Nejsi přihlášený.', 401);
             if (error instanceof SocialError && error.status < 500 && CZECH_MESSAGE.test(error.message)) throw error;
@@ -1132,19 +1136,77 @@
     const conquestInvite = async (game, friends) => {
         const ids = [...new Set((Array.isArray(friends) ? friends : []).filter(isUuid))].slice(0, 7);
         if (!ids.length) throw new SocialError('Vyber, koho chceš pozvat.', 400);
-        return conquestGame(await conquestCall('conquest_invite', { game: conquestId(game), friends: ids }, 'Pozvánky se nepodařilo poslat. Zkus to znovu.', true));
+        return conquestGame(await conquestCall('conquest_invite', { game: conquestId(game), friends: ids }, 'Pozvánky se nepodařilo poslat. Zkus to znovu.', 'invites'));
     };
     const cleanInviter = (row) => (row && typeof row === 'object' && isUuid(row.id) ? { id: String(row.id), display_name: String(row.display_name || 'Kamarád'), avatar: row.avatar, color: row.color,
         frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl) } : null);
     // [hra s code, invited_by (kdo zve) a invited_at]; databáze bez pozvánek vyhodí chybu se status 404
     const conquestInvitesMine = async () => {
-        const data = await conquestCall('conquest_invites_mine', {}, 'Pozvánky se nepodařilo načíst. Zkontroluj připojení.', true);
+        const data = await conquestCall('conquest_invites_mine', {}, 'Pozvánky se nepodařilo načíst. Zkontroluj připojení.', 'invites');
         return (Array.isArray(data) ? data : []).map(row => {
             const game = conquestGame(row);
             return game ? { ...game, code: conquestText(row.code, 12), invited_by: cleanInviter(row.invited_by), invited_at: row.invited_at ? String(row.invited_at) : null } : null;
         }).filter(Boolean);
     };
-    const conquestDeclineInvite = (game) => conquestCall('conquest_decline_invite', { game: conquestId(game) }, 'Pozvánku se nepodařilo odmítnout. Zkus to znovu.', true);
+    const conquestDeclineInvite = (game) => conquestCall('conquest_decline_invite', { game: conquestId(game) }, 'Pozvánku se nepodařilo odmítnout. Zkus to znovu.', 'invites');
+
+    // Bitvy o území (blok 25): útok začne obléhání, sousedé se přidají, všichni dostanou stejnou otázku a odpověď vyhodnotí server.
+    // Databáze bez bloku 25 hlásí chybu se status 404 a conquestSiegesMissing() pak vrací true (aplikace útočí postaru přes conquestMove).
+    // Časy (now, joined_at, deadline, join_until, ends_at) jsou serverové: aplikace si z now spočítá posun proti svým hodinám.
+    const siegeId = (value) => { if (!isUuid(value)) throw new SocialError('Neplatná bitva.', 400); return value; };
+    // Bitva: { id, game, territory, status: 'open' | 'resolved', started_by, started_at, join_until, ends_at, resolved_at, winner, outcome,
+    // mine, answered, joined_at, deadline, participants: [hráč s seat, flag_color, emblem, source, joined_at, deadline, answered, me
+    // (po vyhodnocení i correct, answer_ms, result, winner, move)], can_join (puls), question/answer/correct_choice/result/move (účastník) }
+    const conquestSiege = (value) => (value && typeof value === 'object' && isUuid(value.id)
+        ? { ...value, participants: Array.isArray(value.participants) ? value.participants.filter(row => row && row.id) : [] } : null);
+    // Otázka k odeslání: kopie bez příznaků správnosti a index správné možnosti (correct, jinak podle příznaku correct u možností);
+    // null, když otázka nejde poslat (2–8 možností, nejvýš 40 kB jako na serveru)
+    const SIEGE_QUESTION_MAX = 40000;
+    const siegeQuestion = (question, correct = null) => {
+        if (!question || typeof question !== 'object' || !Array.isArray(question.choices)) return null;
+        const choices = question.choices;
+        const index = correct === null || correct === undefined ? choices.findIndex(choice => choice && choice.correct === true) : Number(correct);
+        if (choices.length < 2 || choices.length > 8 || !Number.isInteger(index) || index < 0 || index >= choices.length) return null;
+        const strip = (item) => { const copy = { ...item }; delete copy.correct; delete copy.correct_choice; return copy; };
+        const clean = { ...strip(question), choices: choices.map(choice => (choice && typeof choice === 'object' ? strip(choice) : choice)) };
+        let size = Infinity;
+        try { size = new TextEncoder().encode(JSON.stringify(clean)).length; } catch (error) { return null; }
+        return size <= SIEGE_QUESTION_MAX ? { question: clean, correct: index } : null;
+    };
+    // Začátek obléhání: question = otázka tahu (jak ji sestaví conquest.js; příznaky correct se před odesláním zahodí), correct = index
+    // správné možnosti (nepovinné), source = vlastní území, odkud útok vede. Vrací bitvu (účastník) s budget.
+    const conquestSiegeBegin = async (game, territory, question, correct = null, source = null) => {
+        const prepared = siegeQuestion(question, correct);
+        if (!prepared) throw new SocialError('Otázku k bitvě se nepodařilo připravit.', 400);
+        return conquestSiege(await conquestCall('conquest_siege_begin', {
+            game: conquestId(game), target: conquestText(territory, 16), question: prepared.question, correct: prepared.correct, source: source ? conquestText(source, 16) : null
+        }, 'Útok se nepodařilo zahájit. Zkontroluj připojení.', 'sieges'));
+    };
+    // Přidání do bitvy: vrací bitvu s otázkou (bez správné odpovědi), joined_at, deadline a budget; kdo už v bitvě je, dostane totéž znovu
+    const conquestSiegeJoin = async (siege, source = null) => conquestSiege(await conquestCall('conquest_siege_join', {
+        siege: siegeId(siege), source: source ? conquestText(source, 16) : null
+    }, 'Přidat se do bitvy se nepodařilo. Zkontroluj připojení.', 'sieges'));
+    // Odpověď: choice = index možnosti (null = bez odpovědi, třeba po vypršení času). Vrací { correct, status: 'waiting' | 'resolved', late,
+    // answer_ms, correct_choice, siege, now } a po vyhodnocení i move (můj tah) a state (stav hry jako conquestState)
+    const conquestSiegeAnswer = async (siege, choice) => {
+        const pick = Number.isInteger(choice) && choice >= 0 && choice < 8 ? choice : null;
+        const data = (await conquestCall('conquest_siege_answer', { siege: siegeId(siege), choice: pick }, 'Odpověď se nepodařilo odeslat. Zkontroluj připojení.', 'sieges')) || {};
+        return { ...data, correct: data.correct === true, status: data.status === 'resolved' ? 'resolved' : 'waiting', late: data.late === true,
+            answer_ms: Number.isFinite(Number(data.answer_ms)) && data.answer_ms !== null ? Number(data.answer_ms) : null,
+            correct_choice: Number.isInteger(data.correct_choice) ? data.correct_choice : null,
+            siege: conquestSiege(data.siege), move: data.move && typeof data.move === 'object' ? data.move : null, state: conquestGame(data.state) };
+    };
+    // Stav bitvy (účastník: i otázka, moje odpověď a po vyhodnocení výsledek); bitvu po termínu server napřed vyhodnotí
+    const conquestSiegeStatus = async (siege) => conquestSiege(await conquestCall('conquest_siege_status', { siege: siegeId(siege) }, 'Stav bitvy se nepodařilo načíst. Zkontroluj připojení.', 'sieges'));
+    // Puls hry (každé 1,5–3 s): { now, status, ends_at, version (když se změní, načíst conquestState), sieges: otevřené bitvy s can_join,
+    // results: moje bitvy vyhodnocené v posledních 2 minutách }
+    const conquestPulse = async (game) => {
+        const data = (await conquestCall('conquest_pulse', { game: conquestId(game) }, 'Hru se nepodařilo obnovit. Zkontroluj připojení.', 'sieges')) || {};
+        return { ...data, version: String(data.version || ''), sieges: (Array.isArray(data.sieges) ? data.sieges : []).map(conquestSiege).filter(Boolean),
+            results: (Array.isArray(data.results) ? data.results : []).map(conquestSiege).filter(Boolean) };
+    };
+    // Chybí v databázi bitvy (blok 25)? Zjistí se až prvním voláním (třeba conquestPulse), do té doby false.
+    const conquestSiegesMissing = () => partMissing.sieges;
 
     return { AVATARS, allAvatars, cleanAvatar, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
         tournamentTick, getTournaments, tournamentArchive, ARCHIVE_PAGE, inTournament, devTournament, devClientErrors, isDevAdmin, schemaVersion, reportQuestion, getQuestionReports, deleteQuestionReport, exportMyData, deleteMyAccount, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen,
@@ -1170,6 +1232,8 @@
         conquestLobby, conquestCreate, conquestJoin, conquestSetLook, conquestReady, conquestLeave, conquestState, conquestMove, conquestClaim,
         // Pozvánky přátel do Dobývání (blok 24)
         conquestInvite, conquestInvitesMine, conquestDeclineInvite,
+        // Bitvy o území v Dobývání (blok 25)
+        conquestSiegeBegin, conquestSiegeJoin, conquestSiegeAnswer, conquestSiegeStatus, conquestPulse, conquestSiegesMissing,
         // Vývojářští boti v Dobývání (blok 22)
         devConquestAddBots, devConquestBotsPlay, devConquestNextPeriod,
         // Řetězovka dne (blok 21)
