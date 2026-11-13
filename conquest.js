@@ -2388,7 +2388,7 @@
         if (siege.mine && !siege.answered) action = `<button type="button" data-cq="siege-resume" class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="swords" class="h-5 w-5"></i> Vrátit se do bitvy</button>`;
         else if (siege.mine) action = '<p class="text-[12.5px] font-semibold text-slate-600 dark:text-slate-300">Odpověď máš odeslanou. Výsledek přijde, až odpoví ostatní.</p>';
         else if (mineOwner) action = '<p class="text-[12.5px] font-semibold text-slate-600 dark:text-slate-300">Tvoje území je obléhané. Opevnit ho teď nejde, výsledek uvidíš na mapě.</p>';
-        else if (siege.can_join && open) action = `<p class="cq-risk flex gap-1.5 rounded-lg px-2 py-1.5 text-[11.5px] font-semibold leading-snug"><i data-lucide="triangle-alert" class="mt-px h-3.5 w-3.5 shrink-0"></i><span>${esc(RISK_TEXT)}</span></p>`
+        else if (siege.can_join && open) action = `<p class="cq-risk flex gap-1.5 rounded-lg px-2 py-1.5 text-[11.5px] font-semibold leading-snug"><i data-lucide="zap" class="mt-px h-3.5 w-3.5 shrink-0"></i><span>${esc(RISK_TEXT)}</span></p>`
             + `<button type="button" data-cq="siege-join" class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="swords" class="h-5 w-5"></i> Přidat se do bitvy</button>`;
         else {
             const left = view.budget ? view.budget.left : 0;
@@ -2461,7 +2461,7 @@
             const ok = mine && right === answered;
             const solved = right !== null ? question.choices[right] : null;
             const lines = [
-                mine ? `<span class="flex items-center gap-1 ${right === null ? '' : ok ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'}"><i data-lucide="${right === null ? 'circle-dot' : ok ? 'circle-check' : 'circle-x'}" class="h-4 w-4 shrink-0"></i>Tvoje odpověď: ${label(mine)}</span>` : '<span class="text-rose-700 dark:text-rose-300">Bez odpovědi: čas vypršel.</span>',
+                mine ? `<span class="flex items-center gap-1 ${right === null ? '' : ok ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'}"><i data-lucide="${right === null ? 'hourglass' : ok ? 'circle-check' : 'circle-x'}" class="h-4 w-4 shrink-0"></i>Tvoje odpověď: ${label(mine)}</span>` : '<span class="text-rose-700 dark:text-rose-300">Bez odpovědi: čas vypršel.</span>',
                 solved && !ok ? `<span class="flex items-center gap-1 text-emerald-700 dark:text-emerald-300"><i data-lucide="circle-check" class="h-4 w-4 shrink-0"></i>Správně: ${label(solved)}</span>` : ''
             ].join('');
             return `<div class="cq-sheet relative rounded-t-2xl p-2.5 pb-3" role="dialog" aria-label="Otázka">
