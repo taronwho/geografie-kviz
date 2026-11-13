@@ -2637,7 +2637,7 @@
                 <span class="cq-ledger-title text-[16px]">Další kolo začíná</span>
                 <span class="cq-countdown relative flex h-28 w-28 items-center justify-center" aria-live="polite">
                     <svg viewBox="0 0 100 100" class="absolute inset-0 h-full w-full" aria-hidden="true"><circle cx="50" cy="50" r="44" class="cq-count-track"/><circle cx="50" cy="50" r="44" pathLength="100" class="cq-count-ring" data-cq-count-ring/></svg>
-                    <span class="cq-count-num relative" data-cq-count data-cq-next="${next}">${Math.min(ROUND_COUNTDOWN, left)}</span></span>
+                    <span class="cq-count-num relative" data-cq-count data-cq-count-at="${next}">${Math.min(ROUND_COUNTDOWN, left)}</span></span>
                 ${people}</div>`;
         }
         return `<div class="cq-round-card cq-round-in relative flex w-full max-w-[20rem] flex-col gap-2 rounded-2xl p-3" role="dialog" aria-label="Kolo dohráno">
