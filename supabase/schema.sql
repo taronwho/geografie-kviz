@@ -6583,8 +6583,10 @@ begin
         get diagnostics changed = row_count;
         if not exists (select 1 from public.conquest_players c where c.game_id = game and not public.dev_is_bot(c.user_id)
                 and not exists (select 1 from public.conquest_round_marks r where r.game_id = game and r.period = p and r.user_id = c.user_id)) then
+            -- Zbytek kola, který všichni přeskočili, se odečte i z celkové délky hry (počet kol zůstane stejný; schéma 28)
             update public.conquest_games set round_prev_at = public.conquest_period_start(g, p), round_no = p + 1,
-                round_at = least(now_ts + public.conquest_round_countdown(), public.conquest_period_end(g, p))
+                round_at = least(now_ts + public.conquest_round_countdown(), public.conquest_period_end(g, p)),
+                ends_at = g.ends_at - greatest(interval '0 seconds', public.conquest_period_end(g, p) - (now_ts + public.conquest_round_countdown()))
             where id = game;
             delete from public.conquest_round_marks where game_id = game and period < p;
             changed := 1;
@@ -6664,7 +6666,8 @@ grant execute on function public.conquest_round_ready(uuid, boolean) to authenti
 --     round v conquest_state a conquest_pulse přes conquest_round_json, conquest_round_done a conquest_round_player_done; boti dohrají tahy, když
 --     lidé dohráli; conquest_version s round_rev a číslem kola; upozornění rychlých her o dalším kole).
 -- 27: Dobývání – conquest_state posílá v budgets tahy všech hráčů v tomto kole (zbývá a celkem), pořadí u mapy je ukazuje.
+-- 28: Dobývání – Chci další kolo: přeskočený zbytek kola se odečte i z konce hry (conquest_round_ready posune ends_at).
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 27 $$;
+language sql immutable as $$ select 28 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;
