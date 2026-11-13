@@ -435,6 +435,150 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         clock = '2026-12-05T11:05:00Z';
         assert.deepEqual([budget(X).period, budget(X).penalty, budget(X).total], [3, 1, 1]);
     });
+
+    // Pozvánky (blok 24)
+    const [HOST, P1, P2, P3, P4, STRANGER, OWNER] = [40, 41, 42, 43, 44, 45, 46].map(id);
+    const invite = (uid, game, ids) => as(uid, `select conquest_invite(${lit(game)}, array[${ids.map(lit).join(', ')}]::uuid[]);`);
+    const invitesOf = (uid) => json(as(uid, 'select conquest_invites_mine();'));
+    const decline = (uid, game) => as(uid, `select conquest_decline_invite(${lit(game)});`);
+    const befriend = (a, b) => q(`insert into friendships (user_id, friend_id) values ('${a}', '${b}'); update friendships set status = 'accepted' where user_id = '${a}' and friend_id = '${b}';`);
+    let party;
+    await t.test('pozvánky (blok 24): jen přijatí přátelé, jen hráč hry před začátkem, nejvýš tolik, kolik je volných míst; souhrn s pozvanými jen hráčům', () => {
+        clock = '2026-12-06T08:00:00Z';
+        q(`insert into auth.users (id, email, raw_user_meta_data) select u, 'p' || n || '@example.com', jsonb_build_object('full_name', name)
+            from unnest(array['${HOST}', '${P1}', '${P2}', '${P3}', '${P4}', '${STRANGER}', '${OWNER}']::uuid[], array['Velitel', 'Ada', 'Bára', 'Cyril', 'Dita', 'Cizinec', 'Majitel'])
+            with ordinality as x (u, name, n)`);
+        [P1, P2, P3, P4].forEach(friend => befriend(HOST, friend));
+        q(`insert into friendships (user_id, friend_id) values ('${HOST}', '${STRANGER}')`);   // jen žádost, přítel to není
+        assert.equal(q(`select relrowsecurity from pg_class where oid = 'public.conquest_invites'::regclass`), 't');
+        denied(as(HOST, 'select * from conquest_invites;'), /permission denied/, 'tabulka jen přes funkce');
+        denied(as(HOST, `insert into conquest_invites (game_id, user_id, invited_by) values ('${id(999)}', '${P1}', '${HOST}');`), /permission denied/);
+        denied(as(null, 'select conquest_invites_mine();', 'anon'), null, 'anon nic');
+        party = json(create(HOST, { map: 'evropa', players: 3, hours: 72, vis: 'private' }));
+        assert.deepEqual(party.invited, [], 'hráč vidí (zatím prázdný) seznam pozvaných');
+        denied(invite(HOST, party.id, [STRANGER]), /jen své přátele/, 'čekající žádost nestačí');
+        denied(invite(HOST, party.id, [P1, STRANGER]), /jen své přátele/, 'pozvání neprojde ani částečně');
+        denied(invite(HOST, party.id, [HOST]), /jen své přátele/, 'sebe ne');
+        denied(invite(HOST, party.id, []), /Vyber, koho chceš pozvat/);
+        denied(invite(P1, party.id, [HOST]), /nehraješ/, 'jen hráč hry');
+        denied(invite(HOST, id(999), [P1]), /nehraješ/);
+        assert.equal(q(`select count(*) from conquest_invites`), '0');
+        // Hra pro 3, zakladatel je ve hře: nejvýš 2 čekající pozvánky
+        denied(invite(HOST, party.id, [P1, P2, P3]), /Volná místa ve hře: 2\. Vyber méně přátel\./);
+        const invited = json(invite(HOST, party.id, [P1, P2, P1]));
+        assert.deepEqual(invited.invited.map(p => p.id).sort(), [P1, P2].sort());
+        assert.deepEqual(invited.invited.map(p => p.display_name).sort(), ['Ada', 'Bára']);
+        assert.ok(invited.invited.every(p => p.by_me === true && 'avatar' in p && 'owl' in p), JSON.stringify(invited.invited));
+        denied(invite(HOST, party.id, [P3]), /už čekají na pozvané přátele/);
+        assert.equal(json(invite(HOST, party.id, [P1])).invited.length, 2, 'opakované pozvání nic nezmění');
+        // Pozvaný hru (soukromou) zatím nehraje: stav hry ani souhrn s pozvanými nevidí
+        denied(state(P1, party.id), /nehraješ/);
+    });
+
+    await t.test('pozvánky (blok 24): pozvaný je vidí, přidá se do soukromé hry bez kódu, odmítne; odmítnutého jde pozvat znovu; začátkem hry pozvánky končí', () => {
+        const mine = invitesOf(P1);
+        assert.equal(mine.length, 1);
+        const [inv] = mine;
+        assert.deepEqual([inv.id, inv.map, inv.hours, inv.max_players, inv.status, inv.code, inv.mine, inv.invited], [party.id, 'evropa', 72, 3, 'lobby', party.code, false, null]);
+        assert.deepEqual([inv.invited_by.id, inv.invited_by.display_name, inv.players.length], [HOST, 'Velitel', 1]);
+        assert.ok(inv.invited_at && 'avatar' in inv.invited_by && 'frame' in inv.invited_by);
+        assert.deepEqual(invitesOf(P3), [], 'nepozvaný nic');
+        // Bez pozvánky do soukromé hry podle id ne; s pozvánkou ano a pozvánka zmizí
+        denied(join(P3, { game: party.id, colour: 'zelena' }), /kódem není/);
+        const joined = json(join(P1, { game: party.id, colour: 'modra', emblem: 'orel' }));
+        assert.equal(joined.status, 'lobby');
+        assert.deepEqual(joined.players.map(p => p.id), [HOST, P1]);
+        assert.deepEqual(joined.invited.map(p => p.id), [P2], 'kdo se přidal, mezi pozvanými není');
+        assert.deepEqual(invitesOf(P1), []);
+        assert.equal(q(`select count(*) from conquest_invites where game_id = '${party.id}' and user_id = '${P1}'`), '0');
+        // Poslední volné místo čeká na P2; P2 odmítne → pozvánka zmizí, v lobby není, místo je pro dalšího
+        denied(invite(HOST, party.id, [P3]), /už čekají/);
+        ok(decline(P2, party.id));
+        ok(decline(P2, party.id));
+        assert.deepEqual(invitesOf(P2), []);
+        assert.deepEqual(json(state(HOST, party.id)).invited, []);
+        denied(join(P2, { game: party.id, colour: 'zelena' }), /kódem není/, 'odmítnutá pozvánka do hry nepustí');
+        // Znovu pozvat odmítnutého jde (odmítnutí se zruší); pak už místo pro P3 není
+        assert.deepEqual(json(invite(P1, party.id, [HOST])).invited, [], 'pozvat hráče, který už ve hře je, nic nezmění');
+        assert.deepEqual(json(invite(HOST, party.id, [P2])).invited.map(p => [p.id, p.by_me]), [[P2, true]]);
+        assert.equal(invitesOf(P2).length, 1);
+        assert.equal(q(`select declined_at is null from conquest_invites where game_id = '${party.id}' and user_id = '${P2}'`), 't');
+        denied(invite(HOST, party.id, [P3]), /už čekají/);
+        // Druhý hráč hry vidí pozvané taky (pozval je někdo jiný)
+        assert.deepEqual(json(state(P1, party.id)).invited.map(p => [p.id, p.by_me]), [[P2, false]]);
+        // Kód hry funguje dál (i odmítnutému), přidání kódem pozvánku smaže; plná hra začne a pozvánky do ní končí
+        q(`update conquest_invites set declined_at = now() where game_id = '${party.id}' and user_id = '${P2}'`);
+        const full = json(join(P2, { code: party.code, colour: 'zelena', emblem: 'vlk' }));
+        assert.equal(full.status, 'running');
+        assert.equal(full.invited, null, 'po začátku hry žádní pozvaní');
+        assert.equal(q(`select count(*) from conquest_invites where game_id = '${party.id}'`), '0');
+        denied(invite(HOST, party.id, [P3]), /ještě nezačala/);
+    });
+
+    await t.test('pozvánky (blok 24): blokovaného zakladatele pozvánka mine; do plné hry ani po začátku se pozvánka neukáže', () => {
+        // Veřejná hra cizího zakladatele, který P4 blokuje: HOST je v ní a P4 (svého přítele) pozve – pozvánka nevznikne
+        const open = json(create(OWNER, { map: 'cesko', players: 3, hours: 12, per: 'hour', colour: 'cerna', emblem: 'vlk' }));
+        ok(join(HOST, { game: open.id, colour: 'modra' }));
+        q(`insert into player_blocks (blocker, blocked) values ('${OWNER}', '${P4}')`);
+        assert.deepEqual(json(invite(HOST, open.id, [P4])).invited, []);
+        assert.deepEqual(invitesOf(P4), []);
+        // P3 pozvaný do hry, která se mezitím zaplní (cizím hráčem): pozvánka se mu neukáže
+        assert.deepEqual(json(invite(HOST, open.id, [P3])).invited.map(p => p.id), [P3]);
+        assert.equal(invitesOf(P3).length, 1);
+        q(`update conquest_games set max_players = 2 where id = '${open.id}'`);
+        assert.deepEqual(invitesOf(P3), [], 'plná hra');
+        q(`update conquest_games set max_players = 3 where id = '${open.id}'`);
+        assert.equal(invitesOf(P3).length, 1);
+        q(`delete from player_blocks where blocker = '${OWNER}'`);
+    });
+
+    await t.test('pozvánky (blok 24): upozornění „X tě zve do hry“ jednou za pozvánku (i po opětovném pozvání), vypnutelné, limit 10 minut, jen čerstvé', () => {
+        const SECRET = 'tajne-heslo-pro-cron-1234567890';
+        const P256DH = 'BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM';
+        q(`insert into app_secrets (name, value) values ('push_cron', '${SECRET}') on conflict (name) do update set value = excluded.value`);
+        q(`delete from push_sent; delete from push_subscriptions;`);
+        const rows = (sql) => { const text = q(sql); return text ? text.split('\n').map(line => line.split('|')) : []; };
+        const items = () => rows(`select user_id || '|' || kind || '|' || title || '|' || body || '|' || url || '|' || dedupe_key from conquest_invite_push_items() order by dedupe_key`);
+        const pending = () => rows(`select user_id || '|' || kind || '|' || title || '|' || dedupe_key from push_pending() where kind = 'conquest_invite' order by dedupe_key`);
+        // P3 má čekající pozvánku do hry na 12 hodin (Česko, od HOST)
+        const open = q(`select game_id from conquest_invites where user_id = '${P3}' and declined_at is null`);
+        const openCode = q(`select code from conquest_games where id = '${open}'`);
+        assert.deepEqual(items(), [[P3, 'conquest_invite', 'Dobývání: Velitel tě zve do hry', 'Mapa Česko · hra na 12 hodin. Vyber si barvu a přidej se.', `./?dobyvani=${openCode}`, `cqi:${open}:${P3}`]]);
+        assert.deepEqual(q(`select string_agg(conquest_push_length(h), '|' order by h) from unnest(array[6, 12, 24, 48, 72, 120, 168]) h`).split('|'),
+            ['6 hodin', '12 hodin', '1 den', '2 dny', '3 dny', '5 dní', '7 dní']);
+        denied(as(P3, 'select * from conquest_invite_push_items();'), /permission denied/, 'pomocná funkce není pro hráče');
+        // Bez odběru nic; s odběrem jedno upozornění; vypnuté Dobývání nic
+        assert.deepEqual(pending(), []);
+        ok(as(P3, `select push_subscribe('https://push.example.com/send/p3', '${P256DH}', 'tBHItJI5svbpez7KI4CCXg');`));
+        assert.deepEqual(pending(), [[P3, 'conquest_invite', 'Dobývání: Velitel tě zve do hry', `cqi:${open}:${P3}`]]);
+        q(`update profiles set push_conquest = false where id = '${P3}'`);
+        assert.deepEqual(items(), [], 'vypnuté upozornění z Dobývání');
+        q(`update profiles set push_conquest = true where id = '${P3}'`);
+        // Odesláno: push_mark zapíše druh conquest_invite a pozvaného; tatáž pozvánka znovu nepřijde (ani po odmítnutí a novém pozvání)
+        q(`select push_mark('${SECRET}', array['cqi:${open}:${P3}']::text[]);`);
+        assert.equal(q(`select kind || ' ' || user_id from push_sent where dedupe_key = 'cqi:${open}:${P3}'`), `conquest_invite ${P3}`);
+        assert.deepEqual(pending(), []);
+        ok(decline(P3, open));
+        assert.deepEqual(items(), [], 'odmítnutá pozvánka nic');
+        ok(invite(HOST, open, [P3]));
+        assert.equal(items().length, 1);
+        assert.deepEqual(pending(), [], 'stejná pozvánka podruhé ne');
+        // Pozvánka do jiné hry: nejdřív 10 minut po posledním upozornění tohoto druhu
+        const other = json(create(P4, { map: 'afrika', players: 4, hours: 168, colour: 'zluta', emblem: 'lev' }));
+        befriend(P4, P3);
+        ok(invite(P4, other.id, [P3]));
+        assert.deepEqual(items().map(row => [row[2], row[3]]).find(row => /Dita/.test(row[0])), ['Dobývání: Dita tě zve do hry', 'Mapa Afrika · hra na 7 dní. Vyber si barvu a přidej se.']);
+        assert.deepEqual(pending(), [], 'do 10 minut nic');
+        q(`update push_sent set sent_at = sent_at - interval '11 minutes'`);
+        assert.deepEqual(pending().map(row => row[3]), [`cqi:${other.id}:${P3}`]);
+        // Jen čerstvé (do 3 dnů), jen dokud hra čeká a pozvaný v ní není
+        q(`update conquest_invites set created_at = now() - interval '4 days' where game_id = '${other.id}'`);
+        assert.ok(!items().some(row => row[5] === `cqi:${other.id}:${P3}`), 'starší než 3 dny');
+        q(`update conquest_invites set created_at = now() where game_id = '${other.id}'`);
+        ok(join(P3, { game: other.id, colour: 'modra' }));
+        assert.ok(!items().some(row => row[5] === `cqi:${other.id}:${P3}`), 'kdo se přidal, upozornění nedostane');
+        q(`delete from push_sent; delete from push_subscriptions;`);
+    });
 });
 // Osmý hráč scénáře (Rychlá hra Česko)
 function H() { return id(8); }

@@ -75,8 +75,9 @@
     // se sezóny a vitrína jen nenabídnou, odznaky alba zůstanou v zařízení a album je spočítá znovu).
     // 19 = Tajemná otázka dne (mystery_*), odznaky Detektiv; 20 = nápovědy Tajemné otázky přes celý den (poslední ve 20:00).
     // 23 = Dobývání: o tah méně po ztrátě domovského hradu a upozornění na útoky (profiles.push_conquest; se starší databází se dlaždice
-    // Dobývání v upozorněních neukáže).
-    const REQUIRED_SCHEMA = 23;
+    // Dobývání v upozorněních neukáže). 24 = Dobývání: pozvánky pro přátele (conquest_invite, conquest_invites_mine, conquest_decline_invite;
+    // se starší databází se Pozvat přátele neukáže).
+    const REQUIRED_SCHEMA = 24;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -1212,7 +1213,7 @@
         const text = kind === 'unsupported' && pushState.ios ? PUSH_TEXTS.iphone : PUSH_TEXTS[kind];
         if (kind === 'unsupported') return `<div class="flex min-h-[3rem] items-center gap-3 px-3 py-2"><i data-lucide="bell-off" class="h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400"></i><span class="min-w-0 flex-1"><span class="block text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">Upozornění</span><span class="mt-0.5 block text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400">${text}</span></span></div>`;
         const on = kind === 'on';
-        // Co posílat: malé přepínací dlaždice (ikona a popisek: turnaje, výzvy, útoky v Dobývání) vedle spínače upozornění, ne další řádek –
+        // Co posílat: malé přepínací dlaždice (ikona a popisek: turnaje, výzvy, útoky a pozvánky v Dobývání) vedle spínače upozornění, ne další řádek –
         // karta Hra se šestnácti barevnými tématy se tak i se zapnutými upozorněními vejde bez posouvání (390×780 i 360×640).
         // Dlaždice Dobývání jen s databází, která volbu zná (schéma 23, Push.getPrefs vrátí conquest true/false). Se třemi dlaždicemi (44 px,
         // popisek 9 px) má spínač menší mezery (SETTING_HALF), ať se nápis Upozornění vejde i na 360 px
@@ -1227,7 +1228,7 @@
                     <span class="min-w-0 flex-1"><span class="block text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">Upozornění</span><span data-push-status class="mt-0.5 block text-[11px] font-semibold leading-snug ${busyText || (note && note.tone === 'error') ? 'short:truncate' : 'short:hidden'} ${note ? PUSH_TONE[note.tone] : 'text-slate-500 dark:text-slate-400'}">${escapeHtml(busyText || (note ? note.short : text))}</span></span>
                     ${switchMark(on)}
                 </button>
-                ${on && pushPrefs ? `<div class="flex shrink-0 gap-0.5" role="group" aria-label="Co posílat">${pref('tournament', 'trophy', 'Turnaje', 'Upozornění: kola a zprávy turnaje')}${pref('challenge', 'swords', 'Výzvy', 'Upozornění: výzvy od hráčů')}${typeof pushPrefs.conquest === 'boolean' ? pref('conquest', 'castle', 'Dobývání', 'Upozornění: útoky v Dobývání') : ''}</div>` : ''}
+                ${on && pushPrefs ? `<div class="flex shrink-0 gap-0.5" role="group" aria-label="Co posílat">${pref('tournament', 'trophy', 'Turnaje', 'Upozornění: kola a zprávy turnaje')}${pref('challenge', 'swords', 'Výzvy', 'Upozornění: výzvy od hráčů')}${typeof pushPrefs.conquest === 'boolean' ? pref('conquest', 'castle', 'Dobývání', 'Upozornění: útoky a pozvánky v Dobývání') : ''}</div>` : ''}
                 </div>
                 ${note && note.advice ? `<p data-push-advice role="${note.tone === 'error' ? 'alert' : 'status'}" class="mx-3 mb-2.5 rounded-xl bg-rose-50 px-2.5 py-1.5 text-[11px] font-semibold leading-snug text-rose-800 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:ring-rose-800/60">${escapeHtml(note.advice)}</p>` : ''}
             </div>`;
@@ -11094,6 +11095,8 @@
             maxStars: Math.max(0, ...Object.values(loadLearned()).map(ids => masteryStars((ids || []).length))),
             // Kamarádské sázky: tip jen s databází, která sázky má
             bets: betsReady(),
+            // Počet přátel (tip Přátelé se pak nenabízí tomu, kdo přátele má; tip na pozvání přátel do Dobývání naopak jen jemu)
+            friends: friendRows ? friendRows.filter(row => row.status === 'accepted').length : 0,
             chain: Boolean(chainCtl)
         });
     };
@@ -12185,7 +12188,13 @@
             sound: (name) => { if (Sound) Sound.play(name); },
             touchTip,
             // Vývojářský režim: lišta s boty (boti do lobby, jejich tahy hned, další období; server pustí jen účet z dev_admins)
-            dev: () => devOn()
+            dev: () => devOn(),
+            // Pozvánky přátel (blok 24): obrázek hráče a přijatí přátelé pro okno Pozvat přátele (načtou se, když ještě nejsou; null = nepodařilo se)
+            avatarHtml,
+            friends: async () => {
+                if (friendRows === null && signedUser()) friendRows = await Social.friendsList().catch(() => null);
+                return friendRows ? friendRows.filter(row => row.status === 'accepted') : null;
+            }
         });
     }
 
@@ -12202,6 +12211,8 @@
         'groups-open': () => { touchTip('groups'); if (GroupsUI) GroupsUI.openList(); },
         'conquest-open': () => { if (ConquestUI) ConquestUI.openHub(); },
         'conquest-play': (button) => { if (ConquestUI) ConquestUI.openGame(button.dataset.game); },
+        // Pozvánka od přítele na kartě Dobývání: Barva a znak, pak do hry
+        'conquest-invite': (button) => { if (ConquestUI) ConquestUI.openInvite(button.dataset.game); },
         // Přátelé a reakce (friends.js)
         'friend-accept': (button) => answerFriendRequest(button.dataset.id, true),
         'friend-decline': (button) => answerFriendRequest(button.dataset.id, false),

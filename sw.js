@@ -46,6 +46,8 @@ const APP_SHELL = [
         'pecet', 'vavrin', 'sova-dobyvatel', 'mince', 'mince-hromadka', 'sova-sazka',
         // Řetězovka (chain.js ART a výsledek, č. 212 a 214: sova s řetězem, prasklý článek)
         'retezovka', 'clanek-prasknuty'].map(id => `icons/topics/${id}.webp`),
+    // Boss týdne (boss.js ART): čtyři stupně každého bosse a jeho aréna
+    ...['kapitan', 'rytir', 'alchymista', 'amper', 'maestro', 'druid', 'olympan', 'reziser'].flatMap(id => [`boss-${id}`, `boss-${id}-zraneny`, `boss-${id}-vkoncich`, `boss-${id}-porazeny`, `arena-${id}`]).map(id => `icons/topics/${id}.webp`),
     // Články řetězu v pásu Řetězovky (chain.js linkSvg, scripts/chain-links.py)
     ...['celem', 'bokem', 'prasknuty'].map(id => `icons/retez/${id}.webp`),
     // Bezešvé textury (zlatá fólie Zlaté otázky, pergamen a moře map Dobývání; č. 210, 232, 233)

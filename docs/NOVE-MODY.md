@@ -175,6 +175,11 @@ Hra více hráčů o území na mapě. Hráči si hry sami zakládají a přidá
   - nespuštěná hra po 7 dnech zanikne;
   - jeden hráč může být najednou nejvýš v ~6 hrách a mít nejvýš 2 vlastní otevřené hry.
 - **Barva a znak**: při přidání si hráč vybere barvu z velké palety (obsazené barvy ve hře nejdou zvolit) a znak na vlaječky (asi 24 heraldických znaků: lev, orel, sova, drak, koruna, kotva, věž…). Poslední volba se pamatuje.
+- **Pozvánky pro přátele** (schéma 24): ve formuláři Založit hru je vedle Barvy a znaku „Pozvat přátele“ (okno se seznamem přátel s obrázky,
+  víc jich jde vybrat, „Pozvat (N)“); pozvánky odejdou hned po založení. V lobby hry je „Pozvat přátele“ (jen s volným místem) a pozvaní,
+  kteří se ještě nepřidali, jsou zašedlí s „Pozváno“. Čekajících pozvánek je nejvýš tolik, kolik je volných míst; pozvat jde jen přijaté přátele.
+  Pozvaný vidí pozvánku na kartě Dobývání („Pozvánka od X“, Přidat se) a nahoře v Mých hrách (Přidat se / Odmítnout), dostane push
+  „Dobývání: X tě zve do hry“ (jednou za pozvánku, vypíná ho dlaždice Dobývání) a přidá se i do soukromé hry bez kódu.
 
 **Pravidla na mapě**
 - **Tahy**: počet tahů za den nebo za hodinu (podle nastavení hry). Nevyužité tahy propadají. Bonusy navíc:
@@ -234,6 +239,8 @@ Hra více hráčů o území na mapě. Hráči si hry sami zakládají a přidá
   - `conquest_players` (barva, znak, připravenost, pořadí);
   - `conquest_territories`, `conquest_moves` a `conquest_links` (sousedství podle mapy);
 - funkce pro založení, lobby (s doplněním rychlých her), přidání (i kódem), barvu a znak, připravenost a start, odchod, stav, tah a konec hry;
+- pozvánky (`-- 24: Dobývání – pozvánky pro přátele`): tabulka `conquest_invites` (jen přes funkce), `conquest_invite`, `conquest_invites_mine`,
+  `conquest_decline_invite`, pozvaní v souhrnu hry (`invited`, jen hráčům) a upozornění druhu `conquest_invite`;
 - správnost odpovědi posílá klient.
 
 **Data map**

@@ -1073,9 +1073,14 @@
     // (plná hra, obsazená barva, limity, tahy na období) se předají dál, jiné chyby nahradí obecný text.
     let conquestMissing = false;
     const CONQUEST_MISSING = 'Dobývání zatím není k dispozici (databáze potřebuje nejnovější schema.sql).';
-    const conquestCall = async (name, body, fallback) => {
+    // Pozvánky přátel (blok 24) přibyly později: databáze bez nich (404) Dobývání nevypne, jen pozvánky nejdou
+    let invitesMissing = false;
+    const INVITES_MISSING = 'Pozvánky do Dobývání zatím nejdou (databáze potřebuje nejnovější schema.sql).';
+    const conquestCall = async (name, body, fallback, invites = false) => {
         if (conquestMissing) throw new SocialError(CONQUEST_MISSING, 404);
+        if (invites && invitesMissing) throw new SocialError(INVITES_MISSING, 404);
         try { return await request('POST', `rpc/${name}`, { body }); } catch (error) {
+            if (error instanceof SocialError && error.status === 404 && invites) { invitesMissing = true; throw new SocialError(INVITES_MISSING, 404); }
             if (error instanceof SocialError && error.status === 404) { conquestMissing = true; throw new SocialError(CONQUEST_MISSING, 404); }
             if (error instanceof SocialError && error.status === 401) throw new SocialError('Nejsi přihlášený.', 401);
             if (error instanceof SocialError && error.status < 500 && CZECH_MESSAGE.test(error.message)) throw error;
@@ -1084,7 +1089,9 @@
     };
     const conquestId = (value) => { if (!isUuid(value)) throw new SocialError('Neplatná hra.', 400); return value; };
     const conquestText = (value, max = 24) => String(value || '').slice(0, max);
-    const conquestGame = (value) => (value && typeof value === 'object' && isUuid(value.id) ? { ...value, players: Array.isArray(value.players) ? value.players.filter(row => row && row.id) : [] } : null);
+    // invited = čekající pozvaní přátelé (blok 24, jen hráčům hry); starší databáze ho nemá
+    const conquestGame = (value) => (value && typeof value === 'object' && isUuid(value.id) ? { ...value, players: Array.isArray(value.players) ? value.players.filter(row => row && row.id) : [],
+        invited: Array.isArray(value.invited) ? value.invited.filter(row => row && row.id) : [] } : null);
     // { open: [hra], mine: [hra s budget, owners, claimed] }
     const conquestLobby = async () => {
         const data = (await conquestCall('conquest_lobby', {}, 'Hry se nepodařilo načíst. Zkontroluj připojení.')) || {};
@@ -1121,6 +1128,23 @@
         const data = (await conquestCall('conquest_claim', { game: conquestId(game) }, 'Výsledek se nepodařilo načíst.')) || {};
         return { place: wholeNumber(data.place, 8) || null, players: wholeNumber(data.players, 8), score: wholeNumber(data.score, 1000), eligible: data.eligible === true, claimed_now: data.claimed_now === true };
     };
+    // Pozvánky přátel do hry (blok 24): pozvat (vrací souhrn hry s pozvanými), moje čekající pozvánky, odmítnout
+    const conquestInvite = async (game, friends) => {
+        const ids = [...new Set((Array.isArray(friends) ? friends : []).filter(isUuid))].slice(0, 7);
+        if (!ids.length) throw new SocialError('Vyber, koho chceš pozvat.', 400);
+        return conquestGame(await conquestCall('conquest_invite', { game: conquestId(game), friends: ids }, 'Pozvánky se nepodařilo poslat. Zkus to znovu.', true));
+    };
+    const cleanInviter = (row) => (row && typeof row === 'object' && isUuid(row.id) ? { id: String(row.id), display_name: String(row.display_name || 'Kamarád'), avatar: row.avatar, color: row.color,
+        frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl) } : null);
+    // [hra s code, invited_by (kdo zve) a invited_at]; databáze bez pozvánek vyhodí chybu se status 404
+    const conquestInvitesMine = async () => {
+        const data = await conquestCall('conquest_invites_mine', {}, 'Pozvánky se nepodařilo načíst. Zkontroluj připojení.', true);
+        return (Array.isArray(data) ? data : []).map(row => {
+            const game = conquestGame(row);
+            return game ? { ...game, code: conquestText(row.code, 12), invited_by: cleanInviter(row.invited_by), invited_at: row.invited_at ? String(row.invited_at) : null } : null;
+        }).filter(Boolean);
+    };
+    const conquestDeclineInvite = (game) => conquestCall('conquest_decline_invite', { game: conquestId(game) }, 'Pozvánku se nepodařilo odmítnout. Zkus to znovu.', true);
 
     return { AVATARS, allAvatars, cleanAvatar, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
         tournamentTick, getTournaments, tournamentArchive, ARCHIVE_PAGE, inTournament, devTournament, devClientErrors, isDevAdmin, schemaVersion, reportQuestion, getQuestionReports, deleteQuestionReport, exportMyData, deleteMyAccount, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen,
@@ -1144,6 +1168,8 @@
         bossSubmit, bossWeekStats, bossClaimBonus,
         // Dobývání (schéma 21)
         conquestLobby, conquestCreate, conquestJoin, conquestSetLook, conquestReady, conquestLeave, conquestState, conquestMove, conquestClaim,
+        // Pozvánky přátel do Dobývání (blok 24)
+        conquestInvite, conquestInvitesMine, conquestDeclineInvite,
         // Vývojářští boti v Dobývání (blok 22)
         devConquestAddBots, devConquestBotsPlay, devConquestNextPeriod,
         // Řetězovka dne (blok 21)

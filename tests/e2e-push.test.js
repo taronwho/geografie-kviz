@@ -216,9 +216,9 @@ test('upozornění (push) v Nastavení', { skip: !chromium && 'Playwright není 
         await tab.click('[data-push-pref="challenge"]');
         await tab.waitForFunction(() => document.querySelector('[data-push-pref="challenge"]').getAttribute('aria-checked') === 'false');
         assert.deepEqual(db.patches, [{ push_tournament: true, push_challenge: false, push_conquest: true }]);
-        // Třetí dlaždice: útoky v Dobývání (hrad); popisek se do dlaždice vejde celý
+        // Třetí dlaždice: útoky a pozvánky v Dobývání (hrad); popisek se do dlaždice vejde celý
         assert.deepEqual(await tab.$$eval('[data-push-pref]', els => els.map(el => el.dataset.pushPref)), ['tournament', 'challenge', 'conquest']);
-        assert.equal(await tab.getAttribute('[data-push-pref="conquest"]', 'title'), 'Upozornění: útoky v Dobývání');
+        assert.equal(await tab.getAttribute('[data-push-pref="conquest"]', 'title'), 'Upozornění: útoky a pozvánky v Dobývání');
         assert.equal((await tab.textContent('[data-push-pref="conquest"]')).trim(), 'Dobývání');
         assert.ok(await tab.$eval('[data-push-pref="conquest"] span', el => el.scrollWidth <= el.clientWidth + 0.5 && el.getBoundingClientRect().width <= el.parentElement.getBoundingClientRect().width), 'popisek Dobývání se vejde');
         await tab.click('[data-push-pref="conquest"]');

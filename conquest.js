@@ -1236,16 +1236,33 @@
     };
     // Otázka pro tah: semínko = hra, území, druh tahu a pořadí tahu (stejná otázka i po zavření aplikace); only = jen tato rodina
     // (testy a ladění)
-    const buildQuestion = ({ data, territory, level = 0, topics = {}, seed = '', only = null }) => {
+    // Správná odpověď otázky (pro hlídání opakování): u mapy název místa, jinak popisek správné možnosti
+    const answerKey = (question) => namePlain(question.kind === 'map' ? question.answerLabel : ((question.choices || []).find(choice => choice.correct) || {}).label || '');
+    // avoid = { answers: [klíče odpovědí, které hráč v této hře už dostal], families: [rodiny posledních otázek, nejnovější na konci] }:
+    // stejná odpověď se ve hře nezopakuje a stejná rodina nejde dvakrát po sobě; když jinak otázka nejde, pravidla se postupně uvolní
+    const buildQuestion = ({ data, territory, level = 0, topics = {}, seed = '', only = null, avoid = null }) => {
         const item = indexMap(data).byId.get(territory);
         if (!item) return null;
         const lv = Math.max(0, Math.min(3, Math.round(Number(level) || 0)));
         const rng = seededRandom(`dobyvani|${seed}|${territory}|${level}`);
         const ctx = contextOf(data, item, lv, topics, rng);
         const families = readyFamilies(ctx).filter(family => !only || family.id === only);
-        for (const family of weightedOrder(families, familyShares(families, lv), rng)) {
-            const question = family.build(ctx, family);
-            if (question) return { ...question, family: family.id, domain: family.domain, level, difficulty: Math.min(3, Math.max(1, level + 1)) };
+        const order = weightedOrder(families, familyShares(families, lv), rng);
+        const used = new Set(((avoid && avoid.answers) || []).map(namePlain));
+        const recent = new Set(((avoid && avoid.families) || []).slice(-2));
+        const finish = (question, family) => ({ ...question, family: family.id, domain: family.domain, level, difficulty: Math.min(3, Math.max(1, level + 1)) });
+        const passes = avoid ? [{ fresh: true, varied: true }, { fresh: true, varied: false }, { fresh: false, varied: false }] : [{ fresh: false, varied: false }];
+        for (const pass of passes) {
+            for (const family of order) {
+                if (pass.varied && recent.has(family.id) && order.length > recent.size) continue;
+                // Rodina staví z náhodného výběru: na novou odpověď má až tři pokusy
+                for (let attempt = 0; attempt < (pass.fresh ? 3 : 1); attempt++) {
+                    const question = family.build(ctx, family);
+                    if (!question) break;
+                    if (pass.fresh && used.has(answerKey(question))) continue;
+                    return finish(question, family);
+                }
+            }
         }
         return null;
     };
@@ -1508,11 +1525,31 @@
         chip(actionsLabel(game.actions, game.period), 'swords'), ...(game.visibility === 'private' ? [chip('Soukromá', 'lock')] : [])].join('');
     const playerDots = (game) => `<span class="flex -space-x-1">${(game.players || []).map(player => `<span title="${esc(player.display_name)}" class="flex h-6 w-6 items-center justify-center rounded-full bg-white ring-1 ring-slate-200 dark:bg-slate-700 dark:ring-slate-600">${pennantSvg(player.flag_color, player.emblem, 'h-4 w-5')}</span>`).join('')}</span>`;
 
-    // Karta na záložce Více hráčů: moje rozehraná hra (náhled, zbývá, tahy) nebo pozvánka do lobby
-    const homeCardHtml = ({ games = null, maps = {}, now = Date.now(), loading = false }) => {
+    // --- Pozvánky přátel (blok 24 ve schema.sql) ---
+    // Obrázek hráče: app.js předá avatarHtml (postavička, sova, rámeček, barva); bez něj (testy) emoji v kolečku
+    const avatarFn = (avatar) => (typeof avatar === 'function' ? avatar
+        : (player, cls) => `<span aria-hidden="true" class="flex shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-slate-700 ${cls}">${esc((player && player.avatar) || '🦊')}</span>`);
+    // Několik obrázků přes sebe (vybraní přátelé ve formuláři Založit hru)
+    const avatarStack = (players, avatar, cls = 'h-7 w-7 text-sm', max = 2) => `<span class="flex shrink-0 -space-x-2.5">${players.slice(0, max)
+        .map(player => `<span class="rounded-full ring-2 ring-white dark:ring-slate-800">${avatarFn(avatar)(player, cls)}</span>`).join('')}</span>`;
+    const shortName = (name, max = 12) => { const text = String(name || 'Hráč').trim(); return text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`; };
+    const inviterName = (invite) => (invite && invite.invited_by && invite.invited_by.display_name) || 'Kamarád';
+    const inviteFacts = (invite) => `${mapTitle(invite.map)} · ${durationLabel(invite.hours)} · ${(invite.players || []).length}/${invite.max_players}`;
+    // „Petr Svoboda tě zve do hry“, „Pozvánka od Petr Svoboda“: dlouhé jméno se zkrátí, zbytek věty zůstane vidět
+    const nameLine = (invite, { before = '', after = '', cls = '' } = {}) => `<span class="flex min-w-0 ${cls}">${before ? `<span class="shrink-0 whitespace-pre">${esc(before)}</span>` : ''}<span class="truncate">${esc(inviterName(invite))}</span>${after ? `<span class="shrink-0 whitespace-pre">${esc(after)}</span>` : ''}</span>`;
+    // „Pozvánka od Petr Svoboda“; bez toho, kdo zve (smazaný účet), jen „Pozvánka do hry“ (ne „od Kamarád“)
+    const fromLine = (invite, cls) => (invite && invite.invited_by && invite.invited_by.display_name ? nameLine(invite, { before: 'Pozvánka od ', cls })
+        : `<span class="truncate ${cls}">Pozvánka do hry</span>`);
+
+    // Karta na záložce Více hráčů: moje rozehraná hra (náhled, zbývá, tahy) nebo pozvánka do lobby; pozvánka od přítele (invites) jako
+    // hlavní obsah karty, nebo s rozehranou hrou jako proužek pod ní, vždy s tlačítkem Přidat se (barva a znak, pak do hry)
+    const homeCardHtml = ({ games = null, invites = [], maps = {}, now = Date.now(), loading = false, avatar = null }) => {
         const running = (games || []).filter(game => game.status === 'running');
         const waiting = (games || []).filter(game => game.status === 'lobby');
         const first = running[0];
+        const invite = (invites || [])[0] || null;
+        const moreInvites = (invites || []).length > 1 ? ` · +${invites.length - 1}` : '';
+        const draw = avatarFn(avatar);
         const head = `<span class="flex min-w-0 flex-1 flex-col"><span class="text-[14px] font-black leading-tight text-slate-800 dark:text-slate-100">Dobývání</span>`;
         if (first) {
             const data = maps[first.map];
@@ -1520,13 +1557,30 @@
             const seatColors = Object.fromEntries(first.players.map(player => [player.seat, player.flag_color]));
             const budget = first.budget || { left: 0, total: first.actions };
             const more = running.length > 1 ? ` · +${running.length - 1}` : '';
-            return `<div id="conquest-card" class="flex items-center gap-2.5 ${CARD} cq-card-paper p-1.5 pr-2">
-                <button type="button" data-action="conquest-open" class="flex min-w-0 flex-1 items-center gap-2.5 text-left" aria-label="Otevřít Dobývání">
+            const row = `<button type="button" data-action="conquest-open" class="flex min-w-0 flex-1 items-center gap-2.5 text-left" aria-label="Otevřít Dobývání">
                     <span class="cq-thumb-frame flex h-12 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl">${data ? thumbSvg(data, first.owners || {}, seatColors) : art(ART.card, 'h-10 w-10')}</span>
                     ${head}<span class="truncate text-[11.5px] font-bold text-slate-600 dark:text-slate-300">${esc(mapTitle(first.map))} · zbývá ${esc(timeLeft((parseTime(first.ends_at) || now) - now))}${esc(more)}</span>
                     <span class="flex items-center gap-1 text-[11.5px] font-black text-brand-800 dark:text-gold-200" data-conquest-moves>${meSeat !== undefined ? pennantSvg(first.players.find(p => p.me).flag_color, first.players.find(p => p.me).emblem, 'h-3.5 w-4') : ''}Tahy ${budget.left}/${budget.total}</span></span>
                 </button>
-                <button type="button" data-action="conquest-play" data-game="${esc(first.id)}" class="${GOLD_BUTTON} shrink-0 px-3.5"><i data-lucide="play" class="h-4 w-4"></i> Hrát</button>
+                <button type="button" data-action="conquest-play" data-game="${esc(first.id)}" class="${GOLD_BUTTON} shrink-0 px-3.5"><i data-lucide="play" class="h-4 w-4"></i> Hrát</button>`;
+            if (!invite) return `<div id="conquest-card" class="flex items-center gap-2.5 ${CARD} cq-card-paper p-1.5 pr-2">${row}</div>`;
+            return `<div id="conquest-card" class="flex flex-col gap-1.5 ${CARD} cq-card-paper p-1.5 pr-2">
+                <div class="flex items-center gap-2.5">${row}</div>
+                <div data-cq-card-invite="${esc(invite.id)}" class="flex items-center gap-2 border-t border-amber-900/15 pt-1.5 dark:border-gold-200/15">
+                    ${draw(invite.invited_by || {}, 'h-8 w-8 text-base')}
+                    <span class="flex min-w-0 flex-1 flex-col leading-tight">${fromLine(invite, 'text-[12px] font-bold text-slate-700 dark:text-slate-200')}<span class="truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${esc(mapTitle(invite.map))} · ${esc(durationLabel(invite.hours))}${esc(moreInvites)}</span></span>
+                    <button type="button" data-action="conquest-invite" data-game="${esc(invite.id)}" class="${BRAND_BUTTON} min-h-[2.25rem] shrink-0"><i data-lucide="user-plus" class="h-4 w-4"></i> Přidat se</button>
+                </div>
+            </div>`;
+        }
+        if (invite) {
+            return `<div id="conquest-card" class="flex items-center gap-2.5 ${CARD} cq-card-paper p-1.5 pr-2">
+                <button type="button" data-action="conquest-open" class="flex min-w-0 flex-1 items-center gap-2.5 text-left" aria-label="Otevřít Dobývání">
+                    <span class="relative shrink-0">${art(ART.card, 'h-11 w-11 -my-1')}<span class="absolute -bottom-1.5 -right-1.5 rounded-full ring-2 ring-white dark:ring-slate-800">${draw(invite.invited_by || {}, 'h-6 w-6 text-xs')}</span></span>
+                    ${head}${fromLine(invite, 'text-[12px] font-bold text-slate-600 dark:text-slate-300')}
+                    <span class="truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${esc(mapTitle(invite.map))} · ${esc(durationLabel(invite.hours))}${esc(moreInvites)}</span></span>
+                </button>
+                <button type="button" data-action="conquest-invite" data-game="${esc(invite.id)}" class="${GOLD_BUTTON} shrink-0"><i data-lucide="user-plus" class="h-4 w-4"></i> Přidat se</button>
             </div>`;
         }
         const text = loading && !games ? 'Načítám hry…' : waiting.length ? (waiting.length === 1 ? 'Tvoje hra čeká na další hráče' : `Tvoje hry čekají na další hráče (${waiting.length})`) : 'Najdi hru nebo založ vlastní';
@@ -1540,7 +1594,8 @@
 
     // Rozcestník Dobývání: záložky Moje hry / Lobby / Založit hru
     const HUB_TABS = [['mine', 'Moje hry', 'flag'], ['lobby', 'Lobby', 'users'], ['create', 'Založit hru', 'plus']];
-    const hubHtml = ({ tab = 'mine', body = '' }) => `
+    // invites = počet čekajících pozvánek (zlatý odznak na záložce Moje hry, kde pozvánky jsou)
+    const hubHtml = ({ tab = 'mine', body = '', invites = 0 }) => `
         <div id="conquest-hub" class="flex min-h-full flex-col gap-2.5 p-3 short:gap-2 short:p-2">
             <div class="flex items-center gap-2.5">
                 ${art(ART.card, 'h-12 w-12 -my-1 short:h-10 short:w-10')}
@@ -1549,7 +1604,7 @@
                 <button type="button" data-cq="help" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 dark:text-slate-400" aria-label="Jak se Dobývání hraje"><i data-lucide="info" class="h-5 w-5"></i></button>
             </div>
             <div role="tablist" class="flex shrink-0 gap-1 rounded-2xl bg-slate-200/70 p-1 dark:bg-slate-800">${HUB_TABS.map(([id, label, icon]) => `
-                <button type="button" role="tab" data-cq-tab="${id}" aria-selected="${tab === id}" class="flex min-h-[2.5rem] flex-1 items-center justify-center gap-1.5 rounded-xl px-1 text-[12.5px] font-black ${tab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-300'}"><i data-lucide="${icon}" class="h-4 w-4 shrink-0"></i>${label}</button>`).join('')}
+                <button type="button" role="tab" data-cq-tab="${id}" aria-selected="${tab === id}" class="flex min-h-[2.5rem] flex-1 items-center justify-center gap-1.5 rounded-xl px-1 text-[12.5px] font-black ${tab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-300'}"><i data-lucide="${icon}" class="h-4 w-4 shrink-0"></i>${label}${id === 'mine' && invites > 0 ? `<span data-cq-invite-count class="-ml-0.5 flex h-[1.125rem] min-w-[1.125rem] shrink-0 items-center justify-center rounded-full bg-gold-400 px-1 text-[10.5px] font-black leading-none text-brand-950"><span class="sr-only">Pozvánky: </span>${invites}</span>` : ''}</button>`).join('')}
             </div>
             <div data-cq-body class="flex flex-col gap-2">${body}</div>
         </div>`;
@@ -1585,11 +1640,33 @@
         </li>`;
     };
     const codeRow = () => `<button type="button" data-cq="code" class="flex min-h-[2.5rem] items-center justify-center gap-1.5 rounded-xl text-[13px] font-black text-brand-700 dark:text-cream"><i data-lucide="hash" class="h-4 w-4"></i> Mám kód hry</button>`;
-    const mineHtml = ({ games, maps, now, error = '' }) => {
-        if (games === null) return note(error || 'Načítám tvoje hry…', 'sova-ceka');
-        if (!games.length) return `${note('Zatím nehraješ žádnou hru. Přidej se k Rychlé hře v Lobby, nebo založ vlastní.', 'sova-dalekohled')}
+    // Pozvánka od přítele (Moje hry, nahoře): kdo zve, mapa, délka a obsazenost, náhled mapy; Přidat se (barva a znak, pak do hry) a Odmítnout
+    const inviteCardHtml = (invite, { maps = {}, avatar = null } = {}) => {
+        const data = maps[invite.map];
+        const seatColors = Object.fromEntries((invite.players || []).map(player => [player.seat, player.flag_color]));
+        return `<li data-cq-invite="${esc(invite.id)}" class="flex flex-col gap-1.5 ${CARD} cq-card-paper p-1.5 ring-2 ring-gold-400/70 dark:ring-gold-500/50">
+            <div class="flex items-center gap-2">
+                ${avatarFn(avatar)(invite.invited_by || {}, 'h-10 w-10 text-xl')}
+                <span class="flex min-w-0 flex-1 flex-col gap-0.5">${nameLine(invite, { after: ' tě zve do hry', cls: 'text-[14px] font-black leading-tight text-slate-800 dark:text-slate-100' })}
+                    <span class="flex min-w-0 items-center gap-1 text-[12px] font-bold text-slate-600 dark:text-slate-300"><span class="truncate">${esc(inviteFacts(invite))}</span>${invite.visibility === 'private' ? '<i data-lucide="lock" class="h-3.5 w-3.5 shrink-0 text-slate-400"></i>' : ''}</span></span>
+                <span class="cq-thumb-frame flex h-10 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl">${data ? thumbSvg(data, {}, seatColors, 'h-10 w-12') : ''}</span>
+            </div>
+            <div class="grid grid-cols-[1fr_auto] gap-1.5">
+                <button type="button" data-cq-accept="${esc(invite.id)}" class="${GOLD_BUTTON}"><i data-lucide="user-plus" class="h-4 w-4"></i> Přidat se</button>
+                <button type="button" data-cq-decline="${esc(invite.id)}" class="${LIGHT_BUTTON}"><i data-lucide="x" class="h-4 w-4"></i> Odmítnout</button>
+            </div>
+        </li>`;
+    };
+    const invitesHtml = (invites, opts) => (invites && invites.length ? `<section aria-label="Pozvánky" class="flex flex-col gap-1.5">
+        <p class="flex items-center gap-1.5 px-1 ${LABEL}"><span class="h-2 w-2 rounded-full bg-gold-500"></span>Pozvánky od přátel</p>
+        <ul class="flex flex-col gap-1.5">${invites.map(invite => inviteCardHtml(invite, opts)).join('')}</ul></section>` : '');
+    // Moje hry: nahoře pozvánky od přátel, pod nimi moje hry (bez her a bez pozvánek rada, kde hru najít)
+    const mineHtml = ({ games, invites = [], maps = {}, now = Date.now(), error = '', avatar = null }) => {
+        const top = invitesHtml(invites, { maps, avatar });
+        if (games === null) return `${top}${note(error || 'Načítám tvoje hry…', 'sova-ceka')}`;
+        if (!games.length) return `${top}${top ? '' : note('Zatím nehraješ žádnou hru. Přidej se k Rychlé hře v Lobby, nebo založ vlastní.', 'sova-dalekohled')}
             <div class="grid grid-cols-2 gap-2"><button type="button" data-cq-tab="lobby" class="${BRAND_BUTTON}"><i data-lucide="users" class="h-4 w-4"></i> Lobby</button><button type="button" data-cq-tab="create" class="${LIGHT_BUTTON}"><i data-lucide="plus" class="h-4 w-4"></i> Založit hru</button></div>${codeRow()}`;
-        return `<ul class="flex flex-col gap-1.5">${games.map(game => gameRowHtml(game, { maps, now, mine: true })).join('')}</ul>${codeRow()}`;
+        return `${top}<ul class="flex flex-col gap-1.5">${games.map(game => gameRowHtml(game, { maps, now, mine: true })).join('')}</ul>${codeRow()}`;
     };
     const lobbyHtml = ({ games, maps, now, error = '' }) => {
         if (games === null) return note(error || 'Načítám lobby…', 'sova-ceka');
@@ -1605,7 +1682,14 @@
         <output class="min-w-[1.75rem] text-center text-[16px] font-black text-slate-800 dark:text-slate-100" data-cq-value="${key}">${value}</output>
         <button type="button" data-cq-step="${key}" data-delta="1" ${value >= max ? 'disabled' : ''} class="flex h-9 w-10 items-center justify-center rounded-lg text-slate-700 active:scale-95 disabled:opacity-30 dark:text-slate-200" aria-label="${esc(name)}: víc"><i data-lucide="plus" class="h-4 w-4"></i></button></div>`;
     const field = (label, inner, extra = '') => `<div class="flex min-w-0 flex-col gap-0.5 ${extra}"><span class="px-1 text-[10px] font-black uppercase leading-3 tracking-widest text-slate-500 dark:text-slate-400">${esc(label)}</span>${inner}</div>`;
-    const createHtml = ({ draft, maps = {}, busy = false, error = '' }) => {
+    // Řádek-tlačítko formuláře (popisek a hodnota); half = polovina šířky vedle Pozvat přátele (bez tužky, popisek se zkrátí)
+    const pickRow = (action, icon, label, value, half) => `<button type="button" data-cq="${action}" class="flex min-h-[2.75rem] min-w-0 items-center gap-2 ${CARD} ${half ? 'px-2' : 'px-2.5'} text-left">${icon}<span class="min-w-0 flex-1"><span class="block truncate text-[10px] font-black uppercase leading-3 ${half ? 'tracking-wider' : 'tracking-widest'} text-slate-500 dark:text-slate-400">${esc(label)}</span><span class="block truncate text-[13px] font-bold text-slate-700 dark:text-slate-200">${esc(value)}</span></span>${half ? '' : '<i data-lucide="pencil" class="h-4 w-4 text-brand-700 dark:text-cream"></i>'}</button>`;
+    const lookRow = (draft, half) => pickRow('look', pennantSvg(draft.color, draft.emblem, 'h-7 w-9'), 'Barva a znak', `${colorOf(draft.color).name} · ${emblemOf(draft.emblem).name}`, half);
+    const inviteRow = (invites, avatar) => pickRow('invite-pick', invites.length ? avatarStack(invites, avatar)
+        : '<span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gold-100 text-gold-800 dark:bg-gold-900/40 dark:text-gold-200"><i data-lucide="user-plus" class="h-4 w-4"></i></span>',
+        invites.length ? `Pozvánky (${invites.length})` : 'Pozvat přátele', invites.length ? invites.map(friend => shortName(friend.display_name)).join(', ') : 'Zatím nikoho', true);
+    // invites = vybraní přátelé (pozvou se hned po založení), invitable = databáze pozvánky zná (blok 24); avatar = obrázek hráče z app.js
+    const createHtml = ({ draft, maps = {}, busy = false, error = '', invites = [], invitable = false, avatar = null }) => {
         const map = MAP_BY_ID[draft.map] || MAPS[0];
         const data = maps[map.id];
         const maxPlayers = data ? data.maxPlayers : MAX_PLAYERS;
@@ -1621,7 +1705,7 @@
             ${field('Délka hry', segment('Délka hry', 'hours', DURATIONS.map(hours => [hours, shortDuration(hours)]), draft.hours))}
             <div class="grid grid-cols-2 gap-2">${field('Nejvýš hráčů', stepper('Nejvýš hráčů', 'players', players, MIN_PLAYERS, maxPlayers))}${field('Tahů za období', stepper('Tahů za období', 'actions', draft.actions, 1, MAX_ACTIONS))}</div>
             <div class="grid grid-cols-2 gap-2">${field('Období', segment('Období', 'period', [['day', 'Den'], ['hour', 'Hodina']], draft.period))}${field('Kdo se přidá', segment('Kdo se přidá', 'visibility', [['public', 'Kdokoli'], ['private', 'S kódem']], draft.visibility))}</div>
-            <button type="button" data-cq="look" class="flex min-h-[2.75rem] items-center gap-2 ${CARD} px-2.5 text-left">${pennantSvg(draft.color, draft.emblem, 'h-7 w-9')}<span class="min-w-0 flex-1"><span class="block text-[10px] font-black uppercase leading-3 tracking-widest text-slate-500 dark:text-slate-400">Barva a znak</span><span class="block truncate text-[13px] font-bold text-slate-700 dark:text-slate-200">${esc(colorOf(draft.color).name)} · ${esc(emblemOf(draft.emblem).name)}</span></span><i data-lucide="pencil" class="h-4 w-4 text-brand-700 dark:text-cream"></i></button>
+            ${invitable ? `<div class="grid grid-cols-2 gap-2">${lookRow(draft, true)}${inviteRow(invites, avatar)}</div>` : lookRow(draft, false)}
             <button type="submit" ${busy ? 'disabled' : ''} class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="flag" class="h-5 w-5"></i> ${busy ? 'Zakládám…' : 'Založit hru'}</button>
             ${error ? `<p class="text-[13px] font-semibold text-rose-700 dark:text-rose-400" role="status">${esc(error)}</p>` : ''}
         </form>`;
@@ -1678,6 +1762,38 @@
             ${error ? `<p class="text-[13px] font-semibold text-rose-700 dark:text-rose-400" role="status">${esc(error)}</p>` : ''}
         </div>`;
 
+    // Okno Pozvat přátele ve stylu map Dobývání (pergamen jako okno Barva a znak): seznam přátel s obrázkem a jménem, víc jich jde vybrat
+    // (seznam se posouvá uvnitř okna), kdo už hraje nebo pozvánku má, je zašedlý; dole Pozvat (N). friends = přijatí přátelé
+    // (null = nenačetli se), loading = načítají se; limit = kolik jich ještě jde pozvat (volná místa bez čekajících pozvánek);
+    // create = výběr do formuláře Založit hru (pozvánky odejdou po založení, tlačítko jde i bez výběru: Hotovo)
+    const friendsPickerHtml = ({ friends = null, loading = false, selected = [], joined = [], invited = [], limit = 0, avatar = null, busy = false, error = '', create = false }) => {
+        const draw = avatarFn(avatar);
+        const chosen = new Set(selected);
+        const count = chosen.size;
+        const any = Boolean(friends && friends.length);
+        let list;
+        if (loading) list = '<p class="px-1 py-5 text-center text-[13px] font-semibold text-amber-900/75 dark:text-gold-200/80">Načítám přátele…</p>';
+        else if (!friends) list = `<div class="flex items-center gap-3 px-1">${art('sova-ceka', 'h-12 w-12')}<p class="min-w-0 text-[13px] font-semibold leading-snug text-slate-700 dark:text-slate-200">Přátele se nepodařilo načíst. Zkontroluj připojení a zkus to znovu.</p></div>`;
+        else if (!any) list = `<div data-cq-no-friends class="flex items-center gap-3 px-1">${art('sova-dalekohled', 'h-12 w-12')}<p class="min-w-0 text-[13px] font-semibold leading-snug text-slate-700 dark:text-slate-200">Zatím nemáš přátele. Přidáš je v profilu hráče na záložce Více hráčů.</p></div>`;
+        else list = `<ul data-cq-friend-list role="group" aria-label="Přátelé" class="-mx-1 flex max-h-[min(19rem,46dvh)] flex-col gap-1 overflow-y-auto px-1 py-0.5">${friends.map(friend => {
+            const status = joined.includes(friend.id) ? 'Už hraje' : invited.includes(friend.id) ? 'Pozváno' : '';
+            const on = chosen.has(friend.id) && !status;
+            const off = Boolean(status) || (!on && count >= limit);
+            return `<li><button type="button" role="checkbox" aria-checked="${on}" data-cq-friend="${esc(friend.id)}" ${off ? 'disabled' : ''} class="cq-friend flex min-h-[2.75rem] w-full items-center gap-2 rounded-xl px-1.5 py-1 text-left disabled:opacity-50">
+                ${draw(friend, 'h-9 w-9 text-lg')}<span class="min-w-0 flex-1 truncate text-[14px] font-bold text-slate-800 dark:text-slate-100">${esc(friend.display_name || 'Hráč')}</span>
+                ${status ? `<span class="shrink-0 text-[11.5px] font-black text-amber-900/75 dark:text-gold-200/75">${status}</span>` : `<span class="cq-check flex h-6 w-6 shrink-0 items-center justify-center rounded-md">${on ? '<i data-lucide="check" class="h-4 w-4"></i>' : ''}</span>`}</button></li>`;
+        }).join('')}</ul>`;
+        const hint = !any || loading ? '' : limit <= 0 ? 'Volná místa ve hře už čekají na pozvané přátele.'
+            : `Volná místa: ${limit}. ${count ? `Vybráno: ${count}.` : create ? 'Pozvánky odejdou, hned jak hru založíš.' : 'Vyber, koho pozveš.'}`;
+        const label = count ? `Pozvat (${count})` : create ? 'Hotovo' : 'Pozvat';
+        return `<div class="cq-look cq-card-paper flex flex-col gap-2 rounded-2xl p-2.5" data-cq-invite-picker>
+            ${hint ? `<p data-cq-invite-hint class="px-1 text-[12px] font-bold leading-snug text-amber-900/85 dark:text-gold-200/85">${esc(hint)}</p>` : ''}
+            ${list}
+            ${any && !loading ? `<button type="button" data-cq="invite-done" ${busy || (!create && !count) ? 'disabled' : ''} class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="${count ? 'send' : 'check'}" class="h-5 w-5"></i> ${busy ? 'Posílám pozvánky…' : label}</button>` : ''}
+            ${error ? `<p class="text-[13px] font-semibold text-rose-700 dark:text-rose-400" role="status">${esc(error)}</p>` : ''}
+        </div>`;
+    };
+
     // Detail otevřené hry (lobby): hráči, Chci hrát, Odejít, kód a pozvánka
     // Lišta vývojáře (vývojářský režim, účet v dev_admins; blok 22 ve schema.sql): v lobby boti do hry, ve hře jejich tahy hned a další období
     const DEV_CHIP = 'rounded-lg bg-amber-100 px-2 py-1 text-[11px] font-bold text-amber-900 active:scale-95 disabled:opacity-50 dark:bg-amber-900/50 dark:text-amber-100';
@@ -1692,28 +1808,39 @@
             ${shown.map(([action, label]) => `<button type="button" data-cq="${action}" class="${DEV_CHIP}">${esc(label)}</button>`).join('')}
         </div>`;
     };
-    const lobbyDetailHtml = ({ game, maps = {}, busy = false, error = '', dev = false }) => {
+    // Pozvaní přátelé, kteří se ještě nepřidali (game.invited, jen hráčům hry): zašedlé řádky s čárkovaným okrajem „Pozváno“.
+    // invitable = databáze pozvánky zná (blok 24): hráč má Pozvat přátele (jen když jsou volná místa), sdílení odkazu je vedle něj.
+    const lobbyDetailHtml = ({ game, maps = {}, busy = false, error = '', dev = false, invitable = false, avatar = null }) => {
         const data = maps[game.map];
         const me = (game.players || []).find(player => player.me);
+        const draw = avatarFn(avatar);
         const rows = (game.players || []).map(player => `<li class="flex items-center gap-2 rounded-2xl bg-white p-1.5 pr-2.5 shadow-sm dark:bg-slate-800 ${player.me ? 'ring-2 ring-brand-600 dark:ring-brand-400' : ''}">
                 ${pennantSvg(player.flag_color, player.emblem, 'h-7 w-9')}<span class="min-w-0 flex-1 truncate text-[13.5px] font-bold text-slate-800 dark:text-slate-100">${esc(player.display_name || 'Hráč')}${player.me ? ' (ty)' : ''}</span>
                 <span class="flex shrink-0 items-center gap-1 text-[11.5px] font-black ${player.ready ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400'}"><i data-lucide="${player.ready ? 'circle-check' : 'clock'}" class="h-4 w-4"></i>${player.ready ? 'Chce hrát' : 'Čeká'}</span></li>`).join('');
+        const invitedRows = (me ? game.invited || [] : []).map(friend => `<li data-cq-invited="${esc(friend.id)}" class="flex items-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 p-0.5 pl-1.5 pr-2 dark:border-slate-600">
+                <span class="flex w-9 shrink-0 justify-center opacity-60 grayscale">${draw(friend, 'h-6 w-6 text-xs')}</span><span class="min-w-0 flex-1 truncate text-[13.5px] font-bold text-slate-500 dark:text-slate-400">${esc(friend.display_name || 'Hráč')}</span>
+                <span class="flex shrink-0 items-center gap-1 text-[11.5px] font-black text-slate-500 dark:text-slate-400"><i data-lucide="send" class="h-4 w-4"></i>Pozváno</span></li>`).join('');
         const empty = Math.max(0, game.max_players - (game.players || []).length);
-        return `<div data-cq-lobby-detail="${esc(game.id)}" class="flex flex-col gap-2">
+        const canInvite = Boolean(me && invitable && empty > 0);
+        // Tlačítka po dvou v řadě (liché poslední přes celou šířku): Pozvat přátele, sdílení odkazu, Barva a znak, Odejít
+        const buttons = [
+            canInvite ? `<button type="button" data-cq="invite-pick" class="${LIGHT_BUTTON}"><i data-lucide="user-plus" class="h-4 w-4"></i> Pozvat přátele</button>` : '',
+            `<button type="button" data-cq="share" class="${LIGHT_BUTTON}"><i data-lucide="share-2" class="h-4 w-4"></i> ${canInvite ? 'Sdílet odkaz' : 'Pozvat'}</button>`,
+            me ? `<button type="button" data-cq="look" class="${LIGHT_BUTTON}"><i data-lucide="palette" class="h-4 w-4"></i> Barva a znak</button>` : '',
+            me ? `<button type="button" data-cq="leave" class="${DANGER_BUTTON}"><i data-lucide="log-out" class="h-4 w-4"></i> ${busy === 'leave' ? 'Opravdu odejít?' : 'Odejít'}</button>` : ''
+        ].filter(Boolean).map((html, i, all) => (all.length % 2 && i === all.length - 1 ? html.replace('class="', 'class="col-span-2 ') : html));
+        // Na nízkém displeji (short:) menší mezery a bez odkazu Moje hry (stejná záložka je hned nahoře), ať se vejdou i pozvaní
+        return `<div data-cq-lobby-detail="${esc(game.id)}" class="flex flex-col gap-2 short:gap-1.5">
             <div class="flex items-center gap-2 ${CARD} cq-card-paper p-1.5">
                 <span class="cq-thumb-frame flex h-14 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl">${data ? thumbSvg(data, {}, {}, 'h-14 w-16') : ''}</span>
                 <span class="flex min-w-0 flex-1 flex-wrap gap-1">${paramChips(game)}</span>
             </div>
-            <ul class="flex flex-col gap-1.5">${rows}${empty ? `<li class="px-2 text-[12px] font-semibold text-slate-500 dark:text-slate-400">Volná místa: ${empty}. Hra začne, až bude plná, nebo až budou chtít hrát všichni (aspoň dva).</li>` : ''}</ul>
+            <ul class="flex flex-col gap-1.5">${rows}${invitedRows}${empty ? `<li class="px-2 text-[12px] font-semibold text-slate-500 dark:text-slate-400">Volná místa: ${empty}. Hra začne, až bude plná, nebo až budou chtít hrát všichni (aspoň dva).</li>` : ''}</ul>
             ${dev && me ? devBarHtml({ kind: 'lobby', free: empty }) : ''}
             ${me ? `<button type="button" role="switch" aria-checked="${Boolean(me.ready)}" data-cq="ready" ${busy ? 'disabled' : ''} class="${me.ready ? BRAND_BUTTON : GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="${me.ready ? 'square-check-big' : 'square'}" class="h-5 w-5"></i> Chci hrát${me.ready ? ': ano' : ''}</button>` : ''}
-            <div class="grid grid-cols-2 gap-2">
-                <button type="button" data-cq="share" class="${LIGHT_BUTTON}"><i data-lucide="share-2" class="h-4 w-4"></i> Pozvat</button>
-                ${me ? `<button type="button" data-cq="look" class="${LIGHT_BUTTON}"><i data-lucide="palette" class="h-4 w-4"></i> Barva a znak</button>` : ''}
-            </div>
+            <div class="grid grid-cols-2 gap-2">${buttons.join('')}</div>
             ${game.code ? `<p class="px-1 text-center text-[12px] font-semibold text-slate-500 dark:text-slate-400">Kód hry <b class="font-mono text-[14px] tracking-[0.2em] text-slate-800 dark:text-slate-100">${esc(game.code)}</b></p>` : ''}
-            ${me ? `<button type="button" data-cq="leave" class="${DANGER_BUTTON} w-full"><i data-lucide="log-out" class="h-4 w-4"></i> ${busy === 'leave' ? 'Opravdu odejít?' : 'Odejít'}</button>` : ''}
-            <button type="button" data-cq-tab="mine" class="flex min-h-[2.5rem] items-center justify-center gap-1 rounded-xl text-[13px] font-bold text-slate-500 dark:text-slate-400"><i data-lucide="chevron-left" class="h-4 w-4"></i> Moje hry</button>
+            <button type="button" data-cq-tab="mine" class="flex min-h-[2.5rem] items-center justify-center gap-1 rounded-xl text-[13px] font-bold text-slate-500 short:hidden dark:text-slate-400"><i data-lucide="chevron-left" class="h-4 w-4"></i> Moje hry</button>
             ${error ? `<p class="text-[13px] font-semibold text-rose-700 dark:text-rose-400" role="status">${esc(error)}</p>` : ''}
         </div>`;
     };
@@ -1729,7 +1856,7 @@
             <div class="flex shrink-0 items-center gap-1.5">
                 <button type="button" data-cq="hub" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl btn-3d-light bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-200" aria-label="Moje hry"><i data-lucide="chevron-left" class="h-5 w-5"></i></button>
                 <div class="flex min-w-0 flex-1 justify-center">
-                    <div class="${ART.cartouche ? 'cq-cartouche-art aspect-[29/10] h-14 max-w-full px-[15%] pb-[3px]' : 'cq-cartouche h-10 w-full rounded-xl px-2'} flex min-w-0 flex-col items-center justify-center text-center">
+                    <div class="${ART.cartouche ? 'cq-cartouche-art aspect-[29/10] h-[3.75rem] max-w-full px-[15%] pt-[3px]' : 'cq-cartouche h-10 w-full rounded-xl px-2'} flex min-w-0 flex-col items-center justify-center text-center">
                         <span class="cq-cartouche-title max-w-full truncate">${esc(mapTitle(game.map))}</span>
                         <span class="max-w-full truncate text-[10.5px] font-bold leading-3 text-amber-900/80" data-cq-clock>${esc(status)}</span>
                     </div>
@@ -1993,8 +2120,10 @@
         durationLabel, periodLabel, actionsLabel, timeLeft, movesWord, pointsWord, playersWord, territoriesWord, regionsWord, nextPeriodAt, agoLabel, periodLine,
         budgetTitle, budgetInnerHtml, periodStartText, PENALTY_TEXT,
         indexMap, parseRings, pointInRings, project, territoryAt, isAdjacent, viewOf, rank, sourcesFor, actionsFor,
-        buildQuestion, familyPlan, kindsFor, placesOf, poolsOf, formsOf, FAMILY_IDS, FAMILY_DOMAIN, DOMAINS, FAMILY_CAP, flagUrl, flagFallback, THUMB, feedItems, replaySteps, capturedWord, hatchPattern, levelIcon, iconMarkup,
+        buildQuestion, answerKey, familyPlan, kindsFor, placesOf, poolsOf, formsOf, FAMILY_IDS, FAMILY_DOMAIN, DOMAINS, FAMILY_CAP, flagUrl, flagFallback, THUMB, feedItems, replaySteps, capturedWord, hatchPattern, levelIcon, iconMarkup,
         pennantSvg, pennantGroup, emblemSvg, sealSvg, mapSvg, thumbSvg, marksFor, homeCardHtml, hubHtml, mineHtml, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,
-        gameScreenHtml, playersStripHtml, recentHtml, sheetHtml, devBarHtml, questionHtml, feedHtml, resultHtml, helpHtml, HELP_TABS, mapTitle, paramChips
+        gameScreenHtml, playersStripHtml, recentHtml, sheetHtml, devBarHtml, questionHtml, feedHtml, resultHtml, helpHtml, HELP_TABS, mapTitle, paramChips,
+        // Pozvánky přátel (blok 24)
+        friendsPickerHtml, inviteCardHtml
     };
 });

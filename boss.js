@@ -14,29 +14,21 @@
 })(typeof self !== 'undefined' ? self : this, () => {
     'use strict';
 
-    // --- Obrázky (icons/topics/<název>.webp) na jednom místě: po dodání ilustrací (docs/NOVE-MODY.md) stačí vyměnit názvy tady ---
-    // Pořadí stupňů: [1 Plná síla, 2 Zraněný, 3 V koncích, 4 Poražený]. Do dodání stojí za bosse sova v barvě jeho obleku; stupně 2 a 3
-    // mají stejný zástupný obrázek jako stupeň 1 a změnu ukáží efekty a filtr (třídy boss-standin-* v src/input.css).
+    // --- Obrázky (icons/topics/<název>.webp) na jednom místě ---
+    // Pořadí stupňů: [1 Plná síla, 2 Zraněný, 3 V koncích, 4 Poražený]. Kdyby některý stupeň neměl vlastní obrázek (stejný jako stupeň 1),
+    // změnu ukáží efekty a filtr (třídy boss-standin-* v src/input.css).
     const ART = {
-        // č. 215 boss-kapitan, 244 boss-kapitan-zraneny, 252 boss-kapitan-vkoncich, 223 boss-kapitan-porazeny
-        kapitan: ['sova-dalekohled-modra', 'sova-dalekohled-modra', 'sova-dalekohled-modra', 'sova-prohra-modra'],
-        // č. 216 boss-rytir, 245 boss-rytir-zraneny, 253 boss-rytir-vkoncich, 224 boss-rytir-porazeny
-        rytir: ['sova-titul-10-bila', 'sova-titul-10-bila', 'sova-titul-10-bila', 'sova-prohra-bila'],
-        // č. 217 boss-alchymista, 246 boss-alchymista-zraneny, 254 boss-alchymista-vkoncich, 225 boss-alchymista-porazeny
-        alchymista: ['sova-titul-6-fialova', 'sova-titul-6-fialova', 'sova-titul-6-fialova', 'sova-prohra-fialova'],
-        // č. 218 boss-amper, 247 boss-amper-zraneny, 255 boss-amper-vkoncich, 226 boss-amper-porazeny
-        amper: ['sova-vyzva-zlata', 'sova-vyzva-zlata', 'sova-vyzva-zlata', 'sova-prohra-zlata'],
-        // č. 219 boss-maestro, 248 boss-maestro-zraneny, 256 boss-maestro-vkoncich, 227 boss-maestro-porazeny
-        maestro: ['sova-titul-8-cerna', 'sova-titul-8-cerna', 'sova-titul-8-cerna', 'sova-prohra-cerna'],
-        // č. 220 boss-druid, 249 boss-druid-zraneny, 257 boss-druid-vkoncich, 228 boss-druid-porazeny
-        druid: ['sova-titul-9-zelena', 'sova-titul-9-zelena', 'sova-titul-9-zelena', 'sova-prohra-zelena'],
-        // č. 221 boss-olympan, 250 boss-olympan-zraneny, 258 boss-olympan-vkoncich, 229 boss-olympan-porazeny
-        olympan: ['sova-titul-11', 'sova-titul-11', 'sova-titul-11', 'sova-prohra'],
-        // č. 222 boss-reziser, 251 boss-reziser-zraneny, 259 boss-reziser-vkoncich, 230 boss-reziser-porazeny
-        reziser: ['sova-oslava-ruzova', 'sova-oslava-ruzova', 'sova-oslava-ruzova', 'sova-prohra-ruzova'],
-        // Arény (pozadí úvodu a výsledku souboje na výšku, icons/topics/<jméno>.webp), každý boss má vlastní: č. 231 arena-maestro
-        // (divadelní jeviště), 268–274 ostatní (docs/OBRAZKY.md). Do dodání prázdné a arénu kreslí CSS přechod .boss-arena
-        arena: { kapitan: '', rytir: '', alchymista: '', amper: '', maestro: '', druid: '', olympan: '', reziser: '' }
+        // Ilustrace bossů (docs/OBRAZKY.md č. 215–230 a 244–259, scripts/boss-art.py): Plná síla, Zraněný, V koncích, Poražený
+        kapitan: ['boss-kapitan', 'boss-kapitan-zraneny', 'boss-kapitan-vkoncich', 'boss-kapitan-porazeny'],
+        rytir: ['boss-rytir', 'boss-rytir-zraneny', 'boss-rytir-vkoncich', 'boss-rytir-porazeny'],
+        alchymista: ['boss-alchymista', 'boss-alchymista-zraneny', 'boss-alchymista-vkoncich', 'boss-alchymista-porazeny'],
+        amper: ['boss-amper', 'boss-amper-zraneny', 'boss-amper-vkoncich', 'boss-amper-porazeny'],
+        maestro: ['boss-maestro', 'boss-maestro-zraneny', 'boss-maestro-vkoncich', 'boss-maestro-porazeny'],
+        druid: ['boss-druid', 'boss-druid-zraneny', 'boss-druid-vkoncich', 'boss-druid-porazeny'],
+        olympan: ['boss-olympan', 'boss-olympan-zraneny', 'boss-olympan-vkoncich', 'boss-olympan-porazeny'],
+        reziser: ['boss-reziser', 'boss-reziser-zraneny', 'boss-reziser-vkoncich', 'boss-reziser-porazeny'],
+        // Arény (pozadí úvodu a výsledku souboje na výšku): každý boss vlastní (č. 231 jeviště Maestra, 268–274 ostatní)
+        arena: { kapitan: 'arena-kapitan', rytir: 'arena-rytir', alchymista: 'arena-alchymista', amper: 'arena-amper', maestro: 'arena-maestro', druid: 'arena-druid', olympan: 'arena-olympan', reziser: 'arena-reziser' }
     };
     const arenaOf = (boss) => (boss && ART.arena && ART.arena[boss.id]) || '';
 

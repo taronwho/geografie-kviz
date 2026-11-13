@@ -738,3 +738,18 @@ test('vlajky a znaky v otázkách: náhled ve standardní šířce Commons (160 
         assert.match(C.questionHtml(question, { title: 'Útok', item: serbia, data, answered: null }), /data-fallback="https:\/\/upload\.wikimedia\.org/);
     }
 });
+
+test('otázky se ve hře neopakují: stejná odpověď znovu nepřijde a stejný druh otázky nejde dvakrát po sobě', () => {
+    const data = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'dobyvani-evropa.json'), 'utf8'));
+    const topics = loadAllTopics();
+    const asked = { answers: [], families: [] };
+    for (let i = 0; i < 30; i++) {
+        const question = C.buildQuestion({ data, territory: 'Q142', level: i % 3, topics, seed: `hra|${i}`, avoid: asked });
+        assert.ok(question, `otázka ${i + 1}`);
+        const key = C.answerKey(question);
+        assert.ok(!asked.answers.includes(key), `odpověď ${key} se zopakovala (${i + 1}. otázka)`);
+        if (asked.families.length) assert.notEqual(question.family, asked.families[asked.families.length - 1], `druh ${question.family} dvakrát po sobě`);
+        asked.answers.push(key);
+        asked.families.push(question.family);
+    }
+});
