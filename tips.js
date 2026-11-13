@@ -13,7 +13,7 @@
     // after = kolik odpovědí má hráč mít za sebou, než se tip nabídne; ready = podmínka, aby tip dával smysl;
     // used = hráč funkci už zná (tip se neukáže); multi = tip o hře více hráčů; account = vyžaduje přihlášení
     // action: kam tlačítko „Zkusit“ zavede (settings, learn, progress, multi, single, quiz = Kvíz dne, mystery = Tajemná otázka dne, modes = okno Co hrát
-    // s Bleskovkou a Přežitím, goals = cíle týdne a truhla, gold = okno Zlatá otázka)
+    // s Bleskovkou a Přežitím, goals = cíle týdne a truhla, gold = okno Zlatá otázka, boss = Boss týdne)
     const TIPS = [
         { id: 'napoveda', icon: 'lightbulb', after: 2, title: 'Nevíš si rady?', text: 'Klepni na žluté tlačítko Nápověda. Každá nápověda sice sníží body za správnou odpověď, ale často tě k ní dovede. Čím méně nápověd použiješ, tím víc bodů získáš.',
             used: (u) => num(u.counters.noHint) >= 15 },
@@ -86,7 +86,10 @@
             action: { kind: 'settings', label: 'Nastavení', tab: 'profile' }, ready: (u) => u.showcase, used: (u) => Boolean(u.visited.showcase) },
         // Zlatá otázka (gold.js): art = stejný obrázek jako gold.js ART.owl (hlídá tests/gold.test.js)
         { id: 'zlata', icon: 'sparkles', art: 'sova-dalekohled', after: 12, title: 'Zlatá otázka', text: 'Zhruba jednou za 50 otázek přijde Zlatá otázka se zlatým rámečkem. Dává trojnásobek XP a za správnou odpověď bez nápovědy i zlatý střípek. Pět střípků otevře Zlatou truhlu se vzácnou věcí.',
-            action: { kind: 'gold', label: 'Ukázat střípky' }, ready: (u) => u.gold, used: (u) => Boolean(u.visited.gold) || num(u.counters.goldCorrect) >= 3 }
+            action: { kind: 'gold', label: 'Ukázat střípky' }, ready: (u) => u.gold, used: (u) => Boolean(u.visited.gold) || num(u.counters.goldCorrect) >= 3 },
+        // Boss týdne (boss.js); obrázek do dodání portrétu bosse (docs/NOVE-MODY.md č. 215) sova s výzvou
+        { id: 'boss', icon: 'swords', art: 'sova-vyzva', after: 8, title: 'Boss týdne', text: 'Každý týden tě na úvodu vyzve jiný boss, Mudrlant v převleku. Sraz mu správnými odpověďmi všech 700 životů, rychlé odpovědi ho zasáhnou víc. Máš 3 pokusy za týden a za výhru získáš emblém, titul a 150 XP.',
+            action: { kind: 'boss', label: 'Do arény' }, ready: (u) => u.boss, used: (u) => num(u.counters.bossFights) > 0 }
     ];
     const BY_ID = new Map(TIPS.map(tip => [tip.id, tip]));
 
@@ -127,7 +130,8 @@
         const u = { counters: ctx.counters || {}, visited: state.visited, reviewOn: ctx.reviewOn !== false, friends: ctx.friends, signedIn: Boolean(ctx.signedIn),
             quiz: ctx.quiz !== false, mystery: ctx.mystery !== false, modes: ctx.modes !== false, goals: ctx.goals !== false, freezes: ctx.freezes, maxStars: ctx.maxStars,
             season: ctx.season !== false, album: ctx.album !== false, showcase: ctx.showcase !== false, chronicle: ctx.chronicle !== false, leagueSeasons: Boolean(ctx.leagueSeasons),
-            gold: ctx.gold !== false };
+            gold: ctx.gold !== false,
+            boss: ctx.boss !== false };
         const answered = num(u.counters.answered);
         return TIPS.find(tip => {
             if (state.seen.includes(tip.id)) return false;

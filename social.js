@@ -828,6 +828,36 @@
         }));
         return { day: cleanDay(data.day), hidden: false, friends: wholeNumber(data.friends, 100000), rank: wholeNumber(data.rank, 100000) || null, rows };
     });
+    // --- Boss týdne (schéma 21, boss.js): odeslání dohraného souboje, společná lišta týdne a společný bonus za skončený týden ---
+    // Databáze bez funkcí (404): vrací se null a dál se o ně nežádá (aplikace hraje jen v zařízení, bez společné lišty); jiné chyby se vyhodí
+    let bossMissing = false;
+    const guardBoss = async (run) => {
+        if (bossMissing) return null;
+        try { return await run(); } catch (error) {
+            if (error.status === 404) { bossMissing = true; return null; }
+            throw error;
+        }
+    };
+    const cleanWeek = (value) => (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null);
+    const cleanBossMe = (row) => (row && typeof row === 'object' ? {
+        week: cleanWeek(row.week), attempts: wholeNumber(row.attempts, 3), best_damage: wholeNumber(row.best_damage, 700), defeated: row.defeated === true,
+        bonus_claimed: row.bonus_claimed === true, first_win: row.first_win === true
+    } : null);
+    // Dohraný souboj: týden (pondělí), idx = kolikátý pokus (0–2), poškození 0–700, výhra; vrátí můj stav týdne s first_win
+    const bossSubmit = (week, idx, damage, defeated) => guardBoss(async () => cleanBossMe(await request('POST', 'rpc/boss_submit', {
+        body: { for_week: cleanWeek(week), idx: wholeNumber(idx, 2), damage: wholeNumber(damage, 700), is_defeated: Boolean(defeated) }
+    })));
+    // Společná lišta týdne (null = běžící týden): hráči, kteří to zkusili, kolik bosse porazilo, splněná polovina, konec týdne a můj stav
+    const bossWeekStats = (week = null) => guardBoss(async () => {
+        const data = (await request('POST', 'rpc/boss_week_stats', { body: { for_week: cleanWeek(week) } })) || {};
+        return { week: cleanWeek(data.week), players: wholeNumber(data.players, 10000000), defeated: wholeNumber(data.defeated, 10000000), defeated_pct: wholeNumber(data.defeated_pct, 100),
+            reached: data.reached === true, over: data.over === true, me: cleanBossMe(data.me) };
+    });
+    // Společný bonus za skončený týden: { xp (kolik si připsat), reached, played, claimed }
+    const bossClaimBonus = (week) => guardBoss(async () => {
+        const data = (await request('POST', 'rpc/boss_claim_bonus', { body: { for_week: cleanWeek(week) } })) || {};
+        return { week: cleanWeek(data.week), xp: Math.min(50, wholeNumber(data.xp, 50)), reached: data.reached === true, played: data.played === true, claimed: data.claimed === true };
+    });
     // --- Skupiny (schéma 8, groups.js): moje skupiny, detail s pořadím, založení, přidání kódem a správa zakladatelem ---
     // Databáze bez funkcí (404): seznam vrací null (aplikace Skupiny nenabídne) a dál se o ně nežádá; ostatní volání skončí srozumitelnou chybou.
     // Hlášky databáze jsou česky (limit skupin, plná skupina, jen zakladatel…) a předají se dál; jiné chyby nahradí obecný text.
@@ -1018,5 +1048,7 @@
         // Odměny (schéma 9)
         getRewards, saveRewards,
         // Ligové sezóny a vitrína (schéma 18)
-        leagueSeasons, SHOWCASE_ENTRY, cleanShowcase, getShowcase, saveShowcase };
+        leagueSeasons, SHOWCASE_ENTRY, cleanShowcase, getShowcase, saveShowcase,
+        // Boss týdne (schéma 21)
+        bossSubmit, bossWeekStats, bossClaimBonus };
 });

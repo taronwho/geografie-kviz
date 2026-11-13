@@ -1964,7 +1964,9 @@
         // Tajemná otázka dne (mystery.js): vyřešené dny
         mysterySolved: 0,
         // Zlatá otázka (gold.js): správně zodpovězené zlaté otázky
-        goldCorrect: 0
+        goldCorrect: 0,
+        // Boss týdne (boss.js): dohrané souboje a týdny s výhrou
+        bossFights: 0, bossWins: 0
     };
     const number = (value) => Number.isFinite(value) ? value : 0;
     // Barva medaile podle stupně ve skupině: bronz, stříbro, zlato, vínová a nejvyšší diamantová
@@ -2112,6 +2114,20 @@
     const isAlbumBadge = (id) => /^(sberatel-\d+|album-[a-z]+)$/.test(String(id));
     // Barvy medailí alba: 25 % bronz, 50 % zlato, 75 % vínová, 100 % diamant; celá sekce zlatá
     BADGES.filter(badge => isAlbumBadge(badge.id) && (badge.group !== 'sberatel' || badge.goal === 50)).forEach(badge => { badge.tone = 'gold'; });
+    // --- Boss týdne (boss.js): emblém za každého poraženého bosse (portrét v kulatém rámu), jeden stupeň na bosse. Hodnotu dosazuje aplikace:
+    // x.bosses = { id bosse: týden první výhry }. Titul „Přemožitel …“ jde mít u jména a emblém vystavit ve Vitríně (b:boss-<id>).
+    // Stejná id a pořadí jako BOSSES v boss.js (hlídá tests/boss.test.js); bossové budou přibývat po tématech, skupiny jen na konec.
+    const BOSS_EMBLEMS = [
+        ['kapitan', 'Kapitán Mudrlant', 'Kapitána Mudrlanta', 'Přemožitel Kapitána'], ['rytir', 'Rytíř Mudrlant', 'Rytíře Mudrlanta', 'Přemožitel Rytíře'],
+        ['alchymista', 'Alchymista', 'Alchymistu', 'Přemožitel Alchymisty'], ['amper', 'Profesor Ampér', 'Profesora Ampéra', 'Přemožitel Profesora Ampéra'],
+        ['maestro', 'Maestro', 'Maestra', 'Přemožitel Maestra'], ['druid', 'Druid', 'Druida', 'Přemožitel Druida'],
+        ['olympan', 'Olympan', 'Olympana', 'Přemožitel Olympana'], ['reziser', 'Režisér', 'Režiséra', 'Přemožitel Režiséra']
+    ];
+    BOSS_EMBLEMS.forEach(([id, name, whom, title]) => addGroup(`boss-${id}`, `Boss týdne: ${name}`, 'swords', (c, x) => (x && x.bosses && x.bosses[id] ? 1 : 0),
+        () => `Poraz bosse týdne ${whom}.`, [T(1, title, `boss-${id}`)]));
+    const isBossBadge = (id) => /^boss-[a-z]+$/.test(String(id));
+    BADGES.filter(badge => isBossBadge(badge.id)).forEach(badge => { badge.tone = 'gold'; badge.emblem = true; });
+    BADGE_GROUPS.filter(group => isBossBadge(group.id)).forEach(group => { group.emblem = true; });
     const BADGE_BY_ID =Object.fromEntries(BADGES.map(badge => [badge.id, badge]));
     const normalizeCounters = (counters) => ({ ...EMPTY_COUNTERS, ...(counters || {}), topics: { ...((counters && counters.topics) || {}) },
         topicRun: { ...((counters && counters.topicRun) || {}) }, topicBest: { ...((counters && counters.topicBest) || {}) } });
@@ -2328,6 +2344,8 @@
     return {
         EMPTY_COUNTERS, BADGES, BADGE_GROUPS, BADGE_BY_ID, earnedBadgeIds, compactBadges, expandBadges, normalizeCounters,
         ALBUM_MILESTONES, ALBUM_SECTION_TITLES, isAlbumBadge,
+        // Boss týdne: emblémy poražených bossů (odznaky boss-<id>)
+        BOSS_EMBLEMS, isBossBadge,
         MAX_LEVEL, LEVEL_XP, questionsForLevel, xpForLevel, levelFromXp, levelProgress, LEVEL_TITLES, titleForLevel, nextTitle, TITLE_OWL_FROM, titleOwlTier, answerXp, DAILY_XP, DAILY_ALL_XP, streakXp, MASTERY_STEPS, masteryStars, nextMastery,
         UNKNOWN_COUNTRY, INTERNATIONAL_WATERS, CZECHIA_QID, AFTER_SYMBOL_WORD, TILE_SIZE, COUNTRIES, CONTINENT_NAMES,
         SATELLITE_TILES, OSM_TILES,

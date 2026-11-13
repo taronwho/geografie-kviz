@@ -22,8 +22,15 @@ test('symboly odznaků: skupiny, obrázky, zdroje a mezipaměť', () => {
     const Gold = require('../gold.js');
     assert.ok(fs.existsSync(path.join(ROOT, 'icons', 'topics', `${Gold.ART.badge}.webp`)), `symbol Zlatokopa ${Gold.ART.badge}.webp`);
     assert.ok(sw.includes(`'${Gold.ART.badge}'`), 'symbol Zlatokopa je v mezipaměti');
-    const missing = core.BADGE_GROUPS.filter(group => !group.topic && !art.includes(group.id) && !/^(tema|zbehly)-/.test(group.id) && !album(group) && group.id !== Gold.BADGE_GROUP).map(group => group.id);
-    assert.deepEqual(missing, [], 'každá skupina (kromě témat a alba) má symbol');
+    const missing = core.BADGE_GROUPS.filter(group => !group.topic && !art.includes(group.id) && !/^(tema|zbehly)-/.test(group.id) && !album(group) && group.id !== Gold.BADGE_GROUP && !core.isBossBadge(group.id)).map(group => group.id);
+    assert.deepEqual(missing, [], 'každá skupina (kromě témat, alba a bossů) má symbol');
+    // Emblémy bossů týdne: portrét bosse (boss.js ART, do dodání ilustrací zástupná sova) existuje
+    const Boss = require('../boss.js');
+    for (const group of core.BADGE_GROUPS.filter(entry => core.isBossBadge(entry.id))) {
+        const boss = Boss.bossOfBadge(group.id);
+        assert.ok(boss, `${group.id} patří bossovi`);
+        assert.ok(fs.existsSync(path.join(ROOT, 'icons', 'topics', `${Boss.artFor(boss.id, 1)}.webp`)), `portrét ${group.id}`);
+    }
     const standIn = require('../album.js').BADGE_ART;
     assert.equal(standIn, 'odznak-sberatel');
     assert.ok(fs.existsSync(path.join(ROOT, 'icons', 'topics', `${standIn}.webp`)), `symbol alba ${standIn}.webp`);
