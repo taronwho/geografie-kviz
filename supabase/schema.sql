@@ -5387,14 +5387,10 @@ $$;
 
 -- Tah: útok (na území sousedící s vlastním; source = vlastní území, odkud útok vede, nepovinné) nebo opevnění vlastního území.
 -- is_correct = odpověď na otázku tahu. Tah za hráče uid (hráč přes conquest_move, bot přes conquest_bot_move); vrací zapsaný tah.
--- seen = stav území, když se hráči ukázala otázka ({"o": majitel nebo null, "l": úroveň opevnění}; od schématu 25): změnilo-li se
--- území mezitím (jiný hráč ho dobyl nebo opevnil), tah se neprovede a nespotřebuje (výjimka, nic se nezapíše). Rychlejší hráč si tak
--- území udrží a pomalejší o tah nepřijde. Bez seen (boti, starší aplikace) se tah posoudí podle aktuálního stavu.
-drop function if exists public.conquest_move_by(uuid, uuid, text, text, boolean, text);
-create or replace function public.conquest_move_by(uid uuid, game uuid, target text, move_kind text, is_correct boolean, source text default null, seen jsonb default null) returns public.conquest_moves
+create or replace function public.conquest_move_by(uid uuid, game uuid, target text, move_kind text, is_correct boolean, source text default null) returns public.conquest_moves
 language plpgsql set search_path = public as $$
 declare g public.conquest_games; t public.conquest_territories; p integer; budget jsonb; victim uuid; res text; lvl integer;
-    took_home boolean := false; took_treasure boolean := false; mv public.conquest_moves; holder text;
+    took_home boolean := false; took_treasure boolean := false; mv public.conquest_moves;
 begin
     select * into g from public.conquest_games where id = game for update;
     if g.id is null or not exists (select 1 from public.conquest_players c where c.game_id = game and c.user_id = uid) then raise exception 'Tahle hra neexistuje, nebo ji nehraješ.' using errcode = '42501'; end if;
@@ -5405,18 +5401,6 @@ begin
     if move_kind is null or move_kind not in ('attack', 'fortify') or is_correct is null then raise exception 'Neplatný tah.' using errcode = '22023'; end if;
     select * into t from public.conquest_territories where game_id = game and territory = target for update;
     if t.territory is null then raise exception 'Tohle území na mapě není.' using errcode = '22023'; end if;
-    if seen is not null and jsonb_typeof(seen) = 'object' then
-        if (seen ->> 'o') is distinct from t.owner::text then
-            select coalesce(nullif(trim(pr.display_name), ''), 'jiný hráč') into holder from public.profiles pr where pr.id = t.owner;
-            raise exception '%', case when t.owner is null then 'Mezitím se území změnilo. Tah ti zůstává.'
-                when t.owner = uid then 'Území už je tvoje. Tah ti zůstává.'
-                else 'Mezitím se území změnilo: teď ho drží ' || coalesce(holder, 'jiný hráč') || '. Tah ti zůstává.' end using errcode = 'P0001';
-        end if;
-        if coalesce((seen ->> 'l')::integer, 0) <> t.level then
-            raise exception 'Mezitím se změnilo opevnění území (teď %). Tah ti zůstává.',
-                case t.level when 0 then 'bez opevnění' when 1 then 'Palisáda' when 2 then 'Hradba' else 'Pevnost' end using errcode = 'P0001';
-        end if;
-    end if;
     budget := public.conquest_budget(game, uid);
     if (budget ->> 'left')::integer <= 0 then raise exception 'Tahy na tohle období už nemáš. Další přibudou v příštím období.' using errcode = 'P0001'; end if;
     p := (budget ->> 'period')::integer;
@@ -5459,13 +5443,12 @@ begin
 end;
 $$;
 -- Tah hráče (tah za něj udělá conquest_move_by); vrací stav hry a výsledek tahu (move)
-drop function if exists public.conquest_move(uuid, text, text, boolean, text);
-create or replace function public.conquest_move(game uuid, target text, move_kind text, is_correct boolean, source text default null, seen jsonb default null) returns jsonb
+create or replace function public.conquest_move(game uuid, target text, move_kind text, is_correct boolean, source text default null) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare uid uuid := auth.uid(); mv public.conquest_moves;
 begin
     if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
-    mv := public.conquest_move_by(uid, game, target, move_kind, is_correct, source, seen);
+    mv := public.conquest_move_by(uid, game, target, move_kind, is_correct, source);
     return public.conquest_state(game) || jsonb_build_object('move', public.conquest_move_json(mv));
 end;
 $$;
@@ -5500,10 +5483,10 @@ revoke all on function public.conquest_now(), public.conquest_colors(), public.c
     from public, anon, authenticated;
 revoke all on function public.conquest_is_player(uuid), public.conquest_is_open(uuid), public.conquest_lobby(), public.conquest_create(text, integer, integer, text, integer, text, text, text),
     public.conquest_join(uuid, text, text, text), public.conquest_set_look(uuid, text, text), public.conquest_ready(uuid, boolean), public.conquest_leave(uuid),
-    public.conquest_state(uuid), public.conquest_move(uuid, text, text, boolean, text, jsonb), public.conquest_claim(uuid) from public, anon;
+    public.conquest_state(uuid), public.conquest_move(uuid, text, text, boolean, text), public.conquest_claim(uuid) from public, anon;
 grant execute on function public.conquest_is_player(uuid), public.conquest_is_open(uuid), public.conquest_lobby(), public.conquest_create(text, integer, integer, text, integer, text, text, text),
     public.conquest_join(uuid, text, text, text), public.conquest_set_look(uuid, text, text), public.conquest_ready(uuid, boolean), public.conquest_leave(uuid),
-    public.conquest_state(uuid), public.conquest_move(uuid, text, text, boolean, text, jsonb), public.conquest_claim(uuid) to authenticated;
+    public.conquest_state(uuid), public.conquest_move(uuid, text, text, boolean, text), public.conquest_claim(uuid) to authenticated;
 -- ===== 21: Dobývání — KONEC BLOKU =====
 
 -- ===== 22: Vývojářští boti v Dobývání =====
@@ -5669,7 +5652,7 @@ begin
     return public.conquest_state(game);
 end;
 $$;
-revoke all on function public.conquest_move_by(uuid, uuid, text, text, boolean, text, jsonb), public.conquest_bot_skill(uuid), public.conquest_bot_offset(uuid),
+revoke all on function public.conquest_move_by(uuid, uuid, text, text, boolean, text), public.conquest_bot_skill(uuid), public.conquest_bot_offset(uuid),
     public.conquest_bot_move(uuid, uuid), public.conquest_bots_due(uuid, boolean), public.conquest_bots_tick(), public.dev_conquest_check(uuid) from public, anon, authenticated;
 revoke all on function public.dev_conquest_add_bots(uuid, integer), public.dev_conquest_bots_play(uuid), public.dev_conquest_next_period(uuid) from public, anon;
 grant execute on function public.dev_conquest_add_bots(uuid, integer), public.dev_conquest_bots_play(uuid), public.dev_conquest_next_period(uuid) to authenticated;
@@ -6015,9 +5998,7 @@ grant execute on function public.conquest_invite(uuid, uuid[]), public.conquest_
 -- 24: Dobývání – pozvánky pro přátele (conquest_invites; conquest_invite, conquest_invites_mine, conquest_decline_invite; conquest_join pustí
 --     pozvaného do soukromé hry bez kódu a pozvánku smaže, conquest_start pozvánky hry smaže; conquest_summary: invited přes conquest_invited_json;
 --     upozornění druhu 'conquest_invite' s klíčem cqi: v push_pending a push_mark přes conquest_invite_push_items a conquest_push_length, limit 10 minut).
--- 25: Dobývání – férové souběžné tahy: conquest_move a conquest_move_by mají parametr seen (stav území, který hráč viděl u otázky);
---     změnilo-li se území mezitím, tah se neprovede ani nespotřebuje (rychlejší hráč si území udrží).
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 25 $$;
+language sql immutable as $$ select 24 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

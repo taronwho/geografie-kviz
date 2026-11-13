@@ -210,31 +210,6 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         assert.equal(hit.players.find(p => p.me).score, 2);
     });
 
-    await t.test('souběžné útoky (blok 25): změnilo-li se území od otázky, tah se neprovede ani nespotřebuje; bez seen se posoudí podle aktuálního stavu', () => {
-        // Stav z předchozího testu (A drží Česko a Německo, B Polsko) se na konci obnoví, další testy na něj navazují
-        const lastMove = Number(q(`select coalesce(max(id), 0) from conquest_moves where game_id = '${game.id}'`));
-        place(game.id, 'Q183', null);
-        const seenMove = (uid, target, kind, correct, seen) => as(uid, `select conquest_move(${lit(game.id)}, ${lit(target)}, ${lit(kind)}, ${correct}, null, ${lit(JSON.stringify(seen))}::jsonb);`);
-        const before = json(as(A, `select conquest_state(${lit(game.id)});`)).budget.left;
-        // Oba vidí Německo volné; B odpoví dřív a dobude ho
-        assert.equal(json(seenMove(B, 'Q183', 'attack', true, { o: null, l: 0 })).move.r, 'capture');
-        // A odpoví později na stav, který už neplatí: tah se odmítne a A o něj nepřijde
-        denied(seenMove(A, 'Q183', 'attack', true, { o: null, l: 0 }), /Mezitím se území změnilo: teď ho drží .+\. Tah ti zůstává\./);
-        assert.equal(owner(game.id, 'Q183'), B);
-        assert.equal(json(as(A, `select conquest_state(${lit(game.id)});`)).budget.left, before, 'tah se nespotřeboval');
-        // Útok na nový stav (A už vidí, že území drží B) je běžný tah
-        const fresh = json(seenMove(A, 'Q183', 'attack', true, { o: B, l: 0 }));
-        assert.equal(fresh.move.r, 'capture');
-        assert.equal(owner(game.id, 'Q183'), A);
-        // Změna opevnění: A opevní, B útočí podle starého stavu (bez opevnění)
-        json(seenMove(A, 'Q183', 'fortify', true, { o: A, l: 0 }));
-        denied(seenMove(B, 'Q183', 'attack', true, { o: A, l: 0 }), /Mezitím se změnilo opevnění území \(teď Palisáda\)\. Tah ti zůstává\./);
-        // Bez seen (boti, starší aplikace) platí aktuální stav: útok palisádu pobourá
-        assert.equal(json(move(B, game.id, 'Q183', 'attack', true)).move.r, 'breach');
-        q(`delete from conquest_moves where game_id = '${game.id}' and id > ${lastMove}`);
-        place(game.id, 'Q183', A);
-    });
-
     await t.test('opevnění: palisáda, hradba, pevnost jen na domovském území; útok ubere úroveň, pak dobude', () => {
         json(move(A, game.id, 'Q183', 'fortify', true));
         json(move(A, game.id, 'Q183', 'fortify', true));
