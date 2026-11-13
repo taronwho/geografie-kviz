@@ -68,15 +68,20 @@
     const PRESET_NAMES = { 'evropa-3d': 'Rychlá hra', 'cesko-12h': 'Rychlá hra', 'afrika-7d': 'Rychlá hra' };
 
     // --- Barvy hráčů (stejný seznam má server: conquest_colors) ---
+    // Jen devět co nejodlišnějších barev (hráčů je nejvýš osm), aby se na mapě nepletly; speciální vzory můžou přibýt jako odměny
     const COLORS = [
-        ['cervena', 'Červená', '#d62839'], ['karminova', 'Karmínová', '#9e1b2c'], ['ruzova', 'Růžová', '#e0609c'], ['malinova', 'Malinová', '#b0207e'],
-        ['oranzova', 'Oranžová', '#ee7b16'], ['cihlova', 'Cihlová', '#b8512e'], ['jantarova', 'Jantarová', '#d99a0b'], ['zluta', 'Žlutá', '#e8c51e'],
-        ['olivova', 'Olivová', '#7d8a22'], ['limetkova', 'Limetková', '#7cbf2a'], ['zelena', 'Zelená', '#2f9a4a'], ['lesni', 'Lesní', '#1d6331'],
-        ['smaragdova', 'Smaragdová', '#0aa37a'], ['tyrkysova', 'Tyrkysová', '#19b2b0'], ['petrolejova', 'Petrolejová', '#0d7280'], ['azurova', 'Azurová', '#2d97e6'],
-        ['modra', 'Modrá', '#2453c9'], ['namornicka', 'Námořnická', '#1c2a6b'], ['indigova', 'Indigová', '#4b39b8'], ['fialova', 'Fialová', '#7c34c1'],
-        ['levandulova', 'Levandulová', '#9f84e6'], ['hneda', 'Hnědá', '#7b4f2b'], ['bridlicova', 'Břidlicová', '#4f5a68'], ['cerna', 'Černá', '#22201e']
+        ['cervena', 'Červená', '#d7263d'], ['oranzova', 'Oranžová', '#ec7012'], ['zluta', 'Žlutá', '#f5cc12'], ['zelena', 'Zelená', '#2c9a3c'],
+        ['tyrkysova', 'Tyrkysová', '#0fa8b0'], ['modra', 'Modrá', '#2152d0'], ['fialova', 'Fialová', '#8530c4'], ['ruzova', 'Růžová', '#ec4fa3'],
+        ['cerna', 'Černá', '#262422']
     ].map(([id, name, hex]) => ({ id, name, hex }));
-    const COLOR_BY_ID = Object.fromEntries(COLORS.map(color => [color.id, color]));
+    // Barvy z dřívější nabídky: vybrat už nejdou, rozehrané hry je ale dál vykreslí
+    const LEGACY_COLORS = [
+        ['karminova', 'Karmínová', '#9e1b2c'], ['malinova', 'Malinová', '#b0207e'], ['cihlova', 'Cihlová', '#b8512e'], ['jantarova', 'Jantarová', '#d99a0b'],
+        ['olivova', 'Olivová', '#7d8a22'], ['limetkova', 'Limetková', '#7cbf2a'], ['lesni', 'Lesní', '#1d6331'], ['smaragdova', 'Smaragdová', '#0aa37a'],
+        ['petrolejova', 'Petrolejová', '#0d7280'], ['azurova', 'Azurová', '#2d97e6'], ['namornicka', 'Námořnická', '#1c2a6b'], ['indigova', 'Indigová', '#4b39b8'],
+        ['levandulova', 'Levandulová', '#9f84e6'], ['hneda', 'Hnědá', '#7b4f2b'], ['bridlicova', 'Břidlicová', '#4f5a68']
+    ].map(([id, name, hex]) => ({ id, name, hex }));
+    const COLOR_BY_ID = Object.fromEntries([...COLORS, ...LEGACY_COLORS].map(color => [color.id, color]));
     const hexRgb = (hex) => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
     const rgbHex = (rgb) => `#${rgb.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('')}`;
     const mix = (hex, other, amount) => { const a = hexRgb(hex), b = hexRgb(other); return rgbHex(a.map((v, i) => v + (b[i] - v) * amount)); };
@@ -1337,14 +1342,14 @@
         </form>`;
     };
 
-    // Okno Barva a znak: přepínač Barva / Znak (6 × 4 velkých políček), obsazené barvy ve hře nejdou; náhled vlaječky
+    // Okno Barva a znak: přepínač Barva (3 × 3 políčka) / Znak (6 × 4 políčka), obsazené barvy ve hře nejdou; náhled vlaječky
     const lookHtml = ({ color, emblem, taken = [], tab = 'color', error = '' }) => `
         <div class="flex flex-col gap-2" data-cq-look>
             <div class="flex items-center justify-center gap-3">${pennantSvg(color, emblem, 'h-12 w-16')}<span class="text-[14px] font-black text-slate-800 dark:text-slate-100">${esc(colorOf(color).name)} · ${esc(emblemOf(emblem).name)}</span></div>
             <div role="tablist" class="flex gap-1 rounded-2xl bg-slate-200/70 p-1 dark:bg-slate-800">${[['color', 'Barva'], ['emblem', 'Znak']].map(([id, label]) => `<button type="button" role="tab" aria-selected="${tab === id}" data-cq-look-tab="${id}" class="flex min-h-[2.5rem] flex-1 items-center justify-center rounded-xl text-[13px] font-black ${tab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-300'}">${label}</button>`).join('')}</div>
-            ${tab === 'color' ? `<div role="radiogroup" aria-label="Barva" class="grid grid-cols-6 gap-1.5">${COLORS.map(item => {
+            ${tab === 'color' ? `<div role="radiogroup" aria-label="Barva" class="grid grid-cols-3 gap-1.5">${COLORS.map(item => {
                 const off = taken.includes(item.id) && item.id !== color;
-                return `<button type="button" role="radio" aria-checked="${item.id === color}" aria-label="${esc(item.name)}${off ? ' (má jiný hráč)' : ''}" data-cq-color="${item.id}" ${off ? 'disabled' : ''} class="relative h-11 rounded-xl disabled:opacity-25 ${item.id === color ? 'ring-[3px] ring-brand-700 ring-offset-2 dark:ring-gold-300 dark:ring-offset-slate-900' : 'ring-1 ring-black/15'}"><svg viewBox="0 0 10 10" preserveAspectRatio="none" class="h-full w-full rounded-xl" aria-hidden="true"><rect width="10" height="10" fill="${item.hex}"/></svg>${off ? '<i data-lucide="x" class="absolute inset-0 m-auto h-5 w-5 text-white"></i>' : ''}</button>`;
+                return `<button type="button" role="radio" aria-checked="${item.id === color}" aria-label="${esc(item.name)}${off ? ' (má jiný hráč)' : ''}" data-cq-color="${item.id}" ${off ? 'disabled' : ''} class="relative h-11 rounded-xl disabled:opacity-25 ${item.id === color ? 'ring-[3px] ring-brand-700 ring-offset-2 dark:ring-gold-300 dark:ring-offset-slate-900' : 'ring-1 ring-black/15'}"><svg viewBox="0 0 10 10" preserveAspectRatio="none" class="h-full w-full rounded-xl" aria-hidden="true"><rect width="10" height="10" fill="${item.hex}"/></svg>${off ? `<i data-lucide="x" class="absolute inset-0 m-auto h-5 w-5 ${emblemInk(item.id) === '#ffffff' ? 'text-white' : 'text-slate-900'}"></i>` : ''}</button>`;
             }).join('')}</div>`
             : `<div role="radiogroup" aria-label="Znak" class="grid grid-cols-6 gap-1.5">${EMBLEMS.map(item => `<button type="button" role="radio" aria-checked="${item.id === emblem}" aria-label="${esc(item.name)}" title="${esc(item.name)}" data-cq-emblem="${item.id}" class="flex h-11 items-center justify-center rounded-xl ${item.id === emblem ? 'ring-[3px] ring-brand-700 ring-offset-2 dark:ring-gold-300 dark:ring-offset-slate-900' : 'ring-1 ring-black/15'}"><svg viewBox="0 0 24 24" class="h-11 w-full rounded-xl" aria-hidden="true"><rect width="24" height="24" fill="${colorOf(color).hex}"/><g transform="translate(3 3) scale(0.75)">${item.draw(emblemInk(color))}</g></svg></button>`).join('')}</div>`}
             <button type="button" data-cq="look-done" class="${BRAND_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="check" class="h-5 w-5"></i> Hotovo</button>

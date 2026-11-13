@@ -4982,9 +4982,9 @@ language sql stable set search_path = public as $$
     select coalesce(nullif(current_setting('mudrlant.test_now', true), '')::timestamptz, now())
 $$;
 -- Barvy a znaky hráčů (stejné seznamy má conquest.js: COLORS a EMBLEMS, hlídá tests/conquest.test.js)
+-- Jen devět co nejodlišnějších barev (dřívější barvy už hráči v rozehraných hrách mají dál, vybrat je ale nejde)
 create or replace function public.conquest_colors() returns text[]
-language sql immutable as $$ select array['cervena', 'karminova', 'ruzova', 'malinova', 'oranzova', 'cihlova', 'jantarova', 'zluta', 'olivova', 'limetkova',
-    'zelena', 'lesni', 'smaragdova', 'tyrkysova', 'petrolejova', 'azurova', 'modra', 'namornicka', 'indigova', 'fialova', 'levandulova', 'hneda', 'bridlicova', 'cerna']::text[] $$;
+language sql immutable as $$ select array['cervena', 'oranzova', 'zluta', 'zelena', 'tyrkysova', 'modra', 'fialova', 'ruzova', 'cerna']::text[] $$;
 create or replace function public.conquest_emblems() returns text[]
 language sql immutable as $$ select array['lev', 'orel', 'sova', 'drak', 'koruna', 'mec', 'kotva', 'strom', 'hvezda', 'slunce', 'mesic', 'blesk',
     'vez', 'klic', 'kladivo', 'lod', 'jelen', 'medved', 'vlk', 'lilie', 'stit', 'srdce', 'plamen', 'kosatka']::text[] $$;

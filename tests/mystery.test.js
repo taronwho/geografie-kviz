@@ -258,3 +258,15 @@ test('nápovědy se řadí podle toho, jak moc prozrazují: popis s letopočty a
     assert.equal(clues.find(clue => clue.parts.some(part => part.type === 'text')).title, 'Z popisu', 'první zobrazená věta je Z popisu');
     assert.equal(clues.length, 8);
 });
+
+test('přísné zakrytí textových nápověd: státy, národnosti, vlastní jména a letopočty zmizí, začátek věty zůstane; úryvek neopakuje popis', () => {
+    const masked = M.strongMask('[***] byla střežená betonová bariéra, která v letech 1961–1989 obklopovala Západní [***] a oddělovala jej od Východního [***] a Německé demokratické republiky.');
+    assert.equal(masked, '[***] byla střežená betonová bariéra, která v letech ****–**** obklopovala [***] a oddělovala jej od [***] a [***] demokratické republiky.');
+    assert.equal(M.strongMask('Stala se symbolem studené války, rozdělení [***], Německa a Evropy. Součástí byly strážní věže.'), 'Stala se symbolem studené války, rozdělení [***], [***] a [***]. Součástí byly strážní věže.');
+    assert.equal(M.strongMask('Leží na břehu řeky, místní mu říkají „Stará“ a německé turisty láká.'), 'Leží na břehu řeky, místní mu říkají „[***]“ a [***] turisty láká.');
+    const data = { typeLabel: 'stavba', name: 'Berlínská zeď', questionText: 'Stala se symbolem studené války, rozdělení [***], Německa a Evropy. Byla dlouhá a střežená.',
+        leadFacts: [], hints: [{ kind: 'excerpt', text: 'Stala se symbolem studené války, rozdělení [***], Německa a Evropy. Součástí byly strážní věže rozmístěné podél zdí.' }], photoUrl: null };
+    const texts = M.buildClues(data).flatMap(clue => clue.parts.filter(part => part.type === 'text').map(part => part.text));
+    assert.equal(texts.filter(text => text.includes('symbolem studené války')).length, 1, 'věta z popisu se v úryvku neopakuje');
+    assert.ok(texts.every(text => !/Německ|německ/.test(text)));
+});

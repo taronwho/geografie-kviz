@@ -23,8 +23,8 @@ const loadAllTopics = () => (allTopics = allTopics || Object.fromEntries(ALL_TOP
 const schema = fs.readFileSync(path.join(ROOT, 'supabase', 'schema.sql'), 'utf8');
 const sqlList = (name) => [...new RegExp(`function public\\.${name}\\(\\) returns text\\[\\]\\s+language sql immutable as \\$\\$ select array\\[([^\\]]+)\\]`).exec(schema)[1].matchAll(/'([a-z]+)'/g)].map(m => m[1]);
 
-test('barvy a znaky: 24 a 24, shodné se serverem, platné kresby a barvy', () => {
-    assert.equal(C.COLORS.length, 24);
+test('barvy a znaky: 9 co nejodlišnějších barev a 24 znaků, shodné se serverem, platné kresby a barvy', () => {
+    assert.equal(C.COLORS.length, 9);
     assert.equal(C.EMBLEMS.length, 24);
     assert.deepEqual(C.COLORS.map(c => c.id), sqlList('conquest_colors'));
     assert.deepEqual(C.EMBLEMS.map(e => e.id), sqlList('conquest_emblems'));
@@ -35,13 +35,23 @@ test('barvy a znaky: 24 a 24, shodné se serverem, platné kresby a barvy', () =
     }
     // Znak na vlaječce má proti barvě kontrast (světlé barvy tmavý znak)
     assert.equal(C.emblemInk('zluta'), '#2a1d10');
-    assert.equal(C.emblemInk('namornicka'), '#ffffff');
+    assert.equal(C.emblemInk('modra'), '#ffffff');
+    // Dřívější barvy (rozehrané hry) se dál vykreslí
+    assert.equal(C.colorOf('namornicka').hex, '#1c2a6b');
+    // Každé dvě barvy z nabídky jsou od sebe daleko (aby se hráči na mapě nepletli)
+    const rgb = (hex) => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+    for (const a of C.COLORS) for (const b of C.COLORS) if (a.id < b.id) {
+        const [x, y] = [rgb(a.hex), rgb(b.hex)];
+        const mean = (x[0] + y[0]) / 2;
+        const dist = Math.sqrt((2 + mean / 256) * (x[0] - y[0]) ** 2 + 4 * (x[1] - y[1]) ** 2 + (2 + (255 - mean) / 256) * (x[2] - y[2]) ** 2);
+        assert.ok(dist > 150, `${a.id} a ${b.id} jsou si moc podobné (${Math.round(dist)})`);
+    }
     for (const emblem of C.EMBLEMS) {
         const markup = emblem.draw('#fff');
         assert.ok(markup.length > 40 && !/NaN|undefined/.test(markup), emblem.id);
         assert.doesNotMatch(markup, /style=/);
     }
-    assert.equal(new Set(C.COLORS.map(c => c.name)).size, 24);
+    assert.equal(new Set(C.COLORS.map(c => c.name)).size, 9);
     assert.equal(new Set(C.EMBLEMS.map(e => e.name)).size, 24);
 });
 
