@@ -97,6 +97,8 @@
         if (item.c === 'stat' || (item.co || []).length !== 1 || !countries[item.co[0]] || isSharedName(item, items)) return false;
         const countryId = item.co[0];
         if (DISPUTED.has(countryId) || (countryId === ISRAEL && item.la !== undefined && distanceKm(item, JERUSALEM) < 25)) return false;
+        // Místa v Česku: český název a popis (jižní Čechy, Jindřichohradecko, Morava) odpověď prozradí vždycky, otázka by byla zadarmo
+        if (countryId === CZECHIA_QID) return false;
         if (censorCountry(item.n, countries[countryId].name, getCountryAliases(item.co)).includes('[***]')) return false;
         // U měst se jiná města nehledají (Dillí × Nové Dillí)
         return item.c === 'mesto' || !knownCities(countryId, items, item).some(city => namesCity(item.n, city));

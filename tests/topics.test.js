@@ -103,19 +103,22 @@ const asText = (list) => list.map(fact => `${fact.label}: ${fact.value}`.replace
 test('zeměpis: na stát se ptá jen tam, kde to dává smysl', () => {
     const always = () => 0;
     const ask = (item) => zemepis.specialQuestion(item, geoCtx, always);
-    const prague = ask(place('Q1085', 'Praha', 'mesto', ['Q213']));
-    assert.equal(prague.type, 'location');
-    assert.equal(prague.answerLabel, 'Česko');
-    assert.ok(prague.showName);
-    assert.ok(prague.choices.every(choice => choice.topic === 'zemepis' && COUNTRIES_TABLE[choice.id]));
-    assert.ok(core.isAnswerMatch('Česká republika', prague.accepted));
+    const vienna = ask(place('Q1741', 'Vídeň', 'mesto', ['Q40']));
+    assert.equal(vienna.type, 'location');
+    assert.equal(vienna.answerLabel, 'Rakousko');
+    assert.ok(vienna.showName);
+    assert.ok(vienna.choices.every(choice => choice.topic === 'zemepis' && COUNTRIES_TABLE[choice.id]));
+    assert.ok(core.isAnswerMatch('Rakousko', vienna.accepted));
+    // Místa v Česku ne: český název a popis (jižní Čechy, Morava) odpověď prozradí, otázka by byla zadarmo
+    assert.equal(ask(place('Q1085', 'Praha', 'mesto', ['Q213'])), null);
+    assert.equal(ask(place('Q1', 'Červená Lhota', 'stavba', ['Q213'])), null);
     // Stát sám, místo na hranici dvou států, název prozrazující stát, stát mimo tabulku
     assert.equal(ask(place('Q213', 'Česko', 'stat', ['Q213'])), null);
     assert.equal(ask(place('Q170424', 'Sněžka', 'hora', ['Q213', 'Q36'])), null);
     assert.equal(ask(place('Q1288', 'Česká Lípa', 'mesto', ['Q213'])), null);
     assert.equal(ask(place('Q1', 'Ostrov', 'ostrov', ['Q99'])), null);
     // Jen asi u třetiny otázek
-    assert.equal(zemepis.specialQuestion(place('Q1085', 'Praha', 'mesto', ['Q213']), geoCtx, () => 0.9), null);
+    assert.equal(zemepis.specialQuestion(place('Q1741', 'Vídeň', 'mesto', ['Q40']), geoCtx, () => 0.9), null);
 });
 
 test('zeměpis: zakrytí státu a vyhledání napsaného státu', () => {
@@ -411,11 +414,11 @@ test('nesprávné možnosti ve skutečných datech: stejný druh, blízko, stejn
         assert.ok(options.filter(o => ['Slovensko', 'Rakousko', 'Polsko', 'Německo', 'Maďarsko'].includes(o.n)).length >= 2, options.map(o => o.n).join(', '));
     }
     const zemepisCtx = contexts.zemepis;
-    const bridge = find('zemepis', 'Karlův most');
-    const location = zemepisCtx.topic.specialQuestion(bridge, zemepisCtx, (() => { let first = true; const rng = core.createSeededRandom('most'); return () => first ? (first = false, 0.1) : rng(); })());
+    const castle = find('zemepis', 'Neuschwanstein');
+    const location = zemepisCtx.topic.specialQuestion(castle, zemepisCtx, (() => { let first = true; const rng = core.createSeededRandom('zamek'); return () => first ? (first = false, 0.1) : rng(); })());
     assert.equal(location.type, 'location');
     assert.ok(location.choices.every(choice => COUNTRIES[choice.id].continent === 'EU'));
-    assert.ok(location.choices.filter(choice => ['Slovensko', 'Rakousko', 'Polsko', 'Německo'].includes(choice.label)).length >= 2, location.choices.map(c => c.label).join(', '));
+    assert.ok(location.choices.filter(choice => ['Rakousko', 'Švýcarsko', 'Česko', 'Lichtenštejnsko', 'Francie', 'Itálie'].includes(choice.label)).length >= 2, location.choices.map(c => c.label).join(', '));
 
     // Historie: k panovnici panovnice, k Masarykovi čeští prezidenti, k husitské bitvě husitské bitvy
     everyOption('historie', 'Alžběta I.', other => other.sx === 'f', 'Alžběta I. – jen ženy');
@@ -458,8 +461,9 @@ test('otázka na stát: ne u názvů s městem státu ani na sporných územích
     const topic = TOPICS.find(t => t.id === 'zemepis');
     const ctx = { topic, items: data.items, collections: data.collections, countries: COUNTRIES };
     const ask = (name) => topic.specialQuestion(data.items.find(item => item.n === name), ctx, () => 0);
-    for (const name of ['Pražský hrad', 'Katedrála svatého Štěpána ve Vídni', 'Opera v Sydney', 'Betlém', 'Priština']) assert.equal(ask(name), null, name);
-    for (const name of ['Karlův most', 'Paříž', 'Brno']) assert.equal(ask(name).type, 'location', name);
+    // Místa v Česku (Karlův most, Brno) ne: odpověď prozradí český název a popis
+    for (const name of ['Pražský hrad', 'Katedrála svatého Štěpána ve Vídni', 'Opera v Sydney', 'Betlém', 'Priština', 'Karlův most', 'Brno']) assert.equal(ask(name), null, name);
+    for (const name of ['Paříž', 'Neuschwanstein', 'Koloseum', 'Atomium']) assert.equal(ask(name).type, 'location', name);
     const bridge = data.items.find(item => item.n === 'Karlův most');
     assert.ok(!/Praze|Česk/.test(topic.censor('location', 'Gotický most v Praze, nejstarší v Česku.', bridge, ctx)));
 });
