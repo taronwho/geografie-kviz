@@ -74,7 +74,9 @@
     // 18 = ligové sezóny (league_seasons) a vitrína v profilu (profiles.showcase), odznaky Album sbírky v katalogu odznaků (se starší databází
     // se sezóny a vitrína jen nenabídnou, odznaky alba zůstanou v zařízení a album je spočítá znovu).
     // 19 = Tajemná otázka dne (mystery_*), odznaky Detektiv; 20 = nápovědy Tajemné otázky přes celý den (poslední ve 20:00).
-    const REQUIRED_SCHEMA = 22;
+    // 23 = Dobývání: o tah méně po ztrátě domovského hradu a upozornění na útoky (profiles.push_conquest; se starší databází se dlaždice
+    // Dobývání v upozorněních neukáže).
+    const REQUIRED_SCHEMA = 23;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -1203,20 +1205,22 @@
         const text = kind === 'unsupported' && pushState.ios ? PUSH_TEXTS.iphone : PUSH_TEXTS[kind];
         if (kind === 'unsupported') return `<div class="flex min-h-[3rem] items-center gap-3 px-3 py-2"><i data-lucide="bell-off" class="h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400"></i><span class="min-w-0 flex-1"><span class="block text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">Upozornění</span><span class="mt-0.5 block text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400">${text}</span></span></div>`;
         const on = kind === 'on';
-        // Co posílat: dvě malé přepínací dlaždice (ikona a popisek) vedle spínače upozornění, ne další řádek – karta Hra se šestnácti
-        // barevnými tématy se tak i se zapnutými upozorněními vejde bez posouvání (390×780 i 360×640)
-        const pref = (key, icon, label, title) => { const yes = Boolean(pushPrefs[key]); return `<button type="button" data-push-pref="${key}" role="switch" aria-checked="${yes}" title="${title}" aria-label="${title}" class="flex h-11 w-12 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl transition-colors active:scale-95 ${yes ? 'bg-brand-50 text-brand-700 ring-1 ring-brand-300 dark:bg-brand-900/40 dark:text-brand-200 dark:ring-brand-700' : 'bg-slate-100 text-slate-500 dark:bg-slate-700/60 dark:text-slate-400'}"><i data-lucide="${icon}" class="h-4 w-4"></i><span class="text-[9.5px] font-black leading-none ${yes ? '' : 'line-through decoration-2'}">${label}</span></button>`; };
+        // Co posílat: malé přepínací dlaždice (ikona a popisek: turnaje, výzvy, útoky v Dobývání) vedle spínače upozornění, ne další řádek –
+        // karta Hra se šestnácti barevnými tématy se tak i se zapnutými upozorněními vejde bez posouvání (390×780 i 360×640).
+        // Dlaždice Dobývání jen s databází, která volbu zná (schéma 23, Push.getPrefs vrátí conquest true/false). Se třemi dlaždicemi (44 px,
+        // popisek 9 px) má spínač menší mezery (SETTING_HALF), ať se nápis Upozornění vejde i na 360 px
+        const pref = (key, icon, label, title) => { const yes = Boolean(pushPrefs[key]); return `<button type="button" data-push-pref="${key}" role="switch" aria-checked="${yes}" title="${title}" aria-label="${title}" class="flex h-11 w-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl transition-colors active:scale-95 ${yes ? 'bg-brand-50 text-brand-700 ring-1 ring-brand-300 dark:bg-brand-900/40 dark:text-brand-200 dark:ring-brand-700' : 'bg-slate-100 text-slate-500 dark:bg-slate-700/60 dark:text-slate-400'}"><i data-lucide="${icon}" class="h-4 w-4"></i><span class="text-[9px] font-black leading-none ${yes ? '' : 'line-through decoration-2'}">${label}</span></button>`; };
         const busyText = pushBusy === 'on' ? 'Zapínám… (potvrď dotaz prohlížeče)' : pushBusy === 'off' ? 'Vypínám…' : '';
         const note = !busyText && pushNote ? pushNote : null;
         return `
             <div data-push-panel>
                 <div class="flex items-center${on && pushPrefs ? ' gap-1 pr-2' : ''}">
-                <button type="button" data-push-toggle="${on ? 'off' : 'on'}" role="switch" aria-checked="${on}"${pushBusy ? ' disabled aria-busy="true"' : ''} class="${SETTING_ROW} min-w-0 flex-1">
+                <button type="button" data-push-toggle="${on ? 'off' : 'on'}" role="switch" aria-checked="${on}"${pushBusy ? ' disabled aria-busy="true"' : ''} class="${on && pushPrefs ? SETTING_HALF : SETTING_ROW} min-w-0 flex-1">
                     <i data-lucide="${busyText ? 'hourglass' : on ? 'bell' : 'bell-off'}" class="h-5 w-5 shrink-0 ${busyText ? 'animate-pulse text-brand-700 dark:text-brand-300' : on ? 'text-brand-700 dark:text-brand-300' : 'text-slate-500 dark:text-slate-400'}"></i>
                     <span class="min-w-0 flex-1"><span class="block text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">Upozornění</span><span data-push-status class="mt-0.5 block text-[11px] font-semibold leading-snug ${busyText || (note && note.tone === 'error') ? 'short:truncate' : 'short:hidden'} ${note ? PUSH_TONE[note.tone] : 'text-slate-500 dark:text-slate-400'}">${escapeHtml(busyText || (note ? note.short : text))}</span></span>
                     ${switchMark(on)}
                 </button>
-                ${on && pushPrefs ? `<div class="flex shrink-0 gap-1" role="group" aria-label="Co posílat">${pref('tournament', 'trophy', 'Turnaje', 'Upozornění: kola a zprávy turnaje')}${pref('challenge', 'swords', 'Výzvy', 'Upozornění: výzvy od hráčů')}</div>` : ''}
+                ${on && pushPrefs ? `<div class="flex shrink-0 gap-0.5" role="group" aria-label="Co posílat">${pref('tournament', 'trophy', 'Turnaje', 'Upozornění: kola a zprávy turnaje')}${pref('challenge', 'swords', 'Výzvy', 'Upozornění: výzvy od hráčů')}${typeof pushPrefs.conquest === 'boolean' ? pref('conquest', 'castle', 'Dobývání', 'Upozornění: útoky v Dobývání') : ''}</div>` : ''}
                 </div>
                 ${note && note.advice ? `<p data-push-advice role="${note.tone === 'error' ? 'alert' : 'status'}" class="mx-3 mb-2.5 rounded-xl bg-rose-50 px-2.5 py-1.5 text-[11px] font-semibold leading-snug text-rose-800 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:ring-rose-800/60">${escapeHtml(note.advice)}</p>` : ''}
             </div>`;
@@ -12508,6 +12512,9 @@
             // Upozornění k výzvě (pozvánka, soupeř dohrál): rovnou okno výzvy s výsledky
             const pushCode = Social ? Social.parseCode(String(event.data.vyzva || '')) : '';
             if (pushCode) openChallenge(pushCode);
+            // Upozornění na útok v Dobývání: rovnou hra (ConquestUI.openCode otevře hru, kterou hráč hraje)
+            const conquestCode = ConquestUI ? ConquestUI.parseCode(String(event.data.dobyvani || '')) : '';
+            if (conquestCode) ConquestUI.openCode(conquestCode);
             if (test) showToast('Klepnutí na upozornění funguje: otevřela se záložka Více hráčů');
         });
         document.addEventListener('visibilitychange', () => {

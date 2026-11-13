@@ -67,7 +67,7 @@ test('funkci, kterou hráč už používá, tip nenabídne; tip se ukáže jen j
         state = Tips.markShown(state, tip.id, `2026-12-${String(day + 1).padStart(2, '0')}`, now);
         now += 86400000;
     }
-    assert.deepEqual(offered, ['reakce', 'pratele'], 'zkušený hráč dostane jen to, co ještě nezná');
+    assert.deepEqual(offered, ['reakce', 'pratele', 'dobyvani-hrad'], 'zkušený hráč dostane jen to, co ještě nezná (nové pravidlo Dobývání zná málokdo)');
     assert.equal(new Set(offered).size, offered.length);
 });
 
@@ -182,4 +182,20 @@ test('tip na Řetězovku dne: brzy, vede na ni; kdo ji dohrál nebo ji aplikace 
     assert.match(tip.text, /Záchrana/);
     assert.equal(at(base({ counters: { answered: 50, chainDone: 1 } })), null);
     assert.equal(at(base({ counters: { answered: 50 }, chain: false })), null);
+});
+
+test('tip Braň svůj hrad (Dobývání): jen přihlášenému, který Dobývání už otevřel; pravidlo o tahu méně a upozornění na útoky', () => {
+    const at = (ctx, state = Tips.EMPTY) => Tips.pick({ ...state, seen: Tips.TIPS.filter(tip => tip.id !== 'dobyvani-hrad').map(tip => tip.id) }, ctx);
+    const visited = Tips.touch(Tips.EMPTY, 'conquest');
+    assert.equal(at(base({ counters: { answered: 50 }, signedIn: true })), null, 'kdo Dobývání neotevřel, nejdřív dostane tip Dobývání');
+    assert.equal(at(base({ counters: { answered: 50 } }), visited), null, 'host ne');
+    assert.equal(at(base({ counters: { answered: 50 }, signedIn: true, multiAvailable: false }), visited), null, 'bez Více hráčů ne');
+    const tip = at(base({ counters: { answered: 50 }, signedIn: true }), visited);
+    assert.equal(tip.id, 'dobyvani-hrad');
+    assert.deepEqual(tip.action, { kind: 'conquest', label: 'Otevřít Dobývání' });
+    assert.equal(tip.art, 'hrad-domov');
+    assert.match(tip.text, /kdo o něj přijde, má v dalším období o 1 tah méně/);
+    assert.match(tip.text, /upozorněními se o útoku na tvá území dozvíš hned/);
+    // Bez rodu hráče (žádné „přišel jsi“, „dozvěděl ses“)
+    assert.doesNotMatch(tip.text, /\b(přišel|přišla|dozvěděl|dozvěděla|byl jsi|byla jsi)\b/);
 });

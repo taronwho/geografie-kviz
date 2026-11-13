@@ -1,5 +1,6 @@
 // Web push v databázi (PostgreSQL 16): odběry (RLS, tvar, přepis stejného zařízení), tajemství v app_secrets, push_due (turnajový zápas dne,
-// příchozí výzva, nepřečtená zpráva; dedupe, část dne, hodinový limit, předvolby) a push_mark (odeslané klíče, chyby, smazání odběrů).
+// příchozí výzva, nepřečtená zpráva, útoky v Dobývání; dedupe, část dne, hodinový a desetiminutový limit, předvolby) a push_mark (odeslané klíče,
+// chyby, smazání odběrů).
 // Čas se simuluje nastavením mudrlant.test_today a mudrlant.test_hour. Spouští se jen když je dostupný psql a server (viz tests/sql-rating.test.js).
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -351,5 +352,96 @@ test('SQL: web push (odběry, tajemství, push_due, push_mark)', { skip: !availa
         assert.equal(q(`select count(*) from push_tests`), '1');
         assert.equal(q(`select count(*) from information_schema.table_constraints where table_name = 'push_tests' and constraint_type = 'FOREIGN KEY'`), '1');
         q(`delete from push_tests; delete from push_sent; delete from push_subscriptions where user_id in ('${ADMIN}', '${OTHER}'); delete from dev_admins where user_id = '${ADMIN}';`);
+    });
+
+    await t.test('Dobývání (blok 23): útok soupeře = jedno souhrnné upozornění oběti; nejzávažnější událost v nadpisu; ne útočníkovi ani botovi; vypnutelné; dedupe a 10 minut', () => {
+        const [VICTIM, ATTACKER, BOT] = [id(11), id(12), '00000000-0000-4000-8000-0000000000b1'];
+        q(`insert into auth.users (id, email, raw_user_meta_data) values ('${BOT}', 'bot-${BOT}@bots.invalid', '{"full_name": "Bot Adam"}')`);
+        q(`delete from push_sent`);
+        const conquest = () => dueRows(TUE, 9).filter(row => row.kind === 'conquest');
+        const play = (uid, sql) => { const r = ok(as(uid, TUE, sql)); return JSON.parse(last(r)); };
+        const attack = (uid, game, target, correct, source) => play(uid, `select conquest_move('${game}', '${target}', 'attack', ${correct}, '${source}');`).move;
+        // Hra tří hráčů (oběť, útočník, bot): plná hra začne sama
+        const game = play(VICTIM, `select conquest_create('evropa', 3, 72, 'day', 10, 'private', 'cervena', 'lev');`);
+        play(ATTACKER, `select conquest_join(null, '${game.code}', 'modra', 'orel');`);
+        play(BOT, `select conquest_join(null, '${game.code}', 'zelena', 'vlk');`);
+        assert.equal(q(`select status from conquest_games where id = '${game.id}'`), 'running');
+        q(`update conquest_territories set owner = null, level = 0, home = false, treasure = false where game_id = '${game.id}';
+           update conquest_territories set owner = '${VICTIM}', home = (territory = 'Q213'), level = case territory when 'Q213' then 2 else 0 end where game_id = '${game.id}' and territory in ('Q213', 'Q214', 'Q40');
+           update conquest_territories set owner = '${ATTACKER}', home = true where game_id = '${game.id}' and territory = 'Q36';
+           update conquest_territories set owner = '${BOT}', home = true where game_id = '${game.id}' and territory = 'Q183';`);
+        for (const [uid, n] of [[VICTIM, 60], [ATTACKER, 61], [BOT, 62]]) ok(as(uid, TUE, `select push_subscribe('${endpointOf(n)}', '${P256DH}', '${AUTH}');`));
+        assert.deepEqual(conquest(), [], 'bez útoku nic');
+        // Útočník dobude Slovensko (sousedí s Českem oběti): upozornění jen oběti, s odkazem do hry
+        const first = attack(ATTACKER, game.id, 'Q214', true, 'Q36');
+        assert.equal(first.r, 'capture');
+        let rows = conquest();
+        assert.equal(rows.length, 1, JSON.stringify(rows));
+        assert.deepEqual([rows[0].user, rows[0].endpoint], [VICTIM, endpointOf(60)]);
+        assert.equal(rows[0].title, 'Dobývání: jedno tvé území padlo');
+        assert.equal(rows[0].body, 'Útočník: Hráč 12. Území sousedí s tvými, můžeš ho dobýt zpět.');
+        assert.equal(rows[0].url, `./?dobyvani=${game.code}`);
+        assert.equal(rows[0].key, `cq:${game.id}:${VICTIM}:${first.id}`);
+        // Vlastní tahy oběti (opevnění) nic nespustí; vypnutá upozornění z Dobývání nic, ostatní druhy zůstanou zapnuté
+        play(VICTIM, `select conquest_move('${game.id}', 'Q40', 'fortify', true);`);
+        assert.equal(conquest().length, 1);
+        ok(as(VICTIM, TUE, `update profiles set push_conquest = false where id = '${VICTIM}';`));
+        assert.deepEqual(conquest(), [], 'vypnuté Dobývání');
+        assert.equal(q(`select push_tournament and push_challenge from profiles where id = '${VICTIM}'`), 't');
+        ok(as(VICTIM, TUE, `update profiles set push_conquest = true where id = '${VICTIM}';`));
+        // Odesláno: push_mark zapíše druh conquest a oběť; tentýž útok se neopakuje
+        mark([rows[0].key], { okEndpoints: [rows[0].endpoint] });
+        assert.equal(q(`select kind || ' ' || user_id from push_sent where dedupe_key = '${rows[0].key}'`), `conquest ${VICTIM}`);
+        assert.deepEqual(conquest(), [], 'odeslané se neopakuje');
+        // Bot pobourá hradbu domova oběti: nové upozornění až 10 minut po posledním (ne 55), bez dřívějšího dobytí
+        const breach = attack(BOT, game.id, 'Q213', true, 'Q183');
+        assert.deepEqual([breach.r, breach.l], ['breach', 1]);
+        assert.deepEqual(conquest(), [], 'do 10 minut nic');
+        q(`update push_sent set sent_at = sent_at - interval '11 minutes'`);
+        rows = conquest();
+        assert.equal(rows.length, 1);
+        assert.equal(rows[0].title, 'Dobývání: tvoje hradba je pobořená');
+        assert.equal(rows[0].body, 'Útočník: Bot Adam. Zbývá palisáda, opevni se znovu.');
+        assert.equal(rows[0].key, `cq:${game.id}:${VICTIM}:${breach.id}`);
+        // Víc útoků do odeslání: nadpis podle nejzávažnějšího (padlý domov), počet dalších útoků, útočník padlého domova
+        const repelled = attack(ATTACKER, game.id, 'Q213', false, 'Q36');
+        assert.equal(repelled.r, 'fail');
+        attack(BOT, game.id, 'Q213', true, 'Q183');
+        const home = attack(ATTACKER, game.id, 'Q213', true, 'Q36');
+        assert.deepEqual([home.r, home.h], ['capture', true]);
+        rows = conquest();
+        assert.equal(rows.length, 1);
+        assert.equal(rows[0].title, 'Dobývání: padl tvůj domovský hrad (+3 další útoky)');
+        assert.equal(rows[0].body, 'Útočník: Hráč 12. V dalším období máš o tah méně. Opevni se, nebo vrať úder.');
+        assert.equal(rows[0].key, `cq:${game.id}:${VICTIM}:${home.id}`);
+        assert.equal(rows.filter(row => row.user !== VICTIM).length, 0, 'útočník ani bot nic');
+        mark([rows[0].key], { okEndpoints: [rows[0].endpoint] });
+        q(`update push_sent set sent_at = sent_at - interval '11 minutes'`);
+        assert.deepEqual(conquest(), []);
+        // Útok na bota (i s odběrem) botovi upozornění nepošle
+        attack(ATTACKER, game.id, 'Q183', true, 'Q36');
+        assert.deepEqual(conquest(), [], 'bot nedostane nic');
+        // Rakousko oběti má palisádu: pobourání (poslední úroveň), pak dobytí posledního území – nové domovské území přijde v dalším období
+        assert.equal(attack(ATTACKER, game.id, 'Q40', true, 'Q213').r, 'breach');
+        rows = conquest();
+        assert.deepEqual([rows[0].title, rows[0].body], ['Dobývání: tvoje palisáda je pobořená', 'Útočník: Hráč 12. Další úspěšný útok území dobude, opevni se.']);
+        assert.equal(attack(ATTACKER, game.id, 'Q40', true, 'Q213').r, 'capture');
+        rows = conquest();
+        assert.equal(rows.length, 1);
+        assert.deepEqual([rows[0].title, rows[0].body], ['Dobývání: jedno tvé území padlo (+1 další útok)', 'Útočník: Hráč 12. V dalším období dostaneš nové domovské území.']);
+        // Staré útoky (ve hře s obdobím den přes 12 hodin, s obdobím hodina přes 2 hodiny) a dohraná hra nic
+        q(`update conquest_moves set at = now() - interval '13 hours' where game_id = '${game.id}'`);
+        assert.deepEqual(conquest(), [], 'starší než 12 hodin');
+        q(`update conquest_moves set at = now() - interval '3 hours' where game_id = '${game.id}'`);
+        assert.equal(conquest().length, 1, 'hra na dny: 3 hodiny staré útoky platí');
+        q(`update conquest_games set period = 'hour' where id = '${game.id}'`);
+        assert.deepEqual(conquest(), [], 'hra na hodiny: 3 hodiny staré útoky ne');
+        q(`update conquest_games set period = 'day', status = 'finished' where id = '${game.id}'`);
+        assert.deepEqual(conquest(), [], 'dohraná hra');
+        // Počet dalších útoků česky
+        assert.deepEqual(q(`select string_agg(conquest_push_more(n), '|' order by n) from unnest(array[0, 1, 2, 4, 5, 21]) n`).split('|'),
+            ['', ' (+1 další útok)', ' (+2 další útoky)', ' (+4 další útoky)', ' (+5 dalších útoků)', ' (+21 dalších útoků)']);
+        denied(as(VICTIM, TUE, `select * from conquest_push_items();`), 'pomocná funkce není pro hráče');
+        q(`delete from push_sent; delete from push_subscriptions where user_id in ('${VICTIM}', '${ATTACKER}', '${BOT}');`);
     });
 });

@@ -103,6 +103,7 @@ self.addEventListener('fetch', (event) => {
 });
 
 // Web push (odesílá GitHub Actions, viz docs/SUPABASE.md): ukáže upozornění a po klepnutí otevře aplikaci na záložce Více hráčů
+// (upozornění k výzvě rovnou výzvu, upozornění na útok v Dobývání rovnou hru: parametry vyzva a dobyvani)
 const pushText = (value, max, fallback) => (typeof value === 'string' && value.trim() ? value.trim().slice(0, max) : fallback);
 // Jedna funkce pro skutečný push i pro zkoušku z vývojářského režimu (zpráva push-test od stránky): stejné ořezání textů, ikona, tag a adresa
 const showPush = (data) => {
@@ -137,7 +138,8 @@ self.addEventListener('notificationclick', (event) => {
         const open = windows.find(client => new URL(client.url).origin === scope.origin);
         if (open) {
             await open.focus();
-            open.postMessage({ type: 'push-open', tab: target.searchParams.get('tab') || '', vyzva: target.searchParams.get('vyzva') || '', kind: pushText(event.notification.data && event.notification.data.kind, 30, '') });
+            open.postMessage({ type: 'push-open', tab: target.searchParams.get('tab') || '', vyzva: target.searchParams.get('vyzva') || '', dobyvani: target.searchParams.get('dobyvani') || '',
+                kind: pushText(event.notification.data && event.notification.data.kind, 30, '') });
         } else {
             await self.clients.openWindow(target.href);
         }

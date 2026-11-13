@@ -291,7 +291,8 @@ pořadí, týdenní XP, výzva, export, smazání účtu), `tests/groups.test.js
 
 ## Upozornění (web push)
 
-Aplikace umí poslat upozornění: **začíná tvůj turnajový zápas** (dnes hraješ kolo, večer podruhé), **nová výzva od hráče**, **soupeř odehrál tvoji výzvu** a **zpráva o turnaji** (nepřijat, zrušen, vypadl jsi, výsledek).
+Aplikace umí poslat upozornění: **začíná tvůj turnajový zápas** (dnes hraješ kolo, večer podruhé), **nová výzva od hráče**, **soupeř odehrál tvoji výzvu**, **zpráva o turnaji** (nepřijat, zrušen, vypadl jsi, výsledek)
+a **útok v Dobývání** (schéma 23: padlý hrad, dobyté území, pobořené opevnění, odražený útok; jedno souhrnné za hru, nejvýš jednou za 10 minut, sloupec `profiles.push_conquest`).
 Odesílá je GitHub Actions (`.github/workflows/push.yml`, posílá se mezi 7:00 a 21:00 pražského času). Spouští ho hodinový plán GitHubu, který ale běží nespolehlivě
 (někdy jen párkrát za den), a po nastavení [okamžitého odesílání](#okamžité-odesílání-upozornění) hlavně sama databáze, takže upozornění přijde do 1–2 minut.
 Nepoužívá se žádný klíč `service_role` ani `sb_secret_…`: odesílač volá v databázi funkce `push_due` a `push_mark` s veřejným klíčem z `config.js` a vlastním tajemstvím,

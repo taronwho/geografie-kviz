@@ -125,17 +125,23 @@
             return { ok: removed };
         };
 
-        // Co hráč chce dostávat; starší databáze bez sloupců vrátí null (volby se pak neukážou)
+        // Co hráč chce dostávat (turnaje, výzvy, útoky v Dobývání); starší databáze bez sloupců vrátí null (volby se pak neukážou).
+        // Databáze před schématem 23 nemá push_conquest: turnaje a výzvy se ukážou, conquest je null (dlaždice Dobývání se neukáže).
         const getPrefs = async (userId) => {
+            const read = async (columns) => {
+                const rows = await rest('GET', `profiles?id=eq.${encodeURIComponent(userId)}&select=${columns}`);
+                return Array.isArray(rows) && rows[0] ? rows[0] : null;
+            };
             try {
-                const rows = await rest('GET', `profiles?id=eq.${encodeURIComponent(userId)}&select=push_tournament,push_challenge`);
-                const row = Array.isArray(rows) ? rows[0] : null;
-                return row ? { tournament: row.push_tournament !== false, challenge: row.push_challenge !== false } : null;
+                let row;
+                try { row = await read('push_tournament,push_challenge,push_conquest'); } catch (error) { row = await read('push_tournament,push_challenge'); }
+                return row ? { tournament: row.push_tournament !== false, challenge: row.push_challenge !== false, conquest: 'push_conquest' in row ? row.push_conquest !== false : null } : null;
             } catch (error) { return null; }
         };
         const savePrefs = async (userId, prefs) => {
-            await rest('PATCH', `profiles?id=eq.${encodeURIComponent(userId)}`, { push_tournament: Boolean(prefs.tournament), push_challenge: Boolean(prefs.challenge) });
-            return { tournament: Boolean(prefs.tournament), challenge: Boolean(prefs.challenge) };
+            const conquest = typeof prefs.conquest === 'boolean' ? prefs.conquest : null;
+            await rest('PATCH', `profiles?id=eq.${encodeURIComponent(userId)}`, { push_tournament: Boolean(prefs.tournament), push_challenge: Boolean(prefs.challenge), ...(conquest === null ? {} : { push_conquest: conquest }) });
+            return { tournament: Boolean(prefs.tournament), challenge: Boolean(prefs.challenge), conquest };
         };
 
         // Diagnostika pro vývojářský režim: co prohlížeč a server o upozorněních vědí (bez klíčů předplatného; endpoint jen zkráceně)
