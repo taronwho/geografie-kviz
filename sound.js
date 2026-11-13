@@ -29,7 +29,12 @@
         // Odznak: třpytivé dva tóny a třetí výš
         badge: [n(783.99, 0, 0.1, { type: 'sine' }), n(987.77, 0.08, 0.1, { type: 'sine' }), n(1567.98, 0.16, 0.28, { type: 'sine', gain: 0.16 })],
         // Nový rekord: krátká fanfára
-        record: [n(392, 0, 0.1), n(523.25, 0.1, 0.1), n(659.25, 0.2, 0.1), n(783.99, 0.3, 0.16), n(659.25, 0.46, 0.08), n(1046.5, 0.54, 0.45), n(523.25, 0.54, 0.45, { type: 'sine', gain: 0.12 })]
+        record: [n(392, 0, 0.1), n(523.25, 0.1, 0.1), n(659.25, 0.2, 0.1), n(783.99, 0.3, 0.16), n(659.25, 0.46, 0.08), n(1046.5, 0.54, 0.45), n(523.25, 0.54, 0.45, { type: 'sine', gain: 0.12 })],
+        // Zlatá otázka (gold.js): třpytivé stoupání nad tichým tónem, když se objeví
+        gold: [n(1046.5, 0, 0.07, { type: 'sine', gain: 0.11 }), n(1318.51, 0.06, 0.07, { type: 'sine', gain: 0.12 }), n(1567.98, 0.12, 0.07, { type: 'sine', gain: 0.13 }),
+            n(1975.53, 0.18, 0.32, { type: 'sine', gain: 0.13 }), n(783.99, 0, 0.5, { gain: 0.07 })],
+        // Zlatý střípek: dvojí jasné cinknutí, když střípek doletí do počítadla
+        shard: [n(1318.51, 0, 0.06, { type: 'sine', gain: 0.13 }), n(1975.53, 0.07, 0.26, { type: 'sine', gain: 0.14 }), n(987.77, 0.07, 0.26, { gain: 0.06 })]
     };
     // Vibrace: krátké cvrnknutí při chybě, rytmus při novém rekordu
     const VIBRATIONS = { wrong: 40, record: [70, 50, 70, 50, 160] };

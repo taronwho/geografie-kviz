@@ -18,7 +18,11 @@ test('symboly odznaků: skupiny, obrázky, zdroje a mezipaměť', () => {
     assert.deepEqual(art.filter(id => !groups.has(id)), [], 'každý symbol patří existující skupině');
     // Odznaky alba sbírky mají obrázek Sběratel (album.js BADGE_ART, docs/OBRAZKY.md č. 149), skupina sberatel je i v BADGE_ART
     const album = (group) => group.badges.every(badge => core.isAlbumBadge(badge.id));
-    const missing = core.BADGE_GROUPS.filter(group => !group.topic && !art.includes(group.id) && !/^(tema|zbehly)-/.test(group.id) && !album(group)).map(group => group.id);
+    // Odznaky Zlatokop mají symbol z gold.js (ART.badge: do dodání obrázku č. 211 zástupný obrázek, který už je v mezipaměti)
+    const Gold = require('../gold.js');
+    assert.ok(fs.existsSync(path.join(ROOT, 'icons', 'topics', `${Gold.ART.badge}.webp`)), `symbol Zlatokopa ${Gold.ART.badge}.webp`);
+    assert.ok(sw.includes(`'${Gold.ART.badge}'`), 'symbol Zlatokopa je v mezipaměti');
+    const missing = core.BADGE_GROUPS.filter(group => !group.topic && !art.includes(group.id) && !/^(tema|zbehly)-/.test(group.id) && !album(group) && group.id !== Gold.BADGE_GROUP).map(group => group.id);
     assert.deepEqual(missing, [], 'každá skupina (kromě témat a alba) má symbol');
     const standIn = require('../album.js').BADGE_ART;
     assert.equal(standIn, 'odznak-sberatel');
