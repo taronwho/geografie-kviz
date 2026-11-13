@@ -41,6 +41,8 @@
             action: { kind: 'multi', label: 'Zkusit' }, used: (u) => num(u.counters.challenges) >= 3 },
         { id: 'ciselne', icon: 'list-ordered', after: 16, title: 'Seřaď a Odhadni', text: 'Občas přijde otázka Seřaď nebo Odhadni. U Seřaď klepáním urči pořadí čtyř položek: za správné pořadí dostaneš 4 body, za jednu prohozenou sousední dvojici 2 body. U Odhadni napiš číslo: čím blíž správné hodnotě, tím víc bodů.',
             ready: (u) => num(u.counters.orderAnswered) + num(u.counters.estimateAnswered) > 0, used: (u) => num(u.counters.orderAnswered) + num(u.counters.estimateAnswered) >= 6 },
+        { id: 'souvislosti', icon: 'hourglass', after: 20, title: 'Časové souvislosti', text: 'Občas přijde otázka na vztahy v čase: co bylo vynalezeno dřív, kdo z nabízených osobností se mohl potkat, co vzniklo až po něčí smrti. Nápověda ukáže dobu na časové ose a po odpovědi uvidíš všechny možnosti na jedné ose s roky.',
+            ready: (u) => num(u.counters.timeAnswered) > 0, used: (u) => num(u.counters.timeAnswered) >= 6 },
         { id: 'mapa', icon: 'crosshair', after: 18, title: 'Ukaž na mapě', text: 'Klepni do slepé mapy tam, kde podle tebe hledané místo leží. Značku pak můžeš posunout a mapu přiblížit. Čím blíž se trefíš, tím víc bodů. Když získáš aspoň 1 bod, počítá se odpověď jako správná.',
             ready: (u) => num(u.counters.mapAnswered) > 0, used: (u) => num(u.counters.mapAnswered) >= 5 },
         { id: 'hvezdy', icon: 'star', after: 22, title: 'Mistrovství témat', text: 'V každém tématu sbíráš hvězdičky podle toho, kolik různých položek už znáš. V Mém postupu klepni na téma a uvidíš, co ti k další hvězdičce chybí a co za ni dostaneš.',

@@ -26,13 +26,16 @@
     "build:literatura": "node scripts/build-literatura.mjs",
     "build:film": "node scripts/build-film.mjs",
     "build:sport": "node scripts/build-sport.mjs",
+    "build:vynalezy": "node scripts/build-vynalezy.mjs",
+    "build:souvislosti": "node scripts/build-souvislosti.mjs",
     "build": "npm run build:icons && npm run build:css",
     "test": "node --test",
     "audit:photo-text": "node scripts/photo-text.mjs",
     "audit:photo-masks": "node scripts/photo-masks.mjs",
     "audit:questions": "node scripts/audit-questions.mjs",
     "audit:otazky": "node scripts/audit-questions.mjs",
-    "audit:mapa": "node scripts/audit-mapa.mjs"
+    "audit:mapa": "node scripts/audit-mapa.mjs",
+    "audit:souvislosti": "node scripts/audit-souvislosti.mjs"
   },
   "devDependencies": {
     "web-push": "^3.6.7"
