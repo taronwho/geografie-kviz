@@ -279,8 +279,8 @@
         'Metropolitní muzeum v New Yorku': 'Metropolitní muzeum umění', 'MoMA v New Yorku': 'Muzeum moderního umění', 'Uměleckohistorické muzeum ve Vídni': 'Uměleckohistorické muzeum', 'Belvedere ve Vídni': 'Belvedere' };
     // Druhy staveb: co se dá postavit („stojí“), ne archeologická naleziště, náměstí, průplavy a posvátná místa
     const SKIP_LANDMARK_TYPES = new Set(['starověké město', 'archeologická lokalita', 'náměstí', 'posvátné místo', 'průplav', 'kromlech', 'ulice', 'park', 'zahrada', 'přírodní památka']);
-    // Místa, která do hry o stavbách nepatří (koncentrační tábory, věznice)
-    const SKIP_LANDMARK_NAMES = /tábor|věznic|ghett|obětem|obětí/i;
+    // Místa, která do hry o stavbách nepatří (koncentrační tábory, věznice) a stavby, které už nestojí (Bastila, divy světa)
+    const SKIP_LANDMARK_NAMES = /tábor|věznic|ghett|obětem|obětí|^(?:Bastila|Herculaneum|Kolos rhodský|Maják na Faru|Alexandrijský maják|Visuté zahrady Semiramidiny|Mauzoleum v Halikarnassu|Artemidin chrám v Efesu|Diova socha v Olympii|Světové obchodní centrum)$/i;
     // Města, u kterých „ve státě“ není samozřejmé (zámořská území, zvláštní správní oblasti)
     const SKIP_CITIES = new Set(['Gibraltar', 'Hongkong', 'Macao', 'Nuuk']);
     // Ostrovy, které nejsou jednoznačně „ve státě“ (nezačleněná území) nebo ho prozradí
@@ -1549,7 +1549,14 @@
             const state = load();
             if (!state.intro) { state.intro = true; save(state); }
             store(attempt);
-            renderPlay({ phase: attempt.pending && attempt.pending.phase === 'decide' ? 'decide' : 'ask' });
+            // Rozehraná hra s nerozhodnutou Záchranou (aplikace se zavřela po špatné odpovědi): rozhodnutí čeká dál
+            if (attempt.pending && attempt.pending.phase === 'decide') {
+                const ask = currentAsk(attempt);
+                const chosen = ask.question.options.find(option => option.id === attempt.pending.chosen);
+                renderPlay({ phase: 'decide', ask, marks: { chosen: attempt.pending.chosen, right: false }, panel: decideHtml({ chosenName: chosen ? chosen.name : '', practice: attempt.practice }) });
+                return;
+            }
+            renderPlay({ phase: 'ask' });
         };
         const startPractice = async () => {
             if (opening || busy) return;
