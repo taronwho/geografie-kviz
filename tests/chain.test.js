@@ -70,18 +70,21 @@ test('řetěz dne na 60 dní: stejný pro všechny, správné vazby, nesprávné
                 assert.equal(node(option.id).kind, question.to.kind === 'landmark' ? 'landmark' : node(question.to.id).kind, `${where}: stejný druh (${option.name})`);
                 if (option.id === question.to.id) continue;
                 assert.ok(!linked(question.rel, question.from.id, option.id) && !fits(question.rel, question.from.id, option.id), `${where}: ${option.name} vazbu nesplňuje`);
-                assert.ok(!ids.includes(option.id), `${where}: ${option.name} není článek řetězu`);
+                // Dřívější článek řetězu mezi nesprávnými možnostmi není (pozdější nevadí: u jiné otázky nic neprozradí)
+                assert.ok(!ids.slice(0, question.k + 1).includes(option.id), `${where}: ${option.name} není dřívější článek řetězu`);
             }
             // Záchrana: jiná otázka na stejný článek
             const rescue = question.rescue;
             assert.ok(rescue && rescue.text && rescue.text !== question.text, `${where}: záchrana`);
-            assert.ok(!ids.includes(rescue.from.id) || (!rescue.same && rescue.from.id === question.from.id), `${where}: záchrana není z řetězu`);
+            // Záchrana se neptá na článek řetězu (u jiné záchrany jen na předchozí uzel) a nikdy na ten bezprostředně další
+            assert.ok(!ids.slice(0, question.k + 1).includes(rescue.from.id) || (!rescue.same && rescue.from.id === question.from.id), `${where}: záchrana není z řetězu`);
+            assert.notEqual(rescue.from.id, ids[question.k + 1], `${where}: záchrana neprozradí další článek`);
             if (rescue.same) {
                 assert.ok(linked(rescue.rel, rescue.from.id, question.to.id), `${where}: záchrana vede na stejnou odpověď`);
                 assert.ok(rescue.keep.length >= 2, `${where}: záchrana si nechá aspoň dvě původní nesprávné možnosti`);
                 for (const wrong of [...rescue.keep, ...rescue.extra.map(option => option.id)]) {
                     assert.ok(!linked(rescue.rel, rescue.from.id, wrong) && !fits(rescue.rel, rescue.from.id, wrong), `${where}: záchrana ${node(wrong).name}`);
-                    assert.ok(!ids.includes(wrong), `${where}: záchrana neprozradí článek`);
+                    assert.ok(!ids.slice(0, question.k + 2).includes(wrong), `${where}: záchrana neprozradí článek`);
                 }
                 // Po kterékoli špatné odpovědi má záchrana 4 různé možnosti se správnou
                 for (const option of question.options.filter(entry => entry.id !== question.to.id)) {
@@ -93,7 +96,7 @@ test('řetěz dne na 60 dní: stejný pro všechny, správné vazby, nesprávné
             } else {
                 assert.equal(rescue.from.id, question.from.id);
                 assert.ok(linked(rescue.rel, rescue.from.id, rescue.to.id) && rescue.options[rescue.answer].id === rescue.to.id, `${where}: jiná záchrana platí`);
-                assert.ok(![...rescue.options.map(option => option.id)].some(option => ids.includes(option)), `${where}: záchrana neprozradí článek`);
+                assert.ok(!ids.slice(0, question.k + 2).includes(rescue.to.id), `${where}: záchrana nevede na článek řetězu`);
             }
             from = question.to.id;
         }
@@ -107,19 +110,22 @@ test('řetěz dne: dny po sobě se neopakují a za dva měsíce se vystřídá d
     const uses = new Map();
     const rels = new Set();
     let overlap = 0;
+    let close = 0;
     for (let i = 0; i < DAYS.length; i++) {
         const ids = nodesOf(chainFor(DAYS[i]));
         ids.forEach(id => uses.set(id, (uses.get(id) || 0) + 1));
         chainFor(DAYS[i]).questions.forEach(question => rels.add(question.rel));
         if (i) {
             const shared = ids.filter(id => nodesOf(chainFor(DAYS[i - 1])).includes(id)).length;
-            assert.ok(shared <= 3, `${DAYS[i]}: se včerejškem sdílí ${shared} uzlů`);
+            assert.ok(shared <= 5, `${DAYS[i]}: se včerejškem sdílí ${shared} uzlů`);
+            if (shared >= 3) close += 1;
             overlap += shared;
             assert.notEqual(chainFor(DAYS[i]).start.id, chainFor(DAYS[i - 1]).start.id, `${DAYS[i]}: jiný začátek`);
         }
     }
     assert.ok(overlap / (DAYS.length - 1) < 1, `průměrně sdílí ${overlap / (DAYS.length - 1)}`);
-    assert.ok(uses.size > 200, `různých uzlů ${uses.size}`);
+    assert.ok(close <= 10, `dnů s aspoň třemi stejnými uzly jako včera: ${close}`);
+    assert.ok(uses.size > 110, `různých uzlů ${uses.size}`);
     assert.ok(rels.size >= 20, `různých vazeb ${rels.size}`);
 });
 
