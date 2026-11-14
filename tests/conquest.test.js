@@ -1259,3 +1259,31 @@ test('možnosti: dvě jména téže věci mezi nimi nejsou (stejné místo do 1 
     const poland = sets('Q36');
     assert.ok(poland.some(labels => labels.includes('Lech Poznań') && labels.includes('Warta Poznań')), 'Lech a Warta Poznań spolu smějí');
 });
+
+test('Dobývání: název území uprostřed a celý uvnitř (labelSpot, labelMax, labelAt)', () => {
+    const evropa = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'dobyvani-evropa.json'), 'utf8'));
+    for (const name of ['Rakousko', 'Česko', 'Itálie', 'Norsko', 'Chorvatsko', 'Švýcarsko']) {
+        const item = evropa.t.find(t => t.n === name);
+        const rings = C.parseRings(item.d);
+        const ratio = name.length * 0.56;
+        const max = C.labelMax(item, rings, ratio);
+        assert.ok(max > 5, `${name} ${max}`);
+        for (const marked of [false, true]) {
+            const spot = C.labelAt(item, rings, ratio, max * 0.9, max, marked);
+            assert.ok(spot.inside, name);
+            // Celý pás textu (od vrchu písmen po ocásky, s okrajem) je uvnitř území
+            const half = (ratio * spot.size) / 2;
+            for (const dy of [-0.74, -0.37, 0, 0.24]) for (const dx of [-half, 0, half]) {
+                assert.ok(C.pointInRings(spot.x + dx, spot.y + dy * spot.size, rings), `${name} ${dx} ${dy}`);
+            }
+        }
+    }
+    // Rakousko: název vodorovně u středu území, ne posunutý na úzký východní cíp k Vídni
+    const at = evropa.t.find(t => t.n === 'Rakousko');
+    const spot = C.labelFit(at, C.parseRings(at.d), 8 * 0.56, 4, 30);
+    assert.ok(spot.inside && spot.x > at.b[0] + 25 && spot.x < at.b[2] - 25, JSON.stringify(spot));
+    // Malé území (Lucembursko): nevejde se, zůstane na středu v nejmenší velikosti
+    const lux = evropa.t.find(t => t.n === 'Lucembursko');
+    const small = C.labelFit(lux, C.parseRings(lux.d), 11 * 0.56, 7, 18);
+    assert.ok(!small.inside && small.size === 7 && Math.abs(small.x - lux.a[0]) < 6);
+});

@@ -389,13 +389,29 @@ const tapTerritory = async (tab, id) => {
         const hit = svg.querySelector(`.cq-hit[data-t="${territory}"]`);
         const data = window.__cqAnchor || null;
         const ctm = svg.getScreenCTM();
+        // Bod u středu území: nad výchozím místem popisku, nebo (u už ukázaného, usazeného popisku) uprostřed textu
         const x = Number(label.getAttribute('x'));
-        const y = Number(label.getAttribute('y')) - Number(label.getAttribute('font-size') || 10) * 1.2;
+        const size = Number(label.getAttribute('font-size') || 10);
+        const inside = (py) => { try { return hit.isPointInFill(new DOMPoint(x, py)); } catch (e) { return false; } };
+        const y = [Number(label.getAttribute('y')) - size * 1.2, Number(label.getAttribute('y')) - size * 0.25].find(inside) ?? Number(label.getAttribute('y')) - size * 1.2;
         return { x: ctm.a * x + ctm.c * y + ctm.e, y: ctm.b * x + ctm.d * y + ctm.f, ok: Boolean(hit), data };
     }, id);
     assert.ok(point.ok);
     await tab.mouse.click(point.x, point.y);
 };
+
+// Popisek území: viditelný, velikost na displeji (px) a jestli je celý (bez okrajů písma) uvnitř území
+const labelBox = (tab, id) => tab.evaluate((territory) => {
+    const svg = document.querySelector('[data-cq-map] svg');
+    const text = svg.querySelector(`[data-label="${territory}"]`);
+    const hit = svg.querySelector(`.cq-hit[data-t="${territory}"]`);
+    const box = text.getBBox();
+    const mx = box.width * 0.04, my = box.height * 0.18;
+    const corners = [[box.x + mx, box.y + my], [box.x + box.width - mx, box.y + my], [box.x + mx, box.y + box.height - my], [box.x + box.width - mx, box.y + box.height - my]];
+    const vb = svg.viewBox.baseVal, rect = svg.getBoundingClientRect();
+    const px = Number(text.getAttribute('font-size')) * Math.min(rect.width / vb.width, rect.height / vb.height);
+    return { shown: getComputedStyle(text).display !== 'none', inside: corners.every(([x, y]) => hit.isPointInFill(new DOMPoint(x, y))), px };
+}, id);
 
 test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, async (t) => {
     const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
@@ -607,7 +623,11 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             assert.match(await tab.textContent('[data-cq-sheet]'), /Rakousko[\s\S]*Neutrální území[\s\S]*Poklad: \+1 tah/);
             assert.equal(await tab.locator('[data-cq-source]').count(), 0, 'odkud útok vede, se nevybírá (na výsledek vliv nemá)');
             assert.match(await tab.textContent('[data-cq-sheet] [data-cq-region]'), /^Region Střední Evropa · /);
+            // Název území uprostřed území a celý uvnitř (7–18 px; jen do území, které je na displeji menší než název v 7 px, se nevejde)
             await shot(tab, `list-${width}-${colorScheme}`);
+            const label = await labelBox(tab, 'Q40');
+            assert.ok(label.shown && label.px >= 6.8 && label.px <= 18.1, JSON.stringify(label));
+            assert.ok(label.inside || label.px < 7.3, `název Rakouska je celý uvnitř území ${JSON.stringify(label)}`);
             db.force.push('capture');
             await tab.click('[data-cq-sheet] [data-cq="attack"]');
             await tab.waitForSelector('[data-cq-answer]', { timeout: 30000 });
@@ -662,7 +682,13 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             await tab.mouse.move(rect.x + rect.width * 0.55, rect.y + rect.height * 0.6);
             await tab.mouse.wheel(0, -900);
             await tab.waitForSelector('[data-cq="zoom-reset"].flex');
+            // Po přiblížení je Rakousko na displeji velké: název je větší a celý uvnitř území
+            await tapTerritory(tab, 'Q40');
+            await tab.waitForTimeout(300);
+            const zoomed = await labelBox(tab, 'Q40');
+            assert.ok(zoomed.shown && zoomed.inside && zoomed.px > label.px, `přiblížené Rakousko ${JSON.stringify(zoomed)} (celá mapa ${JSON.stringify(label)})`);
             await shot(tab, `priblizeni-${width}-${colorScheme}`);
+            if (await tab.locator('[data-cq-sheet] [data-cq="sheet-close"]').count()) await tab.click('[data-cq-sheet] [data-cq="sheet-close"]');
             await tab.click('[data-cq="zoom-reset"]');
             await tab.waitForSelector('[data-cq="zoom-reset"].hidden', { state: 'attached' });
             // Kronika tažení

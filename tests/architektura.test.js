@@ -180,3 +180,18 @@ test('architektura: upřesnění v závorce (město, stát) neprozradí popis an
     const spor = data.items.find(item => item.c === 'stavby' && /Městská/.test(item.n) && item.f.city);
     if (spor) assert.ok(!topic.facts(spor, ctx, 'name').some(fact => fact.label === 'Město'));
 });
+
+test('architektura: obrázek, který neukazuje stavbu (sad, model, rytina, jiná stavba v areálu), se nepoužije', () => {
+    const poljana = find('Jasná Poljana');
+    assert.ok(poljana && topic.offSubjectPhoto(poljana), 'sad s poníkem u Jasné Poljany');
+    assert.equal(topic.questionTitle(poljana), 'Co je to za místo?');
+    assert.ok(topic.offSubjectPhoto({ c: 'stavby', q: 'Q1', n: 'Chrám', t: 'Chrám', im: 'Temple model - 2013.jpg' }));
+    assert.ok(topic.offSubjectPhoto({ c: 'stavby', q: 'Q1', n: 'Dům', t: 'Dům', im: 'House, 1825 engraving.png' }));
+    // Slovo z vlastního názvu stavby obrázek nevyřadí, ostatní kategorie a běžné fotky zůstanou
+    assert.ok(!topic.offSubjectPhoto({ c: 'stavby', q: 'Q1', n: 'Horse Guards', t: 'Horse Guards', im: 'Horse Guards Parade.jpg' }));
+    assert.ok(!topic.offSubjectPhoto({ c: 'architekti', q: 'Q1', n: 'I. M. Pei', t: 'I. M. Pei', im: 'Pei looking at model.jpg' }));
+    const sound = data.items.filter(item => item.c === 'stavby' && item.im && item.k === 1 && !topic.offSubjectPhoto(item));
+    assert.ok(sound.length > 400, `${sound.length} známých staveb s obrázkem`);
+    assert.ok(data.items.filter(item => topic.offSubjectPhoto(item)).length < 20);
+    assert.equal(topic.questionTitle(find('Karlův most')), null);
+});
