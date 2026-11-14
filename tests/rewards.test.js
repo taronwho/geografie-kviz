@@ -259,3 +259,19 @@ test('nové odznaky: Kvíz dne, Bleskovka, Přežití, mapa, odhad a Seřaď pod
     assert.equal(Look.badgeRewardText('kviz-dne'), '', 'jen sláva: bez řádku s odměnou');
     for (const item of Look.AVATARS.filter(entry => entry.badge)) assert.ok(core.BADGE_BY_ID[item.badge], `${item.title}: odznak ${item.badge}`);
 });
+
+// Pomůcky do Dobývání (blok 30): ISO týden pro klíč truhly (chest:<RRRR-Wtt>, shodně s player_items_week) a řádek v otevřené truhle
+test('Truhla Mudrlanta a pomůcka do Dobývání: ISO týden jako na serveru a řádek „A navíc pomůcka do Dobývání“', () => {
+    for (const [day, week] of [['2026-11-12', '2026-W46'], ['2026-11-16', '2026-W47'], ['2026-12-31', '2026-W53'], ['2027-01-01', '2026-W53'], ['2021-01-03', '2020-W53'], ['2026-01-01', '2026-W01'], ['2024-12-30', '2025-W01']]) {
+        assert.equal(Rewards.isoWeek(day), week, day);
+    }
+    assert.equal(Rewards.isoWeek('nesmysl'), '');
+    const schema = fs.readFileSync(path.join(ROOT, 'supabase', 'schema.sql'), 'utf8');
+    assert.match(schema, /player_items_week\(d date\) returns text\s+language sql immutable as \$\$ select to_char\(d, 'IYYY-"W"IW'\) \$\$;/);
+    const opened = { opened: true, gift: null, xp: 250, freeze: false };
+    const h = { itemArt: (kind, cls) => `<span data-test-art="${kind}" class="${cls}"></span>` };
+    assert.doesNotMatch(Rewards.chestHtml({ opened }, h), /data-chest-pomucka/);
+    const html = Rewards.chestHtml({ opened: { ...opened, pomucka: { kind: 'fifty', name: 'Půl na půl' } } }, h);
+    assert.match(html, /data-chest-pomucka[^>]*>[\s\S]*data-test-art="fifty"[\s\S]*A navíc pomůcka do Dobývání: Půl na půl<\/p>/);
+    assert.doesNotMatch(html, /style=/);
+});

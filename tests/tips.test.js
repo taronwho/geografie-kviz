@@ -67,7 +67,7 @@ test('funkci, kterou hráč už používá, tip nenabídne; tip se ukáže jen j
         state = Tips.markShown(state, tip.id, `2026-12-${String(day + 1).padStart(2, '0')}`, now);
         now += 86400000;
     }
-    assert.deepEqual(offered, ['reakce', 'pratele', 'dobyvani-hrad', 'dobyvani-blesk', 'dobyvani-bitvy'], 'zkušený hráč dostane jen to, co ještě nezná (nová pravidla Dobývání zná málokdo)');
+    assert.deepEqual(offered, ['reakce', 'pratele', 'dobyvani-hrad', 'dobyvani-blesk', 'dobyvani-bitvy', 'dobyvani-pomucky'], 'zkušený hráč dostane jen to, co ještě nezná (nová pravidla Dobývání zná málokdo)');
     assert.equal(new Set(offered).size, offered.length);
 });
 
@@ -190,6 +190,18 @@ test('tip Bitvy o území (Dobývání): přihlášenému, který Dobývání u�
     assert.deepEqual(tip.action, { kind: 'conquest', label: 'Otevřít Dobývání' });
     assert.match(tip.text, /můžeš se přidat\. Všichni dostanou stejnou otázku a 60 s, území získá nejrychlejší správná odpověď\. Riskantní/);
     assert.doesNotMatch(tip.text, /\b(zaútočil|zaútočila|odpověděl|odpověděla|přidal|přidala)\b/);
+});
+
+test('tip Pomůcky do Dobývání: přihlášenému, který Dobývání už otevřel; obě pomůcky, odkud jsou a jednou za hru, bez rodu hráče', () => {
+    const at = (ctx, state = Tips.EMPTY) => Tips.pick({ ...state, seen: Tips.TIPS.filter(tip => tip.id !== 'dobyvani-pomucky').map(tip => tip.id) }, ctx);
+    const visited = Tips.touch(Tips.EMPTY, 'conquest');
+    assert.equal(at(base({ counters: { answered: 50 }, signedIn: true })), null, 'kdo Dobývání neotevřel, nejdřív dostane tip Dobývání');
+    assert.equal(at(base({ counters: { answered: 50 } }), visited), null, 'host ne');
+    const tip = at(base({ counters: { answered: 50 }, signedIn: true }), visited);
+    assert.equal(tip.id, 'dobyvani-pomucky');
+    assert.deepEqual(tip.action, { kind: 'conquest', label: 'Otevřít Dobývání' });
+    assert.match(tip.text, /Bosse týdne[\s\S]*Tah navíc[\s\S]*Kvíz dne bez chyby, celá Řetězovka nebo výhra v Dobývání dají Půl na půl[\s\S]*jen jednou/);
+    assert.doesNotMatch(tip.text, /\b(použil|použila|získal|získala|dostal|dostala)\b/);
 });
 
 test('tip Braň svůj hrad (Dobývání): jen přihlášenému, který Dobývání už otevřel; pravidlo o tahu méně a upozornění na útoky', () => {

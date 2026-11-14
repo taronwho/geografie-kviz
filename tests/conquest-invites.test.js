@@ -201,7 +201,7 @@ test('social.js: pozvat (jen platná id, nejvýš 7), moje pozvánky (kdo zve, k
         const before = calls.length;
         await assert.rejects(Social.conquestInvite('g-1', ['u-2']), (error) => error.status === 404);
         assert.equal(calls.length, before, 'podruhé se o pozvánky nežádá');
-        assert.deepEqual(await Social.conquestLobby(), { open: [], mine: [] });
+        assert.deepEqual(await Social.conquestLobby(), { open: [], mine: [], items: null });
     } finally {
         delete global.self;
         delete global.fetch;

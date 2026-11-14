@@ -88,7 +88,10 @@ test('SQL: Řetězovka dne', { skip: !available && 'PostgreSQL není dostupný' 
         assert.equal(json(submit(D, 2, 3, true)).score, 3);
         // E: nula (hned první článek špatně); F: dohráno ve 23:59, odesláno po půlnoci → patří ke včerejšku
         assert.equal(json(submit(E, 0, 0)).rank, 5);
-        assert.deepEqual(json(submit(F, 7, 28, false, at('0:03', '2026-11-13'), DAY)), { day: DAY, links: 7, score: 28, rescued: false, rank: 1 });
+        // (celý řetěz dá i pomůcku Půl na půl do Dobývání, blok 30; víc tests/sql-pomucky.test.js)
+        const { item, ...late } = json(submit(F, 7, 28, false, at('0:03', '2026-11-13'), DAY));
+        assert.deepEqual(late, { day: DAY, links: 7, score: 28, rescued: false, rank: 1 });
+        assert.deepEqual([item.kind, item.granted, item.count], ['fifty', true, 1]);
     });
 
     await t.test('pravidla řádků: hráč vidí jen svůj řádek; kontrola hodnot v tabulce', () => {

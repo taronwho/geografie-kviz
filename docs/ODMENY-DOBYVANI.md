@@ -1,7 +1,8 @@
 # Odměny pro Dobývání (návrh)
 
-Cíl: dát hráčům důvod hrát Dobývání znovu a ukázat se před ostatními. Všechny odměny jsou **jen vzhled** (žádná herní výhoda,
-nic se nekupuje). Většina se získá v Dobývání, část i v jiných módech (Sezóna Mudrlanta, Truhla Mudrlanta, Boss týdne, Kvíz dne,
+Cíl: dát hráčům důvod hrát Dobývání znovu a ukázat se před ostatními. Odměny v oddílech 1–6 jsou **jen vzhled** (žádná herní
+výhoda, nic se nekupuje). Jedinou herní výhodou jsou dvě vzácné **pomůcky** (oddíl 9, už ve hře): malé, jednou za hru a se stropem
+zásoby, aby nerozhodovaly hru za hráče. Většina se získá v Dobývání, část i v jiných módech (Sezóna Mudrlanta, Truhla Mudrlanta, Boss týdne, Kvíz dne,
 Zlatá otázka, Řetězovka, turnaje), aby Dobývání táhlo hráče z ostatních módů a naopak.
 
 Kde je hráč uvidí a nastaví: v okně **Barva a znak** přibudou záložky **Vzor** a **Hrad** (k dnešním Barva a Znak). Zamčené věci
@@ -89,9 +90,11 @@ bitev), Mořeplavec (100 území přes moře), Bleskový stratég (10 výher v B
 
 ## 7. Jak se to propojí s jinými módy
 
-- **Sezóna Mudrlanta**: 5. a 15. stupeň dají věc do Dobývání (vzor, znak nebo efekt, který hráč ještě nemá), zimní a jarní sezóny
-  mají vlastní efekty a Ledové krystaly.
-- **Truhla Mudrlanta**: s malou šancí vzácnost do Dobývání (Duha, Kouzelný prach), jinak jako dnes.
+- **Sezóna Mudrlanta**: 5. a 15. stupeň dají přihlášenému hráči pomůcku do Dobývání (oddíl 9; s plnou zásobou běžnou věc). Vzhled
+  do Dobývání (vzor, znak nebo efekt, který hráč ještě nemá) proto patří na jiné stupně; zimní a jarní sezóny mají vlastní efekty
+  a Ledové krystaly.
+- **Truhla Mudrlanta**: vzácně (5 %, nejvýš jednou za týden) navíc pomůcka Půl na půl (oddíl 9); s malou šancí vzácnost do Dobývání
+  (Duha, Kouzelný prach), jinak jako dnes.
 - **Boss týdne, Kvíz dne, Zlatá otázka, Řetězovka**: po jednom vzoru (tabulka výš) – hráč, který tyto módy hraje, má v Dobývání
   hned čím se odlišit.
 - **Vitrína a Album**: nová stránka „Zbrojnice“ s vystavenými vzory, znaky a hrady (počet 12 + 12 + 3 + 6).
@@ -103,3 +106,43 @@ bitev), Mořeplavec (100 území přes moře), Bleskový stratég (10 výher v B
 2. Volba vzhledu ve hře: `conquest_players` dostane `pattern`, `castle_set`, `effect` (server ověří, že je hráč má odemčené).
 3. Vykreslení: vzor v `pennantGroup` a `sealSvg` (maska praporce + textura), hrad podle sady v `BUILDINGS`, efekty v conquest-ui.js.
 4. Obrázky: č. 278–308 v docs/OBRAZKY.md (oddíl 24) + skripty na textury, siluety znaků a sady hradů (building-art.py).
+
+## 9. Pomůcky (hotovo, schéma 30)
+
+Dvě vzácné pomůcky, které si hráč schovává do zásoby a použije v kterékoli hře Dobývání. Zásoba je na serveru (`player_items`), takže
+platí na všech zařízeních; odkud pomůcka přišla, zapisuje `player_item_grants` s klíčem zdroje, takže stejná událost nikdy nedá dvě.
+Obě jdou v jedné hře použít jen jednou. Boti je nedostávají ani nepoužívají.
+
+| Pomůcka | Co dělá | Nejvýš | Jak ji získat |
+|---|---|---|---|
+| **Tah navíc** (pečeť s bleskem a „+1“, obrázek č. 309) | +1 tah v tomto kole (období). Ne v posledním kole hry, ne během odpočtu do dalšího kola, ne bez území. Všichni ho uvidí: záznam „Tah navíc“ v kronice s praporcem a jménem hráče a zlaté „+1“ u jeho tahů v pořadí | 1 | **Boss týdne**: první výhra v ISO týdnu (`boss:<týden>`); **Sezóna Mudrlanta**: 15. stupeň (`season:<RRRR-MM>:15`) |
+| **Půl na půl** (pečeť s váhami a „½“, obrázek č. 310) | U otázky se 4 textovými nebo obrázkovými možnostmi (ne mapa, letopočet ani odhad čísla) odebere před odpovědí dvě špatné. Jde i v bitvě: dvě nesprávné vybere server (správnou neprozradí) a ostatní účastníci vidí „½“ u jména hráče (v otázce, při čekání i ve výsledku bitvy) | 2 | **Kvíz dne bez chyby** (10 z 10, nejvýš jednou za ISO týden, `daily:<RRRR-Wtt>`); **Řetězovka**: celý řetěz 7 článků (nejvýš jednou za ISO týden, `chain:<RRRR-Wtt>`); **výhra ve hře Dobývání** (1. místo s aspoň 3 vlastními tahy, `conquest:<hra>`); **Sezóna Mudrlanta**: 5. stupeň (`season:<RRRR-MM>:5`); **Truhla Mudrlanta**: vzácně (5 %, los na serveru, nejvýš jednou za ISO týden, `chest:<RRRR-Wtt>`) |
+
+**Plná zásoba**: zdroj dá jen to, co dával dřív. Boss, Kvíz dne, Řetězovka a výhra jen řeknou „Tah navíc už máš, víc jich mít nejde“,
+nebo „Půl na půl už máš dvakrát, víc jich mít nejde“; Kvíz dne a Řetězovka to v tom týdnu zkusí znovu, až hráč pomůcku použije. Sezóna
+dá na 5. a 15. stupni běžnou věc (stejným losem jako dřív) a Truhla jen svůj obsah. Bez přihlášení dá Sezóna vždy běžnou věc a Truhla
+pomůcku nikdy.
+
+**Kde je hráč uvidí**
+- Rozcestník Dobývání (Moje hry): pergamenový pruh „Pomůcky“ se dvěma pečetěmi a zásobou („Tah navíc 1/1“, „Půl na půl 1/2“), klepnutím
+  okno Pomůcky (co dělají a „Jak získat“). Ve hře totéž okno klepnutím na počítadlo tahů, i s tím, co jde v té hře použít.
+- **Tah navíc** se nabídne, když hráči dojdou tahy: zlatý štítek „Tah navíc“ dole na mapě, řádek „Použít Tah navíc“ v listu území a v okně
+  „Kolo N dohráno“. Použití se potvrdí v okně (vzácná pomůcka), pak zlatý banner, „+1“ u počítadla tahů a záznam v kronice.
+- **Půl na půl**: tlačítko „½ Půl na půl“ v záhlaví otázky vedle hvězd. První klepnutí se zeptá „Opravdu?“, druhé ji použije; dvě
+  špatné možnosti se přeškrtnou a vypnou (krátká animace, bez ní při omezeném pohybu), v záhlaví zůstane „½ použito“.
+- Zisk: oslava „Nová pomůcka do Dobývání: Půl na půl (1/2)“ s pečetí pomůcky; v Sezóně obřad stupně s nadpisem „Nová pomůcka do
+  Dobývání“ a pečetí i na cestě odměn (5. a 15. stupeň, dokud zásoba není plná); v Truhle řádek „A navíc pomůcka do Dobývání: Půl na půl“.
+- Nápověda Dobývání má záložku Pomůcky, Mudrlant tip `dobyvani-pomucky` je pro toho, kdo Dobývání už otevřel.
+
+**Technicky** (blok „30: Dobývání – pomůcky“ ve schema.sql)
+- Tabulky `player_items` (hráč, druh, počet; strop v kontrole) a `player_item_grants` (hráč, klíč zdroje, druh, granted); hráč je jen čte.
+- Zisk: `player_item_grant` volají `boss_submit`, `daily_quiz_answer`, `chain_submit` a `conquest_finish` (co vítěz dostal, řekne
+  `conquest_claim`); jejich výsledky mají `item` = `{ kind, granted, full, already, count, max }`. Sezónu a truhlu počítá aplikace
+  a o pomůcku si řekne přes `player_items_claim(source, key)` (sezóna jen stupně 5 a 15 a jen tento nebo minulý měsíc, truhla tento nebo
+  minulý týden a los 5 % na serveru).
+- Použití: `conquest_use_extra(game)` zapíše tah druhu `extra` bez území (`conquest_budget`: extra, `conquest_state` budgets.extra),
+  `conquest_use_fifty(game, siege, target)` v bitvě vybere dvě nesprávné možnosti (`conquest_siege_players.fifty`, ostatním `fifty: true`),
+  jinde jen zapíše použití (`conquest_players.fifty_at`). Zásobu vrací `player_items_mine`, `conquest_lobby` a `conquest_state` (`items`
+  i s `can_extra` a `extra_block`, proč Tah navíc teď nejde).
+- Testy: `tests/sql-pomucky.test.js` (zisky, klíče a stropy, použití), `tests/conquest-items.test.js`, `tests/season.test.js`
+  (5. a 15. stupeň), `tests/e2e-conquest.test.js` (rozcestník, otázka, bitva, Kolo dohráno).

@@ -798,11 +798,11 @@ test('ztracený hrad: nápověda (záložka Regiony) říká, že kdo přijde o 
     // Počítadlo v liště: bez postihu jen 4/5, s postihem 3/4 a červené −1 s hradem (i pro čtečku a v nápovědě po najetí)
     const state = sampleState();
     const plain = C.gameScreenHtml(C.viewOf(state, maps.evropa, 'A'));
-    assert.match(plain, /data-cq-budget[^>]*title="Tahy v tomto období">/);
+    assert.match(plain, /data-cq-budget[^>]*title="Tahy v tomto období\. Klepni pro pomůcky">/);
     assert.doesNotMatch(plain, /data-cq-penalty/);
     const lost = { ...state, budget: { ...state.budget, penalty: 1, total: 4, left: 3 } };
     const html = C.gameScreenHtml(C.viewOf(lost, maps.evropa, 'A'));
-    assert.match(html, /title="Tahy v tomto období \(o 1 méně kvůli ztracenému hradu\)"/);
+    assert.match(html, /title="Tahy v tomto období \(o 1 méně kvůli ztracenému hradu\)\. Klepni pro pomůcky"/);
     assert.match(html, /3\/4<span data-cq-penalty[^>]*><i data-lucide="castle"[^>]*><\/i><span aria-hidden="true">−1<\/span><span class="sr-only">, o 1 méně kvůli ztracenému hradu<\/span>/);
     assert.doesNotMatch(html, /\sstyle=/);
     // Toast na začátku období: den i hodina, po ztrátě hradu s větou o tahu méně

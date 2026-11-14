@@ -103,6 +103,9 @@
         // Dobývání (schéma 25): bitvy o území; pro toho, kdo Dobývání už otevřel (pravidlo je nové pro všechny)
         { id: 'dobyvani-bitvy', icon: 'swords', art: 'dobyvani', multi: true, account: true, after: 20, title: 'Bitvy o území', text: 'Když v Dobývání někdo zaútočí na území, se kterým sousedíš, uvidíš na mapě bitvu a můžeš se přidat. Všichni dostanou stejnou otázku a 60 s, území získá nejrychlejší správná odpověď. Riskantní: správně, ale pomaleji znamená tah bez zisku.',
             action: { kind: 'conquest', label: 'Otevřít Dobývání' }, ready: (u) => Boolean(u.visited.conquest), used: () => false },
+        // Dobývání (schéma 30): pomůcky Tah navíc a Půl na půl a odkud se berou; pro toho, kdo Dobývání už otevřel
+        { id: 'dobyvani-pomucky', icon: 'zap', art: 'dobyvani', multi: true, account: true, after: 20, title: 'Pomůcky do Dobývání', text: 'Za Bosse týdne a 15. stupeň Sezóny dostaneš Tah navíc: o tah víc v jednom kole. Kvíz dne bez chyby, celá Řetězovka nebo výhra v Dobývání dají Půl na půl: odebere dvě špatné odpovědi. Každou jde v jedné hře použít jen jednou.',
+            action: { kind: 'conquest', label: 'Otevřít Dobývání' }, ready: (u) => Boolean(u.visited.conquest), used: () => false },
         // Dobývání (schéma 24): pozvánky přátel; pro toho, kdo Dobývání už otevřel a přátele má; kdo přátele už pozval, tip nepotřebuje
         { id: 'dobyvani-pratele', icon: 'user-plus', art: 'dobyvani', multi: true, account: true, after: 20, title: 'Pozvi přátele do Dobývání', text: 'Při zakládání hry v Dobývání klepni na Pozvat přátele a vyber je ze seznamu. Pozvánka jim přijde do aplikace a přidají se i do soukromé hry bez kódu.',
             action: { kind: 'conquest', label: 'Otevřít Dobývání' }, ready: (u) => Boolean(u.visited.conquest) && num(u.friends) > 0, used: (u) => Boolean(u.visited.conquestInvite) },
