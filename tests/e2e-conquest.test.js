@@ -644,11 +644,13 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             assert.match(await tab.textContent('[data-cq-sheet]'), /Rakousko[\s\S]*Neutrální území[\s\S]*Poklad: \+1 tah/);
             assert.equal(await tab.locator('[data-cq-source]').count(), 0, 'odkud útok vede, se nevybírá (na výsledek vliv nemá)');
             assert.match(await tab.textContent('[data-cq-sheet] [data-cq-region]'), /^Region Střední Evropa · /);
-            // Název území uprostřed území a celý uvnitř (7–18 px; jen do území, které je na displeji menší než název v 7 px, se nevejde)
+            // Název území uprostřed území a celý uvnitř (7–18 px): Rakousko se na celé mapě do 7 px nevejde, mapa se po klepnutí přiblíží
+            await settledWidth(tab);
+            assert.ok(await viewWidth(tab) < 1000, 'mapa se kvůli názvu přiblížila');
             await shot(tab, `list-${width}-${colorScheme}`);
             const label = await labelBox(tab, 'Q40');
             assert.ok(label.shown && label.px >= 6.8 && label.px <= 18.1, JSON.stringify(label));
-            assert.ok(label.inside || label.px < 7.3, `název Rakouska je celý uvnitř území ${JSON.stringify(label)}`);
+            assert.ok(label.inside, `název Rakouska je celý uvnitř území ${JSON.stringify(label)}`);
             db.force.push('capture');
             await tab.click('[data-cq-sheet] [data-cq="attack"]');
             await tab.waitForSelector('[data-cq-answer]', { timeout: 30000 });
@@ -1453,10 +1455,12 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
 
         // Petr (390×780, tmavý režim): pozvánka na kartě Dobývání (od Jany, novější první) a v Mých hrách
         db.invites.sort((a, b) => (a.by === 'u-1' ? -1 : b.by === 'u-1' ? 1 : 0));
-        const guest = await start(db, { viewport: { width: 390, height: 780 }, colorScheme: 'dark', storage: login('tok-u2') });
+        const guest = await start(db, { viewport: { width: 390, height: 780 }, colorScheme: 'dark', storage: { ...login('tok-u2'), 'mudrlant.conquestInvitesSeen': JSON.stringify({ [created.id]: 1, [uuid(3)]: 1 }) } });
         ({ tab, log } = guest);
         await tab.waitForSelector('#conquest-card [data-action="conquest-invite"]', { timeout: 15000 });
-        assert.match((await tab.textContent('#conquest-card')).replace(/\s+/g, ' '), /Dobývání\s*Pozvánka od Jana Nováková Evropa · 3 dny · \+1 Přidat se/);
+        assert.match((await tab.textContent('#conquest-card')).replace(/\s+/g, ' '), /Dobývání\s*2\s*Pozvánka od Jana Nováková Evropa · 3 dny · \+1 Přidat se/);
+        assert.equal(await tab.getAttribute('#conquest-card [data-cq-invite-badge]', 'aria-label'), 'Pozvánky do her: 2');
+        assert.equal(await tab.locator('#dialog-overlay').count(), 0, 'viděné pozvánky se oknem znovu neukážou');
         await shot(tab, 'karta-pozvanka-390-dark');
         // Přidat se z karty: otevře se rozcestník (pozvánky v Mých hrách) a nad ním Barva a znak; zatím zavřít
         await tab.click('#conquest-card [data-action="conquest-invite"]');
@@ -1499,5 +1503,65 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await guest.context.close();
+    });
+    // Pozvánka po otevření aplikace (i bez upozornění): okno „Eva Mistr tě zve do Dobývání: Evropa · Rychlá hra“ s Přijmout /
+    // Odmítnout / Později, jednou za pozvánku; odznak na kartě Dobývání a na záložce Více hráčů; nová pozvánka po návratu do aplikace
+    await t.test('pozvánka po otevření aplikace na 360×640: okno jednou za pozvánku (Později), odznak na kartě i záložce, nová po návratu do aplikace (Odmítnout), Přijmout', async () => {
+        const db = newDb();
+        db.invites = [{ game: uuid(1), user: 'u-2', by: 'u-3', declined: false }];
+        const promptTitle = (tab) => tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Pozvánka do Dobývání', null, { timeout: 15000 });
+        const guest = await start(db, { colorScheme: 'light', storage: login('tok-u2') });
+        let { tab, log, context } = guest;
+        await promptTitle(tab);
+        assert.match((await tab.textContent(`[data-cq-invite-prompt="${uuid(1)}"]`)).replace(/\s+/g, ' '), /Eva Mistr tě zve do Dobývání: Evropa · Rychlá hra/);
+        assert.deepEqual(await tab.$$eval('#dialog-overlay [data-cq-prompt]', buttons => buttons.map(button => button.textContent.trim())), ['Přijmout', 'Odmítnout', 'Později']);
+        assert.ok(await dialogFits(tab, 640), 'okno s pozvánkou se vejde na 360×640');
+        assert.equal(await tab.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
+        await tab.waitForTimeout(300);
+        await shot(tab, 'pozvanka-okno-360');
+        // Později: okno zmizí, pozvánka zůstane na kartě s odznakem a v odznaku záložky Více hráčů
+        await tab.click('#dialog-overlay [data-cq-prompt="later"]');
+        await tab.waitForFunction(() => !document.getElementById('dialog-overlay'));
+        await tab.waitForSelector('#conquest-card [data-cq-invite-badge]');
+        assert.equal(await tab.getAttribute('#conquest-card [data-cq-invite-badge]', 'aria-label'), 'Pozvánka do hry');
+        assert.match(await tab.textContent('[data-action="home-tab"][data-tab="multi"]'), /Více hráčů\s*1/);
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+        await shot(tab, 'pozvanka-karta-odznak-360');
+        assert.equal(db.calls.filter(call => call.name === 'conquest_decline_invite').length, 0, 'Později pozvánku neodmítne');
+        // Po obnovení stránky (i na záložce Jeden hráč) se stejná pozvánka znovu nenabízí, odznak záložky zůstává
+        await tab.evaluate(() => localStorage.setItem('mudrlant.homeTab', JSON.stringify('single')));
+        await tab.reload();
+        await tab.waitForSelector('[data-action="home-tab"][data-tab="multi"]');
+        await tab.waitForFunction(() => /Více hráčů\s*1/.test(document.querySelector('[data-action="home-tab"][data-tab="multi"]').textContent), null, { timeout: 15000 });
+        await tab.waitForTimeout(800);
+        assert.equal(await tab.locator('#dialog-overlay').count(), 0, 'viděná pozvánka nenaléhá');
+        // Nová pozvánka (Jana do Česka): po návratu do aplikace (ověření nejvýš jednou za 5 minut) okno i na záložce Jeden hráč
+        db.invites.push({ game: uuid(2), user: 'u-2', by: 'u-1', declined: false });
+        await tab.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+        await tab.waitForTimeout(800);
+        assert.equal(await tab.locator('#dialog-overlay').count(), 0, 'dřív než za 5 minut se server znovu neptá');
+        await tab.clock.setFixedTime(new Date(Date.parse(NOW) + 6 * 60000));
+        await tab.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+        await promptTitle(tab);
+        assert.match((await tab.textContent(`[data-cq-invite-prompt="${uuid(2)}"]`)).replace(/\s+/g, ' '), /Jana Nováková tě zve do Dobývání: Česko · Rychlá hra/);
+        assert.ok(await dialogFits(tab, 640));
+        await shot(tab, 'pozvanka-okno-navrat-360');
+        await tab.click('#dialog-overlay [data-cq-prompt="decline"]');
+        await toast(tab, /^Pozvánka odmítnuta\.$/);
+        assert.ok(db.invites.find(i => i.game === uuid(2)).declined);
+        await tab.waitForFunction(() => /Více hráčů\s*1/.test(document.querySelector('[data-action="home-tab"][data-tab="multi"]').textContent));
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+        // Jiné zařízení (nic viděného): Přijmout → Barva a znak pro hru, do které Eva zve
+        ({ tab, log, context } = await start(db, { colorScheme: 'dark', storage: login('tok-u2') }));
+        await promptTitle(tab);
+        await shot(tab, 'pozvanka-okno-360-dark');
+        await tab.click('#dialog-overlay [data-cq-prompt="accept"]');
+        await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Tvoje barva a znak', null, { timeout: 15000 });
+        await tab.waitForSelector(`#conquest-hub [data-cq-invite="${uuid(1)}"]`);
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
     });
 });

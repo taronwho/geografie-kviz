@@ -2240,7 +2240,10 @@
         const invite = (invites || [])[0] || null;
         const moreInvites = (invites || []).length > 1 ? ` · +${invites.length - 1}` : '';
         const draw = avatarFn(avatar);
-        const head = `<span class="flex min-w-0 flex-1 flex-col"><span class="text-[14px] font-black leading-tight text-slate-800 dark:text-slate-100">Dobývání</span>`;
+        // Pozvánky od přátel: zlatý odznak s počtem u názvu karty
+        const count = (invites || []).length;
+        const badge = count ? `<span data-cq-invite-badge aria-label="${esc(count === 1 ? 'Pozvánka do hry' : `Pozvánky do her: ${count}`)}" class="flex h-5 min-w-[1.25rem] items-center justify-center gap-0.5 rounded-full bg-gold-500 px-1.5 text-[11px] font-black leading-none text-brand-950 shadow-sm"><i data-lucide="user-plus" class="h-3 w-3" aria-hidden="true"></i><span aria-hidden="true">${count}</span></span>` : '';
+        const head = `<span class="flex min-w-0 flex-1 flex-col"><span class="flex items-center gap-1.5 text-[14px] font-black leading-tight text-slate-800 dark:text-slate-100">Dobývání${badge}</span>`;
         if (first) {
             const data = maps[first.map];
             const meSeat = (first.players.find(player => player.me) || {}).seat;
@@ -2346,6 +2349,28 @@
                 <button type="button" data-cq-decline="${esc(invite.id)}" class="${LIGHT_BUTTON}"><i data-lucide="x" class="h-4 w-4"></i> Odmítnout</button>
             </div>
         </li>`;
+    };
+    // „Evropa · Rychlá hra“, u vlastní hry „Asie · 1 den“
+    const inviteLine = (invite) => `${mapTitle(invite.map)} · ${invite.preset ? PRESET_NAMES[invite.preset] || 'Rychlá hra' : minutesLabel(gameMinutes(invite))}`;
+    // Okno po otevření aplikace (conquest-ui.js promptInvites): kdo zve a do jaké hry, Přijmout / Odmítnout / Později. Ukáže se jednou
+    // za pozvánku i bez upozornění; vejde se na 360×640
+    const invitePromptHtml = (invite, { maps = {}, avatar = null } = {}) => {
+        const data = maps[invite.map];
+        const seatColors = Object.fromEntries((invite.players || []).map(player => [player.seat, player.flag_color]));
+        const who = invite.invited_by && invite.invited_by.display_name ? invite.invited_by.display_name : 'Kamarád';
+        return `<div data-cq-invite-prompt="${esc(invite.id)}" class="flex flex-col gap-3">
+            <div class="flex items-center gap-3 ${CARD} cq-card-paper p-2.5">
+                <span class="relative shrink-0">${avatarFn(avatar)(invite.invited_by || {}, 'h-12 w-12 text-2xl')}${art(ART.card, 'absolute -bottom-2 -right-2 h-7 w-7')}</span>
+                <p class="min-w-0 flex-1 text-[15px] font-bold leading-snug text-slate-800 dark:text-slate-100"><span class="font-black">${esc(who)}</span> tě zve do Dobývání: <span class="font-black">${esc(inviteLine(invite))}</span></p>
+                ${data ? `<span class="cq-thumb-frame hidden h-12 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl min-[380px]:flex">${thumbSvg(data, {}, seatColors)}</span>` : ''}
+            </div>
+            <p class="text-[13px] font-semibold leading-snug text-slate-600 dark:text-slate-300">S přáteli soupeříte o mapu a každé území dobudeš správnou odpovědí. ${esc(`${(invite.players || []).length}/${invite.max_players} hráčů`)}${invite.visibility === 'private' ? ', soukromá hra' : ''}.</p>
+            <button type="button" data-cq-prompt="accept" class="${GOLD_BUTTON} w-full"><i data-lucide="user-plus" class="h-4 w-4"></i> Přijmout</button>
+            <div class="grid grid-cols-2 gap-2">
+                <button type="button" data-cq-prompt="decline" class="${LIGHT_BUTTON}"><i data-lucide="x" class="h-4 w-4"></i> Odmítnout</button>
+                <button type="button" data-cq-prompt="later" class="${LIGHT_BUTTON}"><i data-lucide="clock" class="h-4 w-4"></i> Později</button>
+            </div>
+        </div>`;
     };
     const invitesHtml = (invites, opts) => (invites && invites.length ? `<section aria-label="Pozvánky" class="flex flex-col gap-1.5">
         <p class="flex items-center gap-1.5 px-1 ${LABEL}"><span class="h-2 w-2 rounded-full bg-gold-500"></span>Pozvánky od přátel</p>
@@ -3090,6 +3115,6 @@
         pennantSvg, pennantGroup, emblemSvg, sealSvg, mapSvg, thumbSvg, marksFor, clockText, localTime, roundHtml, roundChipHtml, ROUND_COUNTDOWN, fastPeriod, battleWaitHtml, battleResultHtml, joinedHtml, fightersHtml, siegeChipsHtml, RISK_TEXT, homeCardHtml, hubHtml, mineHtml, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,
         gameScreenHtml, playersStripHtml, recentHtml, sheetHtml, devBarHtml, questionHtml, feedHtml, resultHtml, helpHtml, HELP_TABS, mapTitle, paramChips,
         // Pozvánky přátel (blok 24)
-        friendsPickerHtml, inviteCardHtml
+        friendsPickerHtml, inviteCardHtml, inviteLine, invitePromptHtml
     };
 });

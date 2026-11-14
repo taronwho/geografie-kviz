@@ -7316,7 +7316,8 @@
     const renderHomeTabs = () => {
         if (!(Auth && Auth.isConfigured() && Social)) return '';
         const tab = homeTab();
-        const waiting = visibleIncoming().length;
+        // Odznak Více hráčů: příchozí výzvy a pozvánky do Dobývání
+        const waiting = visibleIncoming().length + (ConquestUI ? ConquestUI.inviteCount() : 0);
         const option = (id, icon, label, badge = 0) => `
             <button type="button" role="tab" data-action="home-tab" data-tab="${id}" aria-selected="${tab === id}" class="relative flex flex-1 items-center justify-center gap-2 rounded-xl min-h-[2.75rem] px-3 text-[13px] font-black transition-colors ${tab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-400'}">
                 <i data-lucide="${icon}" class="h-4 w-4"></i> ${label}${badge ? `<span class="rounded-full bg-gold-500 px-1.5 py-0.5 text-[10px] font-black leading-none text-brand-950">${badge}</span>` : ''}
@@ -12324,6 +12325,9 @@
     if (window.MudrlantConquest && window.MudrlantConquestUI && Social) {
         ConquestUI = window.MudrlantConquestUI.createUI({
             Conquest: window.MudrlantConquest, Social, appContent, signedUser, renderIcons, showDialog, closeDialog, showToast,
+            // Okno s pozvánkou po otevření aplikace: jen na úvodu, ne přes jiné okno, oslavu, truhlu ani tutoriál
+            canPrompt: () => screen === 'home' && !pushOfferBlocked() && !document.getElementById('chest-overlay') && !document.getElementById('season-overlay'),
+            invitesChanged: () => { const tabs = document.getElementById('home-tabs'); if (screen === 'home' && tabs) { tabs.outerHTML = renderHomeTabs(); renderIcons(document.getElementById('home-tabs')); } },
             login: () => { if (Auth) startLogin(); },
             isActive: () => screen === 'conquest',
             enter: () => { screen = 'conquest'; closePlaceInfo(); closeDialog(); updateControlsUI(); },
@@ -12711,6 +12715,10 @@
         });
     }
 
+    // Návrat do aplikace: nová pozvánka do Dobývání se ukáže oknem i bez upozornění (ověření nejvýš jednou za 5 minut, conquest-ui.js)
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && ConquestUI && signedUser() && screen === 'home') ConquestUI.checkInvites();
+    });
     // Aplikace nechaná otevřená přes půlnoc (nebo probuzená z pozadí v nový den): nový den = nové dnešní otázky, série a zajímavost
     let shownDay = getDayKey();
     document.addEventListener('visibilitychange', () => {

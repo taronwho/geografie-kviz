@@ -17,6 +17,10 @@
     const STORE = 'mudrlant.conquest';
     const LINK_PARAM = 'dobyvani';
     const PENDING_KEY = 'mudrlant.pendingConquest';
+    // Pozvánky, které už hráč viděl v okně po otevření aplikace ({ id hry: čas }; Později = už se neukáže, zůstane na kartě)
+    const SEEN_INVITES_KEY = 'mudrlant.conquestInvitesSeen';
+    // Po návratu do aplikace se pozvánky ověří nejvýš jednou za 5 minut
+    const INVITE_CHECK_MS = 5 * 60000;
     // Největší přiblížení: i název nejmenšího území (Lucembursko, Trinidad a Tobago, asi 19× na displeji 360 px) se vejde v 7 px
     const MAX_ZOOM = 20;
     const POLL_GAME = 20000;
@@ -36,7 +40,8 @@
     // deps: Conquest (conquest.js), Social, appContent, signedUser, login, enter (obrazovka 'conquest'), isActive, renderHome, renderIcons,
     // showDialog, closeDialog, showToast, loadMap(id), loadTopics(), roundFor(požadavek otázky Mudrlanta → obsah, conquest.js prepareQuestion),
     // award({ xp, badge, place }), itemGranted(zisk pomůcky z conquest_claim, social.js cleanItemGrant), share(payload), sound(name), touchTip, onCard(),
-    // avatarHtml(hráč, třídy) a friends() (přijatí přátelé pro okno Pozvat přátele; null = nenačetli se)
+    // avatarHtml(hráč, třídy) a friends() (přijatí přátelé pro okno Pozvat přátele; null = nenačetli se); canPrompt() = smí se teď ukázat
+    // okno s pozvánkou (úvodní obrazovka, žádné jiné okno ani tutoriál), invitesChanged() = počet pozvánek se změnil (odznak záložky)
     const createUI = (deps) => {
         const C = deps.Conquest;
         const Social = deps.Social;
@@ -144,10 +149,53 @@
         };
         const refresh = async (force = false) => {
             if (!deps.signedUser() || missing) return;
-            if (!force && lobby && Date.now() - lobbyAt < 60000) { paintCard(); return; }
+            if (!force && lobby && Date.now() - lobbyAt < 60000) { paintCard(); promptInvites(); return; }
+            const before = inviteCount();
             await loadLobby();
             paintCard();
             if (active() && ui.kind !== 'game') renderHub();
+            if (inviteCount() !== before && deps.invitesChanged) deps.invitesChanged();
+            promptInvites();
+        };
+
+        // --- Pozvánka po otevření aplikace (i bez upozornění) ---
+        // Přihlášenému hráči s čekající pozvánkou se na úvodní obrazovce ukáže okno: kdo zve a kam, Přijmout / Odmítnout / Později.
+        // Každá pozvánka jen jednou (pamatuje se v zařízení), pak zůstane na kartě Dobývání a v Mých hrách. Ověřuje se při otevření
+        // aplikace a po návratu do ní (nejvýš jednou za INVITE_CHECK_MS).
+        const inviteCount = () => ((lobby && lobby.invites) || []).length;
+        const seenInvites = () => { try { const s = storage(); const value = s ? JSON.parse(s.getItem(SEEN_INVITES_KEY) || '{}') : {}; return value && typeof value === 'object' && !Array.isArray(value) ? value : {}; } catch (error) { return {}; } };
+        const markSeen = (id) => {
+            try {
+                const s = storage();
+                if (!s) return;
+                const keep = Object.entries({ ...seenInvites(), [id]: Date.now() }).sort((a, b) => b[1] - a[1]).slice(0, 50);
+                s.setItem(SEEN_INVITES_KEY, JSON.stringify(Object.fromEntries(keep)));
+            } catch (error) { /* bez úložiště se okno může ukázat znovu */ }
+        };
+        const PROMPT_TITLE = 'Pozvánka do Dobývání';
+        const promptInvites = () => {
+            if (!deps.signedUser() || missing || !lobby || !deps.showDialog || (deps.canPrompt && !deps.canPrompt())) return false;
+            const seen = seenInvites();
+            const invite = (lobby.invites || []).find(entry => entry && entry.id && !seen[entry.id]);
+            if (!invite) return false;
+            markSeen(invite.id);
+            deps.showDialog(PROMPT_TITLE, C.invitePromptHtml(invite, { maps, avatar: deps.avatarHtml }), {
+                onClick: (event) => {
+                    const button = event.target.closest('[data-cq-prompt]');
+                    if (!button || button.disabled) return;
+                    const choice = button.dataset.cqPrompt;
+                    deps.closeDialog();
+                    if (choice === 'accept') openInvite(invite.id);
+                    else if (choice === 'decline') declineInvite(invite.id).then(() => { if (deps.invitesChanged) deps.invitesChanged(); });
+                }
+            });
+            return true;
+        };
+        // Otevření aplikace a návrat do ní (app.js): pozvánky ze serveru nejvýš jednou za INVITE_CHECK_MS, okno s novou pozvánkou hned
+        const checkInvites = async () => {
+            if (!deps.signedUser() || missing) return;
+            if (lobby && Date.now() - lobbyAt < INVITE_CHECK_MS) { promptInvites(); return; }
+            await refresh(true);
         };
         const reset = () => { lobby = null; lobbyAt = 0; missing = false; invitesOff = false; game = null; ui.kind = 'hub'; ui.tab = 'mine'; ui.invites = []; };
 
@@ -1951,8 +1999,8 @@
         // Probíhá tah (oslavy z app.js počkají)
         const busy = () => Boolean(game && game.move);
 
-        return { cardHtml, paintCard, refresh, reset, openHub, openGame, openCode, openInvite, afterLogin, takeLink, back, busy, parseCode };
+        return { cardHtml, paintCard, refresh, reset, openHub, openGame, openCode, openInvite, afterLogin, takeLink, back, busy, parseCode, checkInvites, promptInvites, inviteCount };
     };
 
-    return { createUI, STORE, LINK_PARAM, PENDING_KEY, parseCode };
+    return { createUI, STORE, LINK_PARAM, PENDING_KEY, SEEN_INVITES_KEY, INVITE_CHECK_MS, parseCode };
 });
