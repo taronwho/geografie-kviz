@@ -45,6 +45,39 @@ Pravidla pro všechno nové (platí v celé hře):
   - RLS musí odpovídat ostatním tabulkám a funkce mají `security definer` s kontrolou `auth.uid()`;
   - testy proti PostgreSQL běží na clusteru `/tmp:5439` (viz `tests/sql-*.test.js`).
 - **Hra bez přihlášení**: co nepotřebuje server, funguje i pro hosta (místně). Co server potřebuje, nabídne přihlášení.
+- **Otázky vázané na Wikipedii**: otázka o položce tématu se staví jako v hlavní hře (`app.js` `createRoundData`: úvod článku z české
+  Wikipedie přes `fetchItemText`, zakrytí odpovědi `buildQuestionTexts`/`hideAnswer` a poslední pojistka `leakFreeText` s nezávislou
+  kontrolou `answerWordsLeft` jako v Dobývání, nápovědy z `planRound`, fotka jen skutečná `photoOf`/`isRealPhoto` bez fotek s napsanou
+  odpovědí, `textPhotos` a `photoMasks`). Vlastní generátor otázek bez popisu z Wikipedie nepřidávej. Pravidla módu (čas, poškození,
+  sázky, body) zůstanou jeho.
+
+## Otázky a Wikipedie v jednotlivých módech
+
+Co ukáže obrazovka otázky (listopad 2026; Řetězovka, č. 6, má vlastní pravidla otázek a v tabulce není):
+
+| Mód | Popis z Wikipedie (zakrytý) | Fotka | Popis po odpovědi |
+|---|---|---|---|
+| Hlavní hra, Dnešní otázky, Mix, učení | ano | nápověda (stojí bod) | výsledek: popis, fotka, mapa, fakta, zajímavosti, odkaz na článek |
+| **Zlatá otázka** | ano (padá v hlavní hře, v Bleskovce a Přežití a jde s jejich otázkou) | jako mód, kde padla | jako mód, kde padla |
+| **Kvíz dne** | ano | nápověda (stojí bod) | výsledek jako v hlavní hře |
+| **Výzvy, turnaje a Kamarádské sázky** | ano (otázka uložená na serveru pro oba hráče) | nápověda (stojí bod) | výsledek jako v hlavní hře |
+| **Boss týdne** | ano | nápověda jako v hlavní hře, stojí jen čas (bonus za rychlost klesá) | karta odpovědi (záložky Popis s odkazem na článek, Fotka, Mapa…), dál tlačítkem Další otázka |
+| **Přežití** | ano | bez nápověd; fotka v kartě odpovědi | karta odpovědi jako u Bosse, dál tlačítkem Další otázka |
+| **Bleskovka** | ano | bez nápověd (rychlost) | jen správná odpověď na chvíli; popis chybných otázek ve výsledku (Co ti uteklo) |
+| **Tajemná otázka dne** | věty popisu jako pozdní nápovědy (přísné zakrytí) | rozmazaná a ostrá fotka (poslední nápovědy) | po vyřešení (a druhý den) tlačítko Popis z Wikipedie (okno položky s fotkou) |
+| **Dobývání** | ano (forma popis), jinak fakta nebo letopočet | otázka na obrázek | správná možnost a výsledek tahu nebo bitvy |
+
+- **Boss týdne**: nápovědy jsou stejné jako v hlavní hře (`data.hints`: další věty úvodu, fotka, obrazová nápověda, fakta), tlačítko
+  „Nápověda 1/3 · … · čas běží“; čas otázky při nich běží dál, poškození se počítá stejně (50 + bonus za rychlost). Odemčené nápovědy
+  se pamatují s otázkou na obrazovce (`mudrlant.boss` `open.shown.hint`), po návratu do souboje zůstanou. Po odpovědi hláška bosse
+  po chvíli zmizí a místo panelu otázky je karta odpovědi (`answerPanel`: popis z Wikipedie bez zakrytí, fotka, mapa, z družice);
+  „Další otázka“ (po posledním zásahu nebo srdci „Výsledek souboje“) ukáže další otázku, jejíž čas běží až od ukázání.
+- **Časované módy a síť**: další otázka (i s popisem a fotkou) se chystá už během té současné (Boss `fight.next`, Bleskovka a Přežití
+  `game.next`); Wikipedie má krátké časové limity a po výpadku minutu pauzu (`WIKI_TIMEOUT`, `WIKI_PAUSE`), pak krátký popis z Wikidat.
+  Dokud se otázka chystá, čas stojí („Čas zatím stojí“).
+- **Stejné otázky pro všechny**: Boss (semínko týdne a pokusu), Kvíz dne, výzvy a turnaje vybírají položky i možnosti ze semínka;
+  ze sítě je jen popis a fotka (Boss vymění položku s chudým popisem jen podle obsahu článku, při výpadku Wikipedie ne; Kvíz dne
+  a výzvy nikdy). Rozhraní serveru (Kvíz dne `daily_quiz_answer`, Boss `boss_submit`) zůstává stejné.
 
 ## 12. Zlatá otázka
 
@@ -120,6 +153,8 @@ Pravidla pro všechno nové (platí v celé hře):
   - pak tlačítko „Do souboje“.
 - **Souboj**:
   - 10 těžkých otázek z tématu bosse, stejných pro všechny (semínko = týden a číslo pokusu);
+  - otázka jako v hlavní hře: zakrytý úvod článku z Wikipedie a nápovědy (další věty, fotka, obrazová nápověda, fakta), které stojí jen
+    čas; po odpovědi karta odpovědi s popisem z Wikipedie a fotkou a tlačítko Další otázka (viz Otázky a Wikipedie v jednotlivých módech);
   - boss má 700 životů;
   - správná odpověď mu ubere 50 + bonus za rychlost (až 30, plný bonus do 6 s, do 20 s klesá k nule);
   - hráč má 3 srdce a každá chyba jedno ubere;

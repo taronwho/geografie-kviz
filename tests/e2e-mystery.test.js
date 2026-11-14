@@ -180,6 +180,7 @@ test('Tajemná otázka dne v prohlížeči', { skip: !chromium && 'Playwright ne
         assert.match(screenText, /3 tipy na celý den · teď za 6 bodů/);
         await audit(tab, 'obrazovka tajemné otázky (360×640)');
         await shot(tab, 'obrazovka-360x640');
+        assert.equal(await tab.$('[data-mystery-info]'), null, 'popis z Wikipedie až po vyřešení');
         // Špatný tip a ten samý ještě jednou (nepočítá se)
         await typeTip(tab, 'Atlantida');
         await tab.waitForSelector('[data-mystery-notice]');
@@ -240,6 +241,16 @@ test('Tajemná otázka dne v prohlížeči', { skip: !chromium && 'Playwright ne
         const [download] = await Promise.all([tab.waitForEvent('download'), tab.click('[data-action="mystery-share-image"]')]);
         assert.equal(download.suggestedFilename(), `mudrlant-tajemna-otazka-${TODAY}.png`);
         await shot(tab, 'vyreseno-host-360x640');
+        // Po vyřešení popis z Wikipedie s fotkou v okně položky (jako po odpovědi v běžné hře)
+        assert.match(await compact(tab, '[data-mystery-info]'), /Popis z Wikipedie/);
+        await tab.click('[data-mystery-info]');
+        await tab.waitForSelector('#place-info');
+        assert.equal(await compact(tab, '#place-info-title'), round.name);
+        await tab.waitForFunction(() => !/Načítám popis/.test(document.querySelector('#place-info [data-card-text]').textContent));
+        assert.ok((await compact(tab, '#place-info [data-card-text]')).length > 40, 'popis z Wikipedie');
+        await shot(tab, 'vyreseno-popis-360x640');
+        await tab.click('#place-info [data-close]');
+        await tab.waitForSelector('#place-info', { state: 'detached' });
         await tab.click('[data-action="mystery-home"]');
         await tab.waitForSelector('#mystery-card[data-mystery-status="solved"]');
         assert.match(await compact(tab, '#mystery-card'), /Vyřešeno v 20:\d\d s 8 nápovědami/);
@@ -281,6 +292,7 @@ test('Tajemná otázka dne v prohlížeči', { skip: !chromium && 'Playwright ne
         await tab.click('[data-action="mystery-reveal"]');
         await tab.waitForSelector('#mystery-screen');
         assert.equal(await compact(tab, '[data-mystery-answer]'), round.name);
+        assert.ok(await tab.$('[data-mystery-info]'), 'včerejší odpověď s popisem z Wikipedie');
         assert.match(await compact(tab, '#mystery-screen'), /Tajemná otázka · 13\. 11\. 2026/);
         await tab.waitForSelector('[data-mystery-community]');
         assert.equal(await tab.$$eval('[data-mystery-clue]:not([data-locked])', items => items.length), 8, 'včera: všechny nápovědy');

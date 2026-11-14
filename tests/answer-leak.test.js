@@ -232,4 +232,15 @@ test('podmět úvodu: druh před názvem zůstane, popisná přístavka také, v
     assert.deepEqual(core.answerWordsLeft('Stojí na západním břehu Rýna, v Kolíně. Je sídlem kolínského arcibiskupa.', choices, { isGeneric }), ['Rýna', 'Kolíně', 'kolínského']);
     assert.deepEqual(core.answerWordsLeft('Stojí na západním břehu Rýna.', choices, { isGeneric, keep: ['Která stavba stojí blízko Rýna?'] }), []);
     assert.deepEqual(core.answerWordsLeft(describe('sport', 'Q188699', ['Q188706', 'Q182385', 'Q599592'], 'Stadion Miejski nebo také INEA Stadion je fotbalový stadion v Poznani. Na tomto stadionu hraje své domácí zápasy polský fotbalový klub Lech Poznań.'), stadium, { isGeneric }), []);
+    // Stejná pojistka i ve společném sestavení otázky (buildQuestionTexts → leakFreeText) pro hlavní hru, Bosse, Bleskovku, Přežití,
+    // Kvíz dne, výzvy a Tajemnou otázku: text, ve kterém kontrola něco najde, se neukáže vůbec (otázku nesou fakta a nápovědy)
+    const sport = P.loadContext('sport');
+    const arena = sport.byId.get('Q188699');
+    const arenaQuestion = { type: 'name', title: 'Které sportoviště to je?', showName: false, answerLabel: arena.n,
+        choices: [arena, ...['Q188706', 'Q182385', 'Q599592'].map(id => sport.byId.get(id))].map(other => ({ id: other.q, label: other.n, correct: other === arena })) };
+    assert.equal(core.leakFreeText('[***] je fotbalový stadion. Hrají tu poznaňští fotbalisté.', arenaQuestion, arena, sport), '');
+    assert.equal(core.leakFreeText('[***] je fotbalový stadion [***].', arenaQuestion, arena, sport), '[***] je fotbalový stadion [***].');
+    assert.equal(core.leakFreeText('', arenaQuestion, arena, sport), '');
+    // Otázka bez možností (na mapě) pojistku nepotřebuje
+    assert.equal(core.leakFreeText('Hrají tu poznaňští fotbalisté.', { ...arenaQuestion, choices: undefined }, arena, sport), 'Hrají tu poznaňští fotbalisté.');
 });

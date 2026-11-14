@@ -212,6 +212,12 @@ test('karta na úvodu: nápověda a další čas, vyřešeno, nevyšlo, včerej�
     assert.equal((screen.match(/data-mystery-clue="\d"(?! data-locked)/g) || []).length, 5, 'pět odkrytých');
     assert.match(screen, /data-mystery-clue="6" data-locked[\s\S]*v 15:00/);
     assert.ok(!screen.includes('Matterhorn'), 'před vyřešením bez odpovědi');
+    assert.doesNotMatch(M.screenHtml({ day: '2026-11-12', shown: 5, clues, entry: M.newEntry({}), name: 'Matterhorn', info: { topic: 'zemepis', id: 'Q1374' }, canGuess: true, pointsNow: 6 }, h), /data-mystery-info/, 'popis z Wikipedie až po vyřešení');
+    // Po vyřešení (a u minulého dne) odpověď a popis z Wikipedie v okně položky (item-info), jako po odpovědi v běžné hře
+    const solvedEntry = M.addTip(M.newEntry({ name: 'Matterhorn' }), { text: 'Matterhorn', correct: true, clues: 5, at: 1 });
+    const solvedScreen = M.screenHtml({ day: '2026-11-12', shown: 5, clues, entry: solvedEntry, name: 'Matterhorn', info: { topic: 'zemepis', id: 'Q1374' }, finished: true, pointsNow: 6 }, h);
+    assert.match(solvedScreen, /data-mystery-answer[^>]*>Matterhorn<\/p><button type="button" data-action="item-info" data-mystery-info data-topic="zemepis" data-id="Q1374"[^>]*>[\s\S]*Popis z Wikipedie/);
+    assert.match(M.screenHtml({ day: '2026-11-11', past: true, shown: 8, clues, entry: M.newEntry({}), name: 'Matterhorn', info: { topic: 'zemepis', id: 'Q1374' }, finished: true }, h), /data-mystery-info/);
     assert.doesNotMatch(screen, /data-action="mystery-choice"/, 'bez možností');
     const last = M.screenHtml({ day: '2026-11-12', shown: 8, next: null, clues, entry: M.newEntry({}), canGuess: true, pointsNow: 3 }, h);
     assert.equal((last.match(/data-action="mystery-choice"/g) || []).length, 0, 'ani v poslední nápovědě možnosti nejsou');

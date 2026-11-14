@@ -955,7 +955,8 @@
         }
         return `<section id="mystery-stats" class="flex flex-col gap-2 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70"><h2 class="${LABEL}">Jak si vedli ostatní</h2>${body}</section>`;
     };
-    // Obrazovka: view = { day, past, shown, next, clues, entry, name, canGuess, finished, guest, canLogin, stats, friends, xp, placeholder, pointsNow }
+    // Obrazovka: view = { day, past, shown, next, clues, entry, name, info ({ topic, id } položky pro popis po vyřešení), canGuess, finished, guest,
+    // canLogin, stats, friends, xp, placeholder, pointsNow }
     const screenHtml = (view, h) => {
         const entry = view.entry || newEntry();
         const status = statusOf(entry);
@@ -965,7 +966,9 @@
             : status === 'failed' ? (view.past ? 'Tentokrát nevyřešeno' : 'Tipy došly. Odpověď se dozvíš zítra.')
                 : view.past ? 'Nevyřešeno' : `Nápověda ${view.shown}/${CLUES}${view.next ? ` · další v ${view.next.label}` : ''}`;
         const tips = entry.tips.length ? `<ul data-mystery-tips class="flex flex-wrap justify-center gap-1.5">${entry.tips.map(tip => `<li class="flex items-center gap-1 rounded-lg ${tip.correct ? 'bg-emerald-400/25' : 'bg-rose-400/25'} px-2 py-0.5 text-[12px] font-bold text-white"><i data-lucide="${tip.correct ? 'check' : 'x'}" class="h-3.5 w-3.5"></i>${esc(tip.text || 'tip')}</li>`).join('')}</ul>` : '';
-        const reveal = (view.past || status === 'solved') && view.name ? `<p data-mystery-answer class="mt-1 text-2xl font-black leading-tight text-gold-200">${esc(view.name)}</p>` : '';
+        // Odpověď (vyřešená dnes, nebo minulý den) a k ní popis z Wikipedie s fotkou v okně položky (app.js item-info), jako po odpovědi v běžné hře
+        const info = view.info && view.info.topic && view.info.id ? `<button type="button" data-action="item-info" data-mystery-info data-topic="${esc(view.info.topic)}" data-id="${esc(view.info.id)}" class="mt-1.5 inline-flex min-h-[2.5rem] items-center gap-1.5 rounded-xl bg-white/15 px-3 text-[13px] font-bold text-white ring-1 ring-white/25 hover:bg-white/25"><i data-lucide="book-open" class="h-4 w-4"></i> Popis z Wikipedie</button>` : '';
+        const reveal = (view.past || status === 'solved') && view.name ? `<p data-mystery-answer class="mt-1 text-2xl font-black leading-tight text-gold-200">${esc(view.name)}</p>${info}` : '';
         const form = view.canGuess ? `
             <form id="mystery-form" class="flex flex-col gap-1.5" autocomplete="off">
                 <label for="mystery-input" class="${LABEL} px-1">Tvůj tip · ${esc(tipsWord(left))} na celý den · teď za ${esc(pointsWord(view.pointsNow))}</label>

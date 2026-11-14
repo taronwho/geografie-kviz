@@ -1,4 +1,6 @@
 // Režimy pro jednoho hráče: Bleskovka (60 sekund, co nejvíc správných odpovědí) a Přežití (tři životy, otázky postupně těžší).
+// Otázky jsou jako v běžné hře (zakrytý úvod článku z Wikipedie), jen bez nápověd; Přežití po odpovědi ukáže kartu s popisem z Wikipedie
+// a fotkou a další otázka přijde klepnutím, Bleskovka jde rovnou dál (popis chybných otázek je ve výsledku v Co ti uteklo).
 // Čistá logika bez DOMu: pravidla, hodiny Bleskovky, obtížnost Přežití, rekordy a XP s denním stropem.
 // Rekordy se ukládají jen v zařízení (mudrlant.modes): do účtu se synchronizují jen XP a odznaky, ne statistiky.
 // Obrazovky režimů kreslí app.js (oddíl „Bleskovka a Přežití“), zvuky a vibrace sound.js.
@@ -54,10 +56,10 @@
         { icon: 'circle-x', text: `Špatná odpověď ubere ${MODES.blitz.penalty} sekundy` },
         { icon: 'hourglass', text: 'Čas běží, jen když je vidět otázka' }
     ] : [
-        { icon: 'heart', text: `${MODES.survival.lives} životy – každá chyba jeden ubere` },
+        { icon: 'heart', text: `${MODES.survival.lives} životy – každá chyba jeden ubere, hraje se do posledního` },
         { icon: 'gauge', text: 'Začíná se známými, postupně přibývají těžší' },
         { icon: 'layout-grid', text: 'Vždy výběr ze 4 možností, bez nápověd a bez spěchu' },
-        { icon: 'trophy', text: 'Hraje se, dokud máš aspoň jeden život' }
+        { icon: 'book-open', text: 'Po odpovědi popis z Wikipedie a fotka, dál klepnutím' }
     ];
 
     // --- Hodiny Bleskovky: { left: zbývající ms, since: kdy se naposledy rozběhly, null = stojí } ---

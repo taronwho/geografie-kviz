@@ -3,8 +3,9 @@
 // u 4. a 8. otázky, poloviční čas na konci, boss mění stupně podle životů), výhra (emblém boss-kapitan, titul, 150 XP jen jednou za týden),
 // prohra s dalším pokusem, rozehraný souboj po obnovení stránky, přihlášený se společnou lištou a odesláním pokusů na server, společný
 // bonus příští týden, starší databáze bez funkcí. Úvod, souboj i výsledek se vejdou bez posouvání na 360×640 i 390×780, kontroly
-// rozhraní jako tests/e2e-ui-audit.test.js, CSP bez chyb. Potřebuje Playwright (viz tests/e2e.test.js), jinak se přeskočí.
-// BOSS_SHOTS=<složka> uloží snímky obrazovek.
+// rozhraní jako tests/e2e-ui-audit.test.js, CSP bez chyb. Otázky jako v běžné hře: zakrytý úvod článku z Wikipedie, nápovědy (další věty,
+// fotka, mapa, fakta) za čas, po odpovědi karta s popisem z Wikipedie a fotkou a tlačítko Další otázka (odemčené nápovědy po obnovení
+// stránky zůstanou). Potřebuje Playwright (viz tests/e2e.test.js), jinak se přeskočí. BOSS_SHOTS=<složka> uloží snímky obrazovek.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -141,7 +142,7 @@ const openIntro = async (tab) => {
 };
 // Otázka souboje je na obrazovce (možnosti nebo pole na psaní)
 const question = async (tab) => {
-    await tab.waitForSelector('#boss-question [data-boss-answers]', { timeout: 30000 });
+    await tab.waitForSelector('#boss-question:not(:has([data-action="boss-next"])) [data-boss-answers]', { timeout: 30000 });
     return (await state(tab)).open.shown;
 };
 // Odpověď: správná / špatná podle uložené otázky (jako tests/e2e-daily-quiz.test.js čte relaci); u psaní správný název nebo nesmysl
@@ -155,8 +156,41 @@ const answer = async (tab, correct = true, { next = true } = {}) => {
         await tab.click(`[data-action="boss-choice"][data-index="${index}"]`);
     }
     await tab.waitForSelector('[data-boss-bubble]');
-    if (next) await wait(tab, 3000);
+    await tab.waitForSelector('#boss-question [data-action="boss-next"]');
+    if (next) await goNext(tab);
     return shown;
+};
+// Po odpovědi karta odpovědi (popis z Wikipedie, fotka) a tlačítko Další otázka / Výsledek souboje (dvojí klepnutí do 0,4 s nic nepřeskočí)
+const goNext = async (tab) => {
+    await wait(tab, 500);
+    await tab.click('#boss-question [data-action="boss-next"]');
+};
+// Popis otázky je zakrytý úvod článku (testovací Wikipedie: „<název> je položka…“): bez odpovědi, s [***]
+const maskedText = async (tab, shown) => {
+    const text = await compact(tab, '#hint-tab-panel');
+    assert.match(text, /\[\*\*\*\] je položka, o které se píše v testu/, `zakrytý úvod článku: ${text}`);
+    assert.ok(!text.includes(shown.data.name), `popis neprozradí odpověď ${shown.data.name}`);
+};
+// Karta odpovědi po odpovědi: název, popis z Wikipedie už bez zakrytí a odkaz na článek
+const answerCard = async (tab, shown, { over = false } = {}) => {
+    await tab.waitForSelector('#boss-question #result-tab-panel [data-answer-about]');
+    assert.equal(await compact(tab, '#result-tab-panel [data-answer-name]'), shown.data.name);
+    const text = await compact(tab, '#result-tab-panel [data-answer-text]');
+    assert.equal(text, shown.data.description.replace(/\s+/g, ' ').trim(), 'popis z Wikipedie');
+    assert.ok(!text.includes('[***]') && text.length > 40, `popis bez zakrytí: ${text}`);
+    assert.match(await compact(tab, '#result-tab-panel [data-answer-about] a[href^="https://cs.wikipedia.org/wiki/"]'), /Číst na Wikipedii/);
+    assert.equal(await tab.$('#boss-question [data-action="boss-hint"]'), null, 'po odpovědi už žádná nápověda');
+    assert.match(await compact(tab, '#boss-question [data-action="boss-next"]'), over ? /Výsledek souboje/ : /Další otázka/);
+};
+// Fotka je pozadím rámečku (showPhoto v app.js), až se načte
+const photoShown = (tab, selector) => tab.waitForFunction((target) => { const el = document.querySelector(target); return Boolean(el) && /url\(/.test(el.style.backgroundImage); }, selector);
+// Nápovědy až po fotku (otázka, jejíž položka má fotku): vrátí, kolik nápověd se odemklo, nebo 0
+const unlockPhoto = async (tab, shown) => {
+    const index = shown.data.hints.findIndex(hint => hint.kind === 'photo');
+    if (index < 0) return 0;
+    for (let i = 0; i <= index; i++) await tab.click('#boss-question [data-action="boss-hint"]');
+    await photoShown(tab, '#hint-tab-panel #hint-photo');
+    return index + 1;
 };
 const hp = async (tab) => Number(await tab.getAttribute('#boss-strip [data-boss-hp]', 'data-boss-hp'));
 // Zbývající čas těsně po ukázání otázky (běh testu smí ubrat pár sekund skutečného času)
@@ -196,6 +230,11 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         await tab.click('[data-action="boss-rules"]');
         await tab.waitForSelector('[data-boss-rules]');
         assert.match(await compact(tab, '[data-boss-rules]'), /4\. a 8\. otázky schová možnosti/);
+        // Okno pravidel se na 360×640 vejde (nejvýš malá rezerva jako tests/e2e-dialogs-fit.test.js)
+        const rulesOverflow = await tab.evaluate(() => { const panel = document.querySelector('#dialog-overlay').firstElementChild; return panel.scrollHeight - panel.clientHeight; });
+        await shot(tab, 'pravidla-360x640');
+        assert.ok(rulesOverflow <= 24, `pravidla přetékají o ${rulesOverflow} px`);
+        assert.match(await compact(tab, '[data-boss-rules]'), /Popis z Wikipedie a nápovědy jako v běžné hře, čas ale běží dál/);
         await tab.click('#dialog-overlay [data-close]');
         await tab.click('[data-action="boss-hall"]');
         await tab.waitForSelector('[data-boss-hall-list]');
@@ -213,18 +252,30 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         assert.equal(await compact(tab, '#boss-strip [data-boss-count]'), 'Otázka 1/10');
         await clockNear(tab, 30);
         assert.equal(await tab.$('#boss-input'), null, 'první otázka s možnostmi');
+        const firstShown = await question(tab);
+        await maskedText(tab, firstShown);
+        if (firstShown.data.hints.length) assert.match(await compact(tab, '#boss-question [data-action="boss-hint"]'), new RegExp(`Nápověda 1/${firstShown.data.hints.length} .*· čas běží`));
         await fitsScreen(tab, 'souboj (360×640)');
         await audit(tab, 'souboj (360×640)');
         await shot(tab, 'souboj-360x640');
         // Rychlá správná odpověď: 50 + plný bonus 30
         await answer(tab, true, { next: false });
+        await answerCard(tab, firstShown);
         assert.equal(await hp(tab), 620);
         assert.equal(await tab.getAttribute('[data-boss-bubble]', 'data-boss-bubble'), 'hit');
         assert.ok(Boss.BY_ID.kapitan.hit.includes(await compact(tab, '[data-boss-bubble] p:last-child')));
         assert.equal(await compact(tab, '#boss-strip .boss-dmg'), '−80');
         assert.equal(await compact(tab, '#boss-strip .boss-dmg-tag'), 'Rychlý zásah!');
         await shot(tab, 'zasah-360x640');
+        // Hláška bosse po chvíli zmizí, karta odpovědi zůstane, dokud hráč neklepne na Další otázka
         await wait(tab, 3000);
+        assert.equal(await tab.$('[data-boss-bubble]'), null, 'hláška zmizela');
+        assert.ok(await tab.$('#boss-question [data-answer-about]'), 'karta odpovědi zůstává');
+        assert.equal((await state(tab)).open.results.length, 1);
+        await fitsScreen(tab, 'karta odpovědi (360×640)');
+        await audit(tab, 'karta odpovědi (360×640)');
+        await shot(tab, 'odpoved-360x640');
+        await goNext(tab);
         // Chyba: srdce praskne, boss se posměje (stupeň 1 = nafoukaný)
         await answer(tab, false, { next: false });
         assert.equal(await tab.getAttribute('#boss-strip [data-boss-hearts]', 'data-boss-hearts'), '2');
@@ -233,10 +284,20 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         assert.ok(Boss.BY_ID.kapitan.taunt[1].includes(await compact(tab, '[data-boss-bubble] p:last-child')), 'posměšek ve stupni 1');
         assert.equal(await hp(tab), 620);
         await shot(tab, 'chyba-360x640');
-        await wait(tab, 3000);
-        // Pomalejší odpověď (13 s): menší bonus za rychlost (do 20 s klesá k nule)
-        await question(tab);
-        await wait(tab, 13000);
+        await goNext(tab);
+        // Pomalejší odpověď (13 s) s nápovědou: nápověda stojí jen čas (menší bonus za rychlost, do 20 s klesá k nule), čas při ní běží dál
+        const third = await question(tab);
+        await wait(tab, 6000);
+        if (third.data.hints.length) {
+            const tabs = await tab.$$eval('#hint-tab-panel [role="tab"]', items => items.length);
+            await tab.click('#boss-question [data-action="boss-hint"]');
+            await tab.waitForFunction((count) => document.querySelectorAll('#hint-tab-panel [role="tab"]').length === count + 1, Math.max(1, tabs));
+            assert.equal(await tab.getAttribute('#hint-tab-panel [role="tab"][aria-selected="true"]', 'data-step'), third.data.hints[0].key, 'odemčená nápověda ve své záložce');
+            assert.equal((await state(tab)).open.shown.hint, 2, 'odemčené nápovědy se pamatují');
+            const left = Number(await compact(tab, '#boss-strip [data-boss-clock]'));
+            assert.ok(left <= 24 && left >= 21, `čas běží dál: zbývá ${left} s`);
+        }
+        await wait(tab, 7000);
         await answer(tab, true);
         const slow = (await state(tab)).open.results[2];
         assert.ok(slow.ms >= 13000 && slow.ms < 20000, `čas ${slow.ms} ms`);
@@ -254,7 +315,8 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         await answer(tab, true, { next: false });
         assert.equal(await tab.getAttribute('[data-boss-typed]', 'data-boss-typed'), 'correct');
         assert.equal(await tab.getAttribute('#boss-strip', 'data-stage'), '1');
-        await wait(tab, 3000);
+        await fitsScreen(tab, 'karta odpovědi po psané otázce (360×640)');
+        await goNext(tab);
         // 5. otázka: boss klesne pod dvě třetiny životů → stupeň 2 (Zraněný): záblesk, nový obrázek, hláška stupně
         await answer(tab, true, { next: false });
         let status = Boss.fightStatus((await state(tab)).open.results);
@@ -269,7 +331,7 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         await tab.waitForFunction(() => /boss-kapitan-zraneny\.webp$/.test(document.querySelector('#boss-portrait [data-boss-face]:last-child').getAttribute('src')));
         assert.equal(await tab.$('#boss-portrait.boss-standin-2'), null);
         await shot(tab, 'stupen-2-360x640');
-        await wait(tab, 3000);
+        await goNext(tab);
         // Vypršený čas: chyba, srdce praskne; posměšek ve stupni 2 je nervózní
         await question(tab);
         await wait(tab, 31000);
@@ -277,7 +339,7 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         assert.equal(await tab.getAttribute('#boss-strip [data-boss-hearts]', 'data-boss-hearts'), '1');
         assert.ok(Boss.BY_ID.kapitan.taunt[2].includes(await compact(tab, '[data-boss-bubble] p:last-child')), 'posměšek ve stupni 2');
         assert.equal((await state(tab)).open.results[5].timeout, true);
-        await wait(tab, 3000);
+        await goNext(tab);
         await answer(tab, true);
         // 8. otázka: psaní a poloviční čas (20 s)
         await question(tab);
@@ -295,12 +357,15 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         assert.equal(await compact(tab, '#boss-strip [data-boss-stage-label]'), 'V koncích');
         await tab.waitForFunction(() => /boss-kapitan-vkoncich\.webp$/.test(document.querySelector('#boss-portrait [data-boss-face]:last-child').getAttribute('src')));
         await shot(tab, 'stupen-3-360x640');
-        await wait(tab, 3000);
-        // 10. otázka správně, ale boss vydrží: prohra, počítá se uštědřené poškození
-        await answer(tab, true, { next: false });
+        await goNext(tab);
+        // 10. otázka správně, ale boss vydrží: prohra, počítá se uštědřené poškození; výsledek až po kartě odpovědi
+        const tenth = await answer(tab, true, { next: false });
         status = Boss.fightStatus((await state(tab)).open.results);
         assert.ok(status.over && !status.won && status.hp > 0);
+        await answerCard(tab, tenth, { over: true });
         await wait(tab, 3000);
+        assert.equal(await tab.$('#boss-result'), null, 'výsledek až po klepnutí');
+        await goNext(tab);
         await tab.waitForSelector('#boss-result[data-boss-outcome="lost"]');
         assert.match(await compact(tab, '#boss-result'), /Boss odolal/);
         assert.match(await compact(tab, '#boss-result'), new RegExp(`vydržel s ${status.percent} % životů`));
@@ -324,13 +389,35 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         // Druhý pokus: jiné otázky (semínko pokusu), výhra rychlými odpověďmi bez chyby
         const first = await question(tab);
         assert.equal((await state(tab)).open.n, 2);
-        for (let i = 0; i < 9; i++) await answer(tab, true, { next: i < 8 });
+        // Otázka, jejíž položka má fotku: nápovědy až po fotku (čas běží, tady stojí: test hýbe hodinami sám), po odpovědi záložka Fotka
+        let photoShot = false;
+        for (let i = 0; i < 9; i++) {
+            const shown = await question(tab);
+            if (!photoShot && await unlockPhoto(tab, shown)) {
+                photoShot = true;
+                await fitsScreen(tab, 'nápověda s fotkou (360×640)');
+                await audit(tab, 'nápověda s fotkou (360×640)');
+                await shot(tab, 'napoveda-fotka-360x640');
+                await answer(tab, true, { next: false });
+                await answerCard(tab, shown, { over: i === 8 });
+                await wait(tab, 3000);
+                await tab.click('#result-tab-panel [data-action="result-tab"][data-step="photo"]');
+                await photoShown(tab, '#result-tab-panel #result-photo');
+                await fitsScreen(tab, 'karta odpovědi s fotkou (360×640)');
+                await shot(tab, 'odpoved-fotka-360x640');
+                if (i < 8) await goNext(tab);
+                continue;
+            }
+            await answer(tab, true, { next: i < 8 });
+        }
+        assert.ok(photoShot, 'aspoň jedna otázka má v nápovědách fotku');
         assert.equal(await hp(tab), 0);
         assert.equal(await tab.getAttribute('#boss-portrait', 'data-stage'), '4');
         assert.equal(await tab.getAttribute('[data-boss-bubble]', 'data-boss-bubble'), 'defeat');
         await tab.waitForSelector('#boss-portrait img[src$="boss-kapitan-porazeny.webp"]');
         await shot(tab, 'porazeny-360x640');
-        await wait(tab, 3500);
+        assert.match(await compact(tab, '#boss-question [data-action="boss-next"]'), /Výsledek souboje/);
+        await goNext(tab);
         await tab.waitForSelector('#boss-result[data-boss-outcome="won"]');
         assert.match(await compact(tab, '#boss-result h1'), /Vítězství!/);
         assert.match(await compact(tab, '[data-boss-reward]'), /Titul „Přemožitel Kapitána“/);
@@ -370,11 +457,22 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         await audit(tab, 'úvod souboje (390×780, tmavý)');
         await shot(tab, 'arena-uvod-390x780-tmava');
         await tab.click('[data-action="boss-start"]');
-        await answer(tab, true);
+        const before = await question(tab);
+        await maskedText(tab, before);
+        await answer(tab, true, { next: false });
+        await answerCard(tab, before);
+        await wait(tab, 3000);
+        await fitsScreen(tab, 'karta odpovědi (390×780)');
+        await audit(tab, 'karta odpovědi (390×780, tmavý)');
+        await shot(tab, 'odpoved-390x780-tmava');
+        await goNext(tab);
         const shown = await question(tab);
         await fitsScreen(tab, 'souboj (390×780)');
         await audit(tab, 'souboj (390×780, tmavý)');
         await shot(tab, 'souboj-390x780-tmava');
+        // Odemčená nápověda zůstane i po obnovení stránky
+        const hinted = shown.data.hints.length > 0;
+        if (hinted) await tab.click('#boss-question [data-action="boss-hint"]');
         await wait(tab, 5000);
         await tab.reload();
         await tab.waitForSelector('#boss-card[data-boss-status="open"]');
@@ -389,6 +487,30 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         const left = Number(await compact(tab, '#boss-strip [data-boss-clock]'));
         assert.ok(left <= 25 && left >= 15, `čas běží dál: zbývá ${left} s`);
         assert.equal(await hp(tab), 620);
+        if (hinted) {
+            assert.equal(again.hint, 2);
+            assert.equal(await tab.$$eval('#hint-tab-panel [role="tab"]', items => items.length), 2, 'Popis a odemčená nápověda');
+            assert.equal(await tab.getAttribute('#hint-tab-panel [role="tab"][aria-selected="true"]', 'data-step'), shown.data.hints[0].key);
+        }
+        await answer(tab, true);
+        // Snímek otázky s fotkou v nápovědě a karty odpovědi s fotkou (390×780, tmavý režim): první otázka, jejíž položka fotku má
+        for (let i = 0; i < 4; i++) {
+            const next = await question(tab);
+            if (await unlockPhoto(tab, next)) {
+                await fitsScreen(tab, 'nápověda s fotkou (390×780)');
+                await audit(tab, 'nápověda s fotkou (390×780, tmavý)');
+                await shot(tab, 'napoveda-fotka-390x780-tmava');
+                await answer(tab, true, { next: false });
+                await wait(tab, 3000);
+                await tab.click('#result-tab-panel [data-action="result-tab"][data-step="photo"]');
+                await photoShown(tab, '#result-tab-panel #result-photo');
+                await shot(tab, 'odpoved-fotka-390x780-tmava');
+                await goNext(tab);
+                break;
+            }
+            await answer(tab, true);
+        }
+        await question(tab);
         // Domů během souboje: souboj zůstane rozehraný
         await tab.click('#btn-home');
         await tab.waitForSelector('#boss-card[data-boss-status="open"]');
@@ -412,7 +534,7 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         await tab.click('[data-action="boss-start"]');
         await answer(tab, true);
         for (let i = 0; i < 3; i++) await answer(tab, false, { next: i < 2 });
-        await wait(tab, 3000);
+        await goNext(tab);
         await tab.waitForSelector('#boss-result[data-boss-outcome="lost"]');
         await tab.waitForFunction(() => document.querySelector('[data-boss-community]') && /4 z 11|11/.test(document.querySelector('[data-boss-community]').textContent));
         const submit = db.calls.find(call => call.name === 'boss_submit');

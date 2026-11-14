@@ -1,6 +1,8 @@
 // Boss týdne (Výzva od Mudrlanta, docs/NOVE-MODY.md č. 10): každý ISO týden (pražský čas) jiný boss – Mudrlant v převleku s vlastní povahou.
 // Souboj: 10 těžkých otázek z tématu bosse (stejných pro všechny: semínko = týden a číslo pokusu), boss má 700 životů, správná odpověď
 // mu ubere 50 + bonus za rychlost (až 30: plný do 6 s, do 20 s klesá k nule), hráč má 3 srdce (chyba i vypršený čas ubere jedno).
+// Otázky jsou jako v běžné hře: zakrytý úvod článku z Wikipedie, nápovědy (další věty, fotka, obrazová nápověda, fakta), které stojí
+// jen čas (bonus za rychlost klesá), a po odpovědi karta s popisem z Wikipedie a fotkou; další otázka přijde klepnutím.
 // Schválnosti: u 4. a 8. otázky boss schová možnosti (odpověď se píše), poslední 3 otázky mají poloviční čas. 3 pokusy za týden,
 // počítá se nejlepší. Boss se během souboje mění: Plná síla (100–67 % životů), Zraněný (66–34 %), V koncích (33–1 %), Poražený (0).
 // Výhra: emblém bosse (odznak boss-<id> v quiz-core.js: Album, Vitrína, titul „Přemožitel …“) a 150 XP za první výhru v týdnu.
@@ -402,7 +404,8 @@
     // --- Uložený stav v zařízení (mudrlant.boss) ---
     // weeks: { týden: { boss, attempts: [{ n, damage, correct, hearts, defeated, at, owner, synced, idx }], xp (výhra zaplacena), bonus } }
     // open: rozehraný souboj { week, boss, n, owner, at, results: [{ correct, ms, typed, timeout, answer }], plan: [{ topic, q }],
-    //       shown: { slot, at, data } (otázka na obrazovce: po zavření aplikace se pokračuje stejnou otázkou, čas běží dál) } nebo null
+    //       shown: { slot, at, data, hint } (otázka na obrazovce: po zavření aplikace se pokračuje stejnou otázkou s odemčenými nápovědami,
+    //       čas běží dál) } nebo null
     // emblems: { boss: týden první výhry } – navždy (odznaky boss-<id>); claims: { hráč: poslední týden, za který se zkoušel vyzvednout bonus }
     const whole = (value, max) => (Number.isFinite(Number(value)) ? Math.max(0, Math.min(max, Math.floor(Number(value)))) : 0);
     const cleanText = (value, max = 80) => (typeof value === 'string' ? value.slice(0, max) : '');
@@ -424,8 +427,10 @@
         const results = [];
         for (const row of (Array.isArray(raw.results) ? raw.results : []).slice(0, QUESTIONS)) { const clean = cleanResult(row); if (!clean) break; results.push(clean); }
         const plan = (Array.isArray(raw.plan) ? raw.plan : []).slice(0, QUESTIONS).map(entry => (entry && typeof entry.topic === 'string' && typeof entry.q === 'string' ? { topic: entry.topic, q: entry.q } : null));
+        // hint = úroveň odemčených nápověd (1 = žádná, jako round.hintLevel v app.js)
         const shown = raw.shown && typeof raw.shown === 'object' && Number.isInteger(raw.shown.slot) && raw.shown.slot === results.length && Number.isFinite(raw.shown.at)
-            && raw.shown.data && typeof raw.shown.data === 'object' && raw.shown.data.question ? { slot: raw.shown.slot, at: raw.shown.at, data: raw.shown.data } : null;
+            && raw.shown.data && typeof raw.shown.data === 'object' && raw.shown.data.question
+            ? { slot: raw.shown.slot, at: raw.shown.at, data: raw.shown.data, ...(whole(raw.shown.hint, 20) > 1 ? { hint: whole(raw.shown.hint, 20) } : {}) } : null;
         return { week: raw.week, boss: raw.boss, n: Math.max(1, whole(raw.n, ATTEMPTS)) || 1, owner: cleanText(raw.owner, 64) || 'host', at: Number.isFinite(raw.at) ? raw.at : 0, results, plan, shown };
     };
     const emptyState = () => ({ v: 1, weeks: {}, open: null, emblems: {}, claims: {} });
@@ -584,12 +589,12 @@
     const rulesHtml = (boss, topicTitle = '') => {
         const rule = (icon, text) => `<li class="flex items-start gap-2.5 rounded-2xl bg-white px-3 py-2 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70"><i data-lucide="${icon}" class="mt-0.5 h-4 w-4 shrink-0 text-rose-600 dark:text-rose-300"></i><span class="text-[13px] font-semibold leading-snug text-slate-700 dark:text-slate-200">${text}</span></li>`;
         return `<ul data-boss-rules class="flex flex-col gap-1.5">
-            ${rule('swords', `${esc(boss.name)} má ${HP} životů. Čeká tě ${QUESTIONS} těžkých otázek${topicTitle ? ` z tématu ${esc(topicTitle)}` : ''}, stejných pro všechny hráče.`)}
+            ${rule('swords', `${esc(boss.name)} má ${HP} životů. Čeká tě ${QUESTIONS} těžkých otázek${topicTitle ? ` z tématu ${esc(topicTitle)}` : ''}, stejných pro všechny.`)}
             ${rule('zap', `Správná odpověď ubere bossovi ${BASE_DAMAGE} životů a za rychlost až ${SPEED_BONUS} navíc: plný bonus do ${FULL_BONUS_MS / 1000} s, do ${ZERO_BONUS_MS / 1000} s klesá k nule.`)}
-            ${rule('heart', `Máš ${HEARTS} srdce. Každá chyba i vypršený čas jedno ubere. Bez srdcí souboj končí.`)}
-            ${rule('timer', `Na odpověď máš ${TIME_MS / 1000} s, na psanou ${TYPED_TIME_MS / 1000} s.`)}
+            ${rule('heart', `Máš ${HEARTS} srdce, chyba i vypršený čas jedno ubere. Na odpověď máš ${TIME_MS / 1000}\u00a0s, na psanou ${TYPED_TIME_MS / 1000}\u00a0s.`)}
+            ${rule('lightbulb', 'Popis z Wikipedie a nápovědy jako v běžné hře, čas ale běží dál.')}
             ${rule('eye-off', 'Bossovy schválnosti: u 4. a 8. otázky schová možnosti a odpověď se píše. Poslední 3 otázky mají poloviční čas.')}
-            ${rule('repeat', `Každý týden máš na bosse ${ATTEMPTS} pokusy, počítá se nejlepší. Rozehraný souboj dohraješ později, čas u otázky ale běží dál.`)}
+            ${rule('repeat', `Každý týden máš ${ATTEMPTS} pokusy, počítá se nejlepší. Rozehraný souboj dohraješ později, čas otázky běží dál.`)}
             ${rule('trophy', `Za výhru: emblém bosse do Alba a Vitríny, titul „${esc(boss.title)}“ a ${WIN_XP} XP za první výhru v týdnu.`)}
         </ul>`;
     };
