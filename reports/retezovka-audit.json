@@ -1,0 +1,3477 @@
+{
+ "before": {
+  "label": "before",
+  "generated": "2026-11-14",
+  "from": "2026-11-15",
+  "daily": {
+   "chains": 365,
+   "built": 365,
+   "failed": 0,
+   "levels": {
+    "0": 47,
+    "1": 177,
+    "2": 126,
+    "3": 11,
+    "4": 4
+   },
+   "msPerChain": 778,
+   "questions": 2555,
+   "distinctNodes": 319,
+   "distinctStarts": 160,
+   "relations": {
+    "personCountry": 370,
+    "workAuthor": 260,
+    "landmarkCity": 205,
+    "countryLandmark": 192,
+    "cityLandmark": 190,
+    "landmarkArchitect": 145,
+    "countryPerson": 140,
+    "museumArt": 133,
+    "cityGames": 89,
+    "authorWork": 78,
+    "architectLandmark": 75,
+    "gamesCity": 71,
+    "bandMember": 68,
+    "landmarkCountry": 59,
+    "cityBand": 54,
+    "capital": 53,
+    "countryGames": 52,
+    "bandCity": 42,
+    "gamesCountry": 36,
+    "countryCity": 32,
+    "clubCity": 30,
+    "characterBook": 27,
+    "memberBand": 24,
+    "countryClub": 24,
+    "artMuseum": 23,
+    "natureCountry": 18,
+    "countryNature": 18,
+    "cityCountry": 14,
+    "clubCountry": 12,
+    "cityClub": 11,
+    "capitalOf": 10
+   },
+   "templates": 31,
+   "domains": {
+    "stavby": 646,
+    "osobnost": 606,
+    "autor": 558,
+    "sport": 325,
+    "muzeum": 156,
+    "geo": 109,
+    "kapela": 92,
+    "priroda": 36,
+    "postava": 27
+   },
+   "answerKinds": {
+    "country": 519,
+    "landmark": 480,
+    "city": 433,
+    "architect": 195,
+    "band": 168,
+    "artwork": 162,
+    "games": 141,
+    "artist": 129,
+    "musician": 98,
+    "writer": 63,
+    "music": 35,
+    "club": 35,
+    "director": 27,
+    "book": 27,
+    "character": 14,
+    "river": 11,
+    "athlete": 6,
+    "composer": 5,
+    "peak": 4,
+    "island": 3
+   },
+   "domainsPerChain": 4.6,
+   "topNodes": [
+    {
+     "name": "Spojené království",
+     "kind": "country",
+     "count": 155,
+     "share": 42.5
+    },
+    {
+     "name": "Londýn",
+     "kind": "city",
+     "count": 126,
+     "share": 34.5
+    },
+    {
+     "name": "Itálie",
+     "kind": "country",
+     "count": 123,
+     "share": 33.7
+    },
+    {
+     "name": "Francie",
+     "kind": "country",
+     "count": 121,
+     "share": 33.2
+    },
+    {
+     "name": "Paříž",
+     "kind": "city",
+     "count": 87,
+     "share": 23.8
+    },
+    {
+     "name": "Řím",
+     "kind": "city",
+     "count": 74,
+     "share": 20.3
+    },
+    {
+     "name": "Louvre",
+     "kind": "landmark",
+     "count": 70,
+     "share": 19.2
+    },
+    {
+     "name": "Leonardo da Vinci",
+     "kind": "artist",
+     "count": 63,
+     "share": 17.3
+    },
+    {
+     "name": "The Shard",
+     "kind": "landmark",
+     "count": 62,
+     "share": 17
+    },
+    {
+     "name": "Metropolitní muzeum umění",
+     "kind": "landmark",
+     "count": 61,
+     "share": 16.7
+    },
+    {
+     "name": "Smrt Sokratova",
+     "kind": "artwork",
+     "count": 61,
+     "share": 16.7
+    },
+    {
+     "name": "Renzo Piano",
+     "kind": "architect",
+     "count": 61,
+     "share": 16.7
+    },
+    {
+     "name": "The Beatles",
+     "kind": "band",
+     "count": 59,
+     "share": 16.2
+    },
+    {
+     "name": "Christopher Wren",
+     "kind": "architect",
+     "count": 57,
+     "share": 15.6
+    },
+    {
+     "name": "Queen",
+     "kind": "band",
+     "count": 55,
+     "share": 15.1
+    },
+    {
+     "name": "Jacques-Louis David",
+     "kind": "artist",
+     "count": 55,
+     "share": 15.1
+    },
+    {
+     "name": "Španělsko",
+     "kind": "country",
+     "count": 54,
+     "share": 14.8
+    },
+    {
+     "name": "Letní olympijské hry 1960",
+     "kind": "games",
+     "count": 49,
+     "share": 13.4
+    },
+    {
+     "name": "Spojené státy americké",
+     "kind": "country",
+     "count": 47,
+     "share": 12.9
+    },
+    {
+     "name": "Letní olympijské hry 2024",
+     "kind": "games",
+     "count": 42,
+     "share": 11.5
+    },
+    {
+     "name": "Kensingtonský palác",
+     "kind": "landmark",
+     "count": 41,
+     "share": 11.2
+    },
+    {
+     "name": "Katedrála svatého Pavla",
+     "kind": "landmark",
+     "count": 40,
+     "share": 11
+    },
+    {
+     "name": "Jean Nouvel",
+     "kind": "architect",
+     "count": 39,
+     "share": 10.7
+    },
+    {
+     "name": "Torre Glòries",
+     "kind": "landmark",
+     "count": 39,
+     "share": 10.7
+    },
+    {
+     "name": "Barcelona",
+     "kind": "city",
+     "count": 35,
+     "share": 9.6
+    }
+   ],
+   "topHubs": [
+    {
+     "name": "Spojené království",
+     "kind": "country",
+     "chains": 155,
+     "share": 42.5
+    },
+    {
+     "name": "Londýn",
+     "kind": "city",
+     "chains": 126,
+     "share": 34.5
+    },
+    {
+     "name": "Itálie",
+     "kind": "country",
+     "chains": 123,
+     "share": 33.7
+    },
+    {
+     "name": "Francie",
+     "kind": "country",
+     "chains": 121,
+     "share": 33.2
+    },
+    {
+     "name": "Paříž",
+     "kind": "city",
+     "chains": 87,
+     "share": 23.8
+    },
+    {
+     "name": "Řím",
+     "kind": "city",
+     "chains": 74,
+     "share": 20.3
+    },
+    {
+     "name": "Španělsko",
+     "kind": "country",
+     "chains": 54,
+     "share": 14.8
+    },
+    {
+     "name": "Spojené státy americké",
+     "kind": "country",
+     "chains": 47,
+     "share": 12.9
+    },
+    {
+     "name": "Barcelona",
+     "kind": "city",
+     "chains": 35,
+     "share": 9.6
+    },
+    {
+     "name": "New York",
+     "kind": "city",
+     "chains": 34,
+     "share": 9.3
+    },
+    {
+     "name": "Liverpool",
+     "kind": "city",
+     "chains": 27,
+     "share": 7.4
+    },
+    {
+     "name": "Turín",
+     "kind": "city",
+     "chains": 20,
+     "share": 5.5
+    },
+    {
+     "name": "Švýcarsko",
+     "kind": "country",
+     "chains": 13,
+     "share": 3.6
+    },
+    {
+     "name": "Madrid",
+     "kind": "city",
+     "chains": 9,
+     "share": 2.5
+    },
+    {
+     "name": "Milán",
+     "kind": "city",
+     "chains": 4,
+     "share": 1.1
+    }
+   ],
+   "hubsPerChain": 2.61,
+   "maxHubs": 4,
+   "chainsHub3": 58.4,
+   "repeatedInChain": 0,
+   "geoHopsPerChain": 2.61,
+   "geoPairs": 109,
+   "chainsGeo3": 58.4,
+   "trivial": 109,
+   "trivialShare": 4.3,
+   "trivialChains": 29.3,
+   "free": {
+    "implied": 84,
+    "shown-option": 71
+   },
+   "freeTotal": 155,
+   "freeChains": 135,
+   "freeExamples": [
+    "7. článek „Ve kterém státě se konaly Letní olympijské hry 1992?“ → Španělsko: plyne z dřívějších článků (Barcelona, Španělsko)",
+    "5. článek „Ve kterém státě stojí Bazilika svatého Denise?“ → Francie: plyne z dřívějších článků (Paříž, Francie)",
+    "5. článek „Ve kterém státě stojí La Madeleine?“ → Francie: plyne z dřívějších článků (Paříž, Francie)",
+    "5. článek „Ve kterém státě stojí GE Building?“ → Spojené státy americké: plyne z dřívějších článků (New York, Spojené státy americké)",
+    "5. článek „Ze které země pochází malíř Leonardo da Vinci?“ → Itálie: odpověď byla mezi možnostmi dřívější otázky",
+    "4. článek „Ze které země pochází architekt Renzo Piano?“ → Itálie: odpověď byla mezi možnostmi dřívější otázky",
+    "3. článek „Ve kterém státě se konaly Letní olympijské hry 2024?“ → Francie: plyne z dřívějších článků (Paříž, Francie)",
+    "7. článek „Které z těchto olympijských her se konaly ve městě Barcelona?“ → Letní olympijské hry 1992: odpověď byla mezi možnostmi dřívější otázky",
+    "5. článek „Ze které země pochází malíř Leonardo da Vinci?“ → Itálie: odpověď byla mezi možnostmi dřívější otázky",
+    "6. článek „Ve kterém státě stojí Kostel sv. Marie Vítězné?“ → Itálie: plyne z dřívějších článků (Řím, Itálie)",
+    "4. článek „Ve kterém státě stojí Tower?“ → Spojené království: plyne z dřívějších článků (Londýn, Spojené království)",
+    "6. článek „Ve kterém státě se konaly Letní olympijské hry 1960?“ → Itálie: plyne z dřívějších článků (Řím, Itálie)"
+   ],
+   "days": {
+    "hubRepeatDays": 349,
+    "hubRepeats": 757,
+    "nodeRepeatDays": 282,
+    "startRepeats": 72,
+    "sharedWithYesterday": 0.66
+   }
+  },
+  "practice": {
+   "chains": 1000,
+   "built": 1000,
+   "failed": 0,
+   "levels": {
+    "0": 508,
+    "1": 482,
+    "2": 9,
+    "3": 1
+   },
+   "msPerChain": 142,
+   "questions": 7000,
+   "distinctNodes": 397,
+   "distinctStarts": 252,
+   "relations": {
+    "personCountry": 1019,
+    "workAuthor": 762,
+    "countryLandmark": 498,
+    "cityLandmark": 490,
+    "landmarkCity": 448,
+    "landmarkArchitect": 397,
+    "countryPerson": 386,
+    "museumArt": 333,
+    "gamesCity": 231,
+    "architectLandmark": 206,
+    "countryGames": 200,
+    "authorWork": 189,
+    "cityGames": 186,
+    "bandMember": 179,
+    "bandCity": 165,
+    "landmarkCountry": 159,
+    "cityBand": 136,
+    "clubCity": 132,
+    "capital": 117,
+    "countryClub": 111,
+    "characterBook": 95,
+    "memberBand": 90,
+    "countryCity": 78,
+    "natureCountry": 75,
+    "gamesCountry": 74,
+    "cityCountry": 52,
+    "cityClub": 47,
+    "clubCountry": 44,
+    "artMuseum": 44,
+    "countryNature": 34,
+    "capitalOf": 23
+   },
+   "templates": 31,
+   "domains": {
+    "osobnost": 1706,
+    "stavby": 1595,
+    "autor": 1554,
+    "sport": 1025,
+    "muzeum": 377,
+    "geo": 270,
+    "kapela": 269,
+    "priroda": 109,
+    "postava": 95
+   },
+   "answerKinds": {
+    "country": 1446,
+    "landmark": 1238,
+    "city": 1171,
+    "architect": 561,
+    "band": 488,
+    "games": 386,
+    "artwork": 384,
+    "artist": 342,
+    "musician": 277,
+    "writer": 223,
+    "club": 158,
+    "book": 95,
+    "music": 91,
+    "director": 50,
+    "character": 47,
+    "river": 13,
+    "peak": 11,
+    "island": 8,
+    "athlete": 6,
+    "composer": 3,
+    "range": 2
+   },
+   "domainsPerChain": 4.6,
+   "topNodes": [
+    {
+     "name": "Spojené království",
+     "kind": "country",
+     "count": 526,
+     "share": 52.6
+    },
+    {
+     "name": "Londýn",
+     "kind": "city",
+     "count": 442,
+     "share": 44.2
+    },
+    {
+     "name": "Itálie",
+     "kind": "country",
+     "count": 387,
+     "share": 38.7
+    },
+    {
+     "name": "Francie",
+     "kind": "country",
+     "count": 334,
+     "share": 33.4
+    },
+    {
+     "name": "The Shard",
+     "kind": "landmark",
+     "count": 247,
+     "share": 24.7
+    },
+    {
+     "name": "Renzo Piano",
+     "kind": "architect",
+     "count": 245,
+     "share": 24.5
+    },
+    {
+     "name": "Louvre",
+     "kind": "landmark",
+     "count": 218,
+     "share": 21.8
+    },
+    {
+     "name": "Paříž",
+     "kind": "city",
+     "count": 216,
+     "share": 21.6
+    },
+    {
+     "name": "The Beatles",
+     "kind": "band",
+     "count": 202,
+     "share": 20.2
+    },
+    {
+     "name": "Leonardo da Vinci",
+     "kind": "artist",
+     "count": 192,
+     "share": 19.2
+    },
+    {
+     "name": "Řím",
+     "kind": "city",
+     "count": 192,
+     "share": 19.2
+    },
+    {
+     "name": "Christopher Wren",
+     "kind": "architect",
+     "count": 182,
+     "share": 18.2
+    },
+    {
+     "name": "Queen",
+     "kind": "band",
+     "count": 171,
+     "share": 17.1
+    },
+    {
+     "name": "Letní olympijské hry 1960",
+     "kind": "games",
+     "count": 131,
+     "share": 13.1
+    },
+    {
+     "name": "Katedrála svatého Pavla",
+     "kind": "landmark",
+     "count": 123,
+     "share": 12.3
+    },
+    {
+     "name": "Jacques-Louis David",
+     "kind": "artist",
+     "count": 119,
+     "share": 11.9
+    },
+    {
+     "name": "Smrt Sokratova",
+     "kind": "artwork",
+     "count": 110,
+     "share": 11
+    },
+    {
+     "name": "Kensingtonský palác",
+     "kind": "landmark",
+     "count": 109,
+     "share": 10.9
+    },
+    {
+     "name": "Metropolitní muzeum umění",
+     "kind": "landmark",
+     "count": 109,
+     "share": 10.9
+    },
+    {
+     "name": "John Ronald Reuel Tolkien",
+     "kind": "writer",
+     "count": 103,
+     "share": 10.3
+    },
+    {
+     "name": "Letní olympijské hry 2024",
+     "kind": "games",
+     "count": 103,
+     "share": 10.3
+    },
+    {
+     "name": "Liverpool",
+     "kind": "city",
+     "count": 94,
+     "share": 9.4
+    },
+    {
+     "name": "Torre Glòries",
+     "kind": "landmark",
+     "count": 90,
+     "share": 9
+    },
+    {
+     "name": "Jean Nouvel",
+     "kind": "architect",
+     "count": 90,
+     "share": 9
+    },
+    {
+     "name": "Španělsko",
+     "kind": "country",
+     "count": 89,
+     "share": 8.9
+    }
+   ],
+   "topHubs": [
+    {
+     "name": "Spojené království",
+     "kind": "country",
+     "chains": 526,
+     "share": 52.6
+    },
+    {
+     "name": "Londýn",
+     "kind": "city",
+     "chains": 442,
+     "share": 44.2
+    },
+    {
+     "name": "Itálie",
+     "kind": "country",
+     "chains": 387,
+     "share": 38.7
+    },
+    {
+     "name": "Francie",
+     "kind": "country",
+     "chains": 334,
+     "share": 33.4
+    },
+    {
+     "name": "Paříž",
+     "kind": "city",
+     "chains": 216,
+     "share": 21.6
+    },
+    {
+     "name": "Řím",
+     "kind": "city",
+     "chains": 192,
+     "share": 19.2
+    },
+    {
+     "name": "Liverpool",
+     "kind": "city",
+     "chains": 94,
+     "share": 9.4
+    },
+    {
+     "name": "Španělsko",
+     "kind": "country",
+     "chains": 89,
+     "share": 8.9
+    },
+    {
+     "name": "Spojené státy americké",
+     "kind": "country",
+     "chains": 80,
+     "share": 8
+    },
+    {
+     "name": "Turín",
+     "kind": "city",
+     "chains": 64,
+     "share": 6.4
+    },
+    {
+     "name": "New York",
+     "kind": "city",
+     "chains": 44,
+     "share": 4.4
+    },
+    {
+     "name": "Barcelona",
+     "kind": "city",
+     "chains": 38,
+     "share": 3.8
+    },
+    {
+     "name": "Glasgow",
+     "kind": "city",
+     "chains": 19,
+     "share": 1.9
+    },
+    {
+     "name": "Švýcarsko",
+     "kind": "country",
+     "chains": 16,
+     "share": 1.6
+    },
+    {
+     "name": "Nizozemsko",
+     "kind": "country",
+     "chains": 14,
+     "share": 1.4
+    }
+   ],
+   "hubsPerChain": 2.62,
+   "maxHubs": 4,
+   "chainsHub3": 58.1,
+   "repeatedInChain": 0,
+   "geoHopsPerChain": 2.62,
+   "geoPairs": 270,
+   "chainsGeo3": 58.1,
+   "trivial": 270,
+   "trivialShare": 3.9,
+   "trivialChains": 26.9,
+   "free": {
+    "implied": 187,
+    "shown-option": 146
+   },
+   "freeTotal": 333,
+   "freeChains": 287,
+   "freeExamples": [
+    "5. článek „Ve kterém státě se konaly Letní olympijské hry 1948?“ → Spojené království: plyne z dřívějších článků (Londýn, Spojené království)",
+    "6. článek „Ve kterém státě sídlí klub Chelsea FC?“ → Spojené království: plyne z dřívějších článků (Londýn, Spojené království)",
+    "6. článek „Ve kterém státě sídlí klub Arsenal FC?“ → Spojené království: plyne z dřívějších článků (Londýn, Spojené království)",
+    "5. článek „Ve kterém státě se konaly Letní olympijské hry 1992?“ → Španělsko: plyne z dřívějších článků (Barcelona, Španělsko)",
+    "4. článek „Ze které země pochází architekt Jean Nouvel?“ → Francie: odpověď byla mezi možnostmi dřívější otázky",
+    "5. článek „Ve kterém státě se konaly Letní olympijské hry 2024?“ → Francie: plyne z dřívějších článků (Paříž, Francie)",
+    "5. článek „Ve kterém státě se konaly Letní olympijské hry 2024?“ → Francie: plyne z dřívějších článků (Paříž, Francie)",
+    "4. článek „Ve kterém státě sídlí klub Arsenal FC?“ → Spojené království: plyne z dřívějších článků (Londýn, Spojené království)",
+    "4. článek „Ve kterém státě sídlí klub Chelsea FC?“ → Spojené království: plyne z dřívějších článků (Londýn, Spojené království)",
+    "6. článek „Ve kterém státě sídlí klub Chelsea FC?“ → Spojené království: plyne z dřívějších článků (Londýn, Spojené království)",
+    "5. článek „Ze které země pochází malíř Leonardo da Vinci?“ → Itálie: odpověď byla mezi možnostmi dřívější otázky",
+    "3. článek „Ve kterém státě se konaly Letní olympijské hry 1960?“ → Itálie: plyne z dřívějších článků (Řím, Itálie)"
+   ],
+   "days": null
+  },
+  "examples": [
+   {
+    "day": "2026-11-15",
+    "start": "Olympia",
+    "questions": [
+     {
+      "k": 1,
+      "rel": "workAuthor",
+      "text": "Kdo namaloval obraz Olympia?",
+      "answer": "Édouard Manet",
+      "options": [
+       "Eugène Delacroix",
+       "Édouard Manet",
+       "Paul Cézanne",
+       "Edgar Degas"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 2,
+      "rel": "personCountry",
+      "text": "Ze které země pochází malíř Édouard Manet?",
+      "answer": "Francie",
+      "options": [
+       "Rusko",
+       "Spojené království",
+       "Německo",
+       "Francie"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 3,
+      "rel": "countryPerson",
+      "text": "Kdo z těchto architektů pochází z Francie?",
+      "answer": "Jean Nouvel",
+      "options": [
+       "James Stirling",
+       "Richard Rogers",
+       "Jean Nouvel",
+       "Albert Speer mladší"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 4,
+      "rel": "architectLandmark",
+      "text": "Kterou z těchto staveb navrhl Jean Nouvel?",
+      "answer": "Torre Glòries",
+      "options": [
+       "Centre Georges Pompidou",
+       "The Shard",
+       "Turning Torso",
+       "Torre Glòries"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 5,
+      "rel": "landmarkCity",
+      "text": "Ve kterém městě stojí Torre Glòries?",
+      "answer": "Barcelona",
+      "options": [
+       "Valencie",
+       "Barcelona",
+       "Sevilla",
+       "Madrid"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 6,
+      "rel": "cityGames",
+      "text": "Které z těchto olympijských her se konaly ve městě Barcelona?",
+      "answer": "Letní olympijské hry 1992",
+      "options": [
+       "Letní olympijské hry 1980",
+       "Letní olympijské hry 1992",
+       "Letní olympijské hry 1972",
+       "Letní olympijské hry 2024"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 7,
+      "rel": "gamesCountry",
+      "text": "Ve kterém státě se konaly Letní olympijské hry 1992?",
+      "answer": "Španělsko",
+      "options": [
+       "Španělsko",
+       "Albánie",
+       "Polsko",
+       "Rusko"
+      ],
+      "explain": ""
+     }
+    ]
+   },
+   {
+    "day": "2026-11-16",
+    "start": "Eugène Delacroix",
+    "questions": [
+     {
+      "k": 1,
+      "rel": "authorWork",
+      "text": "Které z těchto děl namaloval Eugène Delacroix?",
+      "answer": "Svoboda vede lid na barikády",
+      "options": [
+       "Poutník nad mořem mlhy",
+       "Svoboda vede lid na barikády",
+       "Vor Medúzy",
+       "Maratova smrt"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 2,
+      "rel": "artMuseum",
+      "text": "Kde je k vidění obraz Svoboda vede lid na barikády?",
+      "answer": "Louvre",
+      "options": [
+       "Louvre",
+       "Muzeum Orsay",
+       "Britské muzeum",
+       "Museo del Prado"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 3,
+      "rel": "landmarkCity",
+      "text": "Ve kterém městě stojí muzeum Louvre?",
+      "answer": "Paříž",
+      "options": [
+       "Helsinky",
+       "Lyon",
+       "Bordeaux",
+       "Paříž"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 4,
+      "rel": "cityLandmark",
+      "text": "Která z těchto staveb stojí ve městě Paříž?",
+      "answer": "Bazilika svatého Denise",
+      "options": [
+       "Katedrála svatého Petra v Kolíně nad Rýnem",
+       "Bazilika svatého Denise",
+       "Salisburská katedrála",
+       "Katedrála v Roskilde"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 5,
+      "rel": "landmarkCountry",
+      "text": "Ve kterém státě stojí Bazilika svatého Denise?",
+      "answer": "Francie",
+      "options": [
+       "Německo",
+       "Francie",
+       "Ukrajina",
+       "Nizozemsko"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 6,
+      "rel": "countryPerson",
+      "text": "Kdo z těchto spisovatelů pochází z Francie?",
+      "answer": "Jules Verne",
+      "options": [
+       "Lewis Carroll",
+       "Jules Verne",
+       "Alexandr Sergejevič Puškin",
+       "Selma Lagerlöfová"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 7,
+      "rel": "authorWork",
+      "text": "Kterou z těchto postav vymyslel Jules Verne?",
+      "answer": "Kapitán Nemo",
+      "options": [
+       "Kapitán Nemo",
+       "Tom Sawyer",
+       "Profesor Moriarty",
+       "Mauglí"
+      ],
+      "explain": ""
+     }
+    ]
+   },
+   {
+    "day": "2026-11-17",
+    "start": "Kensingtonský palác",
+    "questions": [
+     {
+      "k": 1,
+      "rel": "landmarkArchitect",
+      "text": "Kdo navrhl stavbu Kensingtonský palác?",
+      "answer": "Christopher Wren",
+      "options": [
+       "Gian Lorenzo Bernini",
+       "Francesco Borromini",
+       "Christopher Wren",
+       "François Mansart"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 2,
+      "rel": "architectLandmark",
+      "text": "Kterou z těchto staveb navrhl Christopher Wren?",
+      "answer": "Katedrála svatého Pavla",
+      "options": [
+       "Katedrála svaté Hedviky Slezské",
+       "Katedrála svatého Pavla",
+       "Chrám svatých Petra a Pavla v Petrohradě",
+       "Katedrála svatého Klimenta"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 3,
+      "rel": "landmarkCountry",
+      "text": "Ve kterém státě stojí Katedrála svatého Pavla?",
+      "answer": "Spojené království",
+      "options": [
+       "Dánsko",
+       "Finsko",
+       "Norsko",
+       "Spojené království"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 4,
+      "rel": "countryGames",
+      "text": "Které z těchto olympijských her se konaly ve Spojeném království?",
+      "answer": "Letní olympijské hry 1948",
+      "options": [
+       "Letní olympijské hry 1952",
+       "Letní olympijské hry 1948",
+       "Letní olympijské hry 1972",
+       "Letní olympijské hry 1936"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 5,
+      "rel": "gamesCity",
+      "text": "Které město hostilo Letní olympijské hry 1948?",
+      "answer": "Londýn",
+      "options": [
+       "Řím",
+       "Londýn",
+       "Liverpool",
+       "Praha"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 6,
+      "rel": "cityBand",
+      "text": "Která z těchto kapel vznikla ve městě Londýn?",
+      "answer": "Queen",
+      "options": [
+       "The Beatles",
+       "ABBA",
+       "Queen",
+       "Buty"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 7,
+      "rel": "bandMember",
+      "text": "Kdo z těchto hudebníků působil v kapele Queen?",
+      "answer": "Freddie Mercury",
+      "options": [
+       "John Lennon",
+       "Freddie Mercury",
+       "Paul McCartney",
+       "Ringo Starr"
+      ],
+      "explain": ""
+     }
+    ]
+   },
+   {
+    "day": "2026-11-18",
+    "start": "William Faulkner",
+    "questions": [
+     {
+      "k": 1,
+      "rel": "personCountry",
+      "text": "Ze které země pochází spisovatel William Faulkner?",
+      "answer": "Spojené státy americké",
+      "options": [
+       "Spojené státy americké",
+       "Mexiko",
+       "Kuba",
+       "Kanada"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 2,
+      "rel": "countryLandmark",
+      "text": "Která z těchto staveb stojí ve Spojených státech amerických?",
+      "answer": "Metropolitní muzeum umění",
+      "options": [
+       "Izraelské muzeum",
+       "Metropolitní muzeum umění",
+       "Stará národní galerie",
+       "Pavilon Secese"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 3,
+      "rel": "museumArt",
+      "text": "Které z těchto děl je k vidění v Metropolitním muzeu umění?",
+      "answer": "Smrt Sokratova",
+      "options": [
+       "Nahá Maja",
+       "Poprava povstalců v Madridu",
+       "Smrt Sokratova",
+       "Vor Medúzy"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 4,
+      "rel": "workAuthor",
+      "text": "Kdo namaloval obraz Smrt Sokratova?",
+      "answer": "Jacques-Louis David",
+      "options": [
+       "Camille Pissarro",
+       "Jacques-Louis David",
+       "Jean Auguste Dominique Ingres",
+       "Édouard Manet"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 5,
+      "rel": "personCountry",
+      "text": "Ze které země pochází malíř Jacques-Louis David?",
+      "answer": "Francie",
+      "options": [
+       "Francie",
+       "Portugalsko",
+       "Albánie",
+       "Finsko"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 6,
+      "rel": "countryLandmark",
+      "text": "Která z těchto staveb stojí ve Francii?",
+      "answer": "Palais de Chaillot",
+      "options": [
+       "Palais de Chaillot",
+       "Livadijský palác",
+       "Thunovský palác ve Sněmovní",
+       "Medicejský palác"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 7,
+      "rel": "landmarkCity",
+      "text": "Ve kterém městě stojí Palais de Chaillot?",
+      "answer": "Paříž",
+      "options": [
+       "Moskva",
+       "Paříž",
+       "Lisabon",
+       "Madrid"
+      ],
+      "explain": ""
+     }
+    ]
+   },
+   {
+    "day": "2026-11-19",
+    "start": "Bohemian Rhapsody",
+    "questions": [
+     {
+      "k": 1,
+      "rel": "workAuthor",
+      "text": "Kdo nahrál píseň Bohemian Rhapsody?",
+      "answer": "Queen",
+      "options": [
+       "Queen",
+       "Iron Maiden",
+       "Muse",
+       "The Rolling Stones"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 2,
+      "rel": "bandMember",
+      "text": "Kdo z těchto hudebníků působil v kapele Queen?",
+      "answer": "Freddie Mercury",
+      "options": [
+       "John Lennon",
+       "Freddie Mercury",
+       "Mick Jagger",
+       "Paul McCartney"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 3,
+      "rel": "personCountry",
+      "text": "Ze které země pochází zpěvák Freddie Mercury?",
+      "answer": "Spojené království",
+      "options": [
+       "Polsko",
+       "Spojené království",
+       "Dánsko",
+       "Nizozemsko"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 4,
+      "rel": "countryLandmark",
+      "text": "Která z těchto staveb stojí ve Spojeném království?",
+      "answer": "Buckinghamský palác",
+      "options": [
+       "Zámek Karlova Koruna",
+       "Buckinghamský palác",
+       "Zámek Jaroměřice nad Rokytnou",
+       "Nymphenburg"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 5,
+      "rel": "landmarkCity",
+      "text": "Ve kterém městě stojí Buckinghamský palác?",
+      "answer": "Londýn",
+      "options": [
+       "Glasgow",
+       "Londýn",
+       "Madrid",
+       "Budapešť"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 6,
+      "rel": "cityLandmark",
+      "text": "Která z těchto staveb stojí ve městě Londýn?",
+      "answer": "Katedrála svatého Pavla",
+      "options": [
+       "Katedrála svatého Alexandra Něvského",
+       "Chrám svatých Petra a Pavla v Petrohradě",
+       "Katedrála svatého Pavla",
+       "Katedrála svatého Klimenta"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 7,
+      "rel": "landmarkArchitect",
+      "text": "Kdo navrhl stavbu Katedrála svatého Pavla?",
+      "answer": "Christopher Wren",
+      "options": [
+       "Christopher Wren",
+       "François Mansart",
+       "Gian Lorenzo Bernini",
+       "Francesco Borromini"
+      ],
+      "explain": ""
+     }
+    ]
+   },
+   {
+    "day": "2026-11-20",
+    "start": "Revolver",
+    "questions": [
+     {
+      "k": 1,
+      "rel": "workAuthor",
+      "text": "Kdo vydal album Revolver?",
+      "answer": "The Beatles",
+      "options": [
+       "Queen",
+       "The Beatles",
+       "Iron Maiden",
+       "Motörhead"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 2,
+      "rel": "bandMember",
+      "text": "Kdo z těchto hudebníků působil v kapele The Beatles?",
+      "answer": "John Lennon",
+      "options": [
+       "Robbie Williams",
+       "Keith Richards",
+       "Freddie Mercury",
+       "John Lennon"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 3,
+      "rel": "personCountry",
+      "text": "Ze které země pochází hudebník John Lennon?",
+      "answer": "Spojené království",
+      "options": [
+       "Ukrajina",
+       "Švýcarsko",
+       "Nizozemsko",
+       "Spojené království"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 4,
+      "rel": "countryLandmark",
+      "text": "Která z těchto staveb stojí ve Spojeném království?",
+      "answer": "Tower",
+      "options": [
+       "Predjamský hrad",
+       "Alhambra",
+       "Wartburg",
+       "Tower"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 5,
+      "rel": "landmarkCity",
+      "text": "Ve kterém městě stojí Tower?",
+      "answer": "Londýn",
+      "options": [
+       "Kyjev",
+       "Londýn",
+       "Liverpool",
+       "Moskva"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 6,
+      "rel": "cityLandmark",
+      "text": "Která z těchto staveb stojí ve městě Londýn?",
+      "answer": "The Shard",
+      "options": [
+       "Torre Glòries",
+       "Tour Montparnasse",
+       "The Shard",
+       "La Grande Arche"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 7,
+      "rel": "landmarkArchitect",
+      "text": "Kdo navrhl stavbu The Shard?",
+      "answer": "Renzo Piano",
+      "options": [
+       "Renzo Piano",
+       "Norman Foster",
+       "Alvar Aalto",
+       "Zaha Hadid"
+      ],
+      "explain": ""
+     }
+    ]
+   },
+   {
+    "day": "2026-11-21",
+    "start": "Letní olympijské hry 1992",
+    "questions": [
+     {
+      "k": 1,
+      "rel": "gamesCity",
+      "text": "Které město hostilo Letní olympijské hry 1992?",
+      "answer": "Barcelona",
+      "options": [
+       "Madrid",
+       "Valencie",
+       "Sevilla",
+       "Barcelona"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 2,
+      "rel": "cityLandmark",
+      "text": "Která z těchto staveb stojí ve městě Barcelona?",
+      "answer": "Torre Glòries",
+      "options": [
+       "The Shard",
+       "30 St Mary Axe",
+       "Tour Montparnasse",
+       "Torre Glòries"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 3,
+      "rel": "landmarkArchitect",
+      "text": "Kdo navrhl stavbu Torre Glòries?",
+      "answer": "Jean Nouvel",
+      "options": [
+       "Auguste Perret",
+       "Peter Zumthor",
+       "Jean Nouvel",
+       "André Le Nôtre"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 4,
+      "rel": "personCountry",
+      "text": "Ze které země pochází architekt Jean Nouvel?",
+      "answer": "Francie",
+      "options": [
+       "Dánsko",
+       "Francie",
+       "Nizozemsko",
+       "Spojené království"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 5,
+      "rel": "countryLandmark",
+      "text": "Která z těchto staveb stojí ve Francii?",
+      "answer": "Palais Bourbon",
+      "options": [
+       "Thunovský palác ve Sněmovní",
+       "Zimní palác",
+       "Christiansborg",
+       "Palais Bourbon"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 6,
+      "rel": "landmarkCity",
+      "text": "Ve kterém městě stojí Palais Bourbon?",
+      "answer": "Paříž",
+      "options": [
+       "Kyjev",
+       "Londýn",
+       "Paříž",
+       "Štrasburk"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 7,
+      "rel": "cityGames",
+      "text": "Které z těchto olympijských her se konaly ve městě Paříž?",
+      "answer": "Letní olympijské hry 2024",
+      "options": [
+       "Letní olympijské hry 2024",
+       "Letní olympijské hry 2004",
+       "Letní olympijské hry 1980",
+       "Letní olympijské hry 2012"
+      ],
+      "explain": ""
+     }
+    ]
+   },
+   {
+    "day": "2026-11-22",
+    "start": "Vincent van Gogh",
+    "questions": [
+     {
+      "k": 1,
+      "rel": "authorWork",
+      "text": "Které z těchto děl namaloval Vincent van Gogh?",
+      "answer": "Hvězdná noc nad Rhônou",
+      "options": [
+       "Hvězdná noc nad Rhônou",
+       "Zlatá Adele",
+       "Ivan Hrozný a jeho syn Ivan 16. listopadu 1581",
+       "Bar ve Folies Bergère"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 2,
+      "rel": "artMuseum",
+      "text": "Kde je k vidění obraz Hvězdná noc nad Rhônou?",
+      "answer": "Muzeum Orsay",
+      "options": [
+       "Muzeum Orsay",
+       "Stará národní galerie",
+       "Ermitáž",
+       "Louvre"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 3,
+      "rel": "landmarkCity",
+      "text": "Ve kterém městě stojí Muzeum Orsay?",
+      "answer": "Paříž",
+      "options": [
+       "Varšava",
+       "Paříž",
+       "Lyon",
+       "Kyjev"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 4,
+      "rel": "cityLandmark",
+      "text": "Která z těchto staveb stojí ve městě Paříž?",
+      "answer": "La Madeleine",
+      "options": [
+       "La Madeleine",
+       "Kostel svatého Mikuláše v Praze-Starém Městě",
+       "Votivní kostel",
+       "Notre-Dame de la Garde"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 5,
+      "rel": "landmarkCountry",
+      "text": "Ve kterém státě stojí La Madeleine?",
+      "answer": "Francie",
+      "options": [
+       "Francie",
+       "Nizozemsko",
+       "Švýcarsko",
+       "Albánie"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 6,
+      "rel": "countryPerson",
+      "text": "Kdo z těchto spisovatelů pochází z Francie?",
+      "answer": "Jules Verne",
+      "options": [
+       "Jules Verne",
+       "Rudyard Kipling",
+       "Henrik Ibsen",
+       "Nikolaj Vasiljevič Gogol"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 7,
+      "rel": "authorWork",
+      "text": "Kterou z těchto postav vymyslel Jules Verne?",
+      "answer": "Kapitán Nemo",
+      "options": [
+       "Tom Sawyer",
+       "Kapitán Nemo",
+       "Mauglí",
+       "Huckleberry Finn"
+      ],
+      "explain": ""
+     }
+    ]
+   },
+   {
+    "day": "2026-11-23",
+    "start": "John Ronald Reuel Tolkien",
+    "questions": [
+     {
+      "k": 1,
+      "rel": "personCountry",
+      "text": "Ze které země pochází spisovatel John Ronald Reuel Tolkien?",
+      "answer": "Spojené království",
+      "options": [
+       "Polsko",
+       "Francie",
+       "Spojené království",
+       "Finsko"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 2,
+      "rel": "countryLandmark",
+      "text": "Která z těchto staveb stojí ve Spojeném království?",
+      "answer": "The Shard",
+      "options": [
+       "Tour Montparnasse",
+       "La Grande Arche",
+       "Torre Glòries",
+       "The Shard"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 3,
+      "rel": "landmarkArchitect",
+      "text": "Kdo navrhl stavbu The Shard?",
+      "answer": "Renzo Piano",
+      "options": [
+       "Renzo Piano",
+       "Norman Foster",
+       "Friedensreich Hundertwasser",
+       "Santiago Calatrava"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 4,
+      "rel": "personCountry",
+      "text": "Ze které země pochází architekt Renzo Piano?",
+      "answer": "Itálie",
+      "options": [
+       "Francie",
+       "Finsko",
+       "Rusko",
+       "Itálie"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 5,
+      "rel": "countryGames",
+      "text": "Které z těchto olympijských her se konaly v Itálii?",
+      "answer": "Letní olympijské hry 1960",
+      "options": [
+       "Letní olympijské hry 1972",
+       "Letní olympijské hry 1980",
+       "Letní olympijské hry 1952",
+       "Letní olympijské hry 1960"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 6,
+      "rel": "gamesCity",
+      "text": "Které město hostilo Letní olympijské hry 1960?",
+      "answer": "Řím",
+      "options": [
+       "Lisabon",
+       "Madrid",
+       "Kyjev",
+       "Řím"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 7,
+      "rel": "cityLandmark",
+      "text": "Která z těchto staveb stojí ve městě Řím?",
+      "answer": "San Carlo alle Quattro Fontane",
+      "options": [
+       "San Carlo alle Quattro Fontane",
+       "Kostel svatého Mikuláše na Malé Straně",
+       "Kostel svatého Ignáce z Loyoly v Praze",
+       "Pražská Loreta"
+      ],
+      "explain": ""
+     }
+    ]
+   },
+   {
+    "day": "2026-11-24",
+    "start": "Poprava povstalců v Madridu",
+    "questions": [
+     {
+      "k": 1,
+      "rel": "workAuthor",
+      "text": "Kdo namaloval obraz Poprava povstalců v Madridu?",
+      "answer": "Francisco Goya",
+      "options": [
+       "Francisco Goya",
+       "Salvador Dalí",
+       "Joan Miró",
+       "Jean Auguste Dominique Ingres"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 2,
+      "rel": "personCountry",
+      "text": "Ze které země pochází malíř Francisco Goya?",
+      "answer": "Španělsko",
+      "options": [
+       "Norsko",
+       "Španělsko",
+       "Rusko",
+       "Spojené království"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 3,
+      "rel": "countryLandmark",
+      "text": "Která z těchto staveb stojí ve Španělsku?",
+      "answer": "Torre Glòries",
+      "options": [
+       "30 St Mary Axe",
+       "Torre Glòries",
+       "The Shard",
+       "Tour Montparnasse"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 4,
+      "rel": "landmarkArchitect",
+      "text": "Kdo navrhl stavbu Torre Glòries?",
+      "answer": "Jean Nouvel",
+      "options": [
+       "Auguste Perret",
+       "Richard Rogers",
+       "Jean Nouvel",
+       "François Mansart"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 5,
+      "rel": "personCountry",
+      "text": "Ze které země pochází architekt Jean Nouvel?",
+      "answer": "Francie",
+      "options": [
+       "Dánsko",
+       "Francie",
+       "Nizozemsko",
+       "Finsko"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 6,
+      "rel": "countryLandmark",
+      "text": "Která z těchto staveb stojí ve Francii?",
+      "answer": "Bazilika svatého Denise",
+      "options": [
+       "Bazilika svatého Denise",
+       "Katedrála Panny Marie a svatého Štěpána ve Špýru",
+       "Yorská katedrála",
+       "Katedrála v Roskilde"
+      ],
+      "explain": ""
+     },
+     {
+      "k": 7,
+      "rel": "landmarkCity",
+      "text": "Ve kterém městě stojí Bazilika svatého Denise?",
+      "answer": "Paříž",
+      "options": [
+       "Roubaix",
+       "Moskva",
+       "Londýn",
+       "Paříž"
+      ],
+      "explain": ""
+     }
+    ]
+   }
+  ]
+ },
+ "after": {
+  "label": "after",
+  "generated": "2026-11-14",
+  "from": "2026-11-15",
+  "daily": {
+   "chains": 365,
+   "built": 365,
+   "failed": 0,
+   "levels": {
+    "0": 6,
+    "1": 43,
+    "2": 123,
+    "3": 64,
+    "4": 36,
+    "5": 5,
+    "6": 78,
+    "7": 10
+   },
+   "msPerChain": 1219,
+   "questions": 2555,
+   "distinctNodes": 580,
+   "distinctStarts": 182,
+   "relations": {
+    "cityDied": 176,
+    "personCountry": 170,
+    "personBorn": 147,
+    "cityBorn": 101,
+    "filmActor": 95,
+    "personDied": 94,
+    "countryLandmark": 92,
+    "actorFilm": 92,
+    "authorWork": 88,
+    "workAuthor": 87,
+    "countryPerson": 79,
+    "rulerRealm": 70,
+    "artistMovement": 70,
+    "teacherOf": 66,
+    "movementArtist": 65,
+    "landmarkCountry": 65,
+    "realmCapital": 59,
+    "studentOf": 58,
+    "landmarkCity": 57,
+    "landmarkStyle": 56,
+    "spouse": 40,
+    "realmRuler": 39,
+    "goldAthlete": 37,
+    "countryNature": 36,
+    "artMuseum": 34,
+    "cityLandmark": 32,
+    "capitalRealm": 30,
+    "museumArt": 30,
+    "artDepicts": 29,
+    "clubAthlete": 27,
+    "riverInto": 27,
+    "parentOf": 25,
+    "childOf": 25,
+    "cityGames": 25,
+    "cityClub": 24,
+    "clubCity": 23,
+    "styleLandmark": 22,
+    "predecessor": 22,
+    "athleteGold": 22,
+    "athleteClub": 20,
+    "gamesCity": 19,
+    "successor": 18,
+    "landmarkArchitect": 16,
+    "countryGames": 14,
+    "endemicSpecies": 13,
+    "countryClub": 12,
+    "discovererBody": 12,
+    "moonPlanet": 12,
+    "cityBand": 12,
+    "memberBand": 11,
+    "mythSpouse": 9,
+    "depictedIn": 7,
+    "natureCountry": 7,
+    "bandCity": 7,
+    "clubCountry": 6,
+    "bandMember": 5,
+    "mythFather": 3,
+    "discovererElement": 3,
+    "peakRange": 3,
+    "mythParentOf": 3,
+    "clubStadium": 2,
+    "bodyDiscoverer": 2,
+    "architectLandmark": 2,
+    "gamesCountry": 1
+   },
+   "templates": 110,
+   "domains": {
+    "film": 441,
+    "architektura": 412,
+    "historie": 387,
+    "umeni": 330,
+    "sport": 292,
+    "hudba": 227,
+    "veda": 190,
+    "literatura": 164,
+    "priroda": 86,
+    "mytologie": 26
+   },
+   "answerKinds": {
+    "city": 406,
+    "country": 249,
+    "landmark": 182,
+    "ruler": 158,
+    "actor": 136,
+    "artist": 130,
+    "film": 120,
+    "realm": 100,
+    "writer": 98,
+    "composer": 85,
+    "director": 82,
+    "athlete": 81,
+    "artwork": 74,
+    "movement": 70,
+    "physicist": 65,
+    "games": 61,
+    "river": 59,
+    "club": 56,
+    "style": 56,
+    "musician": 41,
+    "astronomer": 41,
+    "architect": 35,
+    "figure": 33,
+    "myth": 26,
+    "band": 23,
+    "book": 15,
+    "species": 13,
+    "moon": 12,
+    "planet": 12,
+    "statesman": 9,
+    "music": 8,
+    "chemist": 7,
+    "range": 4,
+    "element": 3,
+    "peak": 3,
+    "stadium": 2
+   },
+   "domainsPerChain": 3,
+   "topNodes": [
+    {
+     "name": "Londýn",
+     "kind": "city",
+     "count": 48,
+     "share": 13.2
+    },
+    {
+     "name": "Spojené státy americké",
+     "kind": "country",
+     "count": 45,
+     "share": 12.3
+    },
+    {
+     "name": "Německo",
+     "kind": "country",
+     "count": 44,
+     "share": 12.1
+    },
+    {
+     "name": "Leonardo DiCaprio",
+     "kind": "actor",
+     "count": 41,
+     "share": 11.2
+    },
+    {
+     "name": "Francie",
+     "kind": "country",
+     "count": 35,
+     "share": 9.6
+    },
+    {
+     "name": "REVENANT Zmrtvýchvstání",
+     "kind": "film",
+     "count": 34,
+     "share": 9.3
+    },
+    {
+     "name": "Alejandro González Iñárritu",
+     "kind": "director",
+     "count": 34,
+     "share": 9.3
+    },
+    {
+     "name": "Ciudad de México",
+     "kind": "city",
+     "count": 34,
+     "share": 9.3
+    },
+    {
+     "name": "Itálie",
+     "kind": "country",
+     "count": 33,
+     "share": 9
+    },
+    {
+     "name": "Louvre",
+     "kind": "landmark",
+     "count": 28,
+     "share": 7.7
+    },
+    {
+     "name": "Vídeň",
+     "kind": "city",
+     "count": 28,
+     "share": 7.7
+    },
+    {
+     "name": "Gottfried Wilhelm Leibniz",
+     "kind": "figure",
+     "count": 27,
+     "share": 7.4
+    },
+    {
+     "name": "Praha",
+     "kind": "city",
+     "count": 26,
+     "share": 7.1
+    },
+    {
+     "name": "Řím",
+     "kind": "city",
+     "count": 24,
+     "share": 6.6
+    },
+    {
+     "name": "Rakouské císařství",
+     "kind": "realm",
+     "count": 24,
+     "share": 6.6
+    },
+    {
+     "name": "Juventus FC",
+     "kind": "club",
+     "count": 23,
+     "share": 6.3
+    },
+    {
+     "name": "Romantismus",
+     "kind": "movement",
+     "count": 23,
+     "share": 6.3
+    },
+    {
+     "name": "Gabriel García Márquez",
+     "kind": "writer",
+     "count": 23,
+     "share": 6.3
+    },
+    {
+     "name": "Kolumbie",
+     "kind": "country",
+     "count": 23,
+     "share": 6.3
+    },
+    {
+     "name": "Ruské impérium",
+     "kind": "realm",
+     "count": 22,
+     "share": 6
+    },
+    {
+     "name": "Petrohrad",
+     "kind": "city",
+     "count": 22,
+     "share": 6
+    },
+    {
+     "name": "Leonhard Euler",
+     "kind": "physicist",
+     "count": 22,
+     "share": 6
+    },
+    {
+     "name": "Joseph-Louis Lagrange",
+     "kind": "astronomer",
+     "count": 22,
+     "share": 6
+    },
+    {
+     "name": "Turín",
+     "kind": "city",
+     "count": 22,
+     "share": 6
+    },
+    {
+     "name": "Alžběta Bavorská",
+     "kind": "ruler",
+     "count": 22,
+     "share": 6
+    }
+   ],
+   "topHubs": [
+    {
+     "name": "Londýn",
+     "kind": "city",
+     "chains": 48,
+     "share": 13.2
+    },
+    {
+     "name": "Spojené státy americké",
+     "kind": "country",
+     "chains": 45,
+     "share": 12.3
+    },
+    {
+     "name": "Německo",
+     "kind": "country",
+     "chains": 44,
+     "share": 12.1
+    },
+    {
+     "name": "Francie",
+     "kind": "country",
+     "chains": 35,
+     "share": 9.6
+    },
+    {
+     "name": "Ciudad de México",
+     "kind": "city",
+     "chains": 34,
+     "share": 9.3
+    },
+    {
+     "name": "Itálie",
+     "kind": "country",
+     "chains": 33,
+     "share": 9
+    },
+    {
+     "name": "Vídeň",
+     "kind": "city",
+     "chains": 28,
+     "share": 7.7
+    },
+    {
+     "name": "Praha",
+     "kind": "city",
+     "chains": 26,
+     "share": 7.1
+    },
+    {
+     "name": "Řím",
+     "kind": "city",
+     "chains": 24,
+     "share": 6.6
+    },
+    {
+     "name": "Kolumbie",
+     "kind": "country",
+     "chains": 23,
+     "share": 6.3
+    },
+    {
+     "name": "Petrohrad",
+     "kind": "city",
+     "chains": 22,
+     "share": 6
+    },
+    {
+     "name": "Turín",
+     "kind": "city",
+     "chains": 22,
+     "share": 6
+    },
+    {
+     "name": "Lipsko",
+     "kind": "city",
+     "chains": 18,
+     "share": 4.9
+    },
+    {
+     "name": "Paříž",
+     "kind": "city",
+     "chains": 18,
+     "share": 4.9
+    },
+    {
+     "name": "San Francisco",
+     "kind": "city",
+     "chains": 15,
+     "share": 4.1
+    }
+   ],
+   "hubsPerChain": 1.79,
+   "maxHubs": 2,
+   "chainsHub3": 0,
+   "repeatedInChain": 0,
+   "geoHopsPerChain": 1.79,
+   "geoPairs": 0,
+   "chainsGeo3": 0,
+   "trivial": 0,
+   "trivialShare": 0,
+   "trivialChains": 0,
+   "free": {},
+   "freeTotal": 0,
+   "freeChains": 0,
+   "freeExamples": [],
+   "days": {
+    "hubRepeatDays": 27,
+    "hubRepeats": 31,
+    "nodeRepeatDays": 61,
+    "startRepeats": 20,
+    "sharedWithYesterday": 0.07
+   }
+  },
+  "practice": {
+   "chains": 1000,
+   "built": 1000,
+   "failed": 0,
+   "levels": {
+    "0": 1000
+   },
+   "msPerChain": 163,
+   "questions": 7000,
+   "distinctNodes": 861,
+   "distinctStarts": 441,
+   "relations": {
+    "personCountry": 690,
+    "cityDied": 409,
+    "cityBorn": 389,
+    "countryLandmark": 346,
+    "landmarkCity": 298,
+    "personDied": 295,
+    "countryPerson": 268,
+    "personBorn": 199,
+    "teacherOf": 198,
+    "authorWork": 184,
+    "studentOf": 178,
+    "artistMovement": 177,
+    "artMuseum": 169,
+    "workAuthor": 162,
+    "depictedIn": 151,
+    "movementArtist": 148,
+    "rulerRealm": 141,
+    "landmarkCountry": 139,
+    "countryClub": 133,
+    "goldAthlete": 131,
+    "realmRuler": 129,
+    "clubCity": 121,
+    "countryGames": 119,
+    "artDepicts": 111,
+    "actorFilm": 93,
+    "countryNature": 86,
+    "landmarkStyle": 86,
+    "filmActor": 82,
+    "museumArt": 77,
+    "natureCountry": 77,
+    "capitalRealm": 76,
+    "successor": 63,
+    "gamesCity": 62,
+    "childOf": 62,
+    "cityLandmark": 58,
+    "parentOf": 56,
+    "clubAthlete": 54,
+    "mythFather": 53,
+    "spouse": 51,
+    "landmarkArchitect": 50,
+    "riverInto": 49,
+    "athleteGold": 45,
+    "athleteClub": 44,
+    "realmCapital": 42,
+    "predecessor": 40,
+    "bandMember": 39,
+    "cityBand": 37,
+    "mythSpouse": 36,
+    "mythParentOf": 35,
+    "discovererBody": 33,
+    "memberBand": 30,
+    "cityClub": 30,
+    "clubCountry": 30,
+    "moonPlanet": 29,
+    "gamesCountry": 23,
+    "cityGames": 21,
+    "bodyDiscoverer": 18,
+    "bandCity": 12,
+    "characterBook": 10,
+    "clubStadium": 9,
+    "architectLandmark": 5,
+    "styleLandmark": 4,
+    "discovererElement": 3,
+    "endemicSpecies": 2,
+    "inventorInvention": 2,
+    "mythMother": 1
+   },
+   "templates": 114,
+   "domains": {
+    "umeni": 1222,
+    "architektura": 1184,
+    "sport": 1021,
+    "historie": 846,
+    "veda": 686,
+    "literatura": 604,
+    "hudba": 560,
+    "film": 483,
+    "priroda": 214,
+    "mytologie": 180
+   },
+   "answerKinds": {
+    "city": 1029,
+    "country": 959,
+    "landmark": 582,
+    "artist": 551,
+    "ruler": 401,
+    "artwork": 333,
+    "writer": 323,
+    "physicist": 245,
+    "athlete": 241,
+    "realm": 217,
+    "club": 207,
+    "games": 185,
+    "myth": 180,
+    "composer": 178,
+    "movement": 177,
+    "actor": 147,
+    "film": 108,
+    "director": 93,
+    "river": 93,
+    "astronomer": 92,
+    "chemist": 87,
+    "style": 86,
+    "musician": 78,
+    "band": 69,
+    "architect": 65,
+    "figure": 49,
+    "book": 41,
+    "moon": 33,
+    "statesman": 31,
+    "music": 30,
+    "planet": 29,
+    "island": 28,
+    "peak": 11,
+    "stadium": 9,
+    "element": 3,
+    "character": 3,
+    "species": 2,
+    "range": 2,
+    "invention": 2,
+    "lake": 1
+   },
+   "domainsPerChain": 3.5,
+   "topNodes": [
+    {
+     "name": "Francie",
+     "kind": "country",
+     "count": 226,
+     "share": 22.6
+    },
+    {
+     "name": "Spojené království",
+     "kind": "country",
+     "count": 206,
+     "share": 20.6
+    },
+    {
+     "name": "Paříž",
+     "kind": "city",
+     "count": 196,
+     "share": 19.6
+    },
+    {
+     "name": "Londýn",
+     "kind": "city",
+     "count": 180,
+     "share": 18
+    },
+    {
+     "name": "Itálie",
+     "kind": "country",
+     "count": 125,
+     "share": 12.5
+    },
+    {
+     "name": "Španělsko",
+     "kind": "country",
+     "count": 113,
+     "share": 11.3
+    },
+    {
+     "name": "Spojené státy americké",
+     "kind": "country",
+     "count": 105,
+     "share": 10.5
+    },
+    {
+     "name": "Saturn požírající svého syna",
+     "kind": "artwork",
+     "count": 93,
+     "share": 9.3
+    },
+    {
+     "name": "Museo del Prado",
+     "kind": "landmark",
+     "count": 93,
+     "share": 9.3
+    },
+    {
+     "name": "Kronos",
+     "kind": "myth",
+     "count": 92,
+     "share": 9.2
+    },
+    {
+     "name": "Madrid",
+     "kind": "city",
+     "count": 91,
+     "share": 9.1
+    },
+    {
+     "name": "Německo",
+     "kind": "country",
+     "count": 83,
+     "share": 8.3
+    },
+    {
+     "name": "New York",
+     "kind": "city",
+     "count": 82,
+     "share": 8.2
+    },
+    {
+     "name": "Afrodíté",
+     "kind": "myth",
+     "count": 71,
+     "share": 7.1
+    },
+    {
+     "name": "Louvre",
+     "kind": "landmark",
+     "count": 70,
+     "share": 7
+    },
+    {
+     "name": "Království Velké Británie",
+     "kind": "realm",
+     "count": 60,
+     "share": 6
+    },
+    {
+     "name": "Arsenal FC",
+     "kind": "club",
+     "count": 60,
+     "share": 6
+    },
+    {
+     "name": "The Beatles",
+     "kind": "band",
+     "count": 55,
+     "share": 5.5
+    },
+    {
+     "name": "Smrt Sokratova",
+     "kind": "artwork",
+     "count": 54,
+     "share": 5.4
+    },
+    {
+     "name": "Platón",
+     "kind": "writer",
+     "count": 52,
+     "share": 5.2
+    },
+    {
+     "name": "Robert Hooke",
+     "kind": "physicist",
+     "count": 52,
+     "share": 5.2
+    },
+    {
+     "name": "Irène Joliotová-Curieová",
+     "kind": "chemist",
+     "count": 52,
+     "share": 5.2
+    },
+    {
+     "name": "Miguel de Cervantes",
+     "kind": "writer",
+     "count": 52,
+     "share": 5.2
+    },
+    {
+     "name": "Řím",
+     "kind": "city",
+     "count": 51,
+     "share": 5.1
+    },
+    {
+     "name": "Benátky",
+     "kind": "city",
+     "count": 48,
+     "share": 4.8
+    }
+   ],
+   "topHubs": [
+    {
+     "name": "Francie",
+     "kind": "country",
+     "chains": 226,
+     "share": 22.6
+    },
+    {
+     "name": "Spojené království",
+     "kind": "country",
+     "chains": 206,
+     "share": 20.6
+    },
+    {
+     "name": "Paříž",
+     "kind": "city",
+     "chains": 196,
+     "share": 19.6
+    },
+    {
+     "name": "Londýn",
+     "kind": "city",
+     "chains": 180,
+     "share": 18
+    },
+    {
+     "name": "Itálie",
+     "kind": "country",
+     "chains": 125,
+     "share": 12.5
+    },
+    {
+     "name": "Španělsko",
+     "kind": "country",
+     "chains": 113,
+     "share": 11.3
+    },
+    {
+     "name": "Spojené státy americké",
+     "kind": "country",
+     "chains": 105,
+     "share": 10.5
+    },
+    {
+     "name": "Madrid",
+     "kind": "city",
+     "chains": 91,
+     "share": 9.1
+    },
+    {
+     "name": "Německo",
+     "kind": "country",
+     "chains": 83,
+     "share": 8.3
+    },
+    {
+     "name": "New York",
+     "kind": "city",
+     "chains": 82,
+     "share": 8.2
+    },
+    {
+     "name": "Řím",
+     "kind": "city",
+     "chains": 51,
+     "share": 5.1
+    },
+    {
+     "name": "Benátky",
+     "kind": "city",
+     "chains": 48,
+     "share": 4.8
+    },
+    {
+     "name": "Barcelona",
+     "kind": "city",
+     "chains": 37,
+     "share": 3.7
+    },
+    {
+     "name": "Nizozemsko",
+     "kind": "country",
+     "chains": 34,
+     "share": 3.4
+    },
+    {
+     "name": "Florencie",
+     "kind": "city",
+     "chains": 30,
+     "share": 3
+    }
+   ],
+   "hubsPerChain": 1.99,
+   "maxHubs": 2,
+   "chainsHub3": 0,
+   "repeatedInChain": 0,
+   "geoHopsPerChain": 1.99,
+   "geoPairs": 0,
+   "chainsGeo3": 0,
+   "trivial": 0,
+   "trivialShare": 0,
+   "trivialChains": 0,
+   "free": {},
+   "freeTotal": 0,
+   "freeChains": 0,
+   "freeExamples": [],
+   "days": null
+  },
+  "examples": [
+   {
+    "day": "2026-11-15",
+    "start": "Šifra mistra Leonarda",
+    "questions": [
+     {
+      "k": 1,
+      "rel": "filmActor",
+      "text": "Kdo z těchto herců hrál ve filmu Šifra mistra Leonarda?",
+      "answer": "Tom Hanks",
+      "options": [
+       "Keanu Reeves",
+       "Tom Hanks",
+       "Brad Pitt",
+       "Johnny Depp"
+      ],
+      "explain": "Ve filmu Šifra mistra Leonarda (2006) hrál Tom Hanks."
+     },
+     {
+      "k": 2,
+      "rel": "personCountry",
+      "text": "Ze které země pochází herec Tom Hanks?",
+      "answer": "Spojené státy americké",
+      "options": [
+       "Kanada",
+       "Spojené státy americké",
+       "Rusko",
+       "Mexiko"
+      ],
+      "explain": "Tom Hanks pochází ze Spojených států amerických."
+     },
+     {
+      "k": 3,
+      "rel": "countryLandmark",
+      "text": "Kterou z těchto staveb najdeš ve Spojených státech amerických?",
+      "answer": "Golden Gate Bridge",
+      "options": [
+       "Golden Gate Bridge",
+       "Tower Bridge",
+       "CN Tower",
+       "Viadukt Millau"
+      ],
+      "explain": "Golden Gate Bridge stojí ve Spojených státech amerických."
+     },
+     {
+      "k": 4,
+      "rel": "landmarkCity",
+      "text": "Ve kterém městě stojí Golden Gate Bridge?",
+      "answer": "San Francisco",
+      "options": [
+       "San Francisco",
+       "Atlanta",
+       "Miami",
+       "Chicago"
+      ],
+      "explain": "Golden Gate Bridge stojí ve městě San Francisco."
+     },
+     {
+      "k": 5,
+      "rel": "cityBorn",
+      "text": "Kdo z těchto hudebníků se narodil ve městě San Francisco?",
+      "answer": "Courtney Love",
+      "options": [
+       "Courtney Love",
+       "Anastacia",
+       "Diana Rossová",
+       "Nicole Scherzingerová"
+      ],
+      "explain": "Courtney Love se narodila ve městě San Francisco (1964)."
+     },
+     {
+      "k": 6,
+      "rel": "spouse",
+      "text": "Koho měla Courtney Love za manžela?",
+      "answer": "Kurt Cobain",
+      "options": [
+       "Kurt Cobain",
+       "Louis Armstrong",
+       "Duke Ellington",
+       "Jay-Z"
+      ],
+      "explain": "Courtney Love a Kurt Cobain byli manželé."
+     },
+     {
+      "k": 7,
+      "rel": "memberBand",
+      "text": "Ve které kapele působil Kurt Cobain?",
+      "answer": "Nirvana",
+      "options": [
+       "Linkin Park",
+       "30 Seconds to Mars",
+       "Nirvana",
+       "Red Hot Chili Peppers"
+      ],
+      "explain": "Kurt Cobain působil v kapele Nirvana."
+     }
+    ]
+   },
+   {
+    "day": "2026-11-16",
+    "start": "Lorenzo Ghiberti",
+    "questions": [
+     {
+      "k": 1,
+      "rel": "teacherOf",
+      "text": "Kdo z těchto osobností byl žákem osobnosti Lorenzo Ghiberti?",
+      "answer": "Donatello",
+      "options": [
+       "Donatello",
+       "Rafael Santi",
+       "Tizian",
+       "Leonardo da Vinci"
+      ],
+      "explain": "Donatello byl žákem osobnosti Lorenzo Ghiberti."
+     },
+     {
+      "k": 2,
+      "rel": "personCountry",
+      "text": "Odkud pochází sochař Donatello?",
+      "answer": "Itálie",
+      "options": [
+       "Německo",
+       "Ukrajina",
+       "Itálie",
+       "Spojené království"
+      ],
+      "explain": "Donatello pochází z Itálie."
+     },
+     {
+      "k": 3,
+      "rel": "countryLandmark",
+      "text": "Která z těchto staveb stojí v Itálii?",
+      "answer": "San Clemente",
+      "options": [
+       "Bazilika svatého Jiří",
+       "Bazilika svaté Ludmily",
+       "San Clemente",
+       "Bazilika svatého Prokopa"
+      ],
+      "explain": "San Clemente stojí v Itálii."
+     },
+     {
+      "k": 4,
+      "rel": "landmarkCity",
+      "text": "Ve kterém městě najdeš stavbu San Clemente?",
+      "answer": "Řím",
+      "options": [
+       "Řím",
+       "Florencie",
+       "Athény",
+       "Neapol"
+      ],
+      "explain": "San Clemente stojí ve městě Řím."
+     },
+     {
+      "k": 5,
+      "rel": "cityDied",
+      "text": "Kdo z těchto panovníků zemřel ve městě Řím?",
+      "answer": "Viktor Emanuel II.",
+      "options": [
+       "Viktor Emanuel II.",
+       "Husajn I.",
+       "Petr II. Brazilský",
+       "Josef II. Habsbursko-Lotrinský"
+      ],
+      "explain": "Viktor Emanuel II. zemřel ve městě Řím (1878)."
+     },
+     {
+      "k": 6,
+      "rel": "rulerRealm",
+      "text": "Kterému státu vládl panovník Viktor Emanuel II.?",
+      "answer": "Italské království",
+      "options": [
+       "Britská Indie",
+       "Třetí Francouzská republika",
+       "Japonské císařství",
+       "Italské království"
+      ],
+      "explain": "Viktor Emanuel II. stál v čele státu Italské království."
+     },
+     {
+      "k": 7,
+      "rel": "realmRuler",
+      "text": "Kdo z těchto panovníků stál v čele státu Italské království?",
+      "answer": "Umberto I.",
+      "options": [
+       "Umberto I.",
+       "Josef II. Habsbursko-Lotrinský",
+       "Abdulhamid II.",
+       "Ferdinand I. Dobrotivý"
+      ],
+      "explain": "Umberto I. stál v čele státu Italské království."
+     }
+    ]
+   },
+   {
+    "day": "2026-11-17",
+    "start": "Petr III.",
+    "questions": [
+     {
+      "k": 1,
+      "rel": "rulerRealm",
+      "text": "V čele kterého státu stál Petr III.?",
+      "answer": "Ruské impérium",
+      "options": [
+       "Ruské impérium",
+       "Království Velké Británie",
+       "Čching",
+       "Království obojí Sicílie"
+      ],
+      "explain": "Petr III. stál v čele státu Ruské impérium."
+     },
+     {
+      "k": 2,
+      "rel": "realmCapital",
+      "text": "Které město bylo hlavním městem státu Ruské impérium?",
+      "answer": "Petrohrad",
+      "options": [
+       "Krasnodar",
+       "Soči",
+       "Moskva",
+       "Petrohrad"
+      ],
+      "explain": "Hlavním městem státu Ruské impérium bylo město Petrohrad."
+     },
+     {
+      "k": 3,
+      "rel": "cityDied",
+      "text": "Kdo z těchto fyziků zemřel ve městě Petrohrad?",
+      "answer": "Leonhard Euler",
+      "options": [
+       "Henri Poincaré",
+       "René Descartes",
+       "Wolfgang Pauli",
+       "Leonhard Euler"
+      ],
+      "explain": "Leonhard Euler zemřel ve městě Petrohrad (1783)."
+     },
+     {
+      "k": 4,
+      "rel": "teacherOf",
+      "text": "Kdo z těchto osobností byl žákem osobnosti Leonhard Euler?",
+      "answer": "Joseph-Louis Lagrange",
+      "options": [
+       "Joseph-Louis Lagrange",
+       "Georges Edouard Lemaître",
+       "Nicolas Camille Flammarion",
+       "Fred Hoyle"
+      ],
+      "explain": "Joseph-Louis Lagrange byl žákem osobnosti Leonhard Euler."
+     },
+     {
+      "k": 5,
+      "rel": "personBorn",
+      "text": "Kde se narodil astronom Joseph-Louis Lagrange?",
+      "answer": "Turín",
+      "options": [
+       "Turín",
+       "Milán",
+       "Neapol",
+       "Palermo"
+      ],
+      "explain": "Joseph-Louis Lagrange se narodil ve městě Turín (1736)."
+     },
+     {
+      "k": 6,
+      "rel": "cityClub",
+      "text": "Který z těchto klubů je doma ve městě Turín?",
+      "answer": "Juventus FC",
+      "options": [
+       "Rangers FC",
+       "AFC Ajax",
+       "Juventus FC",
+       "Chelsea FC"
+      ],
+      "explain": "Klub Juventus FC sídlí ve městě Turín."
+     },
+     {
+      "k": 7,
+      "rel": "clubAthlete",
+      "text": "Kdo z těchto hráčů oblékal dres klubu Juventus FC?",
+      "answer": "Zinédine Zidane",
+      "options": [
+       "Zinédine Zidane",
+       "Thierry Henry",
+       "Antoine Griezmann",
+       "Kylian Mbappé"
+      ],
+      "explain": "Zinédine Zidane hrál za klub Juventus FC."
+     }
+    ]
+   },
+   {
+    "day": "2026-11-18",
+    "start": "John Constable",
+    "questions": [
+     {
+      "k": 1,
+      "rel": "artistMovement",
+      "text": "Ke kterému směru se řadí malíř John Constable?",
+      "answer": "Romantismus",
+      "options": [
+       "Romantismus",
+       "Abstraktní umění",
+       "Impresionismus",
+       "Kubismus"
+      ],
+      "explain": "John Constable patřil ke směru romantismus."
+     },
+     {
+      "k": 2,
+      "rel": "movementArtist",
+      "text": "Kdo z těchto výtvarníků patřil ke směru romantismus?",
+      "answer": "Théodore Géricault",
+      "options": [
+       "Gustave Moreau",
+       "Théodore Géricault",
+       "William-Adolphe Bouguereau",
+       "Marcel Duchamp"
+      ],
+      "explain": "Théodore Géricault patřil ke směru romantismus."
+     },
+     {
+      "k": 3,
+      "rel": "authorWork",
+      "text": "Které z těchto děl namaloval Théodore Géricault?",
+      "answer": "Vor Medúzy",
+      "options": [
+       "Nahá Maja",
+       "Vor Medúzy",
+       "Poutník nad mořem mlhy",
+       "Saturn požírající svého syna"
+      ],
+      "explain": "Obraz Vor Medúzy namaloval Théodore Géricault (1819)."
+     },
+     {
+      "k": 4,
+      "rel": "artMuseum",
+      "text": "Ve kterém muzeu nebo galerii je obraz Vor Medúzy?",
+      "answer": "Louvre",
+      "options": [
+       "Britské muzeum",
+       "Muzeum Orsay",
+       "Museo del Prado",
+       "Louvre"
+      ],
+      "explain": "Obraz Vor Medúzy je k vidění v Louvru."
+     },
+     {
+      "k": 5,
+      "rel": "landmarkCountry",
+      "text": "Ve kterém státě stojí muzeum Louvre?",
+      "answer": "Francie",
+      "options": [
+       "Itálie",
+       "Francie",
+       "Norsko",
+       "Ukrajina"
+      ],
+      "explain": "Muzeum Louvre stojí ve Francii."
+     },
+     {
+      "k": 6,
+      "rel": "countryPerson",
+      "text": "Kdo z těchto spisovatelů pochází z Francie?",
+      "answer": "Gustave Flaubert",
+      "options": [
+       "Gustave Flaubert",
+       "Arthur Conan Doyle",
+       "Charles Dickens",
+       "Alexandr Sergejevič Puškin"
+      ],
+      "explain": "Gustave Flaubert pochází z Francie."
+     },
+     {
+      "k": 7,
+      "rel": "teacherOf",
+      "text": "Koho z těchto osobností učil Gustave Flaubert?",
+      "answer": "Guy de Maupassant",
+      "options": [
+       "Albert Camus",
+       "Antoine de Saint-Exupéry",
+       "Jean-Paul Sartre",
+       "Guy de Maupassant"
+      ],
+      "explain": "Guy de Maupassant byl žákem osobnosti Gustave Flaubert."
+     }
+    ]
+   },
+   {
+    "day": "2026-11-19",
+    "start": "Katedrála svatého Petra v Řezně",
+    "questions": [
+     {
+      "k": 1,
+      "rel": "landmarkCountry",
+      "text": "Ve kterém státě stojí Katedrála svatého Petra v Řezně?",
+      "answer": "Německo",
+      "options": [
+       "Španělsko",
+       "Německo",
+       "Francie",
+       "Albánie"
+      ],
+      "explain": "Katedrála svatého Petra v Řezně stojí v Německu."
+     },
+     {
+      "k": 2,
+      "rel": "countryPerson",
+      "text": "Kdo z těchto skladatelů pochází z Německa?",
+      "answer": "Ludwig van Beethoven",
+      "options": [
+       "Fryderyk Chopin",
+       "Wolfgang Amadeus Mozart",
+       "Ludwig van Beethoven",
+       "Josef Mysliveček"
+      ],
+      "explain": "Ludwig van Beethoven pochází z Německa."
+     },
+     {
+      "k": 3,
+      "rel": "studentOf",
+      "text": "Kdo byl učitelem osobnosti Ludwig van Beethoven?",
+      "answer": "Joseph Haydn",
+      "options": [
+       "Jan Dismas Zelenka",
+       "Joseph Haydn",
+       "Georg Friedrich Händel",
+       "Johann Sebastian Bach"
+      ],
+      "explain": "Joseph Haydn byl učitelem osobnosti Ludwig van Beethoven."
+     },
+     {
+      "k": 4,
+      "rel": "personDied",
+      "text": "Ve kterém městě zemřel Joseph Haydn?",
+      "answer": "Vídeň",
+      "options": [
+       "Stockholm",
+       "Vídeň",
+       "Berlín",
+       "Řím"
+      ],
+      "explain": "Joseph Haydn zemřel ve městě Vídeň (1809)."
+     },
+     {
+      "k": 5,
+      "rel": "capitalRealm",
+      "text": "Který z těchto historických států měl hlavní město Vídeň?",
+      "answer": "Rakouské císařství",
+      "options": [
+       "Výmarská republika",
+       "Ruská sovětská federativní socialistická republika",
+       "Rakouské císařství",
+       "Spojené království Velké Británie a Irska"
+      ],
+      "explain": "Hlavním městem státu Rakouské císařství bylo město Vídeň."
+     },
+     {
+      "k": 6,
+      "rel": "realmRuler",
+      "text": "Kdo z těchto panovníků vládl ve státě Rakouské císařství?",
+      "answer": "Alžběta Bavorská",
+      "options": [
+       "Viktorie Britská",
+       "Marie I. Tudorovna",
+       "Alžběta Bavorská",
+       "Cch’-si"
+      ],
+      "explain": "Alžběta Bavorská stála v čele státu Rakouské císařství."
+     },
+     {
+      "k": 7,
+      "rel": "spouse",
+      "text": "Koho měla Alžběta Bavorská za manžela?",
+      "answer": "František Josef I.",
+      "options": [
+       "Ludvík XVIII.",
+       "František Josef I.",
+       "Karel X.",
+       "Čaka"
+      ],
+      "explain": "Alžběta Bavorská a František Josef I. byli manželé."
+     }
+    ]
+   },
+   {
+    "day": "2026-11-20",
+    "start": "Skrytá identita",
+    "questions": [
+     {
+      "k": 1,
+      "rel": "filmActor",
+      "text": "Kdo z těchto herců hrál ve filmu Skrytá identita?",
+      "answer": "Leonardo DiCaprio",
+      "options": [
+       "Robin Williams",
+       "Leonardo DiCaprio",
+       "Johnny Depp",
+       "Will Smith"
+      ],
+      "explain": "Ve filmu Skrytá identita (2006) hrál Leonardo DiCaprio."
+     },
+     {
+      "k": 2,
+      "rel": "actorFilm",
+      "text": "Ve kterém z těchto filmů se objevil Leonardo DiCaprio?",
+      "answer": "REVENANT Zmrtvýchvstání",
+      "options": [
+       "Černá labuť",
+       "Star Wars: Síla se probouzí",
+       "Joker",
+       "REVENANT Zmrtvýchvstání"
+      ],
+      "explain": "Leonardo DiCaprio hrál ve filmu REVENANT Zmrtvýchvstání (2015)."
+     },
+     {
+      "k": 3,
+      "rel": "workAuthor",
+      "text": "Kdo režíroval film REVENANT Zmrtvýchvstání?",
+      "answer": "Alejandro González Iñárritu",
+      "options": [
+       "Alejandro González Iñárritu",
+       "Sydney Pollack",
+       "Guillermo del Toro",
+       "Darren Aronofsky"
+      ],
+      "explain": "Film REVENANT Zmrtvýchvstání režíroval Alejandro González Iñárritu (2015)."
+     },
+     {
+      "k": 4,
+      "rel": "personBorn",
+      "text": "Ve kterém městě se narodil Alejandro González Iñárritu?",
+      "answer": "Ciudad de México",
+      "options": [
+       "Ottawa",
+       "Port-au-Prince",
+       "Guadalajara",
+       "Ciudad de México"
+      ],
+      "explain": "Alejandro González Iñárritu se narodil ve městě Ciudad de México (1963)."
+     },
+     {
+      "k": 5,
+      "rel": "cityDied",
+      "text": "Kdo z těchto spisovatelů zemřel ve městě Ciudad de México?",
+      "answer": "Gabriel García Márquez",
+      "options": [
+       "Gabriel García Márquez",
+       "Jorge Luis Borges",
+       "Mario Vargas Llosa",
+       "Pablo Neruda"
+      ],
+      "explain": "Gabriel García Márquez zemřel ve městě Ciudad de México (2014)."
+     },
+     {
+      "k": 6,
+      "rel": "personCountry",
+      "text": "Ze které země pochází spisovatel Gabriel García Márquez?",
+      "answer": "Kolumbie",
+      "options": [
+       "Chile",
+       "Kolumbie",
+       "Argentina",
+       "Venezuela"
+      ],
+      "explain": "Gabriel García Márquez pochází z Kolumbie."
+     },
+     {
+      "k": 7,
+      "rel": "countryLandmark",
+      "text": "Kterou z těchto staveb najdeš v Kolumbii?",
+      "answer": "Svatyně Las Lajas",
+      "options": [
+       "Svatyně Las Lajas",
+       "La Madeleine",
+       "Socha Krista Spasitele",
+       "Mirante do Vale"
+      ],
+      "explain": "Svatyně Las Lajas stojí v Kolumbii."
+     }
+    ]
+   },
+   {
+    "day": "2026-11-21",
+    "start": "Jindřich VIII. Tudor",
+    "questions": [
+     {
+      "k": 1,
+      "rel": "parentOf",
+      "text": "Jindřich VIII. Tudor byl otcem které z těchto osobností?",
+      "answer": "Alžběta I.",
+      "options": [
+       "Alžběta II.",
+       "Akbar Veliký",
+       "Isabela I.",
+       "Alžběta I."
+      ],
+      "explain": "Jindřich VIII. Tudor → Alžběta I.: otec a dcera."
+     },
+     {
+      "k": 2,
+      "rel": "rulerRealm",
+      "text": "V čele kterého státu stála Alžběta I.?",
+      "answer": "Anglické království",
+      "options": [
+       "Francouzské království",
+       "Fátimovský chalífát",
+       "Anglické království",
+       "Kyjevská Rus"
+      ],
+      "explain": "Alžběta I. stála v čele státu Anglické království."
+     },
+     {
+      "k": 3,
+      "rel": "realmCapital",
+      "text": "Které město bylo hlavním městem státu Anglické království?",
+      "answer": "Londýn",
+      "options": [
+       "Londýn",
+       "Madrid",
+       "Řím",
+       "Moskva"
+      ],
+      "explain": "Hlavním městem státu Anglické království bylo město Londýn."
+     },
+     {
+      "k": 4,
+      "rel": "cityDied",
+      "text": "Kdo z těchto herců a hereček zemřel ve městě Londýn?",
+      "answer": "Ingrid Bergmanová",
+      "options": [
+       "Greta Garbo",
+       "Jana Brejchová",
+       "Libuše Šafránková",
+       "Ingrid Bergmanová"
+      ],
+      "explain": "Ingrid Bergmanová zemřela ve městě Londýn (1982)."
+     },
+     {
+      "k": 5,
+      "rel": "personCountry",
+      "text": "Ze které země pochází herečka Ingrid Bergmanová?",
+      "answer": "Švédsko",
+      "options": [
+       "Rakousko",
+       "Česko",
+       "Norsko",
+       "Švédsko"
+      ],
+      "explain": "Ingrid Bergmanová pochází ze Švédska."
+     },
+     {
+      "k": 6,
+      "rel": "countryLandmark",
+      "text": "Která z těchto staveb stojí ve Švédsku?",
+      "answer": "Drottningholmský palác",
+      "options": [
+       "Belveder",
+       "Palais Bourbon",
+       "Královský palác v Madridu",
+       "Drottningholmský palác"
+      ],
+      "explain": "Drottningholmský palác stojí ve Švédsku."
+     },
+     {
+      "k": 7,
+      "rel": "landmarkStyle",
+      "text": "Ke kterému architektonickému slohu patří Drottningholmský palác?",
+      "answer": "Baroko",
+      "options": [
+       "Byzantský sloh",
+       "Rokoko",
+       "Empír",
+       "Baroko"
+      ],
+      "explain": "Sloh stavby Drottningholmský palác: baroko."
+     }
+    ]
+   },
+   {
+    "day": "2026-11-22",
+    "start": "Poprava povstalců v Madridu",
+    "questions": [
+     {
+      "k": 1,
+      "rel": "workAuthor",
+      "text": "Kdo je autorem obrazu Poprava povstalců v Madridu?",
+      "answer": "Francisco Goya",
+      "options": [
+       "Francisco Goya",
+       "William Turner",
+       "Pablo Picasso",
+       "Diego Velázquez"
+      ],
+      "explain": "Obraz Poprava povstalců v Madridu namaloval Francisco Goya (1814)."
+     },
+     {
+      "k": 2,
+      "rel": "artistMovement",
+      "text": "Ke kterému uměleckému směru patřil Francisco Goya?",
+      "answer": "Romantismus",
+      "options": [
+       "Expresionismus",
+       "Dadaismus",
+       "Romantismus",
+       "Secese"
+      ],
+      "explain": "Francisco Goya patřil ke směru romantismus."
+     },
+     {
+      "k": 3,
+      "rel": "movementArtist",
+      "text": "Kdo z těchto umělců je představitelem směru romantismus?",
+      "answer": "Caspar David Friedrich",
+      "options": [
+       "Caspar David Friedrich",
+       "Franz Marc",
+       "Ernst Ludwig Kirchner",
+       "Otto Dix"
+      ],
+      "explain": "Caspar David Friedrich patřil ke směru romantismus."
+     },
+     {
+      "k": 4,
+      "rel": "personDied",
+      "text": "Kde zemřel malíř Caspar David Friedrich?",
+      "answer": "Drážďany",
+      "options": [
+       "Hannover",
+       "Drážďany",
+       "Lipsko",
+       "Stuttgart"
+      ],
+      "explain": "Caspar David Friedrich zemřel ve městě Drážďany (1840)."
+     },
+     {
+      "k": 5,
+      "rel": "cityLandmark",
+      "text": "Kterou z těchto staveb najdeš ve městě Drážďany?",
+      "answer": "Semperova opera",
+      "options": [
+       "Semperova opera",
+       "Mahenovo divadlo",
+       "Rudolfinum",
+       "Berlínská filharmonie"
+      ],
+      "explain": "Semperova opera stojí ve městě Drážďany."
+     },
+     {
+      "k": 6,
+      "rel": "landmarkStyle",
+      "text": "Ke kterému architektonickému slohu patří Semperova opera?",
+      "answer": "Novorenesance",
+      "options": [
+       "Novobaroko",
+       "Secese",
+       "Novogotika",
+       "Novorenesance"
+      ],
+      "explain": "Sloh stavby Semperova opera: novorenesance."
+     },
+     {
+      "k": 7,
+      "rel": "styleLandmark",
+      "text": "Kterou z těchto staveb postavili v novorenesančním slohu?",
+      "answer": "Livadijský palác",
+      "options": [
+       "Palác Mafra",
+       "Palais de Chaillot",
+       "Livadijský palác",
+       "Palác Güell"
+      ],
+      "explain": "Sloh stavby Livadijský palác: novorenesance."
+     }
+    ]
+   },
+   {
+    "day": "2026-11-23",
+    "start": "Metropolitní muzeum umění",
+    "questions": [
+     {
+      "k": 1,
+      "rel": "museumArt",
+      "text": "Které z těchto děl je k vidění v Metropolitním muzeu umění?",
+      "answer": "Smrt Sokratova",
+      "options": [
+       "Poprava povstalců v Madridu",
+       "Nahá Maja",
+       "Vor Medúzy",
+       "Smrt Sokratova"
+      ],
+      "explain": "Obraz Smrt Sokratova je k vidění v Metropolitním muzeu umění."
+     },
+     {
+      "k": 2,
+      "rel": "artDepicts",
+      "text": "Koho zobrazuje obraz Smrt Sokratova?",
+      "answer": "Platón",
+      "options": [
+       "Platón",
+       "Fjodor Michajlovič Dostojevskij",
+       "Aristofanés",
+       "Hérodotos"
+      ],
+      "explain": "Obraz Smrt Sokratova zobrazuje osobnost Platón."
+     },
+     {
+      "k": 3,
+      "rel": "teacherOf",
+      "text": "Kdo z těchto osobností byl žákem osobnosti Platón?",
+      "answer": "Eudoxos z Knidu",
+      "options": [
+       "Aristarchos ze Samu",
+       "Poseidónios",
+       "Eudoxos z Knidu",
+       "Eratosthenés z Kyrény"
+      ],
+      "explain": "Eudoxos z Knidu byl žákem osobnosti Platón."
+     },
+     {
+      "k": 4,
+      "rel": "personCountry",
+      "text": "Odkud pochází astronom Eudoxos z Knidu?",
+      "answer": "Řecko",
+      "options": [
+       "Švýcarsko",
+       "Rakousko",
+       "Řecko",
+       "Dánsko"
+      ],
+      "explain": "Eudoxos z Knidu pochází z Řecka."
+     },
+     {
+      "k": 5,
+      "rel": "countryGames",
+      "text": "Které z těchto olympijských her se konaly v Řecku?",
+      "answer": "Letní olympijské hry 2004",
+      "options": [
+       "Letní olympijské hry 1992",
+       "Letní olympijské hry 2004",
+       "Letní olympijské hry 2012",
+       "Letní olympijské hry 2024"
+      ],
+      "explain": "Letní olympijské hry 2004 se konaly v Řecku."
+     },
+     {
+      "k": 6,
+      "rel": "goldAthlete",
+      "text": "Kdo z těchto sportovců získal zlatou medaili na Letních olympijských hrách 2004?",
+      "answer": "Kirsty Coventryová",
+      "options": [
+       "Katie Ledecká",
+       "Kirsty Coventryová",
+       "Gertrude Ederleová",
+       "Caeleb Dressel"
+      ],
+      "explain": "Kirsty Coventryová vybojovala zlato na Letních olympijských hrách 2004."
+     },
+     {
+      "k": 7,
+      "rel": "personBorn",
+      "text": "Ve kterém městě se narodila Kirsty Coventryová?",
+      "answer": "Harare",
+      "options": [
+       "Lomé",
+       "N'Djamena",
+       "Harare",
+       "Rabat"
+      ],
+      "explain": "Kirsty Coventryová se narodila ve městě Harare (1983)."
+     }
+    ]
+   },
+   {
+    "day": "2026-11-24",
+    "start": "Giuseppe Arcimboldo",
+    "questions": [
+     {
+      "k": 1,
+      "rel": "artistMovement",
+      "text": "Ke kterému směru se řadí malíř Giuseppe Arcimboldo?",
+      "answer": "Manýrismus",
+      "options": [
+       "Manýrismus",
+       "Postimpresionismus",
+       "Fauvismus",
+       "Minimalismus"
+      ],
+      "explain": "Giuseppe Arcimboldo patřil ke směru manýrismus."
+     },
+     {
+      "k": 2,
+      "rel": "movementArtist",
+      "text": "Kdo z těchto výtvarníků patřil ke směru manýrismus?",
+      "answer": "Paolo Veronese",
+      "options": [
+       "Giorgio Vasari",
+       "Paolo Veronese",
+       "Antonio Allegri da Correggio",
+       "Tizian"
+      ],
+      "explain": "Paolo Veronese patřil ke směru manýrismus."
+     },
+     {
+      "k": 3,
+      "rel": "personCountry",
+      "text": "Ze které země pochází malíř Paolo Veronese?",
+      "answer": "Itálie",
+      "options": [
+       "Francie",
+       "Rusko",
+       "Itálie",
+       "Nizozemsko"
+      ],
+      "explain": "Paolo Veronese pochází z Itálie."
+     },
+     {
+      "k": 4,
+      "rel": "countryLandmark",
+      "text": "Která z těchto staveb stojí v Itálii?",
+      "answer": "Bazilika Svatého Kříže v Jeruzalémě",
+      "options": [
+       "Bazilika svatého Jiří",
+       "Bazilika Svatého Kříže v Jeruzalémě",
+       "Bom Jesus do Monte",
+       "Notre-Dame de la Garde"
+      ],
+      "explain": "Bazilika Svatého Kříže v Jeruzalémě stojí v Itálii."
+     },
+     {
+      "k": 5,
+      "rel": "landmarkCity",
+      "text": "Ve kterém městě najdeš stavbu Bazilika Svatého Kříže v Jeruzalémě?",
+      "answer": "Řím",
+      "options": [
+       "Milán",
+       "Florencie",
+       "Řím",
+       "Madrid"
+      ],
+      "explain": "Bazilika Svatého Kříže v Jeruzalémě stojí ve městě Řím."
+     },
+     {
+      "k": 6,
+      "rel": "cityBorn",
+      "text": "Kdo z těchto státníků se narodil ve městě Řím?",
+      "answer": "Julius Caesar",
+      "options": [
+       "Julius Caesar",
+       "Nicolas Sarkozy",
+       "Recep Tayyip Erdoğan",
+       "Benjamin Netanjahu"
+      ],
+      "explain": "Julius Caesar se narodil ve městě Řím."
+     },
+     {
+      "k": 7,
+      "rel": "parentOf",
+      "text": "Julius Caesar byl otcem které z těchto osobností?",
+      "answer": "Augustus",
+      "options": [
+       "Nero",
+       "Augustus",
+       "Caligula",
+       "Tiberius"
+      ],
+      "explain": "Julius Caesar → Augustus: otec a syn."
+     }
+    ]
+   }
+  ]
+ }
+}

@@ -1524,6 +1524,38 @@
         return shorter.length < longer.length && shorter.every(matches);
     };
 
+    // Dvě jména téže věci (Puskás Aréna a Stadion Ference Puskáse, Lech Poznań a Warta Poznań): jména se stejným výrazným kmenem
+    // (aspoň 5 písmen bez diakritiky). Kmen se nepočítá u obecných slov druhu a zasvěcení (stadion, katedrála, Saint, svatého), běžných
+    // přídavných jmen názvů (Městský, Národní), slov za předložkou místa (v Praze, nad Rýnem) a u osob u křestního jména (jen příjmení).
+    // Jmenovci s jiným pořadovým číslem (Přemysl Otakar I. a II.) jsou dvě různé osoby. places = kmeny jmen měst a území, které se
+    // nepočítají. Používá Dobývání (conquest.js nearDuplicate) i Řetězovka (chain.js, nesprávné možnosti).
+    const NAME_STEM_SKIP = new Set([...GENERIC_NAME_WORDS, 'stadium', 'stadio', 'estadio', 'stade', 'arena', 'château', 'chateau', 'schloss', 'castello',
+        'castillo', 'castle', 'palazzo', 'palacio', 'palais', 'palace', 'kathedrale', 'cathédrale', 'cathedral', 'catedral', 'cattedrale', 'basilica', 'basilique', 'kirche',
+        'church', 'église', 'iglesia', 'chiesa', 'tower', 'torre', 'bridge', 'brücke', 'ponte', 'puente', 'museum', 'musée', 'museo', 'theatre', 'theater', 'teatro',
+        'národní', 'national', 'městský', 'městská', 'městské', 'olympijský', 'olympijská', 'olympijské', 'královský', 'královská', 'královské', 'státní', 'hlavní', 'velký',
+        'velká', 'velké', 'starý', 'stará', 'staré', 'nový', 'nová', 'nové', 'horní', 'dolní', 'severní', 'jižní', 'východní', 'západní', 'střední', 'svatého', 'svaté',
+        'svatý', 'svatá', 'svatých', 'saint', 'sainte', 'santa', 'santo', 'sankt', 'notre', 'nuestra', 'señora', 'panny', 'marie', 'nejsvětější', 'mount', 'monte',
+        'lake', 'lago', 'isola', 'island', 'insel', 'river', 'parque', 'fotbalový', 'fotbalová', 'sportovní', 'zahrada', 'památník', 'memorial', 'monument', 'univerzita',
+        'university', 'kostela', 'katedrály', 'chrámu', 'hradu', 'zámku', 'paláce', 'stadionu', 'vodní', 'dílo', 'letní', 'zimní', 'circuit', 'circuito', 'autodromo',
+        'autódromo', 'estádio', 'international', 'municipal', 'street', 'centre', 'center', 'centrum', 'garden', 'gardens', 'square', 'piazza', 'plaza', 'grand', 'great',
+        'royal', 'památka', 'skály', 'vysočina', 'rašeliniště', 'rašeliny', 'jeskyně', 'propast', 'údolí', 'soutěska', 'vrchoviště'].map(word => normalizeAnswer(word)).filter(word => word.length >= 5).map(word => word.slice(0, 5)));
+    const NAME_PLACE_PREPOSITIONS = new Set(['v', 've', 'na', 'nad', 'pod', 'u', 'z', 'ze', 'do', 'pri', 'mezi', 'in', 'de', 'di', 'du', 'am', 'an', 'im', 'of', 'upon', 'sur']);
+    const nameStemMemo = new Map();
+    const nameStems = (label, person = false) => {
+        const key = `${person ? 1 : 0}\u0001${label}`;
+        if (!nameStemMemo.has(key)) {
+            const words = normalizeAnswer(label).split(' ').filter(Boolean).filter((word, i, all) => !(i > 0 && NAME_PLACE_PREPOSITIONS.has(all[i - 1])));
+            nameStemMemo.set(key, [...new Set((person ? words.slice(1) : words).filter(word => word.length >= 5 && !/\d/.test(word)).map(word => word.slice(0, 5)).filter(stem => !NAME_STEM_SKIP.has(stem)))]);
+        }
+        return nameStemMemo.get(key);
+    };
+    const nameOrdinal = (label) => (/(?<![\p{L}])([IVXLC]+)(?:\.|$)/u.exec(String(label || '')) || [])[1] || '';
+    const sameNameStem = (a, b, { person = false, places = new Set() } = {}) => {
+        if (person && nameOrdinal(a) && nameOrdinal(b) && nameOrdinal(a) !== nameOrdinal(b)) return false;
+        const own = new Set(nameStems(a, person).filter(stem => !places.has(stem)));
+        return own.size > 0 && nameStems(b, person).some(stem => !places.has(stem) && own.has(stem));
+    };
+
     // Zmiňuje text (krátký popis položky) název jiné položky jako celek, i skloněný či jako část slova (monokarboxylová –
     // Karboxylová kyselina)? Popis „X je Y“ říká, že X je druh Y – Y by pak byla druhá správná možnost
     const normalizedWords = new Map();
@@ -2663,7 +2695,7 @@
         choicePoints, choicesView, fitMapToChoices, FIT_SHARE, WORLD_MIN_SPAN, buildHints, planRound, MIN_DESCRIPTION_WORDS, MIN_EXCERPT_WORDS,
         setCountries, landOf, landsOf, landFromDescription, cultureDistance, CULTURE_GROUPS, cultureScore, cultureLandsFor, getWordStems, censorName, mergeCensored, swallowAliases, censorCountry, isKnownCountry, processWikiText, stripFactSentences, takeLeadFacts, normalizeAnswer, levenshtein, isAnswerMatch, isSymbolMatch, isCenturyMatch, isFormulaMatch, formulaCounts, checkAnswer,
         inCollection, filterItems, levelOf, tierLevel, pickItem, sortItems, getCountryNames, getContinent, continentAt, getCountryAliases,
-        distanceKm, nearness, STATE_STEPS, sharesGroup, eraNearness, personSimilarity, rankBySimilarity, takeDistinct, isNamePart,
+        distanceKm, nearness, STATE_STEPS, sharesGroup, eraNearness, personSimilarity, rankBySimilarity, takeDistinct, isNamePart, nameStems, sameNameStem,
         buildItemChoices, buildCountryChoices, findAnswerItem, findAnswerCountry, updateMistakes, nameAnswers, countryAnswers,
         pointsFor, dropKnownFacts, scaleKnown, timelineKnown, dropChoiceNames, sharesWordRoot, chooseDescription, censoredShare, MAX_CENSORED_SHARE, isFactVisible, formatNumber, formatPopulation, formatYear, formatFacts, getMapSpan, buildBlindMap, blindMapSpan, visibleOutline,
         mercatorY, inverseMercatorY, ringLons, regionalView, buildRegionalMap, mapExtent, REGIONAL_WINDOW, REGIONAL_DIGITS, decodeNumbers,
