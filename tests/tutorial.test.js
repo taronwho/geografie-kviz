@@ -13,7 +13,7 @@ const ids = Tutorial.STEPS.map(step => step.id);
 const presentIds = (...list) => (step) => list.includes(step.id);
 
 test('kroky: prohlídka a pak zkoušení, jedinečná id, texty česky a zvýraznění přesně jednoho prvku', () => {
-    assert.deepEqual(ids, ['fact', 'badge', 'daily', 'quiz', 'mystery', 'topics', 'multi', 'settings', 'try', 'hint', 'choice', 'result', 'menu']);
+    assert.deepEqual(ids, ['fact', 'badge', 'daily', 'quiz', 'mystery', 'topics', 'multi', 'conquest', 'settings', 'try', 'hint', 'choice', 'result', 'menu']);
     assert.equal(new Set(ids).size, ids.length);
     for (const step of Tutorial.STEPS) {
         assert.ok(step.target && step.title && step.text && step.wait, step.id);
@@ -23,7 +23,7 @@ test('kroky: prohlídka a pak zkoušení, jedinečná id, texty česky a zvýraz
         assert.doesNotMatch(step.target + step.text, /<|style=/, step.id);
     }
     const phases = Tutorial.STEPS.map(step => step.phase);
-    assert.deepEqual(phases, ['tour', 'tour', 'tour', 'tour', 'tour', 'tour', 'tour', 'tour', 'try', 'try', 'try', 'try', 'try']);
+    assert.deepEqual(phases, ['tour', 'tour', 'tour', 'tour', 'tour', 'tour', 'tour', 'tour', 'tour', 'try', 'try', 'try', 'try', 'try']);
     for (const step of Tutorial.STEPS.filter(step => step.phase === 'tour' && step.id !== 'fact')) assert.equal(step.mode, 'info', `prohlídka jen vysvětluje: ${step.id}`);
     assert.equal(Tutorial.STEPS[Tutorial.TRY_INDEX].id, 'try');
     assert.equal(Tutorial.STEPS.find(step => step.id === 'fact').target, '#fact-hint:not(.hidden)');
@@ -33,6 +33,20 @@ test('kroky: prohlídka a pak zkoušení, jedinečná id, texty česky a zvýraz
     assert.equal(Tutorial.STEPS.find(step => step.id === 'settings').mode, 'info', 'Nastavení se jen vysvětlí, neotvírá');
     assert.match(Tutorial.STEPS.find(step => step.id === 'daily').target, /data-action="daily"/);
     assert.match(Tutorial.STEPS.find(step => step.id === 'topics').target, /play-topic/);
+    // Dobývání: karta na záložce Více hráčů (jen po přihlášení), jinak záložka; krátce, co to je a že se hraje s přáteli
+    const conquest = Tutorial.STEPS.find(step => step.id === 'conquest');
+    assert.equal(conquest.target, '#conquest-card');
+    assert.equal(conquest.alt, '[data-action="home-tab"][data-tab="multi"]');
+    assert.equal(conquest.mode, 'info');
+    assert.equal(conquest.skippable, true, 'bez hry více hráčů se vynechá');
+    assert.equal(conquest.title, 'Dobývání');
+    assert.match(conquest.text, /Více hráčů/);
+    assert.match(conquest.text, /přáteli/);
+    assert.match(conquest.text, /území/);
+    assert.match(conquest.text, /odpověd/);
+    assert.ok(conquest.text.split(/[.!?](\s|$)/).filter(part => part && part.trim()).length <= 2, 'jedna až dvě věty');
+    assert.equal(ids.indexOf('conquest'), ids.indexOf('multi') + 1, 'hned po záložce Více hráčů');
+    for (const step of Tutorial.STEPS) assert.ok(step.text.length <= 230, `krátký text: ${step.id}`);
     assert.match(Tutorial.STEPS.find(step => step.id === 'try').title, /Teď si to zkusíme doopravdy/);
     assert.match(Tutorial.STEPS.find(step => step.id === 'hint').target, /data-action="hint"/);
     assert.equal(Tutorial.STEPS.find(step => step.id === 'hint').soft, true);
@@ -48,6 +62,8 @@ test('další krok: na chybějící prvek se čeká, přeskakují se jen nepovin
     assert.deepEqual(Tutorial.plan(steps, at('badge'), presentIds('daily', 'topics', 'settings')), { state: 'wait', index: at('badge') }, 'prohlídka nic nepřeskakuje');
     assert.deepEqual(Tutorial.plan(steps, at('daily'), presentIds('settings', 'topics')), { state: 'wait', index: at('daily') }, 'dnešní otázky se načítají: čeká se');
     assert.deepEqual(Tutorial.plan(steps, at('try'), presentIds('settings', 'menu')), { state: 'wait', index: at('try') });
+    assert.deepEqual(Tutorial.plan(steps, at('multi'), presentIds('settings')), { state: 'show', index: at('settings') }, 'bez hry více hráčů ani Dobývání');
+    assert.deepEqual(Tutorial.plan(steps, at('conquest'), presentIds('conquest', 'settings')), { state: 'show', index: at('conquest') });
     assert.deepEqual(Tutorial.plan(steps, at('hint'), presentIds('settings', 'topics')), { state: 'wait', index: at('hint') }, 'otázka se ještě načítá');
     assert.deepEqual(Tutorial.plan(steps, at('hint'), presentIds('hint')), { state: 'show', index: at('hint') });
     assert.deepEqual(Tutorial.plan(steps, at('hint'), presentIds('choice')), { state: 'show', index: at('choice') }, 'bez nápovědy se jde na odpověď');
@@ -61,10 +77,11 @@ test('další krok: na chybějící prvek se čeká, přeskakují se jen nepovin
 
 test('počítadlo kroků podle skutečného počtu', () => {
     const steps = Tutorial.STEPS;
-    assert.deepEqual(Tutorial.position(steps, 0), { n: 1, total: 13 });
-    assert.deepEqual(Tutorial.position(steps, ids.indexOf('badge'), ['fact']), { n: 1, total: 12 }, 'bez žárovky o krok méně');
-    assert.deepEqual(Tutorial.position(steps, ids.indexOf('badge'), ['fact', 'multi']), { n: 1, total: 11 }, 'bez záložky Více hráčů (hra bez Supabase) o krok méně');
-    assert.deepEqual(Tutorial.position(steps, ids.indexOf('menu')), { n: 13, total: 13 });
+    assert.deepEqual(Tutorial.position(steps, 0), { n: 1, total: 14 });
+    assert.deepEqual(Tutorial.position(steps, ids.indexOf('badge'), ['fact']), { n: 1, total: 13 }, 'bez žárovky o krok méně');
+    assert.deepEqual(Tutorial.position(steps, ids.indexOf('badge'), ['fact', 'multi', 'conquest']), { n: 1, total: 11 }, 'bez záložky Více hráčů (hra bez Supabase) i bez Dobývání');
+    assert.deepEqual(Tutorial.position(steps, ids.indexOf('conquest')), { n: 8, total: 14 });
+    assert.deepEqual(Tutorial.position(steps, ids.indexOf('menu')), { n: 14, total: 14 });
 });
 
 test('stav: spouští se jednou, hotový nebo přeskočený se nevrací, hráč s postupem ho nedostane', () => {

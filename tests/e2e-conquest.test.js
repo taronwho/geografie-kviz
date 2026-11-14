@@ -400,6 +400,27 @@ const tapTerritory = async (tab, id) => {
     await tab.mouse.click(point.x, point.y);
 };
 
+// Atributy (i styl) v obsahu stránky, ve kterých je některý z kousků (adresa z Commons, název souboru – často odpověď)
+const attributeLeaks = (tab, parts) => tab.evaluate((fragments) => {
+    const decoded = (value) => { try { return decodeURIComponent(value); } catch (e) { return value; } };
+    return [document.body, ...document.body.querySelectorAll('*')].flatMap(element => [...element.attributes]
+        .filter(attribute => fragments.some(part => attribute.value.includes(part) || decoded(attribute.value).includes(part)))
+        .map(attribute => `${element.tagName.toLowerCase()}[${attribute.name}]`));
+}, parts);
+// Šířka výřezu mapy (viewBox) a šířka po doběhnutí přiblížení (beze změny po dva snímky)
+const viewWidth = (tab) => tab.evaluate(() => document.querySelector('[data-cq-map] svg').viewBox.baseVal.width);
+// (waitForFunction na Promise nečeká, proto vlastní smyčka s evaluate)
+const settledWidth = async (tab) => {
+    for (let i = 0; i < 100; i += 1) {
+        const steady = await tab.evaluate(() => new Promise(resolve => {
+            const width = () => document.querySelector('[data-cq-map] svg').viewBox.baseVal.width;
+            const first = width();
+            requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(() => resolve(width() === first ? first : null))));
+        }));
+        if (steady !== null) return steady;
+    }
+    throw new Error('Přiblížení mapy nedoběhlo');
+};
 // Popisek území: viditelný, velikost na displeji (px) a jestli je celý (bez okrajů písma) uvnitř území
 const labelBox = (tab, id) => tab.evaluate((territory) => {
     const svg = document.querySelector('[data-cq-map] svg');
@@ -691,6 +712,45 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             if (await tab.locator('[data-cq-sheet] [data-cq="sheet-close"]').count()) await tab.click('[data-cq-sheet] [data-cq="sheet-close"]');
             await tab.click('[data-cq="zoom-reset"]');
             await tab.waitForSelector('[data-cq="zoom-reset"].hidden', { state: 'attached' });
+            // Malé území: název Lucemburska se na celé mapě nevejde ani v 7 px. Po klepnutí se mapa plynule přiblíží jen tolik, aby byl
+            // celý uvnitř území (asi 7 px), se středem nad spodním listem; víc přiblížená mapa se neoddálí a kolečko hráče má přednost
+            const fullWidth = await viewWidth(tab);
+            await tapTerritory(tab, 'Q32');
+            await tab.waitForSelector('[data-cq-sheet] [data-cq="sheet-close"]');
+            assert.match(await tab.textContent('[data-cq-sheet]'), /Lucembursko/);
+            const fitted = await settledWidth(tab);
+            assert.ok(fitted < fullWidth / 10, `mapa se přiblížila (výřez ${fitted.toFixed(1)} z ${fullWidth})`);
+            assert.ok(fitted >= fullWidth / 20 - 0.01, 'nejvýš MAX_ZOOM');
+            const tiny = await labelBox(tab, 'Q32');
+            assert.ok(tiny.shown && tiny.inside, `název Lucemburska je celý uvnitř území ${JSON.stringify(tiny)}`);
+            assert.ok(tiny.px >= 6.9 && tiny.px <= 7.6, `jen tolik přiblížení, kolik je potřeba: ${tiny.px.toFixed(2)} px`);
+            assert.equal(await tab.locator('[data-cq="zoom-reset"].flex').count(), 1, 'tlačítko Celá mapa');
+            const placed = await tab.evaluate(() => {
+                const label = document.querySelector('[data-label="Q32"]').getBoundingClientRect();
+                const map = document.querySelector('[data-cq-wrap]').getBoundingClientRect();
+                const sheet = document.querySelector('[data-cq-sheet]').getBoundingClientRect();
+                return { inMap: label.left >= map.left && label.right <= map.right && label.top >= map.top, aboveSheet: label.bottom <= Math.min(map.bottom, sheet.top) };
+            });
+            assert.deepEqual(placed, { inMap: true, aboveSheet: true }, 'název je vidět nad spodním listem');
+            await shot(tab, `male-uzemi-${width}-${colorScheme}`);
+            // Hráč oddálí kolečkem: mapa zůstane oddálená (přiblížení se neopakuje ani nepokračuje)
+            const center = await tab.evaluate(() => { const box = document.querySelector('[data-label="Q32"]').getBoundingClientRect(); return { x: box.left + box.width / 2, y: box.top + box.height / 2 }; });
+            await tab.mouse.move(center.x, center.y);
+            await tab.mouse.wheel(0, 300);
+            const out = await settledWidth(tab);
+            assert.ok(out > fitted * 1.3, `kolečko oddálilo (${out.toFixed(1)} > ${fitted.toFixed(1)})`);
+            await tab.waitForTimeout(500);
+            assert.equal(await viewWidth(tab), out, 'automatické přiblížení se nevrací');
+            // Víc přiblížená mapa (kolečkem na maximum) se klepnutím na malé území neoddálí
+            await tab.mouse.wheel(0, -3000);
+            const deepest = await settledWidth(tab);
+            await tapTerritory(tab, 'Q32');
+            await tab.waitForTimeout(600);
+            assert.ok(Math.abs(await viewWidth(tab) - deepest) < 0.01, 'klepnutí neoddálí');
+            await shot(tab, `male-uzemi-max-${width}-${colorScheme}`);
+            await tab.click('[data-cq-sheet] [data-cq="sheet-close"]');
+            await tab.click('[data-cq="zoom-reset"]');
+            await tab.waitForSelector('[data-cq="zoom-reset"].hidden', { state: 'attached' });
             // Kronika tažení
             await tab.click('#conquest-game button[aria-label="Kronika tažení"]');
             await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || {}).dataset && document.getElementById('dialog-overlay').dataset.title === 'Kronika tažení');
@@ -879,8 +939,12 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             await answerCapture(tab, 1, 'Q36');
             // Obrázek: Maďarsko
             await attackWith(tab, db, 'Q28', 'photo');
-            await tab.waitForSelector('[data-cq-full] .cq-qimg img', { timeout: 20000 });
-            assert.match(await tab.getAttribute('[data-cq-full] .cq-qimg img', 'src'), /^https:\/\/upload\.wikimedia\.org\//);
+            await tab.waitForSelector('[data-cq-full] .cq-qimg img[src]', { timeout: 20000 });
+            // Obrázek je blob: – adresa z Commons (název souboru bývá odpovědí) není v src ani v žádném jiném atributu, alt je obecný
+            assert.match(await tab.getAttribute('[data-cq-full] .cq-qimg img', 'src'), /^blob:/);
+            assert.equal(await tab.getAttribute('[data-cq-full] .cq-qimg img', 'alt'), 'Obrázek k otázce');
+            assert.equal(await tab.getAttribute('[data-cq-full] .cq-qimg img', 'title'), null);
+            assert.deepEqual(await attributeLeaks(tab, ['upload.wikimedia.org']), [], 'adresa z Commons v atributech není');
             assert.ok(await tab.evaluate(() => { const img = document.querySelector('[data-cq-full] .cq-qimg img'); return img.getBoundingClientRect().height > 120; }), 'obrázek je velký');
             await tab.waitForTimeout(400);
             await shot(tab, `mudrlant-obrazek-${width}-${colorScheme}`);
@@ -893,6 +957,14 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             const asked = await tab.evaluate(() => Object.values(JSON.parse(localStorage.getItem('mudrlant.conquestAsked')))[0]);
             assert.equal(new Set(asked.a).size, 3);
             assert.deepEqual(asked.f.slice(-3), ['text', 'facts', 'photo']);
+            // Vlajky v možnostech (Slovinsko): čtyři obrázky jako blob:, název souboru („Flag of Slovenia.svg“ = odpověď) v atributech není
+            await attackWith(tab, db, 'Q215', 'flag');
+            await tab.waitForFunction(() => document.querySelectorAll('[data-cq-sheet] [data-cq-answer] img[src^="blob:"]:not(.invisible)').length === 4, null, { timeout: 20000 });
+            assert.equal(await tab.locator('[data-cq-sheet] [data-cq-answer] img[alt=""]:not([title])').count(), 4, 'bez popisku s názvem');
+            assert.deepEqual(await attributeLeaks(tab, ['upload.wikimedia.org', 'Flag_of', 'Flag of', 'Coat_of_arms']), []);
+            await tab.waitForTimeout(400);
+            await shot(tab, `vlajky-${width}-${colorScheme}`);
+            await answerCapture(tab, 0, 'Q215');
             assert.deepEqual(log.errors, []);
             assert.deepEqual(log.csp, []);
             await context.close();

@@ -279,24 +279,33 @@
         probe.src = url;
     });
 
+    // Obrázek (vlajka, mapa rozšíření, strukturní vzorec, portrét): náhled, a když ho Commons nevrátí, původní soubor. Ukáže se
+    // jako blob: (photo-blob.js) – název souboru („Flag of France.svg“, „Lion range.svg“) by jinak v adrese prozradil odpověď
+    const showImage = async (container, url) => {
+        const Blob = root.MudrlantPhotoBlob;
+        if (Blob) return Blob.attach(url, container);
+        const src = await loadImage(url).catch(() => null);
+        const size = src ? await imageSize(src).catch(() => null) : null;
+        return src && size ? { src, url, width: size.width, height: size.height, hidden: false } : null;
+    };
     const renderImage = async (container, spec) => {
-        const url = await loadImage(commonsPhotoUrl(spec.file, spec.hash, 500)).catch(() => loadImage(commonsFileUrl(spec.file, spec.hash)));
+        const shown = await showImage(container, commonsPhotoUrl(spec.file, spec.hash, 500)) || await showImage(container, commonsFileUrl(spec.file, spec.hash));
+        if (!shown) throw new Error('Obrázek se nenačetl');
         if (!container.isConnected) return;
         const picture = document.createElement('div');
         picture.className = 'absolute inset-2 bg-contain bg-center bg-no-repeat';
-        picture.style.backgroundImage = `url("${url}")`;
+        picture.style.backgroundImage = `url("${shown.src}")`;
         container.prepend(picture);
-        // Tlačítko „i“ (zdroj obrázku, photo-source.js) vedle obrázku, ne v něm – kontejner má roli img
+        // Tlačítko „i“ (zdroj obrázku, photo-source.js) vedle obrázku, ne v něm – kontejner má roli img; adresu má jen v paměti
         const Source = root.MudrlantPhotoSource;
         const frame = container.parentElement;
-        if (Source && frame && Source.fileFromUrl(url)) {
+        if (Source && frame && Source.fileFromUrl(shown.url)) {
             frame.querySelectorAll(':scope > [data-photo-info]').forEach(button => button.remove());
-            frame.insertAdjacentHTML('beforeend', Source.buttonHtml({ url, hidden: false }));
+            frame.insertAdjacentHTML('beforeend', Source.buttonHtml({ hidden: false }));
+            const button = frame.querySelector(':scope > [data-photo-info]:last-child');
+            if (Source.setUrl) Source.setUrl(button, shown.url);
         }
-        if (spec.masks && spec.masks.length) {
-            const size = await imageSize(url).catch(() => null);
-            if (size) maskOverlay(picture, size.width, size.height, spec.masks);
-        }
+        if (spec.masks && spec.masks.length) maskOverlay(picture, shown.width, shown.height, spec.masks);
     };
 
     // Slepá periodická tabulka: políčka bez značek obarvená podle skupin, hledaný prvek zvýrazněný

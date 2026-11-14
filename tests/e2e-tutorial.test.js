@@ -99,9 +99,11 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
     });
     // Prohlídka od kroku s hlavičkou po poslední vysvětlující krok (Nastavení) až k výzvě zkusit otázku
     const tourFromBadge = async (tab, prefix = '') => {
-        for (const [wanted, name] of [['Úroveň a XP', '2-hlavicka'], ['Dnešní otázky', '3-dnes'], ['Výzvy dne', '3b-vyzvy'], ['Tajemná otázka dne', '3c-zahada'], ['Témata a Mix', '4-temata'], ['Více hráčů', '4b-multi'], ['Nastavení', '5-nastaveni']]) {
+        for (const [wanted, name] of [['Úroveň a XP', '2-hlavicka'], ['Dnešní otázky', '3-dnes'], ['Výzvy dne', '3b-vyzvy'], ['Tajemná otázka dne', '3c-zahada'], ['Témata a Mix', '4-temata'], ['Více hráčů', '4b-multi'], ['Dobývání', '4c-dobyvani'], ['Nastavení', '5-nastaveni']]) {
             await waitTitle(tab, wanted);
             assert.equal(await inside(tab), true, wanted);
+            // Dobývání: bez přihlášení není karta vidět, krok ukáže záložku Více hráčů, kde karta je
+            if (wanted === 'Dobývání') await ringCentered(tab, '[data-action="home-tab"][data-tab="multi"]');
             await shot(tab, `${prefix}${name}`);
             await next(tab);
         }
@@ -143,11 +145,11 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
         assert.deepEqual(JSON.parse(await stored(tab)), { how: 'done' });
     };
 
-    await t.test('celý průchod: prohlídka (žárovka, hlavička, otázky, témata, nastavení), pak zkoušení otázky', async () => {
+    await t.test('celý průchod: prohlídka (žárovka, hlavička, otázky, témata, Více hráčů, Dobývání, nastavení), pak zkoušení otázky', async () => {
         fact = factFor(dayKey());
         const { context, tab, problems } = await open();
         await waitTitle(tab, 'Ahoj, jsem Mudrlant!');
-        assert.match(await tab.textContent('[data-tut-count]'), /Krok 1 z 13/);
+        assert.match(await tab.textContent('[data-tut-count]'), /Krok 1 z 14/);
         assert.deepEqual(JSON.parse(await stored(tab)), { how: 'running', step: 0 });
         assert.equal(await tab.evaluate(() => document.activeElement && document.activeElement.hasAttribute('data-tut-next')), true, 'focus na Dál');
         assert.equal(await tab.getAttribute('[data-tut-bubble]', 'role'), 'dialog');
@@ -164,7 +166,7 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
         await tab.waitForSelector('#fact-overlay', { state: 'detached' });
         assert.equal(await stepOf(tab), 1, 'Escape zavřel jen okno, tutoriál běží dál');
         await waitTitle(tab, 'Úroveň a XP');
-        assert.match(await tab.textContent('[data-tut-count]'), /Krok 2 z 13/);
+        assert.match(await tab.textContent('[data-tut-count]'), /Krok 2 z 14/);
         assert.equal(await blocked(tab, '#status-badge'), true, 'prohlídka jen vysvětluje, zvýrazněné prvky jsou zakryté');
         await tourFromBadge(tab, '');
         assert.equal(await tab.locator('#settings-overlay').count(), 0, 'Nastavení se neotevřelo');
@@ -173,7 +175,7 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
         assert.equal(await blocked(tab, '[data-action="play-daily"]'), true);
         await tab.click('[data-action="daily"]');
         await waitTitle(tab, 'Nápověda');
-        assert.equal(await stepOf(tab), 9);
+        assert.equal(await stepOf(tab), 10);
         assert.equal(await blocked(tab, '[data-action="hint"]'), false);
         await shot(tab, '7-napoveda');
         await tab.click('[data-action="hint"]');
@@ -183,9 +185,9 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
         const before = await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.progress') || '{"xp":0}').xp);
         await tab.click('[data-action="choice"]');
         await waitTitle(tab, 'Výsledek');
-        assert.deepEqual(JSON.parse(await stored(tab)), { how: 'running', step: 11 }, 'po hraní se stav neztratí');
-        // Mimo úvod (bez záložky Více hráčů na obrazovce) počítadlo neposkočí na „z 12“
-        assert.match(await tab.textContent('[data-tut-count]'), /Krok 12 z 13/);
+        assert.deepEqual(JSON.parse(await stored(tab)), { how: 'running', step: 12 }, 'po hraní se stav neztratí');
+        // Mimo úvod (bez záložky Více hráčů na obrazovce) počítadlo neposkočí na „z 12“ (bez Více hráčů a Dobývání)
+        assert.match(await tab.textContent('[data-tut-count]'), /Krok 13 z 14/);
         await shot(tab, '9-vysledek');
         assert.equal(await blocked(tab, '[data-verdict]'), true, 'výsledek je jen k prohlédnutí');
         const after = await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.progress') || '{"xp":0}').xp);
@@ -231,10 +233,10 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
         const { context, tab } = await open();
         await waitTitle(tab, 'Úroveň a XP');
         assert.match(await tab.textContent('[data-tut-text]'), /Ahoj, jsem Mudrlant/);
-        assert.match(await tab.textContent('[data-tut-count]'), /Krok 1 z 12/);
+        assert.match(await tab.textContent('[data-tut-count]'), /Krok 1 z 13/);
         await next(tab);
         await waitTitle(tab, 'Dnešní otázky');
-        assert.match(await tab.textContent('[data-tut-count]'), /Krok 2 z 12/);
+        assert.match(await tab.textContent('[data-tut-count]'), /Krok 2 z 13/);
         await context.close();
     });
 
@@ -292,7 +294,7 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
 
     await t.test('pomalá Wikipedie: bublina zůstává s čekacím textem, po 8 s nabídne Přeskočit krok, a dojde se na konec', async () => {
         fact = null;
-        const { context, tab, problems } = await open({ stored: RUNNING(8), slow: 11000 });
+        const { context, tab, problems } = await open({ stored: RUNNING(9), slow: 11000 });
         await waitTitle(tab, 'Teď si to zkusíme doopravdy');
         // Čas se měří hodinami stránky od chvíle těsně před klepnutím: tutoriál začne čekat až po klepnutí, takže dokud od něj
         // neuplynulo 8 s (WAIT_MS), Přeskočit krok být vidět nesmí – i když zatížený procesor zdrží jednotlivá měření
@@ -316,7 +318,7 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
             assert.equal(state.visible, true, 'bublina nesmí zmizet při pomalém načítání');
             if (/Načítám otázku/.test(state.text)) sawWait = true;
             const saved = JSON.parse(state.stored);
-            assert.ok(saved && saved.how === 'running' && saved.step <= 9, 'krok se nepřeskočil');
+            assert.ok(saved && saved.how === 'running' && saved.step <= 10, 'krok se nepřeskočil');
             assert.equal(state.skip, false, `Přeskočit krok až po delším čekání (${elapsed} ms od klepnutí)`);
             earlyChecks++;
             await tab.waitForTimeout(300);
@@ -334,13 +336,13 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
 
     await t.test('Přeskočit krok při čekání posune o jediný krok a tutoriál se dokončí', async () => {
         fact = null;
-        const { context, tab } = await open({ stored: RUNNING(8), slow: 60000 });
+        const { context, tab } = await open({ stored: RUNNING(9), slow: 60000 });
         await waitTitle(tab, 'Teď si to zkusíme doopravdy');
         await tab.click('[data-action="daily"][data-topic="geologie"]');
         await tab.waitForSelector('[data-tut-skipstep]:not(.hidden)', { timeout: 15000 });
-        assert.equal(await stepOf(tab), 9);
+        assert.equal(await stepOf(tab), 10);
         await tab.click('[data-tut-skipstep]');
-        assert.equal(await stepOf(tab), 10, 'jen o jeden krok');
+        assert.equal(await stepOf(tab), 11, 'jen o jeden krok');
         assert.equal(await bubbleVisible(tab), true);
         await tab.click('[data-tut-skip]');
         await tab.waitForSelector('#tutorial', { state: 'detached' });
@@ -358,7 +360,7 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
         await tab.waitForSelector('[data-verdict]');
         await tab.click('[data-action="daily-home"]');
         await tab.waitForSelector('[data-action="daily"]');
-        await tab.evaluate((value) => { localStorage.setItem('mudrlant.tutorial', value); }, RUNNING(8));
+        await tab.evaluate((value) => { localStorage.setItem('mudrlant.tutorial', value); }, RUNNING(9));
         await tab.reload();
         await waitTitle(tab, 'Teď si to zkusíme doopravdy');
         await tab.waitForSelector('[data-action="daily"][data-topic="geologie"]');
@@ -376,7 +378,7 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
     await t.test('psaná odpověď: Enter bez klepnutí na tlačítko i klepnutí na Odeslat', async () => {
         fact = null;
         for (const submit of ['enter', 'button']) {
-            const { context, tab, problems } = await open({ variant: 'typed', stored: RUNNING(8) });
+            const { context, tab, problems } = await open({ variant: 'typed', stored: RUNNING(9) });
             await waitTitle(tab, 'Teď si to zkusíme doopravdy');
             await tab.click('[data-action="daily"]');
             await waitTitle(tab, 'Nápověda');
@@ -407,7 +409,7 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
         await first.tab.waitForTimeout(900);
         assert.equal(await title(first.tab), 'Dnešní otázky', 'dvojklik posunul jen o jeden krok');
         await first.context.close();
-        const page = await open({ stored: RUNNING(8) });
+        const page = await open({ stored: RUNNING(9) });
         await waitTitle(page.tab, 'Teď si to zkusíme doopravdy');
         await page.tab.dblclick('[data-action="daily"][data-topic="geologie"]');
         await waitTitle(page.tab, 'Nápověda');
@@ -419,7 +421,7 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
 
     await t.test('Zpět v prohlížeči a návrat na úvod uprostřed zkoušení: tutoriál zůstane a vrátí se k výběru otázky', async () => {
         fact = null;
-        const { context, tab } = await open({ stored: RUNNING(8) });
+        const { context, tab } = await open({ stored: RUNNING(9) });
         await waitTitle(tab, 'Teď si to zkusíme doopravdy');
         await tab.click('[data-action="daily"]');
         await waitTitle(tab, 'Nápověda');
@@ -429,7 +431,7 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
         await tab.goBack();
         await waitTitle(tab, 'Teď si to zkusíme doopravdy');
         assert.equal(await bubbleVisible(tab), true);
-        assert.equal(await stepOf(tab), 8);
+        assert.equal(await stepOf(tab), 9);
         // Znovu otevřít dnešní otázku a tentokrát se vrátit tlačítkem domů v hlavičce
         await tab.click('[data-action="daily"]');
         await waitTitle(tab, 'Nápověda');
@@ -442,7 +444,7 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
 
     await t.test('okna uprostřed zkoušení (událost dne, Nastavení): tutoriál ustoupí a po zavření pokračuje stejným krokem', async () => {
         fact = factFor(dayKey());
-        const { context, tab } = await open({ stored: RUNNING(8) });
+        const { context, tab } = await open({ stored: RUNNING(9) });
         await waitTitle(tab, 'Teď si to zkusíme doopravdy');
         await tab.click('[data-action="daily"]');
         await waitTitle(tab, 'Nápověda');
@@ -476,7 +478,7 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
         await waitTitle(tab, 'Dnešní otázky');
         await tab.reload();
         await waitTitle(tab, 'Dnešní otázky');
-        assert.match(await tab.textContent('[data-tut-count]'), /Krok 2 z 12/);
+        assert.match(await tab.textContent('[data-tut-count]'), /Krok 2 z 13/);
         await next(tab);
         await waitTitle(tab, 'Výzvy dne');
         await next(tab);
@@ -485,6 +487,8 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
         await waitTitle(tab, 'Témata a Mix');
         await next(tab);
         await waitTitle(tab, 'Více hráčů');
+        await next(tab);
+        await waitTitle(tab, 'Dobývání');
         await next(tab);
         await waitTitle(tab, 'Nastavení');
         await next(tab);
@@ -507,7 +511,7 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
         await context.close();
 
         // Obnovení na výsledku, když hráč už hrál (má statistiky a postup)
-        const second = await open({ stored: RUNNING(8) });
+        const second = await open({ stored: RUNNING(9) });
         await waitTitle(second.tab, 'Teď si to zkusíme doopravdy');
         await second.tab.click('[data-action="daily"]');
         await waitTitle(second.tab, 'Nápověda');
@@ -561,7 +565,7 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
         assert.equal(await tab.locator('#tutorial').count(), 0);
         await tab.click('#variant-welcome [data-variant="choices"]');
         await waitTitle(tab, 'Úroveň a XP');
-        assert.match(await tab.textContent('[data-tut-count]'), /Krok 1 z 12/);
+        assert.match(await tab.textContent('[data-tut-count]'), /Krok 1 z 13/);
         assert.deepEqual(problems, []);
         await context.close();
     });

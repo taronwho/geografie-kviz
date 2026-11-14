@@ -730,8 +730,10 @@ test('otázky: vlajky a znaky ve standardní šířce náhledu s původním soub
         assert.match(choice.image, /^https:\/\/upload\.wikimedia\.org\/wikipedia\/commons\/thumb\/[0-9a-f]\/[0-9a-f]{2}\/[^/]+\/250px-/);
         assert.match(choice.fallback, /^https:\/\/upload\.wikimedia\.org\/wikipedia\/commons\/[0-9a-f]\/[0-9a-f]{2}\/[^/]+$/);
     }
+    // Adresa z Commons (název souboru = odpověď) v HTML není; náhled i zálohu načte conquest-ui.js jako blob (photo-blob.js)
     const html = C.questionHtml(flag.question, { title: 'Útok', item: flag.item, data: maps[flag.map] });
-    assert.match(html, /data-fallback="https:\/\/upload\.wikimedia\.org\//);
+    assert.doesNotMatch(html, /upload\.wikimedia\.org|data-fallback/);
+    assert.equal((html.match(/<img data-cq-img="\d"/g) || []).length, 4);
     assert.doesNotMatch(html, /\sstyle=|\son[a-z]+=/i);
 });
 
@@ -1028,7 +1030,8 @@ test('vlajky a znaky v otázkách: náhled ve standardní šířce Commons (160 
     assert.equal(C.THUMB, 250);
     assert.equal(C.flagUrl(fl), 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/ff/Flag_of_Serbia.svg/250px-Flag_of_Serbia.svg.png');
     assert.equal(C.flagFallback(fl), 'https://upload.wikimedia.org/wikipedia/commons/f/ff/Flag_of_Serbia.svg');
-    // Otázka na vlajku má u každé možnosti obrázek i zálohu a HTML zálohu nese (conquest-ui.js ji použije, když se náhled nenačte)
+    // Otázka na vlajku má u každé možnosti obrázek i zálohu; HTML nenese ani jedno (název souboru by prozradil odpověď), conquest-ui.js
+    // je načte jako blob a zálohu použije, když se náhled nenačte
     const data = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'dobyvani-evropa.json'), 'utf8'));
     const serbia = data.t.find(item => item.n === 'Srbsko');
     let question = null;
@@ -1036,7 +1039,7 @@ test('vlajky a znaky v otázkách: náhled ve standardní šířce Commons (160 
     assert.equal(question && question.kind, 'flag', 'některé semínko dá otázku na vlajku');
     {
         assert.ok(question.choices.every(choice => /\/250px-/.test(choice.image) && /^https:\/\/upload\.wikimedia\.org\/wikipedia\/commons\/[0-9a-f]\//.test(choice.fallback)));
-        assert.match(C.questionHtml(question, { title: 'Útok', item: serbia, data, answered: null }), /data-fallback="https:\/\/upload\.wikimedia\.org/);
+        assert.doesNotMatch(C.questionHtml(question, { title: 'Útok', item: serbia, data, answered: null }), /upload\.wikimedia\.org|Flag_of/);
     }
 });
 
