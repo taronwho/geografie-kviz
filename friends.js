@@ -119,7 +119,7 @@
     const requestRows = (incoming, h) => (incoming || []).slice(0, 5).map(row => {
         if (h.register) h.register(row);
         return `
-        <div data-friend-request="${esc(row.id)}" class="flex items-center gap-2 rounded-2xl bg-white p-2 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
+        <div data-friend-request="${esc(row.id)}" class="flex items-center gap-2 rounded-2xl bg-white p-2 shadow-sm short:py-1 ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
             ${h.avatarHtml(row, 'h-9 w-9 text-lg', true)}
             <span class="min-w-0 flex-1 text-[12.5px] font-bold leading-tight text-slate-800 dark:text-slate-100"><span class="block truncate">${esc(row.display_name)}</span><span class="block truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">tě chce mít v přátelích</span></span>
             <button type="button" data-action="friend-accept" data-id="${esc(row.id)}" aria-label="Přijmout žádost od ${esc(row.display_name)}" class="flex h-9 shrink-0 items-center justify-center rounded-xl bg-emerald-600 px-2.5 text-[12px] font-black text-white active:scale-95">Přijmout</button>

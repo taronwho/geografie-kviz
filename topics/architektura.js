@@ -384,7 +384,9 @@
             const f = item.f || {};
             const g = other.f || {};
             if (item.c === 'stavby') {
-                return (f.st && f.st === g.st ? 3 : f.st && g.st && isConflict(f.st, g.st) ? -2 : 0) + (item.ty && item.ty === other.ty ? 2 : 0) + eraNearness(f.y, g.y)
+                // Druh (most, věž, knihovna) je vidět u otázky a často i v názvu možnosti: stejný druh z blízké kultury má přednost
+                // před jiným druhem ze stejné země (k mostu Akaši-Kaikjó mosty, ne japonská parlamentní knihovna)
+                return (f.st && f.st === g.st ? 3 : f.st && g.st && isConflict(f.st, g.st) ? -2 : 0) + (item.ty && item.ty === other.ty ? 6 : 0) + eraNearness(f.y, g.y)
                     + ((item.co || []).some(country => (other.co || []).includes(country)) ? 1 : 0) + ((item.cz === 1) === (other.cz === 1) ? 1 : 0);
             }
             if (item.c === 'prvky') return 0;

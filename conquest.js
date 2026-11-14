@@ -2590,7 +2590,7 @@
                 <div data-cq-chips class="pointer-events-none absolute bottom-1.5 left-1.5 right-1.5 flex flex-col items-start gap-1">${view.sieges.size ? siegeChipsHtml(view, { now }) : ''}</div>
             </div>
             <div data-cq-round class="pointer-events-none absolute inset-0 z-30 hidden"></div>
-            <div data-cq-panel class="flex min-h-[2.25rem] flex-1 flex-col gap-1.5 overflow-hidden short:gap-1">
+            <div data-cq-panel class="flex min-h-[2.25rem] flex-1 flex-col gap-1.5 overflow-hidden short:min-h-[14rem] short:gap-1">
                 <section data-cq-players class="cq-ledger shrink-0 rounded-2xl px-2 pb-1.5 pt-1 short:pb-1" aria-label="Pořadí">${playersStripHtml(view, { now })}</section>
                 <button type="button" data-cq="feed" data-cq-recent class="cq-ledger flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl px-2 pb-1 pt-1 text-left">${recentHtml(view, { now })}</button>
                 ${dev && !view.finished ? devBarHtml({ kind: 'game' }) : ''}
@@ -2668,21 +2668,22 @@
             const detail = `${territoriesWord(count)}${regions ? ` · ${regionsWord(regions)}` : ''}`;
             return `<li class="cq-rank-row${player.me ? ' cq-rank-me' : ''} flex min-w-0 items-center gap-2 rounded-xl px-1.5 py-1 short:py-0.5" aria-label="${esc(label)}">${medal}${pennantSvg(player.flag_color, player.emblem, 'h-5 w-[1.6rem] shrink-0')}
                 <span class="min-w-0 flex-1"><span class="flex items-center gap-1.5"><span class="min-w-0 truncate text-[13.5px] font-black text-slate-800 dark:text-slate-100">${esc(name)}</span><span class="min-w-0 flex-1 truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${esc(detail)}</span>${movesChip(view, player)}</span>${bar}</span>
-                <span class="flex w-9 shrink-0 flex-col items-end leading-none"><b class="text-[17px] font-black text-slate-900 dark:text-white">${player.score}</b><span class="mt-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">${esc(pointsWord(player.score).replace(/^\d+ /, ''))}</span></span></li>`;
+                <span class="flex w-9 shrink-0 flex-col items-end leading-none"><b class="text-[17px] font-black text-slate-900 dark:text-white">${player.score}</b><span class="mt-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-500 short:hidden dark:text-slate-400">${esc(pointsWord(player.score).replace(/^\d+ /, ''))}</span></span></li>`;
         }).join('');
         return `<div class="flex items-baseline justify-between gap-2"><h2 class="cq-ledger-title">Pořadí</h2><span data-cq-next class="truncate text-[11px] font-bold text-amber-900/75 dark:text-gold-200/80">${esc(periodLine(view, now))}</span></div>
             <ol class="mt-0.5 ${compact ? 'grid grid-cols-2 gap-x-1.5 gap-y-0.5' : 'flex flex-col gap-0.5'}">${rows}</ol>`;
     };
-    // Poslední události pod mapou (klepnutí otevře celou kroniku); karta vyplní zbytek obrazovky, kolik se vejde, tolik je vidět
+    // Poslední události pod mapou (klepnutí otevře celou kroniku); karta vyplní zbytek obrazovky, kolik se vejde, tolik je vidět.
+    // Na nízkém displeji (short:) je každá událost na jednom řádku (co · kde vlevo, kdo a kdy vpravo), ať jsou vidět aspoň tři
     const recentHtml = (view, { now = Date.now() } = {}) => {
         const items = feedItems(view.state.moves || [], view).slice(0, 8);
         const head = `<span class="flex w-full shrink-0 items-baseline justify-between gap-2"><span class="cq-ledger-title">Kronika tažení</span>${items.length ? '<span class="flex items-center gap-0.5 text-[11px] font-bold text-amber-900/75 dark:text-gold-200/80">Celá kronika<i data-lucide="chevron-right" class="h-3.5 w-3.5"></i></span>' : ''}</span>`;
         if (!items.length) return `${head}<span class="flex min-h-0 flex-1 items-center justify-center px-2 text-center text-[12px] font-semibold text-slate-500 dark:text-slate-400">Zatím je klid. Každé dobytí, opevnění i odražený útok se zapíše sem.</span>`;
         // Dva řádky: území a co se stalo vlevo, vpravo kdo (jméno, za ním praporec, praporce pod sebou v jednom sloupci) a kdy
-        const rows = items.map(item => `<span class="cq-feed-row flex min-w-0 shrink-0 items-center gap-2 py-1">
-                <span class="cq-tone cq-tone-${item.tone} flex h-6 w-6 shrink-0 items-center justify-center rounded-full"><i data-lucide="${item.icon}" class="h-3.5 w-3.5"></i></span>
-                <span class="min-w-0 flex-1 leading-tight"><b class="block truncate text-[12.5px] font-black text-slate-900 dark:text-white">${esc(item.title)}</b><span class="block truncate text-[11.5px] font-semibold text-slate-600 dark:text-slate-300">${esc(item.text)}</span></span>
-                <span class="flex min-w-0 max-w-[45%] shrink-0 flex-col items-end leading-tight">${item.actor ? `<span class="flex min-w-0 max-w-full items-center gap-1 text-[11.5px] font-bold text-slate-700 dark:text-slate-200"><span class="min-w-0 truncate">${esc(item.actor.me ? 'ty' : item.actor.display_name)}</span>${pennantSvg(item.actor.flag_color, item.actor.emblem, 'h-3 w-4')}</span>` : ''}
+        const rows = items.map(item => `<span class="cq-feed-row flex min-w-0 shrink-0 items-center gap-2 py-1 short:py-[3px]">
+                <span class="cq-tone cq-tone-${item.tone} flex h-6 w-6 shrink-0 items-center justify-center rounded-full short:h-5 short:w-5"><i data-lucide="${item.icon}" class="h-3.5 w-3.5"></i></span>
+                <span class="min-w-0 flex-1 leading-tight short:flex short:items-baseline short:gap-1"><b class="block truncate text-[12.5px] font-black text-slate-900 short:max-w-[60%] short:shrink-0 dark:text-white">${esc(item.title)}</b><span class="block truncate text-[11.5px] font-semibold text-slate-600 short:min-w-0 short:flex-1 dark:text-slate-300">${esc(item.text)}</span></span>
+                <span class="flex min-w-0 max-w-[45%] shrink-0 flex-col items-end leading-tight short:flex-row short:items-center short:gap-1.5">${item.actor ? `<span class="flex min-w-0 max-w-full items-center gap-1 text-[11.5px] font-bold text-slate-700 dark:text-slate-200"><span class="min-w-0 truncate">${esc(item.actor.me ? 'ty' : item.actor.display_name)}</span>${pennantSvg(item.actor.flag_color, item.actor.emblem, 'h-3 w-4')}</span>` : ''}
                     <span class="text-[10.5px] font-semibold tabular-nums text-slate-400 dark:text-slate-500">${esc(agoLabel(item.at, now))}</span></span></span>`).join('');
         return `${head}<span class="cq-feed-list flex min-h-0 w-full flex-1 flex-col overflow-hidden">${rows}</span>`;
     };

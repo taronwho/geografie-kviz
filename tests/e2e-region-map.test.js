@@ -1,6 +1,6 @@
 // Slepá mapa regionu v prohlížeči (Vlajky a znaky): u státu USA, spolkové země, českého kraje… celý stát s hranicemi regionů,
 // hledaný region zvýrazněný a tečka na něm, měřítko podle skutečného výřezu; bez dat regionů obrysy států s tečkou uprostřed;
-// u bodu uprostřed velkého státu (zeměpis) se mapa oddálí. Na 390×780 a 360×640 ve světlém i tmavém režimu.
+// u bodu uprostřed velkého státu (zeměpis) se mapa oddálí; u městské části Prahy je pro orientaci vidět Vltava. Na 390×780 a 360×640 ve světlém i tmavém režimu.
 // Skutečná data (data/vlajky.json, data/regiony.json, data/world.json); otázka se obnoví z uložené relace (#obnovit).
 // S proměnnou SCREENSHOT_DIR=složka uloží snímky nápovědy (pro kontrolu vzhledu).
 const test = require('node:test');
@@ -140,6 +140,33 @@ test('slepá mapa regionu', { skip: !chromium && 'Playwright není nainstalovan�
                 assert.ok(map.dot[0] > 0 && map.dot[0] < map.width && map.dot[1] > 0 && map.dot[1] < map.height, `${name}: tečka ve výřezu`);
                 assert.deepEqual(problems, []);
                 await shoot(tab, `${file}-390-${colorScheme}`);
+                await context.close();
+            }
+        }
+    });
+
+    // Městská část Prahy: Vltava jako modrá čára pro orientaci, nad částmi a jejich hranicemi, pod tečkou (data/regiony.json cities.Q1085.v)
+    await t.test('městská část Prahy: Vltava pro orientaci nad částmi a pod tečkou (světlý i tmavý režim)', async () => {
+        for (const name of ['Praha 7', 'Praha-Zbraslav']) {
+            const item = find(name);
+            const others = data.items.filter(other => other.ty === 'městská část' && (other.co || [])[0] === 'Q213' && other !== item).slice(0, 3);
+            for (const colorScheme of ['light', 'dark']) {
+                const { context, tab, problems } = await open(sessionFor(item, others), { colorScheme });
+                const river = await tab.evaluate(() => {
+                    const svg = document.querySelector('#hint-visual svg');
+                    const path = svg.querySelector('[data-river]');
+                    if (!path) return null;
+                    const nodes = [...svg.children];
+                    const region = svg.querySelector('path.fill-emerald-400');
+                    const dot = svg.querySelector('circle.fill-rose-500');
+                    return { length: path.getTotalLength(), width: Number(svg.getAttribute('viewBox').split(' ')[2]), aboveRegion: nodes.indexOf(path) > nodes.indexOf(region), belowDot: nodes.indexOf(path) < nodes.indexOf(dot), stroke: getComputedStyle(path).stroke };
+                });
+                assert.ok(river, `${name}: Vltava na mapě`);
+                assert.ok(river.length > river.width * 0.6, `${name}: Vltava protéká výřezem (${Math.round(river.length)} px)`);
+                assert.ok(river.aboveRegion && river.belowDot, `${name}: řeka nad částmi a pod tečkou`);
+                assert.notEqual(river.stroke, 'none');
+                assert.deepEqual(problems, []);
+                await shoot(tab, `${name.replace(/\W+/g, '-').toLowerCase()}-vltava-390-${colorScheme}`);
                 await context.close();
             }
         }

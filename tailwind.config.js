@@ -39,5 +39,9 @@ module.exports = {
     // vyšší displeje (390×780, 412×915) zůstávají beze změny. Vlastní varianta, ne položka v screens: s ní by přestaly fungovat max-[…]: varianty.
     // Třída fit-short na <html> zapne totéž zhuštění i na vyšším displeji, kde se úvod přesto nevejde (app.js fitHome: telefon
     // s aplikací až k okrajům, kde systémové lišty ukrojí z výšky okna, nebo úzký displej se zalomenými názvy)
-    plugins: [({ addVariant }) => addVariant('short', ['@media (max-height: 770px)', '.fit-short &'])]
+    // tiny: = velmi nízký displej (320×568 a menší, do 600 px výšky): okno Co hrát se zhustí ještě víc (režimy s obrázkem vedle názvu)
+    plugins: [({ addVariant }) => {
+        addVariant('short', ['@media (max-height: 770px)', '.fit-short &']);
+        addVariant('tiny', '@media (max-height: 600px)');
+    }]
 };

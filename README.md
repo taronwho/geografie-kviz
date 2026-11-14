@@ -185,6 +185,9 @@ Jádro a aplikace je uplatní samy, téma pro ně nemusí nic dělat:
   ruční zakrytí v `scripts/photo-masks-manual.json` (stejný tvar, má přednost; `ONLY_MANUAL=1 npm run audit:photo-masks` je
   jen doplní). Vlajka, která je celá nápisem (OSCE, РСФСР, FIFA), má v datech `nq`: zůstává v učení, otázkou se nestane
   (`pickItem`). Rozmazání nese rozmazaná kopie fotky v obdélníku, ne jen `backdrop-filter` (ten bez GPU nefunguje).
+- **Ukázka možností:** `npm run audit:moznosti` (volitelně `-- --topic=umeni,fyzika --count=30 --seed=x --item="Věstonická venuše"`) vypíše u náhodných
+  položek každého tématu otázku i s možnostmi, jak je sestaví hra; „!“ = nesprávná možnost z hodně jiné doby, „?“ = jiného druhu, než ukazuje štítek
+  (`scripts/sample-choices.mjs`). Rychlá kontrola absurdních sad (k pravěké sošce pomník z 20. století, k myšlenkovému experimentu jev).
 - **Audit otázek:** `npm run audit:questions` (volitelně `-- --sample=300`, `--topic=historie,hudba`, `--all`) projde témata a sestaví otázky jako hra
   (`scripts/lib/audit.mjs`). Hlásí odpověď prozrazenou v popisu či nápovědách, nápovědy opakující popis, dvě správné či příliš podobné možnosti,
   nesprávné možnosti jiné země/doby, chudé popisy, rozbité odkazy na obrázky (hash souboru na Commons) a nejednoznačné psané odpovědi (aliasy).
@@ -198,7 +201,7 @@ Jádro a aplikace je uplatní samy, téma pro ně nemusí nic dělat:
   - **Prázdná nápověda** (`prazdna-napoveda`): každá nápověda přidá něco nového oproti otázce, štítku, společné části možností
     a dřívějším nápovědám (další věty stejné jako popis, fakt z dřívějšího textu, fakt společný všem možnostem, osa se známými roky).
   - **Měřítko mapy** (`mapa-meritko`): slepá mapa se přiblíží na možnosti, když leží blízko sebe (pražské obvody na mapě Prahy
-    s hranicemi městských částí z OpenStreetMap, `npm run build:casti`); tlačítka +/− mapu přiblíží či oddálí.
+    s hranicemi městských částí a Vltavou pro orientaci z OpenStreetMap, `npm run build:casti`); tlačítka +/− mapu přiblíží či oddálí.
   Zapíše `reports/audit-otazek.md` (souhrn) a `reports/audit-otazek.json` (vše); exit kód je nenulový jen u jistých chyb, které nejsou
   v `scripts/audit-allowlist.json`.
 - **Audit mapy:** `npm run audit:mapa` (volitelně `-- --source`, `--wikidata`, `--only=svet,staty`) zkontroluje mapu otázky „Ukaž na
@@ -252,7 +255,7 @@ npm run build:countries  # data/countries.json
 npm run build:world      # data/world.json (Natural Earth 1:110m)
 npm run build:mapa       # data/mapa.json (Natural Earth 1:50m, ostrovy a jezera z otázek 1:10m, Česko 1:10m s kraji a řekami; po datech témat)
 npm run build:regiony    # data/regiony.json (Natural Earth 1:10m: regiony států z okruhu Regiony států a české kraje; po build:vlajky)
-npm run build:casti      # data/regiony.json, cities: hranice pražských městských částí (OpenStreetMap přes Nominatim; po build:regiony)
+npm run build:casti      # data/regiony.json, cities: hranice pražských městských částí a Vltava (OpenStreetMap přes Nominatim; po build:regiony; RIVERS_ONLY=1 jen řeky)
 npm run build:zemepis    # data/zemepis.json
 npm run build:historie   # data/historie.json
 npm run build:biologie   # data/biologie.json
@@ -262,7 +265,7 @@ npm run build:vynalezy   # data/vynalezy.json (slavné objevy a vynálezy, roky 
 npm run build:souvislosti # data/souvislosti.json (Časové souvislosti; po datech témat a build:vynalezy)
 ```
 
-Logo je sova v talároku (`branding/sova-original.jpg`). Z tmavého pozadí ji vyřízne `python3 scripts/logo-cutout.py branding/sova-original.jpg branding/sova.png` (Pillow, numpy) a ikony aplikace, favicon i průhledné logo `icons/logo.webp` z ní vykreslí `node scripts/render-app-icons.js` (Playwright). Barvy aplikace podle loga (vínová `brand`, zlatá `gold`, grafitová šedá místo `slate`) jsou v `tailwind.config.js`.
+Logo je sova v talároku (`branding/sova-original.jpg`). Z tmavého pozadí ji vyřízne `python3 scripts/logo-cutout.py branding/sova-original.jpg branding/sova.png` (Pillow, numpy) a ikony aplikace, favicon i průhledné logo `icons/logo.webp` z ní vykreslí `node scripts/render-app-icons.js` (Playwright). Barvy aplikace podle loga (vínová `brand`, zlatá `gold`, grafitová šedá místo `slate`) jsou v `tailwind.config.js`. Náhled sdíleného odkazu (Open Graph, 1200×630, `icons/og-mudrlant.png`, značky `og:` a `twitter:` v `index.html` i v přesměrování `pages-root/index.html`) vykreslí `python3 scripts/og-image.py` (Pillow) ze stejné sovy.
 
 Service worker (`sw.js`) načítá soubory aplikace přednostně ze sítě, takže se nová verze projeví hned po nasazení; uložené kopie (včetně dat všech témat) slouží bez internetu – hrát jde i offline, jen s krátkým popisem z Wikidat místo úvodu z Wikipedie.
 

@@ -1580,9 +1580,12 @@
         if (item.k === 1 && distractors.length === 3 && !distractors.some(other => other.k === 1)) {
             const own = culture(item) || [];
             const sameArea = (other) => !own.length || Math.min(...own.map(x => Math.min(...((culture(other) || []).map(y => cultureDistance(x, y)).concat([2.5]))))) <= 2;
-            // Jen kandidát bez velké srážky (cizí stát u regionu, část názvu správné odpovědi): ten je mimo hru i tady
+            // Jen kandidát bez velké srážky (cizí stát u regionu, část názvu správné odpovědi): ten je mimo hru i tady. A jen stejného
+            // druhu, je-li ho mezi vybranými dost: druh je vidět u otázky, takže známý jev mezi experimenty (Volný pád u Schrödingerovy
+            // kočky) by byl poznat hned – víc než samé méně známé experimenty
+            const sameKind = (other) => !item.ty || other.ty === item.ty || !distractors.every(chosen => chosen.ty === item.ty);
             const known = entries.find(entry => entry.candidate.k === 1 && entry.value > CHOICE_FLOOR && !distractors.includes(entry.candidate) && sameArea(entry.candidate)
-                && !taken.has(normalizeAnswer(entry.candidate.n)));
+                && sameKind(entry.candidate) && !taken.has(normalizeAnswer(entry.candidate.n)));
             if (known) distractors = [...distractors.slice(0, 2), known.candidate];
         }
         return shuffle([
@@ -1980,7 +1983,7 @@
         return d;
     };
     // Výřez a vrstvy regionální slepé mapy: own = stát, others = sousedé, region = hledaný region (jen když ho data znají),
-    // lines = hranice regionů uvnitř státu, lakes = velká jezera; dot = tečka na hledaném místě (v px), regionSize = delší strana
+    // lines = hranice regionů uvnitř státu, lakes = velká jezera, rivers = řeky pro orientaci (u města, Vltava v Praze); dot = tečka na hledaném místě (v px), regionSize = delší strana
     // rámce regionu v px (malý region potřebuje kolem tečky kroužek, aby byl vidět)
     // view = { lat, lon, span } jiný výřez (přiblížení na možnosti, tlačítka +/−), others = ostatní možnosti jako šedé tečky
     const buildRegionalMap = (entry, { item, lat, lon, width, height, view: wanted = null, others = [] }) => {
@@ -1993,7 +1996,7 @@
         const [dotX, dotY] = project(target.p[0], target.p[1]);
         return {
             lat: inverseMercatorY(view.y), lon: view.x, span: view.span,
-            layers: { others: layer(entry.o), own: layer(entry.c), region: known ? layer(known.r) : '', lines: layer(entry.l, false), lakes: layer(entry.w) },
+            layers: { others: layer(entry.o), own: layer(entry.c), region: known ? layer(known.r) : '', lines: layer(entry.l, false), lakes: layer(entry.w), rivers: layer(entry.v, false) },
             dot: { x: dotX, y: dotY },
             others: others.map(point => { const [x, y] = project(point.lon, mercatorY(point.lat)); return { x, y }; }),
             regionSize: known && known.b ? Math.max(known.b[2] - known.b[0], known.b[3] - known.b[1]) * scale : 0

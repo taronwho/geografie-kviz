@@ -227,7 +227,8 @@ if (missing.length) {
 
 // Opravy chybných údajů ve Wikidatech (Annapurna je tam masiv s výškou vedlejšího vrcholu 7 756 m, hlavní vrchol má 8 091 m)
 const FACT_OVERRIDES = { Q159621: { elev: '8091' } };
-const TYPE_OVERRIDES = { Q159621: 'hora' };
+// Independence Hall vedou Wikidata (kvůli seznamu UNESCO) jako archeologickou lokalitu, je to budova
+const TYPE_OVERRIDES = { Q159621: 'hora', Q390028: 'historický památník' };
 for (const [qid, values] of Object.entries(FACT_OVERRIDES)) if (details.has(qid)) Object.assign(details.get(qid).values, values);
 const numberOf = (detailValues, key) => detailValues[key] === undefined ? undefined : Number(detailValues[key]);
 const factsOf = ({ values: v, pops }) => {
