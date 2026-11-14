@@ -995,7 +995,7 @@
             }
         }
         // Kmeny jmen měst a území (Poznań u Lecha i Warty Poznań) a druhů položek (vodní nádrž, rašeliniště): dvě různé věci je
-        // sdílet smějí (nameStemsOf)
+        // sdílet smějí (quiz-core sameNameStem)
         const types = [...families.values()].flatMap(family => family.entries.map(entry => entry.sub || ''));
         const placeStems = new Set([...list('zemepis').filter(item => item.c === 'mesto' && item.n).map(item => item.n), ...data.t.map(item => item.n), ...types]
             .flatMap(name => namePlain(name).split(' ')).filter(word => word.length >= 5).map(word => word.slice(0, 5)));
@@ -1479,44 +1479,19 @@
     // přídavných jmen názvů (Městský, Národní) a jmen měst a území (Lech Poznań – Warta Poznań); u osob jen příjmení (ne Václav)
     const NEAR_KM = 1;
     const COORD_FAMILIES = new Set(['city', 'building', 'castle', 'mountain', 'lake', 'island', 'nature', 'venue']);
-    const STEM_SKIP = new Set([...((core && core.GENERIC_NAME_WORDS) || []), 'stadium', 'stadio', 'estadio', 'stade', 'arena', 'château', 'chateau', 'schloss', 'castello',
-        'castillo', 'castle', 'palazzo', 'palacio', 'palais', 'palace', 'kathedrale', 'cathédrale', 'cathedral', 'catedral', 'cattedrale', 'basilica', 'basilique', 'kirche',
-        'church', 'église', 'iglesia', 'chiesa', 'tower', 'torre', 'bridge', 'brücke', 'ponte', 'puente', 'museum', 'musée', 'museo', 'theatre', 'theater', 'teatro',
-        'národní', 'national', 'městský', 'městská', 'městské', 'olympijský', 'olympijská', 'olympijské', 'královský', 'královská', 'královské', 'státní', 'hlavní', 'velký',
-        'velká', 'velké', 'starý', 'stará', 'staré', 'nový', 'nová', 'nové', 'horní', 'dolní', 'severní', 'jižní', 'východní', 'západní', 'střední', 'svatého', 'svaté',
-        'svatý', 'svatá', 'svatých', 'saint', 'sainte', 'santa', 'santo', 'sankt', 'notre', 'nuestra', 'señora', 'panny', 'marie', 'nejsvětější', 'mount', 'monte',
-        'lake', 'lago', 'isola', 'island', 'insel', 'river', 'parque', 'fotbalový', 'fotbalová', 'sportovní', 'zahrada', 'památník', 'memorial', 'monument', 'univerzita',
-        'university', 'kostela', 'katedrály', 'chrámu', 'hradu', 'zámku', 'paláce', 'stadionu', 'vodní', 'dílo', 'letní', 'zimní', 'circuit', 'circuito', 'autodromo',
-        'autódromo', 'estádio', 'international', 'municipal', 'street', 'centre', 'center', 'centrum', 'garden', 'gardens', 'square', 'piazza', 'plaza', 'grand', 'great',
-        'royal', 'památka', 'skály', 'vysočina', 'rašeliniště', 'rašeliny', 'jeskyně', 'propast', 'údolí', 'soutěska', 'vrchoviště'].map(word => namePlain(word)).filter(word => word.length >= 5).map(word => word.slice(0, 5)));
-    const PLACE_PREPOSITIONS = new Set(['v', 've', 'na', 'nad', 'pod', 'u', 'z', 'ze', 'do', 'pri', 'mezi', 'in', 'de', 'di', 'du', 'am', 'an', 'im', 'of', 'upon', 'sur']);
-    const stemMemo = new Map();
-    const nameStemsOf = (label, person, places) => {
-        const key = `${person ? 1 : 0}\u0001${label}`;
-        if (!stemMemo.has(key)) {
-            // Slovo za předložkou je místo (v Praze, nad Rýnem, v Poznani): dvě stavby jednoho města jsou dvě různé věci
-            const words = namePlain(label).split(' ').filter(Boolean).filter((word, i, all) => !(i > 0 && PLACE_PREPOSITIONS.has(all[i - 1])));
-            stemMemo.set(key, new Set((person ? words.slice(1) : words).filter(word => word.length >= 5 && !/\d/.test(word)).map(word => word.slice(0, 5)).filter(stem => !STEM_SKIP.has(stem))));
-        }
-        return [...stemMemo.get(key)].filter(stem => !places.has(stem));
-    };
     const coordsOf = (entry) => {
         for (const src of Object.values(entry.srcs || {})) if (Number.isFinite(src.la) && Number.isFinite(src.lo)) return { la: src.la, lo: src.lo };
         return null;
     };
     const distanceKm = (a, b) => (core && core.distanceKm ? core.distanceKm(a, b) : Math.hypot(a.la - b.la, (a.lo - b.lo) * Math.cos(a.la * Math.PI / 180)) * 111.2);
-    // Jmenovci s jiným pořadovým číslem (Přemysl Otakar I. a II., Fridrich Vilém I. a III.) jsou dvě různé osoby
-    const ordinalOf = (label) => (/(?<![\p{L}])([IVXLC]+)(?:\.|$)/u.exec(String(label || '')) || [])[1] || '';
+    // Jmenovci s jiným pořadovým číslem (Přemysl Otakar I. a II., Fridrich Vilém I. a III.) jsou dvě různé osoby (quiz-core sameNameStem)
     const nearDuplicate = (a, b, family, ctx, person = false) => {
         if (COORD_FAMILIES.has(family)) {
             const x = coordsOf(a);
             const y = coordsOf(b);
             if (x && y && distanceKm(x, y) < NEAR_KM) return true;
         }
-        if (person && ordinalOf(a.label) && ordinalOf(b.label) && ordinalOf(a.label) !== ordinalOf(b.label)) return false;
-        const places = (ctx.pools && ctx.pools.placeStems) || new Set();
-        const own = new Set(nameStemsOf(a.label, person, places));
-        return own.size > 0 && nameStemsOf(b.label, person, places).some(stem => own.has(stem));
+        return core.sameNameStem(a.label, b.label, { person, places: (ctx.pools && ctx.pools.placeStems) || new Set() });
     };
     const distractorsFor = (pick, own, spec, ctx, family = '') => {
         const topic = pick.topic;

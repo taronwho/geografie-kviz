@@ -105,28 +105,51 @@ Co ukáže obrazovka otázky (listopad 2026; Řetězovka, č. 6, má vlastní pr
 ## 6. Řetězovka
 
 - **Princip**: odpověď na jednu otázku je začátkem další. Například:
-  1. „Ve kterém městě stojí Eiffelova věž?“ → **Paříž**
-  2. „Paříž je hlavním městem…“ → **Francie**
-  3. „Který skladatel pochází z Francie?“ → **Claude Debussy**
-  4. …
-- **Odkud se berou vazby**: z dat témat (stát, hlavní město, místa, stavby, osobnosti podle země, vlajky…). Modul `chain.js` z nich postaví graf a z něj článek po článku řetěz.
-- **Otázky**: každá má 4 možnosti. Špatné možnosti jsou stejného druhu (jiné státy, jiná města) a nesmějí být ve vztahu správné, například skladatel, který je také z Francie.
+  1. „Které z těchto děl namaloval Jacques-Louis David?“ → **Smrt Sokratova**
+  2. „Ve kterém muzeu nebo galerii je obraz Smrt Sokratova?“ → **Metropolitní muzeum umění**
+  3. „Ve kterém městě stojí Metropolitní muzeum umění?“ → **New York**
+  4. „Která z těchto kapel vznikla ve městě New York?“ → **Kiss**
+  5. …
+- **Odkud se berou vazby**: modul `chain.js` postaví graf z dat 14 témat (Zeměpis, Architektura, Hudba, Literatura, Umění, Film, Sport, Historie,
+  Fyzika, Chemie, Biologie, Mytologie, Geologie, Vlajky) a z vazeb z Wikidat v `data/retezovka.json` (`npm run build:retezovka`, jen mezi známými
+  položkami témat): rodiště a místo úmrtí, manželé, rodiče a děti, učitel a žák, nástupce v úřadu či na trůně, pohoří hory, endemit státu a koho
+  zobrazuje obraz či socha. Celkem 85 vazeb (stavba–město, stát, architekt, sloh; dílo–autor; film–herec; kapela–člen; malíř–směr; hráč–klub;
+  klub–stadion; sportovec–olympijské zlato; panovník–stát, nástupce, rodiče; historický stát–hlavní město; prvek–objevitel; měsíc–planeta;
+  těleso–objevitel; vynález–vynálezce; postava mytologie–otec, matka, manžel; drahokam–nerost; geologické období; plemeno–země; …).
+- **Otázky**: každá vazba má 1–4 znění otázky (bez sloves ve shodě s rodem hráče) a jednovětné vysvětlení. Každá otázka má 4 možnosti. Špatné
+  možnosti jsou stejného druhu, nesmějí být ve vztahu správné (žádný druhý francouzský skladatel) a nesmějí být jen jiným jménem téže věci
+  (stejný výrazný kmen jména, `quiz-core.js` `sameNameStem`, stejně jako v Dobývání).
+- **Žádné odpovědi zadarmo**: řetěz si pamatuje, co už prozradil (stavba stojí v Londýně → je i ve Spojeném království; rodiště osobnosti → její
+  země), a na nic z toho se už neptá. Odpověď nesmí být mezi možnostmi ani v textu či vysvětlení dřívější otázky a žádný uzel se nevrací.
+- **Pestrost**: nejvýš dva zeměpisné skoky (odpověď stát, město nebo region) a nikdy dva po sobě (otázky typu „hlavní město → stát“ tak nevzniknou),
+  nejvýš tři otázky z jednoho oboru (hudba, literatura, umění, film, sport, architektura, historie, věda, příroda, mytologie), slabší obory mají
+  při výběru přednost. Rozcestníky (Francie, Londýn, Louvre…) jsou v řetězu dne k dispozici jen „ve svůj den“ (velké jeden den z osmi), takže se
+  do týdne neopakují; začátek řetězu se do dvou týdnů neopakuje. Vše jen ze semínka dne a dat, takže řetěz je pro všechny stejný.
+- **Karta otázky**: fotka předchozí odpovědi z Wikimedia Commons (jen skutečná fotka, ne s napsanou odpovědí; u vazeb, kde by fotka odpověď
+  ukázala – město se stavbou, obal alba, hráč v dresu – bez fotky) a jedna až dvě věty z úvodu článku na české Wikipedii. Text je zakrytý:
+  jména všech možností i skloněná, národnost, obaly místa u otázky na místo a odpovědi pozdějších článků; nakonec nezávislá kontrola
+  `answerWordsLeft` jako v ostatních módech. Bez Wikipedie (výpadek, 4,5 s) se hraje s otázkou samotnou, nanejvýš se zakrytým popisem z dat.
+  Po odpovědi karta ukáže vysvětlení vazby („Daniel Radcliffe hrál ve filmu Harry Potter a Kámen mudrců (2001).“).
 - **Řetězovka dne**:
   - 7 článků, stejných pro všechny (semínko = pražský den);
   - jeden pokus za den, čas se nepočítá;
   - článek k dává k bodů, celý řetěz tedy 28 bodů;
   - špatná odpověď řetěz přetrhne a hra končí;
   - jednou za hru můžeš použít **Záchranu**: místo špatné odpovědi dostaneš jinou otázku na stejný článek, za 0 bodů.
+- **Kompatibilita**: nový generátor platí od `NEW_FROM` = 15. 11. 2026 (pražský čas). Dny před ním staví zmrazený původní generátor
+  `chain-legacy.js` (v prohlížeči se načte jen tehdy), takže řetěz dne, který už někdo hrál, se po nasazení nezmění; uložené pokusy starých dnů
+  (bez vysvětlení a fotky) se vykreslí jako dřív. `tests/chain-legacy-snapshot.json` hlídá, že se původní výstup nezměnil.
 - **Vzhled**:
   - řetěz se skládá článek po článku, nový článek „zacvakne“;
-  - nad otázkou je cesta „Eiffelova věž → Paříž → …“;
-  - přetržení řetězu se rozlomí s krátkým zatřesením.
+  - nad otázkou je cesta „Smrt Sokratova → Metropolitní muzeum umění → …“;
+  - přetržení řetězu se rozlomí s krátkým zatřesením, panel ukáže správnou odpověď a vysvětlení.
 - **Výsledek**:
-  - celý řetěz i s odpověďmi a body;
+  - celý řetěz i s odpověďmi a body, v okně článku i vysvětlení;
   - sdílení textem a obrázkem, např. „Řetězovka 12. 11. 🔗🔗🔗🔗💥 · 10 bodů“;
   - u přihlášených pořadí dne a kolik procent hráčů dalo celý řetěz.
-- **Cvičná řetězovka**: po dohrání denní jde hrát náhodný řetěz bez bodů a statistik.
-- **Server** (`-- 21: Řetězovka`):
+- **Cvičná řetězovka**: po dohrání denní jde hrát náhodný řetěz bez bodů a statistik (stejná pravidla, bez střídání po dnech).
+- **Audit**: `node scripts/audit-retezovka.mjs --label=before|after` (365 řetězů dne a 1000 cvičných) zapíše `reports/retezovka-audit.md`.
+- **Server** (`-- 21: Řetězovka`, beze změny):
   - tabulka `chain_results (day, user_id, links, score, rescued, created_at)`, jeden řádek na hráče a den;
   - `chain_submit(day, links, score, rescued)` s kontrolou rozsahů;
   - `chain_day_stats(day)` vrací počet hráčů, podíl celých řetězů, moje pořadí a nejlepší.
