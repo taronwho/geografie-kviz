@@ -1,6 +1,7 @@
 // Bleskovka a Přežití (modes.js, app.js) a zvuky s vibracemi (sound.js) v prohlížeči: vstup z okna Co hrát, úvod, hra s časem
-// a trestem, životy, výsledek s rekordem, XP a chybami do procvičování; přepínače Zvuky a Vibrace v Nastavení. Rozložení na 390×780
-// a 360×640 ve světlém i tmavém režimu bez posouvání. Snímky: SHOTS_DIR=složka. Potřebuje Playwright (viz tests/e2e.test.js).
+// a trestem, životy, výsledek s rekordem, XP a chybami do procvičování; přepínače Zvuky a Vibrace v Nastavení. Otázka je zakrytý úvod
+// článku z Wikipedie jako v běžné hře; Přežití po odpovědi ukáže kartu odpovědi (popis z Wikipedie, fotka) a dál se jde tlačítkem.
+// Rozložení na 390×780 a 360×640 ve světlém i tmavém režimu bez posouvání. Snímky: SHOTS_DIR=složka. Potřebuje Playwright (viz tests/e2e.test.js).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -112,6 +113,18 @@ test('Bleskovka, Přežití, zvuky a vibrace', { skip: !chromium && 'Playwright 
         await tab.waitForSelector(`[data-mode-intro="${kind}"]`);
     };
     const waitQuestion = (tab, asked) => tab.waitForSelector(`[data-mode-question][data-phase="question"][data-asked="${asked}"]`);
+    // Přežití: karta odpovědi po odpovědi (název, popis z Wikipedie bez zakrytí, odkaz na článek), dál tlačítkem (dvojí klepnutí do 0,4 s nic nepřeskočí)
+    const answerCard = async (tab, question) => {
+        await tab.waitForSelector('[data-mode-question][data-phase="feedback"] #result-tab-panel [data-answer-about]');
+        assert.equal((await tab.textContent('#result-tab-panel [data-answer-name]')).trim(), question.item.n);
+        const text = await tab.textContent('#result-tab-panel [data-answer-text]');
+        assert.ok(text.includes(`značku K${question.item.q}`) && !text.includes('[***]'), `popis z Wikipedie: ${text}`);
+        assert.match(await tab.textContent('#result-tab-panel [data-answer-about] a[href^="https://cs.wikipedia.org/wiki/"]'), /Číst na Wikipedii/);
+    };
+    const nextQuestion = async (tab) => {
+        await tab.waitForTimeout(450);
+        await tab.click('[data-action="mode-next"]');
+    };
     // Správná odpověď podle značky v popisu (otázka na název) nebo podle státu pojmenované položky (Ve kterém státě to je?)
     const solve = async (tab) => {
         const info = await tab.evaluate(() => {
@@ -281,8 +294,9 @@ test('Bleskovka, Přežití, zvuky a vibrace', { skip: !chromium && 'Playwright 
         await context.close();
     });
 
-    for (const [viewport, colorScheme] of [[{ width: 360, height: 640 }, 'light'], [{ width: 360, height: 640 }, 'dark']]) {
-        await t.test(`Přežití: tři životy, chyba ubere srdce, konec po třetí chybě (${viewport.width}×${viewport.height}, ${colorScheme})`, async () => {
+    for (const [viewport, colorScheme] of [[{ width: 360, height: 640 }, 'light'], [{ width: 360, height: 640 }, 'dark'], [{ width: 390, height: 780 }, 'dark']]) {
+        await t.test(`Přežití: tři životy, chyba ubere srdce, konec po třetí chybě, po odpovědi popis z Wikipedie (${viewport.width}×${viewport.height}, ${colorScheme})`, async () => {
+            const size = viewport.width;
             const { context, tab, problems } = await open({ viewport, colorScheme });
             await openMode(tab, 'survival');
             const intro = await tab.textContent('[data-mode-intro]');
@@ -290,28 +304,54 @@ test('Bleskovka, Přežití, zvuky a vibrace', { skip: !chromium && 'Playwright 
             assert.match(intro, /Začíná se známými/);
             assert.match(intro, /\+4\sXP za každou přežitou otázku/);
             assert.deepEqual(await fits(tab), { scroll: 0, wide: 0 }, 'úvod bez posouvání');
-            await shot(tab, `preziti-uvod-360-${colorScheme}`);
+            await shot(tab, `preziti-uvod-${size}-${colorScheme}`);
             await tab.click('[data-action="mode-start"]');
             await waitQuestion(tab, 1);
             assert.equal(await tab.getAttribute('[data-mode-lives]', 'data-mode-lives'), '3');
             assert.match(await tab.textContent('[data-mode-lives]'), /Známé/);
             assert.deepEqual(await fits(tab), { scroll: 0, wide: 0 }, 'otázka bez posouvání');
             assert.equal(await tab.locator('[data-action="hint"]').count(), 0, 'bez nápověd');
-            await shot(tab, `preziti-otazka-360-${colorScheme}`);
-            const { right } = await solve(tab);
-            await tab.click(`[data-action="mode-choice"][data-index="${right}"]`);
+            // Popis je zakrytý úvod článku z Wikipedie (značka položky zůstane, název ne)
+            const panel = await tab.textContent('[data-mode-question] #hint-tab-panel');
+            assert.match(panel, /Tato položka má v testu značku KQ\d+/);
+            await shot(tab, `preziti-otazka-${size}-${colorScheme}`);
+            const first = await solve(tab);
+            await tab.click(`[data-action="mode-choice"][data-index="${first.right}"]`);
+            // Karta odpovědi zůstane, dokud hráč neklepne na Další otázka
+            await answerCard(tab, first);
+            await tab.waitForTimeout(1200);
+            assert.equal(await tab.getAttribute('[data-mode-question]', 'data-phase'), 'feedback', 'bez klepnutí dál nejde');
+            assert.match(await tab.textContent('[data-action="mode-next"]'), /Další otázka/);
+            assert.ok(await tab.$('[data-action="mode-quit"]'), 'Ukončit hru zůstává');
+            assert.deepEqual(await fits(tab), { scroll: 0, wide: 0 }, 'karta odpovědi bez posouvání');
+            await shot(tab, `preziti-odpoved-${size}-${colorScheme}`);
+            let photoShot = false;
             const missed = [];
             for (let asked = 2; asked <= 4; asked++) {
+                await nextQuestion(tab);
                 await waitQuestion(tab, asked);
                 const question = await solve(tab);
                 missed.push(question.item.q);
                 await tab.click(`[data-action="mode-choice"][data-index="${question.wrong}"]`);
                 await tab.waitForSelector(`[data-mode-lives="${4 - asked}"]`);
+                await answerCard(tab, question);
                 if (asked === 2) {
                     assert.deepEqual(await tab.evaluate(() => window.__vibrations), [40], 'krátká vibrace při chybě');
-                    await shot(tab, `preziti-chyba-360-${colorScheme}`);
+                    await shot(tab, `preziti-chyba-${size}-${colorScheme}`);
+                }
+                // Fotka položky v kartě odpovědi (záložka Fotka), jen skutečná fotka
+                if (!photoShot && await tab.$('#result-tab-panel [data-action="result-tab"][data-step="photo"]')) {
+                    photoShot = true;
+                    await tab.click('#result-tab-panel [data-action="result-tab"][data-step="photo"]');
+                    await tab.waitForFunction(() => { const el = document.querySelector('#result-tab-panel #result-photo'); return Boolean(el) && /url\(/.test(el.style.backgroundImage); });
+                    assert.deepEqual(await fits(tab), { scroll: 0, wide: 0 }, 'karta odpovědi s fotkou bez posouvání');
+                    await shot(tab, `preziti-odpoved-fotka-${size}-${colorScheme}`);
                 }
             }
+            // Po posledním životě: Výsledek hry (bez Ukončit hru)
+            assert.match(await tab.textContent('[data-action="mode-next"]'), /Výsledek hry/);
+            assert.equal(await tab.$('[data-action="mode-quit"]'), null);
+            await nextQuestion(tab);
             await tab.waitForSelector('[data-mode-result="survival"]');
             const result = await tab.textContent('[data-mode-result]');
             assert.match(result, /1\s*přežitá otázka/);
@@ -323,7 +363,7 @@ test('Bleskovka, Přežití, zvuky a vibrace', { skip: !chromium && 'Playwright 
             const modes = await storage(tab, 'mudrlant.modes');
             assert.deepEqual(modes.survival.best, { zemepis: 1 });
             assert.equal(modes.blitz.games, 0, 'rekordy Bleskovky zvlášť');
-            await shot(tab, `preziti-vysledek-360-${colorScheme}`);
+            await shot(tab, `preziti-vysledek-${size}-${colorScheme}`);
             assert.deepEqual(problems, []);
             await context.close();
         });

@@ -1170,6 +1170,15 @@
     // origin = odkud text je: 'article' (úvod článku z Wikipedie), 'fallback' (krátký popis z Wikidat, když Wikipedie
     // neodpověděla) nebo 'withheld' (téma text před odpovědí neukazuje – úvod článku o kraji či městě by ho prozradil i se
     // zakrytým názvem). Nápovědou smí být jen text z článku; náhradní ani zadržený text nápovědou nikdy není.
+    // Poslední pojistka po zakrytí (stejná jako v Dobývání, conquest.js completeQuestion): text, ve kterém nezávislá kontrola
+    // (answerWordsLeft) najde tvar výrazného slova správné možnosti (v Poznani, poznaňští), se neukáže vůbec (vrátí ''); otázku pak
+    // nesou fakta a další nápovědy (popis je „thin“). Platí pro všechny hry, které otázku staví přes buildQuestionTexts (createRoundData).
+    const leakFreeText = (value, question, item, ctx) => {
+        if (!value) return value || '';
+        const extra = genericWordsOf(ctx);
+        const keep = [question.title, question.showName ? item.n : '', item.ty, ...(ctx.topic.keepWords ? ctx.topic.keepWords(question.type, item, ctx) : [])].filter(Boolean);
+        return answerWordsLeft(value, question.choices, { isGeneric: (word) => isGenericWord(word, extra), keep }).length ? '' : value;
+    };
     const buildQuestionTexts = (item, ctx, question, fetched, { special = false } = {}) => {
         if (ctx.topic.withholdText && ctx.topic.withholdText(question.type, item, ctx)) {
             return { text: fetched, questionText: '', moreText: '', origin: 'withheld' };
@@ -1185,9 +1194,10 @@
         const censorText =(value) => hideAnswer(value, question, item, ctx, { aliases, lead: !fetched.fallback && value === fetched.description });
         const text = fetched.fallback ? fetched
             : { ...fetched, ...chooseDescription(fetched.description, fetched.more, censorText, { startOk: sentence => !OUT_OF_CONTEXT.test(sentence) }) };
-        let questionText = censorText(text.description);
+        const leakFree = (value) => leakFreeText(value, question, item, ctx);
+        let questionText = leakFree(censorText(text.description));
         if (!fetched.fallback && censoredShare(questionText) > MAX_USABLE_CENSORED_SHARE) questionText = '';
-        const moreText = special || !text.more ? '' : censorText(stripFactSentences(text.more, ctx.topic.facts(item, ctx, question.type)));
+        const moreText = special || !text.more ? '' : leakFree(censorText(stripFactSentences(text.more, ctx.topic.facts(item, ctx, question.type))));
         return { text, questionText, moreText, origin: fetched.fallback ? 'fallback' : 'article' };
     };
     // Prozrazuje fakt odpověď (nebo začíná stejným kořenem jako ona)? Takový fakt se jako nápověda nenabídne.
@@ -2658,7 +2668,7 @@
         getDayKey, shiftDayKey, formatDayKey, createSeededRandom, pickRandom, pickWeighted, shuffle,
         ELEMENT_FAMILIES, elementFamily, periodicPosition,
         maskLeaks, findLeaks, answerTokens, foldKeys, isPersonName, genericWordsOf, isGenericWord, specificWords, absorbGenericWords, hideNicknames, CHOICE_MARK, hideOtherChoices,
-        censorForItem, answerNamesOf, answerNamesFor, hideAnswer, leadSubject, leadAliases, aliasWords, sealAnswerWords, answerWordsLeft, OUT_OF_CONTEXT, buildQuestionTexts, factRevealsAnswer, GENERIC_NAME_WORDS,
+        censorForItem, answerNamesOf, answerNamesFor, hideAnswer, leadSubject, leadAliases, aliasWords, sealAnswerWords, answerWordsLeft, leakFreeText, OUT_OF_CONTEXT, buildQuestionTexts, factRevealsAnswer, GENERIC_NAME_WORDS,
         JOINING_WORDS, distinctiveTokens, structureLeaks, sealStructure, contentWords, newWords, addsInformation, commonChoiceText,
         choicePoints, choicesView, fitMapToChoices, FIT_SHARE, WORLD_MIN_SPAN, buildHints, planRound, MIN_DESCRIPTION_WORDS, MIN_EXCERPT_WORDS,
         setCountries, landOf, landsOf, landFromDescription, cultureDistance, CULTURE_GROUPS, cultureScore, cultureLandsFor, getWordStems, censorName, mergeCensored, swallowAliases, censorCountry, isKnownCountry, processWikiText, stripFactSentences, takeLeadFacts, normalizeAnswer, levenshtein, isAnswerMatch, isSymbolMatch, isCenturyMatch, isFormulaMatch, formulaCounts, checkAnswer,

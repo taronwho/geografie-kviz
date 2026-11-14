@@ -224,6 +224,10 @@ test('uložený stav: čištění, starý rozehraný souboj se po týdnu uzavře
     assert.deepEqual(state.claims, { 'u-1': '2026-11-02' });
     assert.equal(state.open.shown.slot, 1);
     assert.equal(state.open.results[0].answer, 'Praha');
+    assert.equal(state.open.shown.hint, undefined, 'bez odemčené nápovědy');
+    // Odemčené nápovědy otázky na obrazovce (round.hintLevel) se pamatují, nesmysl ne
+    assert.equal(Boss.parseState({ ...raw, open: { ...raw.open, shown: { ...raw.open.shown, hint: 3 } } }).open.shown.hint, 3);
+    for (const hint of [1, 0, -2, 'x', 2.5e9]) assert.ok([undefined, 20].includes(Boss.parseState({ ...raw, open: { ...raw.open, shown: { ...raw.open.shown, hint } } }).open.shown.hint), `hint ${hint}`);
     // Otázka na obrazovce jen pro další nezodpovězenou
     assert.equal(Boss.parseState({ ...raw, open: { ...raw.open, shown: { ...raw.open.shown, slot: 0 } } }).open.shown, null);
     // Nový týden: rozehraný souboj se uzavře, jak stál
@@ -287,6 +291,8 @@ test('HTML: úvod, souboj, výsledek a síň bez inline stylů, texty escapovan�
         Boss.heartsHtml(1, 1)
     ].join('');
     assert.ok(!/\sstyle=/.test(html), 'žádné inline styly (CSP)');
+    // Pravidla: otázky a nápovědy jako v běžné hře (popis z Wikipedie), nápověda stojí jen čas
+    assert.match(Boss.rulesHtml(boss, 'Zeměpis'), /Popis z Wikipedie a nápovědy jako v běžné hře, čas ale běží dál/);
     assert.ok(!html.includes('<b>Ahoj</b>') && html.includes('&lt;b&gt;Ahoj&lt;/b&gt;'));
     assert.match(Boss.introHtml({ boss, week: '2026-11-09', community: '' }), /data-action="boss-start"[^>]*>[\s\S]*Do souboje/);
     assert.match(Boss.introHtml({ boss, week: '2026-11-09', used: 3, community: '', next: Boss.BY_ID.rytir }), /V pondělí přijde Rytíř Mudrlant/);

@@ -18,6 +18,8 @@ test('pravidla: Bleskovka 60 s a trest 3 s, Přežití tři životy; XP nižší
     for (const id of Modes.IDS) assert.ok(Modes.MODES[id].xpPer > 0 && Modes.MODES[id].xpPer <= 5, id);
     assert.match(Modes.rules('blitz').map(rule => rule.text).join(' '), /60 sekund.*ubere 3 sekundy/);
     assert.match(Modes.rules('survival').map(rule => rule.text).join(' '), /3 životy/);
+    // Přežití po odpovědi ukáže popis z Wikipedie a fotku, dál se jde klepnutím
+    assert.match(Modes.rules('survival').map(rule => rule.text).join(' '), /Po odpovědi popis z Wikipedie a fotka, dál klepnutím/);
     for (const id of Modes.IDS) assert.ok(Modes.MODES[id].feedback.wrong > Modes.MODES[id].feedback.correct, `${id}: chyba je vidět déle`);
 });
 

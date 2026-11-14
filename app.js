@@ -3004,19 +3004,21 @@
         const panes = [...image, ...free, ...hintPanes(unlocked, data, style)];
         return renderTabbedPanel(panes, round.tab || panes[0].key, 'hint-tab', isTime(data) ? TIME_PANEL_HEIGHT : QUESTION_PANEL_HEIGHT);
     };
-    // Tlačítko další nápovědy přes celou šířku pod popisem: co odemkne a za kolik pak bude odpověď
-    const nextHintButton = (data) => {
+    // Tlačítko další nápovědy přes celou šířku pod popisem: co odemkne a za kolik pak bude odpověď.
+    // Souboj s bossem (cost) má nápovědy stejné, jen místo bodů stojí čas: čas otázky běží dál a bonus za rychlost klesá
+    const nextHintButton = (data, { action = 'hint', cost = null } = {}) => {
         const next = data.hints[round.hintLevel - 1];
         if (!data.hints.length) return '';
         // Všechny nápovědy odemčené: stejně vysoký klidný pruh, ať se odpovědi nic neposune
-        if (!next) return `<div class="flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 text-xs font-bold text-slate-500 dark:border-slate-600 dark:text-slate-400"><i data-lucide="lightbulb" class="h-4 w-4"></i> Všechny nápovědy jsou odemčené</div>`;
+        if (!next) return `<div data-hints-done class="flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 text-xs font-bold text-slate-500 dark:border-slate-600 dark:text-slate-400"><i data-lucide="lightbulb" class="h-4 w-4"></i> Všechny nápovědy jsou odemčené</div>`;
         const nextCost = formatPoints(pointsFor(round.hintLevel + 1, round.variant === 'typed'));
+        const note = cost ? cost.note : `pak ${nextCost}`;
         return `
-            <button type="button" data-action="hint" title="Nápověda: ${escapeHtml(next.label)} – odpověď pak za ${nextCost}" class="btn-3d flex h-12 w-full shrink-0 items-center gap-3 rounded-2xl bg-gradient-to-b from-gold-400 to-gold-600 px-3 text-left text-brand-950">
+            <button type="button" data-action="${action}" title="Nápověda: ${escapeHtml(next.label)} – ${escapeHtml(cost ? cost.title : `odpověď pak za ${nextCost}`)}" class="btn-3d flex h-12 w-full shrink-0 items-center gap-3 rounded-2xl bg-gradient-to-b from-gold-400 to-gold-600 px-3 text-left text-brand-950">
                 ${uiArt('napoveda', 'h-9 w-9 -my-1')}
                 <span class="min-w-0 flex-1">
                     <span class="block text-[11px] font-black uppercase tracking-wider opacity-90">Nápověda ${round.hintLevel}/${data.hints.length}</span>
-                    <span class="flex items-baseline gap-1.5 text-sm font-black leading-tight"><span class="truncate">${escapeHtml(capitalize(next.label))}</span><span class="shrink-0 text-xs font-bold opacity-90">· pak ${nextCost}</span></span>
+                    <span class="flex items-baseline gap-1.5 text-sm font-black leading-tight"><span class="truncate">${escapeHtml(capitalize(next.label))}</span><span class="shrink-0 text-xs font-bold opacity-90">· ${escapeHtml(note)}</span></span>
                 </span>
                 <i data-lucide="${next.icon}" class="h-5 w-5 shrink-0 opacity-70"></i>
             </button>`;
@@ -3084,7 +3086,8 @@
         persistState();
         const panel = document.getElementById(`${action}-panel`);
         if (!panel) return;
-        panel.insertAdjacentHTML('afterend', action === 'hint-tab' ? questionPanel(current) : resultPanel(current));
+        // Výsledek běžné hry, nebo karta odpovědi v souboji s bossem a v Přežití
+        panel.insertAdjacentHTML('afterend', action === 'hint-tab' ? questionPanel(current) : screen === 'round' ? resultPanel(current) : answerPanel(current));
         panel.remove();
         renderIcons(appContent);
         mountPanels();
@@ -3546,6 +3549,23 @@
         const panes = resultPanes(data);
         return panes.length ? renderTabbedPanel(panes, round.resultTab, 'result-tab', RESULT_PANEL_HEIGHT) : '';
     };
+    // Karta odpovědi v souboji s bossem a v Přežití (místo panelu otázky, stejná data jako výsledek běžné hry): záložka Popis s názvem,
+    // popisem z Wikipedie (úvod článku už bez zakrytí, bez spojení krátký popis z Wikidat) a odkazem na článek, pak záložky výsledku
+    // (fotka, mapa, z družice, obrazová nápověda). Vyplní místo, které na obrazovce zbude, ať se nic neposouvá.
+    const answerAboutPane = (data) => {
+        const topic = TOPIC_BY_ID[data.topic];
+        return `
+        <div data-answer-about class="absolute inset-0 overflow-y-auto overscroll-contain p-3.5">
+            <p data-answer-name class="text-lg font-black leading-tight text-slate-800 dark:text-slate-50">${escapeHtml(data.name)}</p>
+            ${data.subtitle ? `<p class="mt-0.5 flex items-center gap-1.5 text-[12px] font-semibold leading-snug text-slate-500 dark:text-slate-400"><i data-lucide="${topic.subtitleIcon || 'navigation'}" class="h-3.5 w-3.5 shrink-0 ${styleOf(topic).text}"></i> ${escapeHtml(data.subtitle)}</p>` : ''}
+            <p data-answer-text class="mt-2 text-[14px] font-medium leading-snug text-slate-700 dark:text-slate-200">${escapeHtml(data.description || 'Popis se teď nepodařilo načíst z Wikipedie.')}</p>
+            <a href="${wikipediaUrl(data.title)}" target="_blank" rel="noopener noreferrer" class="mt-1 inline-flex min-h-[2.5rem] items-center gap-1.5 text-[13px] font-bold text-slate-600 underline-offset-2 hover:underline dark:text-slate-300"><i data-lucide="book-open" class="h-4 w-4"></i> Číst na Wikipedii</a>
+        </div>`;
+    };
+    const answerPanel = (data) => {
+        const panes = [{ key: 'about', label: 'Popis', icon: 'book-open', html: answerAboutPane(data) }, ...resultPanes(data)];
+        return renderTabbedPanel(panes, round.resultTab || 'about', 'result-tab', QUESTION_PANEL_HEIGHT);
+    };
 
     const collectionLabel = (ctx, collectionId) => {
         if (!collectionId) return `Celé téma`;
@@ -3863,7 +3883,8 @@
         } catch (error) { /* bez spojení se pokračuje podle zařízení */ } finally { clearTimeout(timer); }
     };
     const persistState = () => {
-        if (!current) return;
+        // Souboj s bossem a Bleskovka s Přežitím mají vlastní uložení (mudrlant.boss), nebo se neukládají: relace běžné hry zůstane, jak byla
+        if (!current || screen === 'boss' || screen === 'mode') return;
         if (mode === 'challenge' && challenge && !challenge.done) rememberOpenChallenge(challenge);
         if (mode === 'quiz') quizKeepOpen();
         // Rozehraný zápas turnaje se ukládá také: po návratu v den kola nabídne karta turnaje Pokračovat (od další otázky)
@@ -4660,7 +4681,8 @@
     let goldFxRound = null;
     // Karta otázky: panel s popisem a nápovědami (i Bleskovka a Přežití), mapa otázky Ukaž na mapě, karta Seřaď a Odhadni
     const goldCardOf = (root) => {
-        const panel = root.querySelector('#hint-tab-panel');
+        // V Přežití je po odpovědi místo panelu otázky karta odpovědi: zlatá zůstane i ona
+        const panel = root.querySelector('#hint-tab-panel') || (screen === 'mode' ? root.querySelector('#result-tab-panel') : null);
         if (panel) return panel;
         const map = root.querySelector('[data-map-question]');
         return map ? map.closest('section') : root.querySelector('[data-numeric-question] > section');
@@ -6108,7 +6130,9 @@
 
     // --- Bleskovka a Přežití: režimy pro jednoho hráče (pravidla, hodiny, rekordy a XP v modes.js, zvuky v sound.js) ---
     // Vlastní obrazovka (screen 'mode'): úvod s pravidly a rekordy → otázky (vždy výběr z možností, bez nápověd) → výsledek s rekordy a XP.
-    // Otázka se sestaví stejně jako v běžné hře (createRoundData) a další se chystá už během té současné, ať se nečeká na Wikipedii.
+    // Otázka se sestaví stejně jako v běžné hře (createRoundData: zakrytý úvod článku z Wikipedie) a další se chystá už během té současné,
+    // ať se nečeká na Wikipedii (dokud se chystá, čas Bleskovky stojí). Přežití po odpovědi ukáže kartu odpovědi jako souboj s bossem
+    // (answerPanel: popis z Wikipedie, fotka, mapa) a dál se jde klepnutím; Bleskovka jde po krátkém ukázání správné odpovědi rovnou dál.
     // Chyby jdou do Mých chyb a procvičování jako v běžné hře, správně uhodnuté do postupu v okruzích; do dnešních otázek, výzev,
     // statistik tréninku ani počítadel odpovědí pro odznaky a cíle týdne se odpovědi nepočítají (rychlé otázky by je jinak nafoukly);
     // počítá se jen den hraní a poznané položky (mistrovství).
@@ -6315,14 +6339,27 @@
         }
         noteModeAnswer(current, Boolean(choice.correct));
         if (Sound) Sound.answer(Boolean(choice.correct));
+        // Přežití (bez spěchu): místo panelu otázky karta odpovědi s popisem z Wikipedie a fotkou, dál až klepnutím na Další otázka
+        round.resultTab = 'about';
+        game.answeredAt = now;
         renderModeScreen();
         if (round.gold) goldModeAnswer(game, Boolean(choice.correct));
         const over = game.kind === 'survival' ? game.lives <= 0 : Modes.clockLeft(game.clock, now) <= 0;
+        if (modeReads(game)) return;
         modeFeedbackTimer = setTimeout(() => {
             if (!modeLive(game) || game.phase !== 'feedback') return;
             if (over) finishModeGame(game);
             else showNextModeQuestion(game);
         }, choice.correct ? def.feedback.correct : def.feedback.wrong);
+    };
+    // Režim s kartou odpovědi po každé otázce (Přežití); Bleskovka jde po krátkém ukázání správné odpovědi rovnou dál
+    const modeReads = (game) => Boolean(game) && game.kind === 'survival';
+    // Další otázka po kartě odpovědi (po posledním životě výsledek hry); dvojí klepnutí na možnost ji hned nepřeskočí
+    const nextModeQuestion = () => {
+        const game = modeGame;
+        if (!modeLive(game) || game.phase !== 'feedback' || !modeReads(game) || Date.now() - (game.answeredAt || 0) < 400) return;
+        if (game.lives <= 0) finishModeGame(game);
+        else showNextModeQuestion(game);
     };
     // Chyby a procvičování jako v běžné hře: špatně = do Mých chyb a karta opakování, správně = z chyb pryč a do poznaných položek
     const noteModeAnswer = (data, correct) => {
@@ -6491,6 +6528,14 @@
         const choices = data.question.choices.map((choice, index) => `
             <button type="button" data-action="mode-choice" data-index="${index}"${feedback ? ' disabled' : ''} class="${choiceClass(choice, index)}">${escapeHtml(choice.label)}</button>`).join('');
         const verdict = !feedback ? '' : round.correct ? 'Správně!' : `Špatně. Správně je ${data.question.answerLabel}.`;
+        // Přežití po odpovědi: karta odpovědi místo panelu otázky a vedle Ukončit hru tlačítko Další otázka (po posledním životě Výsledek hry)
+        const reading = feedback && modeReads(game);
+        const quit = `<button type="button" data-action="mode-quit" class="${reading ? 'shrink-0' : 'mx-auto'} flex min-h-[2.75rem] items-center gap-2 px-3 text-sm font-semibold text-slate-500 underline-offset-4 hover:underline dark:text-slate-400"><i data-lucide="flag" class="h-4 w-4"></i> Ukončit hru</button>`;
+        const bottom = !reading ? quit : `
+            <div class="flex items-center gap-2">
+                ${game.lives > 0 ? quit : ''}
+                <button type="button" data-action="mode-next" class="btn-3d flex min-h-[3rem] min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl px-4 text-base font-black text-white shadow-lg ${style.button}">${game.lives > 0 ? 'Další otázka' : 'Výsledek hry'} <i data-lucide="${game.lives > 0 ? 'arrow-right' : 'trophy'}" class="h-5 w-5 shrink-0"></i></button>
+            </div>`;
         appContent.innerHTML = `
             <div data-mode-question="${game.kind}" data-phase="${game.phase}" data-asked="${game.asked}" class="flex min-h-full w-full flex-col gap-2.5 bg-slate-50 p-3 pb-2 dark:bg-slate-900">
                 ${modeStatus(game)}
@@ -6498,10 +6543,10 @@
                     <span class="inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white shadow-sm ${style.solid}"><i data-lucide="${category.icon}" class="h-3 w-3"></i> ${escapeHtml(data.typeLabel)}</span>
                     <h2 class="text-[22px] font-black leading-tight tracking-tight text-slate-800 dark:text-slate-50">${escapeHtml(data.question.title)}</h2>
                 </div>
-                ${questionPanel(data)}
+                ${reading ? answerPanel(data) : questionPanel(data)}
                 <section class="${CARD} p-3"><div class="grid grid-cols-2 gap-2">${choices}</div></section>
                 <p class="sr-only" role="status">${escapeHtml(verdict)}</p>
-                <button type="button" data-action="mode-quit" class="mx-auto flex min-h-[2.75rem] items-center gap-2 px-3 text-sm font-semibold text-slate-500 underline-offset-4 hover:underline dark:text-slate-400"><i data-lucide="flag" class="h-4 w-4"></i> Ukončit hru</button>
+                ${bottom}
             </div>`;
         renderIcons(appContent);
         mountPanels();
@@ -6629,6 +6674,7 @@
     const modeActions = {
         'mode-start': () => startModeGame(),
         'mode-choice': (button) => answerMode(Number(button.dataset.index)),
+        'mode-next': () => nextModeQuestion(),
         'mode-quit': () => { if (modeGame && modeGame.phase !== 'intro' && modeGame.phase !== 'result') finishModeGame(modeGame); },
         'mode-again': () => { if (modeGame) startModeGame(modeGame.kind, modeGame.pool); },
         'mode-home': () => leaveMode(),
@@ -10120,7 +10166,7 @@
         const topic = TOPIC_BY_ID[data.topic];
         appContent.innerHTML = Mystery.screenHtml({
             day: view.day, past: view.past, shown, next: view.past ? null : Mystery.nextClue(now),
-            clues: Mystery.buildClues(data, { topicTitle: topic ? topic.title : '' }), entry, name: entry.name || data.name,
+            clues: Mystery.buildClues(data, { topicTitle: topic ? topic.title : '' }), entry, name: entry.name || data.name, info: { topic: data.topic, id: data.id },
             canGuess: !view.past && (status === 'new' || status === 'open'), finished: view.past || status === 'solved',
             guest: !mysteryRanked(), canLogin: Boolean(Auth && Auth.isConfigured() && Social) && !signedUser(),
             stats: view.stats, friends: view.friends, notice: view.notice,
@@ -10301,7 +10347,10 @@
 
     // --- Boss týdne (boss.js): souboj s bossem týdne v aréně (dlaždice v řadě Výzvy na úvodu) ---
     // Stav (pokusy po týdnech, rozehraný souboj s otázkou na obrazovce, emblémy) drží zařízení v mudrlant.boss. Otázky se sestaví jako
-    // v běžné hře (createRoundData) ze semínka týdne a pokusu (boss.js candidatesFor), další se chystá už během té současné. Čas otázky
+    // v běžné hře (createRoundData) ze semínka týdne a pokusu (boss.js candidatesFor), další (i s popisem z Wikipedie a fotkou) se chystá
+    // už během té současné; dokud se otázka chystá, čas stojí. Otázka ukáže zakrytý úvod článku z Wikipedie jako v běžné hře a nabídne
+    // stejné nápovědy (další věty, fotka, obrazová nápověda, fakta), které místo bodů stojí jen čas. Po odpovědi je místo panelu otázky
+    // karta odpovědi (answerPanel: popis z Wikipedie, fotka, mapa) a další otázka přijde tlačítkem. Čas otázky
     // se měří od jejího ukázání a běží dál i po odchodu z obrazovky: po návratu se pokračuje stejnou otázkou (pokus se tak nedá „resetovat“).
     // Přihlášenému se každý dohraný souboj pošle na server (schéma 21, boss_submit), který hlídá 3 pokusy za týden a počítá společnou lištu;
     // společný bonus za minulý týden si aplikace vyzvedne sama (boss_claim_bonus). Host hraje jen v zařízení, bez společné lišty.
@@ -10645,8 +10694,8 @@
         if (!state.open) { renderBossIntro(); return; }
         if (Boss.fightStatus(state.open.results).over) { finishBossFight(fight); return; }
         const slot = state.open.results.length;
-        // Otázka už na obrazovce byla (návrat do souboje): stejná, její čas běží dál
-        if (state.open.shown && state.open.shown.slot === slot) { presentBossQuestion(fight, upgradeRoundData(state.open.shown.data), state.open.shown.at, slot); return; }
+        // Otázka už na obrazovce byla (návrat do souboje): stejná, její čas běží dál a odemčené nápovědy zůstanou
+        if (state.open.shown && state.open.shown.slot === slot) { presentBossQuestion(fight, upgradeRoundData(state.open.shown.data), state.open.shown.at, slot, state.open.shown.hint || 1); return; }
         const job = fight.next && fight.next.slot === slot ? fight.next : queueBossQuestion(slot);
         fight.next = null;
         if (!job.data) {
@@ -10669,9 +10718,11 @@
         saveBoss(state);
         presentBossQuestion(fight, job.data, at, slot);
     };
-    const presentBossQuestion = (fight, data, at, slot) => {
+    const presentBossQuestion = (fight, data, at, slot, hintLevel = 1) => {
         current = data;
-        round = { hintLevel: 1, variant: Boss.isTyped(slot) ? 'typed' : 'choices', answered: false, correct: false, points: 0, typed: false, answer: null, gaveUp: false, review: false, shownAt: at };
+        const unlocked = Math.max(1, Math.min(getLevelCount(data), hintLevel));
+        round = { hintLevel: unlocked, variant: Boss.isTyped(slot) ? 'typed' : 'choices', answered: false, correct: false, points: 0, typed: false, answer: null, gaveUp: false, review: false, shownAt: at,
+            ...(unlocked > 1 ? { tab: data.hints[unlocked - 2].key } : {}) };
         Object.assign(fight, { phase: 'question', slot, at, limit: Boss.timeLimit(slot), picked: null, clock: 0 });
         paintBossQuestion(fight);
         // Další otázka se chystá hned, dokud hráč přemýšlí
@@ -10696,7 +10747,10 @@
         </div>`;
         renderIcons(box);
     };
-    // Otázka: schválnost, otázka a popis (jako v běžné hře, bez nápověd), možnosti nebo pole na psaní
+    // Nápověda v souboji: stejné nápovědy jako v běžné hře (další věty úvodu, fotka, obrazová nápověda, fakta), jen místo bodů stojí čas
+    const BOSS_HINT_COST = { note: 'čas běží', title: 'čas otázky běží dál a bonus za rychlost klesá' };
+    const bossHintButton = (data) => (data.hints.length ? `<div data-boss-hint class="shrink-0">${nextHintButton(data, { action: 'boss-hint', cost: BOSS_HINT_COST })}</div>` : '');
+    // Otázka: schválnost, otázka a popis se zakrytou odpovědí jako v běžné hře, nápovědy, možnosti nebo pole na psaní
     const paintBossQuestion = (fight) => {
         let box = document.getElementById('boss-question');
         if (!box) { renderBossFight(); box = document.getElementById('boss-question'); }
@@ -10716,6 +10770,7 @@
             ${Boss.trickHtml(fight.slot)}
             <h2 class="text-center text-[19px] font-black leading-tight tracking-tight text-slate-800 [@media(max-height:770px)]:text-[17px] dark:text-slate-50">${escapeHtml(data.question.title)}</h2>
             ${questionPanel(data)}
+            ${bossHintButton(data)}
             <section data-boss-answers class="shrink-0">${typed ? form : `<div class="grid grid-cols-2 gap-2">${choices}</div>`}</section>
             <p class="sr-only" role="status" data-boss-verdict></p>`;
         const count = appContent.querySelector('[data-boss-count]');
@@ -10723,6 +10778,24 @@
         renderIcons(box);
         mountPanels();
         if (typed) { const input = document.getElementById('boss-input'); if (input) input.focus({ preventScroll: true }); }
+    };
+    // Další nápověda: odemkne se a ukáže ve své záložce (překreslí se jen panel a tlačítko, rozepsaná odpověď zůstane); počet odemčených
+    // se pamatuje s otázkou na obrazovce (návrat do souboje). Čas otázky běží dál.
+    const showBossHint = () => {
+        const fight = bossFight;
+        if (!bossLive(fight) || fight.phase !== 'question' || !current || !round || round.answered || round.hintLevel >= getLevelCount(current)) return;
+        round.hintLevel += 1;
+        round.tab = current.hints[round.hintLevel - 2].key;
+        const state = loadBoss();
+        if (state.open && state.open.shown && state.open.shown.slot === fight.slot) { state.open.shown.hint = round.hintLevel; saveBoss(state); }
+        const box = document.getElementById('boss-question');
+        const panel = document.getElementById('hint-tab-panel');
+        const button = box && box.querySelector('[data-boss-hint]');
+        if (!box || !panel || !button) { paintBossQuestion(fight); return; }
+        panel.outerHTML = questionPanel(current);
+        button.outerHTML = bossHintButton(current);
+        renderIcons(box);
+        mountPanels();
     };
     // Hodiny: běží od ukázání otázky; v posledních 5 sekundách tikají, po vypršení se počítá chyba
     const bossTick = () => {
@@ -10804,15 +10877,27 @@
         Object.assign(round, { answered: true, correct, answer });
         fight.phase = 'feedback';
         noteModeAnswer(current, correct);
-        paintBossAnswer(fight, { correct, timeout: timeout || late, typed, answer });
+        paintBossAnswer(fight, { correct, timeout: timeout || late, typed, answer, over: after.over });
         bossFeedback(fight, before, after, { correct, ms: Math.min(elapsed, fight.limit) });
     };
-    // Výsledek odpovědi na obrazovce: správná možnost zeleně, zvolená špatná červeně; u psaní věta se správnou odpovědí
-    const paintBossAnswer = (fight, { correct, timeout, typed, answer }) => {
+    // Výsledek odpovědi na obrazovce: správná možnost zeleně, zvolená špatná červeně; u psaní věta se správnou odpovědí. Místo panelu
+    // otázky karta odpovědi jako ve výsledku běžné hry (popis z Wikipedie, fotka, mapa) a tlačítko Další otázka (čas další otázky běží
+    // až od jejího ukázání), na konci souboje Výsledek souboje
+    const paintBossAnswer = (fight, { correct, timeout, typed, answer, over = false }) => {
         const box = document.getElementById('boss-question');
         if (!box || !current) return;
-        const right = current.question.answerLabel || (current.question.choices.find(choice => choice.correct) || {}).label || '';
+        round.resultTab = 'about';
+        const panel = box.querySelector('#hint-tab-panel');
+        if (panel) panel.outerHTML = answerPanel(current);
+        const hint = box.querySelector('[data-boss-hint]');
+        const next = `<button type="button" data-action="boss-next" class="boss-cta btn-3d flex min-h-[3rem] w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-rose-500 to-rose-700 px-4 text-base font-black text-white">${over ? 'Výsledek souboje' : 'Další otázka'} <i data-lucide="${over ? 'flag' : 'arrow-right'}" class="h-5 w-5"></i></button>`;
+        if (hint) hint.remove();
         const answers = box.querySelector('[data-boss-answers]');
+        if (answers) answers.insertAdjacentHTML('afterend', next);
+        fight.answeredAt = Date.now();
+        renderIcons(box);
+        mountPanels();
+        const right = current.question.answerLabel || (current.question.choices.find(choice => choice.correct) || {}).label || '';
         if (answers && !typed) {
             answers.querySelectorAll('[data-action="boss-choice"]').forEach(button => {
                 const choice = current.question.choices[Number(button.dataset.index)];
@@ -10940,11 +11025,26 @@
         if (after.over && !after.won && after.hearts > 0) line = Boss.lineFor(boss, 'win', after.stage, Math.random, fight.lastLine);
         fight.lastLine = line;
         showBossBubble(line, kind);
+        // Hláška po chvíli zmizí (ať nezakrývá kartu odpovědi); dál hráč pokračuje tlačítkem Další otázka nebo Výsledek souboje
         bossFeedbackTimer = setTimeout(() => {
             if (!bossLive(fight) || fight.phase !== 'feedback') return;
-            if (after.over) finishBossFight(fight);
-            else showBossQuestion(fight);
+            hideBossBubble();
         }, wait);
+    };
+    const hideBossBubble = () => {
+        const bubble = appContent.querySelector('#boss-question [data-boss-bubble]');
+        if (!bubble) return;
+        if (reducedMotion() || !bubble.animate) { bubble.remove(); return; }
+        bubble.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 250, easing: 'ease-in', fill: 'forwards' }).onfinish = () => bubble.remove();
+    };
+    // Další otázka (nebo konec souboje) po kartě odpovědi; dvojí klepnutí na možnost ji hned nepřeskočí
+    const nextBoss = () => {
+        const fight = bossFight;
+        if (!bossLive(fight) || fight.phase !== 'feedback' || Date.now() - (fight.answeredAt || 0) < 400) return;
+        clearTimeout(bossFeedbackTimer);
+        const state = loadBoss();
+        if (!state.open || Boss.fightStatus(state.open.results).over) finishBossFight(fight);
+        else showBossQuestion(fight);
     };
     // Konec souboje: pokus se zapíše (v zařízení i na server), XP a emblém za první výhru v týdnu, pak obrazovka výsledku.
     // silent = hráč mezitím odešel jinam (výsledek se jen uloží)
@@ -12426,6 +12526,8 @@
         'boss-login': () => { if (Auth) startLogin(); },
         'boss-choice': (button) => answerBoss({ index: Number(button.dataset.index) }),
         'boss-skip': () => answerBoss({ skip: true }),
+        'boss-hint': () => showBossHint(),
+        'boss-next': () => nextBoss(),
         'boss-retry': () => { if (bossFight) showBossQuestion(bossFight); },
         'boss-showcase': (button) => {
             toggleShowcase(button.dataset.showcaseToggle).then(message => { if (message) showToast(message); if (screen === 'boss-done') renderBossResult(); });
