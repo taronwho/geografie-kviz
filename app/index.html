@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <!-- GitHub Pages neumí poslat hlavičky – Content-Security-Policy proto i tady (frame-ancestors v meta značce nefunguje) -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://upload.wikimedia.org https://gibs.earthdata.nasa.gov https://tile.openstreetmap.org; connect-src 'self' https://cs.wikipedia.org https://commons.wikimedia.org https://*.supabase.co; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+    <meta name="description" content="Mudrlant – vědomostní kvíz ze zeměpisu, historie, přírodních věd, umění, kultury a sportu. Každý den nové otázky, trénink a učení po okruzích.">
+    <meta name="theme-color" content="#f7f6f3" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#212326" media="(prefers-color-scheme: dark)">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Mudrlant">
+
+    <title>Mudrlant</title>
+
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+    <link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <link rel="stylesheet" href="styles.css">
+    <script src="config.js" defer></script>
+    <script src="monitor.js" defer></script>
+    <script src="auth.js" defer></script>
+    <script src="social.js" defer></script>
+    <script src="question-report.js" defer></script>
+    <script src="answer-stats.js" defer></script>
+    <script src="icons.js" defer></script>
+    <script src="quiz-core.js" defer></script>
+    <script src="photo-source.js" defer></script>
+    <script src="visuals.js" defer></script>
+    <script src="question-map.js" defer></script>
+    <script src="numeric-questions.js" defer></script>
+    <script src="time-questions.js" defer></script>
+    <script src="look-flags.js" defer></script>
+    <script src="look.js" defer></script>
+    <script src="look-themes.js" defer></script>
+    <script src="look-robes.js" defer></script>
+    <script src="look-frames.js" defer></script>
+    <script src="look-owl.js" defer></script>
+    <script src="rating.js" defer></script>
+    <script src="league-seasons.js" defer></script>
+    <script src="showcase.js" defer></script>
+    <script src="tournament.js" defer></script>
+    <script src="review.js" defer></script>
+    <script src="goals.js" defer></script>
+    <script src="chronicle.js" defer></script>
+    <script src="sound.js" defer></script>
+    <script src="modes.js" defer></script>
+    <script src="tips.js" defer></script>
+    <script src="friends.js" defer></script>
+    <script src="groups.js" defer></script>
+    <script src="tutorial.js" defer></script>
+    <script src="push.js" defer></script>
+    <script src="daily-quiz.js" defer></script>
+    <script src="mystery.js" defer></script>
+    <script src="boss.js" defer></script>
+    <script src="share-card.js" defer></script>
+    <script src="rewards.js" defer></script>
+    <script src="season.js" defer></script>
+    <script src="album.js" defer></script>
+    <script src="gold.js" defer></script>
+    <script src="conquest.js" defer></script>
+    <script src="conquest-ui.js" defer></script>
+    <script src="bets.js" defer></script>
+    <script src="topics/zemepis.js" defer></script>
+    <script src="topics/vlajky.js" defer></script>
+    <script src="topics/historie.js" defer></script>
+    <script src="topics/mytologie.js" defer></script>
+    <script src="topics/biologie.js" defer></script>
+    <script src="topics/geologie.js" defer></script>
+    <script src="topics/chemie.js" defer></script>
+    <script src="topics/fyzika.js" defer></script>
+    <script src="topics/umeni.js" defer></script>
+    <script src="topics/architektura.js" defer></script>
+    <script src="topics/hudba.js" defer></script>
+    <script src="topics/literatura.js" defer></script>
+    <script src="topics/film.js" defer></script>
+    <script src="topics/sport.js" defer></script>
+    <script src="chain.js" defer></script>
+    <script src="app.js" defer></script>
+</head>
+<body class="font-sans text-slate-800 dark:text-slate-100 flex flex-col overflow-hidden pb-[env(safe-area-inset-bottom)]">
+    <!-- Vlnění vlajky státu na vlaječce sovy (třída owl-flag-img v src/input.css); mapa posunutí je icons/doplnky/vlajka-vlna.webp, scale musí odpovídat FLAG_WAVE_SCALE v scripts/owl-accessories.py -->
+    <svg width="0" height="0" class="absolute" aria-hidden="true" focusable="false"><defs>
+        <filter id="owl-flag-wave" x="0" y="0" width="1" height="1" primitiveUnits="objectBoundingBox" color-interpolation-filters="sRGB">
+            <feImage href="icons/doplnky/vlajka-vlna.webp" x="0" y="0" width="1" height="1" preserveAspectRatio="none" result="map"/>
+            <feDisplacementMap in="SourceGraphic" in2="map" scale="0.5" xChannelSelector="R" yChannelSelector="G"/>
+        </filter>
+    </defs></svg>
+
+    <div class="w-full h-full flex flex-col relative shadow-2xl bg-slate-50 dark:bg-slate-900 max-w-md mx-auto border-x border-slate-200 dark:border-slate-800">
+
+        <!-- Hlavička – samostatná lišta, obsah pod ní neprojíždí; spodní okraj má barvu hraného tématu -->
+        <header id="app-header" class="shrink-0 w-full px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-3 flex justify-between items-center gap-2 z-30 bg-slate-50 dark:bg-slate-900 border-b-4 border-slate-200/70 dark:border-slate-800">
+            <!-- Štítek: kde hráč je; při hraní tématu nebo mixu po klepnutí změna tématu -->
+            <button id="status-badge" type="button" class="min-w-0 bg-white dark:bg-slate-800 px-2.5 py-2 rounded-2xl shadow-sm text-sm font-bold text-slate-700 flex items-center gap-2 max-[370px]:gap-1 max-[370px]:px-2 transition-colors border border-slate-200/60 dark:border-slate-700">
+                <span id="status-icon-slot" class="flex shrink-0"><img src="icons/logo.webp" alt="" class="-my-1 h-11 w-auto drop-shadow-md"></span>
+                <span id="status-text" class="line-clamp-2 break-words text-left uppercase leading-tight text-[11px] text-slate-700 dark:text-slate-200">Mudrlant</span>
+                <span id="status-switch" class="hidden shrink-0 max-[370px]:hidden"><i data-lucide="chevron-down" class="w-4 h-4"></i></span>
+            </button>
+
+            <!-- Sova chce něco říct: malá bublinka u loga, po klepnutí událost tohoto dne (ukazuje se jen když zajímavost existuje) -->
+            <button id="fact-hint" type="button" class="hidden absolute left-[0.875rem] top-0 z-10 h-11 w-11 items-center justify-center active:scale-95" title="Mudrlant ti chce říct, co se stalo tento den" aria-label="Tento den v dějinách">
+                <span aria-hidden="true" class="fact-ripple pointer-events-none absolute left-1/2 top-1/2 h-7 w-7 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-gold-400"></span>
+                <img src="icons/topics/napoveda.webp" alt="" class="fact-bulb relative h-7 w-7 object-contain">
+            </button>
+
+            <div class="flex shrink-0 gap-1.5">
+                <button id="btn-home" type="button" class="flex h-11 w-11 items-center justify-center rounded-2xl btn-3d bg-brand-700 text-white" title="Dnešní otázky" aria-label="Dnešní otázky">
+                    <i data-lucide="house" class="w-5 h-5"></i>
+                </button>
+                <button id="btn-practice" type="button" class="flex h-11 w-11 items-center justify-center rounded-2xl btn-3d-light bg-white text-slate-700" title="Hrát dál" aria-label="Hrát dál">
+                    <i data-lucide="shuffle" class="w-5 h-5" id="practice-icon"></i>
+                </button>
+                <button id="btn-learn" type="button" class="flex h-11 w-11 items-center justify-center rounded-2xl btn-3d-light bg-white text-slate-600 hover:text-brand-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:text-white" title="Učení: okruhy, atlas a chyby k zopakování" aria-label="Učení">
+                    <i data-lucide="graduation-cap" class="w-5 h-5"></i>
+                </button>
+                <button id="btn-settings" type="button" class="flex h-11 w-11 items-center justify-center rounded-2xl btn-3d-light bg-white text-slate-600 hover:text-brand-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:text-white" title="Nastavení" aria-label="Nastavení">
+                    <i data-lucide="settings-2" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Obsah -->
+        <main id="app-content" class="flex-grow min-h-0 flex flex-col relative w-full overflow-y-auto overscroll-y-contain bg-slate-50 dark:bg-slate-900">
+            <div class="absolute inset-0 z-10 flex flex-col items-center justify-center fade-in bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-sm">
+                <!-- Pohupující se sova z loga -->
+                <img src="icons/logo.webp" alt="" class="bob mb-4 h-24 w-auto drop-shadow-lg">
+                <p class="text-slate-600 dark:text-slate-300 font-bold tracking-wider text-sm uppercase">Načítám…</p>
+            </div>
+            <noscript>
+                <p class="p-8 text-center text-slate-600">Mudrlant potřebuje zapnutý JavaScript.</p>
+            </noscript>
+        </main>
+    </div>
+</body>
+</html>

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <!-- Stejná CSP jako index.html (GitHub Pages hlavičky neposílá) -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://upload.wikimedia.org https://gibs.earthdata.nasa.gov https://tile.openstreetmap.org; connect-src 'self' https://cs.wikipedia.org https://commons.wikimedia.org https://*.supabase.co; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+    <meta name="description" content="Mudrlant – zdroje dat a obrázků, jejich autoři a licence.">
+    <meta name="theme-color" content="#f7f6f3" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#212326" media="(prefers-color-scheme: dark)">
+    <meta name="robots" content="noindex">
+    <title>Zdroje a licence – Mudrlant</title>
+    <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+    <link rel="stylesheet" href="styles.css">
+    <script src="licence.js" defer></script>
+</head>
+<body class="legal-page font-sans text-slate-800 dark:text-slate-100">
+    <div class="mx-auto min-h-full w-full max-w-md border-x border-slate-200 bg-slate-50 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <header class="sticky top-0 z-10 flex items-center gap-3 border-b-4 border-slate-200/70 bg-slate-50 px-4 pb-3 pt-[max(1rem,env(safe-area-inset-top))] dark:border-slate-800 dark:bg-slate-900">
+            <a href="./" class="btn-3d-light flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-white px-3 text-sm font-black text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                <svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+                Zpět do hry
+            </a>
+            <div class="min-w-0">
+                <h1 class="truncate text-lg font-black leading-tight">Zdroje a licence</h1>
+                <p class="truncate text-xs text-slate-500 dark:text-slate-400">Odkud Mudrlant bere texty, data a obrázky</p>
+            </div>
+        </header>
+
+        <main class="legal-body px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-4">
+            <p>Mudrlant je vědomostní kvíz, který staví na otevřených datech a svobodném obsahu. Na této stránce je uvedeno, co odkud pochází a za jakých podmínek. Pokud u některého díla najdeš chybu v uvedení autora nebo licence, napiš na kontakt uvedený na stránce <a href="soukromi.html#kontakt">Ochrana osobních údajů</a>.</p>
+
+            <section id="texty">
+                <h2>Texty: Wikipedie</h2>
+                <p>Popisy položek (nápověda „popis“ a texty v oknech s podrobnostmi) pochází z <a href="https://cs.wikipedia.org" target="_blank" rel="noopener noreferrer">české Wikipedie</a>. Jsou dílem jejích přispěvatelů a jsou dostupné pod licencí <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.cs" target="_blank" rel="noopener noreferrer">Creative Commons Uveďte původ – Zachovejte licenci 4.0 (CC BY-SA 4.0)</a>. Mudrlant texty <strong>zkracuje a shrnuje</strong> (bere úvod článku, zakrývá v něm odpověď a odstraňuje odkazy a poznámky), jde tedy o upravená odvozená díla; u každého popisu je odkaz na původní článek, kde je i historie autorů. Denní zajímavost „Tento den v dějinách“ je krátké převyprávění úvodu článku Wikipedie, které připravuje jazykový model; i u ní je uveden odkaz na zdrojový článek.</p>
+            </section>
+
+            <section id="data">
+                <h2>Data: Wikidata</h2>
+                <p>Seznamy položek, jejich zařazení, čísla a fakta (souřadnice, roky, hlavní města, rozlohy, chemické značky, jednotky, autoři děl…) pochází z <a href="https://www.wikidata.org" target="_blank" rel="noopener noreferrer">Wikidat</a>. Data Wikidat jsou volně dostupná pod <a href="https://creativecommons.org/publicdomain/zero/1.0/deed.cs" target="_blank" rel="noopener noreferrer">CC0 1.0</a> (bez omezení). Obrysy států na slepé mapě jsou z dat <a href="https://www.naturalearthdata.com" target="_blank" rel="noopener noreferrer">Natural Earth</a> (volné dílo), zpracovaných balíčkem <a href="https://github.com/topojson/world-atlas" target="_blank" rel="noopener noreferrer">world-atlas</a> (licence ISC). Mapy otázky „Ukaž na mapě“ (pevnina, jezera, hranice států, v Česku kraje a hlavní řeky) a slepé mapy regionů (hranice krajů, spolkových zemí, států a provincií) jsou také z Natural Earth (volné dílo), zjednodušené pro aplikaci. Obrysy jezer, moří, zálivů, průlivů, ostrovů, pouští, poloostrovů, států a regionů a průběh velkých řek v otázce „Ukaž na mapě“ jsou z Natural Earth (volné dílo). Obrysy a řeky, které tam chybí (národní parky, chráněné krajinné oblasti a národní přírodní rezervace Česka, menší ostrovy, jezera, zálivy a průlivy a většina menších řek), jsou z <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> (© přispěvatelé OpenStreetMap, licence <a href="https://opendatacommons.org/licenses/odbl/" target="_blank" rel="noopener noreferrer">ODbL 1.0</a>; tato část souboru obrysů je odvozená databáze šířená pod toutéž licencí), dohledané přes Wikidata. Obrysy pohoří jsou ze soupisu <a href="https://doi.org/10.48601/earthenv-t9k2-1407" target="_blank" rel="noopener noreferrer">GMBA Mountain Inventory v2</a> (Snethlage, M. A. et al., 2022, GMBA-EarthEnv; licence <a href="https://creativecommons.org/licenses/by/4.0/deed.cs" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>) a česká pohoří z geomorfologického členění ČR (© <a href="https://data.nature.cz" target="_blank" rel="noopener noreferrer">AOPK ČR</a>; Mackovčin, P. et al., 2005; licence <a href="https://creativecommons.org/licenses/by/4.0/deed.cs" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>). Tři moře jsou z datové sady <a href="https://doi.org/10.14284/590" target="_blank" rel="noopener noreferrer">SeaVoX Salt and Fresh Water Body Gazetteer</a> (British Oceanographic Data Centre, 2023, přes <a href="https://www.marineregions.org" target="_blank" rel="noopener noreferrer">Marine Regions</a>; licence <a href="https://creativecommons.org/licenses/by/4.0/deed.cs" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>) a několik souostroví z map na <a href="https://commons.wikimedia.org" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a> uvolněných jako <a href="https://creativecommons.org/publicdomain/zero/1.0/deed.cs" target="_blank" rel="noopener noreferrer">CC0 1.0</a>. Všechny obrysy jsou pro aplikaci zjednodušené; podrobný přehled zdrojů a licencí je v souboru docs/MAPA-ZDROJE.md v repozitáři. Hranice pražských městských částí na slepé mapě jsou z <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> (© přispěvatelé OpenStreetMap, licence <a href="https://opendatacommons.org/licenses/odbl/" target="_blank" rel="noopener noreferrer">ODbL 1.0</a>), zjednodušené pro aplikaci.</p>
+            </section>
+
+            <section id="mapy">
+                <h2>Mapové podklady</h2>
+                <p><strong>Mapa s popisky</strong> (po odhalení odpovědi): dlaždice <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> ze serveru tile.openstreetmap.org. Mapová data © přispěvatelé OpenStreetMap, dostupná pod licencí <a href="https://opendatacommons.org/licenses/odbl/" target="_blank" rel="noopener noreferrer">Open Data Commons Open Database License (ODbL)</a>; kartografie standardního stylu dlaždic je pod licencí <a href="https://creativecommons.org/licenses/by-sa/2.0/" target="_blank" rel="noopener noreferrer">CC BY-SA 2.0</a>.</p>
+                <p><strong>Snímek z družice</strong> (nápověda bez popisků): vrstva <em>Blue Marble: Next Generation, stínovaný reliéf a batymetrie</em> ze služby <a href="https://www.earthdata.nasa.gov/gibs" target="_blank" rel="noopener noreferrer">NASA Global Imagery Browse Services (GIBS)</a>, server gibs.earthdata.nasa.gov. Snímky NASA jsou volné dílo (public domain). Děkujeme za možnost využít snímky poskytované službou NASA GIBS, součástí NASA Earth Science Data and Information System (ESDIS).</p>
+            </section>
+
+            <section id="obrazky">
+                <h2>Obrázky: Wikimedia Commons</h2>
+                <p>Fotografie, vlajky, znaky, obrazy, mapy rozšíření a strukturní vzorce se načítají z <a href="https://commons.wikimedia.org" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a>. Každý soubor má vlastního autora a licenci (nejčastěji Creative Commons nebo volné dílo); uvádíme je v seznamu níže podle témat, odkaz vede na stránku souboru s úplnými údaji a historií. Mudrlant obrázky zmenšuje, ořezává a část z nich překrývá (zakrytí nápisů s odpovědí). Kdo chce použít obrázek dál, řídí se licencí uvedenou na stránce souboru. Autora a licenci ukáže i malé tlačítko „i“ v rohu každého obrázku ve hře (u obrázku v otázce autora a název souboru až po odpovědi, aby neprozradily odpověď).</p>
+                <div class="my-3 flex flex-col gap-2">
+                    <label class="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400" for="licence-search">Hledat soubor nebo autora
+                        <input id="licence-search" type="search" autocomplete="off" placeholder="např. Praha, Flag of, jméno autora" class="mt-1 w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2 text-base font-semibold normal-case tracking-normal text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+                    </label>
+                    <p id="licence-summary" class="text-xs text-slate-500 dark:text-slate-400" role="status">Načítám seznam obrázků…</p>
+                </div>
+                <div id="licence-topics" class="flex flex-col gap-2"></div>
+                <noscript><p>Seznam obrázků podle témat potřebuje zapnutý JavaScript (data jsou v souboru <a href="data/licenses.json">data/licenses.json</a>).</p></noscript>
+            </section>
+
+            <section id="software">
+                <h2>Software, ikony a písma</h2>
+                <ul>
+                    <li>Ikony <a href="https://lucide.dev" target="_blank" rel="noopener noreferrer">Lucide</a> (verze 1.48.0), <a href="https://lucide.dev/license" target="_blank" rel="noopener noreferrer">licence ISC</a>.</li>
+                    <li>Styly <a href="https://tailwindcss.com" target="_blank" rel="noopener noreferrer">Tailwind CSS</a> 3.4, <a href="https://github.com/tailwindlabs/tailwindcss/blob/v3.4.17/LICENSE" target="_blank" rel="noopener noreferrer">licence MIT</a>.</li>
+                    <li>Písma: aplikace nepřináší vlastní písma, používá systémové bezpatkové písmo zařízení (např. Roboto na Androidu, San Francisco na iOS, Segoe UI ve Windows).</li>
+                    <li>Přihlášení a účty: <a href="https://supabase.com" target="_blank" rel="noopener noreferrer">Supabase</a> (Apache 2.0) s přihlášením přes Google.</li>
+                </ul>
+            </section>
+
+            <section id="ilustrace">
+                <h2>Ilustrace a logo</h2>
+                <p>Sova Mudrlant (logo, nálady sovy, obleky a doplňky), ikony témat a grafika aplikace jsou vlastním dílem provozovatele aplikace. Nejsou součástí žádné z výše uvedených licencí a bez souhlasu provozovatele je nelze dál používat.</p>
+            </section>
+
+            <section id="ochranne-znamky">
+                <h2>Ochranné známky a státní symboly</h2>
+                <p>Vlajky, znaky, loga a názvy, které se v kvízu objevují, patří svým vlastníkům (státům, městům, organizacím). Mudrlant je zobrazuje pouze k vzdělávacím účelům a jejich užití ve hře neznamená spojení s těmito subjekty ani jejich podporu.</p>
+            </section>
+
+            <footer class="mt-8 border-t border-slate-200 pt-4 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                <p><a href="soukromi.html">Ochrana osobních údajů a podmínky použití</a> · <a href="./">Zpět do hry</a></p>
+                <p class="mt-1">Seznam obrázků se sestavuje skriptem z metadat Wikimedia Commons (<span id="licence-generated">datum sestavení není k dispozici</span>).</p>
+            </footer>
+        </main>
+    </div>
+</body>
+</html>

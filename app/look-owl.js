@@ -1,0 +1,368 @@
+// Doplňky sovy: průhledné vrstvy icons/doplnky/<doplněk>[-<barva>].webp (scripts/owl-accessories.py) se kladou přes logo sovy.
+// Vrstva má rám loga rozšířený o okraje (koruna, sluchátka a lupa přesahují obrys), proto je větší než logo a posunutá do záporu.
+// Hráč si v Nastavení → Mudrlant vybere doplněk v každém místě (hlava, obličej, krk, ruka) a jeho barvu. Používá MudrlantLook (look.js).
+(function (root, factory) {
+    const isNode = typeof module === 'object' && module.exports;
+    const api = factory(root.MudrlantLook || (isNode ? require('./look.js') : null), root.MudrlantCore || (isNode ? require('./quiz-core.js') : null), root.MudrlantFlags || (isNode ? require('./look-flags.js') : null));
+    if (isNode) module.exports = api;
+    else root.MudrlantOwl = api;
+})(typeof self !== 'undefined' ? self : this, (Look, Core, Flags) => {
+    'use strict';
+    // Okraje vrstvy v podílu rozměrů loga (musí odpovídat PAD ve scripts/owl-accessories.py)
+    const PAD = { l: 0.34, r: 0.22, t: 0.26, b: 0.12 };
+    const LAYER_CLASS = 'pointer-events-none absolute left-[-34%] top-[-26%] w-[156%] max-w-none select-none';
+    // Vlajka státu na plátně vlaječky (doplněk s flags: true): kontejner stejné velikosti jako vrstva, který maskou (třída owl-flag v src/input.css,
+    // icons/doplnky/vlajka-maska.webp) ořízne obrázek vlajky na tvar plátna; vlajka je roztažená přes ohraničení plátna a přes ni se násobí stínování
+    // (vlnění látky). Rozměry rámu a ohraničení vypisuje scripts/owl-accessories.py (třídy musí být vypsané celé, ať je Tailwind najde).
+    // Kontejner je <span> (ne <div>): sova bývá uvnitř <p> nebo <button> a <div> by parser z odstavce vyhodil, takže by se vrstvy rozpadly mimo obal sovy.
+    // Kontejner je průhledný, dokud se vlajka nenačte (offline zůstane modré plátno).
+    const FLAG_BOX_CLASS = 'block pointer-events-none absolute left-[-34%] top-[-26%] w-[156%] aspect-[402/443] max-w-none select-none owl-flag opacity-0';
+    const FLAG_IMG_CLASS = 'absolute max-w-none select-none object-cover owl-flag-img left-[10.7%] top-[30.7%] w-[20.9%] h-[19.64%]';
+    const FLAG_SHADE_CLASS = 'absolute inset-0 h-full w-full max-w-none select-none mix-blend-multiply';
+    const FLAG_THUMB_WIDTH = 120;
+    // Pořadí kreslení: krk dole, pak obličej, hlava a ruka nahoře
+    const ORDER = ['neck', 'face', 'head', 'hand'];
+    // Vlastní barva z palety: původní obrázek doplňku se přebarví otočením odstínu (CSS filtr). Třídy jsou vypsané celé, ať je Tailwind najde.
+    const HUE_CLASSES = { 5: 'hue-rotate-[5deg]', 10: 'hue-rotate-[10deg]', 15: 'hue-rotate-[15deg]', 20: 'hue-rotate-[20deg]', 25: 'hue-rotate-[25deg]', 30: 'hue-rotate-[30deg]', 35: 'hue-rotate-[35deg]', 40: 'hue-rotate-[40deg]', 45: 'hue-rotate-[45deg]', 50: 'hue-rotate-[50deg]', 55: 'hue-rotate-[55deg]', 60: 'hue-rotate-[60deg]', 65: 'hue-rotate-[65deg]', 70: 'hue-rotate-[70deg]', 75: 'hue-rotate-[75deg]', 80: 'hue-rotate-[80deg]', 85: 'hue-rotate-[85deg]', 90: 'hue-rotate-[90deg]', 95: 'hue-rotate-[95deg]', 100: 'hue-rotate-[100deg]', 105: 'hue-rotate-[105deg]', 110: 'hue-rotate-[110deg]', 115: 'hue-rotate-[115deg]', 120: 'hue-rotate-[120deg]', 125: 'hue-rotate-[125deg]', 130: 'hue-rotate-[130deg]', 135: 'hue-rotate-[135deg]', 140: 'hue-rotate-[140deg]', 145: 'hue-rotate-[145deg]', 150: 'hue-rotate-[150deg]', 155: 'hue-rotate-[155deg]', 160: 'hue-rotate-[160deg]', 165: 'hue-rotate-[165deg]', 170: 'hue-rotate-[170deg]', 175: 'hue-rotate-[175deg]', 180: 'hue-rotate-[180deg]', 185: 'hue-rotate-[185deg]', 190: 'hue-rotate-[190deg]', 195: 'hue-rotate-[195deg]', 200: 'hue-rotate-[200deg]', 205: 'hue-rotate-[205deg]', 210: 'hue-rotate-[210deg]', 215: 'hue-rotate-[215deg]', 220: 'hue-rotate-[220deg]', 225: 'hue-rotate-[225deg]', 230: 'hue-rotate-[230deg]', 235: 'hue-rotate-[235deg]', 240: 'hue-rotate-[240deg]', 245: 'hue-rotate-[245deg]', 250: 'hue-rotate-[250deg]', 255: 'hue-rotate-[255deg]', 260: 'hue-rotate-[260deg]', 265: 'hue-rotate-[265deg]', 270: 'hue-rotate-[270deg]', 275: 'hue-rotate-[275deg]', 280: 'hue-rotate-[280deg]', 285: 'hue-rotate-[285deg]', 290: 'hue-rotate-[290deg]', 295: 'hue-rotate-[295deg]', 300: 'hue-rotate-[300deg]', 305: 'hue-rotate-[305deg]', 310: 'hue-rotate-[310deg]', 315: 'hue-rotate-[315deg]', 320: 'hue-rotate-[320deg]', 325: 'hue-rotate-[325deg]', 330: 'hue-rotate-[330deg]', 335: 'hue-rotate-[335deg]', 340: 'hue-rotate-[340deg]', 345: 'hue-rotate-[345deg]', 350: 'hue-rotate-[350deg]', 355: 'hue-rotate-[355deg]' };
+    // Pruh s duhou pod posuvníkem odstínu (třída musí být celá, ať ji Tailwind najde)
+    const HUE_BAR = 'appearance-none rounded-full bg-[linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)]';
+    const COLOR_DOT = {
+        original: 'bg-gradient-to-br from-amber-300 via-rose-400 to-sky-500', cervena: 'bg-red-600', oranzova: 'bg-orange-500', zluta: 'bg-yellow-400',
+        zelena: 'bg-green-600', modra: 'bg-blue-600', fialova: 'bg-purple-600', ruzova: 'bg-pink-400', cerna: 'bg-neutral-900 ring-1 ring-white/40',
+        vlastni: 'bg-[conic-gradient(#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)]'
+    };
+    const escapeHtml = (text) => Core && Core.escapeHtml ? Core.escapeHtml(text) : String(text).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+    const badgeTitle = (id) => (Core && Core.BADGE_BY_ID && Core.BADGE_BY_ID[id] ? Core.BADGE_BY_ID[id].title : id);
+
+    // Adresa obrázku vrstvy; neznámé id a barva se nevykreslí (cizí hodnota nic nerozbije). Doplněk s pevnými barvami (noColors) má jen původní.
+    const layerSrc = (id, color) => {
+        const item = Look ? Look.find('accessories', id) : null;
+        if (!item) return null;
+        const known = !item.noColors && Look.ACC_COLORS.some(entry => entry.id === color && entry.id !== 'vlastni') ? color : 'original';
+        return `icons/doplnky/${item.id}${known === 'original' ? '' : `-${known}`}.webp`;
+    };
+    // Třída přebarvení pro vlastní odstín (o kolik se má otočit odstín původního obrázku doplňku)
+    const hueClass = (id, color) => {
+        const item = Look ? Look.find('accessories', id) : null;
+        const hue = Look ? Look.customHue(color) : null;
+        if (!item || item.noColors || hue === null) return '';
+        const turn = (((hue - (item.hue || 0)) % 360) + 360) % 360;
+        return HUE_CLASSES[Math.round(turn / 5) * 5 % 360] || '';
+    };
+    // Adresa miniatury vlajky státu (stejným způsobem jako fotky v kvízu); neznámá vlajka = null
+    const flagSrc = (flag) => {
+        const found = Flags && Look && Look.flagOk(flag) ? Flags.find(flag) : null;
+        return found && Core && Core.commonsPhotoUrl ? Core.commonsPhotoUrl(found.file, found.hash, FLAG_THUMB_WIDTH) : null;
+    };
+    // attrs: u živé sovy 'data-owl-layer' (přepisuje se podle voleb), u cizí sovy 'data-keep' (nechá se, jak je)
+    const layersHtml = (acc, attrs = 'data-owl-layer') => ORDER.map(slot => {
+        const entry = acc && acc[slot];
+        const item = entry && Look ? Look.find('accessories', entry.id) : null;
+        const flag = item && item.flags && entry.flag ? flagSrc(entry.flag) : null;
+        // S vlajkou státu je plátno vždy původní (modré, vidět je jen jeho obrys) a barva se neuplatní
+        const src = entry ? layerSrc(entry.id, flag ? 'original' : entry.color) : null;
+        if (!src) return '';
+        // Pevná část doplňku (třeba tyčka vlajky) se nepřebarvuje: samostatná vrstva nad barevnou
+        return `<img ${attrs} src="${src}" alt="" class="${LAYER_CLASS} ${flag ? '' : hueClass(entry.id, entry.color)}">`
+            + (flag ? `<span ${attrs} class="${FLAG_BOX_CLASS}"><img ${attrs} data-owl-flag-img src="${escapeHtml(flag)}" alt="" class="${FLAG_IMG_CLASS}"><img ${attrs} src="icons/doplnky/${item.id}-stin.webp" alt="" class="${FLAG_SHADE_CLASS}"></span>` : '')
+            + (item.fixed ? `<img ${attrs} src="icons/doplnky/${item.id}-zaklad.webp" alt="" class="${LAYER_CLASS}">` : '');
+    }).join('');
+    // Vlajka se ukáže, až se načte (a při chybě nebo bez sítě zůstane modré plátno); CSP zakazuje obslužné funkce v atributech, proto zachycení na dokumentu
+    if (typeof document !== 'undefined') {
+        document.addEventListener('load', (event) => {
+            const image = event.target;
+            if (image && image.tagName === 'IMG' && image.hasAttribute('data-owl-flag-img') && image.parentElement) image.parentElement.classList.remove('opacity-0');
+        }, true);
+    }
+
+    // --- Sova jako obrázek profilu: zápis voleb do textu (sloupec profiles.owl), např. 'robe=zelena;head=koruna.modra;face=bryle.original' ---
+    // Platnost se kontroluje proti katalogu (ne proti odemčení – hráč má sovu, kterou si ostatní prohlížejí); neznámé části se zahodí.
+    // Sova titulu (póza, Look.POSES) je část 'pose=titul-5' hned za oblekem: 'robe=zelena;pose=titul-5;face=bryle.original'. Starší aplikace
+    // klíč pose nezná a přeskočí ho (ukáže sovu s doplňky v barvě obleku), proto se doplňky zapisují i s pózou.
+    const OWL_MAX = 200;
+    const encodeOwl = (prefs) => {
+        const parsed = parseOwl(prefs);
+        const parts = [`robe=${parsed ? parsed.robe : 'vinova'}`];
+        if (parsed && parsed.pose) parts.push(`pose=${parsed.pose}`);
+        // „Bez monoklu“ v obličeji je jen 'face=bez-monoklu' (bez barvy); starší aplikace ho nezná a ukáže sovu s monoklem
+        if (parsed) for (const slot of ORDER) if (parsed.acc[slot]) parts.push(parsed.acc[slot].id === Look.NO_MONOCLE ? `${slot}=${Look.NO_MONOCLE}` : `${slot}=${parsed.acc[slot].id}.${parsed.acc[slot].color}${parsed.acc[slot].flag ? `.${parsed.acc[slot].flag}` : ''}`);
+        return parts.join(';').slice(0, OWL_MAX);
+    };
+    // Sova titulu, kterou hráč na dané úrovni smí mít: zvolená, když ji dosáhl; jinak nejvyšší dosažená (po ztrátě úrovně);
+    // bez platné pózy nebo úrovně null (běžná sova s doplňky)
+    const allowedPose = (pose, level) => {
+        const item = Look && Look.findPose ? Look.findPose(pose) : null;
+        if (!item || !(level >= 1)) return null;
+        if (level >= item.level) return item.id;
+        const reached = Look.POSES.filter(entry => level >= entry.level).pop();
+        return reached ? reached.id : null;
+    };
+    // Vstup: text, nebo objekt { robe, acc, pose } (třeba Look.prefs()); výstup { robe, acc } (se sovou titulu i pose) nebo null, když nejde o platnou sovu
+    // Vlajka státu na vlaječce je třetí část zápisu: 'hand=vlajka.original.q101472'; starší zápis bez ní platí dál
+    // Barva doplňku v zápisu: z katalogu, nebo vlastní odstín h<stupně> (platnost se kontroluje bez ohledu na odemčení)
+    const validColor = (color) => Look.ACC_COLORS.some(entry => entry.id === color && entry.id !== 'vlastni') || Look.customHue(color) !== null;
+    function parseOwl(input) {
+        if (!Look) return null;
+        let robe = 'vinova';
+        const acc = {};
+        let pose = null;
+        let known = false;
+        const takeRobe = (id) => { if (Look.find('robes', id)) { robe = id; known = true; } };
+        // Sova titulu: jen titul-1 … titul-11 (Look.POSES), první platná; jiná hodnota se zahodí
+        const takePose = (id) => { if (!pose && Look.findPose && Look.findPose(id)) { pose = id; known = true; } };
+        const takeAcc = (slot, id, color, flag) => {
+            if (slot === 'face' && id === Look.NO_MONOCLE && !acc.face) { acc.face = { id }; known = true; return; }
+            const item = Look.find('accessories', id);
+            if (!item || item.slot !== slot || acc[slot]) return;
+            acc[slot] = { id, color: !item.noColors && validColor(color) ? color : 'original' };
+            if (item.flags && Look.flagOk(flag)) acc[slot].flag = flag;
+            known = true;
+        };
+        if (typeof input === 'string') {
+            if (!input || input.length > OWL_MAX) return null;
+            for (const part of input.split(';')) {
+                const eq = part.indexOf('=');
+                if (eq < 1) continue;
+                const key = part.slice(0, eq);
+                const value = part.slice(eq + 1);
+                if (key === 'robe') takeRobe(value);
+                else if (key === 'pose') takePose(value);
+                else if (Look.SLOTS.some(slot => slot.id === key)) { const [id, color, flag] = value.split('.'); takeAcc(key, id, color === undefined ? 'original' : color, flag); }
+            }
+        } else if (input && typeof input === 'object') {
+            takeRobe(input.robe);
+            takePose(input.pose);
+            const source = input.acc && typeof input.acc === 'object' ? input.acc : {};
+            for (const slot of Look.SLOTS) { const entry = source[slot.id]; if (entry && typeof entry === 'object') takeAcc(slot.id, entry.id, entry.color, entry.flag); }
+            known = true;
+        } else return null;
+        if (!known) return null;
+        return pose ? { robe, acc, pose } : { robe, acc };
+    }
+    // Sova titulu v kolečku obrázku hráče: ilustrace icons/topics/sova-titul-<n>[-<barva>].webp (barva obleku jako u loga, bez doplňků)
+    // se do kolečka vejde celá i s čepicí a předmětem (knihy, lupa, brk…): zmenšená do vepsaného čtverce, mírně níž (čepice nahoře
+    // je širší než spodek). Třídy jsou vypsané celé, ať je Tailwind najde. Obal je <span> (sova bývá uvnitř <button> nebo <p>).
+    const FIT_IN_CIRCLE = 'w-[84%] left-[8%] top-[9%]';
+    const POSE_CROP = Object.fromEntries(Array.from({ length: 11 }, (_, i) => [`titul-${i + 1}`, FIT_IN_CIRCLE]));
+    const poseSrc = (pose, robe = 'vinova') => {
+        const item = Look && Look.findPose ? Look.findPose(pose) : null;
+        if (!item) return null;
+        const known = Look.find('robes', robe) ? robe : 'vinova';
+        return `icons/topics/sova-${item.id}${known === 'vinova' ? '' : `-${known}`}.webp`;
+    };
+    const poseHtml = (pose, robe) => {
+        const src = poseSrc(pose, robe);
+        return src ? `<span class="relative block h-full w-full overflow-hidden rounded-full"><img data-keep data-owl-pose="${pose}" src="${src}" alt="" class="absolute max-w-none select-none ${POSE_CROP[pose]}"></span>` : '';
+    };
+    // Sova z dané konfigurace (ne z mých voleb): data-keep ji ochrání před přebarvením pozorovatelem z look-robes.js.
+    // S pózou se kreslí sova titulu (vyplní celé kolečko, imgClass a wrapClass se neuplatní), jinak logo s doplňky.
+    const owlAvatarHtml = (parsedOrText, imgClass = 'h-full w-auto', wrapClass = 'h-[88%]') => {
+        const parsed = parseOwl(parsedOrText);
+        if (!parsed) return '';
+        if (parsed.pose) return poseHtml(parsed.pose, parsed.robe);
+        const src = `${logoBase(parsed.acc)}${parsed.robe === 'vinova' ? '' : `-${parsed.robe}`}.webp`;
+        return `<span class="relative inline-flex shrink-0 ${wrapClass}${maskClass(parsed.acc)}"><img data-keep src="${src}" alt="" class="${imgClass}">${layersHtml(parsed.acc, 'data-keep')}</span>`;
+    };
+
+    // Celý look tématu na sově z textu profilu (nebo z { robe, acc }): { topic, title, topicTitle } nebo null. Sova titulu (póza) doplňky
+    // neukazuje, takže look nemá. Odvozuje se jen z uložených doplňků (bez sloupce v databázi).
+    const lookOf = (owl) => {
+        const parsed = typeof owl === 'string' || (owl && typeof owl === 'object') ? parseOwl(owl) : null;
+        return parsed && !parsed.pose && Look && Look.activeTopicLook ? Look.activeTopicLook(parsed.acc) : null;
+    };
+    // Zlatý štítek „Celý look: Cestovatel“ (Profil hráče, Nastavení → Mudrlant); bez looku prázdný
+    const lookTagHtml = (look, extra = '') => look && look.title ? `<span data-owl-look="${escapeHtml(look.topic)}" class="inline-flex max-w-full items-center gap-1 rounded-full bg-gold-100 px-2 py-0.5 text-[11px] font-black leading-tight text-gold-900 ring-1 ring-gold-300 dark:bg-gold-900/40 dark:text-gold-100 dark:ring-gold-700 ${extra}"><i data-lucide="sparkles" class="h-3 w-3 shrink-0 text-gold-600 dark:text-gold-300"></i><span class="truncate">Celý look: ${escapeHtml(look.title)}</span></span>` : '';
+
+    const currentAcc = () => (Look ? Look.prefs().acc : null) || {};
+    // Logo sovy s vybranými doplňky; wrapClass patří obalu (okraje), imgClass samotné sově
+    // Doplněk na hlavě, který nahrazuje čepici (helma, přilba, baret, klobouky): výchozí čepice se z loga maskou skryje (třída owl-nohat,
+    // src/input.css); doplněk v ruce s jinou rukou (hrnek, hůlka, meč, pochodeň) stejně skryje zvednutou ruku (owl-nohand)
+    const slotItem = (acc, slot) => { const id = acc && acc[slot] && acc[slot].id; return id && Look ? Look.find('accessories', id) : null; };
+    const hidesHat = (acc) => Boolean((slotItem(acc, 'head') || {}).hidesHat);
+    const hidesHand = (acc) => Boolean((slotItem(acc, 'hand') || {}).hidesHand);
+    const maskClass = (acc) => `${hidesHat(acc) ? ' owl-nohat' : ''}${hidesHand(acc) ? ' owl-nohand' : ''}`;
+    // Logo s monoklem, nebo bez něj („Bez monoklu“ nebo doplněk v obličeji, který ho nahradí; Look.monocleShown); bez přípony .webp,
+    // barvu obleku k ní přidá look-robes.js (u mé sovy) nebo owlAvatarHtml (u cizí)
+    const logoBase = (acc) => (Look && Look.monocleShown && !Look.monocleShown(acc) ? 'icons/logo-bez-monoklu' : 'icons/logo');
+    const logoHtml = (wrapClass, imgClass, acc = currentAcc()) =>
+        `<span data-owl class="relative inline-flex shrink-0 ${wrapClass}${maskClass(acc)}"><img src="${logoBase(acc)}.webp" alt="" class="${imgClass}">${layersHtml(acc)}</span>`;
+
+    // Po změně voleb se vrstvy všech sov na stránce přepíší na místě a logo se vymění za sovu s monoklem nebo bez něj
+    // (barva obleku v adrese zůstane, takže look-robes.js nemusí nic přepínat)
+    const refresh = (acc) => {
+        if (typeof document === 'undefined') return;
+        document.querySelectorAll('[data-owl]').forEach(wrapper => {
+            wrapper.querySelectorAll('[data-owl-layer]').forEach(layer => layer.remove());
+            wrapper.insertAdjacentHTML('beforeend', layersHtml(acc));
+            wrapper.classList.toggle('owl-nohat', hidesHat(acc));
+            wrapper.classList.toggle('owl-nohand', hidesHand(acc));
+            const logo = wrapper.querySelector('img');
+            const src = logo ? logo.getAttribute('src') || '' : '';
+            const next = src.replace(/^icons\/logo(?:-bez-monoklu)?(?=[-.])/, logoBase(acc));
+            if (logo && next !== src) logo.setAttribute('src', next);
+        });
+    };
+
+    // Otevřené místo (čip kolem sovy): jeho doplňky jsou v mřížce pod sovou a barva patří doplňku v něm. null = první místo
+    // s doplňkem (nebo hlava)
+    let activeSlot = null;
+    let note = '';
+    const slotOf = (id) => (Look.find('accessories', id) || {}).slot;
+    const openSlotOf = (acc) => (activeSlot && Look.SLOTS.some(slot => slot.id === activeSlot) ? activeSlot : (Look.SLOTS.map(slot => slot.id).find(id => acc[id]) || Look.SLOTS[0].id));
+
+    // Dlaždice doplňku: tlačítko vyplní celou buňku mřížky (aspoň 40 × 40 px dotykové plochy), vidět je jen vnitřní dlaždice
+    // s průhledným okrajem – mezery mezi dlaždicemi jsou tak součástí dotykové plochy, ne mrtvé místo
+    const TILE_HIT = 'flex h-10 w-full items-center justify-center p-0.5';
+    const TILE = 'flex h-9 w-full items-center justify-center rounded-xl border-2';
+    const TILE_ON = 'border-brand-500 bg-brand-50 dark:bg-brand-950';
+    const TILE_OFF = 'border-transparent bg-slate-50 dark:bg-slate-700/50';
+    const tile = (item, ctx, selected) => {
+        const open = Look.isUnlocked(item, ctx);
+        const label = open ? item.title : `${item.title}: ${Look.unlockText(item, item.badge ? badgeTitle(item.badge) : null)}`;
+        return `<button type="button" data-owl-pick="${item.slot}:${item.id}" aria-pressed="${selected}" ${open ? '' : 'aria-disabled="true"'} title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" class="${TILE_HIT} ${open ? '' : 'cursor-not-allowed'}">
+            <span class="${TILE} ${selected ? TILE_ON : TILE_OFF}"><img src="icons/doplnky/${item.id}-ikona.webp" alt="" class="h-7 w-7 object-contain ${open ? '' : 'opacity-40 grayscale'}"></span></button>`;
+    };
+    const noneTile = (slot, selected) => `<button type="button" data-owl-pick="${slot}:none" aria-pressed="${selected}" title="Bez doplňku" aria-label="Bez doplňku" class="${TILE_HIT}">
+        <span class="${TILE} text-lg font-black text-slate-500 dark:text-slate-400 ${selected ? TILE_ON : TILE_OFF}">–</span></button>`;
+    // Obličej začíná dvěma volbami bez doplňku: Monokl (výchozí sova, nic uloženo) a Bez monoklu; ikona monoklu je
+    // icons/doplnky/monokl-ikona.webp (scripts/owl-accessories.py --logo), u „Bez monoklu“ přeškrtnutá
+    const MONOCLE_ICON = '<img src="icons/doplnky/monokl-ikona.webp" alt="" class="h-7 w-7 object-contain">';
+    const NO_MONOCLE_ICON = '<span class="relative flex h-7 w-7 items-center justify-center"><img src="icons/doplnky/monokl-ikona.webp" alt="" class="h-7 w-7 object-contain opacity-40 grayscale"><span class="absolute h-0.5 w-8 rotate-45 rounded-full bg-slate-500 dark:bg-slate-300"></span></span>';
+    const monocleTiles = (chosen) => [['none', 'Monokl', MONOCLE_ICON], [Look.NO_MONOCLE, 'Bez monoklu', NO_MONOCLE_ICON]].map(([id, title, icon]) =>
+        `<button type="button" data-owl-pick="face:${id}" aria-pressed="${chosen === id}" title="${title}" aria-label="${title}" class="${TILE_HIT}">
+        <span class="${TILE} ${chosen === id ? TILE_ON : TILE_OFF}">${icon}</span></button>`).join('');
+    // Čip místa vedle sovy (jako výbava ve hře): název místa a ikona nasazeného doplňku (nebo pomlčka); vpravo od sovy zrcadlově
+    const slotChip = (slot, acc, open, right) => {
+        const item = acc[slot.id] ? Look.find('accessories', acc[slot.id].id) : null;
+        // Obličej bez doplňku: monokl (výchozí), nebo „Bez monoklu“
+        const bare = slot.id === 'face' && !item ? (Look.monocleShown(acc) ? 'Monokl' : 'Bez monoklu') : null;
+        const icon = item ? `<img src="icons/doplnky/${item.id}-ikona.webp" alt="" class="h-6 w-6 object-contain">`
+            : bare === 'Monokl' ? '<img src="icons/doplnky/monokl-ikona.webp" alt="" class="h-6 w-6 object-contain">'
+                : '<span class="text-base font-black leading-none text-slate-600 dark:text-slate-300">–</span>';
+        const name = item ? item.title : bare || 'Bez doplňku';
+        return `<button type="button" data-owl-slot="${slot.id}" aria-pressed="${open}" aria-label="${escapeHtml(`${slot.title}: ${item ? item.title : bare ? bare.toLocaleLowerCase('cs') : 'bez doplňku'}`)}" title="${escapeHtml(name)}"
+            class="flex h-11 w-full min-w-0 items-center gap-1.5 rounded-xl border-2 px-1 active:scale-95 ${right ? 'flex-row-reverse text-right' : 'text-left'} ${open ? 'border-brand-500 bg-brand-50 text-brand-800 dark:bg-brand-950 dark:text-brand-100' : 'border-transparent bg-slate-50 text-slate-700 dark:bg-slate-700/50 dark:text-slate-200'}">
+            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm dark:bg-slate-800">${icon}</span><span class="min-w-0 flex-1 truncate text-[12px] font-black leading-tight">${slot.title}</span></button>`;
+    };
+
+    const render = (ctx) => {
+        const acc = ctx.prefs.acc || {};
+        const open = openSlotOf(acc);
+        const [left1, left2, right1, right2] = Look.SLOTS;
+        // Sova uprostřed, místa (hlava, obličej | krk, ruka) kolem ní; vybrané místo ukáže pod sovou své doplňky
+        const owl = `<div data-owl-slots class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1.5">
+            <div class="flex min-w-0 flex-col gap-1.5">${slotChip(left1, acc, open === left1.id, false)}${slotChip(left2, acc, open === left2.id, false)}</div>
+            <div class="flex w-[6.25rem] justify-center pt-4 short:w-[5.25rem] short:pt-3">${logoHtml('', 'h-20 w-auto drop-shadow-lg short:h-16', acc)}</div>
+            <div class="flex min-w-0 flex-col gap-1.5">${slotChip(right1, acc, open === right1.id, true)}${slotChip(right2, acc, open === right2.id, true)}</div>
+        </div>`;
+        const chosen = acc[open] ? acc[open].id : 'none';
+        const first = open === 'face' ? monocleTiles(chosen) : noneTile(open, chosen === 'none');
+        // Pravidelná mřížka sloupců aspoň 40 px (7 na 360 px, 8 na 390 px); první dlaždice je vždy „bez doplňku“ (v obličeji Monokl
+        // a Bez monoklu). Výška na dva řádky
+        // (nejvíc doplňků má hlava), ať se okno při přepnutí místa neposkakuje.
+        const items = `<div data-owl-items="${open}" class="grid min-h-[5rem] grid-cols-[repeat(auto-fill,minmax(2.5rem,1fr))] content-start" role="group" aria-label="${escapeHtml(`Doplňky: ${(Look.SLOTS.find(slot => slot.id === open) || {}).title || ''}`)}">${first}${Look.ACCESSORIES.filter(item => item.slot === open && (!item.exclusive || Look.isUnlocked(item, ctx))).map(item => tile(item, ctx, chosen === item.id)).join('')}</div>`;
+        // Barva patří doplňku v otevřeném místě
+        const target = acc[open] && acc[open].id !== Look.NO_MONOCLE ? open : null;
+        const targetItem = target ? Look.find('accessories', acc[target].id) : null;
+        const current = target ? acc[target].color : null;
+        const custom = current !== null && Look.customHue(current) !== null;
+        const customOpen = Look.ACC_COLORS.find(color => color.id === 'vlastni');
+        const dot = (color) => {
+            const unlocked = Look.isUnlocked(color, ctx);
+            const selected = color.id === 'vlastni' ? custom : current === color.id;
+            const label = unlocked ? color.title : `${color.title}: ${Look.unlockText(color)}`;
+            return `<button type="button" data-owl-color="${target}:${color.id}" aria-pressed="${selected}" ${unlocked ? '' : 'aria-disabled="true"'} title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" class="flex h-9 min-w-0 items-center justify-center active:scale-95">
+                <span class="h-7 w-7 rounded-full ${COLOR_DOT[color.id] || ''} ${selected ? 'ring-2 ring-slate-800/70 ring-offset-2 dark:ring-white/80 dark:ring-offset-slate-800' : ''} ${unlocked ? '' : 'opacity-35 grayscale'}"></span></button>`;
+        };
+        const slider = custom && Look.isUnlocked(customOpen, ctx) ? `
+            <input type="range" min="0" max="355" step="5" value="${Look.customHue(current)}" data-owl-hue aria-label="Odstín vlastní barvy" class="mx-1 h-6 cursor-pointer ${HUE_BAR}">` : '';
+        // Vlajka státu na vlaječce (v otevřeném místě): s vlajkou se barva plátna neuplatní, proto se paleta skryje
+        const flagSlot = targetItem && targetItem.flags ? target : null;
+        const flagChosen = flagSlot ? acc[flagSlot].flag || '' : '';
+        const flagPicker = flagSlot ? `
+            <label class="flex items-center gap-2 text-[11px] font-bold text-slate-500 dark:text-slate-400"><span class="shrink-0">Vlajka</span>
+                <select data-owl-flag="${flagSlot}" aria-label="Vlajka státu na vlaječce" class="h-9 min-w-0 flex-1 rounded-lg border-2 border-slate-200 bg-white px-2 text-sm font-bold text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+                    <option value=""${flagChosen ? '' : ' selected'}>Modré plátno (výchozí)</option>${Flags ? Flags.list().map(flag => `<option value="${flag.id}"${flag.id === flagChosen ? ' selected' : ''}>${escapeHtml(flag.name)}</option>`).join('') : ''}
+                </select></label>` : '';
+        // Doplněk s pevnými barvami (noColors, třeba Dýně) barvu nemá: místo palety jen věta (stejná výška, okno neposkočí)
+        const colors = targetItem && flagChosen ? '' : targetItem && targetItem.noColors ? `
+            <p data-owl-fixed class="flex min-h-[2.25rem] items-center px-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400"><span><b class="text-slate-700 dark:text-slate-200">${escapeHtml(targetItem.title)}</b> má pevné barvy.</span></p>`
+            : targetItem ? `
+            <div class="flex flex-col gap-0.5"><p class="px-1 text-[11px] font-bold text-slate-500 dark:text-slate-400">Barva: <b class="text-slate-700 dark:text-slate-200">${escapeHtml(targetItem.title)}</b></p>
+            <div class="grid grid-cols-10" role="group" aria-label="Barva doplňku">${Look.ACC_COLORS.map(dot).join('')}</div>${slider}</div>`
+            : `<p class="flex min-h-[2.25rem] items-center px-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">${chosen === 'none' ? 'Vyber doplněk a pak jeho barvu.' : ''}</p>`;
+        // Celý look tématu (všechny kusy jedné sady najednou): zlatý štítek pod sovou
+        const look = Look.activeTopicLook ? Look.activeTopicLook(acc) : null;
+        const lookLine = look ? `<p data-owl-look-line class="-my-0.5 flex justify-center">${lookTagHtml(look)}</p>` : '';
+        return `<div class="flex flex-col gap-1.5">
+            ${owl}${lookLine}${items}<div class="flex flex-col gap-1.5">${colors}${flagPicker}</div>
+            ${note ? `<p role="status" class="px-1 text-[11px] font-bold text-brand-700 dark:text-brand-300">${escapeHtml(note)}</p>` : ''}
+        </div>`;
+    };
+    // Klepnutí: zamčený doplněk jen ukáže, jak se odemyká; odemčený se nasadí (nahradí doplněk ve svém místě), „–“ ho sundá
+    const click = (event, ctx) => {
+        const slotButton = event.target.closest('[data-owl-slot]');
+        const pick = event.target.closest('[data-owl-pick]');
+        const color = event.target.closest('[data-owl-color]');
+        const acc = { ...(ctx.prefs.acc || {}) };
+        // Čip místa otevře jeho doplňky (a barvu doplňku v něm)
+        if (slotButton) {
+            if (!Look.SLOTS.some(slot => slot.id === slotButton.dataset.owlSlot)) return false;
+            activeSlot = slotButton.dataset.owlSlot;
+            note = '';
+            return true;
+        }
+        if (pick) {
+            const [slot, id] = pick.dataset.owlPick.split(':');
+            note = '';
+            activeSlot = slot;
+            if (id === 'none') delete acc[slot];
+            else if (slot === 'face' && id === Look.NO_MONOCLE) acc.face = { id: Look.NO_MONOCLE };
+            else {
+                const item = Look.find('accessories', id);
+                if (!item || item.slot !== slot) return false;
+                if (!Look.isUnlocked(item, ctx)) { note = `${item.title}: ${Look.unlockText(item, item.badge ? badgeTitle(item.badge) : null)}`; return true; }
+                acc[slot] = acc[slot] && acc[slot].id === id ? acc[slot] : { id, color: 'original' };
+                activeSlot = slot;
+            }
+            return Look.setPref('acc', acc, ctx) || Boolean(note);
+        }
+        if (color) {
+            const [slot, id] = color.dataset.owlColor.split(':');
+            if (!acc[slot] || (Look.find('accessories', acc[slot].id) || {}).noColors) return false;
+            const item = Look.ACC_COLORS.find(entry => entry.id === id);
+            if (!item) return false;
+            activeSlot = slot;
+            if (!Look.isUnlocked(item, ctx)) { note = `${item.title}: ${Look.unlockText(item)}`; return true; }
+            note = '';
+            // Paleta začíná od odstínu, který už doplněk má, jinak od modré
+            const start = Look.customHue(acc[slot].color) !== null ? acc[slot].color : 'h210';
+            acc[slot] = { ...acc[slot], color: id === 'vlastni' ? start : id };
+            return Look.setPref('acc', acc, ctx);
+        }
+        return false;
+    };
+    // Posuvník odstínu vlastní barvy (uloží se po puštění) a výběr vlajky státu
+    const change = (event, ctx) => {
+        const select = event.target.closest('[data-owl-flag]');
+        if (select) {
+            const slot = select.dataset.owlFlag;
+            const acc = { ...(ctx.prefs.acc || {}) };
+            if (!acc[slot]) return false;
+            const { flag, ...rest } = acc[slot];
+            acc[slot] = Look.flagOk(select.value) ? { ...rest, flag: select.value } : rest;
+            activeSlot = slot;
+            return Look.setPref('acc', acc, ctx);
+        }
+        const range = event.target.closest('[data-owl-hue]');
+        if (!range) return false;
+        const acc = { ...(ctx.prefs.acc || {}) };
+        const slot = openSlotOf(acc);
+        if (!slot || !acc[slot]) return false;
+        acc[slot] = { ...acc[slot], color: `h${Math.round(Number(range.value) / 5) * 5 % 360}` };
+        return Look.setPref('acc', acc, ctx);
+    };
+
+    if (Look) Look.register({ id: 'owl', tab: 'owl', title: 'Doplňky Mudrlanta', noTitle: true, tight: true, order: 5, render, click, change, apply: (prefs) => refresh(prefs.acc || {}) });
+    return { lookOf, lookTagHtml, logoHtml, layersHtml, layerSrc, flagSrc, refresh, PAD, slotOf, encodeOwl, parseOwl, owlAvatarHtml, allowedPose, poseSrc, poseHtml, POSE_CROP, OWL_MAX };
+});
