@@ -83,7 +83,8 @@
     // 27 = Dobývání: tahy všech hráčů ve stavu hry (budgets; bez nich pořadí tahy soupeřů neukáže).
     // 28 = Dobývání: přeskočený zbytek kola (Chci další kolo) se odečte i z konce hry.
     // 29 = Dobývání: upozornění „Všichni dohráli kolo“ a „Kolo brzy končí“ (server, push_pending; aplikace je jen otevře odkazem na hru).
-    const REQUIRED_SCHEMA = 29;
+    // 30 = Dobývání: pomůcky Tah navíc a Půl na půl (zásoba na serveru, zisk z Bosse týdne, Kvízu dne, Řetězovky, výhry, Sezóny a Truhly).
+    const REQUIRED_SCHEMA = 30;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -3926,6 +3927,8 @@
         card.className = 'fade-in fixed inset-x-3 bottom-24 z-[60] mx-auto flex max-w-sm cursor-pointer items-center gap-3 rounded-3xl bg-gradient-to-br from-brand-800 to-brand-950 p-3 pr-4 text-white shadow-2xl ring-2 ring-gold-400';
         card.innerHTML = `${item.art || uiArt(`sova-${item.owl}`, 'h-20 w-20 -my-4 drop-shadow-lg')}<div class="min-w-0 flex-1"><p class="text-[11px] font-black uppercase tracking-widest text-gold-300">${escapeHtml(item.title)}</p><p class="text-base font-black leading-tight">${escapeHtml(item.text)}</p></div>`;
         document.body.appendChild(card);
+        // Vlastní obrázek může mít ikony (pečeť pomůcky do Dobývání)
+        if (item.art) renderIcons(card);
         // Zvuk oslavy (nová úroveň, titul, odznak) zazní, až se karta ukáže
         if (item.sound && Sound) Sound.play(item.sound);
         const done = () => { if (!card.isConnected) return; card.remove(); setTimeout(nextCelebration, 250); };
@@ -4000,6 +4003,25 @@
             category === 'avatars' && item.parts ? avatarArt(item.id, 'h-20 w-20 -my-4 drop-shadow-lg') : ''));
         freshBadgeIds = [];
         noteSeasonTier();
+    };
+    // ===== Pomůcky do Dobývání (blok 30, conquest.js ITEMS): Tah navíc a Půl na půl =====
+    // Zásoba je na serveru; sem chodí zisky z Bosse týdne, Kvízu dne bez chyby, celé Řetězovky a výhry v Dobývání (item v jejich výsledku),
+    // ze Sezóny (5. a 15. stupeň) a vzácně z Truhly Mudrlanta (player_items_claim). itemStock = poslední známá zásoba (null = nevíme).
+    let itemStock = null;
+    // Velikost značky (+1, ½) podle velikosti pečeti: velká pečeť (oslava, obřad sezóny) větší značka
+    const itemArt = (kind, cls = 'h-7 w-7') => (window.MudrlantConquest ? window.MudrlantConquest.itemSealHtml(kind, cls, { mark: /h-1[2-9]|h-2\d|h-\[/.test(cls) ? 'text-[14px]' : /h-[67]\b/.test(cls) ? 'text-[8.5px]' : 'text-[10px]' }) : '');
+    const noteItemStock = (grant) => {
+        if (!grant || !grant.kind) return;
+        itemStock = { ...(itemStock || {}), [grant.kind]: grant.count };
+    };
+    // Zisk pomůcky: nová = oslava „Nová pomůcka do Dobývání“ s pečetí, plná zásoba = krátká zpráva; už započítaný zdroj nic
+    const celebrateItem = (grant) => {
+        const Conquest = window.MudrlantConquest;
+        if (!Conquest || !grant) return;
+        noteItemStock(grant);
+        const news = Conquest.grantNews(grant);
+        if (news.kind === 'new') showCelebration('vitez', news.title, news.text, 'badge', itemArt(grant.kind, 'h-16 w-16 -my-2 drop-shadow-lg'));
+        else if (news.kind === 'full') showToast(news.text);
     };
     // Po delší pauze sova uvítá hráče zpátky (jednou za spuštění)
     const welcomeBack = () => {
@@ -4491,7 +4513,9 @@
         const goldRow = appContent.querySelector('[data-gold-result]');
         if (goldRow) { goldRow.remove(); if (screen === 'mode') renderModeScreen(); else paintGold(); }
     };
-    const chestHelpers = () => ({ frameClass: (id) => (window.MudrlantLookFrames ? window.MudrlantLookFrames.frameClass(id) : '') });
+    const chestHelpers = () => ({ frameClass: (id) => (window.MudrlantLookFrames ? window.MudrlantLookFrames.frameClass(id) : ''), itemArt });
+    // Pomůcky ze Sezóny a z Truhly Mudrlanta jdou jen přihlášenému a jen s databází, která je zná (blok 30)
+    const itemsClaimable = () => Boolean(signedUser() && Social && Social.playerItemsClaim && !(Social.conquestItemsMissing && Social.conquestItemsMissing()));
     // Nasazení věci z truhly (talár, téma, rámeček, doplněk do jeho místa); barva doplňků se volí v Nastavení. Do účtu (rámeček,
     // sova profilu) se změna pošle sama přes Look.onChange
     const wearGift = (gift) => {
@@ -4516,6 +4540,23 @@
         overlay.className = 'chest-overlay fade-in fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto px-4 pb-4';
         let opened = null;
         let opening = false;
+        // Truhla Mudrlanta (ne Zlatá): vzácně (5 %, nejvýš jednou za týden) i pomůcka Půl na půl do Dobývání; o los se řekne server
+        let bonus = null;
+        const askBonus = () => {
+            if (gold || bonus || !itemsClaimable()) return;
+            const key = `chest:${Rewards.isoWeek(Season ? Season.pragueDay() : DailyQuiz.pragueDay())}`;
+            bonus = Social.playerItemsClaim('chest', key).catch(() => null);
+        };
+        const showBonus = () => {
+            if (!bonus) return;
+            bonus.then(grant => {
+                if (!grant || !grant.granted || grant.already || !opened || !overlay.isConnected) return;
+                noteItemStock(grant);
+                opened = { ...opened, pomucka: { kind: grant.kind, name: window.MudrlantConquest ? window.MudrlantConquest.ITEMS[grant.kind].name : 'Půl na půl' } };
+                paint();
+                if (Sound) Sound.play('badge');
+            });
+        };
         const paint = () => {
             overlay.innerHTML = Rewards.chestHtml({ opened, look: gold ? Gold.chestOptions() : {} }, chestHelpers());
             renderIcons(overlay);
@@ -4546,6 +4587,7 @@
             updateControlsUI();
             syncRewards();
             syncProgress();
+            showBonus();
         };
         overlay.addEventListener('click', (event) => {
             if (event.target.closest('[data-chest-close]') || event.target === overlay) { closeChestOverlay(); return; }
@@ -4560,6 +4602,7 @@
                 // Krátké natřesení, pak se víko otevře (při omezeném pohybu hned); další klepnutí už nic neudělají. Tlačítko se
                 // nevypíná, ať na něm zůstane fokus (Escape okno zavře i během natřásání)
                 opening = true;
+                askBonus();
                 const stage = overlay.querySelector('[data-chest-stage]');
                 const still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
                 if (still || !stage) { reveal(); return; }
@@ -4839,6 +4882,8 @@
         return Season.info(result.state, now);
     };
     const seasonUser = () => { const user = signedUser(); return user ? user.id : 'host'; };
+    // Pomůcky na cestě sezóny (season.js pomuckyFor): přihlášenému, dokud nemá plno (itemStock; neznámá zásoba = platí)
+    const seasonPomucky = () => (Season && Season.pomuckyFor ? Season.pomuckyFor({ signedIn: itemsClaimable(), stock: itemStock }) : {});
     // Nový dosažený stupeň během hry: oslava (jednou za stupeň; po spuštění se jen zapamatuje, kde hráč je)
     let seasonTierSeen = null;
     const noteSeasonTier = () => {
@@ -4892,10 +4937,16 @@
             const focus = opened ? ['[data-season-wear]', '[data-season-next]', '[data-season-close]:not([data-season-x])'].map(css => overlay.querySelector(css)).find(Boolean) : overlay.querySelector('button[data-season-go]:not([disabled])');
             if (focus) focus.focus({ preventScroll: true });
         };
-        const reveal = () => {
+        // 5. a 15. stupeň: pomůcka do Dobývání od serveru (klíč season:<RRRR-MM>:<stupeň>); bez přihlášení, s plnou zásobou nebo bez
+        // spojení běžná věc. Server dá pomůcku za stupeň jen jednou (druhé zařízení dostane totéž, granted s already).
+        const pomuckaKind = Season.pomuckaOf ? Season.pomuckaOf(entry.tier) : null;
+        const askPomucka = () => (pomuckaKind && itemsClaimable() ? Social.playerItemsClaim('season', `season:${entry.id}:${entry.tier}`).catch(() => null) : Promise.resolve(null));
+        const reveal = (grant = null) => {
             if (!overlay.isConnected) return;
             const progress = loadProgress();
-            const result = Season.claim(loadRewards(), { which: entry.which, tier: entry.tier, ctx: { level: levelProgress(progress.xp).level, badges: progress.badges }, xp: seasonXp(), today: Season.pragueDay(), user: seasonUser() });
+            if (grant) noteItemStock(grant);
+            const pomucka = grant && grant.granted && grant.kind === pomuckaKind ? pomuckaKind : null;
+            const result = Season.claim(loadRewards(), { which: entry.which, tier: entry.tier, ctx: { level: levelProgress(progress.xp).level, badges: progress.badges }, xp: seasonXp(), today: Season.pragueDay(), user: seasonUser(), pomucka });
             if (!result.opened) { overlay.remove(); return; }
             saveRewards(result.state);
             const levelBefore = levelProgress(progress.xp).level;
@@ -4928,9 +4979,9 @@
                 opening = true;
                 const stage = overlay.querySelector('[data-chest-stage]');
                 const still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-                if (still || !stage) { reveal(); return; }
-                stage.classList.add('chest-shaking');
-                setTimeout(reveal, 350);
+                const asked = askPomucka();
+                if (!still && stage) stage.classList.add('chest-shaking');
+                Promise.all([asked, new Promise(resolve => setTimeout(resolve, still || !stage ? 0 : 350))]).then(([grant]) => reveal(grant));
             }
         });
         overlay.addEventListener('keydown', (event) => { if (event.key === 'Escape') { closeSeasonOverlay(); if (back) back(); } });
@@ -4942,7 +4993,19 @@
     const openSeason = (selected = null) => {
         if (!Season || !Rewards) return;
         touchTip('season');
-        const view = seasonView();
+        const view = { ...seasonView(), pomucky: seasonPomucky() };
+        // Zásoba pomůcek ze serveru (plná zásoba = na 5. a 15. stupni běžná věc); když se změní, cesta se překreslí
+        if (itemsClaimable() && Social.playerItemsMine && !openSeason.loading) {
+            openSeason.loading = true;
+            Social.playerItemsMine().then(items => {
+                openSeason.loading = false;
+                if (!items) return;
+                const before = JSON.stringify(seasonPomucky());
+                itemStock = { extra_move: items.extra_move, fifty: items.fifty };
+                const overlay = document.getElementById('dialog-overlay');
+                if (before !== JSON.stringify(seasonPomucky()) && overlay && overlay.dataset.title === `Sezóna ${Season.label(view.id)}`) openSeason(selected);
+            }).catch(() => { openSeason.loading = false; });
+        }
         showDialog(`Sezóna ${Season.label(view.id)}`, `${Season.pathHtml(view, { selected, h: chestHelpers() })}${dialogBackButton('mt-2')}`, {
             onClick: (event) => {
                 if (event.target.closest('[data-season-claim-past]')) { openSeasonReveal(view.pastPending[0], () => openSeason()); return; }
@@ -9559,6 +9622,8 @@
                     const index = attempt.synced;
                     const state = await Social.dailyQuizAnswer(attempt.day, index, attempt.results[index]);
                     if (!state) return null;
+                    // Kvíz dne bez chyby: pomůcka Půl na půl do Dobývání (blok 30)
+                    if (state.item) celebrateItem(state.item);
                     if (!applyQuizServer(attempt, state) || attempt.synced <= index) return false;
                 }
                 return true;
@@ -10329,6 +10394,8 @@
                     }
                     const me = await Social.bossSubmit(week, idx, attempt.damage, attempt.defeated);
                     if (me === null) return null;
+                    // První výhra v týdnu: pomůcka Tah navíc do Dobývání (blok 30)
+                    if (me.item) celebrateItem(me.item);
                     patchBossAttempt(week, index, { synced: true, owner: user.id });
                     last = { week, me };
                 } catch (error) {
@@ -10949,6 +11016,8 @@
             appContent, setScreen: (name) => { screen = name; }, getScreen: () => screen, renderHome, renderIcons, updateControlsUI, closePlaceInfo, showToast, showDialog, closeDialog,
             uiArt, specialTile, avatarHtml, xpLine, meRow: () => quizHelpers().meRow, loadTopic, loadCountries, readJson, writeJson, signedUser, social: Social, auth: Auth, startLogin,
             shareCard: ShareCard, shareImageCounted, robeNow, appUrl, appName: APP_NAME, sound: Sound, isLoading: () => isLoading,
+            // Celá Řetězovka: pomůcka Půl na půl do Dobývání (blok 30)
+            itemGranted: (grant) => celebrateItem(grant),
             // XP jednou za den a zařízení (chain.js to hlídá) a počítadla dohraných a celých řetězů
             awardXp: (xp, summary) => {
                 const before = loadProgress();
@@ -12263,6 +12332,8 @@
                 syncProgress();
             },
             share: (payload) => ShareCard ? ShareCard.shareText(payload, { toast: showToast, copied: 'Odkaz na hru zkopírován', failed: 'Kopírování se nepodařilo' }) : null,
+            // Výhra: pomůcka Půl na půl (blok 30)
+            itemGranted: (grant) => celebrateItem(grant),
             sound: (name) => { if (Sound) Sound.play(name); },
             touchTip,
             // Vývojářský režim: lišta s boty (boti do lobby, jejich tahy hned, další období; server pustí jen účet z dev_admins)

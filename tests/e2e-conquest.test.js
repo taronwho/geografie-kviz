@@ -1,7 +1,9 @@
 // Dobývání v prohlížeči s falešným Supabase v paměti (jako tests/e2e-groups.test.js): karta na záložce Více hráčů, rozcestník (Moje hry,
 // Lobby s Rychlými hrami, Založit hru), okno Barva a znak (obsazená barva nejde), založení soukromé hry, detail lobby (kód, Chci hrát,
 // začátek hry), obrazovka hry (mapa se vejde na 360×640 bez posouvání, klepnutí na území, spodní list, otázka, dobytí, opevnění,
-// odražený útok, přiblížení, kronika tažení), konec hry (stupně vítězů, odměna jen jednou, přehrání), CSP bez chyb, tmavý režim.
+// odražený útok, přiblížení, kronika tažení), konec hry (stupně vítězů, odměna jen jednou, přehrání), pomůcky (zásoba v rozcestníku,
+// okno Pomůcky, Půl na půl u otázky i v bitvě s „½“ u účastníků, Tah navíc z listu území, štítku i okna Kolo dohráno s potvrzením,
+// „+1“ u tahů a záznam v kronice), CSP bez chyb, tmavý režim.
 // SCREENSHOT_DIR=/cesta uloží snímky (dobyvani-*.png). Potřebuje Playwright (viz tests/e2e.test.js), jinak se přeskočí.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -59,7 +61,7 @@ const backend = async (context, db) => {
         if (url.pathname === '/rest/v1/profiles') { const pid = (url.searchParams.get('id') || '').replace('eq.', ''); return json(db.profiles[pid] ? [db.profiles[pid]] : []); }
         // Přátelé (db.friends: hráč → id přátel); bez nich nikdo
         if (name === 'friends_list') return json(((db.friends || {})[me.id] || []).map(fid => ({ ...db.profiles[fid], rating: 1000, last_seen: NOW, status: 'accepted', direction: 'out', since: NOW, wins: 0, losses: 0, draws: 0 })));
-        if (!name.startsWith('conquest_') && !name.startsWith('dev_conquest_')) return json(/^(friends_list|reactions|my_groups)$/.test(name) ? [] : {});
+        if (!name.startsWith('conquest_') && !name.startsWith('dev_conquest_') && !name.startsWith('player_items')) return json(/^(friends_list|reactions|my_groups)$/.test(name) ? [] : {});
         db.calls.push({ name, body });
         const fail = (message, status = 400) => json({ code: 'P0001', message }, status);
         const find = (id) => db.games.find(g => g.id === id);
@@ -72,8 +74,22 @@ const backend = async (context, db) => {
             invited: g.status === 'lobby' && g.players.some(p => p.user === me.id) ? waiting(g).map(i => ({ ...db.profiles[i.user], by_me: i.by === me.id })) : null });
         const mine = (g) => g.players.find(p => p.user === me.id);
         // penalty: v období g.penaltyPeriod hráč kvůli ztracenému hradu o tah méně (schéma 23)
+        // extra: v tomto období použitý Tah navíc (blok 30, tah druhu 'extra')
+        const extraOf = (g, uid) => ((g.moves || []).some(m => m.u === uid && m.k === 'extra' && (m.n || 0) === (g.periodNo || 0)) ? 1 : 0);
         const budget = (g) => { const used = (g.moves || []).filter(m => m.u === me.id && ['attack', 'fortify'].includes(m.k) && (m.n || 0) === (g.periodNo || 0)).length
-            + (g.sieges || []).filter(s => s.status === 'open' && s.participants.some(p => p.user === me.id)).length; const penalty = g.penaltyPeriod !== undefined && g.penaltyPeriod === (g.periodNo || 0) ? 1 : 0; return { period: g.periodNo || 0, base: g.actions, regions: 0, treasures: 0, loot: 0, penalty, used, total: g.actions - penalty, left: Math.max(0, g.actions - penalty - used), period_ends_at: '2026-11-12T10:00:00Z' }; };
+            + (g.sieges || []).filter(s => s.status === 'open' && s.participants.some(p => p.user === me.id)).length; const penalty = g.penaltyPeriod !== undefined && g.penaltyPeriod === (g.periodNo || 0) ? 1 : 0;
+            const extra = extraOf(g, me.id); return { period: g.periodNo || 0, base: g.actions, regions: 0, treasures: 0, loot: 0, penalty, extra, used, total: g.actions - penalty + extra, left: Math.max(0, g.actions - penalty + extra - used), period_ends_at: '2026-11-12T10:00:00Z' }; };
+        // Pomůcky (blok 30), jen s db.items = { hráč: { extra_move, fifty } }: zásoba, co jde v této hře použít
+        const stock = () => (db.items ? { extra_move: 0, fifty: 0, ...(db.items[me.id] || {}), max: { extra_move: 1, fifty: 2 } } : null);
+        const gameItems = (g) => {
+            if (!db.items) return {};
+            const items = stock();
+            const extraUsed = (g.moves || []).some(m => m.u === me.id && m.k === 'extra');
+            const last = Boolean(g.round && g.round.last);
+            const block = g.status !== 'running' ? 'Hra neběží.' : extraUsed ? 'Tah navíc jde v jedné hře použít jen jednou.' : items.extra_move < 1 ? 'Tah navíc teď nemáš.'
+                : last ? 'V posledním kole hry Tah navíc použít nejde.' : null;
+            return { items: { ...items, extra_used: extraUsed, fifty_used: Boolean((g.fiftyUsed || {})[me.id]), can_extra: block === null, extra_block: block } };
+        };
         const rescore = (g) => g.players.forEach(p => { const score = g.territories.filter(t => t.o === p.user).length; if (score !== p.score) { p.score = score; p.score_at = NOW; } });
         const start = (g) => {
             g.status = 'running'; g.started_at = NOW; g.ends_at = '2026-11-14T10:00:00Z';
@@ -94,21 +110,21 @@ const backend = async (context, db) => {
             return { id: s.id, game: g.id, territory: s.territory, status: s.status, started_by: s.started_by, started_at: NOW, join_until: LATER, ends_at: LATER, resolved_at: done ? NOW : null,
                 winner: s.winner || null, outcome: s.outcome || null, mine: Boolean(mineP), answered: Boolean(mineP && mineP.answered), joined_at: mineP ? NOW : null, deadline: mineP ? LATER : null,
                 can_join: !done && !mineP && t.o !== me.id,
-                participants: s.participants.map(p => { const gp = g.players.find(x => x.user === p.user); return { ...db.profiles[p.user], seat: gp.seat, flag_color: gp.flag_color, emblem: gp.emblem, source: p.source || null, joined_at: NOW, deadline: LATER, answered: Boolean(p.answered), me: p.user === me.id,
+                participants: s.participants.map(p => { const gp = g.players.find(x => x.user === p.user); return { ...db.profiles[p.user], seat: gp.seat, flag_color: gp.flag_color, emblem: gp.emblem, source: p.source || null, joined_at: NOW, deadline: LATER, answered: Boolean(p.answered), fifty: Boolean(p.fifty), me: p.user === me.id,
                     ...(done ? { correct: Boolean(p.correct), answer_ms: p.answered ? p.answer_ms : null, result: p.result, winner: s.winner === p.user, move: p.move } : {}) }; }) };
         };
         const siegeView = (g, s) => {
             const mineP = s.participants.find(p => p.user === me.id);
-            return { ...siegeJson(g, s), now: NOW, ...(mineP ? { question: s.question, answer: mineP.answered ? { choice: mineP.picked, correct: Boolean(mineP.correct), answer_ms: mineP.answer_ms, late: false } : null,
+            return { ...siegeJson(g, s), now: NOW, ...(mineP ? { question: s.question, removed: mineP.fifty || null, answer: mineP.answered ? { choice: mineP.picked, correct: Boolean(mineP.correct), answer_ms: mineP.answer_ms, late: false } : null,
                 correct_choice: mineP.answered || s.status === 'resolved' ? s.correct : null, result: mineP.result || null, move: mineP.move || null } : {}) };
         };
         const battles = (g) => (db.battles && g.status !== 'lobby' ? { sieges: (g.sieges || []).filter(s => s.status === 'open').map(s => siegeJson(g, s)), version: `${g.moves.length}.${g.siegeRev || 0}.${g.status}` } : {});
         // Další kolo (blok 26), jen s db.rounds: stav hry a puls mají round (g.round řídí test); db.now = čas serveru (jinak NOW)
         const rounds = (g) => (db.rounds && g.round ? { round: g.round } : {});
-        const state = (g) => ({ ...summary(g), now: db.now || NOW, ...rounds(g), ...(g.status === 'lobby' ? {} : { territories: g.territories, budget: g.status === 'running' ? budget(g) : null, moves: g.moves.slice(-150), claimed: Boolean(mine(g) && mine(g).claimed),
+        const state = (g) => ({ ...summary(g), now: db.now || NOW, ...rounds(g), ...(g.status === 'lobby' ? {} : { ...gameItems(g), territories: g.territories, budget: g.status === 'running' ? budget(g) : null, moves: g.moves.slice(-150), claimed: Boolean(mine(g) && mine(g).claimed),
             history: g.status === 'finished' ? g.moves.filter(m => ['home', 'respawn', 'capture'].includes(m.r)) : null, ...battles(g),
             // Tahy všech hráčů v tomto kole (schéma 27)
-            budgets: g.status === 'running' ? Object.fromEntries(g.players.map(p => { const used = g.moves.filter(m => m.u === p.user && ['attack', 'fortify'].includes(m.k) && (m.n || 0) === (g.periodNo || 0)).length; return [p.user, { left: Math.max(0, g.actions - used), total: g.actions }]; })) : null }) });
+            budgets: g.status === 'running' ? Object.fromEntries(g.players.map(p => { const used = g.moves.filter(m => m.u === p.user && ['attack', 'fortify'].includes(m.k) && (m.n || 0) === (g.periodNo || 0)).length; const extra = extraOf(g, p.user); return [p.user, { left: Math.max(0, g.actions + extra - used), total: g.actions + extra, extra }]; })) : null }) });
         // Vyhodnocení bitvy: vítěz = správně s nejkratším časem (dobude, nebo pobourá), ostatní fail / outrun
         const resolveSiege = (g, s) => {
             const t = g.territories.find(x => x.t === s.territory);
@@ -159,8 +175,46 @@ const backend = async (context, db) => {
             if (db.loseHome) g.penaltyPeriod = g.periodNo;
             return json(state(g));
         }
+        // Pomůcky (blok 30)
+        if (name.startsWith('player_items') || name === 'conquest_use_extra' || name === 'conquest_use_fifty') {
+            if (!db.items) return fail('Not found', 404);
+            const items = db.items[me.id] = { extra_move: 0, fifty: 0, ...(db.items[me.id] || {}) };
+            if (name === 'player_items_mine') return json(stock());
+            // Sezóna (5. stupeň Půl na půl, 15. Tah navíc) a truhla (db.chestLucky = los vyšel); plná zásoba nic nepřidá
+            if (name === 'player_items_claim') {
+                const kind = body.source === 'season' ? (/:15$/.test(body.key) ? 'extra_move' : 'fifty') : 'fifty';
+                if (body.source === 'chest' && !db.chestLucky) return json({ kind, granted: false, full: false, already: false, lucky: false, items: stock() });
+                const max = kind === 'extra_move' ? 1 : 2;
+                if (items[kind] >= max) return json({ kind, granted: false, full: true, already: false, count: items[kind], max, items: stock() });
+                items[kind] += 1;
+                return json({ kind, granted: true, full: false, already: false, count: items[kind], max, ...(body.source === 'chest' ? { lucky: true } : {}), items: stock() });
+            }
+            const g = find(body.game);
+            if (name === 'conquest_use_extra') {
+                const info = gameItems(g).items;
+                if (!info.can_extra) return fail(info.extra_block);
+                items.extra_move -= 1;
+                g.moves.push({ id: db.seq++, u: me.id, k: 'extra', t: null, s: null, ok: true, r: 'extra', v: null, n: g.periodNo || 0, at: NOW, p: false, h: false, l: 0 });
+                // Kolo už není dohrané (hráč má zase tah) a jeho „Chci další kolo“ zmizí
+                if (g.round) g.round = { ...g.round, done: false, can_ready: false, ready: g.round.ready.filter(uid => uid !== me.id) };
+                return json({ ...state(g), used: 'extra_move' });
+            }
+            if ((g.fiftyUsed || {})[me.id]) return fail('Půl na půl jde v jedné hře použít jen jednou.');
+            if (items.fifty < 1) return fail('Půl na půl teď nemáš.');
+            let removed = null;
+            if (body.siege) {
+                const { s } = siegeOf(body.siege);
+                const p = s.participants.find(x => x.user === me.id);
+                removed = [0, 1, 2, 3].filter(i => i !== s.correct).slice(1, 3);
+                p.fifty = removed;
+                g.siegeRev = (g.siegeRev || 0) + 1;
+            }
+            items.fifty -= 1;
+            g.fiftyUsed = { ...(g.fiftyUsed || {}), [me.id]: true };
+            return json({ removed, items: stock(), fifty_used: true });
+        }
         if (name === 'conquest_lobby') {
-            return json({ open: db.games.filter(g => g.status === 'lobby' && g.visibility === 'public').map(summary),
+            return json({ ...(db.items ? { items: stock() } : {}), open: db.games.filter(g => g.status === 'lobby' && g.visibility === 'public').map(summary),
                 mine: db.games.filter(g => mine(g)).map(g => ({ ...summary(g), budget: g.status === 'running' ? budget(g) : null, claimed: Boolean(mine(g).claimed),
                     owners: g.territories ? Object.fromEntries(g.territories.filter(t => t.o).map(t => [t.t, g.players.find(p => p.user === t.o).seat])) : null })) });
         }
@@ -370,14 +424,15 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         // Jak se hraje: okno se vejde na 360×640
         await tab.click('[data-cq="help"]');
         await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Jak se hraje Dobývání');
-        // Čtyři záložky (Základy, Útok, Regiony, Konec), každá se vejde; tlačítko Dál vede na další
-        for (const [tabId, pattern] of [['zaklady', /Kola:[\s\S]*Chci další kolo[\s\S]*Tahy:/], ['utok', /Správně:[\s\S]*Opevnění:/], ['regiony', /Region: Skupina sousedních území[\s\S]*Britské ostrovy/], ['konec', /Body:[\s\S]*Odměny:/]]) {
+        // Pět záložek (Základy, Útok, Regiony, Konec, Pomůcky), každá se vejde; tlačítko Dál vede na další
+        for (const [tabId, pattern] of [['zaklady', /Kola:[\s\S]*Chci další kolo[\s\S]*Tahy:/], ['utok', /Správně:[\s\S]*Opevnění:/], ['regiony', /Region: Skupina sousedních území[\s\S]*Britské ostrovy/], ['konec', /Body:[\s\S]*Odměny:/],
+            ['pomucky', /Pomůcky:[\s\S]*Tah navíc:[\s\S]*Půl na půl:[\s\S]*Jak získat: Tah navíc: Boss týdne/]]) {
             await tab.waitForSelector(`[data-cq-help="${tabId}"]`);
             assert.match(await tab.textContent('[data-cq-help]'), pattern, tabId);
             const helpFit = await tab.evaluate(() => { const box = document.querySelector('#dialog-overlay > div'); const rect = box.getBoundingClientRect(); return { over: box.scrollHeight - box.clientHeight, top: rect.top, bottom: rect.bottom }; });
             assert.ok(helpFit.over <= 0 && helpFit.top >= 0 && helpFit.bottom <= 640, `nápověda ${tabId} se vejde: ${JSON.stringify(helpFit)}`);
             await shot(tab, `napoveda-${tabId}-360`);
-            if (tabId !== 'konec') await tab.click('[data-cq-help] button[data-cq-help-tab]:not([role="tab"])');
+            if (tabId !== 'pomucky') await tab.click('[data-cq-help] button[data-cq-help-tab]:not([role="tab"])');
         }
         await tab.click('[data-cq-help-tab="regiony"][role="tab"]');
         await tab.waitForSelector('[data-cq-help="regiony"]');
@@ -470,7 +525,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         await tab.waitForFunction(() => /^Začal 3\. den hry\. Kvůli ztracenému hradu máš o tah méně\.$/.test(((document.getElementById('toast') || {}).textContent || '').trim()));
         await tab.waitForSelector('[data-cq-budget] [data-cq-penalty]');
         assert.equal((await tab.textContent('[data-cq-budget]')).replace(/\s+/g, ' ').trim(), 'Tahy 4/4−1, o 1 méně kvůli ztracenému hradu');
-        assert.equal(await tab.getAttribute('[data-cq-budget]', 'title'), 'Tahy v tomto období (o 1 méně kvůli ztracenému hradu)');
+        assert.equal(await tab.getAttribute('[data-cq-budget]', 'title'), 'Tahy v tomto období (o 1 méně kvůli ztracenému hradu). Klepni pro pomůcky');
         assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 }, 'hra s −1 se vejde na 360×640');
         const bar = await tab.evaluate(() => {
             const box = (el) => el.getBoundingClientRect();
@@ -902,6 +957,259 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         // Přeskočený zbytek kola 1 (2:50) se odečetl z konce hry: místo 20 min hra končí 10:17:10
         assert.equal(g.ends_at, '2026-11-11T10:17:10.000Z');
         assert.equal(await tab.textContent('[data-cq-clock]'), 'zbývá 16 min', 'bez odečtení by bylo 19 min');
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    // Pomůcky (blok 30): stejný server s db.items (zásoba hráčů); Půl na půl u otázky bez bitvy, Tah navíc z listu území
+    const bodyText = async (tab, selector) => (await tab.textContent(selector)).replace(/\s+/g, ' ');
+    await t.test('pomůcky na 360×640: zásoba v rozcestníku a okno Pomůcky; Půl na půl (dvě klepnutí, dvě špatné přeškrtnuté); Tah navíc z listu území s potvrzením, „+1“ a kronika', async () => {
+        const db = running();
+        db.items = { 'u-1': { extra_move: 1, fifty: 2 } };
+        const g = db.games[0];
+        g.actions = 2;
+        const { context, tab, log } = await start(db, { only: 'capital' });
+        await tab.waitForFunction(() => /Tahy 2\/2/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
+        // Rozcestník: pruh se zásobou, klepnutím okno Pomůcky (co dělají a jak je získat)
+        await tab.click('#conquest-card [data-action="conquest-open"]');
+        await tab.waitForSelector('#conquest-hub [data-cq-items]');
+        assert.match(await bodyText(tab, '[data-cq-items]'), /Pomůcky\s*\+1\s*Tah navíc\s*1\/1\s*½\s*Půl na půl\s*2\/2/);
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+        await tab.waitForTimeout(300);
+        await shot(tab, 'pomucky-rozcestnik-360');
+        await tab.click('[data-cq-items]');
+        await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Pomůcky');
+        const dialog = await bodyText(tab, '#dialog-overlay');
+        assert.match(dialog, /Tah navíc\s*1\/1\s*O 1 tah víc v tomto kole\.[\s\S]*Jak získat: Poražený Boss týdne[\s\S]*Půl na půl\s*2\/2[\s\S]*Jak získat: Kvíz dne bez chyby/);
+        assert.ok(await tab.evaluate(() => { const box = document.querySelector('#dialog-overlay > div'); const rect = box.getBoundingClientRect(); return box.scrollHeight - box.clientHeight <= 0 && rect.top >= 0 && rect.bottom <= 640; }), 'okno Pomůcky se vejde');
+        await shot(tab, 'pomucky-okno-360');
+        await tab.keyboard.press('Escape');
+        await tab.waitForFunction(() => !document.getElementById('dialog-overlay'));
+        // Hra: útok na Rakousko, u otázky Půl na půl (první klepnutí se ptá, druhé použije)
+        await tab.click(`[data-cq-play="${uuid(1)}"]`);
+        await tab.waitForSelector('#conquest-game [data-cq-map] svg');
+        await tapTerritory(tab, 'Q40');
+        await tab.waitForSelector('[data-cq-sheet] [data-cq="attack"]');
+        await tab.click('[data-cq-sheet] [data-cq="attack"]');
+        await tab.waitForSelector('[data-cq-answer]', { timeout: 30000 });
+        await tab.waitForSelector('[data-cq="fifty"]');
+        assert.match(await tab.textContent('[data-cq="fifty"]'), /½\s*Půl na půl/);
+        await tab.click('[data-cq="fifty"]');
+        await tab.waitForFunction(() => /Opravdu\?/.test(document.querySelector('[data-cq="fifty"]').textContent));
+        assert.equal(db.calls.filter(call => call.name === 'conquest_use_fifty').length, 0, 'první klepnutí jen ptá');
+        await tab.click('[data-cq="fifty"]');
+        await tab.waitForFunction(() => document.querySelectorAll('[data-cq-answer][data-cq-gone]').length === 2);
+        assert.deepEqual(db.calls.filter(call => call.name === 'conquest_use_fifty').pop().body, { game: g.id, siege: null, target: 'Q40' });
+        assert.equal(await tab.locator('[data-cq-answer]:not([disabled])').count(), 2, 'zbývají dvě možnosti');
+        assert.equal(await tab.locator('[data-cq-fifty-used]').count(), 1);
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+        await tab.waitForTimeout(900);
+        await shot(tab, 'pomucky-pul-na-pul-360');
+        // Odebraná je vždy špatná: správná zůstala
+        const right = await tab.evaluate(() => [...document.querySelectorAll('[data-cq-answer]:not([disabled])')].map(button => button.textContent.trim()));
+        assert.ok(right.includes('Vídeň'), JSON.stringify(right));
+        db.force.push('capture');
+        await tab.click('[data-cq-answer]:not([disabled])');
+        await tab.waitForSelector('[data-pin="Q40"].cq-pin-drop', { timeout: 15000 });
+        // Druhý tah (opevnění domova), pak tahy došly: na mapě štítek Tah navíc, v listu území nabídka
+        await tapTerritory(tab, 'Q213');
+        await tab.waitForSelector('[data-cq-sheet] [data-cq="fortify"]');
+        db.force.push('fortify');
+        await tab.click('[data-cq-sheet] [data-cq="fortify"]');
+        await tab.waitForSelector('[data-cq-answer]');
+        assert.equal(await tab.locator('[data-cq="fifty"]').count(), 0, 'Půl na půl jen jednou za hru');
+        await tab.click('[data-cq-answer]:not([disabled])');
+        await tab.waitForFunction(() => document.querySelector('[data-mark="Q213"] .cq-rise'), null, { timeout: 15000 });
+        await tab.waitForSelector('[data-cq-chips] [data-cq="extra-use"]', { timeout: 10000 });
+        assert.match(await tab.textContent('[data-cq-budget]'), /0\/2/);
+        await tapTerritory(tab, 'Q183');
+        await tab.waitForSelector('[data-cq-sheet] [data-cq="extra-use"]');
+        assert.match(await bodyText(tab, '[data-cq-sheet]'), /Tahy na tohle období už nemáš\.\s*\+1\s*Použít Tah navíc\s*\+1 tah v tomto kole · máš 1 z 1/);
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+        await tab.waitForTimeout(400);
+        await shot(tab, 'pomucky-tah-navic-nabidka-360');
+        await tab.click('[data-cq-sheet] [data-cq="extra-use"]');
+        await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Tah navíc');
+        assert.match(await bodyText(tab, '#dialog-overlay'), /V tomto kole budeš mít o 1 tah víc\. V jedné hře jde Tah navíc použít jen jednou[\s\S]*Máš 1 z 1\./);
+        await shot(tab, 'pomucky-tah-navic-potvrzeni-360');
+        assert.equal(db.calls.filter(call => call.name === 'conquest_use_extra').length, 0, 'bez potvrzení nic');
+        await tab.click('[data-cq="extra-confirm"]');
+        await tab.waitForFunction(() => /1\/3/.test(document.querySelector('[data-cq-budget]').textContent), null, { timeout: 10000 });
+        assert.equal(await tab.locator('[data-cq-budget] [data-cq-extra]').count(), 1, '„+1“ u počítadla');
+        assert.equal(await tab.locator('[data-cq-players] [data-cq-moves-extra]').count(), 1, '„+1“ u tahů v pořadí');
+        await tab.waitForFunction(() => /Tah navíc: v tomto kole máš o 1 tah víc!/.test((document.querySelector('[data-cq-banner]') || {}).textContent || ''));
+        assert.equal(await tab.locator('[data-cq-sheet] [data-cq="attack"]').count(), 1, 'list území zase nabízí útok');
+        assert.equal(await tab.locator('[data-cq-chips] [data-cq="extra-use"]').count(), 0, 'štítek zmizel');
+        // Kronika: Tah navíc s praporcem a jménem hráče
+        await tab.click('[data-cq="sheet-close"]');
+        assert.match(await bodyText(tab, '[data-cq-recent]'), /Tah navíc\s*\+1 tah v 1\. kole\s*ty/);
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+        await tab.waitForTimeout(2800);
+        await shot(tab, 'pomucky-kronika-360');
+        await tab.click('#conquest-game button[aria-label="Kronika tažení"]');
+        await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Kronika tažení');
+        assert.match(await bodyText(tab, '#dialog-overlay'), /Tah navíc: \+1 tah v 1\. kole ty/);
+        await tab.keyboard.press('Escape');
+        // Okno Pomůcky ve hře (klepnutí na počítadlo tahů): obojí v této hře použité
+        await tab.click('[data-cq-budget]');
+        await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Pomůcky');
+        assert.match(await bodyText(tab, '#dialog-overlay'), /Tah navíc\s*0\/1[\s\S]*V této hře už je použitý\.[\s\S]*Půl na půl\s*1\/2[\s\S]*V této hře už je použitá\./);
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    for (const [width, height, colorScheme] of [[360, 640, 'light'], [390, 780, 'dark']]) {
+    await t.test(`pomůcky v bitvě na ${width}×${height} (${colorScheme === 'dark' ? 'tmavý' : 'světlý'} režim): „½“ u účastníka, který použil Půl na půl, server odebere dvě špatné; výsledek bitvy s „½“`, async () => {
+        const db = running();
+        db.battles = true;
+        db.items = { 'u-1': { fifty: 1 } };
+        db.answerMs = { 'u-1': 3900, 'u-2': 2100 };
+        const g = db.games[0];
+        const { context, tab, log } = await start(db, { only: 'capital', viewport: { width, height }, colorScheme });
+        await tab.waitForFunction(() => /Tahy 5\/5/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
+        await tab.click('#conquest-card [data-action="conquest-play"]');
+        await tab.waitForSelector('#conquest-game [data-cq-map] svg');
+        await tapTerritory(tab, 'Q40');
+        await tab.waitForSelector('[data-cq-sheet] [data-cq="attack"]');
+        await tab.click('[data-cq-sheet] [data-cq="attack"]');
+        await tab.waitForSelector('[data-cq="fifty"]', { timeout: 30000 });
+        const begin = db.calls.find(call => call.name === 'conquest_siege_begin').body;
+        // Petr se přidá s Půl na půl: u jeho jména „½“
+        const siege = g.sieges[0];
+        siege.participants.push({ user: 'u-2', source: 'Q183', fifty: [0, 3].filter(i => i !== begin.correct).slice(0, 2) });
+        g.siegeRev += 1;
+        await tab.waitForSelector('[data-cq-fighters] [data-cq-fighter="u-2"] .cq-half-badge', { timeout: 10000 });
+        // Já také: server vybere dvě nesprávné (správnou aplikace útočníka nepošle zpět)
+        await tab.click('[data-cq="fifty"]');
+        await tab.click('[data-cq="fifty"]');
+        await tab.waitForFunction(() => document.querySelectorAll('[data-cq-answer][data-cq-gone]').length === 2);
+        assert.deepEqual(db.calls.filter(call => call.name === 'conquest_use_fifty').pop().body, { game: g.id, siege: siege.id, target: null });
+        const gone = await tab.evaluate(() => [...document.querySelectorAll('[data-cq-answer][data-cq-gone]')].map(button => Number(button.dataset.cqAnswer)));
+        assert.ok(!gone.includes(begin.correct), 'správná zůstala');
+        await tab.waitForSelector('[data-cq-fighters] [data-cq-fighter="u-1"] .cq-half-badge', { timeout: 10000 });
+        assert.match(await bodyText(tab, '[data-cq-fighters]'), /ty\s*½[\s\S]*Petr Svoboda\s*½/);
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+        await tab.waitForTimeout(900);
+        await shot(tab, `pomucky-bitva-${width}-${colorScheme}`);
+        await tab.click(`[data-cq-answer="${begin.correct}"]`);
+        await tab.waitForSelector('[data-cq-wait]');
+        Object.assign(siege.participants[1], { answered: true, picked: begin.correct, correct: true, answer_ms: 2100 });
+        await tab.waitForSelector('[data-cq-sheet] [aria-label="Výsledek bitvy"]', { timeout: 15000 });
+        assert.equal(await tab.locator('[data-cq-sheet] [data-cq-result-player] .cq-half-badge').count(), 2, '„½“ i ve výsledku bitvy');
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+        await tab.waitForTimeout(400);
+        await shot(tab, `pomucky-bitva-vysledek-${width}-${colorScheme}`);
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+    }
+
+    // Otázka Mudrlanta přes celou obrazovku s tlačítkem ½ v záhlaví: vejde se i s ním a po odebrání dvou možností
+    for (const [width, height, colorScheme] of [[360, 640, 'light'], [390, 780, 'dark']]) {
+        await t.test(`pomůcky: otázka Mudrlanta ${width}×${height} (${colorScheme === 'dark' ? 'tmavý' : 'světlý'} režim) s Půl na půl se vejde bez posouvání`, async () => {
+            const db = running();
+            db.items = { 'u-1': { fifty: 2 } };
+            const { context, tab, log } = await start(db, { viewport: { width, height }, colorScheme, only: 'text', wiki: 'article' });
+            await tab.waitForFunction(() => /Tahy 5\/5/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
+            await tab.click('#conquest-card [data-action="conquest-play"]');
+            await tab.waitForSelector('#conquest-game [data-cq-map] svg');
+            await attackWith(tab, db, 'Q40');
+            await tab.waitForSelector('[data-cq-full] [data-cq="fifty"]', { timeout: 30000 });
+            // Po vyjetí listu (animace cq-sheet-in)
+            await tab.waitForTimeout(400);
+            assert.deepEqual(await fullFits(tab, height), { top: true, bottom: true, answers: true, over: 0, game: 0 });
+            await tab.click('[data-cq="fifty"]');
+            await tab.click('[data-cq="fifty"]');
+            await tab.waitForFunction(() => document.querySelectorAll('[data-cq-full] [data-cq-answer][data-cq-gone]').length === 2);
+            assert.deepEqual(await fullFits(tab, height), { top: true, bottom: true, answers: true, over: 0, game: 0 });
+            assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+            await tab.waitForTimeout(900);
+            await shot(tab, `pomucky-otazka-mudrlanta-${width}-${colorScheme}`);
+            assert.deepEqual(log.errors, []);
+            assert.deepEqual(log.csp, []);
+            await context.close();
+        });
+    }
+
+    await t.test('pomůcky: okno Kolo dohráno nabídne Tah navíc tomu, kdo ho má (ne v posledním kole); po použití hraje dál', async () => {
+        const db = running();
+        db.rounds = true;
+        db.items = { 'u-1': { extra_move: 1 } };
+        const g = db.games[0];
+        Object.assign(g, { period: 'min5', minutes: 20, hours: 0, ends_at: '2026-11-11T10:20:00Z' });
+        g.round = { period: 0, started_at: NOW, ends_at: '2026-11-11T10:03:00Z', done: true, ready: ['u-2'], next_at: null, can_ready: true, last: false };
+        const { context, tab, log } = await start(db);
+        await tab.waitForFunction(() => /Tahy 5\/5/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
+        await tab.click('#conquest-card [data-action="conquest-play"]');
+        await tab.waitForSelector('[data-cq-round] [data-cq="extra-use"]', { timeout: 10000 });
+        assert.match(await bodyText(tab, '[data-cq-round]'), /Kolo 1 dohráno[\s\S]*Chci další kolo\s*\+1\s*Použít Tah navíc\s*\+1 tah v tomto kole · máš 1 z 1/);
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+        assert.ok(await tab.evaluate(() => { const card = document.querySelector('.cq-round-card').getBoundingClientRect(); return card.top >= 0 && card.bottom <= window.innerHeight; }), 'okno kola se vejde');
+        await tab.waitForTimeout(500);
+        await shot(tab, 'pomucky-kolo-dohrano-360');
+        await tab.click('[data-cq-round] [data-cq="extra-use"]');
+        await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Tah navíc');
+        await tab.click('[data-cq="extra-confirm"]');
+        await tab.waitForFunction(() => document.querySelector('[data-cq-round]').classList.contains('hidden'), null, { timeout: 10000 });
+        assert.match(await tab.textContent('[data-cq-budget]'), /6\/6/);
+        // Poslední kolo: nabídka není
+        g.round = { ...g.round, done: true, can_ready: false, last: true };
+        db.items['u-1'].extra_move = 1;
+        g.moves = g.moves.filter(m => m.k !== 'extra');
+        assert.equal(await tab.locator('[data-cq-round] [data-cq="extra-use"]').count(), 0);
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    await t.test('pomůcky ze Sezóny a z Truhly na 360×640: 5. stupeň s pečetí Půl na půl na cestě a obřadem „Nová pomůcka do Dobývání“; v truhle navíc Půl na půl', async () => {
+        const db = newDb();
+        db.items = { 'u-1': { extra_move: 0, fifty: 0 } };
+        db.chestLucky = true;
+        // Sezóna od 24 300 XP, hráč má 26 000 → 1 700 XP sezóny = stupeň 5; stupně 1–4 už vyzvednuté
+        const progress = { xp: 26000, counters: { bestStreak: 5 }, badges: { tyden: '2026-10-01', 'serie-3': '2026-10-01', 'uroven-5': '2026-10-01', 'uroven-10': '2026-10-01', 'uroven-20': '2026-10-01' } };
+        const rewards = { season: { id: '2026-11', startXp: 24300, claimed: { 1: 'robes:fialova', 2: 'freeze', 3: 'freeze', 4: 'themes:les' } }, freezes: 2 };
+        // Úvod na záložce Jeden hráč (pruh sezóny je místo cílů týdne)
+        const { context, tab, log } = await setup(browser, { storage: { 'mudrlant.homeTab': JSON.stringify('single'), 'mudrlant.progress': JSON.stringify(progress), 'mudrlant.rewards': JSON.stringify(rewards) } });
+        await backend(context, db);
+        await tab.goto(`${ORIGIN}/`);
+        const strip = tab.locator('[data-season-ready]');
+        await strip.waitFor({ timeout: 15000 });
+        assert.match(await strip.textContent(), /Sezóna Listopad: čeká odměna/);
+        await strip.click();
+        await tab.waitForSelector('#season-overlay [data-season-go]');
+        await tab.click('#season-overlay [data-season-go]');
+        await tab.waitForSelector('[data-season-reveal] [data-season-item]', { timeout: 10000 });
+        assert.deepEqual(db.calls.filter(call => call.name === 'player_items_claim').map(call => call.body), [{ source: 'season', key: 'season:2026-11:5' }]);
+        assert.match((await tab.textContent('[data-season-reveal]')).replace(/\s+/g, ' '), /Nová pomůcka do Dobývání\s*Půl na půl\s*V otázce v Dobývání odebere dvě špatné odpovědi\./);
+        assert.equal(await tab.locator('[data-season-prize] .cq-item-fifty').count(), 1, 'pečeť pomůcky');
+        const saved = await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.rewards')));
+        assert.equal(saved.season.claimed[5], 'pomucka:fifty');
+        assert.equal(db.items['u-1'].fifty, 1);
+        assert.ok(await tab.evaluate(() => { const card = document.querySelector('#season-overlay [data-season-card]').getBoundingClientRect(); return card.top >= 0 && card.bottom <= window.innerHeight; }), 'obřad se vejde');
+        await tab.waitForTimeout(1300);
+        await shot(tab, 'pomucky-sezona-360');
+        await tab.click('#season-overlay [data-season-close]:not([data-season-x])');
+        // Truhla Mudrlanta (cíle týdne splněné): navíc Půl na půl (los na serveru vyšel)
+        await tab.evaluate(() => {
+            const state = JSON.parse(localStorage.getItem('mudrlant.rewards'));
+            state.ready = ['2026-11-09'];
+            localStorage.setItem('mudrlant.rewards', JSON.stringify(state));
+        });
+        await tab.reload();
+        await tab.waitForSelector('[data-chest-ready]', { timeout: 15000 });
+        await tab.click('[data-chest-ready]');
+        await tab.waitForSelector('#chest-overlay [data-chest-go]');
+        await tab.click('#chest-overlay [data-chest-go]');
+        await tab.waitForSelector('#chest-overlay [data-chest-pomucka]', { timeout: 10000 });
+        assert.deepEqual(db.calls.filter(call => call.name === 'player_items_claim').pop().body, { source: 'chest', key: 'chest:2026-W46' });
+        assert.match(await tab.textContent('[data-chest-pomucka]'), /A navíc pomůcka do Dobývání: Půl na půl/);
+        assert.equal(db.items['u-1'].fifty, 2);
+        await tab.waitForTimeout(1300);
+        await shot(tab, 'pomucky-truhla-360');
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();

@@ -1506,6 +1506,8 @@
                 if (saved === null) return; // databáze Řetězovku nezná
                 entry.synced = true;
                 store(entry);
+                // Celý řetěz: pomůcka Půl na půl do Dobývání (blok 30, nejvýš jednou za týden; oslavu udělá app.js)
+                if (saved && saved.item && deps.itemGranted) deps.itemGranted(saved.item);
             } catch (error) { /* bez spojení: zkusí se při dalším otevření */ }
         };
 

@@ -4,7 +4,9 @@
 // kolečkem i dvojitým klepnutím), spodní list území, otázka tahu (připraví se už při otevření listu; otázka Mudrlanta s popisem,
 // fakty nebo obrázkem přes celou obrazovku hry, ostatní ve spodním listu) a animace výsledku (šipka útoku, rozlití inkoustu z místa útoku,
 // zapíchnutí vlaječky, pobourání a stavba opevnění, poklad, zlatý obrys celého regionu, zlomená šipka), kronika tažení, přehrání
-// hry a stupně vítězů s odměnou. Při omezeném pohybu (prefers-reduced-motion) jsou čekání krátká a CSS animace vypnuté.
+// hry a stupně vítězů s odměnou. Pomůcky (blok 30): zásoba v rozcestníku a v okně Pomůcky (klepnutí na počítadlo tahů), Tah navíc
+// (nabídka, když tahy dojdou, s potvrzením) a Půl na půl (tlačítko ½ u otázky, dvě klepnutí). Při omezeném pohybu (prefers-reduced-motion)
+// jsou čekání krátká a CSS animace vypnuté.
 // app.js předá pomocné funkce (createUI) a napojí obrazovku 'conquest', tlačítko Zpět, akce karty a odkaz …?dobyvani=KÓD.
 (function (root, factory) {
     const api = factory(root);
@@ -32,7 +34,7 @@
 
     // deps: Conquest (conquest.js), Social, appContent, signedUser, login, enter (obrazovka 'conquest'), isActive, renderHome, renderIcons,
     // showDialog, closeDialog, showToast, loadMap(id), loadTopics(), roundFor(požadavek otázky Mudrlanta → obsah, conquest.js prepareQuestion),
-    // award({ xp, badge, place }), share(payload), sound(name), touchTip, onCard(),
+    // award({ xp, badge, place }), itemGranted(zisk pomůcky z conquest_claim, social.js cleanItemGrant), share(payload), sound(name), touchTip, onCard(),
     // avatarHtml(hráč, třídy) a friends() (přijatí přátelé pro okno Pozvat přátele; null = nenačetli se)
     const createUI = (deps) => {
         const C = deps.Conquest;
@@ -169,7 +171,7 @@
             const now = Date.now();
             let body;
             const invites = lobby ? lobby.invites || [] : [];
-            const mine = () => C.mineHtml({ games: lobby ? lobby.mine : null, invites, maps, now, error: lobbyError, avatar: deps.avatarHtml });
+            const mine = () => C.mineHtml({ games: lobby ? lobby.mine : null, invites, maps, now, error: lobbyError, avatar: deps.avatarHtml, items: lobby ? lobby.items : null });
             if (ui.kind === 'lobby') {
                 const found = findGame(ui.gameId);
                 body = found ? C.lobbyDetailHtml({ game: found, maps, busy: ui.confirmLeave ? 'leave' : ui.busy, error: ui.error, dev: devOn(), invitable: !invitesOff, avatar: deps.avatarHtml }) : mine();
@@ -519,6 +521,8 @@
                     const reward = C.rewardFor(result);
                     rewards.set(id, reward);
                     if (reward.xp || reward.badge) deps.award({ ...reward, place: result.place });
+                    // Pomůcka Půl na půl za výhru (blok 30)
+                    if (result.item) { noteStock(result.item.kind, result.item.count); if (deps.itemGranted) deps.itemGranted(result.item); }
                     if (game && game.id === id && game.view.finished) showResult();
                 }
             } catch (error) { claiming.delete(id); }
@@ -598,6 +602,7 @@
         const setState = (state) => {
             game.state = state;
             game.view = viewFor(state, game.data);
+            if (state.items && lobby) lobby.items = { extra_move: state.items.extra_move, fifty: state.items.fifty, max: state.items.max };
             paintRound();
             const me = state.players.find(player => player.me);
             if (lobby && me) upsertMine({ ...state, budget: state.budget, owners: Object.fromEntries((state.territories || []).filter(row => row.o).map(row => [row.t, (state.players.find(p => p.id === row.o) || {}).seat])) });
@@ -956,7 +961,9 @@
             // Čekání v bitvě: krátce ve spodním listu (moje odpověď a kdo ještě odpovídá), i u otázky Mudrlanta
             const footer = move.battle && move.phase === 'waiting' && move.siege ? C.battleWaitHtml(game.view, move.siege, { ...(move.mine || {}), offset: game.offset, now: Date.now() }) : '';
             const holder = fillSheet(C.questionHtml(move.question, { title: questionTitle(move, item), item, data: game.data, answered: move.answered, kind: move.kind,
-                correctIndex: move.correctIndex ?? null, battle, view: game.view, footer, compact: Boolean(footer) }), C.isFullQuestion(move.question) && !footer);
+                correctIndex: move.correctIndex ?? null, battle, view: game.view, footer, compact: Boolean(footer),
+                fifty: { state: fiftyState(move), items: game.state.items }, removed: move.removed || null, fresh: Boolean(move.removedFresh) }), C.isFullQuestion(move.question) && !footer);
+            move.removedFresh = false;
             if (!holder) return;
             // List vyjede jen poprvé; po odpovědi (a v bitvě při čekání) se jen překreslí
             if (move.shown) { const panel = holder.firstElementChild; if (panel) panel.classList.remove('cq-sheet-in'); }
@@ -1060,10 +1067,115 @@
             setTimeout(() => { if (game && !game.move) { paintRound(); paintChips(); } }, reduced() ? 50 : 1600);
         };
 
+        // --- Pomůcky (blok 30): okno Pomůcky, Tah navíc s potvrzením, Půl na půl u otázky ---
+        // Zásoba pomůcek: ve hře z conquest_state (items: i co jde použít teď), v rozcestníku z lobby
+        const itemsNow = () => (game && ui.kind === 'game' ? game.state.items : lobby ? lobby.items : null) || null;
+        // Nová zásoba (po zisku nebo použití) v rozcestníku i ve hře
+        const noteStock = (kind, count) => {
+            if (lobby && lobby.items && kind in lobby.items) lobby.items = { ...lobby.items, [kind]: count };
+            if (game && game.state.items && kind in game.state.items) game.state = { ...game.state, items: { ...game.state.items, [kind]: count } };
+        };
+        const ITEMS_TITLE = 'Pomůcky';
+        const openItems = () => {
+            const render = () => deps.showDialog(ITEMS_TITLE, C.itemsDialogHtml(itemsNow(), { game: Boolean(game && ui.kind === 'game' && game.view.running) }), {
+                onClick: (event) => { if (event.target.closest('[data-cq="extra-use"]')) confirmExtra(); }
+            });
+            render();
+            // V rozcestníku čerstvá zásoba ze serveru (pomůcka mohla přibýt jinde, třeba za Bosse týdne)
+            if (!(game && ui.kind === 'game') && Social.playerItemsMine && !(Social.conquestItemsMissing && Social.conquestItemsMissing())) {
+                Social.playerItemsMine().then(items => {
+                    if (!items || !lobby) return;
+                    lobby.items = items;
+                    const overlay = doc.getElementById('dialog-overlay');
+                    if (overlay && overlay.dataset.title === ITEMS_TITLE) render();
+                    if (active() && ui.kind === 'hub') renderHub();
+                }).catch(() => null);
+            }
+        };
+        // Tah navíc: potvrzení v okně (vzácná pomůcka), pak server; tah navíc se ukáže v počítadle a v kronice
+        let extraBusy = false;
+        const confirmExtra = () => {
+            if (!game || game.move || !C.extraReady(game.view)) return;
+            deps.showDialog('Tah navíc', C.extraConfirmHtml(game.state.items), {
+                onClick: (event) => {
+                    if (event.target.closest('[data-cq="extra-cancel"]')) { deps.closeDialog(); return; }
+                    if (event.target.closest('[data-cq="extra-confirm"]')) { deps.closeDialog(); useExtra(); }
+                }
+            });
+        };
+        const useExtra = async () => {
+            if (!game || extraBusy || game.move) return;
+            extraBusy = true;
+            const id = game.id;
+            try {
+                const state = await Social.conquestUseExtra(id);
+                if (!game || game.id !== id || !state) return;
+                game.version = state.version || game.version;
+                game.loadedAt = Date.now();
+                setState(state);
+                repaintMap();
+                paintChips();
+                if (game.selected) showSheet(game.selected);
+                const chip = app.querySelector('[data-cq-budget]');
+                if (chip) { chip.classList.remove('cq-budget-boost'); void chip.getBoundingClientRect(); chip.classList.add('cq-budget-boost'); }
+                sound('badge');
+                banner('Tah navíc: v tomto kole máš o 1 tah víc!', C.ITEMS.extra_move.icon);
+                paintCard();
+            } catch (error) {
+                deps.showToast(errorText(error, 'Tah navíc se nepodařilo použít.'));
+                reloadGame();
+            } finally { extraBusy = false; }
+        };
+        // Půl na půl u otázky: nabídka jen před odpovědí, u otázky se 4 možnostmi, když ji hráč má a v této hře ji ještě nepoužil.
+        // V bitvě vybere server dvě nesprávné možnosti (správnou aplikace nezná); jinak je vybere aplikace a server jen zapíše použití.
+        const fiftyState = (move) => {
+            if (!move || !move.question) return null;
+            if (move.removed) return 'used';
+            const items = game && game.state.items;
+            if (!items || items.fifty < 1 || items.fifty_used || move.answered !== null || move.phase !== 'question' || !C.fiftyAllowed(move.question)) return null;
+            if (move.battle ? !move.siege : !C.fiftyPick(move.question)) return null;
+            return move.fiftyConfirm ? 'confirm' : 'offer';
+        };
+        let fiftyTimer = 0;
+        const fiftyTap = async () => {
+            const move = game && game.move;
+            const state = fiftyState(move);
+            if (!state || state === 'used' || move.fiftyBusy) return;
+            // První klepnutí: „Opravdu?“ (3,5 s), druhé použije
+            if (state === 'offer') {
+                move.fiftyConfirm = true;
+                renderQuestion();
+                clearTimeout(fiftyTimer);
+                fiftyTimer = setTimeout(() => { if (game && game.move === move && move.fiftyConfirm && !move.removed) { move.fiftyConfirm = false; renderQuestion(); } }, 3500);
+                return;
+            }
+            move.fiftyBusy = true;
+            clearTimeout(fiftyTimer);
+            const id = game.id;
+            try {
+                const picks = move.battle ? null : C.fiftyPick(move.question);
+                const res = await Social.conquestUseFifty(id, move.battle ? { siege: move.siege.id } : { target: move.target });
+                if (!game || game.id !== id || game.move !== move) return;
+                const removed = move.battle ? res.removed : picks;
+                if (!removed || move.answered !== null) return;
+                move.removed = removed;
+                move.removedFresh = true;
+                if (res.items) noteStock('fifty', res.items.fifty);
+                game.state = { ...game.state, items: { ...(game.state.items || {}), ...(res.items || {}), fifty_used: true } };
+                sound('badge');
+                renderQuestion();
+            } catch (error) {
+                move.fiftyConfirm = false;
+                if (game && game.move === move && move.phase === 'question') renderQuestion();
+                deps.showToast(errorText(error, 'Půl na půl se nepodařilo použít.'));
+            } finally { move.fiftyBusy = false; }
+        };
+
         // --- Bitvy o území (blok 25): obléhání, přidání, odpočet 60 s, čekání na ostatní a výsledek ---
         // Databáze bitvy umí (conquest_state vrací sieges) a puls nehlásí, že blok 25 chybí; jinak útok postaru (conquestMove)
         const battlesOn = () => Boolean(game && game.view.battles && Social.conquestPulse && !(Social.conquestSiegesMissing && Social.conquestSiegesMissing()));
-        const siegeKey = (sieges) => JSON.stringify((sieges || []).map(siege => [siege.id, siege.participants ? siege.participants.length : 0, Boolean(siege.can_join), Boolean(siege.answered)]));
+        const siegeKey = (sieges) => JSON.stringify((sieges || []).map(siege => [siege.id, siege.participants ? siege.participants.length : 0, Boolean(siege.can_join), Boolean(siege.answered),
+            (siege.participants || []).filter(player => player.fifty).map(player => player.id)]));
         // Posun hodin serveru proti zařízení (odhad ze středu dotazu); všechny termíny bitev jsou serverové
         const serverCall = async (work) => {
             const sentAt = Date.now();
@@ -1128,6 +1240,7 @@
             if (!game || game.move !== move) return;
             if (!res || !res.question) { failBattle(move, null, 'Bitva už skončila.'); return; }
             move.question = res.question;
+            if (Array.isArray(res.removed) && res.removed.length === 2) move.removed = res.removed;
             if (res.status === 'resolved' || res.answer) {
                 move.correctIndex = Number.isInteger(res.correct_choice) ? res.correct_choice : null;
                 move.answered = res.answer && Number.isInteger(res.answer.choice) ? res.answer.choice : -1;
@@ -1158,10 +1271,14 @@
             if (!move || !Array.isArray(participants)) return;
             const known = new Set((move.fighters || []).map(player => player.id));
             const fresh = participants.filter(player => !known.has(player.id) && !player.me);
+            // Půl na půl (blok 30): u toho, kdo ji použil, přibude „½“
+            const halves = (list) => (list || []).filter(player => player.fifty).map(player => player.id).join();
+            const halvesChanged = halves(move.fighters) !== halves(participants);
             move.fighters = participants;
-            if (!fresh.length || !game || game.move !== move) return;
+            if ((!fresh.length && !halvesChanged) || !game || game.move !== move) return;
             const row = app.querySelector('[data-cq-fighters]');
             if (row) { row.innerHTML = C.fightersHtml(game.view, participants); deps.renderIcons(row); }
+            if (!fresh.length) return;
             const holder = app.querySelector('[data-cq-joined]');
             if (holder) {
                 holder.innerHTML = C.joinedHtml(game.view, fresh[fresh.length - 1]);
@@ -1266,7 +1383,7 @@
             if (!holder || !game) return;
             const round = game.state.round;
             const html = game.move ? '' : C.siegeChipsHtml(game.view, { offset: game.offset, now: Date.now() })
-                + (round && game.roundHidden.has(round.period) ? C.roundChipHtml(game.view, round) : '');
+                + (round && game.roundHidden.has(round.period) ? C.roundChipHtml(game.view, round) : '') + C.extraChipHtml(game.view);
             if (holder.dataset.html === html) return;
             holder.dataset.html = html;
             holder.innerHTML = html;
@@ -1637,6 +1754,9 @@
             else if (name === 'share') shareGame(findGame(ui.gameId));
             else if (name === 'hub') openHub('mine');
             else if (name === 'feed' && game) deps.showDialog('Kronika tažení', C.feedHtml(C.feedItems(game.state.moves || [], game.view)));
+            else if (name === 'items') openItems();
+            else if (name === 'extra-use') confirmExtra();
+            else if (name === 'fifty') fiftyTap();
             else if (name === 'zoom-reset' && game) { game.vb = { x: 0, y: 0, w: game.data.w, h: game.data.h }; applyView(); }
             else if (name === 'sheet-close') closeSheet();
             else if (name === 'attack') startMove('attack', action.dataset.source || game.source);

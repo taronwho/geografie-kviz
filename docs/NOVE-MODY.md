@@ -233,6 +233,14 @@ Hra více hráčů o území na mapě. Hráči si hry sami zakládají a přidá
     konec kola je v `budget.period_ends_at` i `round.ends_at` (po předčasném kole už neplatí začátek hry + N × délka období).
 - **Pevnost na domovském hradu**: +1 tah za období (`conquest_budget`: fortress). Domovský hrad se s opevněním mění (č. 275–277)
   a střechy a praporky všech staveb mají barvu majitele (`scripts/building-art.py`).
+- **Pomůcky** (schéma 30, blok 30; podrobně docs/ODMENY-DOBYVANI.md, oddíl 9): vzácné, do zásoby na serveru, každá jednou za hru.
+  - **Tah navíc** (nejvýš 1): +1 tah v tomto kole, ne v posledním kole hry; nabídne se, když tahy dojdou (štítek na mapě, list území,
+    okno Kolo dohráno), s potvrzením; všichni ho vidí v kronice („Tah navíc · +1 tah v 2. kole“) a jako „+1“ u tahů hráče. Získá se za
+    první poraženého Bosse týdne v týdnu a za 15. stupeň Sezóny Mudrlanta.
+  - **Půl na půl** (nejvýš 2): tlačítko ½ u otázky se 4 možnostmi odebere dvě špatné (dvě klepnutí); v bitvě je vybere server a ostatní
+    vidí „½“ u hráče. Získá se za Kvíz dne bez chyby a celou Řetězovku (obojí nejvýš jednou za týden), výhru ve hře Dobývání, 5. stupeň
+    Sezóny a vzácně z Truhly Mudrlanta.
+  - Zásoba je v rozcestníku (pruh Pomůcky) a ve hře v okně Pomůcky (klepnutí na počítadlo tahů); zisk oslaví karta „Nová pomůcka do Dobývání“.
 - **Otázky o území**: záhlaví („Útok na Francii“, „Opevnění Francie“, hvězdy podle opevnění) území prozradí, samotná otázka ho nejmenuje.
   - skupina **Mudrlant** (asi 70 %): otázky jako v hlavní hře o věcech, které k území patří (stavby, osobnosti, díla, místa, události, kluby,
     plemena…): popis z Wikipedie se zakrytým názvem, fakta („1802–1885 · spisovatel · Bídníci“), letopočet („V jakém roce se narodil…?“)
@@ -310,6 +318,9 @@ Hra více hráčů o území na mapě. Hráči si hry sami zakládají a přidá
 - funkce pro založení, lobby (s doplněním rychlých her), přidání (i kódem), barvu a znak, připravenost a start, odchod, stav, tah a konec hry;
 - pozvánky (`-- 24: Dobývání – pozvánky pro přátele`): tabulka `conquest_invites` (jen přes funkce), `conquest_invite`, `conquest_invites_mine`,
   `conquest_decline_invite`, pozvaní v souhrnu hry (`invited`, jen hráčům) a upozornění druhu `conquest_invite`;
+- pomůcky (`-- 30: Dobývání – pomůcky Tah navíc a Půl na půl`): tabulky `player_items` a `player_item_grants` (jen přes funkce),
+  `player_items_mine`, `player_items_claim`, `conquest_use_extra`, `conquest_use_fifty`, tah druhu `extra` a zisk v `boss_submit`,
+  `daily_quiz_answer`, `chain_submit` a `conquest_finish`;
 - správnost odpovědi posílá klient.
 
 **Data map**

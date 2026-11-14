@@ -170,7 +170,7 @@ test('schema.sql: blok 25 před verzí schématu, verze aspoň 25 a shodná s ap
     assert.equal(Number(/const REQUIRED_SCHEMA = (\d+);/.exec(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8'))[1]), version);
     assert.match(schema, /^-- 25: Dobývání – bitvy o území/m, 'řádek v seznamu verzí');
     assert.match(schema, /revoke all on public\.conquest_sieges, public\.conquest_siege_players from public, anon, authenticated;/);
-    assert.match(schema, /result in \('home', 'respawn', 'capture', 'breach', 'fortify', 'fail', 'outrun'\)/);
+    assert.match(schema, /result in \('home', 'respawn', 'capture', 'breach', 'fortify', 'fail', 'outrun', 'extra'\)/);
     assert.match(schema, /grant execute on function public\.conquest_siege_begin\(uuid, text, jsonb, smallint, text\), public\.conquest_siege_join\(uuid, text\), public\.conquest_siege_answer\(uuid, smallint\),\s+public\.conquest_siege_status\(uuid\), public\.conquest_pulse\(uuid\) to authenticated;/);
     for (const name of ['conquest_siege_resolve', 'conquest_sieges_due', 'conquest_siege_question', 'conquest_siege_json', 'conquest_siege_view', 'conquest_attack_apply', 'conquest_besieged']) {
         assert.doesNotMatch(schema, new RegExp(`grant [^;]*${name}`), `${name} jen interně`);

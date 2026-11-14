@@ -38,6 +38,17 @@
     const isDay = (day) => DAY.test(String(day || '')) && Number.isFinite(Date.parse(`${day}T00:00:00Z`));
     const addDays = (day, count) => new Date(Date.parse(`${day}T00:00:00Z`) + count * 86400000).toISOString().slice(0, 10);
     const formatDay = (day) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(day || '')); return m ? `${Number(m[3])}. ${Number(m[2])}. ${m[1]}` : ''; };
+    // ISO týden dne jako „2026-W46“ (stejně jako player_items_week ve schema.sql; klíč pomůcky z truhly chest:<týden>)
+    const isoWeek = (day) => {
+        if (!isDay(day)) return '';
+        const date = new Date(`${day}T00:00:00Z`);
+        const weekday = (date.getUTCDay() + 6) % 7;
+        date.setUTCDate(date.getUTCDate() - weekday + 3);
+        const year = date.getUTCFullYear();
+        const first = new Date(Date.UTC(year, 0, 4));
+        const week = 1 + Math.round(((date - first) / 86400000 - 3 + ((first.getUTCDay() + 6) % 7)) / 7);
+        return `${year}-W${String(week).padStart(2, '0')}`;
+    };
 
     // --- Stav ---
     const ID = /^[a-z0-9-]{1,30}$/;
@@ -55,7 +66,8 @@
     // --- Sezóna (season.js): { id: 'RRRR-MM', startXp, claimed: { stupeň: odměna } }, minulá sezóna navíc endXp ---
     // Odměna stupně: části spojené „+“: 'kategorie:id' (věc), 'freeze' (ochrana série), 'xp:N'
     const SEASON_ID = /^\d{4}-(?:0[1-9]|1[0-2])$/;
-    const SEASON_PART = '(?:freeze|xp:\\d{1,4}|(?:accessories|colors|frames|robes|themes|avatars|titles):[a-z0-9-]{1,30})';
+    // pomucka:<druh> = pomůcka do Dobývání místo věci (season.js POMUCKA_TIERS, blok 30 ve schema.sql)
+    const SEASON_PART = '(?:freeze|xp:\\d{1,4}|pomucka:(?:fifty|extra_move)|(?:accessories|colors|frames|robes|themes|avatars|titles):[a-z0-9-]{1,30})';
     const SEASON_REWARD = new RegExp(`^${SEASON_PART}(?:\\+${SEASON_PART}){0,5}$`);
     const SEASON_TIERS = 20;
     const cleanSeason = (raw, past = false) => {
@@ -360,6 +372,8 @@
                 <p class="text-xs font-semibold leading-snug text-white/80">${esc(note || 'Všechny věci pro Mudrlanta už máš, tak aspoň body zkušeností.')}</p>
             </div>`) : '';
         const freeze = opened && opened.freeze ? `<p data-chest-freeze class="chest-show-2 relative z-10 flex items-center gap-1.5 rounded-xl bg-sky-500/20 px-3 py-1.5 text-xs font-black text-sky-100 ring-1 ring-sky-300/40">${freezeArt('h-6 w-6 -my-1')} A navíc ochrana série</p>` : '';
+        // Vzácně (los na serveru, blok 30) i pomůcka do Dobývání: opened.pomucka = { kind, name }; h.itemArt = pečeť pomůcky z app.js
+        const pomucka = opened && opened.pomucka ? `<p data-chest-pomucka class="chest-show-2 relative z-10 flex items-center gap-1.5 rounded-xl bg-violet-500/25 px-3 py-1.5 text-xs font-black text-violet-50 ring-1 ring-violet-300/50">${h.itemArt ? h.itemArt(opened.pomucka.kind, 'h-6 w-6 -my-1') : ''} A navíc pomůcka do Dobývání: ${esc(opened.pomucka.name)}</p>` : '';
         const actions = opened
             ? `<div class="chest-show-3 relative z-10 flex w-full gap-2">${opened.gift && opened.gift.category !== 'colors' ? `<button type="button" data-chest-wear class="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl btn-3d bg-gold-500 px-3 py-3 text-base font-black text-brand-950"><i data-lucide="sparkles" class="h-5 w-5"></i> ${opened.gift.category === 'themes' ? 'Použít' : 'Nasadit'}</button>` : ''}<button type="button" data-chest-close class="flex min-w-0 flex-1 items-center justify-center rounded-2xl bg-white/15 px-3 py-3 text-base font-bold text-white">${opened.gift && opened.gift.category !== 'colors' ? 'Později' : 'Super!'}</button></div>`
             : `<p class="chest-hint relative z-10 flex items-center gap-1.5 rounded-full bg-gold-400/15 px-3.5 py-1.5 text-sm font-black text-gold-200 ring-1 ring-gold-300/40"><i data-lucide="sparkles" class="h-4 w-4"></i> Klepni na truhlu</p>
@@ -371,7 +385,7 @@
                     <h2 class="text-xl font-black leading-tight">${esc(look.title || 'Truhla Mudrlanta')}</h2>
                 </div>
                 ${chestStageHtml(opened, h, look)}
-                ${result}${freeze}${actions}
+                ${result}${freeze}${pomucka}${actions}
             </div>`;
     };
     // Řádek v Mém postupu: ochrana série, truhla týdne a diplomy (každé otevře vlastní okno)
@@ -471,7 +485,7 @@
 
     return {
         KEY, MAX_FREEZES, MIN_PROTECTED, FREEZE_EVERY, CHEST_XP, NEAREST, GIFT_CATEGORIES, OWN_CATEGORIES, KIND_NAMES, DIPLOMA_NAMES, SEASON_TIERS, SEASON_REWARD, cleanSeason, mergeSeasons,
-        isDay, addDays, formatDay, empty, parse, gifts, owns, pendingChest, addChest, candidates, RARE_CHANCE, rareCandidates, pickGift, openChest, chestReward,
+        isDay, addDays, formatDay, isoWeek, empty, parse, gifts, owns, pendingChest, addChest, candidates, RARE_CHANCE, rareCandidates, pickGift, openChest, chestReward,
         earnFreeze, streakEndingAt, bridgedStreak, checkFreeze, streakFreeze, diplomaTitle, noteDiplomas, setName, payload, merge, samePayload, isEmpty,
         nextStreakReward, streakRewardText, streakRewardHtml,
         freezeWord, freezeChip, freezeArt, chestSvg, chestStripHtml, previewHtml, chestHtml, progressHtml, freezeHelpHtml, chestHelpHtml, diplomasHtml, diplomaDialogHtml
