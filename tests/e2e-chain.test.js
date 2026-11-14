@@ -2,7 +2,9 @@
 // body a místo), úvod poprvé, otázky článek po článku (zacvaknutí článku, cesta nad otázkou), špatná odpověď (rozhodnutí o Záchraně),
 // Záchrana jiné otázky na stejný článek za 0 bodů, přetržení řetězu, výsledek s celým řetězem, okno článku, sdílení textem, XP jednou za den,
 // pokračování po zavření, cvičná řetězovka; přihlášený: odeslání výsledku, pořadí dne a okno pořadí, výsledek dohraný na jiném zařízení,
-// starší databáze bez funkcí. Obrazovky i okna se vejdou bez posouvání na 360×640 i 390×780, kontroly rozhraní jako tests/e2e-ui-audit.test.js
+// starší databáze bez funkcí. Na kartě otázky fotka a zakrytý úvod z Wikipedie o předchozí odpovědi (Wikipedie a Commons jsou falešné),
+// po odpovědi vysvětlení vazby; bez Wikipedie se hraje bez úvodu. Den před chain.js NEW_FROM postaví původní generátor (chain-legacy.js
+// se načte až podle potřeby). Obrazovky i okna se vejdou bez posouvání na 360×640 i 390×780, kontroly rozhraní jako tests/e2e-ui-audit.test.js
 // (světlý i tmavý režim), CSP bez chyb. Potřebuje Playwright (viz tests/e2e.test.js), jinak se přeskočí. CHAIN_SHOTS=<složka> uloží snímky.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -20,9 +22,10 @@ const CSP = fs.readFileSync(path.join(ROOT, '_headers'), 'utf8').match(/Content-
 const PHOTO = fs.readFileSync(path.join(ROOT, 'icons', 'topics', 'sova-vitej.webp'));
 const CONFIG = 'window.MUDRLANT_CONFIG = { supabaseUrl: "https://proj.supabase.co", supabaseAnonKey: "anon-key" };';
 const REQUIRED_SCHEMA = Number(/const REQUIRED_SCHEMA = (\d+);/.exec(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8'))[1]);
-const TODAY = '2026-11-13';
-const NOON = new Date('2026-11-13T12:00:00+01:00');
-const SHOTS = process.env.CHAIN_SHOTS || '';
+const TODAY = '2026-11-16';
+const NOON = new Date('2026-11-16T12:00:00+01:00');
+const LEGACY_DAY = '2026-11-14';
+const SHOTS = process.env.CHAIN_SHOTS || process.env.SCREENSHOT_DIR || '';
 
 // Skutečné soubory aplikace a dat (řetěz se staví ze všech témat)
 const serveFile = (pathname) => {
@@ -77,7 +80,13 @@ const backend = async (context, db) => {
     });
 };
 
-const open = async (browser, storage, { viewport = { width: 360, height: 640 }, colorScheme = 'light', db = null } = {}) => {
+// Falešná Wikipedie: úvod článku zmiňuje název a obecné věty (Řetězovka ho zakryje podle odpovědi); wiki = false → Wikipedie nedostupná
+const wikiReply = (url) => {
+    const title = new URL(url).searchParams.get('titles') || 'Článek';
+    const extract = `${title} je známý pojem, o kterém se často píše v knihách i v novinách. Patří k tomu nejzajímavějšímu ve svém oboru a lidé o něm rádi vyprávějí. Další věta úvodu.`;
+    return { query: { pages: { 1: { title, extract } } } };
+};
+const open = async (browser, storage, { viewport = { width: 360, height: 640 }, colorScheme = 'light', db = null, now = NOON, wiki = true } = {}) => {
     const context = await browser.newContext({ serviceWorkers: 'block', colorScheme, viewport, deviceScaleFactor: 1, reducedMotion: 'reduce' });
     await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: ORIGIN });
     await context.addInitScript(entries => {
@@ -94,11 +103,12 @@ const open = async (browser, storage, { viewport = { width: 360, height: 640 }, 
         if (url.origin === ORIGIN) return route.fulfill(serveFile(url.pathname));
         if (url.hostname === 'proj.supabase.co') return db ? route.fallback() : route.fulfill({ json: url.pathname.startsWith('/auth/') ? {} : [] });
         if (/\.(png|jpe?g|webp)$/.test(url.pathname) || url.hostname === 'upload.wikimedia.org') return route.fulfill({ contentType: 'image/webp', body: PHOTO });
+        if (url.hostname === 'cs.wikipedia.org' && wiki) return route.fulfill({ json: wikiReply(route.request().url()) });
         return route.abort();
     });
     if (db) await backend(context, db);
     await context.route('**/config.js', route => route.fulfill({ contentType: 'text/javascript', body: CONFIG }));
-    await tab.clock.setFixedTime(NOON);
+    await tab.clock.setFixedTime(now);
     await tab.goto(`${ORIGIN}/`);
     await tab.waitForSelector('#chain-card', { timeout: 30000 });
     return { context, tab, log };
@@ -171,7 +181,7 @@ test('Řetězovka dne v prohlížeči', { skip: !chromium && 'Playwright není n
         assert.ok(await tab.$('#chain-intro'), 'úvod s pravidly');
         assert.match(await compact(tab, '#chain-intro'), /Řetěz má 7 článků.*Celý řetěz má 28 bodů.*Záchranu/);
         assert.match(await compact(tab, '#app-header'), /Řetězovka/i);
-        assert.match(await compact(tab, '#app-content'), /Řetězovka dne · 13\. 11\./i, 'datum dne pod hlavičkou');
+        assert.match(await compact(tab, '#app-content'), /Řetězovka dne · 16\. 11\./i, 'datum dne pod hlavičkou');
         assert.equal(await store(tab).then(state => state.attempt), null, 'pokus začne až klepnutím na Začít řetěz');
         await fitsScreen(tab, 'úvod Řetězovky');
         await audit(tab, 'úvod Řetězovky');
@@ -182,19 +192,27 @@ test('Řetězovka dne v prohlížeči', { skip: !chromium && 'Playwright není n
         assert.equal(chain.questions.length, 7);
         // Stejný řetěz jako v Node (stejná data, stejné semínko dne)
         const sources = Object.fromEntries(Chain.SOURCES.map(topic => [topic, JSON.parse(fs.readFileSync(path.join(ROOT, 'data', `${topic}.json`), 'utf8')).items]));
-        const expected = Chain.dailyChain(Chain.buildGraph(sources, JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'countries.json'), 'utf8')).countries), TODAY);
+        const extra = JSON.parse(fs.readFileSync(path.join(ROOT, Chain.EXTRA_FILE), 'utf8'));
+        const expected = Chain.dailyChain(Chain.buildGraph(sources, JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'countries.json'), 'utf8')).countries, extra), TODAY);
         assert.deepEqual(chain.questions.map(question => question.to.id), expected.questions.map(question => question.to.id));
         assert.equal(await compact(tab, '[data-chain-path]'), chain.start.name);
-        assert.match(await compact(tab, '#chain-question'), new RegExp(`Článek 1 · za 1 bod Záchrana ${chain.questions[0].text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i'));
+        assert.match(await compact(tab, '#chain-question'), new RegExp(`Článek 1 · za 1 bod Záchrana .*${chain.questions[0].text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i'));
+        // Karta: fotka a zakrytý úvod předchozí odpovědi (začátku řetězu), který neprozradí odpověď
+        await tab.waitForSelector('#chain-question [data-chain-subject]', { timeout: 15000 });
+        assert.match(await compact(tab, '[data-chain-subject]'), new RegExp(chain.start.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+        const intro = await tab.$('[data-chain-intro]') ? await compact(tab, '[data-chain-intro]') : '';
+        assert.ok(!intro.includes(chain.questions[0].to.name), `úvod neprozradí odpověď: ${intro}`);
+        await tab.waitForTimeout(300);
         assert.equal(await tab.$$eval('[data-action="chain-choice"]', buttons => buttons.length), 4);
         await fitsScreen(tab, 'otázka Řetězovky (360×640)');
         await audit(tab, 'otázka Řetězovky');
         await shot(tab, 'retezovka-otazka-360x640-light');
 
-        // Dva správné články: 1 + 2 body, článek zacvakne, uzel přibude do cesty
+        // Dva správné články: 1 + 2 body, článek zacvakne, uzel přibude do cesty; po odpovědi vysvětlení vazby na kartě
         let ask = await answers(tab);
         await choose(tab, ask.right);
         await tab.waitForSelector('#chain-screen[data-chain-phase="right"] .chain-right');
+        assert.equal(await compact(tab, '[data-chain-explain]'), chain.questions[0].explain);
         assert.ok(await tab.$('[data-chain-strip] .chain-click[data-link="1"]'), 'článek zacvakne');
         await nextQuestion(tab, 2);
         assert.equal(await compact(tab, '[data-chain-path]'), `${chain.start.name} → ${chain.questions[0].to.name}`);
@@ -252,7 +270,7 @@ test('Řetězovka dne v prohlížeči', { skip: !chromium && 'Playwright není n
         await tab.click('[data-action="chain-result"]');
         await tab.waitForSelector('#chain-result');
         await tab.waitForTimeout(300);
-        assert.match(await compact(tab, '#chain-result'), /Řetězovka dne · 13\. 11\. 3 body 3\/7 článků · se Záchranou \+6 XP/i);
+        assert.match(await compact(tab, '#chain-result'), /Řetězovka dne · 16\. 11\. 3 body 3\/7 článků · se Záchranou \+6 XP/i);
         assert.equal(await tab.$$eval('[data-action="chain-step"]', rows => rows.length), 7, 'celý řetěz včetně nedohraných článků');
         assert.match(await compact(tab, '[data-chain-rows]'), new RegExp(`${chain.questions[0].to.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\+1`));
         assert.match(await compact(tab, '[data-action="chain-step"][data-k="3"]'), /Záchrana/);
@@ -276,7 +294,7 @@ test('Řetězovka dne v prohlížeči', { skip: !chromium && 'Playwright není n
         await tab.click('[data-action="chain-share"]');
         await tab.waitForFunction(() => navigator.clipboard.readText().then(text => /Řetězovka/.test(text)));
         const shared = await tab.evaluate(() => navigator.clipboard.readText());
-        assert.equal(shared.split('\n')[0], 'Mudrlant · Řetězovka 13. 11. 🔗🔗🛟💥 · 3 body · https://geo.test/');
+        assert.equal(shared.split('\n')[0], 'Mudrlant · Řetězovka 16. 11. 🔗🔗🛟💥 · 3 body · https://geo.test/');
         assert.ok(!chain.questions.some(question => shared.includes(question.to.name)), 'sdílení nic neprozradí');
 
         // Na úvodu výsledek; znovu otevřít = výsledek, XP podruhé ne
@@ -323,12 +341,37 @@ test('Řetězovka dne v prohlížeči', { skip: !chromium && 'Playwright není n
             await shot(tab, `retezovka-uvod-${tag}`);
             await openChain(tab);
             await nextQuestion(tab, 1);
+            // Úvod předchozí odpovědi (začátek řetězu má jen kresbu, ne fotku: karta bez fotky) se vejde do karty bez posouvání
+            const fitsCard = async (what) => {
+                const card = await tab.evaluate(() => {
+                    const box = document.getElementById('chain-question').getBoundingClientRect();
+                    const text = document.querySelector('[data-chain-text]').getBoundingClientRect();
+                    const column = document.querySelector('[data-chain-column]');
+                    return { inside: text.bottom <= box.bottom + 1, column: column ? column.scrollHeight - column.clientHeight : 0 };
+                });
+                assert.ok(card.inside && card.column <= 1, `karta ${what}: obsah se nevejde (${JSON.stringify(card)})`);
+            };
+            await tab.waitForSelector('#chain-question [data-chain-subject]', { timeout: 15000 });
+            await tab.waitForTimeout(300);
             await fitsScreen(tab, `otázka ${tag}`);
             await audit(tab, `otázka ${tag}`);
+            await fitsCard(`otázka ${tag}`);
             await shot(tab, `retezovka-otazka-${tag}`);
             let ask = await answers(tab);
             await choose(tab, ask.right);
+            // Po odpovědi vysvětlení vazby na kartě (s omezeným pohybem jen krátce)
+            await tab.waitForSelector('#chain-screen[data-chain-phase="right"] [data-chain-explain]');
+            await fitsScreen(tab, `vysvětlení ${tag}`);
+            await fitsCard(`vysvětlení ${tag}`);
+            await shot(tab, `retezovka-vysvetleni-${tag}`);
             await nextQuestion(tab, 2);
+            // Druhá otázka: předchozí odpověď má skutečnou fotku z Commons – fotka i zakrytý úvod se vejdou
+            await tab.waitForSelector('#chain-question [data-chain-subject] [data-chain-photo]', { timeout: 15000 });
+            await tab.waitForTimeout(300);
+            await fitsScreen(tab, `otázka s fotkou ${tag}`);
+            await audit(tab, `otázka s fotkou ${tag}`);
+            await fitsCard(`otázka s fotkou ${tag}`);
+            await shot(tab, `retezovka-otazka-foto-${tag}`);
             ask = await answers(tab);
             await choose(tab, ask.wrong);
             await tab.waitForSelector('[data-chain-decide]');
@@ -349,6 +392,44 @@ test('Řetězovka dne v prohlížeči', { skip: !chromium && 'Playwright není n
             await context.close();
         });
     }
+
+    await t.test('bez Wikipedie a Commons: řetěz je stejný a hraje se, karta bez fotky (nanejvýš zakrytý popis z dat)', async () => {
+        const { context, tab, log } = await open(browser, { 'mudrlant.chain': JSON.stringify({ intro: true }) }, { wiki: false });
+        await context.route('https://upload.wikimedia.org/**', route => route.abort());
+        await openChain(tab);
+        await nextQuestion(tab, 1);
+        await tab.waitForTimeout(1500);
+        assert.equal(await tab.$('[data-chain-photo]'), null, 'bez fotky');
+        assert.equal(await tab.$$eval('[data-action="chain-choice"]', buttons => buttons.length), 4);
+        const chain = (await store(tab)).attempt.chain;
+        const intro = await tab.$('[data-chain-intro]') ? await compact(tab, '[data-chain-intro]') : '';
+        assert.ok(!intro.includes(chain.questions[0].to.name), intro);
+        const ask = await answers(tab);
+        await choose(tab, ask.right);
+        await nextQuestion(tab, 2);
+        await fitsScreen(tab, 'otázka bez Wikipedie');
+        await shot(tab, 'retezovka-otazka-bez-wikipedie-360x640-light');
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    await t.test(`den před NEW_FROM (${LEGACY_DAY}): původní generátor, chain-legacy.js se načte až teď, stejný řetěz jako v Node (snímek)`, async () => {
+        const snapshot = JSON.parse(fs.readFileSync(path.join(__dirname, 'chain-legacy-snapshot.json'), 'utf8'));
+        const { context, tab, log } = await open(browser, { 'mudrlant.chain': JSON.stringify({ intro: true }) }, { now: new Date(`${LEGACY_DAY}T12:00:00+01:00`) });
+        assert.equal(await tab.evaluate(() => Boolean(window.MudrlantChainLegacy)), false, 'původní generátor se nenačítá předem');
+        await openChain(tab);
+        await nextQuestion(tab, 1);
+        const chain = (await store(tab)).attempt.chain;
+        assert.deepEqual(chain.questions.map(question => question.to.id), snapshot.full[LEGACY_DAY].questions.map(question => question.to.id));
+        assert.equal(await tab.evaluate(() => Boolean(window.MudrlantChainLegacy)), true);
+        const ask = await answers(tab);
+        await choose(tab, ask.right);
+        await nextQuestion(tab, 2);
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
 
     await t.test('přihlášený: výsledek na server, pořadí dne a okno pořadí, dlaždice s místem; jiné zařízení a starší databáze', async () => {
         const db = newDb();

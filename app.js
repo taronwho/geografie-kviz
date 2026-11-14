@@ -11113,8 +11113,34 @@
     // Graf vazeb, řetěz, body, obrazovky i klepnutí má chain.js; sem patří jen napojení na zbytek aplikace (data témat, server, XP).
     // Přihlášenému se výsledek dne zapíše na server (social.js chainSubmit, blok „21: Řetězovka“ ve schema.sql) a ukáže se pořadí dne.
     const Chain = window.MudrlantChain || null;
+    // Vazby z Wikidat, které data témat nemají (rodiště, manželé, učitelé, nástupci…; scripts/build-retezovka.mjs)
+    const loadChainExtra = memoizeBy(() => fetchJson(Chain ? Chain.EXTRA_FILE : 'data/retezovka.json'));
+    // Skript, který se načte až podle potřeby (chain-legacy.js: původní generátor pro řetězy dnů před chain.js NEW_FROM)
+    const loadScript = memoizeBy((src) => new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = src;
+        script.addEventListener('load', () => resolve());
+        script.addEventListener('error', () => reject(new Error(`Skript ${src} se nenačetl`)));
+        document.head.appendChild(script);
+    }));
+    // Fotka a krátký úvod článku o předchozí odpovědi (podmět otázky Řetězovky): stejné cesty jako hlavní hra (fetchItemText s časovým
+    // limitem a pauzou po výpadku Wikipedie, ověřená fotka z Commons, bez fotek s napsaným nápisem), zakryté chain.js subjectText tak,
+    // aby neprozradily odpověď ani pozdější články. Bez Wikipedie zakrytý krátký popis z dat; nikdy nezdrží otázku (chain.js má limit).
+    const chainSubject = async ({ source, later = [], photo = true }) => {
+        const from = source && source.from;
+        if (!Chain || !from || !from.q || !TOPIC_BY_ID[from.topic]) return null;
+        const ctx = await loadTopic(from.topic);
+        const item = ctx.byId.get(from.q);
+        if (!item) return null;
+        const blocked = (file) => !file || (ctx.textPhotos || new Set()).has(file) || Boolean(photoMasks[file]);
+        const url = photo && !blocked(item.im) ? photoOf(item, 640) : null;
+        const [fetched, image] = await Promise.all([fetchItemText(item).catch(() => null), url ? probePhoto(url) : null]);
+        const raw = fetched && fetched.description ? fetched.description : item.d ? `${item.d.charAt(0).toUpperCase()}${item.d.slice(1)}.` : '';
+        return { text: Chain.subjectText(raw, source, later), image: image || null };
+    };
     if (Chain) {
         chainCtl = Chain.createController({
+            loadExtra: () => loadChainExtra(), loadScript: (src) => loadScript(src), chainSubject,
             appContent, setScreen: (name) => { screen = name; }, getScreen: () => screen, renderHome, renderIcons, updateControlsUI, closePlaceInfo, showToast, showDialog, closeDialog,
             uiArt, specialTile, avatarHtml, xpLine, meRow: () => quizHelpers().meRow, loadTopic, loadCountries, readJson, writeJson, signedUser, social: Social, auth: Auth, startLogin,
             shareCard: ShareCard, shareImageCounted, robeNow, appUrl, appName: APP_NAME, sound: Sound, isLoading: () => isLoading,

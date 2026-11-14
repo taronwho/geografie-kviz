@@ -1,140 +1,290 @@
-// Řetězovka (chain.js): graf vazeb ze skutečných dat témat, řetězy na 60 dní po sobě (stejné pro všechny, správné vazby, nesprávné
-// možnosti stejného druhu, které vazbu nesplňují, záchrana na každý článek, dny po sobě se neopakují), hra (body, Záchrana, přetržení),
-// uložený stav, sdílení, dlaždice a vykreslení bez inline stylů. Česká slova států (z Francie, ve Francii) a soubory aplikace.
+// Řetězovka (chain.js): graf vazeb ze skutečných dat 14 témat a vazeb z Wikidat, řetězy dne na 60 dní (stejné pro všechny, správné vazby,
+// nesprávné možnosti stejného druhu, které vazbu nesplňují a nejsou si podobné jménem, záchrana na každý článek), žádné odpovědi zadarmo
+// (co plyne z dřívějších článků, návrat k uzlu, odpověď mezi možnostmi nebo v textu dřívější otázky), nejvýš dva zeměpisné skoky a nikdy
+// dva po sobě, střídání oborů, rozcestníky se do týdne neopakují, původní generátor pro dny před NEW_FROM beze změny (snímek
+// tests/chain-legacy-snapshot.json), zakrytí úvodu z Wikipedie, hra (body, Záchrana, přetržení), uložený stav, sdílení, dlaždice
+// a vykreslení bez inline stylů. Česká slova států (z Francie, ve Francii) a soubory aplikace.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const Chain = require('../chain.js');
+const core = require('../quiz-core.js');
 
 const ROOT = path.join(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(ROOT, file), 'utf8');
 const sources = Object.fromEntries(Chain.SOURCES.map(topic => [topic, JSON.parse(read(`data/${topic}.json`)).items]));
 const countries = JSON.parse(read('data/countries.json')).countries;
+const extra = JSON.parse(read(Chain.EXTRA_FILE));
 const started = Date.now();
-const graph = Chain.buildGraph(sources, countries);
+const graph = Chain.buildGraph(sources, countries, extra);
 const graphMs = Date.now() - started;
-const DAYS = Array.from({ length: 60 }, (_, i) => Chain.addDays('2026-11-12', i));
+const DAYS = Array.from({ length: 60 }, (_, i) => Chain.addDays(Chain.NEW_FROM, i));
 const chains = new Map();
 const chainFor = (day) => {
     if (!chains.has(day)) chains.set(day, Chain.dailyChain(graph, day));
     return chains.get(day);
 };
+const PRACTICE = Array.from({ length: 40 }, (_, i) => Chain.practiceChain(graph, `test-${i}`));
 const node = (id) => graph.nodes.get(id);
 const linked = (rel, a, x) => (graph.edges.get(rel).get(a) || []).includes(x);
 const fits = (relId, a, x) => Chain.RELATION_BY_ID.get(relId).fits(node(a), node(x), graph);
 const nodesOf = (chain) => [chain.start.id, ...chain.questions.map(question => question.to.id)];
+const plain = (text) => ` ${core.normalizeAnswer(text)} `;
+const PERSON_KINDS = new Set(['composer', 'musician', 'writer', 'artist', 'architect', 'director', 'actor', 'athlete', 'ruler', 'statesman', 'figure', 'physicist', 'astronomer', 'chemist']);
 
-test('graf: všechny druhy uzlů a vazeb ze skutečných dat, rychle', () => {
-    assert.ok(graphMs < 8000, `graf za ${graphMs} ms`);
-    for (const kind of ['country', 'city', 'landmark', 'peak', 'river', 'composer', 'writer', 'artist', 'architect', 'band', 'music', 'book', 'artwork', 'film', 'club', 'games']) {
-        assert.ok((graph.byKind.get(kind) || []).length > 10, `druh ${kind}`);
+test('graf: všechny druhy uzlů a vazeb ze skutečných dat i z Wikidat, rychle', () => {
+    assert.ok(graphMs < 12000, `graf za ${graphMs} ms`);
+    for (const kind of ['country', 'city', 'landmark', 'peak', 'river', 'composer', 'writer', 'artist', 'architect', 'band', 'music', 'book', 'artwork', 'film', 'club', 'games',
+        'actor', 'ruler', 'statesman', 'physicist', 'chemist', 'realm', 'element', 'moon', 'myth', 'gem', 'breed', 'style', 'movement', 'stadium', 'region']) {
+        assert.ok((graph.byKind.get(kind) || []).length >= 10, `druh ${kind}`);
     }
     for (const rel of Chain.RELATIONS) assert.ok(graph.edges.get(rel.id).size > 0, `vazba ${rel.id}`);
+    assert.ok(Chain.RELATIONS.length >= 80, `${Chain.RELATIONS.length} vazeb`);
+    // Každá vazba má 1–4 znění otázky a vysvětlení, druhy uzlů hran sedí s definicí vazby
+    for (const rel of Chain.RELATIONS) {
+        const [from, list] = [...graph.edges.get(rel.id)][0];
+        const a = node(from);
+        const b = node(list[0]);
+        assert.ok(rel.from.includes(a.kind) && rel.to.includes(b.kind), rel.id);
+        const texts = rel.ask(a, b, graph);
+        assert.ok(texts.length >= 1 && texts.length <= 4, `${rel.id}: ${texts.length} znění`);
+        assert.match(rel.explain(a, b, graph), /\.$/, `${rel.id}: vysvětlení`);
+    }
     // Ukázky správných vazeb
     const byName = (kind, name) => graph.byKind.get(kind).find(entry => entry.name === name);
-    assert.ok(linked('capital', byName('country', 'Francie').id, byName('city', 'Paříž').id));
-    assert.ok(linked('capitalOf', byName('city', 'Praha').id, byName('country', 'Česko').id));
     assert.ok(linked('landmarkCity', byName('landmark', 'Sagrada Família').id, byName('city', 'Barcelona').id));
     assert.ok(linked('workAuthor', byName('music', 'Prodaná nevěsta').id, byName('composer', 'Bedřich Smetana').id));
     assert.ok(linked('personCountry', byName('composer', 'Bedřich Smetana').id, byName('country', 'Česko').id));
     assert.ok(linked('artMuseum', byName('artwork', 'Mona Lisa').id, byName('landmark', 'Louvre').id));
-    // Název, který odpověď prozradí, vazbu nemá: Šikmá věž v Pise → Pisa, Pražský hrad → Praha, FC Bayern München → Mnichov
+    assert.ok(linked('moonPlanet', byName('moon', 'Io').id, byName('planet', 'Jupiter').id));
+    assert.ok(linked('gemMineral', byName('gem', 'Rubín').id, byName('mineral', 'Korund').id));
+    assert.ok(linked('mythFather', byName('myth', 'Athéna').id, byName('myth', 'Zeus').id));
+    assert.ok(linked('personBorn', byName('composer', 'Bedřich Smetana').id, byName('city', 'Litomyšl').id), 'rodiště z Wikidat');
+    // Název, který odpověď prozradí, vazbu nemá: Šikmá věž v Pise → Pisa, FC Bayern München → Mnichov, Německý ovčák → Německo
     const pisa = graph.byKind.get('landmark').find(entry => /Pise/.test(entry.name));
     if (pisa) assert.equal((graph.edges.get('landmarkCity').get(pisa.id) || []).length, 0);
     assert.ok(!graph.byKind.get('club').some(entry => /München|Paris|Warszawa|Zagreb|Petěrburg/.test(entry.name)), 'klub s městem v názvu');
+    assert.ok(!(graph.byKind.get('breed') || []).some(entry => entry.name === 'Německý ovčák'), 'plemeno s národností v názvu');
     // Stejně pojmenovaná místa (Birmingham, Pantheon) nejsou v řetězu ani mezi možnostmi
-    for (const entry of graph.nodes.values()) if (entry.shared) assert.equal((graph.edges.get('cityCountry').get(entry.id) || []).length + (graph.edges.get('landmarkCity').get(entry.id) || []).length, 0);
+    for (const entry of graph.nodes.values()) if (entry.shared) assert.equal((graph.incoming.get(entry.id) || []).length, 0, entry.name);
 });
 
-test('řetěz dne na 60 dní: stejný pro všechny, správné vazby, nesprávné možnosti vazbu nesplňují, záchrana na každý článek', () => {
-    for (const day of DAYS) {
-        const started = Date.now();
-        const chain = chainFor(day);
-        assert.ok(Date.now() - started < 20000, `${day}: výpočet ${Date.now() - started} ms`);
-        assert.ok(chain, `${day}: řetěz existuje`);
-        assert.equal(chain.questions.length, Chain.LINKS, day);
-        const ids = nodesOf(chain);
-        assert.equal(new Set(ids).size, ids.length, `${day}: uzly se neopakují`);
-        let from = chain.start.id;
-        for (const question of chain.questions) {
-            const where = `${day} článek ${question.k} (${question.text})`;
-            assert.equal(question.from.id, from, `${where}: navazuje na předchozí odpověď`);
-            assert.ok(linked(question.rel, question.from.id, question.to.id), `${where}: vazba platí`);
-            assert.equal(question.options.length, 4, where);
-            assert.equal(question.options[question.answer].id, question.to.id, `${where}: správná odpověď`);
-            assert.equal(new Set(question.options.map(option => option.name)).size, 4, `${where}: různé názvy`);
-            assert.match(question.text, /^[\p{Lu}0-9„].*\?$/u, `${where}: věta s otazníkem`);
-            assert.doesNotMatch(question.text, /undefined|null|\s\s|ve státě (?:Francie|Česko|Itálie)\b/, `${where}: text`);
-            for (const option of question.options) {
-                assert.equal(node(option.id).kind, question.to.kind === 'landmark' ? 'landmark' : node(question.to.id).kind, `${where}: stejný druh (${option.name})`);
-                if (option.id === question.to.id) continue;
-                assert.ok(!linked(question.rel, question.from.id, option.id) && !fits(question.rel, question.from.id, option.id), `${where}: ${option.name} vazbu nesplňuje`);
-                // Dřívější článek řetězu mezi nesprávnými možnostmi není (pozdější nevadí: u jiné otázky nic neprozradí)
-                assert.ok(!ids.slice(0, question.k + 1).includes(option.id), `${where}: ${option.name} není dřívější článek řetězu`);
-            }
-            // Záchrana: jiná otázka na stejný článek
-            const rescue = question.rescue;
-            assert.ok(rescue && rescue.text && rescue.text !== question.text, `${where}: záchrana`);
-            // Záchrana se neptá na článek řetězu (u jiné záchrany jen na předchozí uzel) a nikdy na ten bezprostředně další
-            assert.ok(!ids.slice(0, question.k + 1).includes(rescue.from.id) || (!rescue.same && rescue.from.id === question.from.id), `${where}: záchrana není z řetězu`);
-            assert.notEqual(rescue.from.id, ids[question.k + 1], `${where}: záchrana neprozradí další článek`);
-            if (rescue.same) {
-                assert.ok(linked(rescue.rel, rescue.from.id, question.to.id), `${where}: záchrana vede na stejnou odpověď`);
-                assert.ok(rescue.keep.length >= 2, `${where}: záchrana si nechá aspoň dvě původní nesprávné možnosti`);
-                for (const wrong of [...rescue.keep, ...rescue.extra.map(option => option.id)]) {
-                    assert.ok(!linked(rescue.rel, rescue.from.id, wrong) && !fits(rescue.rel, rescue.from.id, wrong), `${where}: záchrana ${node(wrong).name}`);
-                    assert.ok(!ids.slice(0, question.k + 2).includes(wrong), `${where}: záchrana neprozradí článek`);
-                }
-                // Po kterékoli špatné odpovědi má záchrana 4 různé možnosti se správnou
-                for (const option of question.options.filter(entry => entry.id !== question.to.id)) {
-                    const shown = Chain.rescueOptions(question, option.id, 'test');
-                    assert.equal(shown.options.length, 4);
-                    assert.equal(shown.options[shown.answer].id, question.to.id);
-                    assert.ok(!shown.options.some(entry => entry.id === option.id), `${where}: zvolená špatná odpověď v záchraně není`);
-                }
-            } else {
-                assert.equal(rescue.from.id, question.from.id);
-                assert.ok(linked(rescue.rel, rescue.from.id, rescue.to.id) && rescue.options[rescue.answer].id === rescue.to.id, `${where}: jiná záchrana platí`);
-                assert.ok(!ids.slice(0, question.k + 2).includes(rescue.to.id), `${where}: záchrana nevede na článek řetězu`);
-            }
-            from = question.to.id;
+// Ověření jednoho řetězu: správné vazby, možnosti, záchrana, odpovědi zadarmo, zeměpisné skoky a opakování
+const checkChain = (chain, where0) => {
+    assert.ok(chain, `${where0}: řetěz existuje`);
+    assert.equal(chain.questions.length, Chain.LINKS, where0);
+    const ids = nodesOf(chain);
+    assert.equal(new Set(ids).size, ids.length, `${where0}: uzly se neopakují`);
+    const qids = ids.map(id => node(id).q).filter(Boolean);
+    assert.equal(new Set(qids).size, qids.length, `${where0}: stejná osobnost dvakrát (jiný druh uzlu)`);
+    let from = chain.start.id;
+    const known = new Map();
+    const learn = (thing, place) => { if (!known.has(thing)) known.set(thing, new Set()); [place, ...Chain.containersOf(graph, node(place))].forEach(id => known.get(thing).add(id)); };
+    const shown = new Set();
+    const texts = [plain(chain.start.name)];
+    let geo = 0;
+    let lastGeo = false;
+    const domains = new Map();
+    for (const question of chain.questions) {
+        const where = `${where0} článek ${question.k} (${question.text})`;
+        const a = node(question.from.id);
+        const b = node(question.to.id);
+        assert.equal(question.from.id, from, `${where}: navazuje na předchozí odpověď`);
+        assert.ok(linked(question.rel, question.from.id, question.to.id), `${where}: vazba platí`);
+        assert.equal(question.options.length, 4, where);
+        assert.equal(question.options[question.answer].id, question.to.id, `${where}: správná odpověď`);
+        assert.equal(new Set(question.options.map(option => core.normalizeAnswer(option.name))).size, 4, `${where}: různé názvy`);
+        assert.match(question.text, /^[\p{Lu}0-9„].*\?$/u, `${where}: věta s otazníkem`);
+        assert.doesNotMatch(question.text, /undefined|null|\s\s|\.\.|ve státě (?:Francie|Česko|Itálie)\b/, `${where}: text`);
+        assert.ok(question.explain && /\.$/.test(question.explain) && !/undefined|null|\.\.|\s\s/.test(question.explain), `${where}: vysvětlení ${question.explain}`);
+        // Bez sloves ve shodě s rodem hráče
+        assert.doesNotMatch(question.text, /\b(jsi|jste|uhodl|věděl|znal)\b/iu, `${where}: rod hráče`);
+        const person = PERSON_KINDS.has(b.kind);
+        for (const option of question.options) {
+            assert.equal(node(option.id).kind, b.kind, `${where}: stejný druh (${option.name})`);
+            if (option.id === question.to.id) continue;
+            assert.ok(!linked(question.rel, question.from.id, option.id) && !fits(question.rel, question.from.id, option.id), `${where}: ${option.name} vazbu nesplňuje`);
+            assert.ok(!ids.slice(0, question.k + 1).includes(option.id), `${where}: ${option.name} není dřívější článek řetězu`);
         }
+        // Nesprávné možnosti nejsou jen jiným jménem téže věci (stejný výrazný kmen, jedno jméno součástí druhého)
+        for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) {
+            const [x, y] = [question.options[i].name, question.options[j].name];
+            assert.ok(!core.isNamePart(x, y) && !core.sameNameStem(x, y, { person }), `${where}: podobná jména ${x} – ${y}`);
+        }
+        // Odpověď zadarmo: plyne z dřívějších článků, byla mezi možnostmi nebo v textu dřívější otázky
+        assert.ok(!(known.get(a.id) || new Set()).has(b.id), `${where}: ${b.name} plyne z dřívějších článků`);
+        assert.ok(!shown.has(b.id), `${where}: ${b.name} byla mezi možnostmi dřívější otázky`);
+        assert.ok(plain(b.name).length < 6 || !texts.some(text => text.includes(plain(b.name))), `${where}: ${b.name} stojí v textu dřívější otázky`);
+        // Zeměpisné skoky: nejvýš dva, nikdy dva po sobě
+        const isGeo = Chain.GEO_KINDS.has(b.kind);
+        assert.ok(!(isGeo && lastGeo), `${where}: dva zeměpisné skoky po sobě`);
+        if (isGeo) geo += 1;
+        lastGeo = isGeo;
+        domains.set(question.domain, (domains.get(question.domain) || 0) + 1);
+        if (Chain.containersOf(graph, a).includes(b.id)) learn(a.id, b.id);
+        if (Chain.containersOf(graph, b).includes(a.id)) learn(b.id, a.id);
+        question.options.forEach(option => shown.add(option.id));
+        texts.push(plain(question.text), plain(question.explain));
+        // Záchrana: jiná otázka na stejný článek
+        const rescue = question.rescue;
+        assert.ok(rescue && rescue.text && rescue.text !== question.text, `${where}: záchrana`);
+        assert.ok(!ids.slice(0, question.k + 1).includes(rescue.from.id) || (!rescue.same && rescue.from.id === question.from.id), `${where}: záchrana není z řetězu`);
+        assert.notEqual(rescue.from.id, ids[question.k + 1], `${where}: záchrana neprozradí další článek`);
+        if (rescue.same) {
+            assert.ok(linked(rescue.rel, rescue.from.id, question.to.id), `${where}: záchrana vede na stejnou odpověď`);
+            assert.ok(rescue.keep.length >= 2, `${where}: záchrana si nechá aspoň dvě původní nesprávné možnosti`);
+            for (const wrong of [...rescue.keep, ...rescue.extra.map(option => option.id)]) {
+                assert.ok(!linked(rescue.rel, rescue.from.id, wrong) && !fits(rescue.rel, rescue.from.id, wrong), `${where}: záchrana ${node(wrong).name}`);
+                assert.ok(!ids.slice(0, question.k + 2).includes(wrong), `${where}: záchrana neprozradí článek`);
+            }
+            for (const option of question.options.filter(entry => entry.id !== question.to.id)) {
+                const shownRescue = Chain.rescueOptions(question, option.id, 'test');
+                assert.equal(shownRescue.options.length, 4);
+                assert.equal(shownRescue.options[shownRescue.answer].id, question.to.id);
+                assert.ok(!shownRescue.options.some(entry => entry.id === option.id), `${where}: zvolená špatná odpověď v záchraně není`);
+            }
+        } else {
+            assert.equal(rescue.from.id, question.from.id);
+            assert.ok(linked(rescue.rel, rescue.from.id, rescue.to.id) && rescue.options[rescue.answer].id === rescue.to.id, `${where}: jiná záchrana platí`);
+            assert.ok(!ids.slice(0, question.k + 2).includes(rescue.to.id), `${where}: záchrana nevede na článek řetězu`);
+        }
+        from = question.to.id;
     }
+    assert.ok(geo <= Chain.MAX_GEO, `${where0}: ${geo} zeměpisných skoků`);
+    const kinds = new Map();
+    ids.forEach(id => kinds.set(node(id).kind, (kinds.get(node(id).kind) || 0) + 1));
+    for (const [kind, count] of kinds) assert.ok(count <= (Chain.KIND_MAX[kind] || 2) + (kind === node(chain.start.id).kind ? 1 : 0), `${where0}: ${count}× ${kind}`);
+    assert.ok(domains.size >= 2, `${where0}: obory ${[...domains.keys()].join(', ')}`);
+    return { domains: domains.size };
+};
+
+test('řetěz dne na 60 dní od NEW_FROM: stejný pro všechny, správné vazby, možnosti, záchrana, bez odpovědí zadarmo a s nejvýš dvěma zeměpisnými skoky', () => {
+    let domainSum = 0;
+    for (const day of DAYS) {
+        const begun = Date.now();
+        const chain = chainFor(day);
+        assert.ok(Date.now() - begun < 20000, `${day}: výpočet ${Date.now() - begun} ms`);
+        assert.equal(chain.v, 2, `${day}: nový generátor`);
+        domainSum += checkChain(chain, day).domains;
+    }
+    assert.ok(domainSum / DAYS.length >= 3, `průměrně ${domainSum / DAYS.length} oborů v řetězu`);
     // Stejně pro všechny: výpočet znovu (nový graf) dá stejný řetěz
-    const again = Chain.buildGraph(sources, countries);
+    const again = Chain.buildGraph(sources, countries, extra);
     assert.deepEqual(Chain.dailyChain(again, DAYS[0]), chainFor(DAYS[0]));
+    assert.deepEqual(Chain.dailyChain(again, DAYS[17]), chainFor(DAYS[17]));
 });
 
-test('řetěz dne: dny po sobě se neopakují a za dva měsíce se vystřídá dost míst, osobností a vazeb', () => {
+test('cvičná řetězovka: 40 náhodných řetězů se 7 články bez odpovědí zadarmo, pokaždé jiný, ze stejného semínka stejný', () => {
+    PRACTICE.forEach((chain, i) => checkChain(chain, `cvičná ${i}`));
+    assert.notDeepEqual(nodesOf(PRACTICE[0]), nodesOf(PRACTICE[1]));
+    assert.deepEqual(Chain.practiceChain(graph, 'test-0'), PRACTICE[0]);
+});
+
+test('odpověď zadarmo ze screenshotu (stavba v Londýně → ve kterém státě) ani návrat k uzlu se nesestaví', () => {
+    // Po zeměpisné odpovědi nikdy další zeměpisná (Londýn → Spojené království) a nikdy zpět na předchozí uzel
+    for (const chain of [...DAYS.map(chainFor), ...PRACTICE]) {
+        chain.questions.forEach((question, i) => {
+            const next = chain.questions[i + 1];
+            if (!next) return;
+            assert.ok(!(Chain.GEO_KINDS.has(question.to.kind) && Chain.GEO_KINDS.has(next.to.kind)), `${chain.seed}: ${question.text} → ${next.text}`);
+            assert.notEqual(next.to.id, question.from.id, `${chain.seed}: zpět na ${question.from.name}`);
+        });
+    }
+});
+
+test('řetěz dne: rozcestníky (Francie, Londýn, Louvre) se do týdne neopakují, dny po sobě se liší, obory a vazby se střídají', () => {
     const uses = new Map();
     const rels = new Set();
+    const domains = new Set();
     let overlap = 0;
-    let close = 0;
-    for (let i = 0; i < DAYS.length; i++) {
-        const ids = nodesOf(chainFor(DAYS[i]));
+    // Velké rozcestníky (aspoň 20 vazeb) hlídají i volnější úrovně hledání (loose), jen nouzová ne
+    const strict = (entry) => Chain.LEVELS[entry.level].hubs !== 'any';
+    DAYS.forEach((day, i) => {
+        const chain = chainFor(day);
+        const ids = nodesOf(chain);
         ids.forEach(id => uses.set(id, (uses.get(id) || 0) + 1));
-        chainFor(DAYS[i]).questions.forEach(question => rels.add(question.rel));
+        chain.questions.forEach(question => { rels.add(question.rel); domains.add(question.domain); });
         if (i) {
             const shared = ids.filter(id => nodesOf(chainFor(DAYS[i - 1])).includes(id)).length;
-            assert.ok(shared <= 4, `${DAYS[i]}: se včerejškem sdílí ${shared} uzlů`);
-            if (shared >= 3) close += 1;
+            assert.ok(shared <= 3, `${day}: se včerejškem sdílí ${shared} uzlů`);
             overlap += shared;
-            assert.notEqual(chainFor(DAYS[i]).start.id, chainFor(DAYS[i - 1]).start.id, `${DAYS[i]}: jiný začátek`);
+            assert.notEqual(chain.start.id, chainFor(DAYS[i - 1]).start.id, `${day}: jiný začátek`);
         }
-    }
-    assert.ok(overlap / (DAYS.length - 1) < 0.7, `průměrně sdílí ${overlap / (DAYS.length - 1)}`);
-    assert.ok(close <= 6, `dnů s aspoň třemi stejnými uzly jako včera: ${close}`);
-    assert.ok(uses.size > 110, `různých uzlů ${uses.size}`);
-    assert.ok(rels.size >= 20, `různých vazeb ${rels.size}`);
+        // Velký rozcestník je v řetězu dne jen ve svůj den (jeden z osmi): do 7 dní se neopakuje
+        if (!strict(chain)) return;
+        for (const id of ids.filter(entry => Chain.hubPeriod(node(entry)) === 8 && (node(entry).degree || 0) >= 20)) {
+            for (const before of DAYS.slice(Math.max(0, i - 7), i).map(chainFor).filter(strict)) assert.ok(!nodesOf(before).includes(id), `${day}: rozcestník ${node(id).name} i ${before.seed}`);
+        }
+    });
+    assert.ok(overlap / (DAYS.length - 1) < 0.3, `průměrně sdílí ${overlap / (DAYS.length - 1)}`);
+    assert.ok(DAYS.filter(day => strict(chainFor(day))).length >= DAYS.length * 0.95, 'nouzová úroveň nejvýš ve 5 % dní');
+    assert.ok(DAYS.filter(day => Chain.LEVELS[chainFor(day).level].hubs === 'strict').length >= DAYS.length * 0.4, 'aspoň 40 % dní s přísným střídáním všech rozcestníků');
+    assert.ok(uses.size > 200, `různých uzlů ${uses.size}`);
+    assert.ok(rels.size >= 40, `různých vazeb ${rels.size}`);
+    assert.ok(domains.size >= 9, `oborů ${[...domains].join(', ')}`);
+    // Žádný uzel (ani Londýn či Francie) není ve víc než pětině řetězů (velký rozcestník má svůj den jednou za osm dní; původní generátor
+    // měl Spojené království ve 42 % a Londýn ve 35 % řetězů)
+    for (const [id, count] of uses) assert.ok(count <= DAYS.length / 5, `${node(id).name} v ${count} řetězech`);
 });
 
-test('cvičná řetězovka: náhodný řetěz se 7 články, pokaždé jiný', () => {
-    const one = Chain.practiceChain(graph, 'a');
-    const two = Chain.practiceChain(graph, 'b');
-    assert.equal(one.questions.length, 7);
-    assert.notDeepEqual(nodesOf(one), nodesOf(two));
-    assert.deepEqual(Chain.practiceChain(graph, 'a'), one);
+test('dny před NEW_FROM: původní generátor beze změny (snímek), nový od NEW_FROM', () => {
+    const snapshot = JSON.parse(read('tests/chain-legacy-snapshot.json'));
+    const old = Chain.legacy();
+    const oldSources = Object.fromEntries(old.SOURCES.map(topic => [topic, sources[topic]]));
+    assert.equal(Chain.NEW_FROM, '2026-11-15');
+    assert.ok(Chain.isLegacyDay('2026-11-14') && !Chain.isLegacyDay('2026-11-15') && !Chain.isLegacyDay('2027-01-01'));
+    for (const [day, chain] of Object.entries(snapshot.full)) assert.deepEqual(JSON.parse(JSON.stringify(Chain.legacyDailyChain(oldSources, countries, day))), chain, day);
+    for (const [day, hash] of Object.entries(snapshot.hashes)) assert.equal(crypto.createHash('sha256').update(JSON.stringify(Chain.legacyDailyChain(oldSources, countries, day))).digest('hex'), hash, day);
+    // Uložený pokus starého dne (bez nových údajů) se načte a vykreslí
+    const attempt = Chain.newAttempt('2026-11-14', 'host', snapshot.full['2026-11-14']);
+    const state = Chain.parseState(JSON.parse(JSON.stringify({ attempt })));
+    assert.deepEqual(state.attempt.chain.questions.map(question => question.to.id), snapshot.full['2026-11-14'].questions.map(question => question.to.id));
+    assert.match(Chain.playHtml({ attempt: state.attempt, ask: Chain.currentAsk(state.attempt), phase: 'ask' }), /data-chain-text/);
+    assert.ok(!state.attempt.chain.questions[0].explain, 'starý řetěz bez vysvětlení');
+    // Nový řetěz se uloží i s vysvětlením, zněním a QID podmětu
+    const fresh = Chain.parseState(JSON.parse(JSON.stringify({ attempt: Chain.newAttempt(DAYS[0], 'host', chainFor(DAYS[0])) })));
+    assert.equal(fresh.attempt.chain.questions[0].explain, chainFor(DAYS[0]).questions[0].explain);
+    assert.equal(fresh.attempt.chain.questions[0].from.q, chainFor(DAYS[0]).questions[0].from.q);
+    assert.equal(fresh.attempt.chain.v, 2);
+});
+
+test('úvod o předchozí odpovědi: odpověď, její tvary, národnost, obaly místa a pozdější články se zakryjí; jinak se úvod nepoužije', () => {
+    const tower = { text: 'Ve kterém státě stojí mrakodrap 30 St Mary Axe?', from: { name: '30 St Mary Axe' }, answer: 0, mask: ['Londýn', 'Spojené království'],
+        options: [{ name: 'Spojené království' }, { name: 'Belgie' }, { name: 'Dánsko' }, { name: 'Portugalsko' }] };
+    const towerText = Chain.subjectText('30 St Mary Axe je britský mrakodrap v Londýně ve Spojeném království. Byl dokončen v roce 2003 podle návrhu Normana Fostera.', tower, ['Norman Foster']);
+    assert.ok(towerText.startsWith('30 St Mary Axe je'), towerText);
+    assert.doesNotMatch(towerText, /Londýn|Spojen|britsk|Foster|Belgi|Dánsk/i, towerText);
+    assert.match(towerText, /\[\*\*\*\]/);
+    const mozart = { text: 'Ve kterém městě se narodil Wolfgang Amadeus Mozart?', from: { name: 'Wolfgang Amadeus Mozart' }, answer: 1, mask: ['Salcburk', 'Rakousko'],
+        options: [{ name: 'Vídeň' }, { name: 'Salcburk' }, { name: 'Linec' }, { name: 'Mnichov' }] };
+    const mozartText = Chain.subjectText('Wolfgang Amadeus Mozart byl rakouský hudební skladatel a klavírní virtuos. Narodil se v Salcburku, zemřel ve Vídni.', mozart);
+    assert.doesNotMatch(mozartText, /Salcbur|Vídn|rakousk/i, mozartText);
+    assert.deepEqual(core.answerWordsLeft(mozartText, mozart.options.map((option, i) => ({ label: option.name, correct: i === mozart.answer }))), []);
+    // Úvod, který je po zakrytí skoro celý zakrytý, se nepoužije
+    assert.equal(Chain.subjectText('Salcburk, Vídeň, Linec.', mozart), '');
+    assert.equal(Chain.subjectText('', mozart), '');
+    // Úvod nejvýš dvě věty
+    assert.equal(Chain.subjectText('První věta o něčem. Druhá věta o něčem. Třetí věta.', { ...mozart, mask: [] }), 'První věta o něčem. Druhá věta o něčem.');
+    // Skutečné otázky řetězů: popis z dat (náhrada za Wikipedii) nikdy neprozradí odpověď ani pozdější články
+    const item = (brief) => (sources[brief.topic] || []).find(entry => entry.q === brief.q);
+    let used = 0;
+    for (const chain of DAYS.slice(0, 30).map(chainFor)) {
+        chain.questions.forEach((question, i) => {
+            const source = item(question.from);
+            if (!source || !source.d) return;
+            const later = chain.questions.slice(i + 1).map(entry => entry.to.name);
+            const text = Chain.subjectText(`${source.n} je ${source.d}.`, question, later);
+            if (!text) return;
+            used += 1;
+            const choices = question.options.map((option, index) => ({ label: option.name, correct: index === question.answer }));
+            assert.deepEqual(core.answerWordsLeft(text, choices), [], `${question.text}: ${text}`);
+            assert.ok(!text.includes(question.to.name), `${question.text}: ${text}`);
+            for (const name of later) if (name.length >= 5) assert.ok(!text.includes(name), `${question.text}: ${text} (pozdější ${name})`);
+        });
+    }
+    assert.ok(used >= 50, `použitých popisů ${used}`);
 });
 
 test('české tvary států: z/ze, v/ve/na a 2. pád; národnosti v popisu', () => {
@@ -248,13 +398,26 @@ test('sdílení textem a obrázkem, dlaždice na úvodu', () => {
 
 test('vykreslení: bez inline stylů a skriptů, ikony z icons.js, obrázky existují, texty bez rodu hráče', () => {
     const h = { uiArt: (name, cls) => `<img src="icons/topics/${name}.webp" alt="" class="${cls}">`, xpLine: () => '<div>XP</div>', avatarHtml: () => '<span>🦊</span>' };
-    let attempt = Chain.newAttempt('2026-11-12', 'host', chainFor(DAYS[0]));
+    let attempt = Chain.newAttempt(DAYS[0], 'host', chainFor(DAYS[0]));
     const play = Chain.playHtml({ attempt, ask: Chain.currentAsk(attempt), phase: 'ask' }, h);
+    const pages = [];
+    // Karta s fotkou a úvodem předchozí odpovědi a po odpovědi s vysvětlením vazby (místo úvodu)
+    const ask = Chain.currentAsk(attempt);
+    const withSubject = Chain.playHtml({ attempt, ask, phase: 'ask', subject: { image: 'https://upload.wikimedia.org/x.jpg', text: 'Úvod o [***] stavbě.' } }, h);
+    assert.match(withSubject, /data-chain-subject[\s\S]*<img data-chain-photo src="https:\/\/upload\.wikimedia\.org\/x\.jpg" alt="[^"]+"[\s\S]*data-chain-intro[^>]*>Úvod o \[\*\*\*\] stavbě\./);
+    const explained = Chain.playHtml({ attempt, ask, phase: 'right', explain: true, subject: { image: '', text: 'Úvod.' } }, h);
+    const escaped = ask.question.explain.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    assert.ok(explained.includes(escaped) && /data-chain-explain/.test(explained) && !/data-chain-intro/.test(explained));
+    assert.doesNotMatch(Chain.playHtml({ attempt, ask, phase: 'ask' }, h), /data-chain-subject/, 'bez sítě bez prázdného rámečku');
+    assert.match(Chain.brokenHtml({ correctName: 'Y', k: 2, explain: 'Vysvětlení.' }), /data-chain-explain[^>]*>Vysvětlení\./);
+    pages.push(withSubject, explained);
     attempt = Chain.answer(attempt, right(attempt)).attempt;
     attempt = Chain.giveUp(Chain.answer(attempt, Chain.currentAsk(attempt).question.options.find(option => option.id !== right(attempt)).id).attempt);
-    const pages = [play, Chain.introHtml({ day: '2026-11-12' }, h), Chain.loadingHtml(h), Chain.resultHtml({ attempt, xp: { total: 2, parts: [] }, guest: true, canLogin: true }, h),
+    pages.push(play, Chain.introHtml({ day: '2026-11-12' }, h), Chain.loadingHtml(h), Chain.resultHtml({ attempt, xp: { total: 2, parts: [] }, guest: true, canLogin: true }, h),
         Chain.resultHtml({ attempt, stats: { players: 3, full_pct: 33, best: 28, me: { rank: 2 } } }, h), Chain.stepHtml(attempt, 2), Chain.decideHtml({ chosenName: 'X' }), Chain.brokenHtml({ correctName: 'Y', k: 2 }),
-        Chain.rankingHtml({ players: 2, full_pct: 50, best: 28, top: [{ rank: 1, id: 'a', display_name: 'Ana', score: 28, links: 7 }], me: null }, h)];
+        Chain.rankingHtml({ players: 2, full_pct: 50, best: 28, top: [{ rank: 1, id: 'a', display_name: 'Ana', score: 28, links: 7 }], me: null }, h));
+    // Ikony všech druhů uzlů jsou v icons.js
+    for (const kind of Object.keys(Chain.KIND_LABEL)) pages.push(`<i data-lucide="${Chain.iconFor(kind)}"></i>`);
     const icons = read('icons.js');
     for (const html of pages) {
         assert.doesNotMatch(html, /\sstyle=|\son[a-z]+=|<script/i);
@@ -277,12 +440,18 @@ test('vykreslení: bez inline stylů a skriptů, ikony z icons.js, obrázky exis
 
 test('soubory aplikace: index.html, service worker, nasazení, Tailwind a app.js', () => {
     const index = read('index.html');
+    const app = read('app.js');
     assert.match(index, /<script src="chain\.js" defer><\/script>/);
     assert.ok(index.indexOf('quiz-core.js') < index.indexOf('chain.js') && index.indexOf('chain.js') < index.indexOf('app.js'));
-    assert.match(read('sw.js'), /'chain\.js'/);
-    assert.match(read('.github/workflows/pages.yml'), /\bchain\.js\b/);
+    assert.match(read('sw.js'), /'chain\.js', 'chain-legacy\.js', 'data\/retezovka\.json'/);
+    assert.match(read('.github/workflows/pages.yml'), /\bchain\.js chain-legacy\.js\b/);
+    // Původní generátor se v prohlížeči načte jen podle potřeby (dny před NEW_FROM), vazby z Wikidat s grafem
+    assert.doesNotMatch(index, /chain-legacy\.js/);
+    assert.match(app, /loadExtra: \(\) => loadChainExtra\(\), loadScript: \(src\) => loadScript\(src\), chainSubject,/);
+    assert.match(app, /Chain\.subjectText\(raw, source, later\)/);
+    const extraData = JSON.parse(read(Chain.EXTRA_FILE));
+    for (const rel of ['born', 'died', 'spouse', 'parent', 'teacher', 'successor', 'range', 'endemic', 'depicts']) assert.ok(extraData.edges[rel].length > 0, `data/retezovka.json: ${rel}`);
     assert.match(read('tailwind.config.js'), /'\.\/chain\.js'/);
-    const app = read('app.js');
     assert.match(app, /const chainHomeTile = \(\) => \(chainCtl \? chainCtl\.homeTile\(\) : ''\);/);
     assert.match(app, /\.\.\.\(chainCtl \? chainCtl\.actions : \{\}\)/);
     const styles = read('styles.css');
