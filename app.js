@@ -34,6 +34,8 @@
     const TimeQ = window.MudrlantTime || null;
     // Zdroj obrázku z Wikimedia Commons (photo-source.js): tlačítko „i“ u obrázků; bez skriptu se jen neukáže
     const PhotoSource = window.MudrlantPhotoSource || null;
+    // Fotky z Commons jako blob: (photo-blob.js): název souboru v adrese bývá odpovědí; bez skriptu se fotky načtou obyčejně
+    const PhotoBlob = window.MudrlantPhotoBlob || null;
     // Boss týdne (boss.js): souboj s bossem na úvodu (řada Výzvy); bez skriptu se dlaždice nevykreslí
     const Boss = window.MudrlantBoss || null;
     const TOPICS = window.MudrlantTopics || [];
@@ -485,9 +487,10 @@
         image.src = url;
     });
 
-    // Fotku ověříme předem – nápověda, která se nenačte, by jen sebrala bod
+    // Fotku ověříme předem – nápověda, která se nenačte, by jen sebrala bod. Ověření ji rovnou stáhne jako blob (photo-blob.js),
+    // takže otevřená nápověda ji ukáže hned; vrací se původní adresa (ukládá se s otázkou, blob platí jen v této stránce)
     const probePhoto = (url) => !url ? Promise.resolve(null) : Promise.race([
-        loadImage(url).catch(() => null),
+        PhotoBlob ? PhotoBlob.load(url).then(result => (result ? url : null), () => null) : loadImage(url).catch(() => null),
         new Promise(resolve => setTimeout(() => resolve(null), PHOTO_TIMEOUT))
     ]);
     const photoOf = (item, width) => isRealPhoto(item.im) && item.ih ? commonsPhotoUrl(item.im, item.ih, width) : null;
@@ -2757,7 +2760,8 @@
 
     const cssUrl = (url) => `url("${url.replace(/["\\]/g, '\\$&')}")`;
 
-    // Fotka je pozadí prvku, ne <img> – podržením nejde otevřít a z adresy souboru vyčíst název.
+    // Fotka je pozadí prvku, ne <img> – podržením nejde otevřít. Adresa je blob: (photo-blob.js), takže ani styl prvku, ani
+    // tlačítka u fotky název souboru (často odpověď) neprozradí; adresu pro „i“ a zvětšení drží jen paměť (WeakMap).
     // Ukáže se celá (nic se neořízne) na rozmazaném pozadí ze sebe sama; když je na ploše moc malá
     // (vysoký portrét v široké ploše), objeví se tlačítko na zvětšení přes celou obrazovku.
     const loadImageSize = (url) => new Promise((resolve, reject) => {
@@ -2766,30 +2770,32 @@
         image.onerror = reject;
         image.src = url;
     });
+    // Zvětšení fotky: co ukázat (blob nebo adresa) a rozmazané nápisy, u tlačítka jen v paměti
+    const photoZoomTargets = new WeakMap();
     // alwaysZoom = zvětšení i u fotky, která se vejde (obraz nebo nerost, na který se otázka ptá)
     const showPhoto = async (element, url, onFail, alwaysZoom = false, masks = null) => {
         try {
             if (!url) throw new Error('Fotka chybí');
-            const size = await loadImageSize(url);
+            const shown = PhotoBlob ? await PhotoBlob.attach(url, element) : { src: url, ...(await loadImageSize(url)) };
+            if (!shown) throw new Error('Fotka se nenačetla');
             if (!element.isConnected) return;
-            element.style.backgroundImage = cssUrl(url);
+            const size = shown;
+            element.style.backgroundImage = cssUrl(shown.src);
             Visuals.maskOverlay(element, size.width, size.height, masks);
             const frame = element.parentElement;
             const backdrop = frame.querySelector('[data-photo-backdrop]');
-            if (backdrop) backdrop.style.backgroundImage = cssUrl(url);
+            if (backdrop) backdrop.style.backgroundImage = cssUrl(shown.src);
             const box = element.getBoundingClientRect();
             const ratio = size.width / size.height;
             const boxRatio = box.width / box.height;
             const zoom = frame.querySelector('[data-photo-zoom]');
             if (zoom && (alwaysZoom || Math.min(ratio / boxRatio, boxRatio / ratio) < 0.6)) {
-                zoom.dataset.url = url;
-                if (masks && masks.length) zoom.dataset.masks = JSON.stringify(masks);
-                else delete zoom.dataset.masks;
+                photoZoomTargets.set(zoom, { src: shown.src, masks: masks && masks.length ? masks : null });
                 zoom.classList.remove('hidden');
             }
             const source = frame.querySelector('[data-photo-info]');
             if (source && PhotoSource && PhotoSource.fileFromUrl(url)) {
-                source.dataset.url = url;
+                PhotoSource.setUrl(source, url);
                 source.classList.remove('hidden');
             }
         } catch (e) {
@@ -2815,6 +2821,8 @@
             <div data-zoom-image class="h-full w-full bg-contain bg-center bg-no-repeat" aria-hidden="true"></div>
             <button type="button" data-close aria-label="Zavřít" class="absolute right-3 top-3 rounded-full bg-white/15 p-2 text-white backdrop-blur-sm"><i data-lucide="x" class="h-6 w-6"></i></button>`;
         const zoomImage = overlay.querySelector('[data-zoom-image]');
+        // Blob fotky platí, dokud ho ukazuje i zvětšení
+        if (PhotoBlob) PhotoBlob.hold(url, zoomImage);
         zoomImage.style.backgroundImage = cssUrl(url);
         if (masks) loadImageSize(url).then(size => Visuals.maskOverlay(zoomImage, size.width, size.height, masks)).catch(() => {});
         overlay.addEventListener('click', closePhotoZoom);
@@ -2846,7 +2854,7 @@
     // Před odpovědí = obrázek je v otázce, na kterou hráč ještě neodpověděl (ne v okně s popisem ani v atlasu učení)
     const photoBeforeAnswer = (button) => appContent.contains(button) && screen !== 'learn' && (screen === 'mystery' ? mysteryHidden() : Boolean(round) && !round.answered);
     const openPhotoSource = (button) => {
-        const fileName = PhotoSource && PhotoSource.fileFromUrl(button.dataset.url);
+        const fileName = PhotoSource && PhotoSource.fileFromUrl(PhotoSource.urlOf(button));
         if (!fileName) return;
         closePhotoSource();
         const answered = !photoBeforeAnswer(button);
@@ -7354,7 +7362,8 @@
     const renderHomeTabs = () => {
         if (!(Auth && Auth.isConfigured() && Social)) return '';
         const tab = homeTab();
-        const waiting = visibleIncoming().length;
+        // Odznak Více hráčů: příchozí výzvy a pozvánky do Dobývání
+        const waiting = visibleIncoming().length + (ConquestUI ? ConquestUI.inviteCount() : 0);
         const option = (id, icon, label, badge = 0) => `
             <button type="button" role="tab" data-action="home-tab" data-tab="${id}" aria-selected="${tab === id}" class="relative flex flex-1 items-center justify-center gap-2 rounded-xl min-h-[2.75rem] px-3 text-[13px] font-black transition-colors ${tab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-400'}">
                 <i data-lucide="${icon}" class="h-4 w-4"></i> ${label}${badge ? `<span class="rounded-full bg-gold-500 px-1.5 py-0.5 text-[10px] font-black leading-none text-brand-950">${badge}</span>` : ''}
@@ -10174,8 +10183,13 @@
             placeholder: data.question.placeholder, pointsNow: Mystery.pointsFor(shown, Mystery.wrongTips(entry))
         }, mysteryHelpers());
         renderIcons(appContent);
-        // Adresa fotky (název souboru bývá názvem místa) v atributu nezůstane
-        appContent.querySelectorAll('[data-mystery-photo="blur"]').forEach(element => { element.style.backgroundImage = cssUrl(element.dataset.url); delete element.dataset.url; });
+        // Adresa fotky (název souboru bývá názvem místa) v atributu ani ve stylu nezůstane: rozmazaná fotka je také blob (photo-blob.js)
+        appContent.querySelectorAll('[data-mystery-photo="blur"]').forEach(element => {
+            const url = element.dataset.url;
+            delete element.dataset.url;
+            const draw = (src) => { if (src && element.isConnected) element.style.backgroundImage = cssUrl(src); };
+            if (PhotoBlob) PhotoBlob.attach(url, element).then(shown => draw(shown && shown.src), () => {}); else draw(url);
+        });
         appContent.querySelectorAll('[data-mystery-photo="sharp"]').forEach(element => { const url = element.dataset.url; delete element.dataset.url; showPhoto(element, url, null, false, data.photoMasks); });
         appContent.querySelectorAll('[id^="mystery-visual-"]').forEach(element => {
             const clue = Mystery.buildClues(data).find(entry => `mystery-visual-${entry.n}` === element.id);
@@ -12437,6 +12451,9 @@
     if (window.MudrlantConquest && window.MudrlantConquestUI && Social) {
         ConquestUI = window.MudrlantConquestUI.createUI({
             Conquest: window.MudrlantConquest, Social, appContent, signedUser, renderIcons, showDialog, closeDialog, showToast,
+            // Okno s pozvánkou po otevření aplikace: jen na úvodu, ne přes jiné okno, oslavu, truhlu ani tutoriál
+            canPrompt: () => screen === 'home' && !pushOfferBlocked() && !document.getElementById('chest-overlay') && !document.getElementById('season-overlay'),
+            invitesChanged: () => { const tabs = document.getElementById('home-tabs'); if (screen === 'home' && tabs) { tabs.outerHTML = renderHomeTabs(); renderIcons(document.getElementById('home-tabs')); } },
             login: () => { if (Auth) startLogin(); },
             isActive: () => screen === 'conquest',
             enter: () => { screen = 'conquest'; closePlaceInfo(); closeDialog(); updateControlsUI(); },
@@ -12716,10 +12733,11 @@
     // Zvětšení fotky funguje všude: v nápovědě, ve výsledku, v okně s popisem i v atlasu
     document.addEventListener('click', (event) => {
         const zoom = event.target.closest('[data-photo-zoom]');
-        if (zoom && zoom.dataset.url) openPhotoZoom(zoom.dataset.url, zoom.dataset.masks ? JSON.parse(zoom.dataset.masks) : null);
+        const zoomTarget = zoom ? photoZoomTargets.get(zoom) : null;
+        if (zoomTarget) openPhotoZoom(zoomTarget.src, zoomTarget.masks);
         // Zdroj obrázku: tlačítko „i“ u fotky, obrázku otázky i obrazové nápovědy z Commons
         const source = event.target.closest('[data-photo-info]');
-        if (source && source.dataset.url) openPhotoSource(source);
+        if (source && PhotoSource && PhotoSource.urlOf(source)) openPhotoSource(source);
     });
     // Escape zavře nejdřív okno s popisem, pak výběr co hrát, pak nastavení
     // Tlačítko Zpět na mobilu jako zpět v aplikaci: mimo čistou úvodní obrazovku drží aplikace v historii prohlížeče jeden
@@ -12825,6 +12843,10 @@
         });
     }
 
+    // Návrat do aplikace: nová pozvánka do Dobývání se ukáže oknem i bez upozornění (ověření nejvýš jednou za 5 minut, conquest-ui.js)
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && ConquestUI && signedUser() && screen === 'home') ConquestUI.checkInvites();
+    });
     // Aplikace nechaná otevřená přes půlnoc (nebo probuzená z pozadí v nový den): nový den = nové dnešní otázky, série a zajímavost
     let shownDay = getDayKey();
     document.addEventListener('visibilitychange', () => {

@@ -118,6 +118,7 @@ Statická stránka bez serveru a bez build kroku. Nasazuje se na **GitHub Pages*
 | `numeric-questions.js` | Číselné otázky Seřaď a Odhadni číslo: vlastnosti témat, výběr položek, body, čtení odhadu a vzhled otázky i výsledku – testované |
 | `time-questions.js` | Časové souvislosti: spolehlivé roky z dat témat, výběr a kontrola otázek (Co bylo dřív, Mohli se potkat, Za života…), nápovědy, vysvětlení a rozvržení osy – testované |
 | `visuals.js` | Vykreslení obrazových nápověd (mapa, časová osa, obrázek, periodická tabulka) |
+| `photo-blob.js` | Fotky z Commons stažené přes `fetch()` a ukázané jako `blob:` – název souboru v adrese (často odpověď) nejde vyčíst podržením fotky ani z atributů; uvolnění blobů a záložní obyčejné načtení – testovaná |
 | `modes.js` | Bleskovka a Přežití bez DOM: pravidla, hodiny s trestem, obtížnost Přežití, rekordy a XP s denním stropem – testovaná |
 | `sound.js` | Zvuky (Web Audio, bez zvukových souborů) a vibrace, přepínače v Nastavení – testovaná |
 | `question-map.js` | Otázka „Ukaž na mapě“: výběr míst a výřezu, zobrazení, body podle vzdálenosti (testované), vykreslení a ovládání mapy |
