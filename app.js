@@ -440,6 +440,8 @@
         const [data, countries, photoText] = await Promise.all([fetchJson(topic.dataFile), loadCountries(), loadPhotoText(), loadPhotoMasks()]);
         // Kontinenty států pro výběr nesprávných možností ze stejné kultury
         setCountries(countries);
+        // Obrázek, který neukazuje to, na co se otázka ptá (u stavby sad, model, rytina), se nepoužije nikde (otázka, nápověda, atlas, Dobývání)
+        if (topic.offSubjectPhoto) data.items.forEach(item => { if (topic.offSubjectPhoto(item)) { delete item.im; delete item.ih; } });
         const ctx = { topic, items: data.items, collections: data.collections || [], countries, byId: new Map(data.items.map(item => [item.q, item])) };
         // Fotka s napsanou odpovědí, kterou neumíme zakrýt (OCR nápis našlo, ale ne jeho polohu), se jako nápověda nenabídne
         ctx.textPhotos = new Set((photoText[topicId] || []).map(id => (ctx.byId.get(id) || {}).im).filter(file => file && !photoMasks[file]));
@@ -534,7 +536,7 @@
         const category = categoryOf(topic, item.c);
         const question = special || {
             type: 'name',
-            title: category.question || topic.words.question,
+            title: (topic.questionTitle && topic.questionTitle(item)) || category.question || topic.words.question,
             showName: false,
             // Nesprávné možnosti co nejpodobnější (podle tématu), aby správná nebyla poznat na první pohled
             choices: options.wrong ? shuffle([item, ...options.wrong].map(other => ({ id: other.q, label: other.n, correct: other === item })), rng)
@@ -9272,7 +9274,7 @@
         const special = ctx.topic.specialQuestion ? ctx.topic.specialQuestion(item, ctx, rng) : null;
         const category = categoryOf(ctx.topic, item.c);
         return {
-            topic: ctx.topic.id, id: item.q, title: special ? special.title : (category.question || ctx.topic.words.question),
+            topic: ctx.topic.id, id: item.q, title: special ? special.title : ((ctx.topic.questionTitle && ctx.topic.questionTitle(item)) || category.question || ctx.topic.words.question),
             subject: special && special.showName ? item.n : '', answer: special ? special.answerLabel : item.n
         };
     };

@@ -659,17 +659,42 @@
             const zoom = zoomOf();
             const markScale = (13 * Math.pow(zoom, 0.35) * upp) / 16.5;
             svg.querySelectorAll('.cq-mark-scale').forEach(element => element.setAttribute('transform', `scale(${markScale.toFixed(3)})`));
-            // Název jen u vybraného území (ostatní názvy by napovídaly), vždy aspoň 12 a nejvýš 16 px na displeji
+            // Název jen u vybraného území (ostatní názvy by napovídaly)
             svg.querySelectorAll('.cq-label').forEach(element => {
-                const base = Number(element.dataset.size) || 10;
                 const hide = element.dataset.label !== game.selected;
                 element.classList.toggle('cq-hide', hide);
                 if (hide) return;
-                const size = Math.max(12 * upp, Math.min(base, 16 * upp));
                 const item = game.view.index.byId.get(element.dataset.label);
-                element.setAttribute('font-size', size.toFixed(2));
-                if (item) element.setAttribute('y', (item.a[1] + size * 1.2).toFixed(2));
+                if (item) placeLabel(element, item, upp);
             });
+        };
+        // Název uprostřed území, co největší, ale celý uvnitř (conquest.js labelAt), na displeji 7–18 px; území, do kterého se
+        // nevejde ani 7 px, ho má na stejném místě v 7 px (po přiblížení se vejde). Šířka textu se změří jednou, místo pro velikost
+        // se pamatuje (velikost po 4 %, při přibližování se nepočítá každý snímek)
+        const LABEL_MIN_PX = 7, LABEL_MAX_PX = 18;
+        const labelFits = new Map();
+        const placeLabel = (element, item, upp) => {
+            const markGroup = svg.querySelector(`.cq-mark[data-mark="${item.id}"] .cq-mark-scale`);
+            const marked = Boolean(markGroup && markGroup.childElementCount);
+            let entry = labelFits.get(item.id);
+            if (!entry || entry.data !== game.data) {
+                const probe = 20;
+                element.setAttribute('font-size', String(probe));
+                let ratio = 0;
+                try { ratio = element.getComputedTextLength() / probe; } catch (e) { ratio = 0; }
+                if (!(ratio > 0)) ratio = String(item.n || '').length * 0.56;
+                const rings = C.parseRings(item.d);
+                entry = { data: game.data, ratio, rings, max: C.labelMax(item, rings, ratio), spots: new Map() };
+                labelFits.set(item.id, entry);
+            }
+            const wanted = Math.max(LABEL_MIN_PX * upp, Math.min(LABEL_MAX_PX * upp, entry.max));
+            const size = wanted <= entry.max ? Math.min(entry.max, Math.exp(Math.floor(Math.log(wanted) * 25) / 25)) : Math.exp(Math.round(Math.log(wanted) * 25) / 25);
+            const key = `${size.toFixed(3)}|${marked ? 1 : 0}`;
+            if (!entry.spots.has(key)) entry.spots.set(key, C.labelAt(item, entry.rings, entry.ratio, size, entry.max, marked));
+            const spot = entry.spots.get(key);
+            element.setAttribute('font-size', spot.size.toFixed(2));
+            element.setAttribute('x', spot.x.toFixed(2));
+            element.setAttribute('y', spot.y.toFixed(2));
         };
         const zoomAt = (point, factor) => {
             const vb = game.vb;

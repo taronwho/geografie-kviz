@@ -12,6 +12,22 @@
         personSimilarity, eraNearness, getCountryNames, nameAnswers
     } = core;
 
+    // Hlavní obrázek z Wikidat, který neukazuje stavbu samotnou: sad s poníkem u Jasné Poljany, model, rytina, panorama města
+    // z rozhledny, jiná stavba v areálu (madrasa u Kutub Minaru), solné jezero u mešity. Otázka „Co je to za stavbu?“ by s ním
+    // nedávala smysl – stavba se pak pozná podle popisu (app.js loadTopic obrázek u položky vynechá všude: otázka, nápověda, Dobývání)
+    const OFF_SUBJECT_WORDS = new Set(['orchard', 'orchards', 'meadow', 'pasture', 'pony', 'horse', 'horses', 'cow', 'cows', 'cattle', 'sheep',
+        'goat', 'goats', 'model', 'maquette', 'engraving', 'lithograph', 'drawing', 'sketch', 'postcard', 'plaque', 'ticket', 'stamp', 'banknote']);
+    const OFF_SUBJECT_PHOTOS = new Set(['Q749556', 'Q187635', 'Q204871', 'Q1570185', 'Q179046']);
+    const wordsOf = (text) => String(text || '').toLowerCase().split(/[^\p{L}]+/u).filter(Boolean);
+    const offSubjectPhoto = (item) => {
+        if (!item || item.c !== 'stavby' || !item.im) return false;
+        if (OFF_SUBJECT_PHOTOS.has(item.q)) return true;
+        const own = new Set(wordsOf(`${item.n} ${item.t}`));
+        return wordsOf(item.im).some(word => OFF_SUBJECT_WORDS.has(word) && !own.has(word));
+    };
+    // Položka mezi stavbami, která je spíš místo (obec se sídlem, park se sochami, opuštěné město): „Co je to za místo?“
+    const PLACE_TYPE = /^(obec|vesnice|město|městys|osada|park|zahrada|zahrady)\b/iu;
+
     const CATEGORIES = [
         { key: 'stavby', label: 'Stavby', one: 'stavba', icon: 'church', question: 'Co je to za stavbu?', placeholder: 'Napiš název stavby…', sort: { by: 'y' } },
         { key: 'prvky', label: 'Prvky', one: 'architektonický prvek', icon: 'building', question: 'Který architektonický prvek to je?', placeholder: 'Napiš název prvku…', sort: { by: 'name' } },
@@ -393,6 +409,8 @@
             if (roll < STYLE_QUIZ_SHARE && canAskStyle(item, ctx)) return styleQuestion(item, ctx, rng);
             return null;
         },
+        offSubjectPhoto,
+        questionTitle: (item) => (item.c === 'stavby' && PLACE_TYPE.test(item.d || '') ? 'Co je to za místo?' : null),
         // Obrázek, na který se otázka ptá: stavba, u slohu jeho ukázka
         questionImage: (item) => {
             if (!item.im || !item.ih) return null;

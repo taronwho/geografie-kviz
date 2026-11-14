@@ -301,6 +301,82 @@
         }
         return inside;
     };
+    // --- Název území uvnitř území (conquest-ui.js updateDetail) ---
+    // Vodorovné úseky uvnitř území na řádku y (pravidlo sudý–lichý, jako pointInRings)
+    const spansAt = (rings, y) => {
+        const xs = [];
+        for (const ring of rings) for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+            const [xi, yi] = ring[i], [xj, yj] = ring[j];
+            if ((yi > y) !== (yj > y)) xs.push(xi + (y - yi) * (xj - xi) / (yj - yi));
+        }
+        xs.sort((a, b) => a - b);
+        const spans = [];
+        for (let i = 0; i + 1 < xs.length; i += 2) spans.push([xs[i], xs[i + 1]]);
+        return spans;
+    };
+    const crossSpans = (a, b) => {
+        const out = [];
+        for (const [a0, a1] of a) for (const [b0, b1] of b) { const lo = Math.max(a0, b0), hi = Math.min(a1, b1); if (hi > lo) out.push([lo, hi]); }
+        return out;
+    };
+    // Výška písma nad účařím a pod ním (kurzíva Georgia: velká písmena ~0,72 em, ocásky y, j ~0,22 em) a okraj od hranice
+    const LABEL_UP = 0.74, LABEL_DOWN = 0.24, LABEL_PAD = 0.22;
+    // Kam dát název velikosti size (jednotky mapy; ratio = šířka textu / velikost písma): pás textu celý uvnitř území, vodorovně
+    // co nejblíž středu území (bod a), svisle pod značkami (vlaječka a stavba stojí nad bodem a), když se tam vejde, jinak co nejblíž
+    // středu. Bez místa null.
+    const labelSpot = (item, rings, ratio, size, marked = false) => {
+        const [ax, ay] = item.a;
+        const [, top, , bottom] = item.b || [0, ay - 40, 0, ay + 40];
+        const width = ratio * size + 2 * LABEL_PAD * size;
+        const step = Math.max(0.4, (bottom - top) / 48);
+        let best = null;
+        for (let y = top + LABEL_UP * size; y <= bottom - LABEL_DOWN * size + 1e-6; y += step) {
+            let spans = null;
+            for (let k = 0; k <= 4; k++) {
+                const line = spansAt(rings, y - LABEL_UP * size + (k / 4) * (LABEL_UP + LABEL_DOWN) * size);
+                spans = spans ? crossSpans(spans, line) : line;
+                if (!spans.length) break;
+            }
+            for (const [lo, hi] of spans || []) {
+                if (hi - lo < width) continue;
+                const x = Math.min(Math.max(ax, lo + width / 2), hi - width / 2);
+                const below = y - LABEL_UP * size >= ay + 2;
+                const mid = y - (LABEL_UP - LABEL_DOWN) * size / 2;
+                // Pod značkami přednost (u území se značkou), pak vzdálenost od středu území
+                const score = (marked && !below ? 1e6 : 0) + Math.abs(mid - (marked ? ay + 2 + (LABEL_UP + LABEL_DOWN) * size / 2 : ay)) + Math.abs(x - ax) * 0.5;
+                if (!best || score < best.score) best = { x, y, size, score };
+            }
+        }
+        return best ? { x: best.x, y: best.y, size } : null;
+    };
+    // Největší velikost písma (jednotky mapy), se kterou se název celý vejde do území
+    const labelMax = (item, rings, ratio, cap = 80) => {
+        let lo = 0, hi = cap;
+        if (labelSpot(item, rings, ratio, hi)) return hi;
+        for (let i = 0; i < 12; i++) {
+            const mid = (lo + hi) / 2;
+            if (labelSpot(item, rings, ratio, mid)) lo = mid; else hi = mid;
+        }
+        return lo;
+    };
+    // Název velikosti size, když je známá největší velikost, která se vejde (max): do max celý uvnitř, větší (nejmenší čitelná
+    // velikost u malého území) na stejném místě se stejným středem – vyčnívá jen co nejméně (hráč si mapu přiblíží)
+    const labelAt = (item, rings, ratio, size, max, marked = false) => {
+        if (size <= max + 1e-6) {
+            const spot = labelSpot(item, rings, ratio, size, marked) || labelSpot(item, rings, ratio, size);
+            if (spot) return { ...spot, inside: true };
+        }
+        const base = max > 0 ? labelSpot(item, rings, ratio, max, marked) || labelSpot(item, rings, ratio, max) : null;
+        const [ax, ay] = item.a;
+        const center = base ? base.y - (LABEL_UP - LABEL_DOWN) * max / 2 : ay;
+        return { x: base ? base.x : ax, y: center + (LABEL_UP - LABEL_DOWN) * size / 2, size, inside: false };
+    };
+    // Název území: co největší do maxSize (jednotky mapy), ale celý uvnitř; nejméně minSize
+    const labelFit = (item, rings, ratio, minSize, maxSize, marked = false) => {
+        const max = labelMax(item, rings, ratio, Math.max(maxSize, minSize));
+        return labelAt(item, rings, ratio, Math.max(minSize, Math.min(maxSize, max)), max, marked);
+    };
+
     // Zobrazení mapy (Lambertovo azimutální stejnoploché, jako scripts/build-dobyvani.js): [šířka, délka] → [x, y] v jednotkách mapy
     const project = (data, lat, lon) => {
         const RAD = Math.PI / 180;
@@ -1997,15 +2073,16 @@
         parts.push(`<g class="cq-hits">${data.t.map(item => `<path class="cq-hit" data-t="${item.id}" d="${item.d}"/>`).join('')}</g>`);
         if (!opts.thumb) {
             parts.push('<g class="cq-select" pointer-events="none"></g>');
-            // Popisky: na mapě nejsou (názvy států by napovídaly), ukáže se jen název území, na které hráč klepne (conquest-ui.js updateDetail)
+            // Obléhaná území: rudý přerušovaný lem, který obíhá kolem hranice (značka se zkříženými meči je u značek území)
+            if (view && view.sieges.size) parts.push(`<g class="cq-sieges" pointer-events="none">${[...view.sieges.keys()].map(id => `<path class="cq-siege-zone" data-siege-zone="${id}" d="${index.byId.get(id).d}"/>`).join('')}</g>`);
+            parts.push(`<g class="cq-marks" pointer-events="none">${view ? data.t.map(item => marksFor(item, view)).join('') : ''}</g>`);
+            // Popisky: na mapě nejsou (názvy států by napovídaly), ukáže se jen název území, na které hráč klepne; conquest-ui.js
+            // updateDetail ho položí doprostřed území a zvětší, jak jen se do území vejde (labelAt). Nad značkami, ať je celý čitelný
             const labels = data.t.map(item => {
                 const size = Math.max(7, Math.min(30, item.r * 0.5));
                 return `<text class="cq-label cq-hide" data-label="${item.id}" data-size="${size.toFixed(1)}" x="${item.a[0]}" y="${(item.a[1] + size * 1.25).toFixed(1)}" font-size="${size.toFixed(1)}">${esc(item.n)}</text>`;
             });
             parts.push(`<g class="cq-labels" pointer-events="none">${labels.join('')}</g>`);
-            // Obléhaná území: rudý přerušovaný lem, který obíhá kolem hranice (značka se zkříženými meči je u značek území)
-            if (view && view.sieges.size) parts.push(`<g class="cq-sieges" pointer-events="none">${[...view.sieges.keys()].map(id => `<path class="cq-siege-zone" data-siege-zone="${id}" d="${index.byId.get(id).d}"/>`).join('')}</g>`);
-            parts.push(`<g class="cq-marks" pointer-events="none">${view ? data.t.map(item => marksFor(item, view)).join('') : ''}</g>`);
             parts.push('<g class="cq-fx" pointer-events="none"></g>');
         }
         const cls = `cq-svg${opts.thumb ? ' cq-thumb-svg' : ''}`;
@@ -3001,7 +3078,7 @@
         COLORS, COLOR_BY_ID, EMBLEMS, EMBLEM_BY_ID, colorOf, emblemOf, inkOf, emblemInk, luminance, maxLevel, rewardFor,
         durationLabel, periodLabel, actionsLabel, timeLeft, movesWord, pointsWord, playersWord, territoriesWord, regionsWord, nextPeriodAt, agoLabel, periodLine,
         budgetTitle, budgetInnerHtml, periodStartText, PENALTY_TEXT,
-        indexMap, parseRings, pointInRings, project, territoryAt, isAdjacent, viewOf, rank, sourcesFor, actionsFor,
+        indexMap, parseRings, pointInRings, spansAt, labelSpot, labelMax, labelAt, labelFit, project, territoryAt, isAdjacent, viewOf, rank, sourcesFor, actionsFor,
         // Pomůcky (blok 30)
         ITEMS, ITEM_IDS, fiftyAllowed, fiftyPick, stockText, stockLabel, grantNews, itemSealHtml, itemsStripHtml, itemsDialogHtml, extraConfirmHtml, extraReady, extraOfferHtml,
         extraChipHtml, fiftyButtonHtml, halfBadge,
