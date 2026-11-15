@@ -41,8 +41,21 @@
         { id: 'fialova', title: 'Fialový talár', level: 30 },
         { id: 'cerna', title: 'Černý talár', level: 45 },
         { id: 'zlata', title: 'Zlatý talár', level: 65 },
-        { id: 'bila', title: 'Bílý talár', level: 100, noGift: true }
+        { id: 'bila', title: 'Bílý talár', level: 100, noGift: true },
+        // Vlastní barva obleku (robe-color.js): odstín a světlost si hráč zvolí posuvníky, sova se přebarví v prohlížeči. Barva je volba
+        // robeColor ('odstín.světlost'); ve výběru je pod řadou osmi talárů. Jen za úroveň, truhla ani Sezóna ji nedají dřív.
+        { id: 'vlastni', title: 'Vlastní barva obleku', level: 20, noGift: true, custom: true }
     ];
+    const ROBE_CUSTOM = 'vlastni';
+    // Barva vlastního obleku 'odstín.světlost' (odstín 0–355 po 5°, světlost −40 … +40 po 5), nebo null; stejné jako robe-color.js clean
+    const cleanRobeColor = (text) => {
+        const m = /^(\d{1,3})\.(-?\d{1,2})$/.exec(String(text || ''));
+        if (!m) return null;
+        const hue = Number(m[1]);
+        const light = Number(m[2]);
+        return hue <= 355 && hue % 5 === 0 && light >= -40 && light <= 40 && light % 5 === 0 ? `${hue}.${light}` : null;
+    };
+    const ROBE_COLOR_DEFAULT = '185.0';
     const FRAMES = [
         { id: 'zadny', title: 'Bez rámečku', level: 1 },
         { id: 'bronz', title: 'Bronzový', level: 5 },
@@ -391,6 +404,25 @@
         { id: 'ruze', title: 'Růže a trny', rare: true }
     ].map(item => ({ ...item, art: true }));
     FRAMES.push(...ART_FRAMES);
+    // --- Odměny za pozvané kamarády (referral.js) a prestiž po úrovni 100 (prestige.js): rámečky z CSS (.frame-pratelsky, .frame-parta,
+    // .frame-prestiz v src/input.css; obrázkové prsteny navrhuje docs/OBRAZKY.md č. 312–314). referral = klíče odměn ze serveru, které rámeček
+    // odemknou (stačí jeden), prestige = od které prestiže. Odemyká je setPerks (stav ze serveru, u hosta prestiž ze zařízení), ne úroveň,
+    // odznak ani truhla. bonus = album je ukáže, jen když je hráč má, a do procent je nepočítá (100 % zůstane stejně dosažitelných).
+    const PERK_FRAMES = [
+        { id: 'pratelsky', title: 'Přátelský', referral: ['novacek', 'pritel-1'], bonus: true },
+        { id: 'parta', title: 'Parta', referral: ['pritel-10'], bonus: true },
+        { id: 'prestiz', title: 'Prestižní', prestige: 1, bonus: true }
+    ];
+    FRAMES.push(...PERK_FRAMES);
+    let perks = { referral: [], prestige: 0 };
+    // { referral: [klíče vyzvednutých odměn za pozvání], prestige: počet prestiží }
+    const setPerks = (value) => {
+        const source = value && typeof value === 'object' ? value : {};
+        perks = { referral: Array.isArray(source.referral) ? source.referral.filter(key => typeof key === 'string') : [], prestige: Number.isInteger(source.prestige) && source.prestige > 0 ? source.prestige : 0 };
+    };
+    // ctx.referral / ctx.prestige (testy) mají přednost před uloženým stavem
+    const perkReferral = (ctx) => (ctx && Array.isArray(ctx.referral) ? ctx.referral : perks.referral);
+    const perkPrestige = (ctx) => (ctx && Number.isInteger(ctx.prestige) ? ctx.prestige : perks.prestige);
     // Sova titulu jako obrázek profilu (póza): 'titul-1' … 'titul-11' podle stupňů Core.TITLE_OWL_FROM (level = od jaké úrovně), null = sova
     // s doplňky. Volba se ukládá, jak ji hráč zvolil; na dosaženou úroveň se omezí až při vykreslení (MudrlantOwl.allowedPose), takže
     // po ztrátě úrovně (vývojářský reset) se ukáže nejvyšší dosažená sova a po návratu úrovně zase ta zvolená. Není v CATALOG:
@@ -399,7 +431,7 @@
     const findPose = (id) => POSES.find(pose => pose.id === id) || null;
     const CATALOG = { themes: THEMES, robes: ROBES, frames: FRAMES, avatars: AVATARS, accessories: ACCESSORIES, colors: ACC_COLORS.filter(color => color.level > 1) };
     CATALOG.titles = TITLES;
-    const DEFAULTS = { theme: 'vinova', robe: 'vinova', frame: 'zadny', title: 'level', acc: {}, pose: null };
+    const DEFAULTS = { theme: 'vinova', robe: 'vinova', frame: 'zadny', title: 'level', acc: {}, pose: null, robeColor: ROBE_COLOR_DEFAULT };
 
     // Barva doplňku: z katalogu (odemčená) nebo vlastní odstín z palety (když je paleta odemčená)
     const colorOk = (color, ctx) => {
@@ -428,12 +460,16 @@
         if (devAll && !(ctx && ctx.gifts === null)) return true;
         if (ctx && isGift(item, ctx.gifts !== undefined ? ctx.gifts : giftState)) return true;
         if (item.exclusive || item.chest || item.rare) return false;
+        if (item.referral) return perkReferral(ctx).some(key => item.referral.includes(key));
+        if (item.prestige) return perkPrestige(ctx) >= item.prestige;
         if (item.league) return leagueUnlocked(item, ctx);
         if (item.diploma) return Boolean(ctx && ctx.diplomas && ctx.diplomas[item.diploma]);
         if (item.badge) return Boolean(ctx && ctx.badges && ctx.badges[item.badge]);
         return Boolean(ctx) && ctx.level >= (item.level || 1);
     };
     const unlockText = (item, badgeTitle = null) => item.exclusive ? (item.month ? `Sezóna Mudrlanta (${SEASON_MONTHS[item.month - 1].toLocaleLowerCase('cs')}, ${item.seasonTier === 10 ? 'Truhla v půli sezóny na 10. stupni' : 'Sezónní truhla na 20. stupni'})` : 'Sezóna Mudrlanta (celá cesta sezóny)')
+        : item.referral ? (item.referral.includes('pritel-10') ? 'Pozvi 10 kamarádů (Více hráčů → Pozvi kamarády)' : 'Pozvi kamaráda, nebo přijď na jeho pozvánku (Více hráčů → Pozvi kamarády)')
+        : item.prestige ? 'Prestiž po úrovni 100 (Můj postup → Úrovně a tituly)'
         : item.rare ? 'Vzácný dárek z Truhly Mudrlanta' : item.chest ? 'Z Truhly Mudrlanta' : item.diploma ? `Diplom: ${DIPLOMA_TOPICS[item.diploma] || item.diploma}`
             : item.league ? `Ligová sezóna: vrchol ${item.leagueName}` : item.badge ? `Odznak: ${badgeTitle || item.badge}` : `Úroveň ${item.level}`;
     const categoryOf = (item) => CATEGORY_OF.get(item) || null;
@@ -507,6 +543,8 @@
             }
         }
         value.pose = findPose(source.pose) ? source.pose : null;
+        // Barva vlastního obleku se pamatuje, i když je zvolený jiný talár (po návratu k vlastnímu zůstane)
+        value.robeColor = cleanRobeColor(source.robeColor) || ROBE_COLOR_DEFAULT;
         if (source.title === 'none' || source.title === 'level') value.title = source.title;
         else if (typeof source.title === 'string' && (!ctx || (ctx.badges && ctx.badges[source.title]) || isUnlocked(find('titles', source.title), ctx))) value.title = source.title;
         return value;
@@ -581,7 +619,7 @@
     // Vlastní titul (ne odznak) podle id, nebo null
     const titleItem = (id) => find('titles', id);
 
-    return { setGifts, isGift: (item) => isGift(item, giftState), categoryOf, CATALOG, THEMES, ROBES, FRAMES, AVATARS, AVATAR_COLORS, ACCESSORIES, SLOTS, ACC_COLORS, NO_MONOCLE, monocleShown, POSES, findPose, customHue, colorOk, flagOk, DEFAULTS, isUnlocked, unlockText, find, normalize, prefs, setPref, onChange, register, getSections, apply, newRewards, rewardsAtLevel, REWARD_KINDS, settingsTab, settingsPlace, rewardsForBadge, badgeRewardText,
+    return { ROBE_CUSTOM, cleanRobeColor, ROBE_COLOR_DEFAULT, setGifts, isGift: (item) => isGift(item, giftState), categoryOf, CATALOG, THEMES, ROBES, FRAMES, AVATARS, AVATAR_COLORS, ACCESSORIES, SLOTS, ACC_COLORS, NO_MONOCLE, monocleShown, POSES, findPose, customHue, colorOk, flagOk, DEFAULTS, isUnlocked, unlockText, find, normalize, prefs, setPref, onChange, register, getSections, apply, newRewards, rewardsAtLevel, REWARD_KINDS, settingsTab, settingsPlace, rewardsForBadge, badgeRewardText,
         migrateAvatar, parseAvatar, formatAvatar, avatarCode, avatarPicture, avatarItem, partColors,
         // Legendární postavičky za diplom tématu
         DIPLOMA_TOPICS, isLegendary, rewardsForDiploma,
@@ -591,6 +629,8 @@
         LEAGUE_FRAMES, setLeagueBest, leagueBest: () => leagueBest,
         // Obrázkové rámečky
         ART_FRAMES,
+        // Rámečky za pozvané kamarády a prestiž
+        PERK_FRAMES, setPerks, perks: () => ({ referral: perks.referral.slice(), prestige: perks.prestige }),
         // Sady doplňků k tématům
         topicSet, TOPIC_LOOKS, topicLooks, topicLook, wearsTopicSet, activeTopicLook, topicLookProgress, wearTopicSet,
         // Vývojářské odemčení všeho

@@ -106,7 +106,7 @@
 
     // --- Sbírka ---
     // Věc, kterou má každý od začátku (odemčená na úrovni 1 bez odznaků a truhly), do sbírky nepatří
-    const isStarter = (item) => Boolean(Look) && !isLimited(item) && !item.album && Look.isUnlocked(item, { level: 1, badges: {}, gifts: null });
+    const isStarter = (item) => Boolean(Look) && !isLimited(item) && !item.album && Look.isUnlocked(item, { level: 1, badges: {}, gifts: null, referral: [], prestige: 0 });
     // Položky sekce z katalogu: { key, category, id, item, title, owned, state: 'owned' | 'missing' | 'ended' | 'reward', counted, limited, until }
     const catalogEntries = (category, input) => {
         if (!Look) return [];
@@ -115,11 +115,13 @@
         for (const item of Look.CATALOG[category] || []) {
             if (isStarter(item)) continue;
             const owned = Look.isUnlocked(item, ctx);
+            // Bonusová věc (bonus v look.js: rámečky za pozvané kamarády a prestiž): jen když ji hráč má, do procent se nepočítá
+            if (item.bonus && !owned) continue;
             const limited = isLimited(item);
             const when = owned ? null : availability(item, category, input.today);
             if (when === 'upcoming') continue;
             const state = owned ? 'owned' : item.album ? 'reward' : when === 'ended' ? 'ended' : 'missing';
-            entries.push({ key: `${category}:${item.id}`, category, id: item.id, item, title: item.title, owned, state, counted: !item.album && state !== 'ended', limited, until: limited ? windowOf(item).until : '' });
+            entries.push({ key: `${category}:${item.id}`, category, id: item.id, item, title: item.title, owned, state, counted: !item.album && !item.bonus && state !== 'ended', limited, until: limited ? windowOf(item).until : '' });
         }
         return entries;
     };
@@ -218,6 +220,7 @@
         const topic = item.diploma ? { id: item.diploma, title: (Look && Look.DIPLOMA_TOPICS && Look.DIPLOMA_TOPICS[item.diploma]) || item.diploma } : null;
         if (topic) return `Legendární postavička za diplom „${Rewards ? Rewards.diplomaTitle(topic) : topic.title}“: plné mistrovství tématu ${topic.title} (${MASTERY.length} hvězdiček). Úrovní ani truhlou se nezíská.`;
         let text = item.album ?`Odměna za celé album sbírky (100${NB}%) spolu s titulem „${badgeTitle(item.badge)}“.`
+            : item.bonus && Look ? `${Look.unlockText(item)}. Bonus navíc, do sbírky se nepočítá.`
             : item.rare ? 'Vzácný dárek z Truhly Mudrlanta za splněné cíle týdne (občas místo běžné věci) a ze Zlaté truhly za pět zlatých střípků. Úrovní se neodemyká.'
             : item.chest ? 'Z Truhly Mudrlanta za splněné cíle týdne, ze stupně Sezóny Mudrlanta a ze Zlaté truhly za pět zlatých střípků. Úrovní se neodemyká.'
             : badge ? `Za odznak „${badge.title}“: ${badge.text}`
@@ -247,7 +250,9 @@
         switch (entry.category) {
             case 'avatars': return h.avatar ? h.avatar(entry.id, size) : '';
             case 'accessories': return `<img src="icons/doplnky/${id}-ikona.webp" alt="" class="${size} object-contain drop-shadow-sm">`;
-            case 'robes': return `<img src="icons/topics/sova-vitej${entry.id === 'vinova' ? '' : `-${id}`}.webp" alt="" data-keep class="${size} object-contain drop-shadow-sm">`;
+            // Vlastní barva obleku (robe-color.js): vínová sova s ukázkovou barvou, přebarví ji look-robes.js
+            case 'robes': return entry.item && entry.item.custom ? `<img src="icons/topics/sova-vitej.webp" alt="" data-keep data-robe-color="185.0" class="${size} object-contain drop-shadow-sm">`
+                : `<img src="icons/topics/sova-vitej${entry.id === 'vinova' ? '' : `-${id}`}.webp" alt="" data-keep class="${size} object-contain drop-shadow-sm">`;
             case 'themes': return `<span data-theme="${id}" class="block ${big ? 'h-14 w-14' : 'h-7 w-7'} rounded-full bg-gradient-to-br from-brand-300 via-brand-500 to-brand-800 shadow-inner ring-2 ring-white/80 dark:ring-white/30"></span>`;
             case 'colors': return `<span class="block ${big ? 'h-14 w-14' : 'h-7 w-7'} rounded-full ${COLOR_DOT[entry.id] || 'bg-slate-400'} shadow-inner ring-2 ring-white/80 dark:ring-white/30"></span>`;
             case 'frames': return `<span class="relative flex ${big ? 'h-14 w-14 text-[2rem]' : 'h-7 w-7 text-[1.15rem]'} items-center justify-center rounded-full bg-white dark:bg-slate-200${h.frameClass ? h.frameClass(entry.id) : ''}"><img src="icons/logo.webp" alt="" class="h-[80%] w-[80%] object-contain"></span>`;

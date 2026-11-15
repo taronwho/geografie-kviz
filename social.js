@@ -749,7 +749,8 @@
     const acceptFriend = (userId, otherId) => socialCall(() => request('PATCH', `friendships?user_id=eq.${encodeURIComponent(needId(otherId))}&friend_id=eq.${encodeURIComponent(userId)}`, { body: { status: 'accepted' }, prefer: 'return=minimal' }), 'Přijetí se nepodařilo. Zkus to znovu.');
     const removeFriend = (userId, otherId) => socialCall(() => request('DELETE', `friendships?or=(and(user_id.eq.${encodeURIComponent(userId)},friend_id.eq.${encodeURIComponent(needId(otherId))}),and(user_id.eq.${encodeURIComponent(otherId)},friend_id.eq.${encodeURIComponent(userId)}))`, { prefer: 'return=minimal' }), 'Zrušení se nepodařilo. Zkus to znovu.');
     // Reakce po zápase: target = { challengeId } nebo { matchId }; opakovaná reakce tu první přepíše
-    const REACTIONS = ['👍', '🔥', '😅', '🤝'];
+    // Základní reakce a ty, které se odemykají (friends.js EXTRA_REACTIONS; server přijme jen odemčenou, blok 32)
+    const REACTIONS = ['👍', '🔥', '😅', '🤝', '😮', '🧠', '🦉', '🙌', '🎯', '💪', '🎉', '👑', '🤗'];
     const react = (userId, target, toId, emoji) => socialCall(() => {
         if (!REACTIONS.includes(emoji)) throw new SocialError('Neznámá reakce.', 400);
         const body = { from_id: userId, to_id: needId(toId), emoji, challenge_id: target.challengeId ? parseCode(target.challengeId) || null : null, match_id: target.matchId ? needTournamentId(target.matchId, 'zápas') : null };
@@ -1089,7 +1090,7 @@
         }
     };
     // Položky vitríny: stejný tvar jako showcase.js a showcase_format_ok() v databázi, bez opakování, nejvýš 3
-    const SHOWCASE_ENTRY = /^(?:b:[a-z0-9-]{1,40}|d:[a-z0-9-]{1,24}|l:\d{4}-(?:0[1-9]|1[0-2]):(?:bronz|stribro|zlato|platina|diamant|mistr))$/;
+    const SHOWCASE_ENTRY = /^(?:b:[a-z0-9-]{1,40}|d:[a-z0-9-]{1,24}|l:\d{4}-(?:0[1-9]|1[0-2]):(?:bronz|stribro|zlato|platina|diamant|mistr)|t:[a-z0-9-]{1,40}|s:(?:frames|avatars|accessories):[a-z0-9-]{1,30})$/;
     const cleanShowcase = (value) => [...new Set((Array.isArray(value) ? value : []).filter(item => typeof item === 'string' && SHOWCASE_ENTRY.test(item)))].slice(0, 3);
     let showcaseMissing = false;
     // Vitrína hráče (cizího i vlastní); null = databáze vitrínu nemá
@@ -1339,6 +1340,40 @@
     };
     const conquestItemsMissing = () => partMissing.items;
 
+    // ===== Motivace (blok 32): prestiž, pozvánky kamarádů a vítězný efekt =====
+    // Dokud je databáze nemá (funkce 404, sloupec 400), vrací se null (aplikace je jen nenabídne) a dál se o ně nežádá; jiné chyby se vyhodí.
+    // U funkcí (rpc) je 400 chyba ze serveru (např. „Takový kód přítele neexistuje.“), ne chybějící blok: vyhodí se se zprávou serveru.
+    let motivaceMissing = false;
+    const motivace = async (run, empty = null, { rpc = false } = {}) => {
+        if (motivaceMissing) return empty;
+        try { return await run(); } catch (error) {
+            if (error.status === 404 || (!rpc && error.status === 400)) { motivaceMissing = true; return empty; }
+            throw error;
+        }
+    };
+    const cleanPrestige = (row) => (row && Number.isFinite(Number(row.prestige)) ? { prestige: Math.max(0, Math.min(99, Math.floor(Number(row.prestige)))), prestige_xp: Math.max(0, Math.floor(Number(row.prestige_xp) || 0)) } : null);
+    // Prestiž hráče (svého i cizího): { prestige, prestige_xp } nebo null
+    const getPrestige = (userId) => motivace(async () => cleanPrestige(((await request('GET', `profiles?id=eq.${encodeURIComponent(needId(userId))}&select=prestige,prestige_xp`)) || [])[0]));
+    // Přechod do další prestiže (server ověří XP v účtu); vrací { prestige, prestige_xp }, při nedostatku XP SocialError se zprávou serveru
+    const prestigeUp = () => motivace(async () => cleanPrestige(await request('POST', 'rpc/prestige_up', { body: {} })), null, { rpc: true });
+    // Pozvi kamarády: stav (kód, kdo mě pozval, pozvaní, odměny), použití kódu a vyzvednutí odměn (pole klíčů)
+    const referralStatus = () => motivace(() => request('POST', 'rpc/referral_status', { body: {} }), null, { rpc: true });
+    const referralJoin = (code) => motivace(() => request('POST', 'rpc/referral_join', { body: { code: String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12) } }), null, { rpc: true });
+    const referralClaim = () => motivace(async () => { const data = await request('POST', 'rpc/referral_claim', { body: {} }); return Array.isArray(data) ? data.filter(key => typeof key === 'string') : []; }, [], { rpc: true });
+    // Vítězný efekt (friends.js VICTORY_EFFECTS): hráčů podle id ({ id: efekt }), uložení vlastního (vrací, co server přijal; null = sloupec chybí)
+    const FX = /^[a-z0-9-]{1,24}$/;
+    const victoryFx = (ids) => motivace(async () => {
+        const list = [...new Set((ids || []).filter(isUuid))].slice(0, 20);
+        if (!list.length) return {};
+        const rows = (await request('GET', `profiles?id=in.(${list.join(',')})&select=id,victory_fx`)) || [];
+        return Object.fromEntries(rows.filter(row => row && isUuid(row.id) && typeof row.victory_fx === 'string' && FX.test(row.victory_fx)).map(row => [row.id, row.victory_fx]));
+    }, {});
+    const saveVictoryFx = (userId, fx) => motivace(async () => {
+        const rows = await request('PATCH', `profiles?id=eq.${encodeURIComponent(needId(userId))}&select=victory_fx`, { body: { victory_fx: typeof fx === 'string' && FX.test(fx) ? fx : null }, prefer: 'return=representation' });
+        const row = Array.isArray(rows) ? rows[0] : null;
+        return row && typeof row.victory_fx === 'string' ? row.victory_fx : '';
+    });
+
     return { AVATARS, allAvatars, cleanAvatar, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
         tournamentTick, getTournaments, tournamentArchive, tournamentPoll, voteTournamentTheme, ARCHIVE_PAGE, inTournament, devTournament, devClientErrors, isDevAdmin, schemaVersion, reportQuestion, getQuestionReports, deleteQuestionReport, exportMyData, deleteMyAccount, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen,
         challengeProgress, saveChallengeProgress, tournamentAnswers, saveTournamentAnswer, claimTournamentXp, cleanAnswerLabel,
@@ -1372,5 +1407,7 @@
         // Vývojářští boti v Dobývání (blok 22)
         devConquestAddBots, devConquestBotsPlay, devConquestNextPeriod,
         // Řetězovka dne (blok 21)
-        chainSubmit, chainDayStats };
+        chainSubmit, chainDayStats,
+        // Motivace (blok 32): prestiž, pozvánky kamarádů, vítězný efekt
+        getPrestige, prestigeUp, referralStatus, referralJoin, referralClaim, victoryFx, saveVictoryFx };
 });

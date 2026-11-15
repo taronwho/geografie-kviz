@@ -38,6 +38,10 @@
     const PhotoBlob = window.MudrlantPhotoBlob || null;
     // Boss týdne (boss.js): souboj s bossem na úvodu (řada Výzvy); bez skriptu se dlaždice nevykreslí
     const Boss = window.MudrlantBoss || null;
+    // Motivace (blok 32): tematické víkendy, prestiž po úrovni 100 a Pozvi kamarády
+    const Weekend = window.MudrlantWeekend || null;
+    const Prestige = window.MudrlantPrestige || null;
+    const Referral = window.MudrlantReferral || null;
     const TOPICS = window.MudrlantTopics || [];
     const TOPIC_BY_ID = Object.fromEntries(TOPICS.map(topic => [topic.id, topic]));
     const APP_NAME = 'Mudrlant';
@@ -88,7 +92,9 @@
     // 30 = Dobývání: pomůcky Tah navíc a Půl na půl (zásoba na serveru, zisk z Bosse týdne, Kvízu dne, Řetězovky, výhry, Sezóny a Truhly).
     // 31 = Speciální turnaje na téma a hlasování o tématu (tournaments.kind…, tournament_poll_state, tournament_vote; se starší databází se
     // hlasování ani speciální turnaj neukážou), výzvy jen s výběrem z možností a rozpis kontumovaného zápasu.
-    const REQUIRED_SCHEMA = 31;
+    // 32 = Motivace: Pozvi kamarády (referral_*), prestiž (prestige_up), vítězný efekt, reakce navíc, vitrína se Sezónou a kontrola odemčení
+    // na serveru (se starší databází se pozvánky a vítězný efekt nenabídnou, prestiž a reakce navíc platí jen v zařízení).
+    const REQUIRED_SCHEMA = 32;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -1133,7 +1139,10 @@
         const user = Auth && Auth.isConfigured() && Social ? signedUser() : null;
         const level = levelProgress(progress.xp).level;
         const diplomas = rewards ? rewards.diplomas : {};
-        return { level, badges: progress.badges, diplomas, user, profile: user ? myProfile : null, avatarHtml, prefs: Look ? Look.prefs({ level, badges: progress.badges, diplomas }) : {} };
+        // Rámečky za pozvané kamarády a prestiž (blok 32): vyzvednuté odměny a prestiž ze zařízení (sjednocené se serverem)
+        if (Look && Look.setPerks) Look.setPerks({ referral: loadPerks().referral, prestige: loadPrestige().n });
+        const levelLabel = Prestige && loadPrestige().n ? levelLabelOf(prestigeView(progress.xp)) : '';
+        return { level, levelLabel, badges: progress.badges, diplomas, user, profile: user ? myProfile : null, avatarHtml, prefs: Look ? Look.prefs({ level, badges: progress.badges, diplomas }) : {} };
     };
     // Titul u mého jména podle volby ve Vzhledu: úroveň a její titul (výchozí), nic, nebo název získaného odznaku
     const ownTitleText = (level) => {
@@ -1141,7 +1150,7 @@
         if (pick === 'none') return 'Můj postup';
         if (pick && pick !== 'level' && BADGE_BY_ID[pick]) return BADGE_BY_ID[pick].title;
         if (pick && Look && Look.titleItem && Look.titleItem(pick)) return Look.titleItem(pick).title;
-        return `Úr. ${level} · ${titleForLevel(level)}`;
+        return `${levelLabelOf(prestigeView())} · ${titleForLevel(level)}`;
     };
     const applyLook = () => { if (Look) Look.apply(lookContext()); };
     // Kde v Nastavení se odměna vybírá (oslava nové odměny, truhla): „Nastavení → Mudrlant“; Profil mají jen přihlášení
@@ -1177,7 +1186,9 @@
     };
     // Zamčený obrázek hráče (postavička nebo emoji za odměnu): položka katalogu, nebo null, když je k dispozici (základní, odemčený,
     // nebo už uložený v profilu – i jako staré emoji, které postavička nahradila)
-    const avatarUnlockText = (item) => (item.exclusive || item.diploma) && Look ? Look.unlockText(item) : item.badge ? `Odznak: ${(BADGE_BY_ID[item.badge] || {}).title || item.badge}` : `Úroveň ${item.level}`;
+    // Sezónní postavička (Sezónní truhla na 20. stupni): „Získáš v Sezóně Mudrlanta (20. stupeň)“
+    const seasonAvatarText = (item) => `Získáš v Sezóně Mudrlanta (${item.seasonTier || (Season ? Season.BUNDLE_TIER : 20)}. stupeň)`;
+    const avatarUnlockText = (item) => item.source === 'season' ? seasonAvatarText(item) : (item.exclusive || item.diploma) && Look ? Look.unlockText(item) : item.badge ? `Odznak: ${(BADGE_BY_ID[item.badge] || {}).title || item.badge}` : `Úroveň ${item.level}`;
     const avatarLock = (value) => {
         const item = Look && Look.avatarItem ? Look.avatarItem(value) : null;
         if (!item || Social.AVATARS.includes(value) || (myProfile && Look.avatarItem(myProfile.avatar) === item) || Look.isUnlocked(item, lookContext())) return null;
@@ -1193,7 +1204,7 @@
     // Štítek na zamčené dlaždici obrázku: od které úrovně, nebo medaile (odemyká se odznakem; který, řekne popisek a klepnutí),
     // u legendární postavičky čepice absolventa (odemyká ji diplom tématu)
     const LOCK_PILL = 'absolute bottom-0 left-1/2 flex -translate-x-1/2 items-center whitespace-nowrap rounded-full bg-white px-1 text-[9px] font-black leading-[0.75rem] text-slate-700 dark:bg-slate-900 dark:text-slate-200';
-    const lockPill = (item) => `<span class="${LOCK_PILL}">${item.diploma ? '<i data-lucide="graduation-cap" class="my-px h-2.5 w-2.5"></i>' : item.badge ? '<i data-lucide="medal" class="my-px h-2.5 w-2.5"></i>' : `úr.&nbsp;${item.level}`}</span>`;
+    const lockPill = (item) => `<span class="${LOCK_PILL}">${item.diploma ? '<i data-lucide="graduation-cap" class="my-px h-2.5 w-2.5"></i>' : item.badge ? '<i data-lucide="medal" class="my-px h-2.5 w-2.5"></i>' : item.source === 'season' ? `${item.seasonTier || 20}.&nbsp;st.` : `úr.&nbsp;${item.level}`}</span>`;
     // Dlaždice sov titulů v Profilu → Mudrlant (hned za „Moje sova“): sova v mé barvě obleku, oříznutá do kolečka jako v profilovce;
     // dosažené jdou vybrat, vyšší jsou zašedlé s úrovní, od které se odemknou, a klepnutí jen řekne, kdy to bude
     const poseTiles = () => {
@@ -1202,7 +1213,7 @@
         return Look.POSES.map(pose => {
             const titles = tierTitles(pose.tier);
             const label = `Sova titulu ${titles[0]}${titles.length > 1 ? ` (${titles.join(', ')})` : ''}`;
-            const art = Owl.poseHtml(pose.id, ctx.prefs.robe);
+            const art = Owl.poseHtml(pose.id, ctx.prefs.robe, ctx.prefs.robeColor);
             if (ctx.level < pose.level) {
                 return `<button type="button" data-locked-owl="${pose.id}" aria-disabled="true" aria-label="${escapeHtml(`${label} je zamčená: od úrovně ${pose.level}`)}" title="${escapeHtml(`${label}: od úrovně ${pose.level}`)}" class="${AVATAR_TILE} ${AVATAR_OFF} relative">`
                     + `<span class="block h-full w-full opacity-40 grayscale">${art}</span>${lockPill(pose)}</button>`;
@@ -1250,7 +1261,9 @@
         }
         // Sezónní postavičky (exclusive) jen ty, které hráč má (ze Sezónní truhly) nebo už má v profilu, jinak by tu visely zamčené bez cesty k nim;
         // legendární (diploma) mají vlastní skupinu
-        if (group === 'postavicky') return Look ? Look.AVATARS.filter(item => !item.diploma && (!item.exclusive || Look.isUnlocked(item, lookContext()) || (myProfile && Look.avatarItem(myProfile.avatar) === item))).map(characterTile).join('') : '';
+        // Postavička běžící Sezóny (měsíc podle Prahy) je vidět i zamčená: šedá s textem „Získáš v Sezóně Mudrlanta (20. stupeň)“
+        const seasonMonth = Season ? Season.monthOf(Season.seasonOf(Season.pragueDay())) : 0;
+        if (group === 'postavicky') return Look ? Look.AVATARS.filter(item => !item.diploma && (!item.exclusive || item.month === seasonMonth || Look.isUnlocked(item, lookContext()) || (myProfile && Look.avatarItem(myProfile.avatar) === item))).map(characterTile).join('') : '';
         if (group === 'legendy') return Look ? legendTiles() : '';
         return Social.AVATARS.map(emoji => {
             const on = !meDraft.owl && emoji === meDraft.avatar;
@@ -2218,6 +2231,7 @@
                 const item = Look.avatarItem(locked.dataset.lockedAvatar);
                 const topic = item && item.diploma ? TOPIC_BY_ID[item.diploma] : null;
                 if (item) openSettings(item.diploma ? (topic && Rewards ? `${item.title} se odemkne diplomem „${Rewards.diplomaTitle(topic)}“ (plné mistrovství tématu ${topic.title}).` : `${item.title}: ${Look.unlockText(item)}.`)
+                    : item.source === 'season' ? `${item.title}: ${seasonAvatarText(item)}.`
                     : item.badge ?`${item.title} se odemkne odznakem „${(BADGE_BY_ID[item.badge] || {}).title || item.badge}“.` : `${item.title} se odemkne na úrovni ${item.level}.`, `[data-locked-avatar="${locked.dataset.lockedAvatar}"]`);
                 return;
             }
@@ -2586,9 +2600,9 @@
         renderIcons(iconSlot);
         const text = document.getElementById('status-text');
         if (place.logo) {
-            const level = levelProgress(loadProgress().xp);
+            const level = prestigeView();
             text.innerHTML = `<span class="block text-lg font-black normal-case leading-none tracking-tight text-brand-700 dark:text-cream max-[370px]:hidden">${escapeHtml(APP_NAME)}</span>`
-                + `<span class="mt-1 block whitespace-nowrap text-[10px] font-bold normal-case tracking-wide text-slate-500 dark:text-slate-400 max-[370px]:mt-0 max-[370px]:text-[11px]">Úr. ${level.level}<span class="max-[370px]:hidden"> · ${escapeHtml(titleForLevel(level.level))}</span></span>`
+                + `<span class="mt-1 block whitespace-nowrap text-[10px] font-bold normal-case tracking-wide text-slate-500 dark:text-slate-400 max-[370px]:mt-0 max-[370px]:text-[11px]">${level.prestige && Prestige ? `${Prestige.markHtml(level.prestige, 'mr-0.5 text-[9px]')}` : ''}Úr. ${level.level}<span class="max-[370px]:hidden"> · ${escapeHtml(titleForLevel(level.realLevel))}</span></span>`
                 + `<span class="mt-0.5 block h-1 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-500" data-progress="${Math.round(level.ratio * 100)}"></span></span>`;
             applyProgress(text);
             // Na úzkém displeji (360 px) se vedle čtyř tlačítek vejde sova a jen úroveň s pruhem (text vede do Mého postupu i tam, sova otevírá zajímavost)
@@ -2840,12 +2854,15 @@
             ? `<span class="short:hidden max-[400px]:hidden">${escapeHtml(topic.title)}</span><span class="hidden short:inline max-[400px]:inline" aria-label="${escapeHtml(topic.title)}">${escapeHtml(topic.shortTitle)}</span>`
             : escapeHtml(topic.title));
         // Dlaždice tématu: ikona a název, omezený výběr kategorií jako malý štítek
+        const weekend = weekendNow();
         const tile = (topic) => {
             const scope = scopeOf(topic);
+            const doubled = weekend && weekend.state === 'active' && weekend.topic === topic.id;
             return `
                 <button type="button" data-action="play-topic" data-topic="${topic.id}"${scope ? ` title="${escapeHtml(`${topic.title} · ${scope}`)}"` : ''} class="relative flex min-h-[4rem] min-w-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-2xl bg-gradient-to-br p-1 text-center text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] short:min-h-[3rem] short:gap-0.5 short:p-0.5 ${styleOf(topic).tile}">
                     ${topicArt(topic) ? topicIcon(topic, 'h-10 w-10 short:h-8 short:w-8') : `<i data-lucide="${topic.icon}" class="h-[1.625rem] w-[1.625rem]"></i>`}
                     <span class="block ${topic.title.length > 10 ? 'text-[10px]' : 'text-[11.5px]'} font-black leading-tight tracking-tight short:leading-none">${tileTitle(topic)}</span>
+                    ${doubled ? '<span data-weekend-tile class="pointer-events-none absolute right-1 top-1 rounded-md bg-gold-400 px-1 text-[9px] font-black leading-tight text-brand-950 shadow">2× XP</span>' : ''}
                 </button>`;
         };
         const mixScope = settings.topics.length === TOPICS.length ? 'Otázky ze všech témat' : `${settings.topics.length} z ${TOPICS.length} témat`;
@@ -2870,7 +2887,7 @@
                     </div>
                     <div class="grid grid-cols-7 gap-1">${dailyButtons}</div>
                 </section>
-                ${renderGoalsCard()}
+                ${weekendNow() ? `<div class="flex min-w-0 gap-1.5"><div class="min-w-0 flex-1">${renderGoalsCard()}</div>${weekendChipHtml()}</div>${weekendBannerHtml()}` : renderGoalsCard()}
                 <section class="grid max-h-[26rem] flex-1 grid-cols-4 auto-rows-fr gap-2 short:gap-1">${mixTile}${ordered.map(tile).join('')}</section>`}
             </div>`;
         applyProgress(appContent);
@@ -4178,6 +4195,7 @@
             category === 'avatars' && item.parts ? avatarArt(item.id, 'h-20 w-20 -my-4 drop-shadow-lg') : ''));
         freshBadgeIds = [];
         noteSeasonTier();
+        notePrestigeLevel();
     };
     // ===== Pomůcky do Dobývání (blok 30, conquest.js ITEMS): Tah navíc a Půl na půl =====
     // Zásoba je na serveru; sem chodí zisky z Bosse týdne, Kvízu dne bez chyby, celé Řetězovky a výhry v Dobývání (item v jejich výsledku),
@@ -5413,6 +5431,9 @@
         // Zlatá otázka: trojnásobek XP za odpověď, střípek a odznaky Zlatokop
         const goldPart = round.gold ? goldAnswer(counters, answerXp(round)) : null;
         if (goldPart) parts.push(goldPart);
+        // Tematický víkend (weekend.js): za otázku z tématu víkendu ještě jednou základ
+        const weekendPart = weekendXpPart(current.topic, answerXp(round));
+        if (weekendPart) parts.push(weekendPart);
         if (mode === 'daily' && current.dailyDate && round.dailyFirst !== false) {
             parts.push({ label: 'za dnešní otázku tématu', xp: DAILY_XP });
             if (round.correct) {
@@ -7051,7 +7072,8 @@
     };
     if (Look) Look.onChange((prefs, key) => {
         if (key === 'acc') celebrateLook(prefs);
-        if ((key === 'acc' || key === 'robe') && myProfile && myProfile.owl) {
+        if (key === 'robeColor') touchTip('robeColor');
+        if ((key === 'acc' || key === 'robe' || key === 'robeColor') && myProfile && myProfile.owl) {
             updateProfileButton();
             paintChallenges();
             clearTimeout(owlSaveTimer);
@@ -7076,6 +7098,9 @@
         syncLookWithAccount();
         updateProfileButton();
         syncProgress();
+        syncPrestige(user);
+        // Odkaz od kamaráda (…?pritel=KÓD) otevřený před přihlášením: kód se použije teď (jen nový účet)
+        if (pendingReferral()) joinReferral(pendingReferral().code);
         checkSchemaVersion(user);
         scheduleNicknameOffer(user, !loaded);
         if (myBlocked === null) Social.getAccepts(user.id).then(accepts => { if (!signedUser() || signedUser().id !== user.id || myBlocked !== null) return; adoptAccepts(accepts); paintChallenges(); });
@@ -7370,7 +7395,13 @@
         diplomaArt,
         leagueName: (id) => (LeagueSeasons ? LeagueSeasons.leagueName(id) : ''),
         emblem: (league, cls) => leagueEmblem({ id: league }, cls),
-        monthLabel: (month) => (LeagueSeasons ? LeagueSeasons.monthLabel(month) : month)
+        monthLabel: (month) => (LeagueSeasons ? LeagueSeasons.monthLabel(month) : month),
+        // Titul a věci ze Sezóny Mudrlanta (blok 32)
+        titleItem: (id) => (Look && Look.titleItem ? Look.titleItem(id) : null),
+        titleArt: (cls) => seasonTrophyArt('titles', null, cls),
+        seasonItem: (category, id) => { const item = Look ? Look.find(category, id) : null; return item && item.source === 'season' ? item : null; },
+        seasonArt: (category, item, cls) => seasonTrophyArt(category, item, cls),
+        monthName: (month) => (Look ? Look.SEASON_MONTHS[month - 1] || '' : '')
     });
     // Přepínač Vystavit (prázdný, když vitrína není: bez přihlášení, starší databáze, ještě nenačtená)
     const showcaseToggle = (entry, wide = false) => (Showcase && myShowcase && signedUser()
@@ -7388,6 +7419,8 @@
         try {
             // Odznak musí být v účtu: nově získaný se tam nejdřív nahraje
             if (result.added && entry.startsWith('b:')) await syncProgress();
+            // Titul a věc ze Sezóny musí být mezi dary v účtu (profiles.rewards): nejdřív se nahrají odměny ze zařízení
+            if (result.added && /^[ts]:/.test(entry)) await syncRewards();
             const saved = await Social.saveShowcase(user.id, result.list);
             if (saved === null) { myShowcase = null; return 'Vitrína zatím není k dispozici (databáze potřebuje nejnovější schema.sql).'; }
             myShowcase = saved;
@@ -7433,18 +7466,19 @@
             const body = myShowcase === null
                 ? `<p class="py-4 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">${loading ? 'Načítám…' : 'Vitrína zatím není k dispozici (databáze potřebuje nejnovější schema.sql).'}</p>`
                 : `<div class="flex flex-col gap-3" data-showcase-dialog>
-                    <div class="flex items-center gap-3">${uiArt('vitrina', 'h-14 w-14 -my-1')}<p class="min-w-0 flex-1 text-[13px] leading-snug text-slate-600 dark:text-slate-300">Vyber až ${Showcase.MAX} trofeje, které uvidí ostatní ve tvém profilu. Přidáš je tlačítkem <b class="text-slate-800 dark:text-slate-100">Vystavit</b> u odznaku, diplomu nebo ligové sezóny.</p></div>
+                    <div class="flex items-center gap-3">${uiArt('vitrina', 'h-14 w-14 -my-1')}<p class="min-w-0 flex-1 text-[13px] leading-snug text-slate-600 dark:text-slate-300">Vyber až ${Showcase.MAX} trofeje, které uvidí ostatní ve tvém profilu. Přidáš je tlačítkem <b class="text-slate-800 dark:text-slate-100">Vystavit</b> u odznaku, diplomu, ligové sezóny nebo odměny ze Sezóny.</p></div>
                     ${Showcase.tilesHtml(myShowcase, showcaseHelpers(), { remove: true, slots: true, label: 'Moje vitrína' })}
                     <div class="flex flex-col gap-1.5">
                         ${link('badges', '<i data-lucide="medal" class="h-6 w-6 shrink-0 text-gold-600"></i>', 'Odznaky', 'Vystavit jde nejvyšší získaný stupeň')}
                         ${Rewards ? link('diplomas', uiArt('diplom', 'h-7 w-7'), 'Diplomy', 'Za plné mistrovství tématu') : ''}
                         ${LeagueSeasons && leagueSeasons ? link('seasons', leagueEmblem({ id: leagueBestNow() || 'zlato' }, 'h-7 w-7'), 'Ligové sezóny', 'Vrchol skončeného měsíce') : ''}
+                        ${Season && Showcase.title ? link('season-items', uiArt('sezona', 'h-7 w-7'), 'Odměny ze Sezóny', 'Titul Šampion sezóny a věci měsíce') : ''}
                     </div>
                 </div>`;
             showDialog('Vitrína', body, {
                 onClick: async (event) => {
                     const go = event.target.closest('[data-showcase-go]');
-                    if (go) { openChild('Zpět na Vitrínu', openShowcase, ({ badges: openBadges, diplomas: openDiplomas, seasons: openLeagueSeasons })[go.dataset.showcaseGo]); return; }
+                    if (go) { openChild('Zpět na Vitrínu', openShowcase, ({ badges: openBadges, diplomas: openDiplomas, seasons: openLeagueSeasons, 'season-items': openSeasonTrophies })[go.dataset.showcaseGo]); return; }
                     const remove = event.target.closest('[data-showcase-remove]');
                     if (!remove) return;
                     const pending = toggleShowcase(remove.dataset.showcaseRemove);
@@ -7604,6 +7638,7 @@
                 ${quickActions()}
                 <div data-multi-more data-scroll-list class="relative -mx-3 -mb-1 flex min-h-[5rem] flex-1 flex-col gap-2.5 overflow-y-auto overscroll-y-contain px-3 pb-1 short:gap-1.5 [&>*]:shrink-0">
                     ${friendsStrip}
+                    ${referralCardHtml()}
                     ${leagueCard()}
                     ${recentSection(incoming)}
                 </div>
@@ -7715,6 +7750,7 @@
             updateProfileButton();
             paintChallenges();
             refreshTournaments();
+            if (Referral && referralState === null) refreshReferral(user);
             const [mine, incoming, rating] = await Promise.all([
                 Social.myChallenges(user.id).catch(() => []),
                 Social.incomingChallenges(user.id).catch(() => []),
@@ -8551,13 +8587,24 @@
                     </div>
                 </li>`;
         }).join('');
+        // Prestiž po úrovni 100 (prestige.js): vysvětlení a tlačítko, po klepnutí potvrzení
+        const pview = prestigeView(xp);
+        const prestigePanel = !Prestige ? '' : prestigeConfirm && pview.canPrestige ? Prestige.confirmHtml({ ...pview, realXp: xp }, { busy: prestigeBusy }) : Prestige.panelHtml(pview, { busy: prestigeBusy, signedIn: Boolean(signedUser()) });
         showDialog('Úrovně a tituly', `
             <div class="flex flex-col gap-2">
+                ${prestigePanel}
                 <p class="text-xs leading-snug text-slate-600 dark:text-slate-300">Za správné odpovědi sbíráš body zkušeností (XP) a stoupáš o úrovně. Každých pár úrovní dostaneš nový titul a odměny: doplňky, rámečky nebo barvy.</p>
                 <p class="text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400" data-my-xp>Tvoje XP: <b class="text-slate-700 dark:text-slate-200">${formatXp(xp)} XP</b> · úroveň ${current} · ${escapeHtml(titleForLevel(current))}</p>
                 <ul class="flex flex-col gap-1.5">${rows}</ul>
                 ${STICKY_BACK()}
-            </div>`);
+            </div>`, {
+            onClick: (event) => {
+                if (event.target.closest('[data-prestige-go]')) { prestigeConfirm = true; openLevels(); return; }
+                if (event.target.closest('[data-prestige-cancel]')) { prestigeConfirm = false; openLevels(); return; }
+                if (event.target.closest('[data-prestige-confirm-go]')) doPrestige();
+            }
+        });
+        if (prestigePanel && (pview.canPrestige || prestigeConfirm)) return;
         const here = document.querySelector('#dialog-overlay [data-here]');
         if (here) here.scrollIntoView({ block: 'center' });
     };
@@ -8573,8 +8620,8 @@
         const xp = progress.xp;
         const earnedCount = BADGES.filter(badge => progress.badges[badge.id]).length;
         const goals = badgeGoals(progress).slice(0, 2);
-        const level = levelProgress(xp);
-        const next = nextTitle(level.level);
+        const level = prestigeView(xp);
+        const next = level.prestige ? null : nextTitle(level.level);
         const learned = loadLearned();
         const rows = TOPICS.map(topic => {
             const known = (learned[topic.id] || []).length;
@@ -8599,11 +8646,11 @@
         showDialog('Můj postup', `
             <div class="flex flex-col gap-2.5 short:gap-1.5" data-progress-dialog>
                 <button type="button" data-open-levels class="btn-3d flex w-full items-center gap-2.5 rounded-2xl bg-gradient-to-br from-brand-700 to-brand-900 p-2.5 text-left text-white" aria-label="Tabulka úrovní">
-                    <span class="relative h-14 w-14 shrink-0" data-title-owl>${uiArt(titleOwlArt(level.level), 'h-full w-full')}<span class="absolute -bottom-1 -right-1.5 flex h-8 w-8 flex-col items-center justify-center rounded-full bg-gold-500 text-brand-950 shadow-md ring-2 ring-brand-800"><span class="text-[7px] font-black uppercase leading-none">úr.</span><span class="text-[13px] font-black leading-none">${level.level}</span></span></span>
+                    <span class="relative h-14 w-14 shrink-0" data-title-owl>${uiArt(titleOwlArt(level.realLevel), 'h-full w-full')}<span class="absolute -bottom-1 -right-1.5 flex h-8 w-8 flex-col items-center justify-center rounded-full ${level.prestige ? 'prestige-orb' : 'bg-gold-500 text-brand-950'} shadow-md ring-2 ring-brand-800"><span class="text-[7px] font-black uppercase leading-none">${level.prestige ? `★${level.prestige}` : 'úr.'}</span><span class="text-[13px] font-black leading-none">${level.level}</span></span></span>
                     <span class="min-w-0 flex-1">
-                        <span class="block truncate text-lg font-black leading-tight">${escapeHtml(titleForLevel(level.level))}</span>
+                        <span class="flex min-w-0 items-center gap-1.5 text-lg font-black leading-tight"><span class="truncate">${escapeHtml(titleForLevel(level.realLevel))}</span>${level.prestige && Prestige ? Prestige.markHtml(level.prestige, 'text-[11px]') : ''}</span>
                         <span class="mt-1 block h-2 overflow-hidden rounded-full bg-white/25" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-400" data-progress="${Math.round(level.ratio * 100)}"></span></span>
-                        <span class="mt-0.5 flex items-center justify-between gap-2 text-[11px] font-bold text-white/85"><span>${level.needed ? `${formatXp(level.into)} / ${formatXp(level.needed)} XP` : 'Nejvyšší úroveň'}</span>${level.needed ? `<span>do úr. ${level.level + 1}</span>` : ''}</span>
+                        <span class="mt-0.5 flex items-center justify-between gap-2 text-[11px] font-bold text-white/85"><span>${level.needed ? `${formatXp(level.into)} / ${formatXp(level.needed)} XP` : level.canPrestige ? '<span data-prestige-ready class="text-gold-300">Můžeš do prestiže ★</span>' : 'Nejvyšší úroveň'}</span>${level.needed ? `<span>do úr. ${level.level + 1}</span>` : ''}</span>
                         ${next ? `<span class="block truncate text-[11px] font-semibold leading-tight text-gold-300">Další titul: ${escapeHtml(next.title)} (úr. ${next.from})</span>` : ''}
                     </span>
                     <i data-lucide="chevron-right" class="h-5 w-5 shrink-0 text-white/60"></i>
@@ -8886,6 +8933,7 @@
         const isOpen = () => { const overlay = document.getElementById('dialog-overlay'); return token === profileToken && Boolean(overlay && /^(Profil hráče|Nahlásit hráče)$/.test(overlay.dataset.title)); };
         let stats = null;
         let theirProgress = null;
+        let theirPrestige = null;
         let theirRating = null;
         // Vitrína hráče (schéma 18): nejvýš 3 trofeje; null = nenačtená nebo databáze vitrínu nemá
         let theirShowcase = null;
@@ -8993,7 +9041,9 @@
             const ownTitle = pref !== 'level' && Look && Look.titleItem ? Look.titleItem(pref) : null;
             if (ownTitle) return `<p class="flex min-w-0 items-center gap-1.5 text-sm font-bold text-brand-700 dark:text-cream" data-own-title><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-gold-200 to-gold-500 text-brand-950 ring-2 ring-gold-300 shadow-sm"><i data-lucide="crown" class="h-3.5 w-3.5"></i></span><span class="truncate">${escapeHtml(ownTitle.title)}</span></p>`;
             const level = levelProgress(value.xp || 0).level;
-            return `<p class="truncate text-sm font-bold text-brand-700 dark:text-cream">Úr. ${level} · ${escapeHtml(titleForLevel(level))}</p>`;
+            // Prestiž (blok 32): „★1 · úr. 7 · Mudrlant“
+            const pv = Prestige && value.prestige ? Prestige.view(value.xp || 0, { n: value.prestige, at: value.prestige_xp }) : null;
+            return `<p class="flex min-w-0 items-center gap-1 text-sm font-bold text-brand-700 dark:text-cream">${pv ? Prestige.markHtml(pv.prestige, 'text-[11px]') : ''}<span class="truncate">Úr. ${pv ? pv.level : level} · ${escapeHtml(titleForLevel(level))}</span></p>`;
         };
         // Odznaky (jen u titulu podle úrovně): jedna řada malých medailí, „+N“ rozbalí všechny
         let badgesOpen = false;
@@ -9047,7 +9097,7 @@
             showDialog(view === 'report' ? 'Nahlásit hráče' : 'Profil hráče', `
                 <div class="flex flex-col gap-3${showcaseRow ? ' short:gap-2' : ''}">
                     <div class="flex items-center gap-3" data-profile-head>${avatarHtml(player, 'h-16 w-16 text-4xl')}
-                        <div class="min-w-0 flex-1"><p class="truncate text-xl font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(playerName(player))}</p>${theirProgress ? titleLine(theirProgress) : ''}${theirRating || look ? `<p class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">${theirRating ? `<span id="player-league">${leagueChip(theirRating.rating)}</span>` : ''}${look ? Owl.lookTagHtml(look) : ''}</p>` : ''}</div>
+                        <div class="min-w-0 flex-1"><p class="truncate text-xl font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(playerName(player))}</p>${theirProgress ? titleLine({ ...theirProgress, ...(theirPrestige || {}) }) : ''}${theirRating || look ? `<p class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">${theirRating ? `<span id="player-league">${leagueChip(theirRating.rating)}</span>` : ''}${look ? Owl.lookTagHtml(look) : ''}</p>` : ''}</div>
                     </div>
                     ${showcaseRow}
                     ${theirProgress && view !== 'report' && badgesRow(theirProgress) ? (showcaseRow ? `<div class="short:hidden">${badgesRow(theirProgress)}</div>` : badgesRow(theirProgress)) : ''}
@@ -9107,6 +9157,7 @@
         // Úroveň a odznaky hráče (bez nových sloupců v databázi se prostě nezobrazí)
         if (Rating) Social.getRating(playerId).then(value => { theirRating = value; if (document.getElementById('dialog-overlay')) render(); }).catch(() => {});
         Social.getProgress(playerId).then(value => { theirProgress = value; if (stats && document.getElementById('dialog-overlay')) render(); }).catch(() => {});
+        if (Prestige && Social.getPrestige) Social.getPrestige(playerId).then(value => { theirPrestige = value; if (value && value.prestige && stats && isOpen()) render(); }).catch(() => {});
         if (betsOn()) BetsApi.stats(playerId).then(value => { theirBets = value; if (stats && value && value.bets && isOpen()) render(); }).catch(() => {});
         if (Showcase && Social.getShowcase) Social.getShowcase(playerId).then(value => { theirShowcase = value; if (value && value.length && document.getElementById('dialog-overlay')) render(); }).catch(() => {});
         try {
@@ -9454,7 +9505,7 @@
             : state === 'error'
                 ? `<div class="flex flex-col gap-2"><p class="text-sm font-semibold text-rose-700 dark:text-rose-400">Výsledek se nepodařilo uložit. Zkontroluj připojení.</p><button type="button" data-action="challenge-retry" class="${PRIMARY_BUTTON}">Zkusit znovu</button></div>`
                 : `<ol class="flex flex-col gap-1.5">${results && results.length ? rankingRows(results, c.count, user && user.id) : ''}</ol>
-                    ${Friends && bestRival && bestRival.user_id ? Friends.reactionBar(bestRival.user_id, c.reaction || null, { busy: Boolean(c.reacting), name: playerName(bestRival.player) }) : ''}
+                    ${Friends && bestRival && bestRival.user_id ? Friends.reactionBar(bestRival.user_id, c.reaction || null, { busy: Boolean(c.reacting), name: playerName(bestRival.player), unlocked: myReactions(), more: true }) : ''}
                     <p class="text-sm text-slate-500 dark:text-slate-400">${results && results.length > 1 ? 'Porovnání s ostatními hráči.' : 'Pošli kód kamarádům, ať ti to oplatí.'}</p>`;
         if (state === 'ok') { c.lastResults = results; flushAnswerStats(); }
         // Rozpis otázek se po dohrání otevře sám (jednou na výzvu), jakmile je s kým srovnávat; tlačítko na výsledku zůstává
@@ -9488,6 +9539,8 @@
         if (state === 'ok' && c.betPour) { c.betPour = false; requestAnimationFrame(() => betPourIn(document.getElementById('bet-result'))); }
         // Vyhraná výzva: obrázek ke sdílení se připraví hned (share-card.js)
         if (outcome === 'vyhra' && ShareCard) { const card = challengeCardInput(c); if (card) ShareCard.prepare(card, ShareCard.fileName('vyzva', card.day)); }
+        // Vítězný efekt vítěze (blok 32) uvidí vítěz i poražený
+        if (state === 'ok') victoryFxFor(c, outcome, bestRival);
         // Dohraná výzva, na jejíhož soupeře se čeká (i právě založená): nabídka upozornění, ať se hráč dozví, až soupeř dohraje
         if (state === 'ok' && results && (!rivals.length || invitedWaiting)) schedulePushOffer('challenge');
     };
@@ -11557,6 +11610,333 @@
         writeJson(PROMO_KEY, { ...promo, bulbs: promo.bulbs + 1 });
         return true;
     };
+    // ===== Motivace (blok 32): tematický víkend, prestiž, Pozvi kamarády, reakce a vítězné efekty, sezónní věci ve vitríně =====
+    // --- Tematický víkend (weekend.js): pruh na úvodu, 2× XP za otázky z tématu (awardXp), štítek na dlaždici tématu ---
+    const weekendNow = () => {
+        const weekend = Weekend ? Weekend.at(new Date()) : null;
+        return weekend && TOPIC_BY_ID[weekend.topic] ? weekend : null;
+    };
+    const weekendBannerHtml = () => {
+        const weekend = weekendNow();
+        return weekend ? Weekend.bannerHtml(weekend, { topicIcon: (id, cls) => topicIcon(TOPIC_BY_ID[id], cls), topicTitle: (id) => TOPIC_BY_ID[id].title }) : '';
+    };
+    // Na nízkém displeji malý čip vedle cílů týdne místo pruhu
+    const weekendChipHtml = () => {
+        const weekend = weekendNow();
+        return weekend ? Weekend.chipHtml(weekend, { topicIcon: (id, cls) => topicIcon(TOPIC_BY_ID[id], cls), topicTitle: (id) => TOPIC_BY_ID[id].title }) : '';
+    };
+    // XP navíc za odpověď z tématu běžícího tematického víkendu (řádek do rozpisu XP), jinak null
+    const weekendXpPart = (topicId, baseXp) => {
+        const weekend = Weekend ? Weekend.active(new Date()) : null;
+        return weekend && weekend.topic === topicId && baseXp > 0 ? { label: `${weekend.title}: dvojnásobek XP`, xp: baseXp * (Weekend.MULTIPLIER - 1) } : null;
+    };
+
+    // --- Prestiž (prestige.js): hostovi v zařízení, přihlášenému ze serveru (profiles.prestige a prestige_xp) ---
+    const loadPrestige = () => (Prestige ? Prestige.clean(readJson(Prestige.KEY)) : { n: 0, at: 0 });
+    const savePrestige = (state) => { if (Prestige) writeJson(Prestige.KEY, Prestige.clean(state)); };
+    const prestigeView = (xp = loadProgress().xp) => (Prestige ? Prestige.view(xp, loadPrestige()) : { prestige: 0, ...levelProgress(xp), realLevel: levelProgress(xp).level, canPrestige: false });
+    // „★1 · úr. 7“ nebo „Úr. 7“
+    const levelLabelOf = (view) => (Prestige ? Prestige.levelText(view) : `Úr. ${view.level}`);
+    let prestigeBusy = false;
+    let prestigeConfirm = false;
+    // Stav ze serveru převezme zařízení (víc prestiží vyhrává; host si ho nechá)
+    const syncPrestige = async (user) => {
+        if (!Prestige || !Social || !Social.getPrestige || !user) return;
+        try {
+            const row = await Social.getPrestige(user.id);
+            const remote = Prestige.fromServer(row);
+            if (!remote || !signedUser() || signedUser().id !== user.id) return;
+            const local = loadPrestige();
+            const next = Prestige.newer(local, remote);
+            if (next.n !== local.n || next.at !== local.at) { savePrestige(next); applyLook(); updateControlsUI(); }
+        } catch (error) { /* bez sítě platí stav v zařízení */ }
+    };
+    // Oslava nové úrovně v prestiži (skutečná úroveň zůstává 100, announce ji nevidí): pamatuje se poslední oslavená
+    const PRESTIGE_SEEN = 'mudrlant.prestige-seen';
+    const notePrestigeLevel = () => {
+        if (!Prestige) return;
+        const view = prestigeView();
+        if (!view.prestige) return;
+        const seen = readJson(PRESTIGE_SEEN);
+        const key = `${view.prestige}:${view.level}`;
+        if (seen === key) return;
+        writeJson(PRESTIGE_SEEN, key);
+        if (seen && String(seen).startsWith(`${view.prestige}:`) && Number(String(seen).split(':')[1]) < view.level) {
+            showCelebration('oslava', `Prestiž ★${view.prestige}`, `Úroveň ${view.level}${view.canPrestige ? ' – můžeš do další prestiže!' : ''}`, 'level');
+        }
+    };
+    const doPrestige = async () => {
+        if (!Prestige || prestigeBusy) return;
+        const before = prestigeView();
+        if (!before.canPrestige) return;
+        prestigeBusy = true;
+        openLevels();
+        let next = null;
+        let message = '';
+        const user = signedUser();
+        try {
+            if (user && Social && Social.prestigeUp) {
+                // XP v účtu musí stačit: nejdřív se nahraje postup ze zařízení
+                await syncProgress();
+                const row = await Social.prestigeUp();
+                next = row ? Prestige.fromServer(row) : Prestige.advance(loadPrestige(), loadProgress().xp);
+            } else next = Prestige.advance(loadPrestige(), loadProgress().xp);
+        } catch (error) { message = error && error.message ? error.message : 'Prestiž se nepodařila. Zkontroluj připojení.'; }
+        prestigeBusy = false;
+        prestigeConfirm = false;
+        if (next) {
+            savePrestige(next);
+            writeJson(PRESTIGE_SEEN, `${next.n}:1`);
+            applyLook();
+            updateControlsUI();
+            showCelebration('vitez', `Prestiž ★${next.n}`, next.n === 1 ? 'Úroveň znovu od 1 a rámeček Prestižní (Nastavení → Profil)' : 'Úroveň znovu od 1. Nic odemčeného se neztratilo.', 'title');
+        } else if (message) showToast(message);
+        if (document.getElementById('dialog-overlay')) openLevels();
+    };
+
+    // --- Pozvi kamarády (referral.js; blok 32: referral_status, referral_join, referral_claim) ---
+    // Stav ze serveru (null = nenačtený nebo ho databáze nemá); vyzvednuté odměny se pamatují v zařízení (rámečky, reakce a efekty i bez sítě)
+    let referralState = null;
+    let referralBusy = false;
+    let referralNote = '';
+    let referralInput = '';
+    const PERKS_KEY = 'mudrlant.perks';
+    const loadPerks = () => { const raw = readJson(PERKS_KEY); return { referral: Referral && raw && Array.isArray(raw.referral) ? raw.referral.filter(key => Referral.REWARD_KEYS.includes(key)) : [] }; };
+    const savePerks = (keys) => writeJson(PERKS_KEY, { referral: [...new Set(keys)] });
+    const takeReferralCode = () => {
+        if (!Referral) return '';
+        const params = new URLSearchParams(window.location.search);
+        if (!params.has(Referral.LINK_PARAM)) return '';
+        const code = Referral.parseCode(`?${Referral.LINK_PARAM}=${params.get(Referral.LINK_PARAM)}`);
+        params.delete(Referral.LINK_PARAM);
+        const query = params.toString();
+        try { window.history.replaceState(window.history.state, '', window.location.pathname + (query ? `?${query}` : '') + window.location.hash); } catch (error) { /* adresa zůstane */ }
+        if (code) writeJson(Referral.KEY, { code, at: Date.now() });
+        return code;
+    };
+    const pendingReferral = () => (Referral ? Referral.cleanPending(readJson(Referral.KEY)) : null);
+    const refreshReferral = async (user = signedUser()) => {
+        if (!Referral || !Social || !Social.referralStatus || !user) return null;
+        try {
+            const raw = await Social.referralStatus();
+            if (!signedUser() || signedUser().id !== user.id) return null;
+            referralState = Referral.parseStatus(raw);
+            if (referralState) { savePerks([...loadPerks().referral, ...referralState.claimed]); applyLook(); }
+        } catch (error) { /* bez sítě se karta neukáže */ }
+        if (screen === 'home' && homeTab() === 'multi') paintChallenges();
+        return referralState;
+    };
+    // Odkaz od kamaráda: po přihlášení se kód použije (jen nový účet); hláška říká proč ne
+    const joinReferral = async (code, { quiet = false } = {}) => {
+        const user = signedUser();
+        if (!Referral || !Social || !Social.referralJoin || !user || !code) return false;
+        try {
+            const data = await Social.referralJoin(code);
+            writeJson(Referral.KEY, null);
+            if (!data) return false;
+            const name = data.inviter && data.inviter.display_name ? data.inviter.display_name : '';
+            referralNote = name ? `Pozvánka přijata: ${name} je teď tvůj přítel ve hře. Zahraj si a oba dostanete odměnu.` : 'Pozvánka přijata.';
+            if (!quiet) showToast(referralNote);
+            friendRows = null;
+            await refreshReferral(user);
+            return true;
+        } catch (error) {
+            // Chyba ze serveru (starý účet, vlastní kód…) je konečná, kód se zahodí; bez sítě zůstane na příště
+            if (error && error.status && error.status < 500) writeJson(Referral.KEY, null);
+            referralNote = error && error.message ? error.message : 'Kód přítele se nepodařilo použít.';
+            if (!quiet) showToast(referralNote);
+            return false;
+        }
+    };
+    const claimReferral = async () => {
+        if (!Referral || referralBusy || !Social || !Social.referralClaim) return;
+        referralBusy = true;
+        if (document.getElementById('dialog-overlay')) openReferral();
+        try {
+            const keys = await Social.referralClaim();
+            if (keys && keys.length) {
+                savePerks([...loadPerks().referral, ...keys]);
+                const prize = Referral.prizeOf(keys);
+                const progress = loadProgress();
+                const levelBefore = levelProgress(progress.xp).level;
+                progress.xp += prize.xp;
+                chronicleLog({ xp: prize.xp });
+                const titles = grantBadges(progress);
+                saveProgress(progress);
+                announce(levelBefore, levelProgress(progress.xp).level, titles);
+                applyLook();
+                syncProgress();
+                showCelebration('vitez', 'Odměna za pozvání', Referral.celebrationText(keys), 'badge');
+                referralNote = '';
+            }
+        } catch (error) { referralNote = error && error.message ? error.message : 'Odměny se nepodařilo vyzvednout.'; }
+        referralBusy = false;
+        await refreshReferral();
+        if (document.getElementById('dialog-overlay') && document.getElementById('dialog-overlay').dataset.title === 'Pozvi kamarády') openReferral();
+    };
+    const referralCardHtml = () => (Referral && referralState ? Referral.cardHtml(referralState) : '');
+    const openReferral = () => {
+        const user = signedUser();
+        if (!Referral || !user) return;
+        touchTip('referral');
+        const overlay = document.getElementById('dialog-overlay');
+        const fresh = !(overlay && overlay.dataset.title === 'Pozvi kamarády');
+        if (fresh && referralState === null) refreshReferral(user).then(() => { const now = document.getElementById('dialog-overlay'); if (now && now.dataset.title === 'Pozvi kamarády') openReferral(); });
+        showDialog('Pozvi kamarády', `${Referral.dialogHtml(referralState, { busy: referralBusy, note: referralNote, input: referralInput, h: { avatarHtml, frameClass: (id) => (window.MudrlantLookFrames ? window.MudrlantLookFrames.frameClass(id) : '') } })}${dialogBackButton('mt-3')}`, {
+            onClick: (event) => {
+                if (event.target.closest('[data-referral-claim]')) { claimReferral(); return; }
+                if (event.target.closest('[data-referral-share]') && referralState && referralState.code && ShareCard) {
+                    ShareCard.shareText({ title: 'Mudrlant', text: Referral.shareText(referralState.code, appUrl()), url: Referral.link(appUrl(), referralState.code) }, { toast: showToast, copied: 'Odkaz s kódem přítele zkopírován', failed: 'Kopírování se nepodařilo' });
+                }
+            },
+            onInput: (event) => { if (event.target.closest('[data-referral-input]')) referralInput = event.target.value; },
+            onSubmit: async (event) => {
+                if (!event.target.closest('[data-referral-join]') || referralBusy) return;
+                const code = Referral.parseCode(referralInput);
+                if (!code) { referralNote = 'Kód přítele má 8 znaků (písmena a číslice), třeba ABCD-2345.'; openReferral(); return; }
+                referralBusy = true;
+                openReferral();
+                await joinReferral(code, { quiet: true });
+                referralBusy = false;
+                referralInput = '';
+                openReferral();
+            }
+        });
+    };
+    // Odkaz od kamaráda bez přihlášení: okno s pozvánkou a přihlášením
+    const openReferralWelcome = () => {
+        if (!Referral || !Auth || !Auth.isConfigured()) return;
+        showDialog('Pozvánka od kamaráda', Referral.welcomeHtml(), {
+            onClick: (event) => {
+                if (event.target.closest('[data-referral-login]')) { closeDialog(); startLogin(); return; }
+                if (event.target.closest('[data-referral-later]')) closeDialog();
+            }
+        });
+    };
+
+    // --- Reakce a vítězné efekty (friends.js) ---
+    const perksCtx = () => {
+        const progress = loadProgress();
+        const rewards = Rewards ? loadRewards() : null;
+        return { level: levelProgress(progress.xp).level, badges: progress.badges, gifts: rewards ? rewards.gifts : {}, referral: loadPerks().referral };
+    };
+    const myReactions = () => (Friends && Friends.unlockedReactions ? Friends.unlockedReactions(perksCtx()) : (Friends ? Friends.REACTIONS : []));
+    // Můj vítězný efekt (profiles.victory_fx; undefined = nenačtený, null = databáze ho nemá)
+    let myVictoryFx;
+    let fxBusy = false;
+    const loadMyVictoryFx = async (user = signedUser()) => {
+        if (!user || !Social || !Social.victoryFx) { myVictoryFx = null; return null; }
+        try {
+            const map = await Social.victoryFx([user.id]);
+            myVictoryFx = map === null ? null : (map[user.id] || '');
+        } catch (error) { myVictoryFx = undefined; }
+        return myVictoryFx;
+    };
+    const openPerks = async () => {
+        if (!Friends || !Friends.perksHtml) return;
+        touchTip('perks');
+        const user = signedUser();
+        let opened = false;
+        const render = () => {
+            const overlay = document.getElementById('dialog-overlay');
+            if (opened && !(overlay && overlay.dataset.title === 'Reakce a vítězné efekty')) return;
+            opened = true;
+            showDialog('Reakce a vítězné efekty', `${Friends.perksHtml(perksCtx(), { chosen: myVictoryFx || '', busy: fxBusy, canSave: Boolean(user && typeof myVictoryFx === 'string') })}${dialogBackButton('mt-3')}`, {
+                onClick: async (event) => {
+                    const preview = event.target.closest('[data-fx-preview]');
+                    if (preview) { playVictoryFx(preview.dataset.fxPreview, 'Náhled vítězného efektu'); return; }
+                    const locked = event.target.closest('[data-fx-locked]');
+                    if (locked) { const item = Friends.findEffect(locked.dataset.fxLocked); if (item) showToast(`${item.title}: ${Friends.perkHow(item)}`); return; }
+                    const reaction = event.target.closest('[data-perk-reaction][data-unlocked="false"]');
+                    if (reaction) { const item = Friends.EXTRA_REACTIONS.find(entry => entry.emoji === reaction.dataset.perkReaction); if (item) showToast(`${item.label}: ${Friends.perkHow(item)}`); return; }
+                    const pick = event.target.closest('[data-fx-pick]');
+                    if (!pick || fxBusy || !user) return;
+                    const before = myVictoryFx;
+                    myVictoryFx = pick.dataset.fxPick;
+                    fxBusy = true;
+                    render();
+                    try {
+                        const saved = await Social.saveVictoryFx(user.id, myVictoryFx || null);
+                        myVictoryFx = saved === null ? null : saved;
+                        if (saved !== null && pick.dataset.fxPick && saved !== pick.dataset.fxPick) showToast('Tenhle efekt server nepřijal (ještě ho nemáš odemčený).');
+                        else if (pick.dataset.fxPick) playVictoryFx(pick.dataset.fxPick, 'Tvůj vítězný efekt');
+                    } catch (error) { myVictoryFx = before; showToast('Uložení se nepodařilo. Zkontroluj připojení.'); }
+                    fxBusy = false;
+                    render();
+                }
+            });
+        };
+        render();
+        if (user && myVictoryFx === undefined) { await loadMyVictoryFx(user); render(); }
+    };
+    // Vítězný efekt přes obrazovku (nepřekáží klepnutí, po chvíli zmizí)
+    const playVictoryFx = (id, caption = '') => {
+        if (!Friends || !Friends.effectHtml) return;
+        const html = Friends.effectHtml(id, { caption });
+        if (!html) return;
+        const old = document.querySelector('[data-victory-fx]');
+        if (old) old.remove();
+        document.body.insertAdjacentHTML('beforeend', html);
+        const layer = document.body.lastElementChild;
+        setTimeout(() => layer.remove(), 3600);
+    };
+    // Po vyhrané výzvě: vítězův efekt uvidí vítěz i poražený (jednou za výzvu)
+    const victoryFxFor = async (c, outcome, rival) => {
+        const user = signedUser();
+        if (!c || c.fxShown || !user || !Social || !Social.victoryFx || !['vyhra', 'prohra'].includes(outcome)) return;
+        c.fxShown = true;
+        const winner = outcome === 'vyhra' ? user.id : rival && rival.user_id;
+        if (!winner) return;
+        let fx = winner === user.id ? myVictoryFx : undefined;
+        if (typeof fx !== 'string') {
+            try { const map = await Social.victoryFx([winner]); fx = map ? map[winner] || '' : ''; } catch (error) { fx = ''; }
+        }
+        if (!fx || challenge !== c || screen !== 'challenge-done') return;
+        playVictoryFx(fx, winner === user.id ? 'Slavíš vítězství!' : `${playerName(rival.player)} slaví vítězství`);
+    };
+
+    // --- Vitrína: titul a věci ze Sezóny Mudrlanta (showcase.js t:<titul>, s:<druh>:<id>) ---
+    const SEASON_KINDS = { frames: 'Rámeček', avatars: 'Postavička', accessories: 'Doplněk' };
+    // Sezónní věci, které hráč má: [{ entry, category, item }]
+    const seasonTrophies = () => {
+        if (!Look || !Rewards || !Showcase || !Showcase.title) return [];
+        const gifts = loadRewards().gifts;
+        const titles = (Look.TITLES || []).filter(item => item.source === 'season' && (gifts.titles || []).includes(item.id)).map(item => ({ entry: Showcase.title(item.id), category: 'titles', item }));
+        const items = Showcase.SEASON_KINDS.flatMap(category => (Look.CATALOG[category] || []).filter(item => item.source === 'season' && (gifts[category] || []).includes(item.id))
+            .map(item => ({ entry: Showcase.seasonItem(category, item.id), category, item })));
+        return [...titles, ...items];
+    };
+    const seasonTrophyArt = (category, item, cls) => category === 'frames' ? framePreview(item.id, `${cls} text-xl`)
+        : category === 'avatars' ? avatarArt(item.id, cls) : category === 'accessories' ? `<img src="icons/doplnky/${escapeHtml(item.id)}-ikona.webp" alt="" class="${cls} object-contain">`
+            : `<span class="flex ${cls} items-center justify-center rounded-full bg-gradient-to-br from-gold-200 to-gold-500 text-brand-950"><i data-lucide="crown" class="h-1/2 w-1/2"></i></span>`;
+    const openSeasonTrophies = () => {
+        const user = signedUser();
+        if (!user || !Showcase) return;
+        let opened = false;
+        const render = () => {
+            const overlay = document.getElementById('dialog-overlay');
+            if (opened && !(overlay && overlay.dataset.title === 'Odměny ze Sezóny')) return;
+            opened = true;
+            const list = seasonTrophies();
+            const row = ({ entry, category, item }) => `<li class="flex items-center gap-2.5 rounded-2xl bg-white p-2 shadow-sm dark:bg-slate-800">
+                    <span class="flex h-10 w-10 shrink-0 items-center justify-center">${seasonTrophyArt(category, item, 'h-9 w-9')}</span>
+                    <span class="min-w-0 flex-1"><span class="block truncate text-[13px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(item.title)}</span><span class="block truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(category === 'titles' ? 'Titul sezóny' : `${SEASON_KINDS[category]} · ${item.month && Look ? Look.SEASON_MONTHS[item.month - 1] : 'Sezóna'}`)}</span></span>
+                    ${showcaseToggle(entry)}
+                </li>`;
+            showDialog('Odměny ze Sezóny', `<div class="flex flex-col gap-2">
+                    <p class="text-[13px] leading-snug text-slate-600 dark:text-slate-300">Titul a věci ze Sezóny Mudrlanta jdou vystavit ve vitríně. Jinak se získat nedají.</p>
+                    ${list.length ? `<ul class="flex flex-col gap-1.5">${list.map(row).join('')}</ul>` : '<p class="rounded-2xl bg-white p-3 text-center text-[13px] font-semibold text-slate-500 shadow-sm dark:bg-slate-800 dark:text-slate-400">Zatím nemáš nic ze Sezóny Mudrlanta. Titul Šampion sezóny a věci měsíce dává cesta odměn sezóny (Můj postup).</p>'}
+                    ${dialogBackButton('mt-1')}
+                </div>`, {
+                onClick: (event) => {
+                    const toggle = event.target.closest('[data-showcase-toggle]');
+                    if (toggle) onShowcaseToggle(toggle, render);
+                }
+            });
+        };
+        render();
+    };
+
     // --- Tipy od Mudrlanta: žárovka s vysvětlením jedné funkce hry (výběr a pravidla v tips.js) ---
     const readTipsState = () => Tips.parse(readJson(KEYS.tips));
     const writeTipsState = (value) => writeJson(KEYS.tips, value);
@@ -11576,6 +11956,9 @@
             signedIn: Boolean(signedUser()), multiAvailable: Boolean(Auth && Auth.isConfigured() && Social), reviewOn: reviewEnabled(),
             quiz: Boolean(DailyQuiz), mystery: Boolean(Mystery), modes: Boolean(Modes), goals: Boolean(Goals && Rewards), freezes: Rewards ? loadRewards().freezes : 0,
             season: Boolean(Season && Rewards), album: Boolean(Album), chronicle: Boolean(Chronicle), showcase: Boolean(Showcase && myShowcase !== null), leagueSeasons: Boolean(LeagueSeasons && leagueSeasons),
+            // Motivace (blok 32): tematický víkend, prestiž (úroveň a počet prestiží), Pozvi kamarády a reakce navíc (jen s databází, která je má)
+            weekend: Boolean(Weekend), level: levelProgress(loadProgress().xp).level, prestige: loadPrestige().n,
+            referral: Boolean(Referral && referralState), invited: referralState ? referralState.invited.length : 0, perks: Boolean(Friends && Friends.perksHtml),
             gold: Boolean(Gold && Rewards),
             boss: Boolean(Boss),
             maxStars: Math.max(0, ...Object.values(loadLearned()).map(ids => masteryStars((ids || []).length))),
@@ -12631,7 +13014,7 @@
                 ? `<div class="flex flex-col gap-2"><p class="text-sm font-semibold text-rose-700 dark:text-rose-400" role="alert">${escapeHtml(message || 'Výsledek se nepodařilo uložit. Zkontroluj připojení.')}</p><button type="button" data-action="challenge-retry" class="${PRIMARY_BUTTON}">Zkusit znovu</button></div>`
                 : `<p data-tournament-outcome class="text-center text-sm font-semibold leading-snug text-slate-700 dark:text-slate-200">${escapeHtml(text)}</p>
                     ${match && view ? `<ul class="flex flex-col gap-1.5">${tournamentMatchHtml(match, new Map(view.entries.map(entry => [entry.user_id, entry])), user && user.id)}</ul>` : ''}
-                    ${Friends && match && user ? Friends.reactionBar(match.p1 === user.id ? match.p2 : match.p1, c.reaction || null, { busy: Boolean(c.reacting) }) : ''}
+                    ${Friends && match && user ? Friends.reactionBar(match.p1 === user.id ? match.p2 : match.p1, c.reaction || null, { busy: Boolean(c.reacting), unlocked: myReactions(), more: true }) : ''}
                     ${info && info.step === 'won' && match && match.decided_by !== 'earlier' ? `<p class="text-center text-sm font-black text-emerald-700 dark:text-emerald-400">+${Tournament.winXp(match.round)} XP za vyhraný zápas</p>` : ''}`;
         appContent.innerHTML = `
             <div class="fade-in flex min-h-full w-full flex-col gap-4 bg-slate-50 p-4 pb-6 dark:bg-slate-900">
@@ -12907,6 +13290,10 @@
         'play-daily': () => { const next = nextDailyTopic(); if (next) startNextDaily(next.id); },
         'daily-home': () => renderHome(),
         'play-topic': (button) => playTopic(button.dataset.topic),
+        // Tematický víkend: pruh na úvodu hraje téma víkendu (v pátek před 18:00 jen připomene, kdy začne)
+        'weekend-play': (button) => { if (button.dataset.weekendState === 'soon') { showToast('Tematický víkend začne dnes v 18:00. Pak budou otázky z tématu za dvojnásobek XP.'); return; } playTopic(button.dataset.topic); },
+        'referral-open': () => openReferral(),
+        'reactions-info': () => openPerks(),
         'play-mix': () => openChooser({ kind: 'mix' }),
         'open-fact': () => openFact(),
         'open-learn': () => openLearn('home'),
@@ -13200,6 +13587,8 @@
         if (invite) writeJson(KEYS.pendingChallenge, invite);
         const groupInvite = GroupsUI ? GroupsUI.takeLink() : '';
         const conquestInvite = ConquestUI ? ConquestUI.takeLink() : '';
+        // Odkaz od kamaráda …?pritel=KÓD (blok 32): kód se zapamatuje, použije se po přihlášení (loadMyProfile)
+        const referralInvite = takeReferralCode();
         let shownUserId = null;
         Auth.onChange((state) => {
             if (document.getElementById('settings-overlay')) openSettings();
@@ -13213,6 +13602,7 @@
                 myProfile = null; myBlocked = null; myAcceptsMix = true; acceptsConfirmed = null; myChallenges = null; myRating = null; incomingList = null; friendRows = null; recentReactions = []; myBlocks = null; resetTournaments();
                 quizServer = null; quizServerAt = 0;
                 leagueSeasons = null; leagueSeasonsAt = 0; myShowcase = null; myShowcaseAt = 0; seasonPick = null;
+                referralState = null; referralNote = ''; myVictoryFx = undefined;
                 if (GroupsUI) GroupsUI.reset();
                 if (ConquestUI) ConquestUI.reset();
                 updateProfileButton();
@@ -13243,6 +13633,8 @@
             else if (groupInvite && GroupsUI) GroupsUI.openJoin(groupInvite);
             // Odkaz do hry Dobývání: přihlášený vybere barvu a znak a přidá se, nepřihlášený se nejdřív přihlásí
             if (conquestInvite && ConquestUI) ConquestUI.openCode(conquestInvite);
+            // Odkaz od kamaráda bez přihlášení: pozvánka s přihlášením (přihlášený ho použije sám v loadMyProfile)
+            if (!state.user && referralInvite && !invite && !groupInvite && !conquestInvite) openReferralWelcome();
         });
     }
     // Klávesnice na telefonu: Chrome i Safari při jejím otevření zmenší jen viditelnou plochu, okna zarovnaná ke spodku by zůstala pod ní.

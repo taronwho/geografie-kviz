@@ -6,8 +6,58 @@
     else root.MudrlantFriends = api;
 })(typeof self !== 'undefined' ? self : this, () => {
     'use strict';
+    // Základní reakce má každý; další se odemykají úrovní, odznakem, stupněm Sezóny Mudrlanta nebo pozváním kamarádů (EXTRA_REACTIONS).
+    // Server (blok 32 ve schema.sql, check_reaction a unlock_catalog) přijme jen reakci, kterou má odesílatel odemčenou.
     const REACTIONS = ['👍', '🔥', '😅', '🤝'];
-    const REACTION_LABELS = { '👍': 'Dobrá hra', '🔥': 'Paráda', '😅': 'Těsně', '🤝': 'Odveta?' };
+    // level = od úrovně, badge = za odznak (i vyšší stupeň téže skupiny), season = stupeň Sezóny Mudrlanta (10 = Truhla v půli sezóny
+    // s druhým rámečkem měsíce, 20 = Sezónní truhla s titulem Šampion sezóny; pozná se podle těchto věcí mezi dárky), referral = odměna
+    // za pozvané kamarády (referral.js, klíč odměny ze serveru)
+    const EXTRA_REACTIONS = [
+        { emoji: '😮', label: 'Wow', level: 5 },
+        { emoji: '🧠', label: 'Chytrá hlava', level: 15 },
+        { emoji: '🦉', label: 'Mudrlantsky', level: 30 },
+        { emoji: '🙌', label: 'Klobouk dolů', level: 50 },
+        { emoji: '🎯', label: 'Přesná trefa', badge: 'strelec', badgeTitle: 'Střelec' },
+        { emoji: '💪', label: 'Silný soupeř', badge: 'vyzvy-25', badgeTitle: 'Zkušený bojovník' },
+        { emoji: '🎉', label: 'Oslava', season: 10 },
+        { emoji: '👑', label: 'Královská hra', season: 20 },
+        { emoji: '🤗', label: 'Vítej mezi námi', referral: 'pritel-3' }
+    ];
+    const ALL_REACTIONS = [...REACTIONS, ...EXTRA_REACTIONS.map(item => item.emoji)];
+    const REACTION_LABELS = { '👍': 'Dobrá hra', '🔥': 'Paráda', '😅': 'Těsně', '🤝': 'Odveta?', ...Object.fromEntries(EXTRA_REACTIONS.map(item => [item.emoji, item.label])) };
+    // Vítězné efekty: animace přes obrazovku výsledku, kterou po vyhrané výzvě uvidí vítěz i poražený (vítězův zvolený efekt,
+    // profiles.victory_fx). Odemykají se stejně jako reakce; animace jsou třídy .vfx-* v src/input.css (CSP: bez vložených stylů).
+    const VICTORY_EFFECTS = [
+        { id: 'konfety', title: 'Konfety', level: 5 },
+        { id: 'hvezdy', title: 'Hvězdný déšť', level: 20 },
+        { id: 'ohnostroj', title: 'Ohňostroj', level: 40 },
+        { id: 'koruna', title: 'Zlatá koruna', badge: 'vyhry-25', badgeTitle: 'Šampion' },
+        { id: 'blesky', title: 'Blesky', badge: 'vyhry-v-rade-5', badgeTitle: 'Pětka v řadě' },
+        { id: 'sezona', title: 'Sezónní záře', season: 20 },
+        { id: 'srdicka', title: 'Srdíčka přátel', referral: 'pritel-3' }
+    ];
+    const findEffect = (id) => VICTORY_EFFECTS.find(item => item.id === id) || null;
+    // Je reakce nebo efekt odemčený? ctx = { level, badges: { id: den }, gifts: { frames: [], titles: [] }, referral: [klíče odměn] }
+    const SEASON_MID = /^sezona-(0[1-9]|1[0-2])-b$/;
+    const seasonReached = (tier, gifts) => {
+        const g = gifts && typeof gifts === 'object' ? gifts : {};
+        if (tier >= 20) return Array.isArray(g.titles) && g.titles.includes('sampion-sezony');
+        return Array.isArray(g.frames) && g.frames.some(id => SEASON_MID.test(id));
+    };
+    const perkUnlocked = (item, ctx = {}) => {
+        if (!item) return false;
+        if (item.level) return Number(ctx.level) >= item.level;
+        if (item.badge) return Boolean(ctx.badges && ctx.badges[item.badge]);
+        if (item.season) return seasonReached(item.season, ctx.gifts);
+        if (item.referral) return Array.isArray(ctx.referral) && ctx.referral.includes(item.referral);
+        return true;
+    };
+    const unlockedReactions = (ctx = {}) => [...REACTIONS, ...EXTRA_REACTIONS.filter(item => perkUnlocked(item, ctx)).map(item => item.emoji)];
+    const unlockedEffects = (ctx = {}) => VICTORY_EFFECTS.filter(item => perkUnlocked(item, ctx)).map(item => item.id);
+    // Jak se odemyká (text pro hráče)
+    const perkHow = (item) => (item.level ? `Úroveň ${item.level}` : item.badge ? `Odznak ${item.badgeTitle || item.badge}`
+        : item.season ? (item.season >= 20 ? 'Celá cesta Sezóny Mudrlanta (20. stupeň)' : 'Sezóna Mudrlanta, 10. stupeň')
+            : item.referral ? 'Pozvi 3 kamarády' : 'Od začátku');
     const FRIEND_LIMIT = 200;
     const DAY = 86400000;
     const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
@@ -135,14 +185,19 @@
                 <div class="-my-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-1 py-1">${friends.slice(0, 20).map(row => `<button type="button" data-pick-opp="${esc(row.id)}" class="flex max-w-[9rem] shrink-0 items-center gap-1.5 rounded-xl bg-white py-1 pl-1 pr-2.5 text-left shadow-sm active:scale-[0.98] dark:bg-slate-800">${h.avatarHtml(row, 'h-7 w-7 text-sm')}<span class="truncate text-[12px] font-bold text-slate-800 dark:text-slate-100">${esc(shortName(row.display_name, 12))}</span></button>`).join('')}</div>
             </div>`;
     };
-    // Řada reakcí po zápase; chosen = moje už poslaná reakce
-    const reactionBar = (toId, chosen = null, { busy = false, name = '' } = {}) => `
+    // Řada reakcí po zápase; chosen = moje už poslaná reakce, unlocked = reakce, které hráč má (výchozí jen základní). Víc reakcí se zalomí
+    // do dvou řad; more = odkaz na přehled všech reakcí a vítězných efektů (data-action="reactions-info")
+    const reactionBar = (toId, chosen = null, { busy = false, name = '', unlocked = REACTIONS, more = false } = {}) => {
+        const list = ALL_REACTIONS.filter(emoji => (unlocked || REACTIONS).includes(emoji) || emoji === chosen);
+        return `
         <div data-reactions class="flex flex-col items-center gap-1.5 rounded-2xl bg-white p-2.5 shadow-sm dark:bg-slate-800">
-            <p class="text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">${chosen ? `Poslal jsi ${REACTION_LABELS[chosen] ? REACTION_LABELS[chosen].toLowerCase() : chosen}` : `Pošli reakci${name ? ` hráči ${esc(shortName(name, 14))}` : ''}`}</p>
-            <div class="flex gap-2">${REACTIONS.map(emoji => `<button type="button" data-action="react" data-emoji="${emoji}" data-to="${esc(toId)}" aria-label="${esc(REACTION_LABELS[emoji])}" aria-pressed="${chosen === emoji}" title="${esc(REACTION_LABELS[emoji])}" ${busy ? 'disabled' : ''} class="flex h-11 w-11 items-center justify-center rounded-full text-2xl active:scale-90 disabled:opacity-50 ${chosen === emoji ? 'bg-brand-100 ring-2 ring-brand-600 dark:bg-brand-900/50' : chosen ? 'bg-slate-50 opacity-50 dark:bg-slate-700/60' : 'bg-slate-100 dark:bg-slate-700'}">${emoji}</button>`).join('')}</div>
+            <p class="text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">${chosen ? `Reakce odeslána: ${esc(REACTION_LABELS[chosen] ? REACTION_LABELS[chosen].toLowerCase() : chosen)}` : `Pošli reakci${name ? ` hráči ${esc(shortName(name, 14))}` : ''}`}</p>
+            <div class="flex flex-wrap justify-center gap-2">${list.map(emoji => `<button type="button" data-action="react" data-emoji="${emoji}" data-to="${esc(toId)}" aria-label="${esc(REACTION_LABELS[emoji])}" aria-pressed="${chosen === emoji}" title="${esc(REACTION_LABELS[emoji])}" ${busy ? 'disabled' : ''} class="flex h-11 w-11 items-center justify-center rounded-full text-2xl active:scale-90 disabled:opacity-50 ${chosen === emoji ? 'bg-brand-100 ring-2 ring-brand-600 dark:bg-brand-900/50' : chosen ? 'bg-slate-50 opacity-50 dark:bg-slate-700/60' : 'bg-slate-100 dark:bg-slate-700'}">${emoji}</button>`).join('')}</div>
+            ${more ? `<button type="button" data-action="reactions-info" class="-mb-1 flex min-h-[2rem] items-center gap-1 px-2 text-[11px] font-black text-brand-700 dark:text-brand-300"><i data-lucide="sparkles" class="h-3.5 w-3.5"></i>Další reakce a vítězné efekty (${list.length}/${ALL_REACTIONS.length})</button>` : ''}
         </div>`;
+    };
     // Malý emoji soupeřovy reakce (řádek poslední výzvy, profil)
-    const reactionBadge = (emoji, name = '') => emoji && REACTIONS.includes(emoji) ? `<span data-reaction-badge="${emoji}" title="${esc(name ? `${name}: ${REACTION_LABELS[emoji]}` : REACTION_LABELS[emoji])}" aria-label="Reakce ${esc(REACTION_LABELS[emoji])}" class="shrink-0 text-sm leading-none">${emoji}</span>` : '';
+    const reactionBadge = (emoji, name = '') => emoji && ALL_REACTIONS.includes(emoji) ? `<span data-reaction-badge="${emoji}" title="${esc(name ? `${name}: ${REACTION_LABELS[emoji]}` : REACTION_LABELS[emoji])}" aria-label="Reakce ${esc(REACTION_LABELS[emoji])}" class="shrink-0 text-sm leading-none">${emoji}</span>` : '';
     // Reakce k výzvě od soupeře (to = já): emoji nebo null
     const reactionFor = (reactions, challengeId, meId) => {
         const row = (reactions || []).find(item => item.challenge_id === challengeId && item.to_id === meId && item.emoji);
@@ -152,6 +207,59 @@
         const row = (reactions || []).find(item => item.from_id === meId && item.emoji && (target.challengeId ? item.challenge_id === target.challengeId : item.match_id === target.matchId));
         return row ? row.emoji : null;
     };
+    // --- Vítězné efekty ---
+    // Vrstva přes obrazovku výsledku (nepřekáží klepnutí, po chvíli zmizí): kousky efektu (jejich polohu, zpoždění a dráhu dávají
+    // třídy .vfx-<id> .vfx-piece:nth-child(n) v src/input.css) a popisek. S omezeným pohybem jen krátká záře (CSS).
+    const EFFECT_PIECES = 14;
+    const EFFECT_GLYPHS = { konfety: '', hvezdy: '★', ohnostroj: '', koruna: '', blesky: '⚡', sezona: '✦', srdicka: '❤' };
+    const effectHtml = (id, { caption = '' } = {}) => {
+        const item = findEffect(id);
+        if (!item) return '';
+        const piece = `<span class="vfx-piece">${EFFECT_GLYPHS[item.id] || ''}</span>`;
+        return `<div data-victory-fx="${item.id}" class="vfx vfx-${item.id}" aria-hidden="true">${item.id === 'koruna' ? '<span class="vfx-crown">👑</span>' : ''}${piece.repeat(EFFECT_PIECES)}${caption ? `<span class="vfx-caption">${esc(caption)}</span>` : ''}</div>`;
+    };
+    // Okno Reakce a vítězné efekty: všechny reakce (zamčené šedé s tím, jak je získat) a výběr vítězného efektu s náhledem.
+    // ctx jako u perkUnlocked; chosen = id zvoleného efektu ('' = žádný); canSave = přihlášený s databází, která efekt uloží
+    const perksHtml = (ctx, { chosen = '', busy = false, canSave = true } = {}) => {
+        const reactions = unlockedReactions(ctx);
+        const effects = unlockedEffects(ctx);
+        const reactionTile = (emoji) => {
+            const item = EXTRA_REACTIONS.find(entry => entry.emoji === emoji);
+            const open = reactions.includes(emoji);
+            const how = item ? perkHow(item) : 'Od začátku';
+            return `<li data-perk-reaction="${emoji}" data-unlocked="${open}" title="${esc(`${REACTION_LABELS[emoji]}: ${open ? 'odemčeno' : how}`)}" aria-label="${esc(`Reakce ${REACTION_LABELS[emoji]}${open ? '' : ` (zamčeno: ${how})`}`)}" class="flex min-w-0 flex-col items-center gap-0.5 rounded-xl px-0.5 py-1 text-center ${open ? 'bg-white shadow-sm dark:bg-slate-800' : 'bg-slate-100 dark:bg-slate-800/50'}">
+                <span class="text-[1.4rem] leading-none ${open ? '' : 'opacity-40 grayscale'}">${emoji}</span>
+                <span class="block w-full truncate text-[10px] font-black leading-tight text-slate-700 dark:text-slate-200">${esc(REACTION_LABELS[emoji])}</span>
+                ${open ? '' : `<span class="block w-full truncate text-[9px] font-bold leading-tight text-slate-500 dark:text-slate-400">${esc(item ? (item.level ? `úr. ${item.level}` : item.badge ? 'odznak' : item.season ? `sezóna ${item.season}.` : 'pozvánky') : '')}</span>`}
+            </li>`;
+        };
+        const effectTile = (item) => {
+            const open = item ? effects.includes(item.id) : true;
+            const id = item ? item.id : '';
+            const on = chosen === id;
+            const title = item ? item.title : 'Bez efektu';
+            const how = item ? perkHow(item) : '';
+            return `<button type="button" ${open ? `data-fx-pick="${id}"` : `data-fx-locked="${id}" aria-disabled="true"`} role="radio" aria-checked="${on}" ${busy || !canSave ? 'disabled' : ''} aria-label="${esc(`${title}${open ? '' : ` (zamčeno: ${how})`}`)}" class="flex min-h-[2.75rem] min-w-0 items-center gap-1.5 rounded-xl px-2 py-1 text-left active:scale-[0.98] disabled:opacity-60 ${on ? 'bg-brand-700 text-white ring-2 ring-gold-400' : open ? 'bg-white text-slate-800 shadow-sm dark:bg-slate-800 dark:text-slate-100' : 'bg-slate-100 text-slate-500 dark:bg-slate-800/50 dark:text-slate-400'}">
+                <span class="vfx-swatch vfx-swatch-${id || 'zadny'} h-6 w-6 shrink-0 rounded-full${open ? '' : ' opacity-40 grayscale'}" aria-hidden="true"></span>
+                <span class="min-w-0 flex-1"><span class="block truncate text-[12px] font-black leading-tight">${esc(title)}</span>${open ? '' : `<span class="block truncate text-[10px] font-bold leading-tight">${esc(how)}</span>`}</span>
+                ${!open ? '<i data-lucide="lock" class="h-3.5 w-3.5 shrink-0"></i>' : on ? '<i data-lucide="check" class="h-4 w-4 shrink-0"></i>' : ''}
+            </button>`;
+        };
+        const current = findEffect(chosen);
+        return `
+            <div class="flex flex-col gap-2.5" data-perks-dialog>
+                <section>
+                    <h3 class="${LABEL} mb-1">Reakce po zápase <span class="font-bold normal-case tracking-normal">· ${reactions.length} z ${ALL_REACTIONS.length}</span></h3>
+                    <ul class="grid grid-cols-5 gap-1">${ALL_REACTIONS.map(reactionTile).join('')}</ul>
+                </section>
+                <section>
+                    <div class="mb-1 flex items-center justify-between gap-2"><h3 class="${LABEL}">Vítězný efekt</h3>${current && effects.includes(current.id) ? `<button type="button" data-fx-preview="${current.id}" class="-my-1 flex min-h-[2rem] items-center gap-1 rounded-lg px-1.5 text-[11px] font-black text-brand-700 dark:text-brand-300"><i data-lucide="play" class="h-3.5 w-3.5"></i>Náhled</button>` : ''}</div>
+                    <p class="mb-1.5 px-1 text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400">${canSave ? 'Po vyhrané výzvě ho uvidíš ty i soupeř.' : 'Vítězný efekt se ukládá do účtu: přihlas se (a správce musí mít v databázi nejnovější schema.sql).'}</p>
+                    <div role="radiogroup" aria-label="Vítězný efekt" class="grid grid-cols-2 gap-1">${[null, ...VICTORY_EFFECTS].map(effectTile).join('')}</div>
+                </section>
+            </div>`;
+    };
+
     // Seznam zablokovaných (Nastavení → Profil)
     const blockedList = (list, h) => {
         if (list === null) return '<p class="text-sm font-semibold text-slate-500 dark:text-slate-400">Blokování zatím není k dispozici.</p>';
@@ -180,6 +288,6 @@
         }).join('')}</ul>`;
     };
 
-    return { REACTIONS, REACTION_LABELS, FRIEND_LIMIT, activity, shortName, balanceText, split, relation, atLimit, friendButton, moreButton, moreMenu, blockConfirm, blockedNote, reportBody, reasonLabel,
+    return { REACTIONS, EXTRA_REACTIONS, ALL_REACTIONS, REACTION_LABELS, VICTORY_EFFECTS, findEffect, perkUnlocked, unlockedReactions, unlockedEffects, perkHow, effectHtml, perksHtml, FRIEND_LIMIT, activity, shortName, balanceText, split, relation, atLimit, friendButton, moreButton, moreMenu, blockConfirm, blockedNote, reportBody, reasonLabel,
         friendsStrip, requestRows, quickFriends, reactionBar, reactionBadge, reactionFor, myReactionFor, blockedList, devReports };
 });

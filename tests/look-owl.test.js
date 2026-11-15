@@ -93,7 +93,7 @@ test('monokl: výchozí sova ho nosí, „Bez monoklu“ a doplněk v obličeji 
     assert.match(Owl.logoHtml('', '', { face: { id: 'knir', color: 'original' } }), /<img src="icons\/logo\.webp".*doplnky\/knir\.webp/);
     assert.equal(Owl.layersHtml({ face: { id: 'bez-monoklu' } }), '', '„Bez monoklu“ nemá vrstvu');
     const dir = path.join(__dirname, '..', 'icons');
-    for (const robe of Look.ROBES) assert.ok(fs.existsSync(path.join(dir, `logo-bez-monoklu${robe.id === 'vinova' ? '' : `-${robe.id}`}.webp`)), `logo bez monoklu: ${robe.id}`);
+    for (const robe of Look.ROBES.filter(entry => !entry.custom)) assert.ok(fs.existsSync(path.join(dir, `logo-bez-monoklu${robe.id === 'vinova' ? '' : `-${robe.id}`}.webp`)), `logo bez monoklu: ${robe.id}`);
     assert.ok(fs.existsSync(path.join(dir, 'doplnky', 'monokl-ikona.webp')), 'ikona volby Monokl');
     // Cizí sova: zápis a vykreslení
     assert.equal(Owl.encodeOwl({ robe: 'modra', acc: { face: { id: 'bez-monoklu' } } }), 'robe=modra;face=bez-monoklu');

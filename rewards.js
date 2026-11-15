@@ -316,6 +316,8 @@
     };
     const previewHtml = ({ category, item }, h = {}, size = 'h-20 w-20') => {
         if (category === 'accessories') return `<img src="icons/doplnky/${esc(item.id)}-ikona.webp" alt="" class="${size} object-contain drop-shadow-lg">`;
+        // Vlastní barva obleku (robe-color.js): vínová sova s ukázkovou barvou, přebarví ji look-robes.js
+        if (category === 'robes' && item.custom) return `<img src="icons/topics/sova-vitej.webp" alt="" data-keep data-robe-color="185.0" class="${size} object-contain drop-shadow-lg">`;
         if (category === 'robes') return `<img src="icons/topics/sova-vitej${item.id === 'vinova' ? '' : `-${esc(item.id)}`}.webp" alt="" data-keep class="${size} object-contain drop-shadow-lg">`;
         if (category === 'themes') return `<span data-theme="${esc(item.id)}" class="block ${size} rounded-full bg-gradient-to-br from-brand-300 via-brand-500 to-brand-800 shadow-lg ring-4 ring-white/70"></span>`;
         if (category === 'colors') return `<span class="block ${size} rounded-full ${COLOR_DOT[item.id] || 'bg-slate-400'} shadow-lg ring-4 ring-white/70"></span>`;

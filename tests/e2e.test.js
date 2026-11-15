@@ -2019,15 +2019,16 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click('#status-badge');
         await tab.waitForSelector('#dialog-overlay [data-open-levels]');
         assert.equal(await tab.getAttribute('[data-open-levels] [data-title-owl] img', 'src'), 'icons/topics/sova-titul-11-zlata.webp');
-        assert.match(await tab.textContent('[data-open-levels]'), /Mudrlant[\s\S]*Nejvyšší úroveň/);
+        // Na úrovni 100 karta nabídne prestiž (prestige.js, blok 32) místo „Nejvyšší úroveň“
+        assert.match(await tab.textContent('[data-open-levels]'), /Mudrlant[\s\S]*Můžeš do prestiže ★/);
         assert.match(await tab.textContent('[data-open-levels] [data-title-owl]'), /úr\.\s*100/);
         await tab.click('[data-open-levels]');
         await tab.waitForSelector('#dialog-overlay [data-title-row="100"][data-here]');
         assert.equal(await tab.getAttribute('[data-title-row="100"] img', 'src'), 'icons/topics/sova-titul-11-zlata.webp');
         assert.equal(await tab.getAttribute('[data-title-row="96"] img', 'src'), 'icons/topics/sova-titul-10-zlata.webp');
         assert.equal(await tab.locator('#dialog-overlay [data-title-row] img.grayscale').count(), 0, 'všechny tituly dosažené');
-        // Řádek Mudrlant je vidět (okno se na aktuální titul posune)
-        assert.ok(await tab.evaluate(() => { const row = document.querySelector('[data-title-row="100"]').getBoundingClientRect(); return row.top >= 0 && row.bottom <= innerHeight; }));
+        // Nahoře okna nabídka prestiže (s vysvětlením); okno se proto na řádek Mudrlant neposune
+        assert.ok(await tab.evaluate(() => { const panel = document.querySelector('[data-prestige-panel] [data-prestige-go]').getBoundingClientRect(); return panel.top >= 0 && panel.bottom <= innerHeight; }));
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();

@@ -1,6 +1,6 @@
 # Hlavičky pro Netlify. CSP povoluje skripty a styly jen z tohoto webu
 # a připojení jen k české Wikipedii (popisy míst) a k Wikimedia Commons (autor a licence obrázku po klepnutí na „i“, fotky otázek stažené přes fetch,
-# aby se ukázaly jako blob: bez názvu souboru – photo-blob.js); obrázky z Wikimedia Commons (i jako blob:), satelitní snímky NASA a mapy OpenStreetMap.
+# aby se ukázaly jako blob: bez názvu souboru – photo-blob.js); obrázky z Wikimedia Commons (i jako blob:, stejně jako sova ve vlastní barvě obleku přebarvená v prohlížeči – robe-color.js), satelitní snímky NASA a mapy OpenStreetMap.
 /*
   Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: https://upload.wikimedia.org https://gibs.earthdata.nasa.gov https://tile.openstreetmap.org; connect-src 'self' https://cs.wikipedia.org https://commons.wikimedia.org https://upload.wikimedia.org https://*.supabase.co; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
   X-Content-Type-Options: nosniff
