@@ -7518,15 +7518,19 @@
     // Vejde se záložka Více hráčů bez posouvání? Když ne ani s panelem seznamů v nejmenší výšce (dnešní zápas turnaje a pozvánky
     // na nízkém displeji), karta Dobývání se přesune na začátek panelu (posouvá se s ním); jinak zůstane nahoře. Volá se po vykreslení
     // a z fitHome při změně obsahu (MutationObserver): fitSeen pak nese změřenou výšku, ať přesun karty neměří znovu dokola.
+    // Měří se přetečení obalu úvodu (na této záložce má pevnou výšku h-full), ne #app-content: náběhová animace fade-in obal
+    // posouvá (translateY) a scrollHeight rodiče by po dobu animace hlásila přetečení, i když se všechno vejde (karta by pak
+    // zbytečně spadla pod rychlé akce).
     const fitMulti = () => {
         const section = document.getElementById('challenges-section');
         const stack = section && section.firstElementChild;
         const panel = section && section.querySelector('[data-multi-more]');
         const card = document.getElementById('conquest-card');
-        if (!stack || !panel || !card || screen !== 'home' || homeTab() !== 'multi' || !appContent.clientHeight) return;
+        const wrap = appContent.firstElementChild;
+        if (!stack || !panel || !card || !wrap || screen !== 'home' || homeTab() !== 'multi' || !appContent.clientHeight) return;
         if (card.parentElement !== stack) stack.prepend(card);
-        if (appContent.scrollHeight > appContent.clientHeight + 1) panel.prepend(card);
-        if (appContent.firstElementChild) fitSeen = appContent.firstElementChild.scrollHeight;
+        if (wrap.scrollHeight > wrap.clientHeight + 1) panel.prepend(card);
+        fitSeen = wrap.scrollHeight;
     };
     // Starší výzvy: další stránka od nejstarší načtené (podle času dohrání)
     const loadOlderChallenges = async () => {

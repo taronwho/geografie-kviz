@@ -453,6 +453,16 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         const order = await tab.evaluate(() => [document.getElementById('conquest-card'), document.querySelector('[data-action="new-challenge"]')].map(el => el.getBoundingClientRect().top));
         assert.ok(order[0] < order[1], 'karta je nahoře');
         await shot(tab, 'karta-360');
+        // Karta zůstane nahoře i po doběhnutí náběhové animace; fitMulti ji přesune na začátek panelu seznamů jen tehdy, když se záložka
+        // nevejde ani s panelem v nejmenší výšce (tady velmi nízké okno), a po zvětšení okna ji vrátí nahoru. Stránka se neposouvá.
+        const inPanel = () => tab.evaluate(() => Boolean(document.getElementById('conquest-card').closest('[data-multi-more]')));
+        await tab.waitForTimeout(700);
+        assert.equal(await inPanel(), false, 'karta není v panelu seznamů');
+        await tab.setViewportSize({ width: 360, height: 340 });
+        await tab.waitForFunction(() => Boolean(document.getElementById('conquest-card').closest('[data-multi-more]')));
+        assert.ok(await tab.evaluate(() => { const c = document.getElementById('app-content'); return c.firstElementChild.scrollHeight <= c.clientHeight + 1; }), 'po přesunu karty se záložka vejde');
+        await tab.setViewportSize({ width: 360, height: 640 });
+        await tab.waitForFunction(() => !document.getElementById('conquest-card').closest('[data-multi-more]'));
         await tab.click('#conquest-card [data-action="conquest-open"]');
         await tab.waitForSelector('#conquest-hub');
         assert.match(await tab.textContent('#status-text'), /Dobývání/);
