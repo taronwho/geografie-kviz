@@ -399,6 +399,8 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
         button.remove();
     }, [name, data]);
     const closeAll = async (tab) => {
+        // Oslava (bublina nad spodní lištou po načtení) zakrývá spodek obsahu; nečeká se, až zmizí sama
+        await tab.evaluate(() => document.querySelectorAll('#celebration, #celebration-mini').forEach(el => el.remove()));
         for (let i = 0; i < 6; i++) {
             const open = await tab.evaluate((ids) => ids.some(id => document.getElementById(id)), OVERLAYS);
             if (!open) return;
@@ -464,7 +466,7 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
             await closeAll(tab);
             // Profil hráče: přítel (bilance, aktivita, poslední reakce) a hráč, kterému jsem poslala žádost
             await scene(tab, 'Profil hráče (přítel)', size, async () => {
-                await nav.go(tab, 'souperi'); await tab.click(`#friends-strip [data-player-id="${PETR}"]`);
+                await nav.go(tab, 'souperi'); await closeAll(tab); await tab.click(`#friends-strip [data-player-id="${PETR}"]`);
                 await tab.waitForSelector('[data-rematch]');
                 await tab.waitForFunction(() => document.getElementById('player-league') && document.querySelector('#dialog-overlay [aria-label="Odznaky"]') && /Poslední reakce/.test(document.getElementById('dialog-overlay').textContent) && document.querySelectorAll('#dialog-overlay [data-showcase-item]').length === 3);
                 await tab.waitForSelector('#dialog-overlay [data-avatar-art="caj"] img[src="icons/avatars/caj-17.webp"]');
@@ -901,7 +903,7 @@ test('stránka se neposouvá: obrazovky a okna ve světlém i tmavém režimu', 
         await tab.evaluate((ids) => ids.forEach(id => { const el = document.getElementById(id); if (el) el.remove(); }), OVERLAYS);
     };
     // allow = co se tu posouvat smí: 'content' u výsledku otázky (článek o položce pod verdiktem, tlačítko Další je lepkavé a vidět hned)
-    // bar: true = hlavní obrazovka se spodní lištou (musí být vidět celá u spodního okraje), false = hra (lišta skrytá), null = nehlídá se
+    // bar: true = obrazovka se spodní lištou (musí být vidět celá u spodního okraje), false = hra (lišta skrytá), null = nehlídá se
     const measure = async (tab, name, key, allow = [], bar = null) => {
         await tab.evaluate(() => { document.querySelectorAll('#celebration, #celebration-mini, #toast').forEach(el => el.remove()); });
         await tab.waitForTimeout(200);
@@ -1002,16 +1004,17 @@ test('stránka se neposouvá: obrazovky a okna ve světlém i tmavém režimu', 
                     await tab.waitForSelector('[data-rematch]');
                     await tab.waitForFunction(() => document.getElementById('player-league'));
                 });
-                // Otázka: na začátku, se všemi nápovědami a po odpovědi; spodní lišta je při hře skrytá a v hlavičce je tlačítko Domů
+                // Otázka: na začátku, se všemi nápovědami a po odpovědi; spodní lišta je při hře skrytá a v hlavičce je šipka zpět
                 await nav.topic(tab, 'zemepis');
                 await tab.waitForSelector('[data-action="give-up"]', { timeout: 30000 });
                 await measure(tab, 'otázka', key, [], false);
-                assert.equal(await tab.locator('#btn-home:not(.hidden)').count(), 1, 'při hře je v hlavičce Domů');
+                assert.equal(await tab.locator('#btn-home:not(.hidden)').count(), 1, 'při hře je v hlavičce šipka zpět');
                 for (let step = 0; step < 6 && await tab.$('[data-action="hint"]'); step++) await tab.click('[data-action="hint"]');
                 await measure(tab, 'otázka se všemi nápovědami', key, [], false);
                 await (await tab.$$('[data-action="choice"]'))[0].click();
                 await tab.waitForSelector('[data-verdict]');
-                await measure(tab, 'výsledek otázky', key, ['content'], false);
+                // Výsledek otázky: spodní lišta jen na vyšším displeji (na 360×640 je výsledek rozvržený na celou výšku)
+                await measure(tab, 'výsledek otázky', key, ['content'], size.height > 770 ? true : false);
                 const seen = await tab.evaluate(() => ['[data-verdict]', '[data-action="next"]'].map(selector => { const r = document.querySelector(selector).getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight + 0.5; }));
                 assert.deepEqual(seen, [true, true], 'verdikt i Další vidět bez posouvání');
                 // Domů vrátí na záložku, ze které se hrálo (Hrát), a lišta je zpátky

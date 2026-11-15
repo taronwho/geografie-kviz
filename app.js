@@ -2510,14 +2510,14 @@
         if (isLoading) return { icon: 'hourglass', text: 'Načítám…', topic: mode === 'practice' && pool.kind === 'topic' ? TOPIC_BY_ID[pool.topic] || null : null };
         if (screen === 'learn') {
             const topic = learn.topic && learn.view !== 'home' && learn.view !== 'mistakes' ? TOPIC_BY_ID[learn.topic] : null;
-            return { icon: 'graduation-cap', text: topic ? `Učení · ${topic.title}` : 'Učení', topic };
+            return { icon: 'graduation-cap', art: 'ucit-procvicit', text: topic ? `Učení · ${topic.title}` : 'Učení', topic };
         }
-        if (screen === 'challenge-done') return { icon: 'trophy', text: challenge && challenge.tournament ? 'Zápas hotový' : 'Výzva hotová', topic: null };
-        if (screen === 'quiz' || screen === 'quiz-done') return { icon: 'timer', text: `Kvíz dne · ${shortDay(quiz ? quiz.day : getDayKey())}`, topic: null };
+        if (screen === 'challenge-done') return { icon: 'trophy', art: challenge && challenge.tournament ? 'turnaj' : 'vyzva', text: challenge && challenge.tournament ? 'Zápas hotový' : 'Výzva hotová', topic: null };
+        if (screen === 'quiz' || screen === 'quiz-done') return { icon: 'timer', art: 'stopky', text: `Kvíz dne · ${shortDay(quiz ? quiz.day : getDayKey())}`, topic: null };
         if (screen === 'mode' && modeGame) return modePlace(modeGame);
-        if (screen === 'mystery') return { icon: 'telescope', text: 'Tajemná otázka', topic: null };
+        if (screen === 'mystery') return { icon: 'telescope', art: 'sova-dalekohled', text: 'Tajemná otázka', topic: null };
         if ((screen === 'boss' || screen === 'boss-done') && Boss) return { icon: 'swords', art: Boss.artFor(Boss.bossForWeek(Boss.weekOf()).id, 1), text: 'Boss týdne', topic: null };
-        if (screen === 'conquest') return { icon: 'swords', text: 'Dobývání', topic: null };
+        if (screen === 'conquest') return { icon: 'swords', art: 'dobyvani', text: 'Dobývání', topic: null };
         if (screen === 'chain' && chainCtl) return { ...chainCtl.place(), topic: null };
         // Úvod: sova z loga, název a dnešní datum
         if (screen !== 'round' || !current) return { logo: true, text: `${APP_NAME} · ${shortDay(getDayKey())}`, date: shortDay(getDayKey()), topic: null };
@@ -2525,9 +2525,9 @@
         if (mode === 'daily') return { icon: topic.icon, text: `${topic.title} · ${shortDay(current.dailyDate || getDayKey())}`, topic };
         if (mode === 'challenge' && challenge) return { icon: challenge.tournament ? 'trophy' : 'swords', text: `${challenge.tournament ? 'Turnaj' : 'Výzva'} · ${challenge.index + 1}/${challenge.count}`, topic };
         if (mode === 'quiz') return { icon: topic.icon, text: `Kvíz dne · ${quizIndex + 1}/${DailyQuiz.QUESTIONS}`, topic };
-        if (pool.kind === 'mistakes') return { icon: 'repeat', text: `Procvičování chyb · ${loadMistakes().length}`, topic };
+        if (pool.kind === 'mistakes') return { icon: 'repeat', art: 'chyby', text: `Procvičování chyb · ${loadMistakes().length}`, topic };
         if (pool.kind === 'map') return { icon: 'crosshair', art: 'rezim-mapa', text: `Ukaž na mapě · ${pool.topic ? topic.title : 'Mix'}`, topic };
-        if (pool.kind === 'review') return { icon: 'repeat', text: `Procvičování · ${Math.min(pool.done + 1, pool.total)}/${pool.total}`, topic };
+        if (pool.kind === 'review') return { icon: 'repeat', art: 'procvicovani', text: `Procvičování · ${Math.min(pool.done + 1, pool.total)}/${pool.total}`, topic };
         if (pool.kind === 'collection') {
             const ctx = loadedTopics.get(pool.topic);
             return { icon: 'layers', text: ctx ? `${ctx.topic.title} · ${collectionLabel(ctx, pool.collection)}` : 'Procvičování', topic };
@@ -2767,15 +2767,31 @@
     // Zlaté odznaky na liště: kolik věcí čeká (Soupeři: výzvy, zápas turnaje, Dobývání, žádosti o přátelství; Postup: odměny k vyzvednutí)
     const navBadges = () => ({ souperi: waitingRows().length, postup: postupWaiting() });
     let navSeen = '';
-    const renderNav = () => {
+    // Ukáže nebo schová lištu podle obrazovky (barShown). Mimo hlavní obrazovky navíc platí, že lišta nesmí způsobit posouvání:
+    // když se obrazovka (výsledek, úvod režimu) bez lišty vejde a s lištou by se o výšku lišty nevešla, lišta se neukáže
+    // (na nízkém displeji; zpět vede šipka v hlavičce). Obrazovky, které se posouvají tak jako tak (dlouhé seznamy), lištu mají.
+    const placeBar = () => {
         const nav = document.getElementById('app-nav');
         const shell = document.getElementById('app-shell');
+        if (!nav) return false;
+        const set = (show) => {
+            nav.classList.toggle('hidden', !show);
+            nav.classList.toggle('flex', show);
+            if (shell) shell.classList.toggle('nav-on', show);
+        };
+        let show = barShown();
+        set(show);
+        if (show && screen !== 'home') {
+            const root = appContent.firstElementChild;
+            const over = (appContent.childElementCount === 1 ? root.scrollHeight : appContent.scrollHeight) - appContent.clientHeight;
+            if (over > 1 && over <= nav.offsetHeight + 1) { show = false; set(false); }
+        }
+        return show;
+    };
+    const renderNav = () => {
+        const nav = document.getElementById('app-nav');
         if (!nav) return;
-        const show = barShown();
-        nav.classList.toggle('hidden', !show);
-        nav.classList.toggle('flex', show);
-        if (shell) shell.classList.toggle('nav-on', show);
-        if (!show) return;
+        if (!placeBar()) return;
         const badges = navBadges();
         const tabs = NAV_TABS.filter(([id]) => id !== 'souperi' || multiOn());
         // Tlačítka se vykreslí jednou (a znovu jen když přibude či ubude záložka Soupeři); pak se jen upravují na místě, ať klepnutí
@@ -2826,13 +2842,15 @@
     // (Kvíz dne, Řetězovka, Boss týdne, Bleskovka, Přežití), v rozcestníku Dobývání, v Učení, u Tajemné otázky a po zodpovězení
     // otázky (výsledek otázky, výsledek výzvy). Skrytá je, dokud hráč odpovídá: u jedné otázky od zadání po odpověď, v režimech
     // na čas a v sérii (Kvíz dne, Řetězovka, souboj s bossem, Bleskovka, Přežití) od první otázky po výsledek, a v běžící hře
-    // Dobývání (mapa přes celou plochu a tahy na čas).
+    // Dobývání (mapa přes celou plochu a tahy na čas). Výsledek jedné otázky ji má jen na vyšším displeji (viz níž).
     const CALM_SCREENS = '[data-tab-root], #quiz-intro, #quiz-result, #chain-intro, #chain-result, #boss-intro, #boss-result, [data-mode-intro], [data-mode-result], #conquest-hub, #mystery-screen';
     const barShown = () => {
         if (screen === 'welcome' || !appContent.firstElementChild) return false;
         if (screen === 'home') return mainShown();
         if (isLoading) return false;
-        if (screen === 'round') return Boolean(round && round.answered);
+        // Výsledek otázky je na nízkém displeji (do 770 px) rozvržený na celou výšku (verdikt, pořadí, lepkavé Další): lišta jen na vyšším
+        // Během tutoriálu se výsledek zkušební otázky nemění pod zvýrazněním (lišta by obsah posunula), lišta je tam skrytá
+        if (screen === 'round') return Boolean(round && round.answered) && !window.matchMedia('(max-height: 770px)').matches && !(Tutorial && Tutorial.isActive());
         if (screen === 'learn' || screen === 'challenge-done') return true;
         return Boolean(appContent.querySelector(CALM_SCREENS));
     };
@@ -2841,9 +2859,15 @@
     const syncBar = () => {
         barFrame = 0;
         const nav = document.getElementById('app-nav');
-        if (nav && nav.classList.contains('hidden') === barShown()) renderNav();
+        if (!nav) return;
+        const was = !nav.classList.contains('hidden');
+        if (placeBar() && !was) renderNav();
     };
-    if (window.MutationObserver) new MutationObserver(() => { if (!barFrame) barFrame = requestAnimationFrame(syncBar); }).observe(appContent, { childList: true, subtree: true });
+    const queueBar = () => { if (!barFrame) barFrame = requestAnimationFrame(syncBar); };
+    if (window.MutationObserver) new MutationObserver(queueBar).observe(appContent, { childList: true, subtree: true });
+    // Výška obsahu se mění i bez překreslení (načtený obrázek, otočení displeje)
+    appContent.addEventListener('load', queueBar, true);
+    window.addEventListener('resize', queueBar);
 
     // Série dní v hlavičce hlavních obrazovek: nejdelší běžící série dnešních otázek (a Kvízu dne), s ochranami série; klepnutí otevře Ochranu série
     const daysWord = (count) => `${count} ${count === 1 ? 'den' : count >= 2 && count <= 4 ? 'dny' : 'dní'}`;
@@ -3099,7 +3123,7 @@
     // v obalu s id a wrapAttrs. hot = zlatě zvýrazněný řádek se zlatým tlačítkem (to nejbližší, co je na řadě); gold = jen zlaté
     // tlačítko (čeká odměna: truhla, Sezóna), řádek sám zůstává klidný, ať je zvýrazněný vždy jen jeden. wrap = podtitulek smí na dva řádky.
     const ROW_ART = 'h-10 w-10 short:h-9 short:w-9 tiny:h-8 tiny:w-8';
-    const dismissHtml = ({ action, label }) => `<button type="button" data-action="${action}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}" class="absolute -right-1 -top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-slate-600 shadow ring-2 ring-slate-50 before:absolute before:-bottom-2 before:-left-2 before:-right-1.5 before:-top-2 before:content-[''] active:scale-95 dark:bg-slate-600 dark:text-slate-100 dark:ring-slate-900"><i data-lucide="x" class="h-3.5 w-3.5"></i></button>`;
+    const dismissHtml = ({ action, label }) => `<button type="button" data-action="${action}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}" class="group/x absolute -right-2 -top-3 z-10 flex h-10 w-10 items-center justify-center rounded-full active:scale-95"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-slate-600 shadow ring-2 ring-slate-50 dark:bg-slate-600 dark:text-slate-100 dark:ring-slate-900"><i data-lucide="x" class="h-3.5 w-3.5"></i></span></button>`;
     const ROW_SUB_WRAP = 'line-clamp-2 text-[12px] font-semibold leading-tight text-slate-500 max-[379px]:text-[11.5px] dark:text-slate-400';
     const actionRow = ({ id = '', attrs = '', wrapAttrs = '', art, title, text = '', cta, icon = 'play', hot = false, gold = false, wrap = false, dismiss = null }) => {
         const row = `
@@ -6744,6 +6768,25 @@
         showNextModeQuestion(modeGame);
     };
     // Odchod z obrazovky režimu (Zpět, Domů): rozehraná hra se zahodí
+    // Odchod z rozehrané Bleskovky nebo Přežití (šipka zpět, Zpět v prohlížeči): hra se nezapíše, proto se nejdřív zeptá.
+    // Okno hru pozastaví (čas Bleskovky běží jen bez otevřeného okna, MODE_OVERLAYS). Z úvodu a výsledku se odchází hned.
+    const confirmLeaveMode = () => {
+        if (!modeGame || ['intro', 'result', 'error'].includes(modeGame.phase)) { leaveMode(); return; }
+        const title = Modes && Modes.MODES[modeGame.kind] ? Modes.MODES[modeGame.kind].title : 'Hra';
+        showDialog('Ukončit hru?', `
+            <div id="leave-mode" class="flex flex-col gap-3">
+                <p class="text-sm font-semibold leading-snug text-slate-600 dark:text-slate-300">${escapeHtml(title)} se nedohraje a výsledek se nezapíše.</p>
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" data-leave-mode="stay" data-autofocus class="${SECONDARY_BUTTON}">Hrát dál</button>
+                    <button type="button" data-leave-mode="go" class="${PRIMARY_BUTTON}">Ukončit</button>
+                </div>
+            </div>`, { onClick: (event) => {
+            const pick = event.target.closest('[data-leave-mode]');
+            if (!pick) return;
+            closeDialog();
+            if (pick.dataset.leaveMode === 'go') leaveMode();
+        } });
+    };
     const leaveMode = () => {
         stopModeTimers();
         modeGame = null;
@@ -9130,7 +9173,7 @@
         } catch (error) { console.error(error); }
         return count;
     };
-    const POSTUP_TILE = `relative flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-0.5 ${CARD_R} ${TILE_3D} px-1 py-1.5 text-center short:min-h-[3.75rem] tiny:min-h-[3.25rem] tiny:gap-0 tiny:py-1`;
+    const POSTUP_TILE = `relative flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-0.5 ${CARD_R} ${TILE_3D} px-1 py-1.5 text-center short:min-h-[3.75rem] short:gap-0 short:py-1 tiny:min-h-[3.25rem] tiny:py-0.5`;
     const POSTUP_READY = 'ring-2 ring-gold-400 dark:ring-gold-500';
     const postupTile = ({ attrs, art, title, value, valueAttrs = '', ready = false }) => `
             <button type="button" ${attrs} class="${POSTUP_TILE}${ready ? ` ${POSTUP_READY}` : ''}">
@@ -12963,7 +13006,7 @@
         return `
             <div id="tournament-card" class="relative overflow-hidden ${CARD_R} bg-gradient-to-br from-gold-100 via-gold-50 to-emerald-100 p-2.5 shadow-md ring-1 ring-gold-300/80 dark:from-gold-900/50 dark:via-slate-800 dark:to-emerald-900/40 dark:ring-gold-700/60 ${invite ? 'tour-glow' : ''}">
                 <div class="relative mb-1.5 flex items-center justify-between gap-2">
-                    <p class="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-gold-800 dark:text-gold-200"><i data-lucide="trophy" class="h-3.5 w-3.5"></i>${heading}</p>
+                    <p class="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-gold-800 dark:text-gold-200">${uiArt('turnaj', 'h-5 w-5 -my-1')}${heading}</p>
                 </div>
                 ${views.length ? `<div class="relative flex flex-col divide-y divide-gold-300/50 dark:divide-slate-700">${views.map(tournamentRow).join('')}</div>` : ''}
                 ${poll}
@@ -14199,6 +14242,7 @@
         else if (document.getElementById('play-chooser')) closeChooser();
         else if (document.getElementById('settings-overlay')) closeSettings();
         else if (isLoading) return;
+        else if (screen === 'welcome') renderHome();
         else if (screen === 'home') {
             if (navSub) goTab(navTab);
             else if (navTab !== 'dnes') goTab('dnes');
@@ -14215,7 +14259,7 @@
         } else if (screen === 'chain') {
             if (chainCtl) chainCtl.leave(); else renderHome();
         } else if (screen === 'mode') {
-            leaveMode();
+            confirmLeaveMode();
         } else if (screen === 'boss' || screen === 'boss-done') {
             leaveBoss();
         } else if (screen === 'learn') {

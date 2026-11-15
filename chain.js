@@ -2534,7 +2534,7 @@
         };
         const leave = () => { stopTimers(); busy = false; deps.renderHome(); };
         // Popis místa v hlavičce aplikace
-        const place = () => ({ icon: 'trophy', text: attempt && attempt.practice ? 'Cvičná řetězovka' : 'Řetězovka' }); // datum ukazuje pruh řetězu pod hlavičkou
+        const place = () => ({ icon: 'trophy', art: 'retezovka', text: attempt && attempt.practice ? 'Cvičná řetězovka' : 'Řetězovka' }); // datum ukazuje pruh řetězu pod hlavičkou
 
         const actions = {
             'chain-open': () => open(),

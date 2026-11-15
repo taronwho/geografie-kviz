@@ -149,7 +149,9 @@ test('opakování s rozestupy a týdenní cíle', { skip: !chromium && 'Playwrig
         await tab.click('[data-review-toggle]');
         await tab.waitForFunction(() => document.querySelector('[data-review-toggle]').getAttribute('aria-checked') === 'true');
         await tab.click('[data-close]');
-        await tab.waitForSelector('[data-review-due]');
+        // Z Učení spodní lištou na záložku Hrát: čip s počtem karet je zpět na dlaždici Učení
+        await nav.go(tab, 'hrat');
+        await tab.waitForSelector('#mode-tiles [data-review-due]');
         assert.deepEqual(problems, []);
         await context.close();
     });

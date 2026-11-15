@@ -177,11 +177,13 @@ test('Bleskovka, Přežití, zvuky a vibrace', { skip: !chromium && 'Playwright 
         // Zpět na úvod
         await tab.click('[data-action="mode-home"]');
         await nav.waitForHome(tab);
-        // Tlačítko Zpět (telefon) během hry: domů, hra se zahodí
+        // Tlačítko Zpět (telefon) během hry: zeptá se, Ukončit vrátí na záložku a hra se zahodí
         await openMode(tab, 'survival');
         await tab.click('[data-action="mode-start"]');
         await waitQuestion(tab, 1);
         await tab.goBack();
+        await tab.waitForSelector('#leave-mode');
+        await tab.click('[data-leave-mode="go"]');
         await nav.waitForHome(tab);
         assert.equal(await storage(tab, 'mudrlant.modes'), null, 'nedohraná hra se nezapíše');
         assert.deepEqual(problems, []);
@@ -284,10 +286,17 @@ test('Bleskovka, Přežití, zvuky a vibrace', { skip: !chromium && 'Playwright 
         assert.ok((await tab.evaluate(() => window.__tones)).includes(1046.5), 'fanfára rekordu');
         assert.equal((await storage(tab, 'mudrlant.modes')).blitz.best.zemepis, 2);
         await shot(tab, 'bleskovka-rekord-390-tmavy');
-        // Rozehraná hra a odchod Domů: nic se nezapíše
+        // Rozehraná hra a odchod šipkou zpět: nejdřív se zeptá (Hrát dál vrátí do hry), Ukončit nic nezapíše
         await tab.click('[data-action="mode-again"]');
         await waitQuestion(tab, 1);
         await tab.click('#btn-home');
+        await tab.waitForSelector('#leave-mode');
+        assert.equal(await tab.textContent('#dialog-title'), 'Ukončit hru?');
+        await tab.click('[data-leave-mode="stay"]');
+        await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
+        assert.ok(await tab.$('[data-mode-question]'), 'Hrát dál: hra pokračuje');
+        await tab.click('#btn-home');
+        await tab.click('[data-leave-mode="go"]');
         await nav.waitForHome(tab);
         await tab.waitForTimeout(300);
         assert.equal((await storage(tab, 'mudrlant.modes')).blitz.games, 2, 'odehraná je jen dokončená hra');
