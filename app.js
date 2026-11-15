@@ -56,7 +56,6 @@
         mistakes: 'mudrlant.mistakes',
         learned: 'mudrlant.learned',
         pendingChallenge: 'mudrlant.pendingChallenge',
-        homeTab: 'mudrlant.homeTab',
         progress: 'mudrlant.progress',
         // Karty opakování s rozestupy a stav týdenních cílů – jen v zařízení, do účtu se nesynchronizují
         review: 'mudrlant.review',
@@ -1313,7 +1312,10 @@
             pushState = await Push.state();
             pushPrefs = pushState.kind === 'on' ? await Push.getPrefs(user.id) : null;
         } catch (error) { pushState = null; pushPrefs = null; }
-        if (before !== JSON.stringify([pushState, pushPrefs]) && document.getElementById('settings-overlay') && !pushBusy) openSettings(meNote);
+        if (before === JSON.stringify([pushState, pushPrefs])) return;
+        if (document.getElementById('settings-overlay') && !pushBusy) openSettings(meNote);
+        // Řádek Upozornění na záložce Já ukazuje stav tohoto zařízení
+        paintTab('ja');
     };
     const PUSH_TEXTS = {
         off: 'Zápas v turnaji a nové výzvy',
@@ -1661,7 +1663,7 @@
         }
         return PUSH_OFFER_BLOCKERS.some(id => document.getElementById(id)) || Boolean(document.querySelector('body > [aria-modal="true"]'));
     };
-    const pushOfferFits = (context) => (context === 'multi' ? screen === 'home' && homeTab() === 'multi' : true);
+    const pushOfferFits = (context) => (context === 'multi' ? screen === 'home' && navTab === 'souperi' : true);
     let pushOfferPending = null; // { context, userId, until }
     let pushOfferTimer = 0;
     // Naplánuje nabídku; z turnaje a výzvy počká na zavření jiného okna až 3 minuty, ze záložky Více hráčů jen chvíli (jinak příště)
@@ -1768,10 +1770,10 @@
             <p class="text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">Pak zapni upozornění v Nastavení → Hra.</p>
             <button type="button" data-close data-autofocus class="${PRIMARY_BUTTON}">Rozumím</button>
         </div>`);
-    // Otevření záložky Více hráčů (přepnutí nebo spuštění aplikace rovnou na ní): počítá se pro účet; od 3. otevření nabídka (podle pravidel výše)
+    // Otevření záložky Soupeři (přepnutí nebo spuštění aplikace rovnou na ní): počítá se pro účet; od 3. otevření nabídka (podle pravidel výše)
     let pushHomeTabSeen = '';
     const notePushHomeTab = () => {
-        const tab = homeTab();
+        const tab = navTab === 'souperi' ? 'multi' : 'single';
         const entered = tab === 'multi' && pushHomeTabSeen !== 'multi';
         pushHomeTabSeen = tab;
         const user = signedUser();
@@ -2177,10 +2179,9 @@
             if (event.target.closest('[data-update-app]')) { updateApp(); return; }
             if (event.target.closest('[data-open-privacy]')) { if (privacyState !== 'busy') privacyState = ''; openPrivacy(); return; }
             if (event.target.closest('[data-tutorial-restart]')) {
-                // Tutoriál začíná na záložce Jeden hráč (dnešní otázky a dlaždice témat); jinak by se ukázal jen poslední krok
-                writeJson(KEYS.homeTab, 'single');
+                // Tutoriál začíná na záložce Dnes (dnešní výzvy a otázky); jinak by se ukázal jen poslední krok
                 closeSettings();
-                renderHome();
+                goTab('dnes');
                 if (Tutorial) Tutorial.restart();
                 return;
             }
@@ -2339,7 +2340,7 @@
         overlay.remove();
         chooser = null;
         // Dlaždice ukazují, co je vybrané
-        if (screen === 'home') renderHome();
+        paintTab();
     };
 
     // Na nízkém displeji (short:) nižší přepínače bez ozdobné ikony tématu: výběr se vejde bez posouvání
@@ -2551,19 +2552,21 @@
         const settingsButton = document.getElementById('btn-settings');
         settingsButton.disabled = isLoading;
         settingsButton.classList.toggle('opacity-50', isLoading);
+        // Na hlavních obrazovkách (spodní lišta) tlačítka Domů, Hrát dál a Učení nejsou: jejich funkce mají záložky a dlaždice
+        const main = mainShown();
         const buttons = { home: document.getElementById('btn-home'), practice: document.getElementById('btn-practice'), learn: document.getElementById('btn-learn') };
         Object.entries(buttons).forEach(([key, button]) => {
-            button.className = section === key ? BUTTON_ACTIVE[key] : BUTTON_INACTIVE;
+            button.className = main ? 'hidden' : section === key ? BUTTON_ACTIVE[key] : BUTTON_INACTIVE;
             button.setAttribute('aria-pressed', String(section === key));
             button.disabled = isLoading;
             button.classList.toggle('opacity-50', isLoading);
         });
         const practiceIcon = document.getElementById('practice-icon');
         if (practiceIcon) practiceIcon.classList.toggle('spin', isLoading && mode === 'practice');
-        // Čip u Učení: kolik karet opakování je dnes na řadě (jen když nějaká je)
+        // Čip u Učení: kolik karet opakování je dnes na řadě (jen když nějaká je); na hlavních obrazovkách ho má dlaždice Učení na záložce Hrát
         const due = reviewDueCount();
         let chip = buttons.learn.querySelector('[data-review-due]');
-        if (due) {
+        if (due && !main) {
             if (!chip) {
                 chip = document.createElement('span');
                 chip.dataset.reviewDue = '';
@@ -2573,8 +2576,10 @@
             chip.innerHTML = `<span class="sr-only">K procvičení: </span>${due}`;
             chip.title = `K procvičení: ${due}`;
         } else if (chip) chip.remove();
-        buttons.learn.classList.add('relative');
+        if (!main) buttons.learn.classList.add('relative');
         buttons.learn.setAttribute('aria-label', due ? `Učení – k procvičení: ${due}` : 'Učení');
+        renderNav();
+        renderHeaderChips();
 
         // Při hraní je téma poznat na první pohled: barevný štítek a barevný spodní okraj hlavičky
         const place = describePlace();
@@ -2601,11 +2606,12 @@
         const text = document.getElementById('status-text');
         if (place.logo) {
             const level = prestigeView();
-            text.innerHTML = `<span class="block text-lg font-black normal-case leading-none tracking-tight text-brand-700 dark:text-cream max-[370px]:hidden">${escapeHtml(APP_NAME)}</span>`
-                + `<span class="mt-1 block whitespace-nowrap text-[10px] font-bold normal-case tracking-wide text-slate-500 dark:text-slate-400 max-[370px]:mt-0 max-[370px]:text-[11px]">${level.prestige && Prestige ? `${Prestige.markHtml(level.prestige, 'mr-0.5 text-[9px]')}` : ''}Úr. ${level.level}<span class="max-[370px]:hidden"> · ${escapeHtml(titleForLevel(level.realLevel))}</span></span>`
-                + `<span class="mt-0.5 block h-1 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-500" data-progress="${Math.round(level.ratio * 100)}"></span></span>`;
+            // Při hře (vedle čtyř tlačítek) se na úzkém displeji (360 px) vejde sova a jen úroveň s pruhem; na hlavních obrazovkách je místa dost
+            const tight = main ? '' : ' max-[370px]:hidden';
+            text.innerHTML = `<span class="block text-lg font-black normal-case leading-none tracking-tight text-brand-700 dark:text-cream${tight}">${escapeHtml(APP_NAME)}</span>`
+                + `<span class="mt-1 block whitespace-nowrap text-[10.5px] font-bold normal-case tracking-wide text-slate-500 dark:text-slate-400${main ? '' : ' max-[370px]:mt-0 max-[370px]:text-[11px]'}">${level.prestige && Prestige ? `${Prestige.markHtml(level.prestige, 'mr-0.5 text-[9px]')}` : ''}Úr. ${level.level}<span class="${tight.trim()}"> · ${escapeHtml(titleForLevel(level.realLevel))}</span></span>`
+                + `<span class="mt-1 block h-[5px] w-full min-w-[6.5rem] overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-500" data-progress="${Math.round(level.ratio * 100)}"></span></span>`;
             applyProgress(text);
-            // Na úzkém displeji (360 px) se vedle čtyř tlačítek vejde sova a jen úroveň s pruhem (text vede do Mého postupu i tam, sova otevírá zajímavost)
             text.className = 'min-w-[2.25rem] text-left';
         } else {
             text.textContent = place.text;
@@ -2747,33 +2753,142 @@
         if (screen === 'home') renderHome();
     };
 
-    // Úvod se musí vejít bez posouvání. Na nízkém displeji (do 770 px) se zhustí sám (varianta short:); na vyšším se nejdřív
-    // změří běžné rozložení, a když se nevejde (systémové lišty u aplikace až k okrajům ukrojí z výšky, úzký displej zalomí
-    // názvy), zapne se stejné zhuštění třídou fit-short na <html> (tailwind.config.js). Přeměřuje se po vykreslení úvodu
-    // a po změně velikosti okna; mimo úvod zůstane poslední rozhodnutí. Záložka Více hráčů se místo toho vejde přes fitMulti
-    // (seznamy v panelu, který se posouvá uvnitř, a karta Dobývání v něm, když je toho moc).
-    // Měří se výška obsahu obalu úvodu (scrollHeight obalu, ne #app-content: náběhová animace fade-in posouvá celý obal
-    // a scrollHeight rodiče by přecenila). Karty, které se doplní později (Kvíz dne, Tajemná otázka, cíle), hlídá
-    // MutationObserver; přeměří se v dalším snímku a jen když se výška obsahu od posledního měření změnila.
+    // ===== Hlavní obrazovky: spodní lišta s pěti záložkami (Dnes · Hrát · Soupeři · Postup · Já) =====
+    // Každá záložka má jen pár bloků a neposouvá se; podrobnosti se otevírají až po klepnutí. Vybraná záložka se pamatuje po dobu
+    // relace (sessionStorage), nové spuštění začíná na Dnes. Soupeři mají dvě vlastní okna přes celou plochu (Výzvy a Turnaje, navSub),
+    // ve kterých se posouvá jen seznam uvnitř. Při hře (otázka, režim, Boss, Dobývání…), v učení a v uvítání je lišta skrytá.
+    const NAV_KEY = 'mudrlant.nav';
+    const NAV_TABS = [['dnes', 'calendar-check', 'Dnes'], ['hrat', 'gamepad-2', 'Hrát'], ['souperi', 'swords', 'Soupeři'], ['postup', 'trophy', 'Postup'], ['ja', 'user-round', 'Já']];
+    const NAV_SUBS = { souperi: ['vyzvy', 'turnaje'] };
+    // Záložka Soupeři jen s nastaveným Supabase (bez něj se s nikým hrát nedá)
+    const multiOn = () => Boolean(Auth && Auth.isConfigured() && Social);
+    const cleanNav = (tab, sub = null) => {
+        const id = NAV_TABS.some(([key]) => key === tab) ? tab : 'dnes';
+        return { tab: id, sub: (NAV_SUBS[id] || []).includes(sub) ? sub : null };
+    };
+    let navTab = 'dnes';
+    let navSub = null;
+    try { const [tab, sub] = String(sessionStorage.getItem(NAV_KEY) || '').split(':'); ({ tab: navTab, sub: navSub } = cleanNav(tab, sub)); } catch (e) { /* bez úložiště začíná aplikace na Dnes */ }
+    const setNav = (tab, sub = null) => {
+        ({ tab: navTab, sub: navSub } = cleanNav(tab, sub));
+        try { sessionStorage.setItem(NAV_KEY, navSub ? `${navTab}:${navSub}` : navTab); } catch (e) { /* bez úložiště se záložka nepamatuje */ }
+    };
+    // Přepnutí záložky (lišta, tlačítko zpět, upozornění, tip): vykreslí hlavní obrazovku na dané záložce
+    let tabSwitched = false;
+    const goTab = (tab, sub = null) => {
+        setNav(tab, sub);
+        tabSwitched = true;
+        renderHome();
+        if (navTab === 'souperi') refreshTournaments();
+    };
+    // Hlavní obrazovka je opravdu vidět (ne načítání další otázky, které úvod na chvíli nahradí)
+    const mainShown = () => screen === 'home' && Boolean(appContent.firstElementChild && appContent.firstElementChild.dataset.tabRoot);
+    // Zlaté odznaky na liště: kolik věcí čeká (Soupeři: výzvy, zápas turnaje, Dobývání, žádosti o přátelství; Postup: odměny k vyzvednutí)
+    const navBadges = () => ({ souperi: waitingRows().length, postup: postupWaiting() });
+    let navSeen = '';
+    const renderNav = () => {
+        const nav = document.getElementById('app-nav');
+        const shell = document.getElementById('app-shell');
+        if (!nav) return;
+        const show = mainShown();
+        nav.classList.toggle('hidden', !show);
+        nav.classList.toggle('flex', show);
+        if (shell) shell.classList.toggle('nav-on', show);
+        if (!show) return;
+        const badges = navBadges();
+        const html = NAV_TABS.filter(([id]) => id !== 'souperi' || multiOn()).map(([id, icon, label]) => {
+            const on = id === navTab;
+            const badge = badges[id] || 0;
+            return `
+                <button type="button" data-nav="${id}"${on ? ' aria-current="page"' : ''} aria-label="${label}${badge ? ` – čeká: ${badge}` : ''}" class="relative flex min-h-[3rem] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-extrabold leading-none ${on ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'}">
+                    <span class="nav-pill relative flex h-8 w-[3.25rem] items-center justify-center rounded-[0.9rem]"><i data-lucide="${icon}" class="h-[1.3rem] w-[1.3rem]"></i>${badge ? `<span data-nav-badge aria-hidden="true" class="absolute -right-1 -top-1 flex h-[1.15rem] min-w-[1.15rem] items-center justify-center rounded-full bg-gold-400 px-1 text-[10.5px] font-black leading-none text-brand-950 ring-2 ring-white dark:ring-slate-950">${badge}</span>` : ''}</span>
+                    <span aria-hidden="true">${label}</span>
+                </button>`;
+        }).join('');
+        if (html === navSeen && nav.childElementCount) return;
+        navSeen = html;
+        nav.innerHTML = html;
+        renderIcons(nav);
+    };
+    document.getElementById('app-nav').addEventListener('click', (event) => {
+        const button = event.target.closest('[data-nav]');
+        if (!button || isLoading) return;
+        // Klepnutí na vybranou záložku s otevřeným oknem (Výzvy, Turnaje) vrátí na její začátek
+        if (button.dataset.nav !== navTab || navSub) goTab(button.dataset.nav);
+    });
+
+    // Série dní v hlavičce hlavních obrazovek: nejdelší běžící série dnešních otázek (a Kvízu dne), s ochranami série; klepnutí otevře Ochranu série
+    const daysWord = (count) => `${count} ${count === 1 ? 'den' : count >= 2 && count <= 4 ? 'dny' : 'dní'}`;
+    const dayStreakNow = () => {
+        let quizDays = 0;
+        try { if (DailyQuiz) quizDays = quizStreakOf(DailyQuiz.playedDays(quizState(), DailyQuiz.pragueDay()), DailyQuiz.pragueDay()); } catch (error) { quizDays = 0; }
+        return Math.max(longestStreak(), quizDays);
+    };
+    const headerChipsHtml = () => {
+        if (!mainShown()) return '';
+        const streak = dayStreakNow();
+        const freezes = Rewards ? loadRewards().freezes : 0;
+        if (!streak && !freezes) return '';
+        const label = `Série: ${daysWord(streak)} v řadě${freezes ? `, ochrana série: ${freezes}` : ''}`;
+        return `<button type="button" id="streak-chip" data-header-chip="streak" data-streak="${streak}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" class="flex h-9 shrink-0 items-center gap-1 rounded-full bg-gold-100 pl-2 pr-2.5 text-[12.5px] font-black text-gold-900 ring-1 ring-gold-300 active:scale-95 dark:bg-gold-900/30 dark:text-gold-200 dark:ring-gold-700/70"><i data-lucide="flame" class="h-4 w-4"></i><span class="whitespace-nowrap">${daysWord(streak)}</span>${freezes && Rewards ? Rewards.freezeChip(freezes) : ''}</button>`;
+    };
+    let chipsSeen = null;
+    const renderHeaderChips = () => {
+        const slot = document.getElementById('header-chips');
+        if (!slot) return;
+        const html = headerChipsHtml();
+        if (html === chipsSeen) return;
+        chipsSeen = html;
+        slot.innerHTML = html;
+        renderIcons(slot);
+    };
+    document.getElementById('header-chips').addEventListener('click', (event) => {
+        if (event.target.closest('[data-header-chip="streak"]')) openFreezeHelp();
+    });
+
+    // Hlavní obrazovky se musí vejít bez posouvání. Na nízkém displeji (do 770 px) se zhustí samy (varianta short:); na vyšším se
+    // nejdřív změří běžné rozložení, a když se nevejde (systémové lišty u aplikace až k okrajům ukrojí z výšky), zapne se stejné
+    // zhuštění třídou fit-short na <html> (tailwind.config.js). Příležitostné pruhy na záložce Dnes (víkend, kronika, odměna sezóny…)
+    // se ukážou celé, jen když se vejdou; jinak z nich zbydou malé čipy v jedné řadě. Přeměřuje se po vykreslení a po změně
+    // velikosti okna; mimo hlavní obrazovky zůstane poslední rozhodnutí.
+    // Měří se výška obsahu obalu záložky (scrollHeight obalu, ne #app-content: náběhová animace posouvá celý obal a scrollHeight
+    // rodiče by přecenila). Karty, které se doplní později (Kvíz dne, turnaj, přátelé), hlídá MutationObserver; přeměří se
+    // v dalším snímku a jen když se výška obsahu od posledního měření změnila.
     const FIT_SHORT = 'fit-short';
     let fitSeen = -1;
     const fitHome = () => {
         const root = document.documentElement;
         const wrap = appContent.firstElementChild;
-        if (screen === 'home' && homeTab() === 'multi') { fitMulti(); return; }
-        if (screen !== 'home' || !wrap) return;
+        if (!mainShown() || !wrap) return;
         const wasShort = root.classList.contains(FIT_SHORT);
-        // Měří se bez přechodů (dlaždice mají transition-all): jinak by se hned po odebrání třídy změřila ještě zhuštěná výška
-        // a úvod by po doběhnutí přechodu přetekl (fit-measure v src/input.css)
+        const strips = wrap.querySelector('[data-strips]');
+        const chips = wrap.querySelector('[data-chips]');
+        const asChips = (on) => { if (strips) strips.classList.toggle('hidden', on); if (chips) chips.classList.toggle('hidden', !on); };
+        // Bloky navíc (data-optional: nejbližší odznaky na záložce Postup) se ukážou, jen když se vejdou; schovávají se od posledního
+        const optional = [...wrap.querySelectorAll('[data-optional]')];
+        const over = () => wrap.scrollHeight > appContent.clientHeight + 1;
+        const relax = () => { asChips(false); optional.forEach(block => block.classList.remove('hidden')); };
+        const squeeze = () => {
+            if (over() && strips) asChips(true);
+            for (let index = optional.length - 1; index >= 0 && over(); index--) optional[index].classList.add('hidden');
+        };
+        // Měří se bez přechodů (dlaždice mají transition): jinak by se hned po odebrání třídy změřila ještě zhuštěná výška (fit-measure v src/input.css)
         root.classList.add('fit-measure');
         root.classList.remove(FIT_SHORT);
-        if (!window.matchMedia('(max-height: 770px)').matches && wrap.scrollHeight > appContent.clientHeight + 1) root.classList.add(FIT_SHORT);
+        relax();
+        squeeze();
+        if (over() && !window.matchMedia('(max-height: 770px)').matches) {
+            // Zhuštěné rozložení na vyšším displeji: pruhy a bloky navíc se zkusí znovu celé, ubírá se až když se nevejdou ani tak
+            root.classList.add(FIT_SHORT);
+            relax();
+            squeeze();
+        }
         if (root.classList.contains(FIT_SHORT) !== wasShort) appContent.scrollTo(0, 0);
         fitSeen = wrap.scrollHeight;
         root.classList.remove('fit-measure');
     };
-    // Plocha úvodu se může zmenšit i beze změny jeho obsahu (hlavička aplikace doroste po načtení profilu): hlídá ji
-    // ResizeObserver na #app-content. Přepnutí zhuštění velikost plochy nemění, takže nevzniká smyčka.
+    // Plocha se může zmenšit i beze změny obsahu (hlavička aplikace doroste po načtení profilu): hlídá ji ResizeObserver
+    // na #app-content. Přepnutí zhuštění velikost plochy nemění, takže nevzniká smyčka.
     let fitFrame = 0;
     let fitForce = false;
     const scheduleFit = (force) => {
@@ -2788,112 +2903,234 @@
     };
     const homeFitObserver = typeof MutationObserver === 'function' ? new MutationObserver(() => scheduleFit(false)) : null;
     if (typeof ResizeObserver === 'function') new ResizeObserver(() => scheduleFit(true)).observe(appContent);
-    // Řada Výzvy na úvodu (docs/NOVE-MODY.md): tři stejné dlaždice Kvíz dne | Řetězovka dne | Boss týdne. Obrázek, název
-    // a krátký stav; celý stav v popisku pro čtečku. dot = atribut zlaté tečky „dnes ještě nehráno“, extra = obsah navíc
-    // umístěný absolutně (třeba tenká lišta životů bosse u spodního okraje), aby neměnil výšku. Na nízkém displeji (short:)
-    // obrázek vedle textu: řada je pak nižší než dřívější karta Kvízu dne a úvod se vejde i na 360×640.
-    const specialTile = ({ id, action, art, title, text, label = '', ring = 'ring-slate-200/80 dark:ring-slate-700/70', tone = 'bg-white dark:bg-slate-800', titleTone = 'text-slate-800 dark:text-slate-100', textTone = 'text-slate-500 dark:text-slate-400', dot = '', attrs = '', extra = '' }) => `
-            <button type="button" id="${id}" data-action="${action}" data-special-tile ${attrs} aria-label="${escapeHtml(label || `${title}: ${text}`)}" class="relative flex min-w-0 flex-col items-center justify-center gap-0.5 overflow-hidden rounded-[1.2rem] px-1 pb-1.5 pt-1.5 text-center shadow-sm ring-2 transition-transform active:scale-[0.97] short:flex-row short:justify-start short:gap-1.5 short:rounded-2xl short:px-1.5 short:py-1 short:text-left ${tone} ${ring}">
-                <span class="relative flex shrink-0">${uiArt(art, 'h-9 w-9 short:h-6 short:w-6')}${dot ? `<span aria-hidden="true" ${dot} class="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-gold-500 ring-2 ring-white dark:ring-slate-800"></span>` : ''}</span>
-                <span class="flex min-w-0 max-w-full flex-col items-center short:items-start">
-                    <span class="block max-w-full truncate text-[12px] font-black leading-tight short:text-[11.5px] ${titleTone}">${escapeHtml(title)}</span>
-                    <span class="block max-w-full truncate text-[10.5px] font-bold leading-tight short:text-[10px] ${textTone}">${escapeHtml(text)}</span>
+
+    // --- Společné stavební prvky záložek: nadpis oddílu, řádek s akcí vpravo a tlačítko akce ---
+    const SEC_LABEL = 'px-1 text-[11px] font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400';
+    const HOME_ROW = 'group relative flex w-full min-w-0 items-center gap-3 rounded-[1.15rem] bg-white px-3 py-2 text-left shadow-sm ring-1 ring-slate-200/80 transition-transform active:scale-[0.985] dark:bg-slate-800/80 dark:ring-slate-700/70';
+    // Zvýrazněný řádek (to nejbližší, co je na řadě): zlatý okraj a jemný zlatý přechod zleva
+    const HOME_ROW_HOT = 'data-[hot]:bg-gradient-to-r data-[hot]:from-gold-100 data-[hot]:to-white data-[hot]:ring-2 data-[hot]:ring-gold-400 dark:data-[hot]:from-gold-900/40 dark:data-[hot]:to-slate-800/80 dark:data-[hot]:ring-gold-600';
+    const ROW_TITLE = 'block truncate text-[15px] font-extrabold leading-tight text-slate-800 dark:text-slate-100';
+    const ROW_SUB = 'block truncate text-[12px] font-semibold leading-tight text-slate-500 dark:text-slate-400';
+    const CTA_BASE = 'flex min-h-[2.4rem] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3 text-[13.5px] font-black short:min-h-[2.2rem]';
+    const CTA_GOLD = `${CTA_BASE} bg-gradient-to-b from-gold-300 to-gold-500 text-brand-950 shadow-[0_3px_0_#94571a]`;
+    // Běžné tlačítko řádku je tlumené; ve zvýrazněném řádku (group data-hot) zezlátne
+    const CTA_SOFT = `${CTA_BASE} bg-slate-100 text-slate-700 ring-1 ring-slate-200 dark:bg-slate-700/70 dark:text-slate-100 dark:ring-slate-600 group-data-[hot]:bg-gradient-to-b group-data-[hot]:from-gold-300 group-data-[hot]:to-gold-500 group-data-[hot]:text-brand-950 group-data-[hot]:shadow-[0_3px_0_#94571a] group-data-[hot]:ring-0`;
+    const ctaHtml = (label, cls = CTA_SOFT, icon = 'play') => `<span data-cta class="${cls}">${icon ? `<i data-lucide="${icon}" class="h-4 w-4"></i>` : ''}${escapeHtml(label)}</span>`;
+
+    // ----- Záložka Dnes: to, co se dá dnes splnit -----
+    // Řádek dnešní výzvy (Kvíz dne, Řetězovka, Tajemná otázka, Boss týdne): obrázek, název, krátký stav a vpravo akce; celý stav
+    // v popisku pro čtečku. done = dnes už není co hrát (ztlumený řádek s fajfkou), cta = popisek tlačítka, dot = atribut značky
+    // „dnes ještě nehráno“ (zlatá tečka jen s dotShown: nová nápověda Tajemné otázky; jinak to říká tlačítko Hrát), extra = obsah navíc pod stavem (lišta životů bosse). První nehotový řádek zvýrazní specialsSection (data-hot).
+    const specialTile = ({ id, action, art, title, text, label = '', dot = '', dotShown = false, attrs = '', extra = '', done = false, cta = 'Hrát', doneIcon = 'circle-check', textAttr = '' }) => `
+            <button type="button" id="${id}" data-action="${action}" data-special-tile data-done="${done ? 1 : 0}" ${attrs} aria-label="${escapeHtml(label || `${title}: ${text}`)}" class="${HOME_ROW} ${HOME_ROW_HOT} min-h-[3.75rem] short:min-h-[3.1rem] short:py-1.5 tiny:min-h-[2.75rem] tiny:py-1${done ? ' opacity-60' : ''}">
+                <span class="relative flex shrink-0">${uiArt(art, 'h-10 w-10 short:h-9 short:w-9 tiny:h-8 tiny:w-8')}${dot ? `<span aria-hidden="true" ${dot} class="${dotShown ? 'absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-gold-500 ring-2 ring-white dark:ring-slate-800' : 'hidden'}"></span>` : ''}</span>
+                <span class="min-w-0 flex-1">
+                    <span class="${ROW_TITLE}">${escapeHtml(title)}</span>
+                    <span data-special-text ${textAttr} class="${ROW_SUB}">${escapeHtml(text)}</span>
+                    ${extra}
                 </span>
-                ${extra}
+                ${done ? `<span data-special-done class="flex h-9 w-9 shrink-0 items-center justify-center text-emerald-600 dark:text-emerald-400"><i data-lucide="${doneIcon}" class="h-6 w-6"></i></span>` : ctaHtml(cta)}
             </button>`;
-    // Dlaždice Řetězovky dne a Bosse týdne (doplní je jejich moduly; prázdný řetězec = dlaždice se nevykreslí)
+    // Řádky Řetězovky dne a Bosse týdne (doplní je jejich moduly; prázdný řetězec = řádek se nevykreslí)
     let chainCtl = null; // ovladač Řetězovky (chain.js), založí se níž u Kvízu dne a Tajemné otázky
     const chainHomeTile = () => (chainCtl ? chainCtl.homeTile() : '');
     const bossHomeTile = () => (Boss ? bossTileHtml() : '');
-    const specialsRow = () => {
-        const tiles = [quizHomeCard(), chainHomeTile(), bossHomeTile()].filter(Boolean);
-        return tiles.length ? `<section id="home-specials" aria-label="Výzvy" class="grid ${['', 'grid-cols-1', 'grid-cols-2', 'grid-cols-3'][tiles.length]} gap-2 short:gap-1.5">${tiles.join('')}</section>` : '';
+    const specialsSection = () => {
+        const rows = [quizHomeCard(), chainHomeTile(), mysteryHomeCard(), bossHomeTile()].filter(Boolean);
+        if (!rows.length) return '';
+        const done = rows.filter(html => html.includes('data-done="1"')).length;
+        const hot = rows.findIndex(html => html.includes('data-done="0"'));
+        return `
+            <section id="home-specials" aria-label="Dnešní výzvy" data-specials-done="${done}" class="flex flex-col gap-2 short:gap-1.5">
+                <h2 class="${SEC_LABEL}">Dnešní výzvy <span class="font-bold">· ${done}/${rows.length} hotovo</span></h2>
+                ${rows.map((html, index) => (index === hot ? html.replace('data-special-tile', 'data-special-tile data-hot') : html)).join('')}
+            </section>`;
+    };
+    const dailyStats = () => {
+        const stats = loadStats();
+        const today = getDayKey();
+        return { stats, today, answered: TOPICS.filter(topic => (stats.daily[topic.id] || {})[today]).length };
+    };
+    // Karta Dnešní otázky: kolik témat je hotových a Hrát vše (další neodehrané téma); klepnutí na kartu otevře výběr tématu
+    const dailyCardHtml = () => {
+        const { answered } = dailyStats();
+        const left = TOPICS.length - answered;
+        return `
+            <section aria-label="Dnešní otázky" class="flex flex-col gap-2 short:gap-1.5">
+                <h2 class="${SEC_LABEL}">Dnešní otázky</h2>
+                <div id="daily-card" data-daily-done="${answered}" class="flex min-h-[3.75rem] items-center gap-2 rounded-[1.15rem] bg-white py-2 pl-3 pr-2 shadow-sm ring-1 ring-slate-200/80 short:min-h-[3.1rem] short:py-1.5 dark:bg-slate-800/80 dark:ring-slate-700/70">
+                    <button type="button" data-action="daily-sheet" aria-label="Dnešní otázky: splněno ${answered} ze ${TOPICS.length} témat. Vybrat téma" class="flex min-w-0 flex-1 items-center gap-3 text-left active:scale-[0.99]">
+                        ${uiArt('dnes', 'h-10 w-10 short:h-9 short:w-9')}
+                        <span class="min-w-0 flex-1">
+                            <span class="flex items-baseline justify-between gap-2"><span class="whitespace-nowrap text-[15px] font-extrabold leading-tight text-slate-800 dark:text-slate-100">${answered}/${TOPICS.length} témat</span><span class="flex items-center truncate text-[11.5px] font-black text-brand-700 dark:text-cream">Vybrat téma<i data-lucide="chevron-right" class="h-3.5 w-3.5 shrink-0"></i></span></span>
+                            <span class="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-500" data-progress="${Math.round(answered / Math.max(1, TOPICS.length) * 100)}"></span></span>
+                        </span>
+                    </button>
+                    ${left ? `<button type="button" data-action="play-daily" aria-label="${answered ? 'Pokračovat' : 'Hrát vše'}: zbývá ${left}" class="flex min-h-[2.5rem] shrink-0 items-center gap-1.5 rounded-xl btn-3d bg-brand-700 px-3 text-[13.5px] font-black text-white short:min-h-[2.3rem]"><i data-lucide="play" class="h-4 w-4"></i>${answered ? 'Pokračovat' : 'Hrát vše'}</button>`
+                        : '<span data-daily-all class="flex min-h-[2.5rem] shrink-0 items-center gap-1.5 rounded-xl bg-emerald-50 px-2.5 text-[12.5px] font-bold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"><i data-lucide="circle-check" class="h-4 w-4"></i>Vše hotové</span>'}
+                </div>
+            </section>`;
+    };
+    // Okno Dnešní otázky: všech 14 témat se stavem dne a sérií; klepnutí spustí dnešní otázku tématu (zodpovězenou ukáže znovu)
+    const openDailySheet = () => {
+        const { stats, today, answered } = dailyStats();
+        const badges = loadProgress().badges;
+        const left = TOPICS.length - answered;
+        const tiles = TOPICS.map(topic => {
+            const status = dailyStatus(topic.id, stats);
+            const result = (stats.daily[topic.id] || {})[today];
+            const streak = topicStreak(stats.daily[topic.id], today);
+            const mark = !result ? '<span aria-hidden="true" class="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-gold-500"></span>'
+                : `<span aria-hidden="true" class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full text-white ${result.correct ? 'bg-emerald-600' : 'bg-rose-600'}"><i data-lucide="${result.correct ? 'check' : 'x'}" class="h-3 w-3 stroke-[3]"></i></span>`;
+            return `
+                <button type="button" data-action="daily" data-topic="${topic.id}" title="Dnešní otázka – ${escapeHtml(topic.title)}" aria-label="Dnešní otázka – ${escapeHtml(topic.title)}: ${escapeHtml(status.text)}" class="relative flex min-h-[4.25rem] min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl bg-white px-0.5 py-1.5 shadow-sm ring-1 ring-slate-200/70 transition-transform active:scale-95 short:min-h-[3.6rem] short:py-1 dark:bg-slate-800 dark:ring-slate-700/70">
+                    ${topicIcon(topic, 'h-8 w-8 short:h-7 short:w-7', `rounded-lg p-1 ${styleOf(topic).soft}`, 'h-5 w-5')}
+                    <span class="block max-w-full truncate text-[10.5px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(topic.shortTitle || topic.title)}</span>
+                    <span class="block max-w-full truncate text-[10px] font-bold leading-tight ${status.tone}">${status.text}</span>
+                    ${mark}
+                    ${streak ? `<span class="absolute -left-1 -top-1.5 flex items-center rounded-lg bg-slate-900/85 py-px pl-0 pr-1.5 text-[10px] font-black text-white shadow ring-1 ring-white/20" title="${escapeHtml(streakRewardTitle(streak, badges))}">${uiArt('serie', 'h-4 w-4')}${streak}</span>` : ''}
+                </button>`;
+        }).join('');
+        showDialog('Dnešní otázky', `
+            <div id="daily-sheet" class="flex flex-col gap-2.5 short:gap-2">
+                <p class="flex items-center gap-1.5 text-[12.5px] font-semibold leading-snug text-slate-600 dark:text-slate-300"><span>Každý den jedna otázka z každého tématu. Splněno <b class="text-slate-800 dark:text-slate-100">${answered}/${TOPICS.length}</b>.</span>${Rewards && loadRewards().freezes ? `<button type="button" data-action="freeze-info" class="ml-auto shrink-0 rounded-md">${Rewards.freezeChip(loadRewards().freezes)}</button>` : ''}</p>
+                <div class="grid grid-cols-4 gap-2 short:gap-1.5">${tiles}</div>
+                ${left ? `<button type="button" data-action="play-daily" class="${PRIMARY_BUTTON}"><i data-lucide="play" class="h-5 w-5"></i> ${answered ? 'Pokračovat' : 'Hrát vše'} <span class="font-bold opacity-90">· zbývá ${left}</span></button>`
+                    : '<p class="flex items-center justify-center gap-1.5 rounded-2xl bg-emerald-50 px-3 py-2.5 text-[13px] font-bold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"><i data-lucide="circle-check" class="h-4 w-4"></i> Dnes máš všechno hotové</p>'}
+            </div>`, { onClick: (event) => {
+            const button = event.target.closest('[data-action]');
+            if (!button || !ACTIONS[button.dataset.action]) return;
+            if (button.dataset.action === 'freeze-info') { openChild('Zpět na Dnešní otázky', openDailySheet, openFreezeHelp); return; }
+            closeDialog();
+            ACTIONS[button.dataset.action](button);
+        } });
+    };
+    // Truhla Mudrlanta čeká: zlatý řádek s Otevřít (jen když nějaká čeká)
+    const chestRowHtml = () => (Rewards && Rewards.pendingChest(loadRewards()) ? `
+            <button type="button" id="chest-row" data-action="chest-open" data-chest-ready data-hot class="${HOME_ROW} ${HOME_ROW_HOT} min-h-[3.5rem] short:min-h-[3rem] short:py-1.5">
+                <span class="chest-mini flex shrink-0">${uiArt('truhla', 'h-10 w-10 short:h-9 short:w-9')}</span>
+                <span class="min-w-0 flex-1"><span class="${ROW_TITLE}" title="Všechny cíle týdne jsou splněné. Otevři ji!">Truhla Mudrlanta čeká</span></span>
+                ${ctaHtml('Otevřít', CTA_GOLD, '')}
+            </button>` : '');
+    // Příležitostné pruhy na záložce Dnes: včerejší Tajemná otázka, odměna Sezóny, Kronika týdne, Zlatá truhla a tematický víkend.
+    // Každý má i malý čip; fitHome ukáže celé pruhy, jen když se vejdou, jinak řadu čipů (nikdy kvůli nim obrazovka neposouvá).
+    const HOME_CHIP = 'flex min-h-[2.25rem] min-w-0 shrink-0 items-center gap-1.5 rounded-full bg-white px-3 text-[12px] font-black text-slate-800 shadow-sm ring-1 ring-slate-200/80 active:scale-95 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700/70';
+    const dnesExtrasHtml = () => {
+        const items = [];
+        const reveal = mysteryRevealCard();
+        if (reveal) items.push({ strip: reveal, chip: `<button type="button" data-action="mystery-reveal" class="${HOME_CHIP}">${uiArt('sova-dalekohled', 'h-6 w-6 -my-1 -ml-1')}<span class="truncate">Včerejší záhada</span></button>` });
+        const season = seasonStripHtml();
+        if (season) items.push({ strip: season, chip: `<button type="button" data-action="season-claim" data-season-ready class="${HOME_CHIP} ring-2 ring-gold-400 dark:ring-gold-500">${uiArt('sezona', 'h-6 w-6 -my-1 -ml-1')}<span class="truncate">Odměna Sezóny</span></button>` });
+        const chronicle = chronicleStripHtml();
+        if (chronicle) items.push({ strip: chronicle, chip: `<button type="button" data-action="chronicle-open" class="${HOME_CHIP}">${uiArt('sova-kronika', 'h-6 w-6 -my-1 -ml-1')}<span class="truncate">Kronika týdne</span></button>` });
+        if (Gold && Rewards && loadGold().ready > 0) {
+            items.push({
+                strip: `<button type="button" id="gold-chest-row" data-action="gold-chest" data-hot class="${HOME_ROW} ${HOME_ROW_HOT} min-h-[3.25rem] short:min-h-[2.9rem] short:py-1.5">${uiArt('zlata-truhla', 'h-9 w-9')}<span class="min-w-0 flex-1"><span class="${ROW_TITLE}">Zlatá truhla čeká</span><span class="${ROW_SUB}">Za pět zlatých střípků</span></span>${ctaHtml('Otevřít', CTA_GOLD, '')}</button>`,
+                chip: `<button type="button" data-action="gold-chest" class="${HOME_CHIP} ring-2 ring-gold-400 dark:ring-gold-500">${uiArt('zlata-truhla', 'h-6 w-6 -my-1 -ml-1')}<span class="truncate">Zlatá truhla</span></button>`
+            });
+        }
+        if (weekendNow()) items.push({ strip: weekendBannerHtml(), chip: weekendChipHtml() });
+        if (!items.length) return '';
+        return `
+            <div id="dnes-extras" class="flex flex-col">
+                <div data-strips class="flex flex-col gap-2 short:gap-1.5">${items.map(item => item.strip).join('')}</div>
+                <div data-chips class="hidden flex flex-wrap gap-1.5">${items.map(item => item.chip).join('')}</div>
+            </div>`;
+    };
+    const renderDnes = () => `${specialsSection()}${dailyCardHtml()}${chestRowHtml()}${dnesExtrasHtml()}`;
+
+    // ----- Záložka Hrát: volná hra podle chuti (Mix, 14 témat, režimy) -----
+    // Rozehraná otázka tréninku (Domů uprostřed otázky, obnovená relace) jde dohrát tlačítkem vedle Mixu
+    const practiceOpen = () => Boolean(current && mode === 'practice' && round && !round.answered && TOPIC_BY_ID[current.topic]);
+    const MODE_TILE = 'relative flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl bg-white px-0.5 py-1.5 text-center shadow-sm ring-1 ring-slate-200/80 transition-transform active:scale-[0.97] short:min-h-[3.75rem] short:gap-0.5 tiny:min-h-[3.25rem] dark:bg-slate-800/80 dark:ring-slate-700/70';
+    const modeTile = (attrs, art, title, extra = '') => `<button type="button" ${attrs} class="${MODE_TILE}">${art}<span class="block max-w-full truncate text-[12px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span>${extra}</button>`;
+    const renderHrat = () => {
+        // Dlouhý název („Výtvarné umění“) má na dlaždici krátký název tématu (shortTitle), celý zůstane v popisku pro čtečku
+        const tileTitle = (topic) => (topic.shortTitle ? `<span aria-label="${escapeHtml(topic.title)}">${escapeHtml(topic.shortTitle)}</span>` : escapeHtml(topic.title));
+        const scopeOf = (topic) => {
+            const chosen = selectedCategories(topic);
+            return chosen.length === topic.categories.length ? '' : chosen.length === 1 ? categoryOf(topic, chosen[0]).label : `${chosen.length} z ${topic.categories.length}`;
+        };
+        const weekend = weekendNow();
+        const tile = (topic) => {
+            const scope = scopeOf(topic);
+            const doubled = weekend && weekend.state === 'active' && weekend.topic === topic.id;
+            const name = topic.shortTitle || topic.title;
+            return `
+                <button type="button" data-action="play-topic" data-topic="${topic.id}" title="${escapeHtml(scope ? `${topic.title} · ${scope}` : topic.title)}" class="relative flex min-h-[4.25rem] min-w-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-2xl bg-gradient-to-br p-1 text-center text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] short:min-h-[3.4rem] short:gap-0.5 short:p-0.5 tiny:min-h-[2.9rem] ${styleOf(topic).tile}">
+                    ${topicArt(topic) ? topicIcon(topic, 'h-10 w-10 short:h-8 short:w-8 tiny:h-7 tiny:w-7') : `<i data-lucide="${topic.icon}" class="h-[1.625rem] w-[1.625rem]"></i>`}
+                    <span class="block max-w-full truncate ${name.length > 10 ? 'text-[10.5px]' : 'text-[12px]'} font-black leading-tight tracking-tight short:leading-none">${tileTitle(topic)}</span>
+                    ${doubled ? '<span data-weekend-tile class="pointer-events-none absolute right-1 top-1 rounded-md bg-gold-400 px-1 text-[9px] font-black leading-tight text-brand-950 shadow">2× XP</span>' : ''}
+                </button>`;
+        };
+        const mixScope = settings.topics.length === TOPICS.length ? 'Otázky ze všech témat' : `${settings.topics.length} z ${TOPICS.length} témat`;
+        const resume = practiceOpen();
+        const mixRow = `
+            <div class="flex shrink-0 gap-2">
+                <button type="button" data-action="play-mix" title="${escapeHtml(`Mix · ${mixScope}`)}" class="relative flex min-h-[4.25rem] min-w-0 flex-1 items-center justify-center gap-3 overflow-hidden rounded-[1.4rem] bg-gradient-to-br px-3 py-2 text-left text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.98] short:min-h-[3.5rem] tiny:min-h-[3rem] ${styleOf(MIX).tile}">
+                    ${topicIcon(MIX, 'h-12 w-12 short:h-10 short:w-10')}
+                    <span class="min-w-0"><span class="block truncate text-xl font-black leading-tight short:text-lg">${resume ? 'Mix' : 'Mix všech témat'}</span>${settings.topics.length === TOPICS.length ? '' : `<span class="block truncate text-[11.5px] font-bold leading-tight text-white/85">${escapeHtml(mixScope)}</span>`}</span>
+                </button>
+                ${resume ? `<button type="button" data-action="resume-practice" title="Dohrát rozehranou otázku" class="flex min-h-[4.25rem] w-[6.5rem] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[1.4rem] btn-3d bg-gradient-to-b from-gold-300 to-gold-500 px-2 text-center text-brand-950 short:min-h-[3.5rem] tiny:min-h-[3rem]"><span class="flex items-center gap-1 text-[13.5px] font-black leading-tight"><i data-lucide="play" class="h-4 w-4"></i>Pokračovat</span><span class="block max-w-full truncate text-[10.5px] font-bold leading-tight">${escapeHtml(TOPIC_BY_ID[current.topic].shortTitle || TOPIC_BY_ID[current.topic].title)}</span></button>` : ''}
+            </div>`;
+        const ordered = groupedTopics().flatMap(group => group.topics);
+        const due = reviewDueCount();
+        const modes = [
+            ...(Modes ? Modes.IDS.map(id => modeTile(`data-action="mode-tile" data-mode="${id}" title="${escapeHtml(`${Modes.MODES[id].title}: ${Modes.MODES[id].tagline}`)}"`, modeBadge(id, 'h-9 w-9 short:h-8 short:w-8', 'h-5 w-5'), escapeHtml(Modes.MODES[id].title))) : []),
+            ...(MapQuestion ? [modeTile('data-action="map-tile" title="Ukaž na mapě: jen otázky na mapě, zkušební režim"', uiArt('rezim-mapa', 'h-9 w-9 short:h-8 short:w-8'), 'Na mapě')] : []),
+            modeTile(`data-action="open-learn" title="Učení: okruhy, atlas a chyby k zopakování" aria-label="${due ? `Učení – k procvičení: ${due}` : 'Učení'}"`, uiArt('ucit-procvicit', 'h-9 w-9 short:h-8 short:w-8'), 'Učení',
+                due ? `<span data-review-due title="K procvičení: ${due}" class="absolute right-1 top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-gold-500 px-1 text-[10px] font-black leading-none text-brand-950"><span class="sr-only">K procvičení: </span>${due}</span>` : '')
+        ];
+        return `
+            ${mixRow}
+            <section id="topic-grid" aria-label="Témata" class="grid max-h-[22rem] flex-1 grid-cols-4 auto-rows-fr gap-2 short:gap-1.5">${ordered.map(tile).join('')}</section>
+            <section aria-label="Režimy" class="flex shrink-0 flex-col gap-2 short:gap-1.5">
+                <h2 class="${SEC_LABEL}">Režimy</h2>
+                <div id="mode-tiles" class="grid ${['grid-cols-1', 'grid-cols-1', 'grid-cols-2', 'grid-cols-3', 'grid-cols-4'][Math.min(4, modes.length)]} gap-2 short:gap-1.5">${modes.join('')}</div>
+            </section>`;
+    };
+
+    // Obsah záložek (Soupeři, Postup a Já jsou níž u svých oken); Soupeři mají místo obsahu záložky i okna Výzvy a Turnaje
+    const tabBody = () => (navTab === 'hrat' ? renderHrat() : navTab === 'souperi' ? renderSouperi() : navTab === 'postup' ? renderPostup() : navTab === 'ja' ? renderJa() : renderDnes());
+    // Okno přes celou plochu (Výzvy, Turnaje) má pevnou výšku a posouvá se jen seznam uvnitř; záložka sama se neposouvá
+    const TAB_WRAP = 'flex w-full flex-col gap-2.5 bg-slate-50 p-3 pb-3 short:gap-2 short:p-2.5 dark:bg-slate-900';
+    const tabRootKey = () => `${navTab}${navSub ? `:${navSub}` : ''}`;
+    const afterTabPaint = (wrap) => {
+        applyProgress(wrap);
+        renderIcons(wrap);
+        fitHome();
+        watchRecentEnd();
+    };
+    // Překreslí obsah zobrazené záložky na místě (doplněná data: Kvíz dne, turnaj, přátelé, cíle…), bez náběhové animace; posun seznamu zůstane
+    const paintTab = (tab = navTab) => {
+        const wrap = appContent.firstElementChild;
+        if (!mainShown() || !wrap || tab !== navTab || wrap.dataset.tabRoot !== tabRootKey()) return;
+        const panel = wrap.querySelector('[data-scroll-list]');
+        const scroll = panel ? panel.scrollTop : 0;
+        wrap.innerHTML = tabBody();
+        afterTabPaint(wrap);
+        const again = wrap.querySelector('[data-scroll-list]');
+        if (again && scroll) again.scrollTop = scroll;
+        renderNav();
+        renderHeaderChips();
     };
     const renderHome = () => {
         screen = 'home';
         closePlaceInfo();
         flushAnswerStats();
-        notePushHomeTab();
         checkStreakFreeze();
         noteDiplomas(topicStarsNow());
         noteAlbum();
         settleGoals();
         // Sezóna: založí se (nebo přejde do nového měsíce) a zapamatuje se stupeň, ať se nový stupeň během hry oslaví
         noteSeasonTier();
-        const stats = loadStats();
-        const today = getDayKey();
-        // Dnešní otázky: ikona tématu a stav, název v popisku (14 témat se vejde do dvou řádků). Na nízkém displeji (short:)
-        // jen ikona se stavem jako odznakem v rohu (hotovo ✓, nevyšlo ×, čeká •), dlaždice 40 px vysoká; celý stav je v popisku tlačítka
-        const dailyBadge = (result) => {
-            const badge = 'pointer-events-none absolute -bottom-1 -right-1 hidden items-center justify-center rounded-full ring-2 ring-white short:flex dark:ring-slate-800';
-            if (!result) return '<span aria-hidden="true" class="pointer-events-none absolute bottom-1 right-1 hidden h-1.5 w-1.5 rounded-full bg-gold-500 short:block"></span>';
-            return result.correct
-                ? `<span aria-hidden="true" class="${badge} h-4 w-4 bg-emerald-600 text-white"><i data-lucide="check" class="h-3 w-3 stroke-[3]"></i></span>`
-                : `<span aria-hidden="true" class="${badge} h-4 w-4 bg-rose-600 text-white"><i data-lucide="x" class="h-3 w-3 stroke-[3]"></i></span>`;
-        };
-        const homeBadges = loadProgress().badges;
-        const dailyButtons = TOPICS.map(topic => {
-            const status = dailyStatus(topic.id, stats);
-            const streak = topicStreak(stats.daily[topic.id], today);
-            return `
-                <button type="button" data-action="daily" data-topic="${topic.id}" title="Dnešní otázka – ${escapeHtml(topic.title)}" aria-label="Dnešní otázka – ${escapeHtml(topic.title)}: ${escapeHtml(status.text)}" class="relative flex min-w-0 flex-col items-center gap-0.5 rounded-xl bg-slate-50 px-0.5 pb-1 pt-1 ring-1 ring-slate-200/70 transition-all active:scale-95 short:min-h-[2.5rem] short:justify-center dark:bg-slate-900/60 dark:ring-slate-700/70">
-                    ${topicIcon(topic, 'h-7 w-7', `rounded-lg p-1 ${styleOf(topic).soft}`, 'h-[1.125rem] w-[1.125rem]')}
-                    <span class="flex max-w-full items-center gap-0.5 truncate text-[10px] font-bold short:hidden ${status.tone}">${status.icon ? `<i data-lucide="${status.icon}" class="h-3 w-3 shrink-0"></i>` : ''}${status.text}</span>
-                    ${dailyBadge((stats.daily[topic.id] || {})[today])}
-                    ${streak ? `<span class="absolute -right-1.5 -top-2 flex items-center rounded-lg bg-slate-900/85 py-px pl-0 pr-1.5 text-[10px] font-black text-white shadow ring-1 ring-white/20" title="${escapeHtml(streakRewardTitle(streak, homeBadges))}">${uiArt('serie', 'h-4 w-4')}${streak}</span>` : ''}
-                </button>`;
-        }).join('');
-        const answered = TOPICS.filter(topic => (stats.daily[topic.id] || {})[today]).length;
-        const scopeOf = (topic) => {
-            const chosen = selectedCategories(topic);
-            return chosen.length === topic.categories.length ? '' : chosen.length === 1 ? categoryOf(topic, chosen[0]).label : `${chosen.length} z ${topic.categories.length}`;
-        };
-        // Na nízkém nebo úzkém displeji se název vejde na jeden řádek (dlaždice pak stačí 48 px a úvod se vejde bez posouvání):
-        // dlouhý název („Výtvarné umění“) tam ukáže krátký název tématu (shortTitle), celý zůstane v popisku pro čtečku
-        const tileTitle = (topic) => (topic.shortTitle
-            ? `<span class="short:hidden max-[400px]:hidden">${escapeHtml(topic.title)}</span><span class="hidden short:inline max-[400px]:inline" aria-label="${escapeHtml(topic.title)}">${escapeHtml(topic.shortTitle)}</span>`
-            : escapeHtml(topic.title));
-        // Dlaždice tématu: ikona a název, omezený výběr kategorií jako malý štítek
-        const weekend = weekendNow();
-        const tile = (topic) => {
-            const scope = scopeOf(topic);
-            const doubled = weekend && weekend.state === 'active' && weekend.topic === topic.id;
-            return `
-                <button type="button" data-action="play-topic" data-topic="${topic.id}"${scope ? ` title="${escapeHtml(`${topic.title} · ${scope}`)}"` : ''} class="relative flex min-h-[4rem] min-w-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-2xl bg-gradient-to-br p-1 text-center text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] short:min-h-[3rem] short:gap-0.5 short:p-0.5 ${styleOf(topic).tile}">
-                    ${topicArt(topic) ? topicIcon(topic, 'h-10 w-10 short:h-8 short:w-8') : `<i data-lucide="${topic.icon}" class="h-[1.625rem] w-[1.625rem]"></i>`}
-                    <span class="block ${topic.title.length > 10 ? 'text-[10px]' : 'text-[11.5px]'} font-black leading-tight tracking-tight short:leading-none">${tileTitle(topic)}</span>
-                    ${doubled ? '<span data-weekend-tile class="pointer-events-none absolute right-1 top-1 rounded-md bg-gold-400 px-1 text-[9px] font-black leading-tight text-brand-950 shadow">2× XP</span>' : ''}
-                </button>`;
-        };
-        const mixScope = settings.topics.length === TOPICS.length ? 'Otázky ze všech témat' : `${settings.topics.length} z ${TOPICS.length} témat`;
-        const mixTile = `
-            <button type="button" data-action="play-mix" title="${escapeHtml(`Mix · ${mixScope}`)}" class="relative col-span-2 flex min-h-[4rem] min-w-0 items-center justify-center gap-2.5 overflow-hidden rounded-2xl bg-gradient-to-br p-2.5 text-left text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] short:min-h-[3rem] short:p-1.5 ${styleOf(MIX).tile}">
-                ${topicIcon(MIX, 'h-12 w-12 short:h-9 short:w-9')}
-                <span class="min-w-0 text-base font-black leading-tight">${escapeHtml(MIX.title)}</span>
-            </button>`;
-        const ordered = groupedTopics().flatMap(group => group.topics);
-        const left = TOPICS.length - answered;
-        appContent.innerHTML = `
-            <div class="fade-in flex ${homeTab() === 'multi' ? 'h-full' : 'min-h-full'} w-full flex-col gap-2 bg-slate-50 p-3 pb-4 short:gap-1.5 short:pb-3 dark:bg-slate-900">
-                ${renderHomeTabs()}
-                ${homeTab() === 'multi' ? renderChallengesSection() : `${specialsRow()}${mysteryHomeCard()}<section class="rounded-[1.4rem] bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 short:p-1.5 dark:bg-slate-800/70 dark:ring-slate-700/70">
-                    <div class="mb-2 flex items-center justify-between gap-2 short:mb-1.5">
-                        <h2 class="flex min-w-0 items-center gap-2 whitespace-nowrap text-slate-800 dark:text-slate-100">${uiArt('dnes', 'h-8 w-8 short:h-7 short:w-7')}<span class="min-w-0"><span class="block text-[13px] font-black leading-tight">Dnešní otázky</span><span class="flex items-center gap-1 text-[11px] font-bold leading-tight text-slate-500 dark:text-slate-400">${answered}/${TOPICS.length} splněno${Rewards && loadRewards().freezes ? `<button type="button" data-action="freeze-info" class="ml-0.5 rounded-md">${Rewards.freezeChip(loadRewards().freezes)}</button>` : ''}</span></span></h2>
-                        ${left ? `
-                            <button type="button" data-action="play-daily" class="flex shrink-0 items-center gap-1.5 rounded-xl btn-3d bg-brand-700 px-3 py-2 text-[13px] font-black text-white short:py-1.5">
-                                <i data-lucide="play" class="h-4 w-4"></i> ${answered ? 'Pokračovat' : 'Hrát vše'} <span class="font-bold opacity-90">· zbývá ${left}</span>
-                            </button>` : `
-                            <span class="flex shrink-0 items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-[13px] font-bold text-emerald-700 short:py-1.5 dark:bg-emerald-900/30 dark:text-emerald-300"><i data-lucide="circle-check" class="h-4 w-4"></i> Vše hotové</span>`}
-                    </div>
-                    <div class="grid grid-cols-7 gap-1">${dailyButtons}</div>
-                </section>
-                ${weekendNow() ? `<div class="flex min-w-0 gap-1.5"><div class="min-w-0 flex-1">${renderGoalsCard()}</div>${weekendChipHtml()}</div>${weekendBannerHtml()}` : renderGoalsCard()}
-                <section class="grid max-h-[26rem] flex-1 grid-cols-4 auto-rows-fr gap-2 short:gap-1">${mixTile}${ordered.map(tile).join('')}</section>`}
-            </div>`;
-        applyProgress(appContent);
-        renderIcons(appContent);
-        fitHome();
-        fitMulti();
+        if (navTab === 'souperi' && !multiOn()) setNav('dnes');
+        notePushHomeTab();
+        if (navTab === 'postup') touchTip('progress');
+        if (navTab === 'ja' && pushState === null) refreshPush();
+        appContent.innerHTML = `<div id="tab-${navTab}" data-tab-root="${tabRootKey()}" class="${tabSwitched ? 'tab-in' : 'fade-in'} ${TAB_WRAP} ${navSub ? 'h-full min-h-0' : 'min-h-full'}">${tabBody()}</div>`;
+        tabSwitched = false;
+        afterTabPaint(appContent.firstElementChild);
         if (homeFitObserver) { homeFitObserver.disconnect(); homeFitObserver.observe(appContent.firstElementChild, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'hidden', 'src'] }); }
         appContent.scrollTo(0, 0);
         updateControlsUI();
@@ -4474,14 +4711,6 @@
     };
     const renderGoalsCard = () => {
         if (!Goals) return '';
-        // Čekající truhla má přednost: místo pruhu cílů zlaté tlačítko Otevřít (cíle jsou dál v okně po otevření truhly)
-        if (Rewards && Rewards.pendingChest(loadRewards())) return Rewards.chestStripHtml();
-        // Čekající odměna Sezóny Mudrlanta: stejný pruh (vyzvedne se jedním klepnutím, pak jsou tu zase cíle)
-        const seasonStrip = seasonStripHtml();
-        if (seasonStrip) return seasonStrip;
-        // Od neděle 18:00 do konce pondělí: pruh Mudrlantovy kroniky (týden v kostce), jednou za týden
-        const chronicleStrip = chronicleStripHtml();
-        if (chronicleStrip) return chronicleStrip;
         const { state, rows } = goalRows();
         const done = rows.filter(row => row.done).length;
         const chip = ({ goal, value, done }) => `
@@ -4492,11 +4721,13 @@
             </span>`;
         const label = `Cíle týdne: splněno ${done} ze ${rows.length}, ${goalsLeftText()}. Zobrazit podrobnosti`;
         return `
-            <button type="button" id="weekly-goals" data-action="goals-open" aria-label="${escapeHtml(label)}" title="${escapeHtml(rows.map(row => row.goal.title).join('\n'))}" class="flex min-h-[2.5rem] w-full items-center gap-1.5 rounded-2xl bg-white px-2.5 py-1.5 text-left shadow-sm ring-1 ring-slate-200/70 transition-all active:scale-[0.98] dark:bg-slate-800/70 dark:ring-slate-700/70">
-                ${uiArt('cile', 'h-7 w-7 -my-1 -ml-1')}
-                <span class="shrink-0 whitespace-nowrap text-[11px] font-black text-slate-800 dark:text-slate-100">Cíle týdne <span class="${state.bonus ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400'}">${done}/${rows.length}</span></span>
-                <span class="flex min-w-0 flex-1 gap-1">${rows.map(chip).join('')}</span>
-                <i data-lucide="chevron-right" class="h-3.5 w-3.5 shrink-0 text-slate-400"></i>
+            <button type="button" id="weekly-goals" data-action="goals-open" aria-label="${escapeHtml(label)}" title="${escapeHtml(rows.map(row => row.goal.title).join('\n'))}" class="${HOME_ROW} min-h-[3.5rem] shrink-0 !gap-2.5 short:min-h-[3rem] short:py-1.5 tiny:min-h-[2.75rem] tiny:py-1">
+                ${uiArt('cile', 'h-10 w-10 short:h-9 short:w-9 tiny:h-8 tiny:w-8')}
+                <span class="min-w-0 flex-1">
+                    <span class="flex items-baseline justify-between gap-2"><span class="whitespace-nowrap text-[15px] font-extrabold leading-tight text-slate-800 dark:text-slate-100">Cíle týdne <span class="${state.bonus ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400'}">${done}/${rows.length}</span></span><span class="truncate text-[11px] font-bold text-slate-500 dark:text-slate-400">${escapeHtml(goalsLeftText())}</span></span>
+                    <span class="mt-1 flex min-w-0 gap-1">${rows.map(chip).join('')}</span>
+                </span>
+                <i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-400"></i>
             </button>`;
     };
     // Okno s cíli týdne: celé zadání, ukazatel a odměna u každého, bonus za všechny tři
@@ -4534,8 +4765,9 @@
         const topic = goal.kind === 'tema' ? TOPIC_BY_ID[goal.id.slice('tema-'.length)] : null;
         const mix = { label: 'Hrát Mix', run: () => startPractice({ kind: 'mix' }) };
         const daily = nextDailyTopic();
-        // Cíl pro více hráčů: přihlášený rovnou do hry, host na záložku Více hráčů (tam je pozvánka k přihlášení), ne „nic se nestalo“
-        const multi = (run) => () => { if (signedUser()) { writeJson(KEYS.homeTab, 'multi'); run(); } else { if (screen !== 'home') renderHome(); openHomeTabFromPush('multi'); } };
+        // Cíl pro více hráčů: přihlášený rovnou do hry (záložka Soupeři, okno Výzvy nebo Turnaje), host na záložku Soupeři
+        // (tam je pozvánka k přihlášení), ne „nic se nestalo“
+        const multi = (run, sub = 'vyzvy') => () => { if (signedUser()) { setNav('souperi', sub); run(); } else goTab('souperi'); };
         const plans = {
             spravne: { text: 'Počítá se každá správná odpověď v jakékoli hře: procvičování, dnešní otázky, výzvy, turnaj i Kvíz dne.', ...mix },
             tema: topic ? { text: `Počítají se správné odpovědi v tématu ${topic.title}, ať hraješ procvičování, dnešní otázku nebo Mix.`, label: `Hrát ${topic.title}`, run: () => playTopic(topic.id) } : mix,
@@ -4546,9 +4778,9 @@
             poznane: { text: 'Nová položka se počítá, když na ni poprvé odpovíš správně (v atlasu dostane hvězdičku).', ...mix },
             opakovani: { text: 'Procvičování chyb vrací špatné odpovědi po 1, 3, 7, 14 a 30 dnech. Počítá se každá zopakovaná otázka.', label: 'Procvičovat chyby', run: () => (Review ? startReview() : startPractice({ kind: 'mistakes' })) },
             chyby: { text: 'Odpověz správně na otázku, kterou jsi dřív pokazil. Nejrychleji v procvičování svých chyb.', label: 'Procvičovat chyby', run: () => startPractice({ kind: 'mistakes' }) },
-            vyzvy: { text: 'Dohraj výzvu proti kamarádovi nebo náhodnému soupeři. Počítá se každá dohraná výzva.', label: 'Nová výzva', run: multi(() => openNewChallenge()) },
-            vyhry: { text: 'Vyhraj výzvu: rozhodují body, při shodě počet správných odpovědí.', label: 'Nová výzva', run: multi(() => openNewChallenge()) },
-            turnaj: { text: 'Odehraj zápas týdenního turnaje. Kolo se hraje jeden den.', label: 'Otevřít turnaj', run: multi(() => { renderHome(); refreshTournaments(); }) },
+            vyzvy: { text: 'Dohraj výzvu proti kamarádovi nebo náhodnému soupeři. Počítá se každá dohraná výzva.', label: 'Nová výzva', run: multi(() => { renderHome(); openNewChallenge(); }) },
+            vyhry: { text: 'Vyhraj výzvu: rozhodují body, při shodě počet správných odpovědí.', label: 'Nová výzva', run: multi(() => { renderHome(); openNewChallenge(); }) },
+            turnaj: { text: 'Odehraj zápas týdenního turnaje. Kolo se hraje jeden den.', label: 'Otevřít turnaj', run: multi(() => { renderHome(); refreshTournaments(); }, 'turnaje') },
             kviz: { text: 'Kvíz dne: 10 stejných otázek pro všechny, jeden pokus za den. Počítá se každý dohraný den.', label: 'Hrát Kvíz dne', run: () => openQuiz() },
             bleskovka: { text: 'Bleskovka: 60 sekund, co nejvíc správných odpovědí. Cíl splníš hrou s aspoň 10 správnými.', label: 'Hrát Bleskovku', run: () => openModeIntro('blitz', { kind: 'mix' }) },
             preziti: { text: 'Přežití: tři životy, otázky postupně těžší. Cíl splníš, když v jedné hře přežiješ 15 otázek.', label: 'Hrát Přežití', run: () => openModeIntro('survival', { kind: 'mix' }) },
@@ -4683,13 +4915,8 @@
             if (!nothing && (!remote.rewards || !Rewards.samePayload(merged, remote.rewards))) await Social.saveRewards(user.id, Rewards.payload(merged));
         } catch (error) { /* bez sítě nebo sloupce zůstanou odměny v zařízení */ } finally { syncingRewards = false; }
     };
-    const paintGoalsCard = () => {
-        const card = document.getElementById('weekly-goals');
-        if (!card || screen !== 'home') return;
-        card.outerHTML = renderGoalsCard();
-        applyProgress(appContent);
-        renderIcons(appContent);
-    };
+    // Cíle týdne, truhla, odměna Sezóny a Kronika se změnily: překreslí se záložka, která je ukazuje (Dnes nebo Postup)
+    const paintGoalsCard = () => { if (navTab === 'dnes' || navTab === 'postup') paintTab(); else renderNav(); };
     // Obrázek do sdílení (ShareCard.shareImage) s počítadlem pro tip a odznaky
     const shareImageCounted = async (input, options) => {
         const result = await ShareCard.shareImage(input, options);
@@ -7381,7 +7608,7 @@
         myShowcaseAt = Date.now();
         try {
             const list = await Social.getShowcase(user.id);
-            if (signedUser() && signedUser().id === user.id && !showcaseBusy) myShowcase = list;
+            if (signedUser() && signedUser().id === user.id && !showcaseBusy) { myShowcase = list; paintTab('postup'); }
         } catch (error) { myShowcaseAt = 0; }
         return myShowcase;
     };
@@ -7531,28 +7758,10 @@
         const overlay = document.getElementById('dialog-overlay');
         if (overlay && overlay.dataset.title === 'Ligové sezóny') render();
     };
-    // Přepínač nahoře na úvodní stránce: Jeden hráč (dnešní otázky a témata) / Více hráčů (výzvy); bez Supabase se nezobrazuje
-    const homeTab = () => {
-        if (!(Auth && Auth.isConfigured() && Social)) return 'single';
-        const saved = readJson(KEYS.homeTab);
-        return saved === 'multi' ? 'multi' : 'single';
-    };
     // Pozvánky do výzev bez těch od hráčů, které jsem zablokoval (výzvy založené před blokem v databázi zůstávají)
     const visibleIncoming = () => (incomingList || []).filter(invite => !(myBlocks || []).some(row => invite.creator && row.id === invite.creator.id));
-    const renderHomeTabs = () => {
-        if (!(Auth && Auth.isConfigured() && Social)) return '';
-        const tab = homeTab();
-        // Odznak Více hráčů: příchozí výzvy a pozvánky do Dobývání
-        const waiting = visibleIncoming().length + (ConquestUI ? ConquestUI.inviteCount() : 0);
-        const option = (id, icon, label, badge = 0) => `
-            <button type="button" role="tab" data-action="home-tab" data-tab="${id}" aria-selected="${tab === id}" class="relative flex flex-1 items-center justify-center gap-2 rounded-xl min-h-[2.75rem] px-3 text-[13px] font-black transition-colors ${tab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-400'}">
-                <i data-lucide="${icon}" class="h-4 w-4"></i> ${label}${badge ? `<span class="rounded-full bg-gold-500 px-1.5 py-0.5 text-[10px] font-black leading-none text-brand-950">${badge}</span>` : ''}
-            </button>`;
-        return `<div id="home-tabs" role="tablist" class="flex shrink-0 gap-1 rounded-2xl bg-slate-200/70 p-1 dark:bg-slate-800">${option('single', 'user-round', 'Jeden hráč')}${option('multi', 'users', 'Více hráčů', waiting)}</div>`;
-    };
-    // Rychlé akce: tři dlaždice (Vyzvat, Náhodný soupeř, Zadat kód) a pod nimi drobný čip s nastavením přijímaných výzev
-    // Na nízkém displeji (short:) menší ikony a nižší dlaždice, ať se nad ohyb vejde i liga
-    // Na nízkém displeji obrázek vedle popisku a dlaždice 44 px vysoké (záložka Více hráčů se vejde bez posouvání)
+    // Rychlé akce okna Výzvy: tři dlaždice (Vyzvat, Náhodný soupeř, Zadat kód) a pod nimi čip s nastavením přijímaných výzev
+    // Na nízkém displeji obrázek vedle popisku a dlaždice 44 px vysoké
     const QUICK_TILE = 'flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 text-center text-[12px] font-black leading-tight short:min-h-[2.75rem] short:flex-row short:gap-1 short:py-1 short:text-left short:text-[11.5px]';
     // Kostky a klíč jsou vzdušnější kresby než meče u Vyzvat: obrázek je o kousek větší, místo zabere stejné (h-9, na nízkém displeji h-7)
     const QUICK_ART = 'h-11 w-11 -my-1 short:h-8 short:w-8 short:-my-1 short:-mx-1 short:shrink-0';
@@ -7565,8 +7774,8 @@
                 <button type="button" data-action="join-challenge" class="${QUICK_TILE} ${QUICK_LIGHT}">${uiArt('kod', QUICK_ART)}Zadat kód</button>
             </div>
             <div class="flex max-w-full items-center justify-center gap-1.5">
-                ${GroupsUI ? GroupsUI.chip() : ''}
                 <button type="button" data-action="open-accept" title="Změnit, z jakých témat přijímám výzvy" class="flex min-h-[2rem] min-w-0 max-w-full items-center gap-1.5 rounded-full bg-slate-200/60 px-3 py-1 text-[11.5px] font-bold text-slate-600 active:scale-95 dark:bg-slate-800/80 dark:text-slate-300"><i data-lucide="shield-check" class="h-3.5 w-3.5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 truncate">Přijímám výzvy z: <b class="text-slate-800 dark:text-slate-100">${escapeHtml(acceptSummary())}</b></span><i data-lucide="pencil" class="h-3 w-3 shrink-0 text-brand-700 dark:text-cream"></i></button>
+                ${Bets && betsReady() ? '<button type="button" data-action="bets-help" title="Kamarádské sázky: pravidla a moje bilance" class="flex min-h-[2rem] shrink-0 items-center gap-1 rounded-full bg-gold-50 px-3 py-1 text-[11.5px] font-black text-brand-950 ring-1 ring-gold-300/70 active:scale-95 dark:bg-gold-900/20 dark:text-gold-200 dark:ring-gold-700/60"><img src="icons/topics/mince.webp" alt="" class="-my-1 -ml-1 h-5 w-5 object-contain">Sázky</button>' : ''}
             </div>
         </div>`;
     // Poslední výzvy: jen tři nejnovější, Zobrazit vše rozbalí zbytek
@@ -7604,45 +7813,175 @@
         if (next < 0) { mode = 'challenge'; finishChallenge(); return; }
         startChallenge(challenge, next, challenge.results);
     };
-    // Pořadí podle důležitosti: co čeká na hráče (rozehraná výzva, zápas turnaje dnes, pozvánky), turnaj, rychlé akce, liga, poslední výzvy
-    const challengesInner = () => {
-        const user = signedUser();
-        const LABEL = 'px-1 text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
-        if (!user) {
-            return `
-                <div class="flex flex-col items-center gap-3 rounded-[1.4rem] bg-white p-5 text-center shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
-                    ${uiArt('sova-vyzva', 'h-24 w-24')}
-                    <div><p class="text-base font-black text-slate-800 dark:text-slate-100">Hraj s kamarády</p><p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Přihlas se, vyber si přezdívku a obrázek a vyzvi kamaráda nebo náhodného hráče. Dostanete stejné otázky a porovnáte, kdo je lepší.</p></div>
-                    <button type="button" data-action="auth-login" class="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand-700 px-4 py-3 text-base font-black text-white shadow-md active:scale-[0.98]"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>
-                </div>`;
-        }
-        const incoming = visibleIncoming();
-        const resume = ownChallengeInProgress()
-            ? `<button type="button" data-action="challenge-resume" class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-gradient-to-b from-gold-400 to-gold-600 px-4 py-2.5 text-[15px] font-black text-brand-950"><i data-lucide="play" class="h-5 w-5"></i> ${resumeLabel(challenge)}</button>` : '';
-        // Přátelé (friends.js): žádosti o přátelství mezi tím, co čeká; pás přátel pod rychlými akcemi (jen když nějací jsou)
-        const social = Friends ? Friends.split(friendRows) : { friends: [], incoming: [] };
-        const requests = Friends ? Friends.requestRows(social.incoming, friendsHelpers()) : '';
-        const waiting = incoming.length || requests ? `<div class="flex shrink-0 flex-col gap-1.5 short:gap-1"><p class="flex items-center gap-1.5 ${LABEL}"><span class="h-2 w-2 rounded-full bg-gold-500"></span>Čekají na tebe</p>${incoming.slice(0, 5).map(incomingRow).join('')}${requests}</div>` : '';
-        const friendsStrip = Friends ? Friends.friendsStrip(social.friends, friendsHelpers()) : '';
-        // Zápas turnaje, který se hraje dnes, je mezi tím, co čeká: karta turnaje se zlatým Hrát jde nahoru
-        const tournamentFirst = tournamentWaits();
-        // Záložka se neposouvá: nahoře to, co čeká, a rychlé akce; přátelé, liga a poslední výzvy pod nimi v panelu, který vyplní zbytek
-        // obrazovky a posouvá se jen uvnitř (seznam výzev je dlouhý a dál se načítá), když se všechno nevejde
+
+    // ----- Záložka Soupeři: nahoře to nejnaléhavější, co čeká, pod tím čtvery dveře (Výzvy, Dobývání, Turnaje, Skupiny) a přátelé -----
+    // Co čeká na hráče, od nejnaléhavějšího: dnešní zápas turnaje, rozehraná výzva, pozvánky do výzev, Dobývání (tahy, pozvánky)
+    // a žádosti o přátelství. Záložka ukáže jen první řádek a „+N další“ (okno Čeká na tebe); počet jde i na odznak lišty.
+    const WAIT_ROW = `${HOME_ROW} ${HOME_ROW_HOT} min-h-[3.5rem] short:min-h-[3.1rem] short:py-1.5`;
+    const resumeRowHtml = () => `
+        <button type="button" data-action="challenge-resume" data-hot class="${WAIT_ROW}">
+            ${uiArt('vyzva', 'h-10 w-10 short:h-9 short:w-9')}
+            <span class="min-w-0 flex-1"><span class="${ROW_TITLE}">Rozehraná výzva</span><span class="${ROW_SUB}">${escapeHtml(resumeLabel(challenge))}</span></span>
+            ${ctaHtml(challengeNextIndex(challenge) < 0 ? 'Dokončit' : 'Hrát', CTA_GOLD)}
+        </button>`;
+    const tournamentWaitRow = (view) => {
+        const { tournament, state } = view;
+        const special = Tournament.isSpecial(tournament);
+        const opponent = state.opponent && view.entries.find(entry => entry.user_id === state.opponent);
+        const title = special ? tournament.title : 'Týdenní turnaj';
+        const resume = state.step === 'resume';
         return `
-            <div class="flex min-h-0 flex-1 flex-col gap-2.5 short:gap-1.5 [&>*]:shrink-0">
-                ${ConquestUI ? ConquestUI.cardHtml() : ''}
-                ${resume}
-                ${tournamentFirst ? tournamentCard() : ''}
-                ${waiting}
-                ${tournamentFirst ? '' : tournamentCard()}
+            <button type="button" data-action="${resume ? 'tournament-resume' : 'tournament-play'}" data-tid="${escapeHtml(tournament.id)}" data-wait="tournament" data-hot class="${WAIT_ROW}">
+                ${special ? specialArt(tournament) : uiArt('turnaj', 'h-10 w-10 short:h-9 short:w-9')}
+                <span class="min-w-0 flex-1"><span class="${ROW_TITLE}">${escapeHtml(title)}${state.roundName ? ` · ${escapeHtml(state.roundName)}` : ''}</span>
+                    <span class="${ROW_SUB}">${resume ? 'Rozehraný zápas čeká na dohrání' : opponent ? `Dnes hraješ proti: ${escapeHtml(playerName(opponent.player))}` : 'Dnes hraješ zápas'}</span></span>
+                ${ctaHtml(resume ? 'Pokračovat' : 'Hrát', CTA_GOLD)}
+            </button>`;
+    };
+    const waitingRows = () => {
+        const user = multiOn() ? signedUser() : null;
+        if (!user) return [];
+        const rows = [];
+        syncTournamentStates();
+        (Tournament && tournamentView ? tournamentView : []).filter(view => view.state.step === 'play' || view.state.step === 'resume').forEach(view => rows.push(tournamentWaitRow(view)));
+        if (ownChallengeInProgress()) rows.push(resumeRowHtml());
+        visibleIncoming().forEach(invite => rows.push(incomingRow(invite)));
+        if (ConquestUI) rows.push(...ConquestUI.waitRows());
+        if (Friends) Friends.split(friendRows).incoming.forEach(row => rows.push(Friends.requestRows([row], friendsHelpers())));
+        return rows;
+    };
+    const WAITING_TITLE = 'Čeká na tebe';
+    // Akce z okna (řádky mají stejné data-action jako na záložce): hra okno zavře sama, ostatní okno překreslí přes paintChallenges
+    const runDialogAction = (event) => {
+        const button = event.target.closest('[data-action]');
+        if (button && ACTIONS[button.dataset.action]) ACTIONS[button.dataset.action](button);
+    };
+    const openWaitingList = () => {
+        const rows = waitingRows();
+        if (!rows.length) { if ((document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === WAITING_TITLE) closeDialog(); return; }
+        showDialog(WAITING_TITLE, `<div id="waiting-list" class="flex flex-col gap-2">${rows.join('')}</div>`, { onClick: runDialogAction });
+    };
+    const waitingSection = () => {
+        const rows = waitingRows();
+        if (!rows.length) return '';
+        return `
+            <section id="waiting-section" aria-label="Čeká na tebe" data-waiting="${rows.length}" class="flex shrink-0 flex-col gap-2 short:gap-1.5">
+                <div class="flex items-center justify-between gap-2">
+                    <h2 class="flex items-center gap-1.5 ${SEC_LABEL}"><span class="h-2 w-2 rounded-full bg-gold-500"></span>Čeká na tebe</h2>
+                    ${rows.length > 1 ? `<button type="button" data-action="waiting-all" class="-my-2 flex min-h-[2.25rem] items-center gap-0.5 rounded-lg px-1.5 text-[12px] font-black text-brand-700 active:scale-95 dark:text-cream">+${rows.length - 1} ${rows.length - 1 >= 5 ? 'dalších' : 'další'}<i data-lucide="chevron-right" class="h-3.5 w-3.5"></i></button>` : ''}
+                </div>
+                ${rows[0]}
+            </section>`;
+    };
+    // Velká dlaždice (dveře do vlastního okna): obrázek, název, řádek stavu a zlatý odznak s počtem čekajících věcí
+    const BIG_TILE = 'relative flex min-h-[7.5rem] min-w-0 flex-col items-start gap-1 rounded-[1.4rem] bg-white p-3 text-left shadow-sm ring-1 ring-slate-200/80 transition-transform active:scale-[0.98] short:min-h-[6rem] short:gap-0.5 short:p-2.5 tiny:min-h-[5rem] dark:bg-slate-800/80 dark:ring-slate-700/70';
+    const bigTile = ({ id = '', attrs, art, title, text, badge = 0 }) => `
+            <button type="button" ${id ? `id="${id}" ` : ''}${attrs} class="${BIG_TILE}">
+                ${uiArt(art, 'h-11 w-11 short:h-9 short:w-9 tiny:h-8 tiny:w-8')}
+                <span class="block text-[17px] font-black leading-tight text-slate-800 short:text-[15.5px] dark:text-slate-100">${title}</span>
+                <span data-tile-text class="line-clamp-2 text-[12px] font-semibold leading-snug text-slate-500 short:text-[11.5px] short:leading-tight dark:text-slate-400">${text}</span>
+                ${badge ? `<span data-tile-badge class="absolute right-2.5 top-2.5 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-gold-400 px-1.5 text-[11.5px] font-black leading-none text-brand-950">${badge}</span>` : ''}
+            </button>`;
+    // Dlaždice Turnaje: co se právě děje (dnešní zápas, běžící kolo, otevřené přihlášky, hlasování o tématu)
+    const tournamentTileInfo = () => {
+        if (!Tournament) return { text: 'Týdenní turnaj o XP a odznaky', badge: 0 };
+        const poll = signedUser() ? Tournament.pollView(tournamentPollState) : null;
+        const pollNote = poll ? (poll.voted ? 'hlasování o tématu' : 'hlasuj o tématu') : '';
+        const views = tournamentView || [];
+        syncTournamentStates();
+        const day = (state, tournament) => (Tournament.isSpecial(tournament) ? Tournament.whenText(state.startsAt) : Tournament.formatDay(state.start));
+        const play = views.find(view => view.state.step === 'play' || view.state.step === 'resume');
+        const running = views.find(view => view.state.phase === 'running');
+        const open = views.find(view => view.state.phase === 'open');
+        const finished = views.find(view => view.state.phase === 'finished');
+        const text = play ? (play.state.step === 'resume' ? 'Rozehraný zápas čeká' : 'Dnes hraješ zápas')
+            : running ? `Běží${running.state.roundName ? ` · ${running.state.roundName}` : ''}`
+                : open ? (open.state.closed ? 'Přihlášky jsou zavřené' : open.state.joined ? `Přihláška hotová · začíná ${day(open.state, open.tournament)}` : `Přihlášky otevřené · začíná ${day(open.state, open.tournament)}`)
+                    : finished ? 'Poslední turnaj: výsledky' : tournamentView === null ? 'Týdenní turnaj o XP a odznaky' : 'Nový turnaj se brzy otevře';
+        return { text: [text, pollNote].filter(Boolean).join(' · '), badge: play ? 1 : 0 };
+    };
+    const challengesTileInfo = () => {
+        const incoming = visibleIncoming();
+        const waiting = incoming.length + (ownChallengeInProgress() ? 1 : 0);
+        const text = incoming.length === 1 ? `Vyzývá tě ${playerName(incoming[0].creator)}`
+            : incoming.length ? (incoming.length <= 4 ? `Čekají na tebe ${incoming.length} výzvy` : `Čeká na tebe ${incoming.length} výzev`)
+                : ownChallengeInProgress() ? 'Rozehraná výzva čeká' : 'Vyzvat přítele, náhodný soupeř, kód';
+        return { text, badge: waiting };
+    };
+    const groupsTileInfo = () => {
+        const list = GroupsUI ? GroupsUI.groups() : null;
+        const count = Array.isArray(list) ? list.length : 0;
+        return { text: count ? `${count} ${count === 1 ? 'skupina' : count <= 4 ? 'skupiny' : 'skupin'} · žebříčky` : 'Soukromé žebříčky pro třídu, rodinu nebo partu', badge: 0 };
+    };
+    // Hlavička okna přes celou plochu (Výzvy, Turnaje): zpět na záložku Soupeři
+    const subHead = (title, art) => `
+            <div class="flex shrink-0 items-center gap-2.5">
+                <button type="button" data-action="souperi-back" aria-label="Zpět na Soupeře" title="Zpět na Soupeře" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl btn-3d-light bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-200"><i data-lucide="chevron-left" class="h-5 w-5"></i></button>
+                ${uiArt(art, 'h-10 w-10 -my-1')}
+                <h1 data-sub-title class="min-w-0 flex-1 truncate text-xl font-black leading-tight text-slate-800 dark:text-slate-100">${title}</h1>
+            </div>`;
+    const SCROLL_PANEL = '-mx-3 flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-y-contain px-3 pb-1 short:-mx-2.5 short:gap-2 short:px-2.5 [&>*]:shrink-0';
+    // Okno Výzvy: nahoře rychlé akce (vždy vidět), pod nimi panel, který vyplní zbytek a posouvá se jen uvnitř: co čeká, liga a poslední výzvy
+    const challengesView = () => {
+        const incoming = visibleIncoming();
+        const waiting = incoming.length ? `<div class="flex flex-col gap-1.5 short:gap-1"><p class="flex items-center gap-1.5 ${SEC_LABEL}"><span class="h-2 w-2 rounded-full bg-gold-500"></span>Čekají na tebe</p>${incoming.map(incomingRow).join('')}</div>` : '';
+        return `
+            <section id="challenges-section" class="flex min-h-0 flex-1 flex-col gap-2.5 short:gap-2">
+                ${subHead('Výzvy', 'vyzva')}
+                ${ownChallengeInProgress() ? resumeRowHtml() : ''}
                 ${quickActions()}
-                <div data-multi-more data-scroll-list class="relative -mx-3 -mb-1 flex min-h-[5rem] flex-1 flex-col gap-2.5 overflow-y-auto overscroll-y-contain px-3 pb-1 short:gap-1.5 [&>*]:shrink-0">
-                    ${friendsStrip}
-                    ${referralCardHtml()}
+                <div data-multi-more data-scroll-list class="${SCROLL_PANEL}">
+                    ${waiting}
                     ${leagueCard()}
                     ${recentSection(incoming)}
                 </div>
+            </section>`;
+    };
+    // Okno Turnaje: týdenní a speciální turnaj s přihláškou, zápasem a pavoukem, hlasování o tématu; dole Archiv a Jak to funguje
+    const tournamentsView = () => {
+        const card = tournamentCard();
+        const empty = `
+            <div data-tournament-empty class="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
+                ${uiArt('turnaj', 'h-12 w-12 -my-1')}
+                <p class="text-sm font-semibold leading-snug text-slate-600 dark:text-slate-300">${tournamentView === null && tournamentRefreshing ? 'Načítám turnaje…' : 'Teď se žádný turnaj nehraje. Týdenní turnaj se otevírá každý týden, přihlášky najdeš tady.'}</p>
             </div>`;
+        const LINK = 'flex min-h-[2.75rem] min-w-0 items-center justify-center gap-2 rounded-2xl btn-3d-light bg-white px-2 text-[13px] font-black text-slate-800 dark:bg-slate-800 dark:text-slate-100';
+        return `
+            <section id="tournaments-section" class="flex min-h-0 flex-1 flex-col gap-2.5 short:gap-2">
+                ${subHead('Turnaje', 'turnaj')}
+                <div data-scroll-list class="${SCROLL_PANEL}">${card || empty}</div>
+                <div class="grid shrink-0 grid-cols-2 gap-2">
+                    <button type="button" data-action="tournament-archive" class="${LINK}">${uiArt('archiv-turnaju', 'h-8 w-8 -my-1')}<span class="truncate">Archiv turnajů</span></button>
+                    <button type="button" data-action="tournament-help" class="${LINK}"><i data-lucide="info" class="h-4 w-4 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="truncate">Jak to funguje</span></button>
+                </div>
+            </section>`;
+    };
+    const renderSouperi = () => {
+        const user = signedUser();
+        if (!user) {
+            return `
+                <div id="souperi-login" class="my-auto flex flex-col items-center gap-3 rounded-[1.6rem] bg-white p-5 text-center shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
+                    ${uiArt('sova-vyzva', 'h-28 w-28 short:h-24 short:w-24')}
+                    <div><p class="text-lg font-black text-slate-800 dark:text-slate-100">Hraj s kamarády</p><p class="mt-1 text-sm leading-snug text-slate-500 dark:text-slate-400">Přihlas se, vyber si přezdívku a obrázek a vyzvi kamaráda nebo náhodného hráče. Dostanete stejné otázky a porovnáte, kdo je lepší. Čekají tu i turnaje, Dobývání a skupiny.</p></div>
+                    <button type="button" data-action="auth-login" class="${PRIMARY_BUTTON}"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>
+                </div>`;
+        }
+        if (navSub === 'vyzvy') return challengesView();
+        if (navSub === 'turnaje') return tournamentsView();
+        const challenges = challengesTileInfo();
+        const conquest = ConquestUI ? ConquestUI.tile() : null;
+        const tournaments = tournamentTileInfo();
+        const groups = groupsTileInfo();
+        const social = Friends ? Friends.split(friendRows) : { friends: [], incoming: [] };
+        return `
+            ${waitingSection()}
+            <section id="souperi-tiles" aria-label="Hry s ostatními" class="grid shrink-0 grid-cols-2 gap-2.5 short:gap-2">
+                ${bigTile({ id: 'challenges-tile', attrs: 'data-action="souperi-open" data-view="vyzvy"', art: 'vyzva', title: 'Výzvy', text: escapeHtml(challenges.text), badge: challenges.badge })}
+                ${conquest ? bigTile({ id: 'conquest-card', attrs: 'data-action="conquest-open"', art: 'dobyvani', title: 'Dobývání', text: conquest.html, badge: conquest.badge }) : ''}
+                ${bigTile({ id: 'tournaments-tile', attrs: 'data-action="souperi-open" data-view="turnaje"', art: 'turnaj', title: 'Turnaje', text: escapeHtml(tournaments.text), badge: tournaments.badge })}
+                ${GroupsUI && GroupsUI.groups() !== null ? bigTile({ id: 'groups-tile', attrs: 'data-action="groups-open"', art: 'skupiny', title: 'Skupiny', text: escapeHtml(groups.text) }) : ''}
+            </section>
+            ${Friends && friendRows !== null ? Friends.friendsStrip(social.friends, friendsHelpers(), Date.now(), { add: true }) : ''}`;
     };
     // Pomocné funkce pro friends.js: obrázek hráče a zápis hráče mezi známé (klepnutí na něj otevře profil)
     const friendsHelpers = () => ({ avatarHtml, escapeHtml, register: (player) => { if (player && player.id) knownPlayers.set(player.id, player); } });
@@ -7660,12 +7999,11 @@
         recentReactions = reactions;
         myBlocks = blocks;
     };
-    // Žádost o přátelství z řádku „Čekají na tebe“: přijmout / odmítnout (odmítnutí žádost smaže)
+    // Žádost o přátelství z řádku „Čeká na tebe“: přijmout / odmítnout (odmítnutí žádost smaže)
     const answerFriendRequest = async (otherId, accept) => {
         const user = signedUser();
         if (!user || !Friends) return;
-        const row = document.querySelector(`[data-friend-request="${otherId}"]`);
-        if (row) row.querySelectorAll('button').forEach(button => { button.disabled = true; });
+        document.querySelectorAll(`[data-friend-request="${otherId}"] button`).forEach(button => { button.disabled = true; });
         try {
             if (accept) await Social.acceptFriend(user.id, otherId); else await Social.removeFriend(user.id, otherId);
             friendRows = (friendRows || []).map(item => item.id === otherId ? (accept ? { ...item, status: 'accepted' } : null) : item).filter(Boolean);
@@ -7675,39 +8013,71 @@
         }
         paintChallenges();
     };
-    const renderChallengesSection = () => Auth && Auth.isConfigured() && Social ? `<section id="challenges-section" class="flex min-h-0 flex-1 flex-col">${challengesInner()}</section>` : '';
-    const paintChallenges = () => {
-        if (screen !== 'home') return;
-        const tabs = document.getElementById('home-tabs');
-        if (tabs) { tabs.outerHTML = renderHomeTabs(); renderIcons(document.getElementById('home-tabs')); }
-        const element = document.getElementById('challenges-section');
-        if (!element) return;
-        // Překreslení (načtení přátel, starších výzev) nesmí panel se seznamy posunout nahoru
-        const panel = element.querySelector('[data-multi-more]');
-        const scroll = panel ? panel.scrollTop : 0;
-        element.innerHTML = challengesInner();
-        renderIcons(element);
-        fitMulti();
-        const again = element.querySelector('[data-multi-more]');
-        if (again && scroll) again.scrollTop = scroll;
-        watchRecentEnd();
+    // Okno Přátelé (z pásu přátel na záložce Soupeři): hledání hráčů podle přezdívky, žádosti, všichni přátelé (seznam se posouvá
+    // uvnitř okna) a Pozvi kamarády. Klepnutí na hráče otevře jeho profil (odtud Přidat do přátel, Vyzvat…), zpět se vrací sem.
+    const FRIENDS_TITLE = 'Přátelé';
+    const friendsDraft = { query: '', results: null, busy: false, note: '' };
+    const renderFriendsDialog = () => {
+        const social = Friends ? Friends.split(friendRows) : { friends: [], incoming: [], outgoing: [] };
+        const helpers = friendsHelpers();
+        const person = (row, sub) => {
+            helpers.register(row);
+            return `<li><button type="button" data-friend-open="${escapeHtml(row.id)}" class="flex min-h-[3rem] w-full items-center gap-2.5 rounded-2xl bg-white px-2.5 py-1.5 text-left shadow-sm ring-1 ring-slate-200/70 active:scale-[0.99] dark:bg-slate-800 dark:ring-slate-700/70">${avatarHtml(row, 'h-9 w-9 text-lg')}<span class="min-w-0 flex-1"><span class="block truncate text-[13.5px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(playerName(row))}</span>${sub ? `<span class="block truncate text-[11px] font-semibold leading-tight text-slate-500 dark:text-slate-400">${escapeHtml(sub)}</span>` : ''}</span><i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-400"></i></button></li>`;
+        };
+        const results = friendsDraft.results === null ? ''
+            : friendsDraft.results.length ? `<ul data-friends-results class="flex flex-col gap-1.5">${friendsDraft.results.map(row => person(row, 'Otevřít profil')).join('')}</ul>`
+                : '<p data-friends-results class="px-1 text-[12.5px] font-semibold text-slate-500 dark:text-slate-400">Nikoho takového jsem nenašel. Zkus jinou část přezdívky.</p>';
+        const requests = Friends ? Friends.requestRows(social.incoming, helpers) : '';
+        const friends = social.friends.length
+            ? `<ul id="friends-list" class="flex flex-col gap-1.5">${social.friends.map(row => person(row, [Friends.activity(row.last_seen).text, Friends.balanceText ? Friends.balanceText(row) : ''].filter(Boolean).join(' · '))).join('')}</ul>`
+            : `<div class="flex items-center gap-3 rounded-2xl bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">${uiArt('sova-ceka', 'h-12 w-12 -my-1')}<p class="text-[13px] font-semibold leading-snug text-slate-600 dark:text-slate-300">Zatím tu nikdo není. Najdi kamaráda podle přezdívky, nebo ho pozvi odkazem.</p></div>`;
+        showDialog(FRIENDS_TITLE, `
+            <div id="friends-dialog" class="flex flex-col gap-3">
+                <form id="friends-search" class="flex gap-2" autocomplete="off">
+                    <label class="min-w-0 flex-1"><span class="sr-only">Najít hráče podle přezdívky</span><input id="friends-query" type="search" maxlength="${Social.NAME_MAX}" value="${escapeHtml(friendsDraft.query)}" placeholder="Najít hráče podle přezdívky" class="h-11 w-full rounded-xl border-2 border-slate-200 bg-white px-3 text-[15px] font-bold text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"></label>
+                    <button type="submit" ${friendsDraft.busy ? 'disabled' : ''} class="flex h-11 shrink-0 items-center justify-center rounded-xl btn-3d bg-brand-700 px-4 text-[14px] font-black text-white disabled:opacity-50">${friendsDraft.busy ? 'Hledám…' : 'Hledat'}</button>
+                </form>
+                ${friendsDraft.note ? `<p role="alert" class="-mt-1 px-1 text-[12.5px] font-semibold text-rose-700 dark:text-rose-400">${escapeHtml(friendsDraft.note)}</p>` : ''}
+                ${results}
+                ${requests ? `<div class="flex flex-col gap-1.5"><p class="flex items-center gap-1.5 ${SEC_LABEL}"><span class="h-2 w-2 rounded-full bg-gold-500"></span>Žádosti o přátelství</p>${requests}</div>` : ''}
+                <div class="flex flex-col gap-1.5"><p class="${SEC_LABEL}">Moji přátelé <span class="font-bold normal-case tracking-normal">· ${social.friends.length}</span></p>${friends}</div>
+                ${social.outgoing && social.outgoing.length ? `<p class="px-1 text-[11.5px] font-semibold text-slate-500 dark:text-slate-400">Odeslané žádosti: ${social.outgoing.map(row => escapeHtml(playerName(row))).join(', ')}</p>` : ''}
+                ${referralCardHtml()}
+            </div>`, {
+            onClick: (event) => {
+                const open = event.target.closest('[data-friend-open]');
+                if (open) { openChild('Zpět na Přátele', openFriends, () => openPlayerProfile(open.dataset.friendOpen)); return; }
+                if (event.target.closest('[data-action="referral-open"]')) { openChild('Zpět na Přátele', openFriends, openReferral); return; }
+                runDialogAction(event);
+            },
+            onInput: (event) => { if (event.target.id === 'friends-query') friendsDraft.query = event.target.value; },
+            onSubmit: async () => {
+                const query = friendsDraft.query.trim();
+                if (friendsDraft.busy || !signedUser()) return;
+                if (query.length < 2) { friendsDraft.note = 'Napiš aspoň dvě písmena přezdívky.'; friendsDraft.results = null; renderFriendsDialog(); return; }
+                friendsDraft.busy = true;
+                friendsDraft.note = '';
+                renderFriendsDialog();
+                try { friendsDraft.results = await Social.searchPlayers(signedUser().id, query); } catch (error) { friendsDraft.results = null; friendsDraft.note = 'Hledání se nepodařilo. Zkontroluj připojení.'; }
+                friendsDraft.busy = false;
+                if ((document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === FRIENDS_TITLE) renderFriendsDialog();
+            }
+        });
     };
-    // Vejde se záložka Více hráčů bez posouvání? Když ne ani s panelem seznamů v nejmenší výšce (dnešní zápas turnaje a pozvánky
-    // na nízkém displeji), karta Dobývání se přesune na začátek panelu (posouvá se s ním); jinak zůstane nahoře. Volá se po vykreslení
-    // a z fitHome při změně obsahu (MutationObserver): fitSeen pak nese změřenou výšku, ať přesun karty neměří znovu dokola.
-    // Měří se přetečení obalu úvodu (na této záložce má pevnou výšku h-full), ne #app-content: náběhová animace fade-in obal
-    // posouvá (translateY) a scrollHeight rodiče by po dobu animace hlásila přetečení, i když se všechno vejde (karta by pak
-    // zbytečně spadla pod rychlé akce).
-    const fitMulti = () => {
-        const section = document.getElementById('challenges-section');
-        const stack = section && section.firstElementChild;
-        const panel = section && section.querySelector('[data-multi-more]');
-        const card = document.getElementById('conquest-card');
-        const wrap = appContent.firstElementChild;
-        if (!stack || !panel || !card || !wrap || screen !== 'home' || homeTab() !== 'multi' || !appContent.clientHeight) return;
-        if (card.parentElement !== stack) stack.prepend(card);
-        if (wrap.scrollHeight > wrap.clientHeight + 1) panel.prepend(card);
-        fitSeen = wrap.scrollHeight;
+    const openFriends = () => {
+        if (!signedUser() || !Social) { openLoginDialog(); return; }
+        touchTip('friends');
+        renderFriendsDialog();
+    };
+    // Překreslí všechno, co ukazuje výzvy, turnaje, přátele a Dobývání: záložku Soupeři (i její okna Výzvy a Turnaje), odznaky lišty
+    // a otevřená okna Čeká na tebe a Přátelé
+    const paintChallenges = () => {
+        // Záložka Já ukazuje profil a ligu ze stejných dat
+        if (mainShown() && (navTab === 'souperi' || navTab === 'ja')) paintTab();
+        else renderNav();
+        const overlay = document.getElementById('dialog-overlay');
+        if (overlay && overlay.dataset.title === WAITING_TITLE) openWaitingList();
+        else if (overlay && overlay.dataset.title === FRIENDS_TITLE && document.getElementById('friends-dialog')) renderFriendsDialog();
     };
     // Starší výzvy: další stránka od nejstarší načtené (podle času dohrání)
     const loadOlderChallenges = async () => {
@@ -7793,10 +8163,12 @@
             button.setAttribute('aria-label', `Nastavení a profil: ${playerName(profile)}`);
             button.title = `Nastavení a profil: ${playerName(profile)}`;
         } else {
+            // Bez přihlášení: na hlavních obrazovkách postavička (záložka Já), při hře ozubené kolečko (Nastavení)
+            const main = mainShown();
             button.className = BUTTON_INACTIVE;
-            button.innerHTML = '<i data-lucide="settings-2" class="h-5 w-5"></i>';
-            button.setAttribute('aria-label', 'Nastavení');
-            button.title = 'Nastavení';
+            button.innerHTML = `<i data-lucide="${main ? 'user-round' : 'settings-2'}" class="h-5 w-5"></i>`;
+            button.setAttribute('aria-label', main ? 'Já: profil a nastavení' : 'Nastavení');
+            button.title = main ? 'Já: profil a nastavení' : 'Nastavení';
             renderIcons(button);
         }
     };
@@ -8609,10 +8981,218 @@
         if (here) here.scrollIntoView({ block: 'center' });
     };
 
+    // ----- Záložka Postup: úroveň a XP, Sezóna, cíle týdne a dlaždice s odznaky, mistrovstvím, diplomy, albem, vitrínou, kronikou a odměnami -----
+    // Každý blok otevírá své okno (Úrovně a tituly s prestiží, Sezóna, Cíle týdne, Všechny odznaky…). Nic se neposouvá: nejbližší
+    // odznaky (data-optional) se ukážou, jen když se vejdou (fitHome).
+    // Kolik odměn čeká na vyzvednutí (odznak na liště): stupně Sezóny a prestiž
+    const postupWaiting = () => {
+        let count = 0;
+        try {
+            const season = seasonView();
+            if (season && season.pending.length) count += 1;
+            if (Prestige && prestigeView().canPrestige) count += 1;
+        } catch (error) { console.error(error); }
+        return count;
+    };
+    const POSTUP_TILE = 'relative flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl bg-white px-1 py-1.5 text-center shadow-sm ring-1 ring-slate-200/80 transition-transform active:scale-[0.97] short:min-h-[3.75rem] tiny:min-h-[3.25rem] tiny:gap-0 tiny:py-1 dark:bg-slate-800/80 dark:ring-slate-700/70';
+    const POSTUP_READY = 'ring-2 ring-gold-400 dark:ring-gold-500';
+    const postupTile = ({ attrs, art, title, value, valueAttrs = '', ready = false }) => `
+            <button type="button" ${attrs} class="${POSTUP_TILE}${ready ? ` ${POSTUP_READY}` : ''}">
+                ${art}
+                <span class="block max-w-full truncate text-[12px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span>
+                <span ${valueAttrs} class="block max-w-full truncate text-[11px] font-bold leading-tight ${ready ? 'text-gold-800 dark:text-gold-200' : 'text-slate-500 dark:text-slate-400'}">${value}</span>
+            </button>`;
+    const postupArt = (name) => uiArt(name, 'h-9 w-9 short:h-8 short:w-8 tiny:h-6 tiny:w-6');
+    const renderPostup = () => {
+        const progress = loadProgress();
+        const xp = progress.xp;
+        const level = prestigeView(xp);
+        const next = level.prestige ? null : nextTitle(level.level);
+        const earnedCount = BADGES.filter(badge => progress.badges[badge.id]).length;
+        const learned = loadLearned();
+        const stars = TOPICS.reduce((sum, topic) => sum + masteryStars((learned[topic.id] || []).length), 0);
+        const rewardsState = Rewards ? loadRewards() : null;
+        const season = seasonView();
+        const goals = badgeGoals(progress).slice(0, 2);
+        const badgeRow = (goal) => {
+            const reward = badgeReward(goal.badge);
+            return `<li class="flex items-center gap-2 rounded-xl bg-white px-2 py-1.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/80 dark:ring-slate-700/70" title="${escapeHtml(`${goal.badge.title}: ${goal.badge.text}${reward ? ` ${reward}` : ''}`)}">${medalHtml(goal.badge, false, 'h-8 w-8', 'h-4 w-4')}<span class="min-w-0 flex-1"><span class="flex items-baseline justify-between gap-2"><span class="truncate text-[12px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(goal.badge.title)}</span><span class="shrink-0 text-[11px] font-bold tabular-nums text-slate-500 dark:text-slate-400">${goal.value} / ${goal.badge.goal}</span></span>${reward
+                ? `<span class="block truncate text-[10px] font-bold leading-tight text-gold-800 dark:text-gold-300" data-badge-reward>${escapeHtml(reward)}</span>`
+                : `<span class="block truncate text-[10px] font-semibold leading-tight text-slate-500 dark:text-slate-400">${escapeHtml(goal.badge.text)}</span>`}${goalBar(goal.ratio)}</span></li>`;
+        };
+        const chest = rewardsState ? Rewards.pendingChest(rewardsState) : null;
+        const gold = Gold && Rewards ? Gold.progressTile(loadGold()) : null;
+        const diplomas = rewardsState ? Object.keys(rewardsState.diplomas).filter(id => TOPIC_BY_ID[id]).length : 0;
+        const album = Album ? Album.build(albumInput(progress)).percent : 0;
+        const tiles = [
+            postupTile({ attrs: `data-open-badges aria-label="Všechny odznaky ${earnedCount} / ${BADGES.length}"`, art: postupArt('odznak-sberatel'), title: 'Odznaky', value: `${earnedCount} / ${BADGES.length}` }),
+            postupTile({ attrs: 'data-open-mastery-all aria-label="Mistrovství témat: hvězdy za poznané položky"', art: postupArt('odznak-hvezdy'), title: 'Mistrovství', value: `${stars} / ${TOPICS.length * MASTERY_STEPS.length} hvězd`, valueAttrs: 'data-mastery-stars' }),
+            ...(Rewards ? [postupTile({ attrs: 'data-rewards-info="diplomas"', art: postupArt('diplom'), title: 'Diplomy', value: `${diplomas} / ${TOPICS.length}`, valueAttrs: 'data-diplomas-count' })] : []),
+            ...(Album && Rewards ? [postupTile({ attrs: 'data-rewards-info="album"', art: postupArt(Album.ALBUM_ART || 'album'), title: 'Album', value: `${album} %`, valueAttrs: 'data-album-percent' })] : []),
+            ...(Showcase && signedUser() && myShowcase !== null ? [postupTile({ attrs: 'data-open-showcase', art: postupArt('vitrina'), title: 'Vitrína', value: `${myShowcase.length} / ${Showcase.MAX}` })] : []),
+            ...(Chronicle ? [postupTile({ attrs: 'data-open-chronicle aria-label="Kronika týdne: můj týden v kostce"', art: postupArt('sova-kronika'), title: 'Kronika', value: 'týden v kostce' })] : []),
+            ...(Rewards ? [
+                postupTile({ attrs: 'data-rewards-info="freeze"', art: postupArt('ochrana-serie'), title: 'Ochrana série', value: `${rewardsState.freezes} z ${Rewards.MAX_FREEZES}`, valueAttrs: 'data-freeze-count' }),
+                postupTile({ attrs: 'data-rewards-info="chest"', art: postupArt('truhla'), title: 'Truhla', value: chest ? 'Čeká!' : escapeHtml(lastChestText(rewardsState) || 'za cíle týdne'), valueAttrs: 'data-chest-value', ready: Boolean(chest) })
+            ] : []),
+            ...(gold ? [postupTile({ attrs: 'data-rewards-info="gold"', art: gold.icon, title: escapeHtml(gold.title), value: escapeHtml(gold.value), valueAttrs: 'data-gold-tile-value', ready: Boolean(gold.ready) })] : [])
+        ];
+        return `
+            <button type="button" data-open-levels class="btn-3d flex w-full shrink-0 items-center gap-3 rounded-[1.4rem] bg-gradient-to-br from-brand-700 to-brand-900 p-3 text-left text-white short:p-2.5 tiny:py-1.5" aria-label="Tabulka úrovní a titulů">
+                <span class="relative h-16 w-16 shrink-0 short:h-14 short:w-14 tiny:h-12 tiny:w-12" data-title-owl>${uiArt(titleOwlArt(level.realLevel), 'h-full w-full')}<span class="absolute -bottom-1 -right-1.5 flex h-8 w-8 flex-col items-center justify-center rounded-full ${level.prestige ? 'prestige-orb' : 'bg-gold-500 text-brand-950'} shadow-md ring-2 ring-brand-800"><span class="text-[7px] font-black uppercase leading-none">${level.prestige ? `★${level.prestige}` : 'úr.'}</span><span class="text-[13px] font-black leading-none">${level.level}</span></span></span>
+                <span class="min-w-0 flex-1">
+                    <span class="flex min-w-0 items-center gap-1.5 text-xl font-black leading-tight short:text-lg"><span class="truncate">${escapeHtml(titleForLevel(level.realLevel))}</span>${level.prestige && Prestige ? Prestige.markHtml(level.prestige, 'text-[11px]') : ''}</span>
+                    <span class="mt-1 block h-2 overflow-hidden rounded-full bg-white/25" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-400" data-progress="${Math.round(level.ratio * 100)}"></span></span>
+                    <span class="mt-0.5 flex items-center justify-between gap-2 text-[11px] font-bold text-white/85"><span>${level.needed ? `${formatXp(level.into)} / ${formatXp(level.needed)} XP` : level.canPrestige ? '<span data-prestige-ready class="text-gold-300">Můžeš do prestiže ★</span>' : 'Nejvyšší úroveň'}</span>${level.needed ? `<span>do úr. ${level.level + 1}</span>` : ''}</span>
+                    <span class="flex items-center justify-between gap-2 text-[11px] font-semibold leading-tight tiny:hidden"><span class="min-w-0 truncate text-gold-300">${next ? `Další titul: ${escapeHtml(next.title)} (úr. ${next.from})` : ''}</span><span data-total-xp class="shrink-0 text-white/80" title="Celkem získané XP">celkem ${formatXp(xp)} XP</span></span>
+                </span>
+                <i data-lucide="chevron-right" class="h-5 w-5 shrink-0 text-white/60"></i>
+            </button>
+            ${season ? `<div class="shrink-0">${Season.cardHtml(season)}</div>` : ''}
+            ${renderGoalsCard()}
+            <section id="postup-tiles" aria-label="Sbírky a odměny" class="grid shrink-0 grid-cols-3 gap-2 short:gap-1.5">${tiles.join('')}</section>
+            ${goals.length ? `
+            <section data-optional aria-label="Nejbližší odznaky" class="flex shrink-0 flex-col gap-1.5">
+                <h2 class="${SEC_LABEL}">Nejbližší odznaky</h2>
+                <ul class="flex flex-col gap-1.5">${goals.map(badgeRow).join('')}</ul>
+            </section>` : ''}`;
+    };
+    // Okno Mistrovství témat: mřížka všech témat s hvězdami za poznané položky, klepnutím podrobnosti tématu
+    const openMasteryAll = () => {
+        const learned = loadLearned();
+        const rows = TOPICS.map(topic => {
+            const known = (learned[topic.id] || []).length;
+            const stars = masteryStars(known);
+            const goal = nextMastery(known);
+            return `
+                <li>
+                    <button type="button" data-mastery="${topic.id}" class="flex min-h-[4.25rem] w-full flex-col items-center justify-center gap-0.5 rounded-2xl bg-white px-0.5 py-1.5 shadow-sm ring-1 ring-slate-200/70 active:scale-95 dark:bg-slate-800 dark:ring-slate-700/70" title="${escapeHtml(`${topic.title}: ${known} poznaných${goal ? ` · další hvězda za ${goal}` : ' · plné mistrovství'}`)}" aria-label="${escapeHtml(topic.title)}: ${stars} z ${MASTERY_STEPS.length} hvězd, klepnutím se dozvíš víc">
+                        ${topicIcon(topic, 'h-8 w-8', `rounded-lg p-1 ${styleOf(topic).soft}`, 'h-5 w-5')}
+                        <span class="block max-w-full truncate text-[10.5px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(topic.shortTitle || topic.title)}</span>
+                        <span class="flex" aria-hidden="true">${MASTERY_STEPS.map((_, index) => `<i data-lucide="star" class="h-2.5 w-2.5 ${index < stars ? 'fill-gold-500 text-gold-500' : 'text-slate-300 dark:text-slate-600'}"></i>`).join('')}</span>
+                    </button>
+                </li>`;
+        }).join('');
+        showDialog('Mistrovství témat', `
+            <div class="flex flex-col gap-2.5" data-mastery-dialog>
+                <p class="text-[12.5px] font-semibold leading-snug text-slate-600 dark:text-slate-300">Za poznané položky tématu sbíráš hvězdy. Pět hvězd je plné mistrovství a přináší diplom.</p>
+                <ul class="grid grid-cols-4 gap-2 short:gap-1.5">${rows}</ul>
+                ${dialogBackButton()}
+            </div>`, { onClick: (event) => {
+            const mastery = event.target.closest('[data-mastery]');
+            if (mastery) openChild('Zpět na Mistrovství', openMasteryAll, () => openMastery(mastery.dataset.mastery));
+        } });
+    };
+    // Klepnutí na záložce Postup: stejná okna jako dřív z okna Můj postup, jen bez návratu do rodičovského okna (zavřením jsme zpět na záložce)
+    const postupClick = (event) => {
+        if (event.target.closest('[data-open-levels]')) { openLevels(); return true; }
+        if (event.target.closest('[data-open-badges]')) { openBadges(); return true; }
+        if (event.target.closest('[data-open-mastery-all]')) { openMasteryAll(); return true; }
+        if (event.target.closest('[data-open-showcase]')) { openShowcase(); return true; }
+        if (event.target.closest('[data-open-chronicle]')) { openChronicle(); return true; }
+        if (event.target.closest('[data-season-claim]')) { openSeasonReveal(); return true; }
+        if (event.target.closest('[data-season-open]')) { openSeason(); return true; }
+        const info = event.target.closest('[data-rewards-info]');
+        if (info) { ({ freeze: openFreezeHelp, chest: openChestHelp, diplomas: openDiplomas, album: () => openAlbum(), gold: openGoldInfo })[info.dataset.rewardsInfo](); return true; }
+        return false;
+    };
+
+    // ----- Záložka Já: karta hráče a řádky do oken (Mudrlant, Profil, Nastavení hry, Upozornění, Účet, Pozvi kamarády) -----
+    const JA_ROW = `${HOME_ROW} min-h-[3.4rem] short:min-h-[3rem] short:py-1.5 tiny:min-h-[2.7rem] tiny:py-1`;
+    const jaRow = ({ attrs, icon = '', art = '', title, text = '', tone = 'bg-brand-100 text-brand-700 dark:bg-brand-900/60 dark:text-brand-200', right = '<i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-400"></i>' }) => `
+            <button type="button" ${attrs} class="${JA_ROW}">
+                ${art || `<span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl short:h-9 short:w-9 tiny:h-8 tiny:w-8 ${tone}"><i data-lucide="${icon}" class="h-5 w-5"></i></span>`}
+                <span class="min-w-0 flex-1"><span class="${ROW_TITLE}">${title}</span>${text ? `<span class="${ROW_SUB}">${text}</span>` : ''}</span>
+                ${right}
+            </button>`;
+    const pushRowText = () => {
+        if (!pushState) return 'Zápas v turnaji, nové výzvy, Dobývání';
+        return pushState.kind === 'on' ? 'Zapnutá na tomhle zařízení' : pushState.kind === 'denied' ? 'V prohlížeči zakázaná' : pushState.kind === 'unsupported' ? (pushState.ios ? 'Na iPhonu jen z aplikace na ploše' : 'Tenhle prohlížeč je neumí') : 'Vypnutá · zápas v turnaji a nové výzvy';
+    };
+    const renderJa = () => {
+        const state = Auth ? Auth.getState() : { configured: false };
+        const user = multiOn() ? signedUser() : null;
+        const profile = user ? (myProfile || { display_name: user.name, avatar: '🦊', color: 'emerald' }) : null;
+        const level = prestigeView();
+        const league = user && Rating && myRating ? Rating.leagueFor(myRating.rating) : null;
+        const card = `
+            <div id="ja-card" class="flex shrink-0 items-center gap-3 rounded-[1.4rem] bg-white p-3 shadow-sm ring-1 ring-slate-200/80 short:p-2.5 dark:bg-slate-800/80 dark:ring-slate-700/70">
+                ${profile ? avatarHtml(profile, 'h-16 w-16 text-4xl short:h-14 short:w-14 short:text-3xl') : owlLogo('shrink-0', 'h-16 w-auto drop-shadow-md short:h-14')}
+                <div class="min-w-0 flex-1">
+                    <p data-ja-name class="truncate text-xl font-black leading-tight text-slate-800 short:text-lg dark:text-slate-100">${user ? escapeHtml(playerName(profile)) : 'Hraješ bez účtu'}</p>
+                    <button type="button" data-ja="progress" class="mt-0.5 flex max-w-full items-center gap-1 text-left text-[12px] font-black text-brand-700 dark:text-cream"><span class="truncate">${escapeHtml(ownTitleText(level.level))}</span><i data-lucide="chevron-right" class="h-3.5 w-3.5 shrink-0"></i></button>
+                    ${league ? `<p data-ja-league class="mt-1 flex items-center gap-1.5 text-[12px] font-bold text-slate-600 dark:text-slate-300">${leagueEmblem(league, 'h-5 w-5')}<span class="truncate">Liga ${escapeHtml(league.name)} · ${myRating.rating}</span></p>` : user ? `<p class="mt-1 truncate text-[12px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(user.email || user.name || '')}</p>` : '<p class="mt-1 text-[12px] font-semibold leading-snug text-slate-500 dark:text-slate-400">Postup se ukládá jen v tomhle zařízení</p>'}
+                </div>
+            </div>`;
+        const rows = [
+            ...(Owl ? [jaRow({ attrs: 'data-ja="owl"', icon: 'sparkles', title: 'Mudrlant', text: 'Oblek, čepice a doplňky sovy' })] : []),
+            ...(user ? [jaRow({ attrs: 'data-ja="profile"', icon: 'user-round', title: 'Profil', text: 'Přezdívka, obrázek, rámeček a titul' })] : []),
+            jaRow({ attrs: 'data-ja="game"', icon: 'settings-2', title: 'Nastavení hry', text: 'Varianta, obtížnost, barvy a zvuky' }),
+            ...(user && Push && Push.configured() && !(pushState && pushState.kind === 'hidden') ? [jaRow({ attrs: 'data-ja="push"', icon: pushState && pushState.kind === 'on' ? 'bell' : 'bell-off', title: 'Upozornění', text: `<span data-ja-push>${escapeHtml(pushRowText())}</span>` })] : []),
+            ...(user ? [jaRow({ attrs: 'data-ja="account"', icon: 'shield-check', title: 'Účet', text: 'Přijímané výzvy, zablokovaní, moje data, odhlášení' })] : []),
+            ...(user && Referral && referralState ? [jaRow({ attrs: 'data-ja="referral"', icon: 'user-plus', title: 'Pozvi kamarády', text: referralState.ready.length ? 'Čeká odměna za pozvání' : 'Odměna pro tebe i kamaráda', tone: 'referral-orb text-white' })] : [])
+        ];
+        const login = state.configured && !user ? `
+            <button type="button" data-ja="login" class="flex w-full shrink-0 items-center gap-3 rounded-[1.15rem] btn-3d bg-brand-700 px-4 py-2.5 text-left text-white">
+                <i data-lucide="log-in" class="h-5 w-5 shrink-0"></i>
+                <span class="min-w-0 flex-1"><span class="block text-[15px] font-black leading-tight">Přihlásit se přes Google</span><span class="block text-[11.5px] font-semibold leading-snug text-white/90">Uloží se postup a půjde hrát s ostatními</span></span>
+                <i data-lucide="chevron-right" class="h-4 w-4 shrink-0"></i>
+            </button>
+            ${state.error ? `<p class="text-xs font-semibold text-rose-700 dark:text-rose-400" role="alert">${escapeHtml(state.error)}</p>` : ''}` : '';
+        return `
+            ${card}
+            ${login}
+            <section id="ja-rows" aria-label="Nastavení" class="flex shrink-0 flex-col gap-2 short:gap-1.5">${rows.join('')}</section>
+            <div class="mt-auto flex shrink-0 flex-wrap items-center justify-center gap-x-0.5 pt-1 text-xs text-slate-500 dark:text-slate-400">
+                <button type="button" data-ja="tutorial" class="-my-1 inline-flex min-h-[2.25rem] items-center rounded-lg px-1.5 font-bold underline underline-offset-2">Tutoriál</button>
+                <a href="soukromi.html" class="-my-1 inline-flex min-h-[2.25rem] items-center rounded-lg px-1.5 font-bold underline underline-offset-2">Osobní údaje</a>
+                <a href="licence.html" class="-my-1 inline-flex min-h-[2.25rem] items-center rounded-lg px-1.5 font-bold underline underline-offset-2">Zdroje a licence</a>
+            </div>`;
+    };
+    // Okno Účet (ze záložky Já): přijímané výzvy, zablokovaní hráči, moje data a odhlášení; okna otevřená odsud se vrací sem
+    const openAccount = () => {
+        const user = signedUser();
+        if (!user || !Social) { openLoginDialog(); return; }
+        const row = (attr, icon, title, text) => `<button type="button" ${attr} class="btn-3d-light flex min-h-[3rem] w-full items-center gap-3 rounded-2xl bg-white px-3 py-2 text-left dark:bg-slate-800"><i data-lucide="${icon}" class="h-5 w-5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 flex-1"><span class="block text-[14px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span><span class="block truncate text-[11.5px] font-semibold leading-snug text-slate-500 dark:text-slate-400">${text}</span></span><i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-400"></i></button>`;
+        showDialog('Účet', `
+            <div id="account-dialog" class="flex flex-col gap-2">
+                <p class="truncate text-[12.5px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(user.email || user.name || '')}</p>
+                ${row('data-open-accept', 'shield-check', 'Přijímané výzvy', escapeHtml(acceptSummary()))}
+                ${Friends ? row('data-open-blocked', 'ban', 'Zablokovaní hráči', myBlocks ? (myBlocks.length ? `Zablokováno: ${myBlocks.length}` : 'Nikoho neblokuješ') : 'Načítám…') : ''}
+                ${row('data-open-privacy', 'download', 'Moje data', 'Stažení dat a smazání účtu')}
+                <button type="button" data-auth-logout class="${SECONDARY_BUTTON} mt-1"><i data-lucide="log-out" class="h-5 w-5"></i> Odhlásit se</button>
+            </div>`, { onClick: (event) => {
+            const child = (open) => openChild('Zpět na Účet', openAccount, open);
+            if (event.target.closest('[data-open-accept]')) { child(openAccepted); return; }
+            if (event.target.closest('[data-open-blocked]')) { child(openBlockedList); return; }
+            if (event.target.closest('[data-open-privacy]')) { if (privacyState !== 'busy') privacyState = ''; child(() => openPrivacy()); return; }
+            if (event.target.closest('[data-auth-logout]')) {
+                // Odhlášený hráč nesmí na tomhle zařízení dál dostávat upozornění: odběr se smaže ještě za přihlášení
+                closeDialog();
+                (Push ? Push.disable().catch(() => {}) : Promise.resolve()).then(() => Auth.logout());
+            }
+        } });
+    };
+    const jaClick = (event) => {
+        const row = event.target.closest('[data-ja]');
+        if (!row) return false;
+        const kind = row.dataset.ja;
+        if (kind === 'progress') goTab('postup');
+        else if (kind === 'login') startLogin();
+        else if (kind === 'account') openAccount();
+        else if (kind === 'referral') openReferral();
+        else if (kind === 'push') openSettings('', '[data-push-toggle], [data-push-panel] button', 'game');
+        else if (kind === 'tutorial') { goTab('dnes'); if (Tutorial) Tutorial.restart(); }
+        else openSettings('', null, kind);
+        return true;
+    };
+
     // Můj postup: úroveň, titul, XP do další úrovně a mistrovství jednotlivých témat (hvězdičky podle poznaných položek)
     // Můj postup se vejde bez posouvání (390×780, na 360×640 nejvýš trochu): úroveň, dva nejbližší odznaky na řádek, mistrovství jako
     // mřížka ikon témat s hvězdičkami a řádek odměn (ochrana série, truhla, diplomy), každá část s podrobnostmi ve vlastním okně
+    // Na hlavních obrazovkách je Můj postup záložka Postup; okno zůstává pro cestu z Nastavení uprostřed hry (hru by záložka ukončila)
     const openProgress = () => {
+        if (screen === 'home' && !isLoading) { closeDialog(); closeSettings(); goTab('postup'); return; }
         touchTip('progress');
         noteDiplomas(topicStarsNow());
         noteAlbum();
@@ -9993,14 +10573,11 @@
         if (!DailyQuiz) return '';
         const view = quizHomeView();
         const tile = DailyQuiz.homeTile(view);
-        return specialTile({ id: 'quiz-card', action: 'quiz-open', art: 'stopky', title: 'Kvíz dne', text: tile.text, label: tile.label, ring: 'ring-gold-400/70 dark:ring-gold-500/50', dot: tile.fresh ? 'data-quiz-new' : '', attrs: `data-quiz-status="${view.status}"` });
+        return specialTile({ id: 'quiz-card', action: 'quiz-open', art: 'stopky', title: 'Kvíz dne', text: tile.text, label: tile.label, dot: tile.fresh ? 'data-quiz-new' : '', attrs: `data-quiz-status="${view.status}"`,
+            done: view.status === 'done', cta: view.status === 'progress' ? 'Pokračovat' : 'Hrát' });
     };
-    const paintQuizCard = () => {
-        const card = document.getElementById('quiz-card');
-        if (!card || screen !== 'home') return;
-        card.outerHTML = quizHomeCard();
-        renderIcons(appContent);
-    };
+    // Řádky dnešních výzev se překreslují společně (zvýrazněný řádek a počet hotových závisí na všech)
+    const paintQuizCard = () => paintTab('dnes');
     const quizHelpers = () => {
         const user = signedUser();
         return {
@@ -10333,23 +10910,31 @@
         return entry && entry.name && !entry.dismissed ? { day, entry } : null;
     };
     let mysteryRevealStats = null; // { day, stats } pro kartu na úvodu
-    const mysteryHomeView = () => {
+    // Dnešní záhada (řádek mezi dnešními výzvami) a včerejší odpověď (příležitostný pruh na záložce Dnes, dokud ji hráč neskryje)
+    const mysteryTodayView = () => {
         const now = Date.now();
         const today = Mystery.pragueDay(now);
-        const state = loadMystery();
-        const reveal = mysteryReveal(state, today);
-        if (reveal) return { kind: 'reveal', status: Mystery.statusOf(reveal.entry), name: reveal.entry.name, stats: mysteryRevealStats && mysteryRevealStats.day === reveal.day ? mysteryRevealStats.stats : null };
-        const entry = state.days[today] || null;
-        const status = Mystery.statusOf(entry);
-        return { kind: 'today', status, shown: Mystery.cluesAt(now), next: Mystery.nextClue(now), entry, solvedAt: entry && entry.solved ? Mystery.formatClock(entry.at) : '' };
+        const entry = loadMystery().days[today] || null;
+        return { kind: 'today', status: Mystery.statusOf(entry), shown: Mystery.cluesAt(now), next: Mystery.nextClue(now), entry, solvedAt: entry && entry.solved ? Mystery.formatClock(entry.at) : '' };
     };
-    const mysteryHomeCard = () => (Mystery ? Mystery.homeCardHtml(mysteryHomeView()) : '');
-    const paintMysteryCard = () => {
-        const card = document.getElementById('mystery-card');
-        if (!card || screen !== 'home') return;
-        card.outerHTML = mysteryHomeCard();
-        renderIcons(appContent);
+    const mysteryRevealView = () => {
+        const reveal = mysteryReveal(loadMystery(), Mystery.pragueDay(Date.now()));
+        return reveal ? { kind: 'reveal', status: Mystery.statusOf(reveal.entry), name: reveal.entry.name, stats: mysteryRevealStats && mysteryRevealStats.day === reveal.day ? mysteryRevealStats.stats : null } : null;
     };
+    const mysteryHomeCard = () => {
+        if (!Mystery) return '';
+        const view = mysteryTodayView();
+        const over = view.status === 'solved' || view.status === 'failed';
+        const fresh = !over && view.shown > (view.entry ? view.entry.seen : 0);
+        const text = Mystery.homeText(view);
+        return specialTile({ id: 'mystery-card', action: 'mystery-open', art: 'sova-dalekohled', title: 'Tajemná otázka', text, label: `Tajemná otázka dne: ${text}`, dot: fresh ? 'data-mystery-new' : '', dotShown: true,
+            attrs: `data-mystery-kind="today" data-mystery-status="${view.status || ''}"`, textAttr: 'data-mystery-text', done: over, cta: 'Hádat', doneIcon: view.status === 'failed' ? 'moon' : 'circle-check' });
+    };
+    const mysteryRevealCard = () => {
+        const view = Mystery ? mysteryRevealView() : null;
+        return view ? Mystery.homeCardHtml(view) : '';
+    };
+    const paintMysteryCard = () => paintTab('dnes');
     // Statistiky včerejška pro kartu na úvodu (jednou za den)
     const refreshMysteryReveal = async () => {
         if (!Mystery || !mysteryRanked()) return;
@@ -10677,19 +11262,14 @@
     const bossTileHtml = () => {
         const view = bossView();
         const tile = Boss.homeTile(view);
-        const bar = `<span aria-hidden="true" class="pointer-events-none absolute inset-x-2 bottom-0.5 h-1 overflow-hidden rounded-full bg-white/20"><span class="boss-tile-hp block h-full w-0 rounded-full" data-progress="${tile.percent}"></span></span>`;
+        const status = bossTileStatus(view);
+        const bar = view.used && !view.defeated ? `<span aria-hidden="true" class="mt-1 block h-1 w-full max-w-[9rem] overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700"><span class="boss-tile-hp block h-full w-0 rounded-full" data-progress="${tile.percent}"></span></span>` : '';
         // Portrét bosse se nepřebarví podle obleku Mudrlanta (data-keep, look-robes.js)
-        return specialTile({ id: 'boss-card', action: 'boss-open', art: tile.art, title: 'Boss týdne', text: tile.text, label: tile.label, tone: 'boss-tile', ring: 'ring-rose-500/80 dark:ring-rose-400/60',
-            titleTone: 'text-white', textTone: view.defeated ? 'text-gold-200' : 'text-rose-100', dot: tile.fresh ? 'data-boss-new' : '',
-            attrs: `data-boss-status="${bossTileStatus(view)}" data-boss-stage="${tile.stage}"${tile.standIn ? ' data-boss-standin' : ''}`, extra: bar }).replace('<img src=', '<img data-keep src=');
+        return specialTile({ id: 'boss-card', action: 'boss-open', art: tile.art, title: 'Boss týdne', text: status === 'out' ? `${tile.text} · pokusy došly` : tile.text, label: tile.label, dot: tile.fresh ? 'data-boss-new' : '',
+            attrs: `data-boss-status="${status}" data-boss-stage="${tile.stage}"${tile.standIn ? ' data-boss-standin' : ''}`, extra: bar,
+            done: status === 'defeated' || status === 'out', doneIcon: status === 'defeated' ? 'circle-check' : 'moon', cta: status === 'open' ? 'Pokračovat' : 'Souboj' }).replace('<img src=', '<img data-keep src=');
     };
-    const paintBossCard = () => {
-        const card = document.getElementById('boss-card');
-        if (!card || screen !== 'home' || !Boss) return;
-        card.outerHTML = bossTileHtml();
-        const fresh = document.getElementById('boss-card');
-        if (fresh) { applyProgress(fresh); renderIcons(fresh); }
-    };
+    const paintBossCard = () => paintTab('dnes');
     const bossCommunity = (week) => Boss.communityHtml({
         stats: bossServerStats(week), signedIn: bossRanked(), canLogin: Boolean(Auth && Auth.isConfigured() && Social) && !signedUser(),
         loading: bossRanked() && !(bossServer && bossServer.week === week && bossServer.done), over: Boss.weekOf() !== week
@@ -11423,7 +12003,7 @@
         chainCtl = Chain.createController({
             loadExtra: () => loadChainExtra(), loadScript: (src) => loadScript(src), chainSubject,
             appContent, setScreen: (name) => { screen = name; }, getScreen: () => screen, renderHome, renderIcons, updateControlsUI, closePlaceInfo, showToast, showDialog, closeDialog,
-            uiArt, specialTile, avatarHtml, xpLine, meRow: () => quizHelpers().meRow, loadTopic, loadCountries, readJson, writeJson, signedUser, social: Social, auth: Auth, startLogin,
+            uiArt, specialTile, paintHome: () => paintTab('dnes'), avatarHtml, xpLine, meRow: () => quizHelpers().meRow, loadTopic, loadCountries, readJson, writeJson, signedUser, social: Social, auth: Auth, startLogin,
             shareCard: ShareCard, shareImageCounted, robeNow, appUrl, appName: APP_NAME, sound: Sound, isLoading: () => isLoading,
             // Celá Řetězovka: pomůcka Půl na půl do Dobývání (blok 30)
             itemGranted: (grant) => celebrateItem(grant),
@@ -11723,7 +12303,7 @@
             referralState = Referral.parseStatus(raw);
             if (referralState) { savePerks([...loadPerks().referral, ...referralState.claimed]); applyLook(); }
         } catch (error) { /* bez sítě se karta neukáže */ }
-        if (screen === 'home' && homeTab() === 'multi') paintChallenges();
+        paintChallenges();
         return referralState;
     };
     // Odkaz od kamaráda: po přihlášení se kód použije (jen nový účet); hláška říká proč ne
@@ -11976,9 +12556,13 @@
     const TIP_ACTIONS = {
         settings: () => { closeDialog(); openSettings('', null, tipSettingsTab); },
         learn: () => { closeDialog(); openLearn('home'); },
-        progress: () => { closeDialog(); openProgress(); },
-        multi: () => { closeDialog(); openHomeTabFromPush('multi'); },
-        single: () => { closeDialog(); openHomeTabFromPush('single'); },
+        progress: () => { closeDialog(); goTab('postup'); },
+        multi: () => { closeDialog(); goTab('souperi'); },
+        single: () => { closeDialog(); goTab('dnes'); },
+        play: () => { closeDialog(); goTab('hrat'); },
+        challenges: () => { closeDialog(); goTab('souperi', signedUser() ? 'vyzvy' : null); },
+        tournaments: () => { closeDialog(); goTab('souperi', signedUser() ? 'turnaje' : null); },
+        friends: () => { closeDialog(); goTab('souperi'); if (signedUser()) openFriends(); },
         quiz: () => { closeDialog(); openQuiz(); },
         modes: () => { closeDialog(); openChooser({ kind: 'mix' }); },
         goals: () => { closeDialog(); openGoals(); },
@@ -11987,7 +12571,7 @@
         boss: () => { closeDialog(); openBoss(); },
         chain: () => { closeDialog(); if (chainCtl) chainCtl.open(); },
         leagueSeasons: () => { closeDialog(); openLeagueSeasons(); },
-        groups: () => { closeDialog(); openHomeTabFromPush('multi'); if (GroupsUI) GroupsUI.openList(); },
+        groups: () => { closeDialog(); goTab('souperi'); if (GroupsUI) GroupsUI.openList(); },
         gold: () => { closeDialog(); openGoldInfo(); },
         conquest: () => { closeDialog(); if (ConquestUI) ConquestUI.openHub(); }
     };
@@ -12051,8 +12635,8 @@
             tournamentOffer = joined === false ? { tournament: open } : null;
         }
         updateFactHint();
-        // Při každém druhém spuštění vyskočí malé okno, jakmile hráč přepne na Více hráčů (jednou za spuštění)
-        if (tournamentOffer && homeTab() === 'multi' && screen === 'home' && !promoPopupShown && promoLaunches % 2 === 0 && !document.getElementById('dialog-overlay')) {
+        // Při každém druhém spuštění vyskočí malé okno, jakmile hráč přepne na záložku Soupeři (jednou za spuštění)
+        if (tournamentOffer && navTab === 'souperi' && mainShown() && !promoPopupShown && promoLaunches % 2 === 0 && !document.getElementById('dialog-overlay')) {
             promoPopupShown = true;
             openTournamentOffer('popup');
         }
@@ -12075,7 +12659,7 @@
             if (list === null) { tournamentView = null; paintChallenges(); return; }
             await showTournamentNotices(user).catch(() => {});
             await updateTournamentOffer(user, list).catch(() => {});
-            if (!force && homeTab() !== 'multi') return;
+            if (!force && navTab !== 'souperi') return;
             // Hlasování o tématu speciálního turnaje: nejvýš jednou za minutu (a po hlasu hned z odpovědi serveru)
             if (force || Date.now() - tournamentPollAt > 60000) {
                 tournamentPollAt = Date.now();
@@ -12129,7 +12713,7 @@
         tournamentView.forEach(view => { view.state = tournamentStateOf(view, user.id, today); });
     };
 
-    // --- Karta na záložce Více hráčů ---
+    // --- Karta turnajů v okně Turnaje (záložka Soupeři) ---
     // Ilustrace turnaje (icons/topics/turnaj.webp): o kousek větší než místo, které zabere (40 px jako dřív kroužek), ať se řádek nezvýší ani nezúží text
     const TOUR_ART = 'h-12 w-12 -m-1';
     const TOUR_LINK = 'inline-flex min-h-[2.5rem] items-center rounded px-1 text-[11px] font-black text-brand-700 underline decoration-brand-700/40 underline-offset-2 dark:text-cream dark:decoration-cream/40';
@@ -12156,7 +12740,7 @@
             // Speciální turnaj: název tématu a čas začátku (texty bez rodu); týdenní: den začátku
             const line = state.closed ? 'Přihlášky jsou zavřené'
                 : special ? `${state.joined ? 'Přihláška hotová · ' : ''}Začíná ${Tournament.whenText(state.startsAt)}`
-                    : state.joined ? `Jsi přihlášen · ${Tournament.formatDay(state.start)}` : `Začíná ${Tournament.weekdayName(state.start)} ${Tournament.formatDay(state.start)}`;
+                    : state.joined ? `Přihláška hotová · ${Tournament.formatDay(state.start)}` : `Začíná ${Tournament.weekdayName(state.start)} ${Tournament.formatDay(state.start)}`;
             return `
                 <div data-tournament-row="open" ${special ? 'data-special' : ''} class="flex items-center gap-2.5 py-2 first:pt-0 last:pb-0">
                     ${art}
@@ -12252,10 +12836,6 @@
             <div id="tournament-card" class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gold-100 via-gold-50 to-emerald-100 p-2.5 shadow-md ring-1 ring-gold-300/80 dark:from-gold-900/50 dark:via-slate-800 dark:to-emerald-900/40 dark:ring-gold-700/60 ${invite ? 'tour-glow' : ''}">
                 <div class="relative mb-1.5 flex items-center justify-between gap-2">
                     <p class="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-gold-800 dark:text-gold-200"><i data-lucide="trophy" class="h-3.5 w-3.5"></i>${heading}</p>
-                    <div class="flex items-center gap-1.5">
-                        <button type="button" data-action="tournament-archive" aria-label="Archiv turnajů" title="Archiv turnajů" class="flex h-7 w-7 items-center justify-center rounded-full active:scale-95">${uiArt('archiv-turnaju', 'h-9 w-9 -m-1')}</button>
-                        <button type="button" data-action="tournament-help" aria-label="Jak to funguje" title="Jak to funguje" class="flex h-7 w-7 items-center justify-center rounded-full bg-white/70 text-[13px] font-black text-brand-700 ring-1 ring-gold-300/70 active:scale-95 dark:bg-slate-900/40 dark:text-gold-200 dark:ring-gold-700/60">?</button>
-                    </div>
                 </div>
                 ${views.length ? `<div class="relative flex flex-col divide-y divide-gold-300/50 dark:divide-slate-700">${views.map(tournamentRow).join('')}</div>` : ''}
                 ${poll}
@@ -13068,11 +13648,15 @@
         'tournament-back': () => { const tid = challenge && challenge.tournament ? challenge.tournament.tid : ''; challengeHome(); if (tid) openTournament(tid); }
     };
 
-    // Klepnutí na upozornění: ?tab=multi v adrese (aplikace byla zavřená) nebo zpráva od service workeru (běžela) otevře záložku Více hráčů
+    // Klepnutí na upozornění: ?tab=… v adrese (aplikace byla zavřená) nebo zpráva od service workeru (běžela) otevře záložku.
+    // Upozornění posílají multi (Soupeři; dřív záložka Více hráčů) a single (Dnes); platí i názvy záložek (dnes, hrat, souperi, postup, ja).
+    const PUSH_TABS = { multi: 'souperi', single: 'dnes' };
+    const pushTabOf = (tab) => (PUSH_TABS[tab] || (NAV_TABS.some(([id]) => id === tab) ? tab : ''));
     const openHomeTabFromPush = (tab) => {
-        if (tab !== 'multi' && tab !== 'single') return;
-        writeJson(KEYS.homeTab, tab);
-        if (screen === 'home') { renderHome(); refreshTournaments(); }
+        const target = pushTabOf(tab);
+        if (!target) return;
+        setNav(target);
+        if (screen === 'home') { tabSwitched = true; renderHome(); refreshTournaments(); }
     };
     function takeTabParam() {
         const params = new URLSearchParams(window.location.search);
@@ -13108,6 +13692,7 @@
     if (window.MudrlantGroups && Social) {
         GroupsUI = window.MudrlantGroups.createUI({
             Social, showDialog, closeDialog, avatarHtml, showToast, signedUser, renderIcons,
+            paintHome: () => paintChallenges(),
             login: () => { if (Auth) startLogin(); },
             // Hra z detailu skupiny: skupina se vezme z otevřeného okna (soupeř v záhlaví otázky)
             openChallenge: (code) => openChallenge(code, openGroupOf()),
@@ -13158,7 +13743,9 @@
             Conquest: window.MudrlantConquest, Social, appContent, signedUser, renderIcons, showDialog, closeDialog, showToast,
             // Okno s pozvánkou po otevření aplikace: jen na úvodu, ne přes jiné okno, oslavu, truhlu ani tutoriál
             canPrompt: () => screen === 'home' && !pushOfferBlocked() && !document.getElementById('chest-overlay') && !document.getElementById('season-overlay'),
-            invitesChanged: () => { const tabs = document.getElementById('home-tabs'); if (screen === 'home' && tabs) { tabs.outerHTML = renderHomeTabs(); renderIcons(document.getElementById('home-tabs')); } },
+            invitesChanged: () => paintChallenges(),
+            // Dlaždice Dobývání a řádek „Čeká na tebe“ na záložce Soupeři se překreslí s ní
+            paintHome: () => paintChallenges(),
             login: () => { if (Auth) startLogin(); },
             isActive: () => screen === 'conquest',
             enter: () => { screen = 'conquest'; closePlaceInfo(); closeDialog(); updateControlsUI(); },
@@ -13219,7 +13806,12 @@
         'weekly-board': () => openWeeklyBoard(),
         'league-help': () => openLeagueHelp(),
         'league-seasons': () => openLeagueSeasons(),
-        'home-tab': (button) => { writeJson(KEYS.homeTab, button.dataset.tab === 'multi' ? 'multi' : 'single'); renderHome(); refreshTournaments(); },
+        // Záložka Soupeři: okna Výzvy a Turnaje přes celou plochu, okno se vším, co čeká, a Přátelé
+        'souperi-open': (button) => goTab('souperi', button.dataset.view),
+        'souperi-back': () => goTab('souperi'),
+        'waiting-all': () => openWaitingList(),
+        'friends-open': () => openFriends(),
+        'bets-help': () => openBetsHelp(),
         ...tournamentActions,
         ...modeActions,
         'new-challenge': () => openNewChallenge(),
@@ -13289,7 +13881,13 @@
         'tournament-breakdown': (button) => openTournamentBreakdown(button.dataset.tid, button.dataset.mid),
         'play-daily': () => { const next = nextDailyTopic(); if (next) startNextDaily(next.id); },
         'daily-home': () => renderHome(),
-        'play-topic': (button) => playTopic(button.dataset.topic),
+        // Dlaždice tématu na záložce Hrát vždy otevře okno Co hrát (kategorie, obtížnost, Bleskovka a Přežití s tématem)
+        'play-topic': (button) => openChooser({ kind: 'topic', topic: button.dataset.topic }),
+        'daily-sheet': () => openDailySheet(),
+        // Režimy na záložce Hrát: Bleskovka a Přežití s Mixem (s tématem jdou z okna Co hrát), Ukaž na mapě a rozehraná otázka tréninku
+        'mode-tile': (button) => openModeIntro(button.dataset.mode, { kind: 'mix' }),
+        'map-tile': () => startPractice({ kind: 'map', topic: null }),
+        'resume-practice': () => showPractice(),
         // Tematický víkend: pruh na úvodu hraje téma víkendu (v pátek před 18:00 jen připomene, kdy začne)
         'weekend-play': (button) => { if (button.dataset.weekendState === 'soon') { showToast('Tematický víkend začne dnes v 18:00. Pak budou otázky z tématu za dvojnásobek XP.'); return; } playTopic(button.dataset.topic); },
         'referral-open': () => openReferral(),
@@ -13353,6 +13951,10 @@
             changeVariant(variantButton.dataset.variant);
             return;
         }
+        // Záložky Postup a Já mají vlastní prvky (stejné atributy jako okna, ze kterých vznikly)
+        const tabRoot = event.target.closest('[data-tab-root]');
+        if (tabRoot && tabRoot.dataset.tabRoot === 'postup' && postupClick(event)) return;
+        if (tabRoot && tabRoot.dataset.tabRoot === 'ja' && jaClick(event)) return;
         const button = event.target.closest('[data-action]');
         if (button && ACTIONS[button.dataset.action]) ACTIONS[button.dataset.action](button);
     });
@@ -13430,7 +14032,11 @@
         } else if (screen === 'round' && mode === 'practice' && pool.kind === 'mistakes') openLearn('mistakes');
         else openLearn('home');
     });
-    document.getElementById('btn-settings').addEventListener('click', () => openSettings());
+    // Obrázek hráče vpravo nahoře: na hlavních obrazovkách vede na záložku Já, při hře otevře Nastavení (hru neukončí)
+    document.getElementById('btn-settings').addEventListener('click', () => {
+        if (!mainShown()) openSettings();
+        else if (navTab !== 'ja') goTab('ja');
+    });
     document.getElementById('status-badge').addEventListener('click', (event) => switchFromBadge(event));
     // Žárovka: nejdřív zajímavost dne (když je nepřečtená), jinak pozvánka do turnaje
     document.getElementById('fact-hint').addEventListener('click', () => {
@@ -13453,7 +14059,8 @@
     // krok navíc. Zpět ho spotřebuje a aplikace udělá svůj krok zpět (zavře okno, z otázky domů, v učení o úroveň výš);
     // teprve na úvodní obrazovce Zpět aplikaci opustí. Krok se doplní či odebere po každé změně obrazovky nebo okna.
     const OVERLAY_IDS = ['photo-source', 'photo-zoom', 'place-info', 'play-chooser', 'settings-overlay', 'dialog-overlay'];
-    const atRoot = () => (screen === 'home' || screen === 'welcome') && !OVERLAY_IDS.some(id => document.getElementById(id));
+    // Začátek aplikace je záložka Dnes: z jiné záložky (a z okna Výzvy či Turnaje) vede Zpět nejdřív tam
+    const atRoot = () => ((screen === 'home' && navTab === 'dnes' && !navSub) || screen === 'welcome') && !OVERLAY_IDS.some(id => document.getElementById(id));
     let skipNextPop = false;
     const syncHistory = () => {
         const guarded = Boolean(history.state && history.state.mudrlantBack);
@@ -13472,7 +14079,10 @@
         else if (document.getElementById('play-chooser')) closeChooser();
         else if (document.getElementById('settings-overlay')) closeSettings();
         else if (isLoading) return;
-        else if (screen === 'round') {
+        else if (screen === 'home') {
+            if (navSub) goTab(navTab);
+            else if (navTab !== 'dnes') goTab('dnes');
+        } else if (screen === 'round') {
             const fromLearn = mode === 'practice' && (pool.kind === 'collection' || pool.kind === 'mistakes' || pool.kind === 'review');
             if (fromLearn) openLearn(pool.kind === 'mistakes' ? 'mistakes' : pool.kind === 'review' ? 'home' : learn.view);
             else renderHome();
@@ -13580,7 +14190,7 @@
     migrateFromGeoQuiz();
     loadVersion();
     const pushTab = takeTabParam();
-    if (pushTab === 'multi' || pushTab === 'single') writeJson(KEYS.homeTab, pushTab);
+    if (pushTabOf(pushTab)) setNav(pushTabOf(pushTab));
     // Po přihlášení nebo odhlášení se otevřené Nastavení překreslí
     if (Auth) {
         const invite = takeInviteCode();

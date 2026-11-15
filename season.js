@@ -331,7 +331,7 @@
 
     // Pruh na úvodu (místo cílů týdne, jako Truhla Mudrlanta): čekající odměny sezóny, klepnutím se vyzvedne první
     const stripHtml = ({ id, count, past = false, until = '' }) => `
-            <button type="button" id="weekly-goals" data-action="season-claim" data-season-ready class="season-strip season-m${mm(id)} flex min-h-[2.5rem] w-full items-center gap-2 rounded-2xl px-2.5 py-1.5 text-left text-white shadow-md ring-2 transition-all active:scale-[0.98]">
+            <button type="button" id="season-strip" data-action="season-claim" data-season-ready class="season-strip season-m${mm(id)} flex min-h-[2.5rem] w-full items-center gap-2 rounded-2xl px-2.5 py-1.5 text-left text-white shadow-md ring-2 transition-all active:scale-[0.98]">
                 ${emblemHtml(id, 'h-7 w-7 -my-1 -ml-0.5 season-mini', 'text-[1.1rem]')}
                 <span class="min-w-0 flex-1 truncate text-[12px] font-black leading-tight">${past ? `Sezóna ${esc(monthName(id))}: ${countText(count)} jen do ${formatDay(until)}` : `Sezóna ${esc(monthName(id))}: ${count === 1 ? 'čeká odměna' : `čekají ${countText(count)}`}`}</span>
                 <span class="shrink-0 rounded-lg bg-white px-2 py-1 text-[11px] font-black text-violet-900">Vyzvednout</span>

@@ -55,6 +55,20 @@
 @media (prefers-reduced-motion: no-preference) {
     .fade-in { animation: fadeIn 0.5s ease-out; }
 }
+/* Spodní okraj aplikace nesmí zajet pod systémovou lištu telefonu: na hlavních obrazovkách ho drží spodní lišta (její pozadí sahá
+   až dolů), při hře (lišta skrytá, třída nav-on chybí) obal aplikace */
+#app-shell { padding-bottom: env(safe-area-inset-bottom); }
+#app-shell.nav-on { padding-bottom: 0; }
+#app-nav { padding-bottom: max(0.45rem, env(safe-area-inset-bottom)); }
+/* Záložka spodní lišty: vybraná má ikonu v pilulce barvy tématu, ostatní jsou tlumené */
+.nav-pill { transition: background-color 0.18s ease, color 0.18s ease, transform 0.18s ease; }
+[data-nav][aria-current="page"] .nav-pill { background-image: linear-gradient(180deg, rgb(var(--brand-600)), rgb(var(--brand-800))); color: #fff; box-shadow: 0 2px 0 rgb(var(--brand-950) / 0.55); }
+[data-nav]:active .nav-pill { transform: scale(0.94); }
+/* Přepnutí záložky: obsah jen krátce prolne (delší náběh fade-in je pro první vykreslení) */
+@media (prefers-reduced-motion: no-preference) {
+    .tab-in { animation: tabIn 0.22s ease-out; }
+}
+@keyframes tabIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 /* Okna zarovnaná ke spodku: tlačítka nesmí zajet pod systémovou lištu telefonu (iPhone, gesta Androidu) */
 #settings-overlay, #play-chooser, #place-info, #dialog-overlay { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
 /* Otevřená klávesnice (app.js nastaví --kb a třídu kb-open): okno se zvedne nad ni a zkrátí se, obsah se pak posouvá uvnitř okna */

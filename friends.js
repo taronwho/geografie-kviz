@@ -151,18 +151,31 @@
         </form>`;
     const reasonLabel = (reasons, id) => ((reasons || []).find(item => item.id === id) || {}).label || id;
 
-    // Pás přátel na záložce Více hráčů: avatar s tečkou aktivity a zkrácené jméno; klepnutí otevře profil (h.register uloží hráče pro profil)
-    const friendsStrip = (friends, h, now = Date.now()) => {
-        if (!friends || !friends.length) return '';
-        const items = friends.map(row => {
+    // Pás přátel na záložce Soupeři: pár avatarů s tečkou aktivity (klepnutí otevře profil, h.register uloží hráče pro profil), „+N“ na
+    // ostatní a kolik přátel je dnes aktivních; nadpis a tlačítko s plusem (add) otevírají okno Přátelé (hledání hráčů, Pozvi kamarády).
+    // max = kolik avatarů se vejde vedle sebe i na úzký displej; bez přátel a bez add se neukáže nic
+    const friendsStrip = (friends, h, now = Date.now(), { add = false, max = 3 } = {}) => {
+        const list = friends || [];
+        if (!list.length && !add) return '';
+        const active = list.filter(row => activity(row.last_seen, now).level === 'today').length;
+        const BUBBLE = 'flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:scale-95';
+        const items = list.slice(0, max).map(row => {
             if (h.register) h.register(row);
             const act = activity(row.last_seen, now);
-            return `<button type="button" data-player-id="${esc(row.id)}" title="${esc(row.display_name)}${act.text ? ` · ${act.text}` : ''}" class="flex w-[3.4rem] shrink-0 flex-col items-center gap-1 rounded-xl py-1 active:scale-95"><span class="relative">${h.avatarHtml(row, 'h-10 w-10 text-xl')}${activityDot(act.level)}</span><span class="max-w-full truncate text-[10.5px] font-bold leading-tight text-slate-700 dark:text-slate-200">${esc(shortName(row.display_name))}</span></button>`;
+            return `<button type="button" data-player-id="${esc(row.id)}" title="${esc(row.display_name)}${act.text ? ` · ${act.text}` : ''}" aria-label="Profil hráče ${esc(row.display_name)}" class="relative shrink-0 rounded-full active:scale-95">${h.avatarHtml(row, 'h-11 w-11 text-xl')}${activityDot(act.level)}</button>`;
         }).join('');
+        const rest = list.length - Math.min(list.length, max);
+        const more = rest > 0 ? `<button type="button" data-action="friends-open" data-friends-more aria-label="Další přátelé: ${rest}" class="${BUBBLE} bg-slate-200 text-[12.5px] font-black text-slate-700 dark:bg-slate-700 dark:text-slate-200">+${rest}</button>` : '';
+        const plus = add ? `<button type="button" data-action="friends-open" data-friends-add aria-label="Přidat přátele" title="Najít hráče nebo pozvat kamarády" class="${BUBBLE} border-2 border-dashed border-slate-300 text-slate-500 dark:border-slate-600 dark:text-slate-400"><i data-lucide="user-plus" class="h-5 w-5"></i></button>` : '';
+        const head = `Přátelé <span class="font-bold normal-case tracking-normal">· ${list.length}</span>`;
         return `
-            <div id="friends-section" class="flex flex-col gap-0.5">
-                <div class="flex min-h-[2rem] items-center justify-between gap-2"><p class="${LABEL}">Přátelé <span class="font-bold normal-case tracking-normal">· ${friends.length}</span></p><p class="flex items-center gap-1 px-1 text-[10.5px] font-semibold text-slate-500 dark:text-slate-400"><span class="h-2 w-2 rounded-full bg-emerald-500"></span>aktivní dnes</p></div>
-                <div id="friends-strip" class="-mx-1 flex gap-1 overflow-x-auto px-1 pb-0.5" aria-label="Přátelé">${items}</div>
+            <div id="friends-section" class="flex shrink-0 flex-col gap-1.5 short:gap-1">
+                ${add ? `<button type="button" data-action="friends-open" class="-my-1 flex min-h-[2rem] w-fit items-center gap-0.5 rounded-lg ${LABEL}">${head}<i data-lucide="chevron-right" class="h-3.5 w-3.5"></i></button>` : `<p class="${LABEL}">${head}</p>`}
+                <div class="flex items-center gap-2.5">
+                    ${list.length ? `<div id="friends-strip" class="flex min-w-0 items-center gap-2.5" aria-label="Přátelé">${items}</div>` : ''}${more}${plus}
+                    ${list.length ? '' : '<span class="min-w-0 flex-1 text-[12.5px] font-semibold leading-snug text-slate-500 dark:text-slate-400">Najdi hráče podle přezdívky nebo pozvi kamarády</span>'}
+                    ${active ? `<span data-friends-active class="ml-auto flex min-h-[2rem] shrink-0 items-center gap-1.5 rounded-full bg-white px-2.5 text-[12px] font-black text-slate-700 shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700/70"><span class="h-2 w-2 rounded-full bg-emerald-500"></span>${active} dnes ${active === 1 ? 'aktivní' : active <= 4 ? 'aktivní' : 'aktivních'}</span>` : ''}
+                </div>
             </div>`;
     };
     // Žádosti o přátelství do sekce „Čekají na tebe“: „X tě chce mít v přátelích · Přijmout / Odmítnout“

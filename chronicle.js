@@ -377,7 +377,7 @@
     };
     // Pruh na úvodu (místo pruhu cílů týdne, stejná výška): otevřít a skrýt
     const stripHtml = (s, v, h) => `
-        <div id="weekly-goals" data-chronicle-strip="${esc(s.week)}" class="flex min-h-[2.5rem] w-full items-center gap-1 rounded-2xl bg-gradient-to-r from-brand-700 to-brand-900 pl-2 pr-0.5 text-white shadow-md ring-1 ring-brand-900/20">
+        <div id="chronicle-strip" data-chronicle-strip="${esc(s.week)}" class="flex min-h-[2.5rem] w-full items-center gap-1 rounded-2xl bg-gradient-to-r from-brand-700 to-brand-900 pl-2 pr-0.5 text-white shadow-md ring-1 ring-brand-900/20">
             <button type="button" data-action="chronicle-open" class="flex min-h-[2.5rem] min-w-0 flex-1 items-center gap-1.5 text-left" aria-label="Tvůj týden v kostce je hotový: ${esc(v.title)}. Otevřít kroniku týdne">
                 ${h.uiArt(STRIP_ART || `sova-${v.owl}`, 'h-8 w-8 -my-1.5 -ml-1')}
                 <span class="min-w-0 flex-1"><span class="block truncate text-[12px] font-black leading-tight">Tvůj týden v kostce je hotový</span><span class="block truncate text-[10.5px] font-bold leading-tight text-gold-200">${esc(v.title)} · ${esc(s.label)}</span></span>

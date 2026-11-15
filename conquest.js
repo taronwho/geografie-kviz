@@ -2277,6 +2277,28 @@
         </div>`;
     };
 
+    // Dlaždice Dobývání na záložce Soupeři: krátký stav (běžící hra a zbývající tahy, pozvánka, hra čekající na hráče) a počet věcí,
+    // které čekají na hráče (pozvánky a běžící hry, ve kterých má ještě tahy). html = stav bezpečně pro vložení do stránky.
+    const homeTile = ({ games = null, invites = [], now = Date.now(), loading = false } = {}) => {
+        const running = (games || []).filter(game => game.status === 'running');
+        const waiting = (games || []).filter(game => game.status === 'lobby');
+        const count = (invites || []).length;
+        const movable = running.filter(game => (game.budget || { left: 0 }).left > 0).length;
+        const first = running.find(game => (game.budget || { left: 0 }).left > 0) || running[0];
+        let html;
+        if (first) {
+            const budget = first.budget || { left: 0, total: first.actions };
+            const more = running.length > 1 ? ` · +${running.length - 1}` : '';
+            html = `${esc(mapTitle(first.map))} · <span data-conquest-moves class="font-black text-brand-800 dark:text-gold-200">Tahy ${budget.left}/${budget.total}</span> · zbývá ${esc(timeLeft((parseTime(first.ends_at) || now) - now))}${esc(more)}`;
+        } else if (count) {
+            const from = invites[0] && invites[0].invited_by && invites[0].invited_by.display_name;
+            html = esc(count === 1 ? (from ? `Zve tě ${from}` : 'Máš pozvánku do hry') : `Pozvánky do her: ${count}`);
+        } else {
+            html = esc(loading && !games ? 'Načítám hry…' : waiting.length ? (waiting.length === 1 ? 'Tvoje hra čeká na další hráče' : `Tvoje hry čekají na další hráče (${waiting.length})`) : 'Najdi hru nebo založ vlastní');
+        }
+        return { html, badge: count + movable, waits: count > 0 || movable > 0 };
+    };
+
     // Rozcestník Dobývání: záložky Moje hry / Lobby / Založit hru
     const HUB_TABS = [['mine', 'Moje hry', 'flag'], ['lobby', 'Lobby', 'users'], ['create', 'Založit hru', 'plus']];
     // invites = počet čekajících pozvánek (zlatý odznak na záložce Moje hry, kde pozvánky jsou)
@@ -3105,7 +3127,7 @@
         extraChipHtml, fiftyButtonHtml, halfBadge,
         buildQuestion, prepareQuestion, completeQuestion, isFullQuestion, moveTitle, accusativeOf, ROUND_TIMEOUT, formPlan, FORM_IDS, GROUPS, RELATIONAL_CAP, MUDRLANT_IDS, nearDuplicate,
         answerKey, familyPlan, kindsFor, placesOf, poolsOf, formsOf, FAMILY_IDS, FAMILY_DOMAIN, DOMAINS, FAMILY_CAP, flagUrl, flagFallback, THUMB, feedItems, replaySteps, capturedWord, hatchPattern, levelIcon, iconMarkup,
-        pennantSvg, pennantGroup, emblemSvg, sealSvg, mapSvg, thumbSvg, marksFor, clockText, localTime, roundHtml, roundChipHtml, ROUND_COUNTDOWN, fastPeriod, battleWaitHtml, battleResultHtml, joinedHtml, fightersHtml, siegeChipsHtml, RISK_TEXT, homeCardHtml, hubHtml, mineHtml, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,
+        pennantSvg, pennantGroup, emblemSvg, sealSvg, mapSvg, thumbSvg, marksFor, clockText, localTime, roundHtml, roundChipHtml, ROUND_COUNTDOWN, fastPeriod, battleWaitHtml, battleResultHtml, joinedHtml, fightersHtml, siegeChipsHtml, RISK_TEXT, homeCardHtml, homeTile, hubHtml, mineHtml, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,
         gameScreenHtml, playersStripHtml, recentHtml, sheetHtml, devBarHtml, questionHtml, feedHtml, resultHtml, helpHtml, HELP_TABS, mapTitle, paramChips,
         // Pozvánky přátel (blok 24)
         friendsPickerHtml, inviteCardHtml, inviteLine, invitePromptHtml

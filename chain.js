@@ -2198,14 +2198,10 @@
             const view = homeView();
             const tile = homeTile(view);
             return deps.specialTile({ id: 'chain-card', action: 'chain-open', art: ART.tile, title: 'Řetězovka', text: tile.text, label: tile.label,
-                ring: 'ring-brand-300/70 dark:ring-brand-500/50', dot: tile.fresh ? 'data-chain-new' : '', attrs: `data-chain-status="${view.status}"` });
+                dot: tile.fresh ? 'data-chain-new' : '', attrs: `data-chain-status="${view.status}"`, done: view.status === 'done', cta: view.status === 'progress' ? 'Pokračovat' : 'Hrát' });
         };
-        const paintTile = () => {
-            const tile = document.getElementById('chain-card');
-            if (!tile || deps.getScreen() !== 'home') return;
-            tile.outerHTML = homeTileHtml();
-            deps.renderIcons(deps.appContent);
-        };
+        // Řádky dnešních výzev překresluje app.js společně (zvýrazněný řádek a počet hotových závisí na všech)
+        const paintTile = () => { if (deps.getScreen() === 'home' && deps.paintHome) deps.paintHome(); };
         // Přihlášený hráč bez dnešního pokusu v zařízení: nedohrál Řetězovku jinde? (jednou za den a spuštění)
         const refresh = async () => {
             if (!ranked() || todayAttempt() || checked === today()) return;

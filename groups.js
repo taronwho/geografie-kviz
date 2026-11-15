@@ -103,7 +103,7 @@
     const nobodyHtml = () => `<div class="flex items-center gap-3 px-1">${art('sova-dalekohled', 'h-14 w-14')}<p class="min-w-0 text-[13px] leading-snug text-slate-500 dark:text-slate-400">Zatím tu nikdo další není. Pošli ostatním kód skupiny.</p></div>`;
     const errorNote = (text) => (text ? `<p class="min-h-[1.25rem] text-sm font-semibold text-rose-700 dark:text-rose-400" role="status">${esc(text)}</p>` : '');
 
-    // Čip na záložce Více hráčů (vedle „Přijímám výzvy z“): otevře okno Skupiny; count = počet mých skupin (null = ještě nenačteno)
+    // Čip Skupiny (dřív na záložce Více hráčů; dnes má Skupiny vlastní dlaždici na záložce Soupeři): otevře okno Skupiny; count = počet mých skupin
     const chipHtml = (count) => `
         <button type="button" id="groups-chip" data-action="groups-open" title="Skupiny: soukromé pořadí pro třídu, rodinu nebo kamarády" class="flex min-h-[2rem] shrink-0 items-center gap-1.5 rounded-full bg-gold-50 px-3 py-1 text-[11.5px] font-black text-brand-950 ring-1 ring-gold-300/70 active:scale-95 dark:bg-gold-900/20 dark:text-gold-200 dark:ring-gold-700/60">${art('skupiny', '-my-1 -ml-1.5 h-6 w-6')}Skupiny${count ? `<span class="rounded-full bg-brand-700 px-1.5 py-px text-[10px] leading-none text-white">${count}</span>` : ''}</button>`;
 
@@ -280,14 +280,8 @@
         const overlayTitle = () => { const overlay = root.document && root.document.getElementById('dialog-overlay'); return overlay ? overlay.dataset.title : null; };
         const errorText = (error, fallback) => (error && error.message ? error.message : fallback);
         const store = () => { try { return root.localStorage; } catch (e) { return null; } };
-        const paintChip = () => {
-            const chip = root.document && root.document.getElementById('groups-chip');
-            if (!chip) return;
-            if (groups === null) { chip.remove(); return; }
-            chip.outerHTML = chipHtml(Array.isArray(groups) ? groups.length : 0);
-            const fresh = root.document.getElementById('groups-chip');
-            if (fresh && deps.renderIcons) deps.renderIcons(fresh);
-        };
+        // Dlaždici Skupiny na záložce Soupeři (počet skupin) překreslí app.js se záložkou
+        const paintChip = () => { if (deps.paintHome) deps.paintHome(); };
         const refresh = async (force = false) => {
             if (!deps.signedUser() || !Social) return groups;
             if (loading) return loading;

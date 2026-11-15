@@ -95,7 +95,7 @@
         if (!weekend) return '';
         const soon = weekend.state === 'soon';
         return `
-            <button type="button" id="weekend-banner" data-action="weekend-play" data-topic="${esc(weekend.topic)}" data-weekend-state="${weekend.state}" aria-label="${esc(bannerLabel(weekend, h))}" title="${esc(bannerLabel(weekend, h))}" class="weekend-strip flex min-h-[2.25rem] w-full items-center gap-2 rounded-2xl px-2 py-1 text-left text-white shadow-md ring-2 ring-gold-400/70 transition-all active:scale-[0.98] short:hidden">
+            <button type="button" id="weekend-banner" data-action="weekend-play" data-topic="${esc(weekend.topic)}" data-weekend-state="${weekend.state}" aria-label="${esc(bannerLabel(weekend, h))}" title="${esc(bannerLabel(weekend, h))}" class="weekend-strip flex min-h-[2.25rem] w-full items-center gap-2 rounded-2xl px-2 py-1 text-left text-white shadow-md ring-2 ring-gold-400/70 transition-all active:scale-[0.98]">
                 <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-white/90 short:h-6 short:w-6">${h.topicIcon ? h.topicIcon(weekend.topic, 'h-6 w-6 short:h-5 short:w-5') : '<i data-lucide="calendar-days" class="h-4 w-4 text-brand-800"></i>'}</span>
                 <span class="min-w-0 flex-1 truncate text-[12px] font-black leading-tight">${esc(weekend.title)} <span class="font-bold text-gold-200">· ${soon ? 'dnes od 18:00' : 'do neděle'}</span></span>
                 <span class="weekend-x2 shrink-0 rounded-lg bg-gold-400 px-1.5 py-0.5 text-[11px] font-black text-brand-950">2× XP</span>
@@ -103,9 +103,9 @@
             </button>`;
     };
 
-    // Na nízkém displeji (short:) místo pruhu malý čip vedle cílů týdne (stejná řada, úvod se tak vejde i na 360×640): ikona tématu a 2×
+    // Když se pruh na záložku Dnes nevejde, ukáže se místo něj malý čip v řadě příležitostných čipů (app.js fitHome): ikona tématu a 2×
     const chipHtml = (weekend, h = {}) => !weekend ? '' : `
-            <button type="button" id="weekend-chip" data-action="weekend-play" data-topic="${esc(weekend.topic)}" data-weekend-state="${weekend.state}" aria-label="${esc(bannerLabel(weekend, h))}" title="${esc(bannerLabel(weekend, h))}" class="weekend-strip hidden min-h-[2.5rem] shrink-0 items-center gap-1 rounded-2xl px-1.5 text-white shadow-md ring-2 ring-gold-400/70 active:scale-[0.97] short:flex">
+            <button type="button" id="weekend-chip" data-action="weekend-play" data-topic="${esc(weekend.topic)}" data-weekend-state="${weekend.state}" aria-label="${esc(bannerLabel(weekend, h))}" title="${esc(bannerLabel(weekend, h))}" class="weekend-strip flex min-h-[2.25rem] shrink-0 items-center gap-1 rounded-full px-2 text-white shadow-md ring-2 ring-gold-400/70 active:scale-[0.97]">
                 <span class="flex h-6 w-6 items-center justify-center rounded-lg bg-white/90">${h.topicIcon ? h.topicIcon(weekend.topic, 'h-5 w-5') : ''}</span>
                 <span class="weekend-x2 rounded-md bg-gold-400 px-1 text-[10px] font-black leading-tight text-brand-950">2× XP</span>
             </button>`;
