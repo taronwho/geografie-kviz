@@ -88,7 +88,11 @@ const mix = async (tab, { play = true } = {}) => {
 };
 // Učení (dlaždice mezi Režimy na záložce Hrát). Uprostřed otázky, kdy je spodní lišta skrytá, se nejdřív šipkou zpět odejde ze hry
 const learn = async (tab) => {
-    if (await tab.locator('#app-nav.hidden').count()) { await tab.click('#btn-home'); await waitForHome(tab); }
+    // Šipkou zpět o úroveň výš, dokud není vidět spodní lišta (otázka okruhu se vrací do Učení, ostatní hry na záložku)
+    for (let i = 0; i < 4 && (await tab.locator('#app-nav.hidden').count()); i++) {
+        await tab.click('#btn-home');
+        await tab.waitForFunction(() => !document.getElementById('app-nav').classList.contains('hidden') || Boolean(document.querySelector('#app-content > [data-tab-root]')), null, { timeout: 5000 }).catch(() => {});
+    }
     await go(tab, 'hrat');
     await tab.click('[data-action="open-learn"]');
 };

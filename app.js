@@ -2651,6 +2651,8 @@
         const open = TOPICS.filter(topic => topic.id !== afterTopic && !(stats.daily[topic.id] || {})[today]);
         if (!open.length) return null;
         const key = `${today}|${afterTopic}|${open.map(topic => topic.id).join(',')}`;
+        // Během tutoriálu je zkušební otázka vždy z prvního nehraného tématu (Zeměpis), ať má nováček otázku s nápovědami
+        if (Tutorial && Tutorial.isActive()) return open[0];
         if (!dailyPick || dailyPick.key !== key) dailyPick = { key, id: open[Math.floor(Math.random() * open.length)].id };
         return TOPIC_BY_ID[dailyPick.id];
     };

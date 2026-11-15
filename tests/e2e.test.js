@@ -2060,7 +2060,13 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const data = await readRound(tab);
         await tab.click(`[data-action="choice"]:has-text("${data.question.answerLabel}")`);
         await waitForResult(tab);
-        await tab.waitForFunction(() => { const card = document.getElementById('celebration'); return card && /Nový titul/.test(card.textContent); }, null, { timeout: 10000 });
+        // Úroveň 100 odemkne i řadu věcí (oslava milníku alba může přijít dřív): ostatní oslavy se odklepnou
+        for (let i = 0; i < 8; i++) {
+            await tab.waitForSelector('#celebration', { timeout: 10000 });
+            if (/Nový titul\s*Mudrlant \(úroveň 100\)/.test(await tab.textContent('#celebration'))) break;
+            await tab.locator('#celebration').click({ timeout: 2000 }).catch(() => {});
+            await tab.waitForTimeout(400);
+        }
         assert.match(await tab.textContent('#celebration'), /Nový titul\s*Mudrlant \(úroveň 100\)/);
         assert.equal(await tab.getAttribute('#celebration img', 'src'), 'icons/topics/sova-titul-11-zlata.webp');
         await tab.waitForFunction(() => { const img = document.querySelector('#celebration img'); return img.complete && img.naturalWidth === 320; });

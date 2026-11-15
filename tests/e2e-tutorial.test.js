@@ -314,6 +314,9 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
         // neuplynulo 8 s (WAIT_MS), Přeskočit krok být vidět nesmí – i když zatížený procesor zdrží jednotlivá měření
         const clicked = await tab.evaluate(() => Date.now());
         await nav.daily(tab, 'geologie');
+        // Okno Dnešní otázky se po výběru tématu zavře; s otevřeným oknem tutoriál ustupuje (to hlídá jiný test), měří se až po něm
+        await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
+        await tab.waitForFunction(() => { const root = document.getElementById('tutorial'); return root && !root.classList.contains('hidden'); });
         let sawWait = false;
         let earlyChecks = 0;
         for (;;) {
