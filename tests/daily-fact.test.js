@@ -143,5 +143,6 @@ test('denní zajímavost: hlavní stránka je ta, o které věta je (Buran, ne S
     // Jediná stránka zůstane, i když je obecná; stránka s názvem ve větě vyhraje nad prvním výskytem
     assert.equal(mainPage({ text: 'Něco v Praze', pages: [{ type: 'standard', title: 'Prague', description: 'Capital of the Czech Republic' }] }).title, 'Prague');
     assert.equal(mainPage({ text: 'Howard Carter finds the tomb of Tutankhamun.', pages: [{ type: 'standard', title: 'Howard_Carter' }, { type: 'standard', title: 'Tutankhamun' }] }).title, 'Howard_Carter');
+    assert.equal(mainPage({ text: 'Intel releases the Intel 4004, the first commercial microprocessor.', pages: [{ type: 'standard', title: 'Intel' }, { type: 'standard', title: 'Intel_4004' }] }).title, 'Intel_4004', 'konkrétnější stránka');
     assert.equal(mainPage({ text: 'x', pages: [] }), null);
 });

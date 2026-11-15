@@ -58,7 +58,7 @@ const getJson = async (fetchImpl, url, init = {}, tries = 3) => {
 // v pořadí výskytu, takže stát nebo město bývá první; stránka, jejíž název je ve větě, má přednost a obecné stránky
 // (státy, města, roky, kontinenty) jdou dozadu
 const GENERIC_PAGE = /^(country|sovereign state|state|city|capital|town|municipality|village|year|calendar year|decade|century|continent|island country|former country|historical country|federal|unitary|constituent country|region|province|commune|largest city)/i;
-const stemsOf = (text) => (String(text).toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').match(/\p{L}{4,}/gu) || []).map(word => word.slice(0, 5));
+const stemsOf = (text) => (String(text).toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').match(/\p{L}{4,}|\d{3,}/gu) || []).map(word => word.slice(0, 5));
 export const mainPage = (item) => {
     const pages = (item.pages || []).filter(entry => entry && entry.title && entry.type === 'standard');
     if (!pages.length) return null;
@@ -67,7 +67,8 @@ export const mainPage = (item) => {
         const words = stemsOf(String(page.title).replace(/_/g, ' ').replace(/\(.*\)/, ''));
         const hits = words.filter(word => said.has(word)).length;
         const generic = GENERIC_PAGE.test(String(page.description || '')) || /^\d+( BC)?$/.test(page.title);
-        return (words.length && hits === words.length ? 4 : hits ? 2 : 0) - (generic ? 5 : 0) - index * 0.1;
+        // Víc shodných slov = konkrétnější stránka (Intel 4004 před Intel)
+        return (words.length && hits === words.length ? 4 : hits ? 2 : 0) + hits * 0.5 - (generic ? 5 : 0) - index * 0.1;
     };
     return pages.map((page, index) => ({ page, value: score(page, index) })).sort((a, b) => b.value - a.value)[0].page;
 };
