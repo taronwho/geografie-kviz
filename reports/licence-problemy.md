@@ -1,6 +1,6 @@
 # Obrázky k nahrazení před komerčním vydáním
 
-Sestaveno 2026-11-13 skriptem `scripts/build-licenses.mjs` z metadat Wikimedia Commons (`data/licenses.json`).
+Sestaveno 2026-11-14 skriptem `scripts/build-licenses.mjs` z metadat Wikimedia Commons (`data/licenses.json`).
 Uvedené soubory mají licenci, která nedovoluje komerční užití nebo úpravy (ořez, překrytí), jsou „fair use“, nebo licenci neuvádějí.
 Před vydáním v Google Play je nutné je nahradit jiným obrázkem (nebo položku ponechat bez fotky). Licence CC BY, CC BY-SA, CC0 a volná díla jsou v pořádku,
 vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence (`licence.html`).

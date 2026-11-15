@@ -240,6 +240,13 @@
         };
     };
 
+    // Hlavní obrázek osobnosti, který ji neukazuje (quiz-core.js offSubjectRule, npm run audit:obrazky): hrob, pamětní deska, známka,
+    // výstava jejích fotografií, obal desky s desítkami tváří; obrazy a sochy se ukazují samy
+    const offSubjectPhoto = core.offSubjectRule({
+        words: { umelci: core.OFF_SUBJECT.memorial, fotografove: core.OFF_SUBJECT.memorial, ilustratori: core.OFF_SUBJECT.memorial },
+        ids: ['Q121903', 'Q469449', 'Q204218']
+    });
+
     return {
         id: 'umeni',
         title: 'Výtvarné umění',
@@ -259,6 +266,7 @@
             tierKnown: 'Slavné obrazy, sochy a umělci'
         },
         categories: CATEGORIES,
+        offSubjectPhoto,
 
         // Nesprávné možnosti: díla stejného autora a směru či doby, umělci stejného pohlaví, doby a směru; české k českým
         similarity: (item, other) => {

@@ -189,6 +189,13 @@ Jádro a aplikace je uplatní samy, téma pro ně nemusí nic dělat:
 - **Ukázka možností:** `npm run audit:moznosti` (volitelně `-- --topic=umeni,fyzika --count=30 --seed=x --item="Věstonická venuše"`) vypíše u náhodných
   položek každého tématu otázku i s možnostmi, jak je sestaví hra; „!“ = nesprávná možnost z hodně jiné doby, „?“ = jiného druhu, než ukazuje štítek
   (`scripts/sample-choices.mjs`). Rychlá kontrola absurdních sad (k pravěké sošce pomník z 20. století, k myšlenkovému experimentu jev).
+- **Obrázky mimo téma:** `npm run audit:obrazky` (`-- --topic=zemepis --flagged --all`) vypíše po tématech a kategoriích, kolik hlavních obrázků
+  z Wikidat pravidlo `topic.offSubjectPhoto` vyřadí (sad s poníkem místo stavby, mapa místo jezera, slon místo národního parku, výhled z vrcholu,
+  hrob nebo pamětní deska místo osobnosti, logo místo alba) a podezřelé názvy souborů k ruční kontrole. Pravidlo skládá `quiz-core.js offSubjectRule`
+  ze slov názvu souboru po kategoriích a ručně ověřených položek; `app.js loadTopic` vyřazený obrázek nepoužije nikde, položka zůstane.
+- **Dvě možnosti se stejným popisem:** položky téhož článku Wikipedie (i po přesměrování, pole `w`) nebo ze společného článku („X a Y“) nejsou
+  mezi možnostmi jedné otázky (`sameArticle`) a nesprávná možnost, jejíž jméno je v ukázaném popisu nezakryté, se nahradí (`replaceConflicts`
+  v `createRoundData`; Dobývání s pevnými možnostmi vezme jinou otázku).
 - **Audit otázek:** `npm run audit:questions` (volitelně `-- --sample=300`, `--topic=historie,hudba`, `--all`) projde témata a sestaví otázky jako hra
   (`scripts/lib/audit.mjs`). Hlásí odpověď prozrazenou v popisu či nápovědách, nápovědy opakující popis, dvě správné či příliš podobné možnosti,
   nesprávné možnosti jiné země/doby, chudé popisy, rozbité odkazy na obrázky (hash souboru na Commons) a nejednoznačné psané odpovědi (aliasy).
@@ -263,7 +270,10 @@ npm run build:biologie   # data/biologie.json
 npm run build:chemie     # data/chemie.json
 npm run build:fyzika     # data/fyzika.json
 npm run build:vynalezy   # data/vynalezy.json (slavné objevy a vynálezy, roky ověřené proti Wikidatům)
-npm run build:souvislosti # data/souvislosti.json (Časové souvislosti; po datech témat a build:vynalezy)
+npm run build:souvislosti # data/souvislosti.json (Časové souvislosti; po datech témat a build:vynalezy; známost podle návštěvnosti české Wikipedie)
+npm run build:reky      # data/zemepis.json, pole ca: další státy řek (průběh řeky proti hranicím Natural Earth 1:10m, Wikidata P205 a P131)
+npm run build:fotky     # náhrady fotek z PHOTO_REPLACEMENTS v hotových datech (mapa či PNG místo fotky); pak node scripts/build-licenses.mjs
+npm run build:clanky    # pole w: článek Wikipedie po přesměrování (Boson W → Boson W a Z); položky téhož článku nejsou mezi možnostmi jedné otázky
 ```
 
 Logo je sova v talároku (`branding/sova-original.jpg`). Z tmavého pozadí ji vyřízne `python3 scripts/logo-cutout.py branding/sova-original.jpg branding/sova.png` (Pillow, numpy) a ikony aplikace, favicon i průhledné logo `icons/logo.webp` z ní vykreslí `node scripts/render-app-icons.js` (Playwright). Barvy aplikace podle loga (vínová `brand`, zlatá `gold`, grafitová šedá místo `slate`) jsou v `tailwind.config.js`. Náhled sdíleného odkazu (Open Graph, 1200×630, `icons/og-mudrlant.png`, značky `og:` a `twitter:` v `index.html` i v přesměrování `pages-root/index.html`) vykreslí `python3 scripts/og-image.py` (Pillow) ze stejné sovy.

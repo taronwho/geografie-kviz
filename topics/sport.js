@@ -485,6 +485,13 @@
         return facts;
     };
 
+    // Hlavní obrázek, který neukazuje sportovní osobnost nebo sportoviště (quiz-core.js offSubjectRule, npm run audit:obrazky): hrob,
+    // pamětní deska, známka; u sportoviště mapa, plán, model nebo logo
+    const offSubjectPhoto = core.offSubjectRule({
+        words: { sportovci: core.OFF_SUBJECT.memorial, sportoviste: core.OFF_SUBJECT.depiction },
+        ids: ['Q380267']
+    });
+
     return {
         id: 'sport',
         title: 'Sport',
@@ -503,6 +510,7 @@
             czechBadge: 'Česká stopa'
         },
         categories: CATEGORIES,
+        offSubjectPhoto,
 
         similarity,
         // Olympijské hry se podle pořadatelské země nepárují (dvoje hry téhož města by byly dvě správné odpovědi)

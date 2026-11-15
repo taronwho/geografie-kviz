@@ -337,6 +337,16 @@
         };
     };
 
+    // Hlavní obrázek, který neukazuje osobnost ani událost (pravidlo quiz-core.js offSubjectRule, audit npm run audit:obrazky): hrob,
+    // pamětní deska, známka; u bitev a událostí pozdější památník; skarabeus se jménem, památník či busta jiného vojevůdce
+    const offSubjectPhoto = core.offSubjectRule({
+        words: {
+            statnik: core.OFF_SUBJECT.memorial, osobnost: core.OFF_SUBJECT.memorial, panovnik: core.OFF_SUBJECT.memorial,
+            bitva: ['memorial', 'pamatnik', 'pomnik', 'mohyla', 'gedenkstein'], udalosti: ['memorial', 'pamatnik', 'pomnik', 'gedenkstein']
+        },
+        ids: ['Q322169', 'Q367350', 'Q319124', 'Q3245204']
+    });
+
     return {
         id: 'historie',
         title: 'Historie',
@@ -354,6 +364,7 @@
             tierKnown: 'Slavní panovníci, prezidenti, bitvy a události'
         },
         categories: CATEGORIES,
+        offSubjectPhoto,
 
         // Bitvy se řadí podle státu, kde se odehrály (osoby podle země, ze které pocházejí)
         culture: (item, ctx) => isEvent(item) ? core.getCountryNames(item, (ctx && ctx.countries) || {}).slice(0, 3) : undefined,

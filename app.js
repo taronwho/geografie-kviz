@@ -8,7 +8,7 @@
         escapeHtml, plural, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, formatPoints, getDayKey, formatDayKey, createSeededRandom, pickRandom,
         censorName, hideAnswer, buildQuestionTexts, OUT_OF_CONTEXT,
         processWikiText, checkAnswer, normalizeAnswer, filterItems, levelOf, pickItem, sortItems,
-        buildItemChoices, cultureLandsFor, findAnswerItem, setCountries, updateMistakes, nameAnswers, pointsFor,
+        buildItemChoices, replaceConflicts, choiceConflict, cultureLandsFor, findAnswerItem, setCountries, updateMistakes, nameAnswers, pointsFor,
         computeStreak, buildShareText, getTileLayout, shuffle,
         LEVEL_XP, xpForLevel, MAX_LEVEL, LEVEL_TITLES, titleOwlTier,
         BADGES, BADGE_GROUPS, BADGE_BY_ID, earnedBadgeIds, compactBadges, expandBadges, normalizeCounters,
@@ -537,7 +537,7 @@
         // options.plain = vždy základní otázka „Co je to?“ bez mapy a zvláštních druhů (Tajemná otázka dne, mystery.js)
         const special = options.plain ? null : (await mapQuestionFor(item, ctx, options)) || (topic.specialQuestion ? topic.specialQuestion(item, ctx, rng) : null);
         const category = categoryOf(topic, item.c);
-        const question = special || {
+        let question = special || {
             type: 'name',
             title: (topic.questionTitle && topic.questionTitle(item)) || category.question || topic.words.question,
             showName: false,
@@ -558,7 +558,21 @@
         const fetchedText = await fetchItemText(item);
         // Popis i další věty úvodu bez odpovědi (společné zakrytí všech tvarů jména); popis, který je po zakrytí skoro samá mezera
         // („[***] práci konanou [***] silou“), nahradí další věty úvodu, a když nic nezbude, vypadne
-        const { text, questionText, moreText, origin } = buildQuestionTexts(item, ctx, question, fetchedText, { special: Boolean(special) });
+        let texts = buildQuestionTexts(item, ctx, question, fetchedText, { special: Boolean(special) });
+        // Nesprávná možnost, na kterou sedí to, co hráč vidí (její jméno v popisu nezakryté, společný článek: Bosony W a Z u Bosonu Z),
+        // se nahradí podobnou a popis se zakryje znovu; pevné možnosti Dobývání (options.wrong) nahradit nejde – otázka se označí
+        // a Dobývání vezme jinou (conquestRound)
+        let conflict = false;
+        for (let attempt = 0; attempt <= 3; attempt++) {
+            const seen = [texts.questionText, texts.moreText].filter(Boolean).join(' ');
+            if (!(question.choices || []).some(choice => choiceConflict(choice, { question, item, ctx, text: seen }))) { conflict = false; break; }
+            conflict = true;
+            const fixed = options.wrong || attempt === 3 ? null : replaceConflicts({ question, item, ctx, text: seen, rng });
+            if (!fixed) break;
+            question = fixed;
+            texts = buildQuestionTexts(item, ctx, question, fetchedText, { special: Boolean(special) });
+        }
+        const { text, questionText, moreText, origin } = texts;
         const settled = await Promise.race([photoProbe.then(result => ({ result })), new Promise(resolve => setTimeout(() => resolve(null), PHOTO_WAIT))]);
         const photoUrl = settled ? settled.result : photoOf(item, 960);
         // Typ položky („obec ve Španělsku“, „král“) nesmí prozradit odpověď
@@ -581,6 +595,8 @@
             known: item.k === 1,
             typeLabel,
             question,
+            // Nesprávná možnost, na kterou sedí popis, a nešla nahradit (pevné možnosti Dobývání)
+            ...(conflict ? { choiceConflict: true } : {}),
             questionText,
             // Odkud popis je: 'article' (úvod článku z Wikipedie), 'fallback' (krátký popis z Wikidat), 'withheld' (téma ho neukazuje)
             textOrigin: origin,
@@ -12470,6 +12486,9 @@
         const others = wrong.map(id => ctx.byId.get(id));
         if (!item || others.length !== 3 || others.some(other => !other)) return null;
         const data = await createRoundData(item, ctx, createSeededRandom(`dobyvani|${seed}`), { plain: true, wrong: others });
+        // Popis či fakta, které sedí i na nesprávnou možnost (její jméno v popisu, společný článek): Dobývání vezme jinou otázku
+        // (u otázky na obrázek se popis neukazuje)
+        if (data.choiceConflict && form !== 'photo') return null;
         const blocked = (file) => !file || (ctx.textPhotos || new Set()).has(file) || Boolean(photoMasks[file]);
         const shown = ctx.topic.questionImage ? ctx.topic.questionImage(item, ctx, 'name') : null;
         const image = data.questionImage && data.questionImage.url && shown && !blocked(shown.file) ? data.questionImage.url

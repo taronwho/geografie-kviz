@@ -298,6 +298,15 @@ test('otázky: skupiny a formy (Evropa a Asie hlavně otázky Mudrlanta o polož
         assert.ok(share(forms[map], 'photo') >= 0.1, `${map}: obrázek ${percent(share(forms[map], 'photo'))} všech otázek`);
         assert.ok(share(forms[map], 'year') >= 0.1 && share(forms[map], 'estimate') >= 0.07 && share(forms[map], 'map') >= 0.05, `${map}: letopočet, odhad a mapa zůstanou`);
     }
+    // Asie a Amerika stejně; v Africe má většina států méně než čtyři použitelná místa či osoby jedné rodiny (otázka Mudrlanta
+    // tam je jen letopočet), přesto aspoň osmina otázek Mudrlanta na obrázek (dřív asi 8 %: nesprávná místa jen známá, PNG mapy
+    // řek a jezer místo fotek)
+    for (const map of ['asie', 'amerika']) {
+        const photo = (forms[map].photo || 0) / groups[map].mudrlant;
+        assert.ok(photo >= 0.18 && photo <= 0.3, `${map}: obrázek ${percent(photo)} otázek Mudrlanta`);
+    }
+    const africa = (forms.afrika.photo || 0) / groups.afrika.mudrlant;
+    assert.ok(africa >= 0.12 && africa <= 0.3, `afrika: obrázek ${percent(africa)} otázek Mudrlanta`);
     // Plán Francie: skupiny 60/25/15 %, vztahové rodiny nic (jen záloha), podíly dávají 1; bez sítě (local) jen místní formy
     // a podíl popisu a faktů převezmou vztahové rodiny (nejvýš RELATIONAL_CAP)
     const plan = C.formPlan({ data: maps.evropa, territory: 'Q142', level: 2, topics: t });
@@ -475,6 +484,7 @@ test('otázky ze všech témat: vztahové otázky (správná možnost vazbu spl�
     const MAGNITUDE_FIELD = { mountain: 'elev', river: 'len', building: 'h', island: 'area', lake: 'area', venue: 'capacity', city: 'pop' };
     const sexOf = (it) => (it.sx === 'f' ? 'f' : 'm');
     const PERSON_FAMILIES = new Set(['writer', 'musician', 'artist', 'architect', 'filmmaker', 'actor', 'athlete', 'ruler', 'politician', 'historic', 'physicist', 'astronomer', 'chemist']);
+    const MUDRLANT_PLACES = new Set(['city', 'building', 'castle', 'mountain', 'lake', 'island', 'nature', 'river', 'region', 'venue']);
     for (const { map, item, level, question } of [...allQuestions(), ...familyQuestions(), ...mudrlantQuestions]) {
         const family = question.family;
         const where = `${map} ${item.n} L${level}: ${question.prompt} [${question.choices.map(choice => `${choice.correct ? '*' : ''}${choice.label}`).join(' | ')}]`;
@@ -482,7 +492,8 @@ test('otázky ze všech témat: vztahové otázky (správná možnost vazbu spl�
         const wrong = question.choices.filter(choice => !choice.correct);
         if (question.kind === 'mudrlant') {
             // Všechny čtyři možnosti patří k území (záhlaví ho prozradí, podle národnosti nesmí jít nic vyloučit), jsou ze stejného tématu,
-            // u osob stejného pohlaví; známost: na úrovni 0–1 všechny známé, výš nikdy pro znalce
+            // u osob stejného pohlaví; známost: na úrovni 0–1 všechny známé (u míst správná odpověď, nesprávné místo smí být méně známé,
+            // když území víc známých míst nemá), výš nikdy pro znalce
             const found = question.choices.map(choice => named(family, choice.label).filter(it => fits(family, it, item, map)));
             found.forEach((list, i) => assert.ok(list.length > 0, `z území: ${question.choices[i].label} (${where})`));
             const topicsOf = (list) => new Set(list.map(it => topicOfItem.get(it)));
@@ -490,7 +501,7 @@ test('otázky ze všech témat: vztahové otázky (správná možnost vazbu spl�
             if (PERSON_FAMILIES.has(family)) assert.equal(new Set(found.map(list => sexOf(list[0]))).size, 1, `stejné pohlaví: ${where}`);
             for (const [i, list] of found.entries()) {
                 assert.ok(list.some(it => it.x !== 1), `pro znalce ${question.choices[i].label}: ${where}`);
-                if (level <= 1) assert.ok(list.some(it => it.k === 1 && it.x !== 1), `neznámé ${question.choices[i].label}: ${where}`);
+                if (level <= 1 && !(MUDRLANT_PLACES.has(family) && !question.choices[i].correct)) assert.ok(list.some(it => it.k === 1 && it.x !== 1), `neznámé ${question.choices[i].label}: ${where}`);
             }
             assert.equal(question.answerItem, right.label);
             assert.ok(question.pending && question.request && question.request.q && question.request.wrong.length === 3, where);
@@ -1145,19 +1156,22 @@ test('prepareQuestion: roundFor doplní popis, fakta nebo obrázek; chyba, práz
     } finally { core.sealAnswerWords = seal; }
 });
 
-test('otázky Mudrlanta: známost podle úrovně (0–1 jen známé, výš i méně známé, nikdy pro znalce) a rodina bez tří možností z území se neptá', () => {
+test('otázky Mudrlanta: známost podle úrovně (0–1 jen známé, u míst známá odpověď, výš i méně známé, nikdy pro znalce) a rodina bez tří možností z území se neptá', () => {
     const t = loadAllTopics();
     const all = ALL_TOPICS.flatMap(topic => t[topic]);
     const byName = new Map();
     all.forEach(it => { if (!byName.has(plain(it.n))) byName.set(plain(it.n), []); byName.get(plain(it.n)).push(it); });
     const known = { low: 0, high: 0, lowAll: 0, highAll: 0 };
+    const PLACE_FAMILIES_MUDRLANT = new Set(['city', 'building', 'castle', 'mountain', 'lake', 'island', 'nature', 'river', 'region', 'venue']);
     for (const level of [0, 1, 2, 3]) for (const item of maps.evropa.t) for (let s = 0; s < 3; s++) {
         const q = C.buildQuestion({ data: maps.evropa, territory: item.id, level, topics: t, seed: `znamost|${s}`, only: 'text' });
         if (!q) continue;
+        // Místa: na úrovni 0–1 je známá správná odpověď, nesprávné místo smí být méně známé (území s málo známými místy)
+        const place = PLACE_FAMILIES_MUDRLANT.has(q.family);
         for (const choice of q.choices) {
             const found = byName.get(plain(choice.label)) || [];
             assert.ok(found.some(it => it.x !== 1), `pro znalce: ${choice.label}`);
-            if (level <= 1) assert.ok(found.some(it => it.k === 1 && it.x !== 1), `úroveň ${level}: neznámé ${choice.label}`);
+            if (level <= 1 && (choice.correct || !place)) assert.ok(found.some(it => it.k === 1 && it.x !== 1), `úroveň ${level}: neznámé ${choice.label}`);
             const side = level <= 1 ? 'low' : 'high';
             known[`${side}All`] += 1;
             if (found.some(it => it.k === 1)) known[side] += 1;

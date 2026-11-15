@@ -356,6 +356,13 @@
         return [f.work, f.by].filter(Boolean).join(' · ') || categoryOne(item);
     };
 
+    // Hlavní obrázek, který neukazuje osobnost nebo dílo (quiz-core.js offSubjectRule, npm run audit:obrazky): hrob, pamětní deska,
+    // známka; u díla mapa (stejná mapa Narnie u šesti knih), výstava o autorovi nebo budova divadla
+    const offSubjectPhoto = core.offSubjectRule({
+        words: { spisovatele: core.OFF_SUBJECT.memorial, dila: ['map', 'mapa', 'karte', 'carte'] },
+        ids: ['Q25338', 'Q1051472']
+    });
+
     return {
         id: 'literatura',
         title: 'Literatura',
@@ -373,6 +380,7 @@
             tierKnown: 'Slavní spisovatelé, knihy a postavy'
         },
         categories: CATEGORIES,
+        offSubjectPhoto,
 
         // Nesprávné možnosti: stejné pohlaví a doba, stejná země a jazyk, žánr; u díla díla téhož autora, u postavy postavy z téhož díla
         similarity: (item, other) => {

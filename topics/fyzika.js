@@ -332,6 +332,13 @@
     const hideYears = (text) => core.mergeCensored(stripBrackets(text).replace(/\s{2,}/g, ' ')
         .replace(/(?<![\p{L}\d])\d{1,4}(?:\.\s*(?:let\p{L}*|lét\p{L}*|století|stol\.))?(?!\d)/gu, '[***]').replace(ERA_WORDS, '[***]'));
 
+    // Hlavní obrázek osobnosti, který ji neukazuje (quiz-core.js offSubjectRule, npm run audit:obrazky): hrob, pamětní deska, známka,
+    // elektronový mikroskop místo Ernsta Rusky, medaile se jménem, pamětní kámen
+    const offSubjectPhoto = core.offSubjectRule({
+        words: { fyzici: core.OFF_SUBJECT.memorial, astronomove: core.OFF_SUBJECT.memorial },
+        ids: ['Q71022', 'Q247486', 'Q60204']
+    });
+
     return {
         id: 'fyzika',
         title: 'Fyzika',
@@ -349,6 +356,7 @@
             tierKnown: 'Základní veličiny a jednotky, známé zákony, částice, tělesa, mise, vynálezy a vědci'
         },
         categories: CATEGORIES,
+        offSubjectPhoto,
 
         particlesOverlap,
         // U vynálezu rozhoduje doba, ne země vynálezce (k Bluetooth ne kyvadlové hodiny jen proto, že jsou také z Nizozemska)
