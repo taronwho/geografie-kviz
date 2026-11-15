@@ -466,6 +466,24 @@ alter table public.tournaments drop constraint if exists tournaments_capacity_ra
 alter table public.tournaments add constraint tournaments_capacity_range check (capacity between 8 and 128);
 alter table public.tournaments drop constraint if exists tournaments_topic_format;
 alter table public.tournaments add constraint tournaments_topic_format check (topic ~ '^[a-z0-9,]{1,200}$');
+-- Speciální (nárazové) turnaje na téma (blok 31; sloupce jsou tady, protože je čtou funkce turnajů níž). kind 'special' zakládá jen správce
+-- (dev_special_tournament_create), nikdy tournament_tick. theme = id tématu z tournament_themes (otázky vybírá aplikace podle tournament.js THEMES),
+-- title = název do karty („Hrady a zámky“), starts_at = začátek (konec přihlášek a začátek 1. kola), round_minutes = délka kola v minutách:
+-- kolo n se hraje od starts_at + (n − 1) × délka do starts_at + n × délka. Týdenní Mix (kind 'weekly') je má prázdné a kola má dál po pražských dnech.
+-- week_start je u speciálního turnaje den začátku (Praha), topic témata otázek (jako u výzvy).
+alter table public.tournaments add column if not exists kind text not null default 'weekly';
+alter table public.tournaments add column if not exists theme text;
+alter table public.tournaments add column if not exists title text;
+alter table public.tournaments add column if not exists starts_at timestamptz;
+alter table public.tournaments add column if not exists round_minutes integer;
+alter table public.tournaments add column if not exists created_by uuid references public.profiles (id) on delete set null;
+alter table public.tournaments drop constraint if exists tournaments_kind_list;
+alter table public.tournaments add constraint tournaments_kind_list check (kind in ('weekly', 'special'));
+alter table public.tournaments drop constraint if exists tournaments_special_fields;
+alter table public.tournaments add constraint tournaments_special_fields check (
+    (kind = 'weekly' and theme is null and starts_at is null and round_minutes is null)
+    or (kind = 'special' and theme ~ '^[a-z0-9-]{1,40}$' and char_length(btrim(coalesce(title, ''))) between 2 and 60 and starts_at is not null
+        and round_minutes between 10 and 1440));
 
 create table if not exists public.tournament_entries (
     tournament_id uuid not null references public.tournaments (id) on delete cascade,
@@ -541,6 +559,30 @@ create or replace function public.tournament_today() returns date
 language sql stable set search_path = public as $$
     select coalesce(nullif(current_setting('mudrlant.test_today', true), '')::date, (now() at time zone 'Europe/Prague')::date)
 $$;
+-- Okamžik pro kola speciálních turnajů (blok 31; nastavení mudrlant.test_now používají jen testy)
+create or replace function public.tournament_now() returns timestamptz
+language sql stable set search_path = public as $$
+    select coalesce(nullif(current_setting('mudrlant.test_now', true), '')::timestamptz, now())
+$$;
+-- Fáze kola round_no: 'before' (ještě nezačalo), 'open' (hraje se), 'over' (skončilo). Týdenní turnaj po pražských dnech od started_on
+-- (kolo n v den started_on + n − 1), speciální po round_minutes od starts_at (blok 31).
+create or replace function public.tournament_round_phase(t public.tournaments, round_no integer) returns text
+language sql stable set search_path = public as $$
+    select case when t.kind = 'special' then
+            case when public.tournament_now() < t.starts_at + (round_no - 1) * t.round_minutes * interval '1 minute' then 'before'
+                 when public.tournament_now() < t.starts_at + round_no * t.round_minutes * interval '1 minute' then 'open'
+                 else 'over' end
+        else
+            case when t.started_on + (round_no - 1) > public.tournament_today() then 'before'
+                 when t.started_on + (round_no - 1) = public.tournament_today() then 'open'
+                 else 'over' end
+        end
+$$;
+-- Konec kola speciálního turnaje (týdenní turnaj: null, kolo končí o půlnoci)
+create or replace function public.tournament_round_end(t public.tournaments, round_no integer) returns timestamptz
+language sql stable set search_path = public as $$
+    select case when t.kind = 'special' then t.starts_at + round_no * t.round_minutes * interval '1 minute' end
+$$;
 
 create or replace function public.tournament_notice(uid uuid, tid uuid, notice_kind text, notice_detail text default null) returns void
 language sql security definer set search_path = public as $$
@@ -576,6 +618,13 @@ begin
     update public.tournament_matches set winner = win, decided_by = how where id = m.id;
     if how <> 'played' then
         perform public.tournament_notice(case when win = m.p1 then m.p2 else m.p1 end, m.tournament_id, 'eliminated_noplay', null);
+        -- Kontumace (blok 31): kdo zápas začal a nedohrál (vzdal nebo mu vypršel čas), má u výsledku aspoň to, co stihl (správné a body
+        -- z uložených odpovědí; finished_at zůstane prázdné, takže se to nepočítá jako odehraný zápas). Rozpis zápasu pak ukáže jeho odpovědi.
+        update public.tournament_results r set correct = a.good, points = a.total
+            from (select ta.user_id, (count(*) filter (where ta.correct))::integer as good, coalesce(sum(ta.points), 0)::integer as total
+                  from public.tournament_answers ta where ta.match_id = m.id group by ta.user_id) a
+            where r.match_id = m.id and r.user_id = a.user_id and r.finished_at is null;
+        update public.tournament_results set correct = coalesce(correct, 0), points = coalesce(points, 0) where match_id = m.id and finished_at is null;
     end if;
     return win;
 end;
@@ -595,7 +644,8 @@ begin
         select max(round) into cur from public.tournament_matches where tournament_id = tid;
         -- po termínu (konec dne kola) se zápasy rozhodnou i bez odehrání
         for m in select * from public.tournament_matches where tournament_id = tid and round = cur and winner is null loop
-            if t.started_on + (cur - 1) < today then
+            -- (fáze kola: týdenní turnaj po dnech, speciální po minutách od začátku, blok 31)
+            if public.tournament_round_phase(t, cur) = 'over' then
                 perform public.tournament_pick_winner(m, true); changed := true;
             else
                 perform public.tournament_pick_winner(m, false);
@@ -682,7 +732,16 @@ begin
         perform public.tournament_notice(e.user_id, tid, 'excluded_full', s::text);
     end loop;
     update public.tournament_entries set status = 'excluded' where tournament_id = tid and status = 'registered';
-    update public.tournaments set status = 'running', size = s, rounds = k, started_on = case when force then public.tournament_today() else greatest(t.week_start, public.tournament_today()) end where id = tid;
+    -- Speciální turnaj (blok 31) začíná v starts_at; při pozdním spuštění (tick nikdo nezavolal) nebo vývojářském „Spustit hned“ od teď (na celé minuty),
+    -- ať první kolo nevyprší dřív, než ho kdo uvidí. Týdenní turnaj od pondělí, nejdřív dnes.
+    if t.kind = 'special' then
+        update public.tournaments set status = 'running', size = s, rounds = k,
+            starts_at = case when force then date_trunc('minute', public.tournament_now()) else greatest(t.starts_at, date_trunc('minute', public.tournament_now())) end
+            where id = tid;
+        update public.tournaments set started_on = (starts_at at time zone 'Europe/Prague')::date where id = tid;
+    else
+        update public.tournaments set status = 'running', size = s, rounds = k, started_on = case when force then public.tournament_today() else greatest(t.week_start, public.tournament_today()) end where id = tid;
+    end if;
     -- náhodné nasazení do pavouka (podle id hráče a semínka turnaje)
     select array_agg(user_id order by md5(user_id::text || t.seed)) into ids from public.tournament_entries where tournament_id = tid and status = 'playing';
     for i in 1 .. s / 2 loop
@@ -699,7 +758,9 @@ begin
     perform pg_advisory_xact_lock(74610);
     next_monday := today + (8 - extract(isodow from today)::integer);
     insert into public.tournaments (topic, week_start) values ('mix', next_monday) on conflict (topic, week_start) do nothing;
-    for t in select id from public.tournaments where status = 'open' and week_start <= today order by week_start loop
+    -- týdenní od svého pondělí, speciální (blok 31) od starts_at
+    for t in select id from public.tournaments where status = 'open'
+            and (case when kind = 'special' then starts_at <= public.tournament_now() else week_start <= today end) order by week_start, id loop
         perform public.tournament_start(t.id);
     end loop;
     -- boti v turnajích odehrají své kolo každý den od 9:00 (Praha); před posunem kol i po něm, ať stihnou včerejší kolo i nově otevřené
@@ -720,7 +781,9 @@ begin
     if auth.uid() is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
     perform public.tournament_tick();
     select * into t from public.tournaments where id = tid for update;
-    if t.id is null or t.status <> 'open' or t.week_start <= public.tournament_today() then raise exception 'Přihlášky do tohoto turnaje jsou zavřené.' using errcode = '22023'; end if;
+    if t.id is null or t.status <> 'open' or (case when t.kind = 'special' then t.starts_at <= public.tournament_now() else t.week_start <= public.tournament_today() end) then
+        raise exception 'Přihlášky do tohoto turnaje jsou zavřené.' using errcode = '22023';
+    end if;
     select count(*) into n from public.tournament_entries where tournament_id = tid;
     if exists (select 1 from public.tournament_entries where tournament_id = tid and user_id = auth.uid()) then return; end if;
     if n >= t.capacity then raise exception 'Turnaj je plný.' using errcode = '22023'; end if;
@@ -748,7 +811,9 @@ begin
     if m.id is null or auth.uid() not in (m.p1, m.p2) then raise exception 'Tohle není tvůj zápas.' using errcode = '42501'; end if;
     select * into t from public.tournaments where id = m.tournament_id;
     if m.winner is not null or t.status <> 'running' then raise exception 'Zápas už je rozhodnutý.' using errcode = '22023'; end if;
-    if t.started_on + (m.round - 1) <> public.tournament_today() then raise exception 'Kolo se dnes nehraje.' using errcode = '22023'; end if;
+    if public.tournament_round_phase(t, m.round) <> 'open' then
+        raise exception '%', case when t.kind = 'special' then 'Kolo se teď nehraje.' else 'Kolo se dnes nehraje.' end using errcode = '22023';
+    end if;
     if exists (select 1 from public.tournament_results where match_id = mid and user_id = auth.uid()) then raise exception 'Kolo jsi už začal.' using errcode = '22023'; end if;
     insert into public.tournament_results (match_id, user_id) values (mid, auth.uid());
 end;
@@ -830,7 +895,7 @@ begin
     select * into t from public.tournaments where id = tid;
     select max(round) into cur from public.tournament_matches where tournament_id = tid;
     -- boti hrají jen kolo, jehož den už nastal (další kolo čeká na svůj den)
-    if cur is null or t.started_on + (cur - 1) > public.tournament_today() then return; end if;
+    if cur is null or public.tournament_round_phase(t, cur) = 'before' then return; end if;
     for m in select * from public.tournament_matches where tournament_id = tid and round = cur and winner is null loop
         foreach uid in array array[m.p1, m.p2] loop
             if public.dev_is_bot(uid) and not exists (select 1 from public.tournament_results where match_id = m.id and user_id = uid and finished_at is not null) then
@@ -895,7 +960,9 @@ begin
     select * into t from public.tournaments where id = tid for update;
     if t.id is null or t.status <> 'running' then raise exception 'Turnaj neběží.' using errcode = '22023'; end if;
     perform public.dev_bots_play(tid);
-    update public.tournaments set started_on = started_on - 1 where id = tid;
+    -- speciální turnaj (blok 31): začátek o jedno kolo dřív (den začátku podle něj)
+    update public.tournaments set started_on = case when kind = 'special' then ((starts_at - round_minutes * interval '1 minute') at time zone 'Europe/Prague')::date else started_on - 1 end,
+        starts_at = starts_at - round_minutes * interval '1 minute' where id = tid;
     perform public.tournament_progress(tid);
     perform public.dev_bots_play(tid);
 end;
@@ -946,10 +1013,12 @@ create or replace function public.tournament_bots_due() returns void
 language plpgsql security definer set search_path = public as $$
 declare t record; today date := public.tournament_today();
 begin
-    for t in select tr.id, tr.started_on, (select max(m.round) from public.tournament_matches m where m.tournament_id = tr.id) as cur
+    for t in select tr.id, tr.kind, public.tournament_round_phase(tr, x.cur) as phase, x.cur
              from public.tournaments tr
+             cross join lateral (select max(m.round) as cur from public.tournament_matches m where m.tournament_id = tr.id) x
              where tr.status = 'running' and exists (select 1 from public.tournament_entries e where e.tournament_id = tr.id and public.dev_is_bot(e.user_id)) loop
-        if t.cur is not null and (t.started_on + (t.cur - 1) < today or (t.started_on + (t.cur - 1) = today and public.tournament_clock() >= time '09:00')) then
+        -- speciální turnaj (blok 31): kolo je krátké, boti hrají hned, jak začne
+        if t.cur is not null and (t.phase = 'over' or (t.phase = 'open' and (t.kind = 'special' or public.tournament_clock() >= time '09:00'))) then
             perform public.dev_bots_play(t.id);
         end if;
     end loop;
@@ -1095,7 +1164,8 @@ $$;
 
 -- Co poslat: (a) dnešní neodehraný turnajový zápas, (b) nevyřízená příchozí výzva mladší než 3 dny a výsledek výzvy, kterou hráč založil, (c) nepřečtená zpráva o turnaji,
 -- (e) útoky soupeřů v Dobývání (conquest_push_items, blok 23), (f) pozvánky přátel do hry Dobývání (conquest_invite_push_items, blok 24),
--- (g) kola v Dobývání: všichni dohráli kolo a kolo brzy končí (conquest_round_push_items, blok 29).
+-- (g) kola v Dobývání: všichni dohráli kolo a kolo brzy končí (conquest_round_push_items, blok 29),
+-- (h) nový speciální turnaj s otevřenými přihláškami (tournament_special_push_items, blok 31).
 -- Jeden řádek na odběr (zařízení); z každého druhu nejvýš jedna věc na hráče a běh a nic, co téhož druhu dostal v poslední hodině
 -- (útoky a pozvánky v Dobývání: v posledních 10 minutách, období hry bývá jen hodina a pozvaný se má přidat, dokud je místo;
 -- kola v Dobývání: v posledních 3 minutách, kolo rychlé hry trvá 5 minut).
@@ -1109,17 +1179,19 @@ declare today date := public.tournament_today(); part text := public.push_day_pa
 begin
     return query
     with items as (
+        -- speciální turnaj (blok 31): kolo končí v daný čas, připomínka jednou za zápas
         select m.p as user_id, 'tournament'::text as kind,
-            'Turnaj: dnes hraješ ' || public.push_round_name(t.size, m.round, m.third) as title,
-            'Soupeř: ' || coalesce(op.display_name, 'Hráč') || '. Kolo musíš odehrát do půlnoci.' as body,
+            case when t.kind = 'special' then 'Speciální turnaj: hraješ ' else 'Turnaj: dnes hraješ ' end || public.push_round_name(t.size, m.round, m.third) as title,
+            'Soupeř: ' || coalesce(op.display_name, 'Hráč') || '. ' || case when t.kind = 'special'
+                then 'Kolo musíš odehrát ' || public.tournament_push_until(public.tournament_round_end(t, m.round)) || '.' else 'Kolo musíš odehrát do půlnoci.' end as body,
             './?tab=multi'::text as url,
-            'tour:' || m.id || ':' || m.p || ':' || today || ':' || part as dedupe_key, m.id::text as sort_at
+            'tour:' || m.id || ':' || m.p || ':' || case when t.kind = 'special' then 'special' else today || ':' || part end as dedupe_key, m.id::text as sort_at
         from (
             select mm.id, mm.tournament_id, mm.round, mm.third, mm.p1 as p, mm.p2 as other from public.tournament_matches mm where mm.winner is null
             union all
             select mm.id, mm.tournament_id, mm.round, mm.third, mm.p2, mm.p1 from public.tournament_matches mm where mm.winner is null
         ) m
-        join public.tournaments t on t.id = m.tournament_id and t.status = 'running' and t.started_on + (m.round - 1) = today
+        join public.tournaments t on t.id = m.tournament_id and t.status = 'running' and public.tournament_round_phase(t, m.round) = 'open'
         join public.profiles me on me.id = m.p and me.push_tournament
         left join public.profiles op on op.id = m.other
         where not exists (select 1 from public.tournament_results r where r.match_id = m.id and r.user_id = m.p)
@@ -1171,6 +1243,9 @@ begin
         union all
         -- (g) kola v Dobývání: všichni dohráli kolo (druh 'conquest_round') a kolo brzy končí (druh 'conquest_ending'), blok 29
         select c.user_id, c.kind, c.title, c.body, c.url, c.dedupe_key, c.sort_at from public.conquest_round_push_items() c
+        union all
+        -- (h) „Začíná speciální turnaj: …“ (druh 'tournament_special', klíč tsp:), blok 31
+        select c.user_id, c.kind, c.title, c.body, c.url, c.dedupe_key, c.sort_at from public.tournament_special_push_items() c
     ), fresh as (
         select i.*, row_number() over (partition by i.user_id, i.kind order by i.sort_at, i.dedupe_key) as rn
         from items i
@@ -1210,7 +1285,8 @@ begin
     insert into public.push_sent (dedupe_key, user_id, kind)
     select k, case when split_part(k, ':', 3) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then split_part(k, ':', 3)::uuid end,
         case split_part(k, ':', 1) when 'tour' then 'tournament' when 'chal' then 'challenge' when 'chalr' then 'challenge' when 'notice' then 'notice' when 'test' then 'test'
-            when 'cq' then 'conquest' when 'cqi' then 'conquest_invite' when 'cqr' then 'conquest_round' when 'cqe' then 'conquest_ending' end
+            when 'cq' then 'conquest' when 'cqi' then 'conquest_invite' when 'cqr' then 'conquest_round' when 'cqe' then 'conquest_ending'
+            when 'tsp' then 'tournament_special' end
     from unnest(coalesce(keys, '{}')) k where char_length(k) between 1 and 200
     on conflict (dedupe_key) do nothing;
     -- Odeslaná zkušební zpráva je vyřízená; novější žádost (jiný čas, jiný klíč) zůstane čekat. Nevyřízené žádosti starší než den se zahodí.
@@ -1512,6 +1588,9 @@ begin
         'turnaje_zapasy', coalesce((select jsonb_agg(to_jsonb(m)) from public.tournament_matches m where uid in (m.p1, m.p2)), '[]'::jsonb),
         'turnaje_vysledky', coalesce((select jsonb_agg(to_jsonb(t) order by t.started_at) from public.tournament_results t where t.user_id = uid), '[]'::jsonb),
         'turnaje_zpravy', coalesce((select jsonb_agg(to_jsonb(n) order by n.created_at) from public.tournament_notices n where n.user_id = uid), '[]'::jsonb),
+        -- Hlasování o tématu speciálního turnaje (schéma 31, tabulka na konci souboru)
+        'turnaje_hlasovani', coalesce((select jsonb_agg(jsonb_build_object('hlasovani', v.poll_id, 'tema', v.theme, 'cas', v.voted_at, 'zmen', v.changes) order by v.voted_at)
+            from public.tournament_votes v where v.user_id = uid), '[]'::jsonb),
         -- Sociální vrstva a hlášení (tabulky jsou níž v tomto souboru; tělo funkce se kontroluje až při volání)
         'posledni_aktivita', (select s.last_seen from public.player_seen s where s.user_id = uid),
         'pratele', coalesce((select jsonb_agg(to_jsonb(f) order by f.created_at) from public.friendships f where uid in (f.user_id, f.friend_id)), '[]'::jsonb),
@@ -1987,7 +2066,9 @@ begin
     if r.match_id is null then raise exception 'Zápas jsi ještě nezačal.' using errcode = '22023'; end if;
     if r.finished_at is not null or m.winner is not null then raise exception 'Zápas už je dohraný.' using errcode = '22023'; end if;
     select * into t from public.tournaments tt where tt.id = m.tournament_id;
-    if t.status <> 'running' or t.started_on + (m.round - 1) <> public.tournament_today() then raise exception 'Kolo se dnes nehraje.' using errcode = '22023'; end if;
+    if t.status <> 'running' or public.tournament_round_phase(t, m.round) <> 'open' then
+        raise exception '%', case when t.kind = 'special' then 'Kolo se teď nehraje.' else 'Kolo se dnes nehraje.' end using errcode = '22023';
+    end if;
     if idx is null or idx < 0 or idx > 9 then raise exception 'Neplatné číslo otázky.' using errcode = '22023'; end if;
     if correct is null or points is null or points < 0 or points > 4 or correct <> (points > 0) then raise exception 'Neplatný výsledek otázky.' using errcode = '22023'; end if;
     select count(*)::integer into saved from public.tournament_answers a where a.match_id = mid and a.user_id = uid;
@@ -2916,7 +2997,9 @@ begin
     if r.match_id is null then raise exception 'Zápas jsi ještě nezačal.' using errcode = '22023'; end if;
     if r.finished_at is not null or m.winner is not null then raise exception 'Zápas už je dohraný.' using errcode = '22023'; end if;
     select * into t from public.tournaments tt where tt.id = m.tournament_id;
-    if t.status <> 'running' or t.started_on + (m.round - 1) <> public.tournament_today() then raise exception 'Kolo se dnes nehraje.' using errcode = '22023'; end if;
+    if t.status <> 'running' or public.tournament_round_phase(t, m.round) <> 'open' then
+        raise exception '%', case when t.kind = 'special' then 'Kolo se teď nehraje.' else 'Kolo se dnes nehraje.' end using errcode = '22023';
+    end if;
     if idx is null or idx < 0 or idx > 9 then raise exception 'Neplatné číslo otázky.' using errcode = '22023'; end if;
     if correct is null or points is null or points < 0 or points > 4 or correct <> (points > 0) then raise exception 'Neplatný výsledek otázky.' using errcode = '22023'; end if;
     perform public.check_answer_details(hints, ms);
@@ -2982,7 +3065,9 @@ begin
             limit 20;
         return;
     end if;
-    if not exists (select 1 from public.tournament_results tr where tr.match_id = m.id and tr.user_id = uid and tr.finished_at is not null) then
+    -- Kontumace (blok 31): zápas, který hráč nedohrál (vzdal, vypršel mu čas, nebo ho vůbec nezačal), uvidí v rozpisu, až je rozhodnutý
+    -- (dál už se hrát nedá) – s vlastními uloženými odpověďmi a se soupeřovými
+    if m.winner is null and not exists (select 1 from public.tournament_results tr where tr.match_id = m.id and tr.user_id = uid and tr.finished_at is not null) then
         raise exception 'Rozpis otázek uvidíš, až zápas dohraješ.' using errcode = '42501';
     end if;
     rival := case when m.p1 = uid then m.p2 else m.p1 end;
@@ -7037,6 +7122,308 @@ grant execute on function public.player_items_mine(), public.player_items_claim(
     to authenticated;
 -- ===== 30: Dobývání – pomůcky Tah navíc a Půl na půl — KONEC BLOKU =====
 
+-- ===== 31: Speciální turnaje na téma, hlasování o tématu a psaní odpovědí jen pro jednoho hráče =====
+-- Nárazové turnaje (kind 'special' v tournaments; sloupce a fáze kol jsou u Týdenních turnajů výš): stejný pavouk a stejné otázky pro všechny
+-- ze semínka turnaje a kola (vybírá je aplikace jen z položek tématu, tournament.js THEMES), odpovědi přes tournament_answer_save, výsledek
+-- z nich (tournament_finish_match), XP za výhry i odznaky jako u týdenního turnaje. Nikdy je nezakládá tournament_tick: spustí je správce
+-- (dev_admins) ve vývojářských nástrojích aplikace s tématem, začátkem a délkou kola (dev_special_tournament_create), najednou nejvýš jeden.
+-- Kolo n se hraje od starts_at + (n − 1) × round_minutes, přihlášky se zavřou v starts_at.
+-- Téma vybírají hráči v hlasování: vždy je otevřené jedno (tournament_polls) se 4 tématy z nabídky (tournament_themes); každý přihlášený hráč
+-- má jeden hlas (tournament_votes), který může do konce hlasování změnit (nejvýš 10krát). Počty hlasů uvidí, až sám hlasuje (správce vždy).
+-- Když správce založí turnaj na téma z hlasování, nebo hlasování uzavře (dev_tournament_poll_close), hlasování se uzavře (vítěz = téma turnaje,
+-- nebo nejvíc hlasů, při shodě dřívější v nabídce) a hned se otevře další se 4 jinými tématy: bez témat dvou posledních hlasování a šesti
+-- posledních speciálních turnajů, pořadí určuje otisk (md5) id tématu a čísla hlasování – výběr dělá server a nikdo ho neovlivní.
+-- Tabulky čte hráč přes pravidla řádků (svůj hlas jen sám), zapisují jen funkce.
+create table if not exists public.tournament_themes (
+    id text primary key,
+    title text not null,
+    topics text not null,
+    capacity integer not null default 128,
+    sort integer not null default 0,
+    active boolean not null default true
+);
+alter table public.tournament_themes drop constraint if exists tournament_themes_values;
+alter table public.tournament_themes add constraint tournament_themes_values check (id ~ '^[a-z0-9-]{1,40}$' and char_length(title) between 2 and 60
+    and topics ~ '^[a-z0-9,]{1,200}$' and capacity in (8, 16, 32, 64, 128));
+-- Nabídka témat (stejná id, názvy, témata otázek a kapacita jako tournament.js THEMES; hlídá tests/tournament-special.test.js). Kapacita = kolik
+-- hráčů nejvýš, aby na všechna kola (10 otázek v kole) stačily položky tématu bez opakování. Téma, které ze seznamu zmizí, se jen vypne.
+with list (id, title, topics, capacity, sort) as (values
+    ('hrady-zamky', 'Hrady a zámky', 'zemepis,architektura', 128, 1),
+    ('opery', 'Opery', 'hudba', 128, 2),
+    ('olympijske-hry', 'Olympijské hry', 'sport', 128, 3),
+    ('vlajky-afriky', 'Vlajky Afriky', 'vlajky', 64, 4),
+    ('vlajky-statu', 'Vlajky států', 'vlajky', 128, 5),
+    ('ceske-dejiny', 'České dějiny', 'historie', 128, 6),
+    ('starovek', 'Starověk', 'historie', 128, 7),
+    ('svetove-valky', 'Světové války', 'historie', 128, 8),
+    ('panovnici', 'Králové a císaři', 'historie', 128, 9),
+    ('recke-baje', 'Řecké báje', 'mytologie', 128, 10),
+    ('pravek', 'Pravěká zvířata', 'biologie', 128, 11),
+    ('psi-plemena', 'Psí plemena', 'biologie', 128, 12),
+    ('nase-priroda', 'Naše příroda', 'biologie', 128, 13),
+    ('vesmir', 'Vesmír', 'fyzika', 128, 14),
+    ('chemicke-prvky', 'Chemické prvky', 'chemie', 128, 15),
+    ('rock', 'Rock a punk', 'hudba', 128, 16),
+    ('cesky-film', 'Český film', 'film', 128, 17),
+    ('pohadky', 'Filmové pohádky', 'film', 128, 18),
+    ('sci-fi', 'Sci-fi a fantasy', 'film,literatura', 128, 19),
+    ('ceska-literatura', 'Česká literatura', 'literatura', 128, 20),
+    ('renesance', 'Renesance', 'umeni,architektura', 128, 21),
+    ('fotbal', 'Fotbal', 'sport', 128, 22),
+    ('hokej', 'Lední hokej', 'sport', 128, 23),
+    ('hlavni-mesta', 'Hlavní města', 'zemepis', 128, 24),
+    ('ceska-mesta', 'Česká města', 'zemepis', 128, 25),
+    ('unesco', 'Světové dědictví UNESCO', 'zemepis,architektura', 128, 26),
+    ('kostely', 'Kostely a kláštery', 'architektura', 128, 27),
+    ('nobelova-cena', 'Nobelova cena', 'chemie,fyzika,literatura', 128, 28)
+), saved as (
+    insert into public.tournament_themes (id, title, topics, capacity, sort) select id, title, topics, capacity, sort from list
+    on conflict (id) do update set title = excluded.title, topics = excluded.topics, capacity = excluded.capacity, sort = excluded.sort, active = true
+    returning id
+)
+update public.tournament_themes set active = false where id not in (select id from list);
+
+create table if not exists public.tournament_polls (
+    id bigint generated always as identity primary key,
+    options text[] not null,
+    opened_at timestamptz not null default now(),
+    closed_at timestamptz,
+    winner text,
+    tournament_id uuid references public.tournaments (id) on delete set null
+);
+alter table public.tournament_polls drop constraint if exists tournament_polls_options_count;
+alter table public.tournament_polls add constraint tournament_polls_options_count check (cardinality(options) = 4);
+-- otevřené je vždy nejvýš jedno
+create unique index if not exists tournament_polls_one_open on public.tournament_polls ((true)) where closed_at is null;
+
+create table if not exists public.tournament_votes (
+    poll_id bigint not null references public.tournament_polls (id) on delete cascade,
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    theme text not null,
+    voted_at timestamptz not null default now(),
+    changes integer not null default 0,
+    primary key (poll_id, user_id)
+);
+alter table public.tournament_votes drop constraint if exists tournament_votes_changes_range;
+alter table public.tournament_votes add constraint tournament_votes_changes_range check (changes between 0 and 10);
+create index if not exists tournament_votes_user_idx on public.tournament_votes (user_id);
+
+alter table public.tournament_themes enable row level security;
+alter table public.tournament_polls enable row level security;
+alter table public.tournament_votes enable row level security;
+drop policy if exists "turnaje: nabídka témat" on public.tournament_themes;
+create policy "turnaje: nabídka témat" on public.tournament_themes for select to authenticated using (true);
+drop policy if exists "turnaje: hlasování" on public.tournament_polls;
+create policy "turnaje: hlasování" on public.tournament_polls for select to authenticated using (true);
+drop policy if exists "turnaje: vlastní hlas" on public.tournament_votes;
+create policy "turnaje: vlastní hlas" on public.tournament_votes for select to authenticated using (user_id = auth.uid());
+revoke all on public.tournament_themes, public.tournament_polls, public.tournament_votes from public, anon, authenticated;
+grant select on public.tournament_themes, public.tournament_polls, public.tournament_votes to authenticated;
+
+-- 4 témata pro hlasování číslo seq: nejdřív ta, která nebyla ve dvou posledních hlasováních ani v šesti posledních speciálních turnajích
+create or replace function public.tournament_poll_pick(seq bigint) returns text[]
+language sql stable set search_path = public as $$
+    with recent as (
+        select unnest(p.options) as id from (select tp.options from public.tournament_polls tp order by tp.id desc limit 2) p
+        union
+        select s.theme from (select t.theme from public.tournaments t where t.kind = 'special' order by t.created_at desc limit 6) s
+    )
+    select array(select th.id from public.tournament_themes th where th.active
+        order by (th.id in (select r.id from recent r)), md5(th.id || ':' || seq), th.id limit 4)
+$$;
+
+-- Otevřené hlasování; když žádné není, otevře se nové
+create or replace function public.tournament_poll_current() returns public.tournament_polls
+language plpgsql security definer set search_path = public as $$
+declare p public.tournament_polls;
+begin
+    select * into p from public.tournament_polls where closed_at is null;
+    if p.id is not null then return p; end if;
+    perform pg_advisory_xact_lock(74631);
+    select * into p from public.tournament_polls where closed_at is null;
+    if p.id is not null then return p; end if;
+    insert into public.tournament_polls (options) values (public.tournament_poll_pick(coalesce((select max(tp.id) from public.tournament_polls tp), 0) + 1)) returning * into p;
+    return p;
+end;
+$$;
+
+-- Hlasování jako JSON pro hráče uid: { id, opened_at, closed, options: [{ id, title, topics, votes }], mine, total, changes_left }.
+-- votes a total jen tomu, kdo už hlasoval, a správci (dev_admins); ostatní je mají null.
+create or replace function public.tournament_poll_json(p public.tournament_polls, uid uuid) returns jsonb
+language sql stable security definer set search_path = public as $$
+    with me as (select v.theme, v.changes from public.tournament_votes v where v.poll_id = p.id and v.user_id = uid),
+    shown as (select exists (select 1 from me) or exists (select 1 from public.dev_admins d where d.user_id = uid) as ok),
+    counts as (select v.theme, count(*)::integer as n from public.tournament_votes v where v.poll_id = p.id group by v.theme)
+    select jsonb_build_object(
+        'id', p.id, 'opened_at', p.opened_at, 'closed', p.closed_at is not null,
+        'options', coalesce((select jsonb_agg(jsonb_build_object('id', o.id, 'title', coalesce(th.title, o.id), 'topics', th.topics,
+                'votes', case when (select ok from shown) then coalesce((select c.n from counts c where c.theme = o.id), 0) end) order by o.ord)
+            from unnest(p.options) with ordinality as o(id, ord) left join public.tournament_themes th on th.id = o.id), '[]'::jsonb),
+        'mine', (select me.theme from me),
+        'total', case when (select ok from shown) then coalesce((select sum(c.n) from counts c), 0)::integer end,
+        'changes_left', 10 - coalesce((select me.changes from me), 0))
+$$;
+
+-- Hráč: stav hlasování (otevřené, s mým hlasem; když žádné není, otevře se)
+create or replace function public.tournament_poll_state() returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid();
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    return public.tournament_poll_json(public.tournament_poll_current(), uid);
+end;
+$$;
+
+-- Hráč: hlas pro téma (jeden na hlasování; změna nejvýš 10krát, stejný hlas znovu nic nemění). Vrací stav hlasování.
+create or replace function public.tournament_vote(poll bigint, theme text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+#variable_conflict use_variable
+declare uid uuid := auth.uid(); p public.tournament_polls; prev public.tournament_votes;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    -- uzavření hlasování (for update) počká na rozjeté hlasy a naopak
+    select * into p from public.tournament_polls tp where tp.id = poll for share;
+    if p.id is null or p.closed_at is not null then raise exception 'Hlasování už skončilo. Hlasuj v novém.' using errcode = '22023'; end if;
+    if theme is null or not (theme = any (p.options)) then raise exception 'Tohle téma v hlasování není.' using errcode = '22023'; end if;
+    perform pg_advisory_xact_lock(hashtext('tournament_vote:' || poll::text || ':' || uid::text));
+    select * into prev from public.tournament_votes v where v.poll_id = poll and v.user_id = uid;
+    if prev.poll_id is null then
+        insert into public.tournament_votes (poll_id, user_id, theme) values (poll, uid, theme);
+    elsif prev.theme <> theme then
+        if prev.changes >= 10 then raise exception 'Hlas jde změnit nejvýš 10krát, teď už platí ten poslední.' using errcode = '22023'; end if;
+        update public.tournament_votes v set theme = theme, voted_at = now(), changes = v.changes + 1 where v.poll_id = poll and v.user_id = uid;
+    end if;
+    return public.tournament_poll_json(p, uid);
+end;
+$$;
+
+-- Uzavře otevřené hlasování (vítěz: chosen, jinak téma s nejvíc hlasy, při shodě dřívější v nabídce; bez hlasů žádný) a hned otevře další.
+-- Vrací nové hlasování.
+create or replace function public.tournament_poll_close(chosen text default null, tid uuid default null) returns public.tournament_polls
+language plpgsql security definer set search_path = public as $$
+declare p public.tournament_polls; best text;
+begin
+    perform pg_advisory_xact_lock(74631);
+    select * into p from public.tournament_polls where closed_at is null for update;
+    if p.id is not null then
+        select o.id into best from unnest(p.options) with ordinality as o(id, ord)
+            join (select v.theme, count(*) as n from public.tournament_votes v where v.poll_id = p.id group by v.theme) c on c.theme = o.id
+            order by c.n desc, o.ord limit 1;
+        update public.tournament_polls set closed_at = now(), winner = coalesce(chosen, best), tournament_id = tid where id = p.id;
+    end if;
+    insert into public.tournament_polls (options) values (public.tournament_poll_pick(coalesce((select max(tp.id) from public.tournament_polls tp), 0) + 1)) returning * into p;
+    return p;
+end;
+$$;
+
+-- Správce: uzavře hlasování a otevře další (vrací nové hlasování jako tournament_poll_state)
+create or replace function public.dev_tournament_poll_close() returns jsonb
+language plpgsql security definer set search_path = public as $$
+begin
+    perform public.dev_check();
+    return public.tournament_poll_json(public.tournament_poll_close(), auth.uid());
+end;
+$$;
+
+-- Správce: speciální turnaj na téma z nabídky se začátkem (od teď za minutu až za 60 dní) a délkou kola (10 minut až 24 hodin, po 5 minutách);
+-- přihlášky se otevřou hned. Téma z otevřeného hlasování ho uzavře (vítěz = toto téma) a otevře další. Vrací id turnaje.
+create or replace function public.dev_special_tournament_create(theme_id text, start_at timestamptz, round_len integer) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare th public.tournament_themes; tid uuid; poll public.tournament_polls;
+begin
+    perform public.dev_check();
+    select * into th from public.tournament_themes where id = theme_id and active;
+    if th.id is null then raise exception 'Takové téma v nabídce není.' using errcode = '22023'; end if;
+    if start_at is null or start_at < public.tournament_now() + interval '1 minute' or start_at > public.tournament_now() + interval '60 days' then
+        raise exception 'Začátek turnaje musí být v budoucnu, nejpozději za 60 dní.' using errcode = '22023';
+    end if;
+    if round_len is null or round_len < 10 or round_len > 1440 or round_len % 5 <> 0 then
+        raise exception 'Délka kola musí být 10 minut až 24 hodin (po 5 minutách).' using errcode = '22023';
+    end if;
+    perform pg_advisory_xact_lock(74632);
+    if exists (select 1 from public.tournaments t where t.kind = 'special' and t.status in ('open', 'running')) then
+        raise exception 'Speciální turnaj už běží nebo má otevřené přihlášky. Další jde založit, až skončí.' using errcode = '22023';
+    end if;
+    begin
+        insert into public.tournaments (kind, topic, week_start, capacity, theme, title, starts_at, round_minutes, created_by)
+            values ('special', th.topics, (start_at at time zone 'Europe/Prague')::date, th.capacity, th.id, th.title, date_trunc('minute', start_at), round_len, auth.uid())
+            returning id into tid;
+    exception when unique_violation then
+        raise exception 'Ten den už začíná turnaj se stejnými tématy. Zvol jiný den.' using errcode = '22023';
+    end;
+    select * into poll from public.tournament_polls where closed_at is null;
+    if poll.id is not null and th.id = any (poll.options) then perform public.tournament_poll_close(th.id, tid); end if;
+    return tid;
+end;
+$$;
+
+-- Správce: smaže speciální turnaj, který ještě nezačal (třeba se špatným začátkem); přihlášky zmizí s ním
+create or replace function public.dev_special_tournament_delete(tid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+    perform public.dev_check();
+    delete from public.tournaments where id = tid and kind = 'special' and status = 'open';
+    if not found then raise exception 'Smazat jde jen speciální turnaj, který ještě nezačal.' using errcode = '22023'; end if;
+end;
+$$;
+
+-- Čas do upozornění (Praha): „ve čtvrtek 26. 11. v 18:00“
+create or replace function public.tournament_special_when(ts timestamptz) returns text
+language sql stable set search_path = public as $$
+    select (array['v neděli', 'v pondělí', 'v úterý', 've středu', 've čtvrtek', 'v pátek', 'v sobotu'])[extract(dow from (ts at time zone 'Europe/Prague'))::integer + 1]
+        || ' ' || to_char(ts at time zone 'Europe/Prague', 'FMDD. FMMM.') || ' v ' || to_char(ts at time zone 'Europe/Prague', 'FMHH24:MI')
+$$;
+-- Konec kola do připomínky zápasu: „do 19:00“, jiný den „do 27. 11. 18:00“
+create or replace function public.tournament_push_until(ts timestamptz) returns text
+language sql stable set search_path = public as $$
+    select 'do ' || case when (ts at time zone 'Europe/Prague')::date = (public.tournament_now() at time zone 'Europe/Prague')::date then ''
+        else to_char(ts at time zone 'Europe/Prague', 'FMDD. FMMM.') || ' ' end || to_char(ts at time zone 'Europe/Prague', 'FMHH24:MI')
+$$;
+
+-- (h) v push_pending: „Začíná speciální turnaj: Hrady a zámky“ – jednou za turnaj (klíč tsp:turnaj:hráč) každému, kdo chce upozornění na turnaje
+-- (profiles.push_tournament), má funkční odběr a ještě se nepřihlásil; jen u turnaje s otevřenými přihláškami založeného v posledních 3 dnech
+create or replace function public.tournament_special_push_items() returns table (user_id uuid, kind text, title text, body text, url text, dedupe_key text, sort_at text)
+language sql stable set search_path = public as $$
+    select pr.id, 'tournament_special'::text, 'Začíná speciální turnaj: ' || t.title,
+        'Přihlášky jsou otevřené, začíná ' || public.tournament_special_when(t.starts_at) || '. Přihlas se na záložce Více hráčů.',
+        './?tab=multi'::text, 'tsp:' || t.id || ':' || pr.id, t.created_at::text
+    from public.tournaments t
+    join public.profiles pr on pr.push_tournament
+    where t.kind = 'special' and t.status = 'open' and t.starts_at > public.tournament_now() and t.created_at > now() - interval '3 days'
+        and exists (select 1 from public.push_subscriptions s where s.user_id = pr.id and s.fails < 3)
+        and not exists (select 1 from public.tournament_entries e where e.tournament_id = t.id and e.user_id = pr.id)
+        and not public.dev_is_bot(pr.id)
+$$;
+
+-- Psaní odpovědí jen pro jednoho hráče: nová výzva (i výzva skupině, odveta a výzva se sázkou) má vždy výběr z možností. Psanou výzvu
+-- odmítne (starší aplikace dostane českou hlášku), bez způsobu odpovídání ji založí s výběrem z možností. Výzvy založené dřív (i psané,
+-- 'typed', a bez způsobu odpovídání) se hrají dál jako dřív: challenge_progress_save u nich pustí až 8 bodů za otázku. Správce (postgres)
+-- se tím neřídí (jako result_from_progress).
+create or replace function public.challenge_variant_choices() returns trigger
+language plpgsql set search_path = public as $$
+begin
+    if current_user not in ('authenticated', 'anon') then return new; end if;
+    if new.variant = 'typed' then
+        raise exception 'Psaní odpovědí je jen ve hře pro jednoho hráče, výzvy se hrají s výběrem z možností.' using errcode = 'P0001';
+    end if;
+    new.variant := 'choices';
+    return new;
+end;
+$$;
+drop trigger if exists challenges_variant_choices on public.challenges;
+create trigger challenges_variant_choices before insert on public.challenges for each row execute function public.challenge_variant_choices();
+
+-- Oprávnění: hráč volá stav hlasování a hlas, správce své nástroje (dev_check); pomocné funkce jen interně
+revoke all on function public.tournament_now(), public.tournament_round_phase(public.tournaments, integer), public.tournament_round_end(public.tournaments, integer),
+    public.tournament_poll_pick(bigint), public.tournament_poll_current(), public.tournament_poll_json(public.tournament_polls, uuid),
+    public.tournament_poll_close(text, uuid), public.tournament_special_when(timestamptz), public.tournament_push_until(timestamptz),
+    public.tournament_special_push_items(), public.challenge_variant_choices() from public, anon, authenticated;
+revoke all on function public.tournament_poll_state(), public.tournament_vote(bigint, text), public.dev_tournament_poll_close(),
+    public.dev_special_tournament_create(text, timestamptz, integer), public.dev_special_tournament_delete(uuid) from public, anon;
+grant execute on function public.tournament_poll_state(), public.tournament_vote(bigint, text), public.dev_tournament_poll_close(),
+    public.dev_special_tournament_create(text, timestamptz, integer), public.dev_special_tournament_delete(uuid) to authenticated;
+-- ===== 31: Speciální turnaje na téma, hlasování o tématu a psaní odpovědí jen pro jednoho hráče — KONEC BLOKU =====
+
 -- ===== Verze schématu =====
 -- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.
 -- Aplikace ho po přihlášení porovná a správci (dev_admins nebo vývojářský režim) ukáže v Nastavení, že má schéma spustit znovu;
@@ -7102,7 +7489,15 @@ grant execute on function public.player_items_mine(), public.player_items_claim(
 --     conquest_use_fifty; tah druhu 'extra' bez území v conquest_moves, conquest_budget: extra, budgets.extra a items v conquest_state,
 --     items v conquest_lobby, fifty a removed v bitvách; zisk v boss_submit, daily_quiz_answer, chain_submit, conquest_finish
 --     a conquest_claim; export_my_data má i 'pomucky').
+-- 31: Speciální turnaje na téma (tournaments.kind, theme, title, starts_at, round_minutes, created_by; tournament_now, tournament_round_phase,
+--     tournament_round_end – kola po minutách od začátku v tournament_progress, tournament_start, tournament_tick, tournament_join,
+--     tournament_start_match, tournament_answer_save, botech a připomínce zápasu; dev_special_tournament_create a dev_special_tournament_delete)
+--     a hlasování o tématu (tournament_themes, tournament_polls, tournament_votes; tournament_poll_state, tournament_vote, dev_tournament_poll_close;
+--     upozornění druhu 'tournament_special' s klíčem tsp: v push_pending a push_mark; export_my_data má i 'turnaje_hlasovani');
+--     kontumovaný zápas: nedohraný výsledek dostane správné a body z uložených odpovědí (tournament_pick_winner) a tournament_details ukáže
+--     rozpis i hráči, který zápas nedohrál, až je rozhodnutý; nová výzva má vždy výběr z možností (challenge_variant_choices, psaní jen pro
+--     jednoho hráče).
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 30 $$;
+language sql immutable as $$ select 31 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

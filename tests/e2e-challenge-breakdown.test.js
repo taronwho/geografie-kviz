@@ -84,7 +84,9 @@ const backend = async (context, db) => {
             if (name === 'challenge_details') {
                 if (db.detailsMissing) return json({ code: 'PGRST202', message: 'Could not find the function' }, 404);
                 if (!finished(body.code, me.id)) return json({ code: '42501', message: 'Rozpis otázek uvidíš, až výzvu dohraješ.' }, 403);
-                return json(db.progress.filter(r => r.challenge_id === body.code && (r.user_id === me.id || finished(body.code, r.user_id))).map(({ challenge_id, ...rest }) => rest));
+                // u výzvy starší 7 dní (vypršelé) i nedohrané odpovědi ostatních
+                const expired = Date.parse(db.challenges[body.code].created_at) < Date.parse('2026-11-04T10:00:00') - 7 * 86400000;
+                return json(db.progress.filter(r => r.challenge_id === body.code && (r.user_id === me.id || expired || finished(body.code, r.user_id))).map(({ challenge_id, ...rest }) => rest));
             }
             return json({ code: 'PGRST202', message: 'Could not find the function' }, 404);
         }
@@ -270,15 +272,36 @@ test('Rozpis otázek po výzvě a průběžné body', { skip: !chromium && 'Play
         }
     });
 
-    await t.test('okno výzvy: Rozpis jen po dohrání obou; starší odpovědi a starší databáze s poznámkou', async () => {
-        // Jana výzvu založila a dohrála, Petr ještě ne: v okně výzvy rozpis není
+    await t.test('okno výzvy: Rozpis po vlastním dohrání (i když soupeř nedohrál), starší odpovědi a starší databáze s poznámkou', async () => {
+        // Jana výzvu založila a dohrála, Petr ještě ne: rozpis má jen Janiny odpovědi a zadání otázek (soupeřovy až po jeho dohrání)
         const db = newDb();
         seeded(db, 'CEKAMM');
+        db.progress.push({ challenge_id: 'CEKAMM', user_id: UID2, idx: 0, correct: true, points: 4, answer: 'Tajné', hints: 0, ms: 3000 });
         const page = await start(db, 'tok-u1');
         await page.tab.click('[data-action="challenge-open"][data-code="CEKAMM"]');
         await page.tab.waitForSelector('[data-ch-share]');
-        assert.equal(await page.tab.locator('[data-ch-breakdown]').count(), 0, 'soupeř ještě nehrál');
+        await page.tab.click('[data-ch-breakdown]');
+        await page.tab.waitForSelector('#breakdown-list [data-bd-row]');
+        assert.equal(await page.tab.locator('#breakdown-list [data-bd-row]').count(), 5, 'zadání všech otázek');
+        assert.equal(await page.tab.locator('#breakdown-list [data-bd-row="0"] [data-bd-cell]').count(), 1, 'jen moje odpověď');
+        assert.doesNotMatch(await compact(page.tab, '#dialog-overlay'), /Tajné/, 'rozehranou výzvu soupeře nevidím');
         await page.context.close();
+
+        // Výzva starší 7 dní, kterou Petr vzdal po dvou otázkách: rozpis ukáže i jeho nedohrané odpovědi („nedohráno“)
+        const gone = newDb();
+        seeded(gone, 'VZDANA');
+        gone.challenges.VZDANA.created_at = '2026-10-20T09:00:00Z';
+        gone.progress.push({ challenge_id: 'VZDANA', user_id: UID2, idx: 0, correct: true, points: 4, answer: 'Praha', hints: 0, ms: 3000 },
+            { challenge_id: 'VZDANA', user_id: UID2, idx: 1, correct: false, points: 0, answer: 'Brno', hints: 1, ms: 5000 });
+        const quit = await start(gone, 'tok-u1', { viewport: { width: 360, height: 640 } });
+        await quit.tab.click('[data-action="challenge-open"][data-code="VZDANA"]');
+        await quit.tab.click('[data-ch-breakdown]');
+        await quit.tab.waitForSelector('#breakdown-list [data-bd-row]');
+        assert.match(await compact(quit.tab, '[data-bd-forfeit="nedohráno"]'), /4 b · 1\/5 · nedohráno/);
+        assert.equal(await quit.tab.locator('#breakdown-list [data-bd-row="2"] [data-bd-cell="none"]').count(), 1, 'na dál nezodpovězené otázky bez odpovědi');
+        assert.match(await compact(quit.tab, '#dialog-overlay'), /výzva zůstala nedohraná/);
+        await shot(quit.tab, 'rozpis-vzdana-vyzva-360x640');
+        await quit.context.close();
 
         // Oba dohráli (Janiny odpovědi bez podrobností): rozpis z okna výzvy, s poznámkou
         const both = newDb();

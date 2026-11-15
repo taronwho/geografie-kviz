@@ -337,7 +337,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await context.close();
     });
 
-    await t.test('procvičení okruhu ve variantě psaní: u místa v Česku otázka na název, u dalšího města na stát; dvojnásobek bodů', async () => {
+    await t.test('procvičení okruhu ve variantě psaní: u místa v Česku otázka na název, u dalšího města na stát; 1,5× víc bodů', async () => {
         const { context, tab, log } = await setup(browser, { variant: 'typed', fixedRandom: true });
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
@@ -351,12 +351,12 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.doesNotMatch(description, /Testov/, description);
         assert.match(description, /na řece Svratce/);
         assert.equal(await tab.locator('[data-action="choice"]').count(), 0, 've variantě psaní nejsou možnosti');
-        assert.match(await appText(tab), /Za 8 bodů/);
+        assert.match(await appText(tab), /Za 6 bodů/);
 
         await tab.fill('#answer-input', 'Testov');
         await tab.press('#answer-input', 'Enter');
         await waitForResult(tab);
-        assert.match(await appText(tab), /Správně! \+8 bodů/);
+        assert.match(await appText(tab), /Správně! \+6 bodů/);
         assert.match(await appText(tab), /Napsaná odpověď/);
         assert.match(await appText(tab), /Česká stopa/);
 
@@ -412,7 +412,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.fill('#answer-input', 'svycarsko');
         await tab.press('#answer-input', 'Enter');
         await waitForResult(tab);
-        // Tři nápovědy (další věty, mapa, fakta) z 4 bodů ubraly 3, psaná odpověď dvojnásobek
+        // Tři nápovědy (další věty, mapa, fakta) z 4 bodů ubraly 3, psaná odpověď 1,5× (1,5 → 2 body)
         assert.match(await appText(tab), /Správně! \+2 body/);
         assert.match(await appText(tab), /Evropa/);
         assert.deepEqual(log.errors, []);
@@ -892,7 +892,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.fill('#answer-input', 'Na');
         await tab.press('#answer-input', 'Enter');
         await waitForResult(tab);
-        assert.match(await appText(tab), /Správně! \+6 bodů/, 'po jedné nápovědě 3 body, psaná odpověď dvojnásobek');
+        assert.match(await appText(tab), /Správně! \+5 bodů/, 'po jedné nápovědě 3 body, psaná odpověď 1,5× (4,5 → 5)');
         assert.match(await appText(tab), /Latinsky\s*Natrium/, 'nápověda je i mezi fakty výsledku');
         await context.close();
 
@@ -1628,7 +1628,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await one.tab.click('[data-tut-skip]');
         await one.tab.click('[data-action="home-tab"][data-tab="multi"]');
 
-        // Nastavení výzvy: Vlajky, jen okruh vlajek států, i těžší otázky, psaní odpovědí – hraje se přesně podle něj
+        // Nastavení výzvy: Vlajky, jen okruh vlajek států, i těžší otázky – hraje se přesně podle něj; psaní ve výzvě není (jen hra pro jednoho hráče)
         await one.tab.click('#challenges-section [data-action="new-challenge"]');
         await one.tab.click('[data-ch-who="anyone"]');
         await one.tab.click('[data-ch-open="topics"]');
@@ -1645,16 +1645,17 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         // Tři úrovně obtížnosti: Základní, Mudrlant, Mudrlant Expert
         assert.equal(await one.tab.locator('[data-ch-level]').count(), 3);
         await one.tab.click('[data-ch-level="3"]');
-        await one.tab.click('[data-ch-variant="typed"]');
-        assert.match(await one.tab.textContent('[data-ch-open="settings"]'), /Mudrlant Expert · Psaní/);
+        assert.equal(await one.tab.locator('[data-ch-variant]').count(), 0, 'volba psaní ve výzvě není');
+        assert.match(await one.tab.textContent('[data-ch-answering]'), /Psaní odpovědí je jen ve hře pro jednoho hráče/);
+        assert.match(await one.tab.textContent('[data-ch-open="settings"]'), /Mudrlant Expert · Možnosti/);
         await one.tab.click('[data-ch-count="5"]');
         await one.tab.click('[data-ch-create]');
         await waitForQuestion(one.tab);
         const custom = Object.values(db.challenges).find(c => c.topic === 'vlajky');
-        assert.deepEqual([custom.categories, custom.include_hard, custom.level, custom.variant, custom.invited_id], [['vlajka'], true, 3, 'typed', null]);
+        assert.deepEqual([custom.categories, custom.include_hard, custom.level, custom.variant, custom.invited_id], [['vlajka'], true, 3, 'choices', null]);
         const customRound = await one.tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.session')));
         assert.equal(customRound.data.category, 'vlajka', 'jen vybraný okruh');
-        assert.equal(customRound.round.variant, 'typed', 'pevný způsob odpovídání výzvy');
+        assert.equal(customRound.round.variant, 'choices', 'pevný způsob odpovídání výzvy: výběr z možností');
         await one.tab.click('#btn-home');
         await waitForHome(one.tab);
 

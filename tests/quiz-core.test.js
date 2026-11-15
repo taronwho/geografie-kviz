@@ -95,9 +95,13 @@ test('přijímané odpovědi: název i titulek článku, u státu i běžné ná
 });
 
 test('body podle nápověd a napsané odpovědi', () => {
-    // Bez nápovědy 4 body, každá nápověda o bod méně (level = 1 + použité nápovědy), aspoň 1; psaná odpověď dvojnásobek
+    // Bez nápovědy 4 body, každá nápověda o bod méně (level = 1 + použité nápovědy), aspoň 1; psaná odpověď (jen hra pro jednoho hráče)
+    // 1,5× zaokrouhleno na celé body; starší psaná výzva dvojnásobek (LEGACY_TYPED_FACTOR)
     assert.deepEqual([1, 2, 3, 4, 5].map(level => core.pointsFor(level, false)), [4, 3, 2, 1, 1]);
-    assert.deepEqual([1, 2, 3, 4].map(level => core.pointsFor(level, true)), [8, 6, 4, 2]);
+    assert.deepEqual([1, 2, 3, 4].map(level => core.pointsFor(level, true)), [6, 5, 3, 2]);
+    assert.equal(core.TYPED_FACTOR, 1.5);
+    assert.deepEqual([1, 2, 3, 4].map(level => core.pointsFor(level, core.LEGACY_TYPED_FACTOR)), [8, 6, 4, 2]);
+    assert.ok([1, 2, 3, 4].every(level => Number.isInteger(core.pointsFor(level, true))));
     assert.equal(core.formatPoints(1), '1 bod');
     assert.equal(core.formatPoints(3), '3 body');
     assert.equal(core.formatPoints(6), '6 bodů');

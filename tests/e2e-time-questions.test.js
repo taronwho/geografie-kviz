@@ -186,7 +186,7 @@ test('Časové souvislosti v prohlížeči', { skip: !chromium && 'Playwright ne
         assert.match(data.question.title, /až po smrti této osobnosti\?$/);
         assert.equal(await tab.locator('#answer-input').count(), 0, 'bez pole pro psaní');
         assert.equal(await tab.locator('[data-action="choice"]').count(), 4);
-        assert.match(await tab.textContent('#app-content'), /Za 8 bodů/);
+        assert.match(await tab.textContent('#app-content'), /Za 6 bodů/);
         // Panel s osobností nahoře, možnosti pod ním (pole pro psaní nahoru kvůli klávesnici tu není)
         const lead = await tab.locator('[data-time-lead]').boundingBox();
         const choice = await tab.locator('[data-action="choice"]').first().boundingBox();
@@ -197,7 +197,7 @@ test('Časové souvislosti v prohlížeči', { skip: !chromium && 'Playwright ne
         await tab.waitForSelector('[data-time-explain]');
         const round = (await session(tab)).round;
         assert.equal(round.correct, true);
-        assert.equal(round.points, 8);
+        assert.equal(round.points, 6);
         assert.equal(round.typed, false, 'odpověď z možností (odznak za psaní se nepočítá)');
         assert.match(await tab.textContent('[data-time-explain]'), /po smrti/);
         assert.deepEqual(problems, []);

@@ -27,7 +27,7 @@
             action: { kind: 'quiz', label: 'Zahrát Kvíz dne' }, ready: (u) => u.quiz, used: (u) => num(u.counters.quizDone) > 0 },
         { id: 'tajemna', icon: 'telescope', art: 'sova-dalekohled', after: 9, title: 'Tajemná otázka dne', text: 'Na úvodní obrazovce je každý den tajemná otázka, stejná pro všechny. Nápovědy přibývají během dne: ano/ne, vzdálenost od Prahy, doba, indicie, nakonec fotka. Máš 3 pokusy a čím dřív uhodneš, tím víc bodů. Druhý den uvidíš odpověď a kolik hráčů ji uhodlo.',
             action: { kind: 'mystery', label: 'Hádat' }, ready: (u) => u.mystery, used: (u) => num(u.counters.mysterySolved) > 0 },
-        { id: 'psani', icon: 'keyboard', after: 12, title: 'Těžší varianta: psaní', text: 'V Nastavení na záložce Hra můžeš místo výběru z možností zvolit Psaní odpovědi. Za správnou odpověď pak dostaneš dvojnásobek bodů. Na diakritice, velkých písmenech ani drobném překlepu nezáleží.',
+        { id: 'psani', icon: 'keyboard', after: 12, title: 'Těžší varianta: psaní', text: 'V Nastavení na záložce Hra můžeš místo výběru z možností zvolit Psaní odpovědi. Za správnou odpověď dostaneš 1,5× víc bodů. Platí jen ve hře pro jednoho hráče, výzvy a turnaje mají vždy možnosti.',
             action: { kind: 'settings', tab: 'game', label: 'Otevřít Nastavení' }, used: (u) => num(u.counters.typedCorrect) > 0 },
         { id: 'uceni', icon: 'graduation-cap', after: 6, title: 'Učení', text: 'V Učení si projdeš všechna témata a jejich okruhy a uvidíš, co už znáš a co ještě ne. Hodí se to i jako příprava na výzvu.',
             action: { kind: 'learn', label: 'Do Učení' }, used: (u) => Boolean(u.visited.learn) },
@@ -35,6 +35,9 @@
             action: { kind: 'modes', label: 'Vybrat hru' }, ready: (u) => u.modes, used: (u) => num(u.counters.blitzGames) + num(u.counters.survivalGames) > 0 },
         { id: 'turnaj', icon: 'trophy', multi: true, account: true, after: 14, title: 'Týdenní turnaj', text: 'Každý týden začíná turnaj. Každý den se hraje jedno kolo: 10 otázek proti jednomu soupeři a kdo vyhraje, postupuje do dalšího kola. Přihlásit se můžeš na záložce Více hráčů.',
             action: { kind: 'multi', label: 'Zobrazit' }, used: (u) => num(u.counters.tourPlayed) > 0 },
+        // Hlasování o tématu speciálního turnaje (schéma 31): jen s databází, která hlasování má; kdo už hlasoval, tip nepotřebuje
+        { id: 'hlasovani', icon: 'sparkles', multi: true, account: true, after: 15, title: 'Hlasuj o speciálním turnaji', text: 'Na záložce Více hráčů je v kartě Turnaje hlasování o tématu dalšího speciálního turnaje. Vyber jedno ze 4 témat a hned uvidíš, jak hlasují ostatní. Hlas můžeš měnit, dokud hlasování běží.',
+            action: { kind: 'multi', label: 'Hlasovat' }, ready: (u) => u.poll, used: (u) => Boolean(u.visited.poll) },
         { id: 'procvic', icon: 'repeat', after: 14, title: 'Procvičování chyb', text: 'Otázky, ve kterých chybuješ, se ti vrátí k procvičení po 1, 3, 7, 14 a 30 dnech. Najdeš je v Učení. Vypnout to můžeš v Nastavení na záložce Hra.',
             action: { kind: 'learn', label: 'Do Učení' }, ready: (u) => u.reviewOn, used: (u) => num(u.counters.reviewed) > 0 || !u.reviewOn },
         { id: 'nahodny', icon: 'shuffle', multi: true, account: true, after: 20, title: 'Nemáš s kým hrát?', text: 'Na záložce Více hráčů klepni na Náhodný soupeř. Najdu ti jiného hráče a hra začne hned.',
@@ -120,7 +123,7 @@
 
     const EMPTY = { seen: [], day: '', n: 0, lastAt: 0, off: false, visited: {} };
     // Navštívené části hry (tip o nich už není potřeba): Učení, Můj postup, Vzhled, Diplomy, Sezóna, Album, Vitrína, Kronika týdne
-    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle', 'gold', 'conquest', 'bets', 'conquestInvite'];
+    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle', 'gold', 'conquest', 'bets', 'conquestInvite', 'poll'];
     const parse = (value) => {
         const v = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
         const visited = {};
@@ -158,6 +161,7 @@
             gold: ctx.gold !== false,
             boss: ctx.boss !== false,
             bets: Boolean(ctx.bets),
+            poll: ctx.poll !== false,
             chain: ctx.chain !== false };
         const answered = num(u.counters.answered);
         return TIPS.find(tip => {
