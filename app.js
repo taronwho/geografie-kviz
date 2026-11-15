@@ -670,7 +670,7 @@
         const showShort = tight && narrow ? 'short:inline max-[400px]:inline' : tight ? 'short:inline' : 'max-[400px]:inline';
         const name = (tight || narrow) && tier.short !== tier.title ? `<span class="${hideFull}">${tier.title}</span><span class="hidden ${showShort}" aria-label="${tier.title}">${tier.short}</span>` : tier.title;
         return `
-        <button type="button" data-tier="${key}" aria-pressed="${settings.tier === key}"${brief ? ` title="${escapeHtml(`${tier.title}: ${raw}`)}"` : tight ? ` title="${text}"` : ''} class="rounded-2xl border-2 px-2.5 py-2 text-left transition-colors active:scale-[0.98] ${tight ? 'short:min-h-[2.75rem] short:py-1.5 ' : narrow ? 'short:min-h-[2.5rem] short:py-1 ' : ''}${settings.tier === key ? on : TOGGLE_OFF}">
+        <button type="button" data-tier="${key}" aria-pressed="${settings.tier === key}"${brief ? ` title="${escapeHtml(`${tier.title}: ${raw}`)}"` : tight ? ` title="${text}"` : ''} class="rounded-2xl border-2 px-2.5 py-2 text-left transition-colors active:scale-[0.98] ${tight ? 'short:min-h-[2.75rem] short:py-1.5 tiny:min-h-[2.5rem] tiny:py-1 ' : narrow ? 'short:min-h-[2.5rem] short:py-1 ' : ''}${settings.tier === key ? on : TOGGLE_OFF}">
             <span class="block text-sm font-black leading-tight">${name}</span>
             <span class="mt-0.5 block text-[11px] font-semibold leading-snug opacity-90${brief || tight ? ' short:hidden' : ''}">${brief ? TIER_BRIEF[key] : text}</span>
         </button>`;
@@ -2225,20 +2225,20 @@
         // Nahoře velká tlačítka Hrát, pod ním v jednom řádku Bleskovka, Přežití a Ukaž na mapě (lepkavě: při posouvání dlouhého výběru
         // zůstanou vidět), pod nimi výběr témat či kategorií a obtížnost. Okno jako Nastavení: skoro přes celou výšku, ať se vejde bez posouvání.
         overlay.innerHTML = `
-            <div class="${previous ? '' : 'fade-in '}max-h-[94dvh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-slate-50 px-4 pb-4 pt-4 shadow-2xl short:max-h-[calc(100dvh-0.75rem)] short:pb-3 short:pt-3 dark:bg-slate-900">
-                <div class="mb-2 flex items-center gap-3 short:mb-1.5">
-                    ${topicIcon(topic, 'h-12 w-12 short:h-10 short:w-10', `shrink-0 rounded-2xl bg-gradient-to-br p-2.5 short:p-2 text-white ${style.tile}`, 'h-6 w-6')}
+            <div class="${previous ? '' : 'fade-in '}max-h-[94dvh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-slate-50 px-4 pb-4 pt-4 shadow-2xl short:max-h-[calc(100dvh-0.75rem)] short:pb-3 short:pt-3 tiny:pb-2.5 tiny:pt-2.5 dark:bg-slate-900">
+                <div class="mb-2 flex items-center gap-3 short:mb-1.5 tiny:mb-1">
+                    ${topicIcon(topic, 'h-12 w-12 short:h-10 short:w-10 tiny:h-9 tiny:w-9', `shrink-0 rounded-2xl bg-gradient-to-br p-2.5 short:p-2 text-white ${style.tile}`, 'h-6 w-6')}
                     <div class="min-w-0 flex-1">
                         <h2 id="chooser-title" class="text-lg font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(topic.title)}</h2>
                         ${noteInHead
                             ? `<p id="chooser-note" class="text-sm font-semibold leading-snug text-rose-700 short:text-xs dark:text-rose-400" role="status">${escapeHtml(note)}</p>`
-                            : `<p class="text-sm leading-snug text-slate-500 short:text-xs dark:text-slate-400">${isMix ? 'Z jakých témat chceš otázky?' : 'Co chceš hrát?'}</p>`}
+                            : `<p class="text-sm leading-snug text-slate-500 short:text-xs tiny:hidden dark:text-slate-400">${isMix ? 'Z jakých témat chceš otázky?' : 'Co chceš hrát?'}</p>`}
                     </div>
                     <button type="button" data-close aria-label="Zavřít" class="-m-0.5 rounded-xl p-2.5 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
                 </div>
-                <div data-chooser-actions class="sticky -top-4 z-10 -mx-4 bg-slate-50 px-4 pb-2 pt-1 short:-top-3 dark:bg-slate-900">
+                <div data-chooser-actions class="sticky -top-4 z-10 -mx-4 bg-slate-50 px-4 pb-2 pt-1 short:-top-3 tiny:-top-2.5 tiny:pb-1.5 tiny:pt-0.5 dark:bg-slate-900">
                 ${noteInHead ? '' : `<p id="chooser-note" class="${note ? 'mb-1.5 ' : ''}text-sm font-semibold text-rose-700 dark:text-rose-400" role="status">${escapeHtml(note)}</p>`}
-                <button type="button" data-chooser-play class="flex w-full items-center justify-center gap-2 rounded-[1.2rem] py-3.5 text-xl font-black text-white shadow-lg transition-all active:scale-95 short:py-2 ${style.button} btn-3d">
+                <button type="button" data-chooser-play class="flex w-full items-center justify-center gap-2 rounded-[1.2rem] py-3.5 text-xl font-black text-white shadow-lg transition-all active:scale-95 short:py-2 tiny:py-1.5 ${style.button} btn-3d">
                     <i data-lucide="play" class="h-6 w-6"></i> Hrát
                 </button>
                 ${modeChooserButtons(Boolean(MapQuestion && (isMix || MAP_TOPICS.includes(chooser.topic))))}
@@ -2247,8 +2247,8 @@
                     <h3 class="${SETTINGS_HEADING}">${isMix ? 'Témata' : 'Kategorie'}</h3>
                     <span class="-my-3 flex"><button type="button" data-chooser-all class="rounded-lg px-2 py-3 text-xs font-bold ${style.text} underline-offset-2 hover:underline">Vybrat vše</button><button type="button" data-chooser-none class="rounded-lg px-2 py-3 text-xs font-bold text-slate-500 underline-offset-2 hover:underline dark:text-slate-400">Zrušit vše</button></span>
                 </div>
-                <div class="grid grid-cols-2 gap-1.5 short:gap-1" role="group" aria-label="${isMix ? 'Témata' : 'Kategorie'}">${options}</div>
-                <h3 class="${SETTINGS_HEADING} mb-1.5 mt-3 short:mb-1 short:mt-1.5">Obtížnost</h3>
+                <div class="grid grid-cols-2 gap-1.5 short:gap-1 tiny:gap-0.5" role="group" aria-label="${isMix ? 'Témata' : 'Kategorie'}">${options}</div>
+                <h3 class="${SETTINGS_HEADING} mb-1.5 mt-3 short:mb-1 short:mt-1.5 tiny:mt-1">Obtížnost</h3>
                 <div class="grid grid-cols-3 gap-1.5" role="group" aria-label="Obtížnost">${renderTierButtons(style.on, isMix ? null : topic, true, true, true)}</div>
             </div>`;
         overlay.firstElementChild.scrollTop = scroll;
@@ -2606,7 +2606,8 @@
     // Úvod se musí vejít bez posouvání. Na nízkém displeji (do 770 px) se zhustí sám (varianta short:); na vyšším se nejdřív
     // změří běžné rozložení, a když se nevejde (systémové lišty u aplikace až k okrajům ukrojí z výšky, úzký displej zalomí
     // názvy), zapne se stejné zhuštění třídou fit-short na <html> (tailwind.config.js). Přeměřuje se po vykreslení úvodu
-    // a po změně velikosti okna; mimo úvod (a na záložce Více hráčů, která se smí posouvat) zůstane poslední rozhodnutí.
+    // a po změně velikosti okna; mimo úvod zůstane poslední rozhodnutí. Záložka Více hráčů se místo toho vejde přes fitMulti
+    // (seznamy v panelu, který se posouvá uvnitř, a karta Dobývání v něm, když je toho moc).
     // Měří se výška obsahu obalu úvodu (scrollHeight obalu, ne #app-content: náběhová animace fade-in posouvá celý obal
     // a scrollHeight rodiče by přecenila). Karty, které se doplní později (Kvíz dne, Tajemná otázka, cíle), hlídá
     // MutationObserver; přeměří se v dalším snímku a jen když se výška obsahu od posledního měření změnila.
@@ -2615,7 +2616,8 @@
     const fitHome = () => {
         const root = document.documentElement;
         const wrap = appContent.firstElementChild;
-        if (screen !== 'home' || homeTab() === 'multi' || !wrap) return;
+        if (screen === 'home' && homeTab() === 'multi') { fitMulti(); return; }
+        if (screen !== 'home' || !wrap) return;
         const wasShort = root.classList.contains(FIT_SHORT);
         // Měří se bez přechodů (dlaždice mají transition-all): jinak by se hned po odebrání třídy změřila ještě zhuštěná výška
         // a úvod by po doběhnutí přechodu přetekl (fit-measure v src/input.css)
@@ -2725,7 +2727,7 @@
         const ordered = groupedTopics().flatMap(group => group.topics);
         const left = TOPICS.length - answered;
         appContent.innerHTML = `
-            <div class="fade-in flex min-h-full w-full flex-col gap-2 bg-slate-50 p-3 pb-4 short:gap-1.5 short:pb-3 dark:bg-slate-900">
+            <div class="fade-in flex ${homeTab() === 'multi' ? 'h-full' : 'min-h-full'} w-full flex-col gap-2 bg-slate-50 p-3 pb-4 short:gap-1.5 short:pb-3 dark:bg-slate-900">
                 ${renderHomeTabs()}
                 ${homeTab() === 'multi' ? renderChallengesSection() : `${specialsRow()}${mysteryHomeCard()}<section class="rounded-[1.4rem] bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 short:p-1.5 dark:bg-slate-800/70 dark:ring-slate-700/70">
                     <div class="mb-2 flex items-center justify-between gap-2 short:mb-1.5">
@@ -2744,6 +2746,7 @@
         applyProgress(appContent);
         renderIcons(appContent);
         fitHome();
+        fitMulti();
         if (homeFitObserver) { homeFitObserver.disconnect(); homeFitObserver.observe(appContent.firstElementChild, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'hidden', 'src'] }); }
         appContent.scrollTo(0, 0);
         updateControlsUI();
@@ -6659,9 +6662,10 @@
     // Tlačítko režimu v okně Co hrát (pod Hrát, všechna v jednom řádku): po dvou široké s obrázkem vedle názvu,
     // po třech (s Ukaž na mapě) svislé dlaždice s obrázkem nad názvem, ať se okno vejde na telefon bez posouvání
     // (na nejužších telefonech bez podtitulku; celý popis je v title a aria-label)
+    // (na velmi nízkém displeji, tiny:, i po třech obrázek vedle názvu a bez podtitulku, ať se okno vejde i na 320×568)
     const chooserTile = ({ attrs, art, title, sub, subCompact = sub }, compact) => compact ? `
-            <button type="button" ${attrs} class="btn-3d-light flex min-h-[2.75rem] min-w-0 flex-col items-center justify-center gap-0.5 rounded-[1.2rem] bg-white px-1 pb-1 pt-1.5 text-center text-slate-800 short:pt-1 dark:bg-slate-800 dark:text-slate-100">
-                ${art('-my-0.5 h-9 w-9 short:h-8 short:w-8')}<span class="block max-w-full text-[13px] font-black leading-tight max-[380px]:text-[12px]">${escapeHtml(title)}</span><span class="block max-w-full text-[11px] font-semibold leading-tight text-slate-500 max-[340px]:hidden dark:text-slate-400">${escapeHtml(subCompact)}</span>
+            <button type="button" ${attrs} class="btn-3d-light flex min-h-[2.75rem] min-w-0 flex-col items-center justify-center gap-0.5 rounded-[1.2rem] bg-white px-1 pb-1 pt-1.5 text-center text-slate-800 short:pt-1 tiny:flex-row tiny:gap-1 tiny:py-1 tiny:text-left dark:bg-slate-800 dark:text-slate-100">
+                ${art('-my-0.5 h-9 w-9 short:h-8 short:w-8 tiny:h-7 tiny:w-7 tiny:shrink-0')}<span class="min-w-0 tiny:flex-1"><span class="block max-w-full text-[13px] font-black leading-tight max-[380px]:text-[12px] tiny:text-[12px]">${escapeHtml(title)}</span><span class="block max-w-full text-[11px] font-semibold leading-tight text-slate-500 max-[340px]:hidden tiny:hidden dark:text-slate-400">${escapeHtml(subCompact)}</span></span>
             </button>` : `
             <button type="button" ${attrs} class="btn-3d-light flex min-h-[3.5rem] min-w-0 items-center gap-2.5 rounded-[1.2rem] bg-white px-3 py-2 text-left short:min-h-[2.75rem] short:py-1 text-slate-800 dark:bg-slate-800 dark:text-slate-100">
                 ${art('h-10 w-10 short:h-9 short:w-9')}<span class="min-w-0"><span class="block text-[15px] font-black leading-tight">${escapeHtml(title)}</span><span class="block text-[11px] font-semibold leading-tight text-slate-500 dark:text-slate-400">${escapeHtml(sub)}</span></span>
@@ -6677,7 +6681,7 @@
         if (withMap) tiles.push({ attrs: `data-chooser-map title="${mapLabel}" aria-label="${mapLabel}"`, art: (cls) => uiArt('rezim-mapa', cls), title: 'Ukaž na mapě', sub: 'jen otázky na mapě · zkušební režim', subCompact: 'zkušební režim' });
         if (!tiles.length) return '';
         const compact = tiles.length > 2;
-        return `<div class="mt-2 grid ${compact ? 'grid-cols-3' : tiles.length === 2 ? 'grid-cols-2' : 'grid-cols-1'} gap-2 short:mt-1.5">${tiles.map(tile => chooserTile(tile, compact)).join('')}</div>`;
+        return `<div class="mt-2 grid ${compact ? 'grid-cols-3' : tiles.length === 2 ? 'grid-cols-2' : 'grid-cols-1'} gap-2 short:mt-1.5 tiny:mt-1 tiny:gap-1.5">${tiles.map(tile => chooserTile(tile, compact)).join('')}</div>`;
     };
     const modeActions = {
         'mode-start': () => startModeGame(),
@@ -7024,13 +7028,13 @@
             </button>`;
     };
     const incomingRow = (invite) => `
-        <button type="button" data-action="challenge-open" data-code="${escapeHtml(invite.id)}" class="flex w-full items-center gap-2.5 rounded-2xl bg-gold-50 p-2 text-left shadow-sm ring-1 ring-gold-300/70 active:scale-[0.98] dark:bg-gold-900/20 dark:ring-gold-700/60">
-            ${avatarHtml(invite.creator, 'h-10 w-10 text-xl', true)}
+        <button type="button" data-action="challenge-open" data-code="${escapeHtml(invite.id)}" class="flex w-full items-center gap-2.5 rounded-2xl bg-gold-50 p-2 text-left shadow-sm ring-1 ring-gold-300/70 active:scale-[0.98] short:py-1 dark:bg-gold-900/20 dark:ring-gold-700/60">
+            ${avatarHtml(invite.creator, 'h-10 w-10 text-xl short:h-9 short:w-9', true)}
             <span class="min-w-0 flex-1">
                 <span class="block truncate text-[13px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(invite.creator))} tě vyzývá</span>
                 <span class="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-slate-600 dark:text-slate-400"><span class="truncate">${escapeHtml(challengeTopicTitle(invite.topic))} · ${invite.count} otázek</span>${betBadge(invite.id)}</span>
             </span>
-            <span class="flex shrink-0 items-center gap-1 rounded-xl bg-gold-500 px-3.5 py-2 text-[13px] font-black text-brand-950 shadow-sm"><i data-lucide="play" class="h-3.5 w-3.5"></i>Hrát</span>
+            <span class="flex min-h-[2.5rem] shrink-0 items-center gap-1 rounded-xl bg-gold-500 px-3.5 text-[13px] font-black text-brand-950 shadow-sm"><i data-lucide="play" class="h-3.5 w-3.5"></i>Hrát</span>
         </button>`;
     // Rating a ligy (rating.js; počítá je databáze po dohrání výzvy proti jinému hráči). Barvy lig jsou třídy .league-* v src/input.css.
     const Rating = window.MudrlantRating;
@@ -7372,14 +7376,15 @@
     };
     // Rychlé akce: tři dlaždice (Vyzvat, Náhodný soupeř, Zadat kód) a pod nimi drobný čip s nastavením přijímaných výzev
     // Na nízkém displeji (short:) menší ikony a nižší dlaždice, ať se nad ohyb vejde i liga
-    const QUICK_TILE = 'flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 text-center text-[12px] font-black leading-tight short:min-h-[3.75rem] short:gap-0.5 short:py-1.5';
+    // Na nízkém displeji obrázek vedle popisku a dlaždice 44 px vysoké (záložka Více hráčů se vejde bez posouvání)
+    const QUICK_TILE = 'flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 text-center text-[12px] font-black leading-tight short:min-h-[2.75rem] short:flex-row short:gap-1 short:py-1 short:text-left short:text-[11.5px]';
     // Kostky a klíč jsou vzdušnější kresby než meče u Vyzvat: obrázek je o kousek větší, místo zabere stejné (h-9, na nízkém displeji h-7)
-    const QUICK_ART = 'h-11 w-11 -my-1 short:h-8 short:w-8 short:-my-0.5';
+    const QUICK_ART = 'h-11 w-11 -my-1 short:h-8 short:w-8 short:-my-1 short:-mx-1 short:shrink-0';
     const QUICK_LIGHT = 'bg-white text-slate-800 shadow-sm ring-1 ring-slate-200/70 active:scale-95 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700/70';
     const quickActions = () => `
-        <div class="flex flex-col gap-1.5">
-            <div class="grid grid-cols-3 gap-2">
-                <button type="button" data-action="new-challenge" class="${QUICK_TILE} btn-3d bg-brand-700 text-white">${uiArt('vyzva', 'h-9 w-9 short:h-7 short:w-7')}Vyzvat</button>
+        <div class="flex shrink-0 flex-col gap-1.5 short:gap-1">
+            <div class="grid grid-cols-3 gap-2 short:gap-1.5">
+                <button type="button" data-action="new-challenge" class="${QUICK_TILE} btn-3d bg-brand-700 text-white">${uiArt('vyzva', 'h-9 w-9 short:h-6 short:w-6 short:shrink-0')}Vyzvat</button>
                 <button type="button" data-action="random-challenge" class="${QUICK_TILE} ${QUICK_LIGHT}">${uiArt('nahodny', QUICK_ART)}Náhodný soupeř</button>
                 <button type="button" data-action="join-challenge" class="${QUICK_TILE} ${QUICK_LIGHT}">${uiArt('kod', QUICK_ART)}Zadat kód</button>
             </div>
@@ -7441,21 +7446,25 @@
         // Přátelé (friends.js): žádosti o přátelství mezi tím, co čeká; pás přátel pod rychlými akcemi (jen když nějací jsou)
         const social = Friends ? Friends.split(friendRows) : { friends: [], incoming: [] };
         const requests = Friends ? Friends.requestRows(social.incoming, friendsHelpers()) : '';
-        const waiting = incoming.length || requests ? `<div class="flex flex-col gap-1.5"><p class="flex items-center gap-1.5 ${LABEL}"><span class="h-2 w-2 rounded-full bg-gold-500"></span>Čekají na tebe</p>${incoming.slice(0, 5).map(incomingRow).join('')}${requests}</div>` : '';
+        const waiting = incoming.length || requests ? `<div class="flex shrink-0 flex-col gap-1.5 short:gap-1"><p class="flex items-center gap-1.5 ${LABEL}"><span class="h-2 w-2 rounded-full bg-gold-500"></span>Čekají na tebe</p>${incoming.slice(0, 5).map(incomingRow).join('')}${requests}</div>` : '';
         const friendsStrip = Friends ? Friends.friendsStrip(social.friends, friendsHelpers()) : '';
         // Zápas turnaje, který se hraje dnes, je mezi tím, co čeká: karta turnaje se zlatým Hrát jde nahoru
         const tournamentFirst = tournamentWaits();
+        // Záložka se neposouvá: nahoře to, co čeká, a rychlé akce; přátelé, liga a poslední výzvy pod nimi v panelu, který vyplní zbytek
+        // obrazovky a posouvá se jen uvnitř (seznam výzev je dlouhý a dál se načítá), když se všechno nevejde
         return `
-            <div class="flex flex-col gap-2.5">
+            <div class="flex min-h-0 flex-1 flex-col gap-2.5 short:gap-1.5 [&>*]:shrink-0">
                 ${ConquestUI ? ConquestUI.cardHtml() : ''}
                 ${resume}
                 ${tournamentFirst ? tournamentCard() : ''}
                 ${waiting}
                 ${tournamentFirst ? '' : tournamentCard()}
                 ${quickActions()}
-                ${friendsStrip}
-                ${leagueCard()}
-                ${recentSection(incoming)}
+                <div data-multi-more data-scroll-list class="relative -mx-3 -mb-1 flex min-h-[5rem] flex-1 flex-col gap-2.5 overflow-y-auto overscroll-y-contain px-3 pb-1 short:gap-1.5 [&>*]:shrink-0">
+                    ${friendsStrip}
+                    ${leagueCard()}
+                    ${recentSection(incoming)}
+                </div>
             </div>`;
     };
     // Pomocné funkce pro friends.js: obrázek hráče a zápis hráče mezi známé (klepnutí na něj otevře profil)
@@ -7489,16 +7498,35 @@
         }
         paintChallenges();
     };
-    const renderChallengesSection = () => Auth && Auth.isConfigured() && Social ? `<section id="challenges-section">${challengesInner()}</section>` : '';
+    const renderChallengesSection = () => Auth && Auth.isConfigured() && Social ? `<section id="challenges-section" class="flex min-h-0 flex-1 flex-col">${challengesInner()}</section>` : '';
     const paintChallenges = () => {
         if (screen !== 'home') return;
         const tabs = document.getElementById('home-tabs');
         if (tabs) { tabs.outerHTML = renderHomeTabs(); renderIcons(document.getElementById('home-tabs')); }
         const element = document.getElementById('challenges-section');
         if (!element) return;
+        // Překreslení (načtení přátel, starších výzev) nesmí panel se seznamy posunout nahoru
+        const panel = element.querySelector('[data-multi-more]');
+        const scroll = panel ? panel.scrollTop : 0;
         element.innerHTML = challengesInner();
         renderIcons(element);
+        fitMulti();
+        const again = element.querySelector('[data-multi-more]');
+        if (again && scroll) again.scrollTop = scroll;
         watchRecentEnd();
+    };
+    // Vejde se záložka Více hráčů bez posouvání? Když ne ani s panelem seznamů v nejmenší výšce (dnešní zápas turnaje a pozvánky
+    // na nízkém displeji), karta Dobývání se přesune na začátek panelu (posouvá se s ním); jinak zůstane nahoře. Volá se po vykreslení
+    // a z fitHome při změně obsahu (MutationObserver): fitSeen pak nese změřenou výšku, ať přesun karty neměří znovu dokola.
+    const fitMulti = () => {
+        const section = document.getElementById('challenges-section');
+        const stack = section && section.firstElementChild;
+        const panel = section && section.querySelector('[data-multi-more]');
+        const card = document.getElementById('conquest-card');
+        if (!stack || !panel || !card || screen !== 'home' || homeTab() !== 'multi' || !appContent.clientHeight) return;
+        if (card.parentElement !== stack) stack.prepend(card);
+        if (appContent.scrollHeight > appContent.clientHeight + 1) panel.prepend(card);
+        if (appContent.firstElementChild) fitSeen = appContent.firstElementChild.scrollHeight;
     };
     // Starší výzvy: další stránka od nejstarší načtené (podle času dohrání)
     const loadOlderChallenges = async () => {
@@ -7529,7 +7557,7 @@
         if (!sentinel || recentOlder.loading || recentOlder.error || typeof IntersectionObserver === 'undefined') return;
         recentObserver = new IntersectionObserver((entries) => {
             if (entries.some(entry => entry.isIntersecting)) { recentObserver.disconnect(); recentObserver = null; loadOlderChallenges(); }
-        }, { root: appContent, rootMargin: '0px 0px 200px 0px' });
+        }, { root: sentinel.closest('[data-multi-more]') || appContent, rootMargin: '0px 0px 200px 0px' });
         recentObserver.observe(sentinel);
     };
     const refreshChallenges = async () => {
@@ -8581,13 +8609,17 @@
             body = `${Album.albumHtml(album, { section: albumView.section, badges: progress.badges, worn: albumWorn(), wornLook: look ? look.topic : null }, h)}${STICKY_BACK()}`;
         }
         const overlay = showDialog('Album sbírky', body, { onClick: albumClick });
+        // Přehled alba: okno je sloupec v celé výšce a dlouhá mřížka se posouvá uvnitř sekce (Album.sectionHtml), okno ani stránka ne
+        if (!albumView.rewards && !found) overlay.firstElementChild.classList.add('flex', 'flex-col');
         applyProgress(overlay);
-        if (scrollTo !== null) overlay.firstElementChild.scrollTop = scrollTo;
+        if (scrollTo !== null) albumScroller(overlay).scrollTop = scrollTo;
         const target = focus ? overlay.querySelector(focus) : null;
         if (target) target.focus({ preventScroll: scrollTo !== null });
     };
+    // Co se v okně alba posouvá: mřížka sekce (přehled), jinak panel okna (podrobnosti, odměny)
+    const albumScroller = (overlay) => overlay.querySelector('[data-album-scroll]') || overlay.firstElementChild;
     const albumClick = (event) => {
-        const panel = document.getElementById('dialog-overlay').firstElementChild;
+        const panel = albumScroller(document.getElementById('dialog-overlay'));
         if (event.target.closest('[data-album-back]')) {
             const from = albumView.detail;
             albumView = { ...albumView, detail: null, rewards: false, note: '' };
@@ -8851,7 +8883,7 @@
                 body = `
                     <div class="rounded-2xl bg-white p-2 shadow-sm dark:bg-slate-800" data-player-stats>
                         <div class="grid grid-cols-3 divide-x divide-slate-200 dark:divide-slate-700">${stat('Výzvy', stats.games)}${stat('Úspěšnost', percent)}${stat('Nejlepší', stats.best ? `${stats.best.correct}/${stats.best.count}` : '–')}</div>
-                        <div class="mt-2 border-t border-slate-200 pt-2 dark:border-slate-700">${versus}</div>
+                        <div class="mt-2 border-t border-slate-200 pt-2 short:mt-1.5 short:pt-1.5 dark:border-slate-700">${versus}</div>
                         ${theirBets && theirBets.bets ? `<div class="mt-2 border-t border-slate-200 pt-2 dark:border-slate-700${menuOpen || view === 'block' ? ' short:hidden' : ''}">${Bets.balanceHtml(theirBets, betHelpers())}</div>` : ''}
                     </div>
                     <div>

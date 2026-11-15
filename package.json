@@ -37,7 +37,8 @@
     "audit:otazky": "node scripts/audit-questions.mjs",
     "audit:mapa": "node scripts/audit-mapa.mjs",
     "audit:souvislosti": "node scripts/audit-souvislosti.mjs",
-    "audit:retezovka": "node scripts/audit-retezovka.mjs --label=after"
+    "audit:retezovka": "node scripts/audit-retezovka.mjs --label=after",
+    "audit:moznosti": "node scripts/sample-choices.mjs"
   },
   "devDependencies": {
     "web-push": "^3.6.7"

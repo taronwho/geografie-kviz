@@ -766,6 +766,13 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             await shot(tab, `kronika-${width}-${colorScheme}`);
             await tab.keyboard.press('Escape');
             assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+            // Kronika pod mapou: aspoň tři celé události i na 360×640 (na nízkém displeji je událost na jednom řádku a mapa ustoupí)
+            const visibleEvents = await tab.evaluate(() => {
+                const card = document.querySelector('[data-cq-recent] .cq-feed-list').getBoundingClientRect();
+                return [...document.querySelectorAll('[data-cq-recent] .cq-feed-row')].filter(row => row.getBoundingClientRect().bottom <= card.bottom + 0.5).length;
+            });
+            assert.ok(visibleEvents >= 3, `vidět ${visibleEvents} událostí kroniky`);
+            await shot(tab, `kronika-pod-mapou-${width}-${colorScheme}`);
             // Zpět z mapy na Moje hry
             await tab.click('#conquest-game [data-cq="hub"]');
             await tab.waitForSelector('#conquest-hub [data-cq-play]');

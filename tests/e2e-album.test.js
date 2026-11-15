@@ -1,5 +1,5 @@
-// Album sbírky v prohlížeči (album.js, app.js): dlaždice v Mém postupu, okno alba se sekcemi (bez posouvání, jen dlouhé Odznaky se posouvají
-// a tlačítko zpět zůstane vidět), podrobnosti věci a Nasadit (doplněk, téma, rámeček, titul u jména), oslava milníku jednou a rámeček
+// Album sbírky v prohlížeči (album.js, app.js): dlaždice v Mém postupu, okno alba se sekcemi (okno ani stránka se neposouvají, dlouhá mřížka
+// doplňků a odznaků se posouvá uvnitř sekce a nadpis, záložky i tlačítko zpět zůstanou vidět), podrobnosti věci a Nasadit (doplněk, téma, rámeček, titul u jména), oslava milníku jednou a rámeček
 // Sběratelský za celé album. Data jsou testovací (localStorage), jako ve vývojářském režimu. Telefon 390×780 i 360×640, světlý i tmavý
 // režim, bez chyb CSP. MUDRLANT_SHOTS=… uloží snímky.
 const test = require('node:test');
@@ -158,16 +158,18 @@ test('album sbírky: sekce, podrobnosti, Nasadit a oslava milníku', { skip: !ch
                 }
                 const box = await overflow(tab);
                 assert.equal(box.x, 0, `${section}: bez vodorovného posouvání`);
-                // Doplňků Mudrlanta je přes 60 (se sadami k tématům) a postaviček s legendárními 35: sekce se posouvají (dlaždice aspoň 40 px)
-                if (section === 'badges' || section === 'accessories' || (section === 'avatars' && viewport.height < 780)) {
-                    // Dlouhý seznam se posouvá, tlačítko zpět je lepkavé a zůstane vidět
-                    assert.ok(box.y > 0);
-                    await tab.evaluate(() => { const panel = document.getElementById('dialog-overlay').firstElementChild; panel.scrollTop = panel.scrollHeight / 2; });
-                    assert.ok(await tab.locator('[data-dialog-back]').isVisible());
-                    const backBox = await tab.locator('[data-dialog-back]').boundingBox();
-                    assert.ok(backBox.y + backBox.height <= viewport.height, 'tlačítko zpět na obrazovce');
-                } else if (viewport.height >= 780) assert.equal(box.y, 0, `${section}: bez posouvání (${box.y} px)`);
-                else assert.ok(box.y <= 24, `${section}: na 360×640 nejvýš trochu (${box.y} px)`);
+                // Okno ani stránka se neposouvají; doplňků Mudrlanta je přes 60 (se sadami k tématům), odznaků přes 50 a postaviček s legendárními
+                // 35: dlouhá mřížka se posouvá uvnitř sekce (dlaždice aspoň 40 px), nadpis okna, záložky a tlačítko zpět zůstanou vidět
+                assert.equal(box.y, 0, `${section}: okno bez posouvání (${box.y} px)`);
+                const grid = await tab.evaluate(() => { const list = document.querySelector('[data-album-scroll]'); return { over: list.scrollHeight - list.clientHeight }; });
+                if (section === 'badges' || section === 'accessories') {
+                    assert.ok(grid.over > 0, `${section}: mřížka se posouvá uvnitř`);
+                    await tab.evaluate(() => { const list = document.querySelector('[data-album-scroll]'); list.scrollTop = list.scrollHeight / 2; });
+                    for (const selector of ['[data-dialog-back]', '[data-album-tab="avatars"]', '#dialog-title']) {
+                        const seen = await tab.locator(selector).boundingBox();
+                        assert.ok(seen && seen.y >= 0 && seen.y + seen.height <= viewport.height, `${section}: ${selector} na obrazovce`);
+                    }
+                }
                 await shot(tab, `album-${section}-${tag}`);
             }
             // Dlaždice jsou aspoň 40 px (dotyk)
