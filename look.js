@@ -468,8 +468,8 @@
         return Boolean(ctx) && ctx.level >= (item.level || 1);
     };
     const unlockText = (item, badgeTitle = null) => item.exclusive ? (item.month ? `Sezóna Mudrlanta (${SEASON_MONTHS[item.month - 1].toLocaleLowerCase('cs')}, ${item.seasonTier === 10 ? 'Truhla v půli sezóny na 10. stupni' : 'Sezónní truhla na 20. stupni'})` : 'Sezóna Mudrlanta (celá cesta sezóny)')
-        : item.referral ? (item.referral.includes('pritel-10') ? 'Pozvi 10 kamarádů (Více hráčů → Pozvi kamarády)' : 'Pozvi kamaráda, nebo přijď na jeho pozvánku (Více hráčů → Pozvi kamarády)')
-        : item.prestige ? 'Prestiž po úrovni 100 (Můj postup → Úrovně a tituly)'
+        : item.referral ? (item.referral.includes('pritel-10') ? 'Pozvi 10 kamarádů (Soupeři → Přátelé → Pozvi kamarády)' : 'Pozvi kamaráda, nebo přijď na jeho pozvánku (Soupeři → Přátelé → Pozvi kamarády)')
+        : item.prestige ? 'Prestiž po úrovni 100 (Postup → Úrovně a tituly)'
         : item.rare ? 'Vzácný dárek z Truhly Mudrlanta' : item.chest ? 'Z Truhly Mudrlanta' : item.diploma ? `Diplom: ${DIPLOMA_TOPICS[item.diploma] || item.diploma}`
             : item.league ? `Ligová sezóna: vrchol ${item.leagueName}` : item.badge ? `Odznak: ${badgeTitle || item.badge}` : `Úroveň ${item.level}`;
     const categoryOf = (item) => CATEGORY_OF.get(item) || null;

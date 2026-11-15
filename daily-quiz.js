@@ -360,7 +360,7 @@
         if (tab === 'friends') {
             if (friends === null || friends === undefined) body = note('Načítám přátele…');
             else if (friends === false) body = note('Přátele se teď nepodařilo načíst.');
-            else if (!friends.friends) body = note('Zatím nemáš přátele. Přidáš je v profilu hráče na záložce Více hráčů.');
+            else if (!friends.friends) body = note('Zatím nemáš přátele. Najdeš je na záložce Soupeři: u Přátel klepni na plus.');
             else if (!friends.rows.some(row => !row.me)) body = `${friends.rows.length ? `<ol class="flex flex-col gap-1.5">${friends.rows.map(row => rowHtml(row, h)).join('')}</ol>` : ''}${note('Z přátel dnes ještě nikdo nehrál.')}`;
             else body = `<ol class="flex flex-col gap-1.5">${friends.rows.map(row => rowHtml(row, h)).join('')}</ol>`;
         } else if (board === null || board === undefined) body = note('Načítám pořadí…');

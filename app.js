@@ -1539,7 +1539,7 @@
     const CLOSE_TEST = () => `<button type="button" data-close class="${PRIMARY_BUTTON}">Rozumím</button>`;
     const ENABLE_TEST = (label) => `<button type="button" data-push-test-enable class="${PRIMARY_BUTTON}"><i data-lucide="bell" class="h-5 w-5"></i> ${escapeHtml(label)}</button><button type="button" data-close class="mx-auto rounded-xl px-3 py-2 text-[13px] font-bold text-slate-600 underline underline-offset-2 dark:text-slate-300">Teď ne</button>`;
     // „Zkusit upozornění v tomto zařízení“: stránka pošle zprávu service workeru, ten ukáže upozornění stejnou funkcí jako skutečný push
-    // a klepnutí na něj otevře záložku Více hráčů (stejně jako u upozornění ze serveru)
+    // a klepnutí na něj otevře záložku Soupeři (stejně jako u upozornění ze serveru)
     const devPushLocal = () => {
         if (!Push) return;
         if (!Push.supported()) { showPushTest(`${testBox('error', 'Tenhle prohlížeč upozornění neumí')}<p class="${TEST_TEXT}">${escapeHtml(pushEnvironment() === 'ios' ? PUSH_TEXTS.iphone : 'Zkus Chrome, Firefox nebo Edge.')}</p>${CLOSE_TEST()}`); return; }
@@ -1567,7 +1567,7 @@
         if (!pushTestOpen()) { showToast(result.ok ? 'Zkušební upozornění odesláno' : 'Zkušební upozornění se nezobrazilo'); return; }
         if (result.ok) {
             showPushTest(`${testBox('ok', 'Upozornění se zobrazilo')}
-                <p class="${TEST_TEXT}">Najdeš ho v liště oznámení (na počítači v rohu obrazovky). <b>Klepni na něj</b>: aplikace se otevře na záložce Více hráčů a napíše, že klepnutí funguje.</p>
+                <p class="${TEST_TEXT}">Najdeš ho v liště oznámení (na počítači v rohu obrazovky). <b>Klepni na něj</b>: aplikace se otevře na záložce Soupeři a napíše, že klepnutí funguje.</p>
                 <p class="text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">Ukázal ho service worker stejnou funkcí jako skutečné upozornění ze serveru. Když nic nevidíš, zkontroluj režim Nerušit a oznámení prohlížeče v nastavení telefonu.</p>${CLOSE_TEST()}`);
             return;
         }
@@ -1588,7 +1588,7 @@
         if (status && status.instant && !(status.github >= 300)) {
             return `${testBox('ok', `Zkušební upozornění je na cestě (zařízení: ${devices})`)}
                 <p data-push-test-next class="${PUSH_TEST_NEXT}">Upozornění přijde do 1–2 minut.</p>
-                <p class="${PUSH_TEST_HINT}">Nic dalšího dělat nemusíš. Klepnutí na upozornění otevře záložku Více hráčů.</p>${CLOSE_TEST()}`;
+                <p class="${PUSH_TEST_HINT}">Nic dalšího dělat nemusíš. Klepnutí na upozornění otevře záložku Soupeři.</p>${CLOSE_TEST()}`;
         }
         const queued = testBox('ok', `Zkušební upozornění čeká na odeslání (zařízení: ${devices})`);
         if (status && status.instant) {
@@ -1630,7 +1630,7 @@
     // --- Nabídka upozornění: hra se sama zeptá, jestli upozornění zapnout, a vysvětlí proč ---
     // Jen když to dává smysl: přihlášený hráč, prohlížeč push umí, je klíč VAPID, prohlížeč se ještě neptal (permission 'default') a upozornění nejsou zapnutá.
     // Kdy: hned po přihlášení do turnaje, po dohrání výzvy, na jejíhož soupeře se čeká (i po založení výzvy – založení ji rovnou spustí),
-    // jinak nejdřív při 3. otevření záložky Více hráčů. „Teď ne“ (i zavření okna) = znovu nejdřív za 7 dní, celkem nejvýš 3×; po zapnutí nebo zamítnutí
+    // jinak nejdřív při 3. otevření záložky Soupeři. „Teď ne“ (i zavření okna) = znovu nejdřív za 7 dní, celkem nejvýš 3×; po zapnutí nebo zamítnutí
     // v prohlížeči už nikdy. Ne během tutoriálu, uprostřed otázky nebo zápasu, ani přes jiné otevřené okno (počká, až se zavře).
     // Na iPhonu bez přidání na plochu (push tam nejde) místo nabídky jednou krátká rada. Stav je v localStorage zvlášť pro každý účet (mudrlant.pushOffer).
     const PUSH_OFFER_KEY = 'mudrlant.pushOffer';
@@ -1666,7 +1666,7 @@
     const pushOfferFits = (context) => (context === 'multi' ? screen === 'home' && navTab === 'souperi' : true);
     let pushOfferPending = null; // { context, userId, until }
     let pushOfferTimer = 0;
-    // Naplánuje nabídku; z turnaje a výzvy počká na zavření jiného okna až 3 minuty, ze záložky Více hráčů jen chvíli (jinak příště)
+    // Naplánuje nabídku; z turnaje a výzvy počká na zavření jiného okna až 3 minuty, ze záložky Soupeři jen chvíli (jinak příště)
     const schedulePushOffer = (context) => {
         const user = signedUser();
         if (!Push || !user || !Push.configured() || (!Push.supported() && pushEnvironment() !== 'ios') || !pushOfferAllowed(pushOfferOf(user.id))) return;
@@ -2590,7 +2590,7 @@
         badge.className = place.logo ? BADGE_LOGO
             : `${BADGE_BASE} ${style ? `${style.soft} border-transparent` : 'bg-white text-slate-700 border-slate-200/60 dark:bg-slate-800 dark:border-slate-700'}`;
         badge.disabled = !place.switch && !place.logo;
-        badge.title = place.switch ? 'Změnit téma nebo co hrát' : place.logo ? (dailyFact ? 'Mudrlant: tento den v dějinách · text: můj postup' : 'Můj postup: úroveň a mistrovství témat') : '';
+        badge.title = place.switch ? 'Změnit téma nebo co hrát' : place.logo ? (dailyFact ? 'Mudrlant: tento den v dějinách · text: záložka Postup' : 'Postup: úroveň, odznaky a mistrovství témat') : '';
         badge.setAttribute('aria-label', place.switch ? `${place.text} – změnit téma` : place.logo ? `${place.text} – můj postup` : place.text);
         document.getElementById('status-switch').classList.toggle('hidden', !place.switch);
         const iconSlot = document.getElementById('status-icon-slot');
@@ -4681,7 +4681,7 @@
             // Truhla Mudrlanta: otevře se na úvodu (pruh Cíle týdne), uprostřed hry by rušila
             if (result.bonus && Rewards) {
                 saveRewards(Rewards.addChest(loadRewards(), state.week));
-                showCelebration('vitez', 'Truhla Mudrlanta', 'Je tvoje! Otevřeš ji na úvodu v pruhu Cíle týdne.', 'badge');
+                showCelebration('vitez', 'Truhla Mudrlanta', 'Je tvoje! Otevřeš ji na záložce Dnes.', 'badge');
                 syncRewards();
             }
             announce(levelBefore, levelProgress(progress.xp).level, titles);
@@ -4886,7 +4886,7 @@
         result.fresh.forEach(id => {
             if (!TOPIC_BY_ID[id]) return;
             const legend = Look && Look.rewardsForDiploma ? Look.rewardsForDiploma(id).find(entry => entry.category === 'avatars') : null;
-            showCelebration('vitez', 'Nový diplom', `${Rewards.diplomaTitle(TOPIC_BY_ID[id])} – najdeš ho v Mém postupu${legend ? `. Odměna: legendární postavička ${legend.item.title} – vyber si ji v ${rewardPlace('avatars')}` : ''}`, 'badge',
+            showCelebration('vitez', 'Nový diplom', `${Rewards.diplomaTitle(TOPIC_BY_ID[id])} – najdeš ho na záložce Postup${legend ? `. Odměna: legendární postavička ${legend.item.title} – vyber si ji v ${rewardPlace('avatars')}` : ''}`, 'badge',
                 legend ? avatarArt(legend.item.id, 'h-20 w-20 -my-4 drop-shadow-lg') : '');
         });
         syncRewards();
@@ -5311,7 +5311,7 @@
         const view = seasonView();
         if (!view) return;
         const tier = view.progress.tier;
-        if (seasonTierSeen !== null && tier > seasonTierSeen) showCelebration('oslava', `Sezóna: stupeň ${tier}`, 'Odměna čeká na úvodu.', 'badge');
+        if (seasonTierSeen !== null && tier > seasonTierSeen) showCelebration('oslava', `Sezóna: stupeň ${tier}`, 'Odměna čeká na záložce Postup.', 'badge');
         seasonTierSeen = tier;
     };
     // Nasazení věcí ze sezóny (talár, téma, rámeček, doplněk, titul); postavička a barvy se volí v Nastavení
@@ -7117,7 +7117,7 @@
     let incomingList = null;
     // Přátelé (friends.js): řádky z friends_list (null = nenačtené nebo databáze přátele nemá), reakce k posledním výzvám, moji zablokovaní (null = nenačtení)
     const Friends = window.MudrlantFriends;
-    // Skupiny (groups.js): okna a čip na záložce Více hráčů; vytvoří se u ACTIONS, až jsou pomocné funkce oken hotové
+    // Skupiny (groups.js): okna a čip na záložce Soupeři; vytvoří se u ACTIONS, až jsou pomocné funkce oken hotové
     let GroupsUI = null;
     let ConquestUI = null;
     let friendRows = null;
@@ -7444,7 +7444,7 @@
         const league = Rating.leagueFor(rating);
         return `<span class="league-fg-${league.id} inline-flex items-center gap-1 text-xs font-black">${leagueEmblem(league, 'h-4 w-4')}${escapeHtml(league.name)} · ${Rating.cleanRating(rating)}</span>`;
     };
-    // Karta „Moje liga“ na záložce Více hráčů: ikona ligy, rating, ukazatel do další ligy a tlačítko týdenního žebříčku
+    // Karta „Moje liga“ na záložce Soupeři: ikona ligy, rating, ukazatel do další ligy a tlačítko týdenního žebříčku
     const leagueCard = () => {
         if (!Rating || !myRating) return '';
         const progress = Rating.leagueProgress(myRating.rating);
@@ -10047,6 +10047,8 @@
     };
 
     const challengeHome = () => {
+        // Po výzvě se hráč vrací do okna Výzvy (po zápase turnaje do okna Turnaje) na záložce Soupeři: tam je výsledek mezi posledními výzvami
+        if (challenge && multiOn() && signedUser()) setNav('souperi', challenge.tournament ? 'turnaje' : 'vyzvy');
         // Výzva, jejíž výsledek se nepodařilo odeslat, zůstává: úvod nabídne její dokončení
         if (!ownChallengeInProgress()) challenge = latestOpenChallenge();
         mode = 'daily';
@@ -12024,7 +12026,7 @@
     }
 
     // --- Týdenní turnaje ---
-    // Pravidla a posun kol dělá databáze (supabase/schema.sql) a čistá logika je v tournament.js; tady se zobrazí karta na záložce Více hráčů,
+    // Pravidla a posun kol dělá databáze (supabase/schema.sql) a čistá logika je v tournament.js; tady se zobrazí karta na záložce Soupeři,
     // okno s koly a zápasy a hra zápasu (otázky z pevného semínka stejně jako ve výzvě, ale bez zápisu do tabulky výzev).
     const Tournament = window.MudrlantTournament;
     const TOUR_XP_KEY = 'mudrlant.tourXp';
@@ -12166,7 +12168,7 @@
         });
     };
 
-    // --- Pozvánka do turnaje: malé okno při přepnutí na Více hráčů při každém druhém spuštění aplikace; žárovka u sovy i v singlu nejvýš 2× denně ---
+    // --- Pozvánka do turnaje: malé okno při přepnutí na záložku Soupeři při každém druhém spuštění aplikace; žárovka u sovy i v singlu nejvýš 2× denně ---
     const PROMO_KEY = 'mudrlant.tourPromo';
     const readPromo = () => {
         const saved = readJson(PROMO_KEY);
@@ -12505,7 +12507,7 @@
                 </li>`;
             showDialog('Odměny ze Sezóny', `<div class="flex flex-col gap-2">
                     <p class="text-[13px] leading-snug text-slate-600 dark:text-slate-300">Titul a věci ze Sezóny Mudrlanta jdou vystavit ve vitríně. Jinak se získat nedají.</p>
-                    ${list.length ? `<ul class="flex flex-col gap-1.5">${list.map(row).join('')}</ul>` : '<p class="rounded-2xl bg-white p-3 text-center text-[13px] font-semibold text-slate-500 shadow-sm dark:bg-slate-800 dark:text-slate-400">Zatím nemáš nic ze Sezóny Mudrlanta. Titul Šampion sezóny a věci měsíce dává cesta odměn sezóny (Můj postup).</p>'}
+                    ${list.length ? `<ul class="flex flex-col gap-1.5">${list.map(row).join('')}</ul>` : '<p class="rounded-2xl bg-white p-3 text-center text-[13px] font-semibold text-slate-500 shadow-sm dark:bg-slate-800 dark:text-slate-400">Zatím nemáš nic ze Sezóny Mudrlanta. Titul Šampion sezóny a věci měsíce dává cesta odměn sezóny (záložka Postup).</p>'}
                     ${dialogBackButton('mt-1')}
                 </div>`, {
                 onClick: (event) => {
@@ -12642,7 +12644,7 @@
         }
     };
 
-    // Načte turnaje: nejdřív je posune (tick), pak seznam, zprávy a (na záložce Více hráčů nebo s force) přihlášky a zápasy. Chyba spojení nic nepřepíše.
+    // Načte turnaje: nejdřív je posune (tick), pak seznam, zprávy a (na záložce Soupeři nebo s force) přihlášky a zápasy. Chyba spojení nic nepřepíše.
     const refreshTournaments = async ({ force = false } = {}) => {
         const user = signedUser();
         if (!user || !Social || !Tournament) return;
@@ -13649,7 +13651,7 @@
     };
 
     // Klepnutí na upozornění: ?tab=… v adrese (aplikace byla zavřená) nebo zpráva od service workeru (běžela) otevře záložku.
-    // Upozornění posílají multi (Soupeři; dřív záložka Více hráčů) a single (Dnes); platí i názvy záložek (dnes, hrat, souperi, postup, ja).
+    // Upozornění posílají multi (Soupeři; dřív záložka Soupeři) a single (Dnes); platí i názvy záložek (dnes, hrat, souperi, postup, ja).
     const PUSH_TABS = { multi: 'souperi', single: 'dnes' };
     const pushTabOf = (tab) => (PUSH_TABS[tab] || (NAV_TABS.some(([id]) => id === tab) ? tab : ''));
     const openHomeTabFromPush = (tab) => {
@@ -13703,7 +13705,7 @@
         });
     }
 
-    // Dobývání (conquest.js, conquest-ui.js): karta na záložce Více hráčů, rozcestník her a obrazovka hry 'conquest'.
+    // Dobývání (conquest.js, conquest-ui.js): karta na záložce Soupeři, rozcestník her a obrazovka hry 'conquest'.
     // Mapa se načte až při použití (data/dobyvani-<mapa>.json), otázky z dat témat Zeměpis, Vlajky a znaky, Architektura, Historie,
     // Literatura, Hudba, Umění, Film, Sport, Fyzika, Chemie, Biologie a Mytologie (stavby, osobnosti, díla, místa, události: popis,
     // fakta, obrázek a letopočet jako v běžné hře přes conquestRound; k tomu mapa, odhad čísla, vlajka, hlavní město a soused).
@@ -14153,7 +14155,7 @@
             // Upozornění na útok v Dobývání: rovnou hra (ConquestUI.openCode otevře hru, kterou hráč hraje)
             const conquestCode = ConquestUI ? ConquestUI.parseCode(String(event.data.dobyvani || '')) : '';
             if (conquestCode) ConquestUI.openCode(conquestCode);
-            if (test) showToast('Klepnutí na upozornění funguje: otevřela se záložka Více hráčů');
+            if (test) showToast('Klepnutí na upozornění funguje: otevřela se záložka Soupeři');
         });
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState !== 'visible') return;

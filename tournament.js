@@ -177,7 +177,7 @@
         'Ve dvojici rozhodují body (nápověda bod ubere), při shodě počet správných odpovědí, pak rychlost a nakonec dřívější přihláška.',
         'Kdo kolo neodehraje, prohrává kontumačně a vypadává. Poražení semifinalisté hrají o 3. místo v posledním kole.',
         `Za každý vyhraný zápas dostaneš XP jako v týdenním turnaji: ${WIN_XP} v 1. kole a s každým dalším kolem o ${WIN_XP_STEP} víc.`,
-        'Téma dalšího speciálního turnaje vybíráte v hlasování na záložce Více hráčů.'
+        'Téma dalšího speciálního turnaje vybíráte v hlasování v okně Turnaje na záložce Soupeři.'
     ];
 
     // --- Hlasování o tématu dalšího speciálního turnaje (schéma 31): stav ze serveru (tournament_poll_state) do karty ---
