@@ -142,7 +142,7 @@ test('album sbírky: sekce, podrobnosti, Nasadit a oslava milníku', { skip: !ch
             await shot(tab, `muj-postup-album-${tag}`);
             await tab.click('[data-rewards-info="album"]');
             await tab.waitForSelector('[data-album]');
-            const percent = Number((await tab.textContent('[data-album-percent]')).replace(/\D+/g, ''));
+            const percent = Number((await tab.textContent('#dialog-overlay [data-album-percent]')).replace(/\D+/g, ''));
             assert.ok(percent >= 25 && percent < 100, `procenta ${percent}`);
             assert.equal(Number(tile.match(/(\d+) %/)[1]), percent, 'dlaždice ukazuje stejná procenta');
             assert.deepEqual(await tab.$$eval('[data-album-tab]', nodes => nodes.map(node => node.dataset.albumTab)), SECTIONS);
@@ -160,13 +160,13 @@ test('album sbírky: sekce, podrobnosti, Nasadit a oslava milníku', { skip: !ch
                 const box = await overflow(tab);
                 assert.equal(box.x, 0, `${section}: bez vodorovného posouvání`);
                 // Okno ani stránka se neposouvají; doplňků Mudrlanta je přes 60 (se sadami k tématům), odznaků přes 50 a postaviček s legendárními
-                // 35: dlouhá mřížka se posouvá uvnitř sekce (dlaždice aspoň 40 px), nadpis okna, záložky a tlačítko zpět zůstanou vidět
+                // 35: dlouhá mřížka se posouvá uvnitř sekce (dlaždice aspoň 40 px), nadpis okna, záložky a křížek zůstanou vidět
                 assert.equal(box.y, 0, `${section}: okno bez posouvání (${box.y} px)`);
                 const grid = await tab.evaluate(() => { const list = document.querySelector('[data-album-scroll]'); return { over: list.scrollHeight - list.clientHeight }; });
                 if (section === 'badges' || section === 'accessories') {
                     assert.ok(grid.over > 0, `${section}: mřížka se posouvá uvnitř`);
                     await tab.evaluate(() => { const list = document.querySelector('[data-album-scroll]'); list.scrollTop = list.scrollHeight / 2; });
-                    for (const selector of ['[data-dialog-back]', '[data-album-tab="avatars"]', '#dialog-title']) {
+                    for (const selector of ['#dialog-overlay [data-close]', '[data-album-tab="avatars"]', '#dialog-title']) {
                         const seen = await tab.locator(selector).boundingBox();
                         assert.ok(seen && seen.y >= 0 && seen.y + seen.height <= viewport.height, `${section}: ${selector} na obrazovce`);
                     }
@@ -295,7 +295,7 @@ test('album sbírky: sekce, podrobnosti, Nasadit a oslava milníku', { skip: !ch
         const progress = await storage(tab, 'mudrlant.progress');
         for (const badge of Core.BADGES.filter(entry => Core.isAlbumBadge(entry.id))) assert.ok(progress.badges[badge.id], badge.id);
         await openAlbum(tab);
-        assert.equal(await tab.textContent('[data-album-percent]'), '100 %');
+        assert.equal(await tab.textContent('#dialog-overlay [data-album-percent]'), '100 %');
         await tab.click('[data-album-tab="frames"]');
         await tab.click('[data-album-item="frames:sberatel"]');
         assert.equal(await tab.getAttribute('[data-album-status]', 'data-album-status'), 'owned');

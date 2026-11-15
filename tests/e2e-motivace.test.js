@@ -180,13 +180,24 @@ test('motivace: tematický víkend, prestiž, pozvi kamarády, reakce a efekty, 
         await context.close();
     });
 
-    await t.test('pozvi kamarády: karta na Více hráčů, okno s kódem a odměnami, vyzvednutí (rámeček a XP)', async () => {
+    await t.test('pozvi kamarády: karta v okně Přátelé a řádek na záložce Já, okno s kódem a odměnami, vyzvednutí (rámeček a XP)', async () => {
         const db = newDb();
         const { context, tab, log } = await setup(browser, { ...login(), ...progress(30000), }, { db, viewport: { width: 360, height: 640 } });
         await tab.goto(`${ORIGIN}/`);
-        await tab.waitForSelector('#referral-card', { timeout: 30000 });
+        // Karta Pozvi kamarády je dole v okně Přátelé (záložka Soupeři, tlačítko + v pásu přátel) …
+        await nav.waitForHome(tab);
+        await nav.go(tab, 'souperi');
+        await tab.click('[data-friends-add]');
+        await tab.waitForSelector('#friends-dialog #referral-card', { timeout: 30000 });
         assert.match(await tab.textContent('#referral-card'), /Pozvi kamarády[\s\S]*Čeká 1 odměna/);
-        await tab.click('#referral-card');
+        assert.equal(await tab.evaluate(() => { const panel = document.querySelector('#dialog-overlay > div'); return panel.scrollWidth <= panel.clientWidth && panel.getBoundingClientRect().bottom <= window.innerHeight; }), true, 'okno Přátelé se vejde');
+        await shot(tab, 'pozvi-pratele');
+        await tab.keyboard.press('Escape');
+        await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
+        // … a jako řádek na záložce Já
+        await nav.go(tab, 'ja');
+        assert.match(await tab.textContent('[data-ja="referral"]'), /Pozvi kamarády[\s\S]*Čeká odměna za pozvání/);
+        await tab.click('[data-ja="referral"]');
         await tab.waitForSelector('[data-referral-dialog]');
         assert.match(await tab.textContent('[data-referral-code]'), /ABCD-2345/);
         await shot(tab, 'pozvi-okno');

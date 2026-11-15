@@ -157,10 +157,12 @@ test('Tajemná otázka dne v prohlížeči', { skip: !chromium && 'Playwright ne
     const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
     t.after(() => browser.close());
 
-    await t.test('host: pruh na úvodu, nápovědy podle hodin, špatný a opakovaný tip, úvod bez posouvání (360×640)', async () => {
+    await t.test('host: řádek mezi dnešními výzvami, nápovědy podle hodin, špatný a opakovaný tip, záložka Dnes bez posouvání (360×640)', async () => {
         const { context, tab, log } = await open(browser, {});
         assert.equal(await tab.getAttribute('#mystery-card', 'data-mystery-status'), 'new');
-        assert.equal(await compact(tab, '#mystery-card'), 'Tajemná otázka dne Nápověda 5/8 · další v 15:00');
+        assert.equal(await compact(tab, '#mystery-card'), 'Tajemná otázka Nápověda 5/8 · další v 15:00 Hádat');
+        assert.equal(await tab.getAttribute('#mystery-card', 'aria-label'), 'Tajemná otázka dne: Nápověda 5/8 · další v 15:00');
+        assert.ok(await tab.$('#home-specials #mystery-card'), 'řádek je mezi dnešními výzvami');
         assert.ok(await tab.$('#mystery-card [data-mystery-new]'), 'zlatá tečka: nová nápověda');
         assert.ok(await tab.$('#mystery-card img[src$="sova-dalekohled.webp"]'));
         await fitsScreen(tab, 'úvod s pruhem tajemné otázky (360×640)');
@@ -283,9 +285,11 @@ test('Tajemná otázka dne v prohlížeči', { skip: !chromium && 'Playwright ne
         db.dayOver = true;
         await tab.clock.setFixedTime(prague('11:00', TOMORROW));
         await tab.goto(`${ORIGIN}/`);
-        await tab.waitForSelector('#mystery-card[data-mystery-kind="reveal"]');
-        await tab.waitForFunction(() => /uhodlo 34 %/.test(document.querySelector('#mystery-card').textContent));
-        assert.equal(await compact(tab, '#mystery-card'), `Včerejší tajemná otázka Odpověď: ${round.name} · uhodlo 34 %`);
+        await tab.waitForSelector('#dnes-extras #mystery-reveal[data-mystery-kind="reveal"]');
+        await tab.waitForFunction(() => /uhodlo 34 %/.test(document.querySelector('#mystery-reveal').textContent));
+        assert.equal(await compact(tab, '#mystery-reveal'), `Včerejší tajemná otázka Odpověď: ${round.name} · uhodlo 34 %`);
+        // Dnešní záhada je přitom dál mezi dnešními výzvami
+        assert.equal(await compact(tab, '#mystery-card [data-mystery-text]'), 'Nápověda 4/8 · další v 13:00');
         await fitsScreen(tab, 'úvod se včerejší odpovědí (390×780)');
         await audit(tab, 'úvod se včerejší odpovědí (390×780)');
         await shot(tab, 'vcerejsi-odpoved-390x780');
@@ -302,6 +306,7 @@ test('Tajemná otázka dne v prohlížeči', { skip: !chromium && 'Playwright ne
         await tab.waitForFunction(day => document.querySelector('#mystery-screen') && /Tajemná otázka dne · 14\. 11\. 2026/.test(document.querySelector('#mystery-screen').textContent), TOMORROW, { timeout: 30000 });
         await tab.click('[data-action="mystery-home"]');
         await tab.waitForSelector('#mystery-card[data-mystery-kind="today"]');
+        assert.equal(await tab.$('#app-content [data-action="mystery-reveal"]'), null, 'včerejší odpověď už na záložce Dnes není');
         assert.equal(await compact(tab, '#mystery-card [data-mystery-text]'), 'Nápověda 4/8 · další v 13:00');
         assert.equal((await store(tab)).days[TODAY].dismissed, true);
         assert.deepEqual(log.errors, []);
@@ -312,13 +317,15 @@ test('Tajemná otázka dne v prohlížeči', { skip: !chromium && 'Playwright ne
     await t.test('druhý den skrytí křížkem přímo na úvodu (360×640, tmavý režim)', async () => {
         const solved = M.addTip(M.newEntry({ topic: 'zemepis', q: 'Q4242', name: 'Testovací hora' }), { text: 'Testovací hora', correct: true, clues: 3, at: prague('10:05').getTime() });
         const { context, tab, log } = await open(browser, { 'mudrlant.mystery': JSON.stringify({ days: { [TODAY]: { ...solved, xp: 26 } }, rounds: {} }) }, { colorScheme: 'dark', time: prague('11:00', TOMORROW) });
-        assert.equal(await compact(tab, '#mystery-card'), 'Včerejší tajemná otázka Odpověď: Testovací hora');
+        assert.equal(await compact(tab, '#mystery-reveal'), 'Včerejší tajemná otázka Odpověď: Testovací hora');
         await fitsScreen(tab, 'úvod se včerejší odpovědí (360×640, tmavý)');
-        await audit(tab, 'úvod se včerejší odpovědí (360×640, tmavý)');
         await shot(tab, 'vcerejsi-odpoved-tmavy-360x640');
+        await audit(tab, 'úvod se včerejší odpovědí (360×640, tmavý)');
         await tab.click('[data-action="mystery-dismiss"]');
-        await tab.waitForSelector('#mystery-card[data-mystery-kind="today"]');
+        await tab.waitForSelector('#mystery-reveal', { state: 'detached' });
+        assert.equal(await tab.$('#app-content [data-action="mystery-reveal"]'), null);
         assert.equal(await compact(tab, '#mystery-card [data-mystery-text]'), 'Nápověda 4/8 · další v 13:00');
+        await fitsScreen(tab, 'záložka Dnes po skrytí (360×640, tmavý)');
         assert.deepEqual(log.errors, []);
         await context.close();
     });

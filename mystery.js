@@ -857,14 +857,15 @@
         if (view.status === 'failed') return 'Tentokrát ne · odpověď zítra';
         return `Nápověda ${view.shown}/${CLUES}${view.next ? ` · další v ${view.next.label}` : ` · ${leftWord(tipsLeft(view.entry))}`}`;
     };
-    // Kompaktní pruh (na nízkém displeji jeden řádek nadpisu a stavu, aby se úvod vešel bez posouvání); zlatá tečka = nová nápověda
+    // Kompaktní pruh: se včerejší odpovědí (kind 'reveal', id mystery-reveal) patří mezi příležitostné pruhy záložky Dnes; dnešní záhadu
+    // kreslí app.js jako řádek mezi dnešními výzvami (id mystery-card, text z homeText). Zlatá tečka = nová nápověda
     const homeCardHtml = (view) => {
         const text = homeText(view);
         const title = view.kind === 'reveal' ? 'Včerejší tajemná otázka' : 'Tajemná otázka dne';
         const fresh = view.kind === 'today' && view.status !== 'solved' && view.status !== 'failed' && view.shown > (view.entry ? view.entry.seen : 0);
         const icon = view.kind === 'reveal' ? 'eye' : view.status === 'solved' ? 'circle-check' : view.status === 'failed' ? 'moon' : 'telescope';
         return `
-            <div id="mystery-card" data-mystery-kind="${view.kind}" data-mystery-status="${view.status || ''}" class="relative flex w-full shrink-0 items-stretch overflow-hidden rounded-[1.1rem] bg-gradient-to-r from-indigo-950 via-violet-900 to-indigo-900 text-white shadow-sm ring-1 ring-violet-400/40">
+            <div id="${view.kind === 'reveal' ? 'mystery-reveal' : 'mystery-card'}" data-mystery-kind="${view.kind}" data-mystery-status="${view.status || ''}" class="relative flex w-full shrink-0 items-stretch overflow-hidden rounded-[1.1rem] bg-gradient-to-r from-indigo-950 via-violet-900 to-indigo-900 text-white shadow-sm ring-1 ring-violet-400/40">
                 <button type="button" data-action="${view.kind === 'reveal' ? 'mystery-reveal' : 'mystery-open'}" aria-label="${esc(`${title}: ${text}`)}" class="flex min-w-0 flex-1 items-center gap-2 px-2.5 py-1 text-left transition-all active:scale-[0.99] short:py-0.5">
                     <span class="relative flex shrink-0">${art(ART, 'h-9 w-9 -my-1 short:h-7 short:w-7')}${fresh ? '<span aria-hidden="true" data-mystery-new class="absolute -right-0.5 top-0 h-2.5 w-2.5 rounded-full bg-gold-400 ring-2 ring-violet-900"></span>' : ''}</span>
                     <span class="min-w-0 flex-1">

@@ -370,7 +370,7 @@
         const run = () => {
             if (state || !shouldStart(root.localStorage)) return;
             if (isRunning(root.localStorage)) begin(resumeStep(root.localStorage));
-            else if (doc.querySelector('[data-action="daily"]')) begin(0);
+            else if (doc.querySelector('#daily-card')) begin(0);
         };
         if (options.ready && options.ready.then) options.ready.then(run, run); else run();
     };

@@ -166,11 +166,11 @@ test('Řetězovka dne v prohlížeči', { skip: !chromium && 'Playwright není n
 
     await t.test('host 360×640: dlaždice, úvod, články, Záchrana, přetržení, výsledek, sdílení, XP, cvičná řetězovka', async () => {
         const { context, tab, log } = await open(browser, {});
-        // Dlaždice v řadě Výzvy: 7 článků, zlatá tečka, úvod se vejde
+        // Řádek mezi dnešními výzvami: 7 článků, zlatá tečka, záložka Dnes se vejde
         assert.equal(await tab.getAttribute('#chain-card', 'data-chain-status'), 'new');
-        assert.equal(await compact(tab, '#chain-card'), 'Řetězovka 7 článků');
+        assert.equal(await compact(tab, '#chain-card'), 'Řetězovka 7 článků Hrát');
         assert.ok(await tab.$('#chain-card [data-chain-new]'), 'zlatá tečka: dnes ještě nehráno');
-        assert.equal(await tab.$$eval('#home-specials [data-special-tile]', tiles => tiles.map(tile => tile.id).sort().join(' ')), 'boss-card chain-card quiz-card', 'řada Výzvy: Kvíz dne, Řetězovka, Boss týdne');
+        assert.equal(await tab.$$eval('#home-specials [data-special-tile]', tiles => tiles.map(tile => tile.id).sort().join(' ')), 'boss-card chain-card mystery-card quiz-card', 'dnešní výzvy: Kvíz dne, Řetězovka, Tajemná otázka, Boss týdne');
         await tab.waitForTimeout(600);
         await fitsScreen(tab, 'úvod s dlaždicí Řetězovky (360×640)');
         await audit(tab, 'úvod s dlaždicí Řetězovky');
@@ -237,7 +237,7 @@ test('Řetězovka dne v prohlížeči', { skip: !chromium && 'Playwright není n
         // Zavření aplikace a návrat: rozhodnutí čeká
         await tab.click('#btn-home');
         await tab.waitForSelector('#chain-card');
-        assert.equal(await compact(tab, '#chain-card'), 'Řetězovka Článek 3/7');
+        assert.equal(await compact(tab, '#chain-card'), 'Řetězovka Článek 3/7 Pokračovat');
         assert.equal(await tab.$('#chain-card [data-chain-new]'), null);
         await openChain(tab);
         await tab.waitForSelector('[data-chain-decide]');

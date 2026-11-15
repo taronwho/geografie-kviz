@@ -2985,7 +2985,8 @@
         const today = getDayKey();
         return { stats, today, answered: TOPICS.filter(topic => (stats.daily[topic.id] || {})[today]).length };
     };
-    // Karta Dnešní otázky: kolik témat je hotových a Hrát vše (další neodehrané téma); klepnutí na kartu otevře výběr tématu
+    // Karta Dnešní otázky: kolik témat je hotových a Hrát vše (další neodehrané téma); klepnutí na kartu otevře výběr tématu.
+    // Popisek „Vybrat téma“ se na úzkém displeji, kam se vedle tlačítka nevejde, sám schová (zalomí se pod řádek mimo výšku); šipka zůstává
     const dailyCardHtml = () => {
         const { answered } = dailyStats();
         const left = TOPICS.length - answered;
@@ -2996,7 +2997,7 @@
                     <button type="button" data-action="daily-sheet" aria-label="Dnešní otázky: splněno ${answered} ze ${TOPICS.length} témat. Vybrat téma" class="flex min-w-0 flex-1 items-center gap-3 text-left active:scale-[0.99]">
                         ${uiArt('dnes', 'h-10 w-10 short:h-9 short:w-9 tiny:h-8 tiny:w-8')}
                         <span class="min-w-0 flex-1">
-                            <span class="flex items-baseline justify-between gap-2"><span class="whitespace-nowrap text-[15px] font-extrabold leading-tight text-slate-800 dark:text-slate-100">${answered}/${TOPICS.length} témat</span><span class="flex items-center truncate text-[11.5px] font-black text-brand-700 dark:text-cream">Vybrat téma<i data-lucide="chevron-right" class="h-3.5 w-3.5 shrink-0"></i></span></span>
+                            <span class="flex items-center gap-1.5"><span class="whitespace-nowrap text-[15px] font-extrabold leading-tight text-slate-800 dark:text-slate-100">${answered}/${TOPICS.length} témat</span><span data-daily-pick class="flex h-4 min-w-0 flex-1 flex-wrap justify-end overflow-hidden text-[11.5px] font-black leading-4 text-brand-700 dark:text-cream"><span class="h-4 w-px"></span><span class="whitespace-nowrap">Vybrat téma</span></span><i data-lucide="chevron-right" class="h-3.5 w-3.5 shrink-0 text-brand-700 dark:text-cream"></i></span>
                             <span class="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-500" data-progress="${Math.round(answered / Math.max(1, TOPICS.length) * 100)}"></span></span>
                         </span>
                     </button>
@@ -8066,7 +8067,7 @@
                 : '<p data-friends-results class="px-1 text-[12.5px] font-semibold text-slate-500 dark:text-slate-400">Nikoho takového jsem nenašel. Zkus jinou část přezdívky.</p>';
         const requests = Friends ? Friends.requestRows(social.incoming, helpers) : '';
         const friends = social.friends.length
-            ? `<ul id="friends-list" class="flex flex-col gap-1.5">${social.friends.map(row => person(row, [Friends.activity(row.last_seen).text, Friends.balanceText ? Friends.balanceText(row) : ''].filter(Boolean).join(' · '))).join('')}</ul>`
+            ? `<ul id="friends-list" class="flex flex-col gap-1.5">${social.friends.map(row => person(row, [Friends.activity(row.last_seen).text, Friends.balanceText(row) ? `bilance ${Friends.balanceText(row)}` : ''].filter(Boolean).join(' · '))).join('')}</ul>`
             : `<div class="flex items-center gap-3 rounded-2xl bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">${uiArt('sova-ceka', 'h-12 w-12 -my-1')}<p class="text-[13px] font-semibold leading-snug text-slate-600 dark:text-slate-300">Zatím tu nikdo není. Najdi kamaráda podle přezdívky, nebo ho pozvi odkazem.</p></div>`;
         showDialog(FRIENDS_TITLE, `
             <div id="friends-dialog" class="flex flex-col gap-3">
