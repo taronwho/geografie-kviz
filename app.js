@@ -1159,7 +1159,7 @@
     // u Mudrlanta doplňky a barva obleku. card: false = bez bílé karty (řádek mezi ostatními volbami), bleed = o 4 px širší
     // (osm kuliček barevných témat v řadě se tak i na 360 px vejde po 40 px). Nadpis si část kreslí sama (noTitle), nebo ho dostane tady.
     const lookSections = (tab, ctx = lookContext()) => !Look ? '' : Look.getSections().filter(section => (section.tab || 'owl') === tab).map(section => `
-            <section data-look="${section.id}" class="min-w-0 ${section.bleed ? '-mx-1 ' : ''}${section.card === false ? '' : `rounded-2xl bg-white ${section.tight ? 'px-1.5 py-2' : 'px-2.5 py-2'} shadow-sm dark:bg-slate-800`}">
+            <section data-look="${section.id}" class="min-w-0 ${section.bleed ? '-mx-1 ' : ''}${section.card === false ? '' : `rounded-2xl bg-white ${section.tight ? 'px-1.5 py-2 short:py-1.5' : 'px-2.5 py-2'} shadow-sm dark:bg-slate-800`}">
                 ${section.noTitle ? '' : `<h3 class="${ME_HEADING} mb-1${section.tight ? ' px-1' : ''}">${escapeHtml(section.title)}</h3>`}
                 ${section.render(ctx)}
             </section>`).join('');
@@ -1171,7 +1171,7 @@
         if (myProfile && myProfile.owl && !myPose()) {
             return `<p data-owl-avatar-on class="mt-2 flex items-center gap-2 rounded-2xl bg-emerald-50 px-3 py-2.5 text-[13px] font-bold leading-snug text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200"><i data-lucide="check" class="h-4 w-4 shrink-0"></i>Tvůj Mudrlant je profilový obrázek. Změny se v profilu ukážou samy.</p>`;
         }
-        return `<button type="button" data-owl-as-avatar ${owlAvatarBusy ? 'disabled' : ''} class="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-brand-700 px-4 py-2.5 text-[15px] font-black text-white disabled:opacity-60 short:py-2"><i data-lucide="user-round" class="h-5 w-5"></i>${owlAvatarBusy ? 'Ukládám…' : 'Použít jako profilový obrázek'}</button>`;
+        return `<button type="button" data-owl-as-avatar ${owlAvatarBusy ? 'disabled' : ''} class="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-brand-700 px-4 py-2.5 text-[15px] font-black text-white disabled:opacity-60 short:mt-0.5 short:py-2"><i data-lucide="user-round" class="h-5 w-5"></i>${owlAvatarBusy ? 'Ukládám…' : 'Použít jako profilový obrázek'}</button>`;
     };
     const useOwlAsAvatar = async () => {
         if (!meDraft || owlAvatarBusy) return;

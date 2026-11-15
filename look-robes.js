@@ -73,11 +73,13 @@
         if (preview) preview.setAttribute('data-robe-color', color);
     });
 
-    // Řádek vlastní barvy pod osmi taláry: dlaždice se sovou ve zvolené barvě a posuvníky odstínu a světlosti; zamčený do úrovně 20
-    // („Od 20. úrovně“, posuvníky se neukážou). Posuvníky mají pruhy z tříd (duha, tma → světlo), žádné vložené styly (CSP).
-    const customRow = (ctx) => {
+    // Horní řádek karty: dlaždice vlastní barvy, vedle ní nadpis „Barva obleku“ s názvem taláru a pod ním posuvníky odstínu a světlosti
+    // vedle sebe; zamčená do úrovně 20 („Od 20. úrovně“, posuvníky se neukážou). Nadpis a vlastní barva sdílejí jeden řádek vysoký
+    // jako dlaždice, ať se karta Mudrlant vejde bez posouvání i na 360×640 (s nejdelším výběrem doplňků). Posuvníky mají pruhy z tříd
+    // (duha, tma → světlo), žádné vložené styly (CSP).
+    const headRow = (ctx, heading) => {
         const item = Look.find('robes', CUSTOM);
-        if (!item) return '';
+        if (!item) return `<div class="mb-1 px-1">${heading}</div>`;
         const open = Look.isUnlocked(item, ctx);
         const selected = ctx.prefs.robe === CUSTOM;
         const color = ctx.prefs.robeColor || Look.ROBE_COLOR_DEFAULT;
@@ -87,15 +89,13 @@
                 <span class="robe-rainbow flex h-full w-full items-center justify-center rounded-xl p-0.5 ${selected ? 'ring-2 ring-brand-500' : ''}"><span class="flex h-full w-full items-center justify-center rounded-[0.6rem] bg-slate-50 dark:bg-slate-700"><img src="icons/topics/sova-vitej.webp" alt="" data-keep data-robe-preview data-robe-color="${esc(color)}" class="h-9 w-full max-w-[2.25rem] object-contain ${open ? '' : 'opacity-40 grayscale'}"></span></span>
                 ${open ? '' : '<span class="absolute bottom-0.5 right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-slate-600 text-white ring-1 ring-white dark:bg-slate-300 dark:text-slate-900 dark:ring-slate-800" aria-hidden="true"><i data-lucide="lock" class="h-2 w-2"></i></span>'}
             </button>`;
-        if (!open) {
-            return `<div data-robe-custom data-locked class="mt-1 flex items-center gap-2 px-1">${tile}<p class="min-w-0 flex-1 text-[12px] font-bold leading-tight text-slate-500 dark:text-slate-400"><span class="block font-black text-slate-700 dark:text-slate-200">Vlastní barva obleku</span>Od 20. úrovně</p></div>`;
-        }
-        return `<div data-robe-custom class="mt-1 flex items-center gap-2 px-1">${tile}
-                <span class="flex min-w-0 flex-1 flex-col gap-1.5">
-                    <input type="range" min="0" max="355" step="5" value="${hue}" data-robe-hue aria-label="Vlastní barva obleku: odstín" class="robe-range robe-range-hue h-4 w-full cursor-pointer">
-                    <input type="range" min="-40" max="40" step="5" value="${light}" data-robe-light aria-label="Vlastní barva obleku: světlost" class="robe-range robe-range-light h-4 w-full cursor-pointer">
-                </span>
-            </div>`;
+        const below = open
+            ? `<div class="mt-1 flex items-center gap-3">
+                    <input type="range" min="0" max="355" step="5" value="${hue}" data-robe-hue aria-label="Vlastní barva obleku: odstín" class="robe-range robe-range-hue h-4 min-w-0 flex-1 cursor-pointer">
+                    <input type="range" min="-40" max="40" step="5" value="${light}" data-robe-light aria-label="Vlastní barva obleku: světlost" class="robe-range robe-range-light h-4 min-w-0 flex-1 cursor-pointer">
+                </div>`
+            : '<p class="mt-0.5 text-[11px] font-bold leading-tight text-slate-500 dark:text-slate-400">Vlastní barva obleku: Od 20. úrovně</p>';
+        return `<div data-robe-custom ${open ? '' : 'data-locked '}class="mb-1 flex items-center gap-2 px-1">${tile}<div class="min-w-0 flex-1">${heading}${below}</div></div>`;
     };
 
     Look.register({
@@ -103,7 +103,7 @@
         // Kompaktně (karta Mudrlant se vejde bez posouvání): osm talárů v jedné řadě, jen sova v dlaždici 44 px, zamčená zašedlá se zámkem;
         // název a jak se odemyká je v popisku (i pro čtečku) a vpravo v nadpisu (vybraný talár, nebo zamčený, na který hráč klepl).
         // Řada sahá i do okraje karty a tlačítka nemají mezery (i na 360 px aspoň 40 px na šířku); mezeru mezi dlaždicemi dělá okraj
-        // tlačítka kolem barevného podkladu. Vlastní barva má vlastní řádek pod nimi.
+        // tlačítka kolem barevného podkladu. Vlastní barva je v řádku s nadpisem nad nimi (headRow).
         render: (ctx) => {
             const chosen = ctx.prefs.robe;
             const tiles = Look.ROBES.filter(item => item.id !== CUSTOM).map(item => {
@@ -119,8 +119,9 @@
                 </button>`;
             }).join('');
             const current = Look.find('robes', chosen) || Look.ROBES[0];
-            return `<div class="mb-1 flex items-baseline justify-between gap-2 px-1"><h3 class="text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Barva obleku</h3><p class="min-w-0 truncate text-[11px] font-bold ${note ? 'text-brand-700 dark:text-brand-300' : 'text-slate-600 dark:text-slate-300'}">${esc(note || current.title)}</p></div>
-                <div class="-mx-1 grid grid-cols-8" role="group" aria-label="Barva obleku Mudrlanta">${tiles}</div>${customRow(ctx)}`;
+            const heading = `<div class="flex items-baseline justify-between gap-2"><h3 class="shrink-0 text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Barva obleku</h3><span class="min-w-0 truncate text-[11px] font-bold ${note ? 'text-brand-700 dark:text-brand-300' : 'text-slate-600 dark:text-slate-300'}">${esc(note || current.title)}</span></div>`;
+            return `${headRow(ctx, heading)}
+                <div class="-mx-1 grid grid-cols-8" role="group" aria-label="Barva obleku Mudrlanta">${tiles}</div>`;
         },
         click: (event, ctx) => {
             const button = event.target.closest('[data-robe-pick]');

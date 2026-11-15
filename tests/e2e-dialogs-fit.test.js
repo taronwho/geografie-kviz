@@ -503,9 +503,12 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
             await scene(tab, 'Nastavení – Profil (Postavičky, barva části)', size, async () => {
                 await settingsTab('profile');
                 await tab.click('[data-pic-group="postavicky"]');
-                // Sezónní postavička ze Sezónní truhly je mezi ostatními (jen ta vlastněná)
+                // Sezónní postavička ze Sezónní truhly je mezi ostatními (vlastněná k výběru); postavička probíhající sezóny (listopad: Hrnek
+                // čaje) je šedá zamčená s cestou k ní (blok 32), jiné nevlastněné sezónní postavičky se neukážou
                 await tab.waitForSelector('[data-pick-avatar="drakpa"]');
-                assert.equal(await tab.locator('[data-pick-avatar="caj"], [data-locked-avatar="caj"]').count(), 0);
+                assert.equal(await tab.locator('[data-pick-avatar="caj"]').count(), 0);
+                assert.equal(await tab.locator('[data-locked-avatar="caj"]').count(), 1);
+                assert.equal(await tab.locator('[data-pick-avatar="pernik"], [data-locked-avatar="pernik"]').count(), 0);
                 await tab.click('[data-pick-avatar="mamut"]');
                 await tab.click('[data-color-target="2"]');
                 await tab.click('[data-pick-part="2:5"]');
