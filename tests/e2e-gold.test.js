@@ -25,7 +25,7 @@ const COUNTRIES = fixtures.files['/data/countries.json'].countries;
 const BY_TITLE = new Map(ZEMEPIS.map(item => [item.t, item]));
 const BY_Q = new Map(ZEMEPIS.map(item => [item.q, item]));
 const extract = (title) => BY_TITLE.has(title)
-    ? `Tato položka má v testu značku K${BY_TITLE.get(title).q} a je známá svou krásou, dlouhou historií a mnoha zajímavostmi, které je třeba uhodnout. ` +
+    ? `Tato položka má v ukázce značku K${BY_TITLE.get(title).q} a je známá svou krásou, dlouhou historií a mnoha zajímavostmi, které je třeba uhodnout. ` +
       'Ve dvacátém století se o ní začalo psát po celém světě a dodnes ji navštěvují lidé z mnoha různých zemí.'
     : fixtures.extractFor(title);
 
