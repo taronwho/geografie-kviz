@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const fixtures = require('./fixtures.js');
+const nav = require('./nav.js');
 
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
@@ -66,8 +67,8 @@ test('okno otázky: nápovědy z úvodu článku a vzhled na malých telefonech'
         tab.on('pageerror', error => problems.push(error.message));
         tab.on('console', message => { if (/Content Security Policy/i.test(message.text())) problems.push(message.text()); });
         await tab.goto(`${origin}/`);
-        await tab.waitForSelector(`[data-action="daily"][data-topic="${topic}"]`);
-        await tab.click(`[data-action="daily"][data-topic="${topic}"]`);
+        await nav.waitForHome(tab);
+        await nav.daily(tab, topic);
         await tab.waitForSelector('[data-action="choice"]', { timeout: 30000 });
         await tab.waitForTimeout(900);
         return { context, tab, problems };

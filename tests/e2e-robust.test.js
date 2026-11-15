@@ -79,7 +79,7 @@ test('robustnost v prohlížeči', { skip: !chromium && 'Playwright není nainst
     const origin = `http://127.0.0.1:${server.address().port}`;
     const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
     t.after(async () => { await browser.close(); server.close(); });
-    const open = async (seed, ready = '[data-action="play-topic"]') => {
+    const open = async (seed, ready = '#app-content > [data-tab-root]') => {
         const context = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 390, height: 780 } });
         await context.addInitScript(() => { window.MUDRLANT_NUMERIC_RATE = 0; }); // jen obyčejné otázky (Seřaď a Odhadni číslo: e2e-numeric)
         await context.addInitScript(seed);
@@ -97,11 +97,15 @@ test('robustnost v prohlížeči', { skip: !chromium && 'Playwright není nainst
         await t.test(`poškozená data v localStorage (${label}) aplikaci nerozbijí`, async () => {
             const { context, tab, problems } = await open(`(() => { if (sessionStorage.getItem('seeded')) return; sessionStorage.setItem('seeded', '1');
                 for (const key of ${JSON.stringify(KEYS)}) localStorage.setItem('mudrlant.' + key, ${JSON.stringify(garbage)});
+                sessionStorage.setItem('mudrlant.nav', ${JSON.stringify(garbage)}); // zapamatovaná záložka spodní lišty
                 localStorage.setItem('mudrlant.account', '"host"'); localStorage.setItem('mudrlant.tutorial', '{"how":"done"}'); localStorage.setItem('mudrlant.tips', '{"off":true}'); localStorage.setItem('mudrlant.variant', 'choices'); localStorage.removeItem('mudrlant.dev'); localStorage.removeItem('mudrlant.dev.backup'); })()`);
             await tab.waitForTimeout(400);
-            assert.ok(await tab.isVisible('[data-action="play-topic"]'));
+            // Poškozená data nerozbijí ani spodní lištu: všechny záložky se vykreslí
+            for (const id of ['hrat', 'postup', 'ja', 'dnes']) await nav.go(tab, id);
+            assert.ok(await tab.isVisible('#daily-card'));
             // hra jde spustit a odpovědět
             await nav.topic(tab, 'zemepis', { play: false });
+            assert.ok(await tab.isVisible('#play-chooser [data-chooser-play]'));
             await tab.waitForTimeout(300);
             const start = await tab.$('[data-start-game], [data-action="start-game"], [data-chooser-start]');
             if (start) await start.click();
@@ -117,7 +121,8 @@ test('robustnost v prohlížeči', { skip: !chromium && 'Playwright není nainst
             localStorage.setItem('mudrlant.learned', JSON.stringify({ zemepis: Array.from({ length: 320 }, (_, i) => 'dev' + i) })); })()`);
         await tab.waitForTimeout(400);
         await tab.click('#status-badge');
-        await tab.waitForSelector('text=Mistrovství témat');
+        await tab.click('#tab-postup [data-open-mastery-all]');
+        await tab.waitForSelector('#dialog-overlay [data-mastery-dialog]');
         assert.equal(await tab.locator('[aria-label$="z 5 hvězd"]').evaluateAll(list => list.filter(el => !/^0 z/.test(el.getAttribute('aria-label'))).length), 0, 'žádné téma nemá hvězdy');
         assert.deepEqual(problems, []);
         await context.close();

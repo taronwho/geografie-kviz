@@ -94,8 +94,8 @@ test('Jak odpověděli ostatní', { skip: !chromium && 'Playwright není nainsta
         tab.on('console', message => { if (/Content Security Policy/i.test(message.text())) problems.push(message.text()); });
         await tab.goto(`${origin}/`);
         if (topic) {
-            await tab.waitForSelector(`[data-action="daily"][data-topic="${topic}"]`);
-            await tab.click(`[data-action="daily"][data-topic="${topic}"]`);
+            await nav.waitForHome(tab);
+            await nav.daily(tab, topic);
             await tab.waitForSelector('[data-action="choice"]', { timeout: 30000 });
         }
         return { context, tab, problems, backend };
@@ -149,7 +149,7 @@ test('Jak odpověděli ostatní', { skip: !chromium && 'Playwright není nainsta
         assert.equal(await guest.tab.locator('[data-answer-stats]').count(), 0, 'host statistiku nevidí (souhrn se stahuje jen s účtem)');
         const without = await layout(guest.tab);
         await guest.tab.click('#btn-home');
-        await guest.tab.waitForSelector('[data-action="daily"][data-topic="historie"]');
+        await nav.waitForHome(guest.tab);
         assert.deepEqual(guest.backend.topicCalls, []);
         assert.deepEqual(guest.backend.submits, [], 'host odpovědi neposílá');
         assert.equal(await guest.tab.evaluate(() => localStorage.getItem('mudrlant.answerStats.queue')), null);
@@ -171,14 +171,14 @@ test('Jak odpověděli ostatní', { skip: !chromium && 'Playwright není nainsta
         const saved = JSON.parse(await tab.evaluate(() => localStorage.getItem('mudrlant.answerStats.topic.historie')));
         assert.equal(saved.rows.length, TOPIC_ROWS.length);
         await tab.reload();
-        await tab.waitForSelector('[data-action="daily"][data-topic="historie"]');
+        await nav.waitForHome(tab);
         await nav.daily(tab, 'historie');
         await tab.waitForSelector('[data-action="choice"]', { timeout: 30000 });
         await tab.waitForTimeout(400);
         assert.deepEqual(backend.topicCalls, ['historie'], 'v den stažení se neptá znovu');
         await context.clock.setFixedTime(new Date('2026-11-05T13:00:00'));
         await tab.reload();
-        await tab.waitForSelector('[data-action="daily"][data-topic="historie"]');
+        await nav.waitForHome(tab);
         await nav.daily(tab, 'historie');
         await tab.waitForFunction(() => document.querySelector('[data-action="choice"]') || document.querySelector('[data-action="next"]'), null, { timeout: 30000 });
         await tab.waitForFunction(() => JSON.parse(localStorage.getItem('mudrlant.answerStats.topic.historie')).at > Date.parse('2026-11-05T00:00:00'));
@@ -215,7 +215,7 @@ test('Jak odpověděli ostatní', { skip: !chromium && 'Playwright není nainsta
         await answer(tab);
         assert.equal(await tab.locator('[data-answer-stats]').count(), 0, 'offline nic');
         await tab.click('#btn-home');
-        await tab.waitForSelector('[data-action="daily"][data-topic="historie"]');
+        await nav.waitForHome(tab);
         assert.equal(backend.submits.length, 0);
         assert.equal(JSON.parse(await tab.evaluate(() => localStorage.getItem('mudrlant.answerStats.queue'))).list.length, 1);
         await context.setOffline(false);

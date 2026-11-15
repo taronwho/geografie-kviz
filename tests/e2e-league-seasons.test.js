@@ -110,9 +110,9 @@ const setup = async (browser, storage, { viewport = { width: 390, height: 780 },
     await context.addInitScript(entries => {
         if (sessionStorage.getItem('test-storage-set')) return;
         sessionStorage.setItem('test-storage-set', '1');
-        Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
+        Object.entries(entries).forEach(([key, value]) => (key.startsWith('session:') ? sessionStorage.setItem(key.slice(8), value) : localStorage.setItem(key, value)));
     }, {
-        'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.tips': JSON.stringify({ off: true }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'),
+        'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.tips': JSON.stringify({ off: true }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), 'session:mudrlant.nav': 'souperi:vyzvy',
         // sberatel-25: hráč s takovým postupem má čtvrtinu Alba sbírky dávno (oslava milníku alba by jinak předběhla oslavu rámečku sezóny)
         'mudrlant.progress': JSON.stringify({ xp: 26000, counters: { correct: 2600, answered: 3400, challengesPlayed: 120, challengeWins: 30 }, badges: { vitez: '2026-10-01', 'vyhry-5': '2026-10-02', 'vyhry-25': '2026-10-20', 'serie-60': '2026-10-21', 'sberatel-25': '2026-10-22' } }),
         'mudrlant.rewards': JSON.stringify({ v: 1, diplomas: { zemepis: '2026-10-20' }, name: 'Jana Nováková' }),
@@ -133,7 +133,7 @@ const setup = async (browser, storage, { viewport = { width: 390, height: 780 },
     await tab.clock.setFixedTime(new Date(NOW));
     return { context, tab, log };
 };
-const waitForHome = (tab) => tab.waitForFunction(() => { const content = document.getElementById('app-content'); return Boolean(content && content.querySelector('#home-tabs')); }, null, { timeout: 30000 });
+const waitForHome = (tab) => nav.waitForHome(tab);
 // Snímek (jen se SCREENSHOT_DIR); oslavy odznaků z testovacích dat (První krok…) by zakryly okno, kromě snímku oslavy se odklidí
 const shot = async (tab, name, scheme) => {
     if (!SHOTS) return;
@@ -173,6 +173,7 @@ test('ligové sezóny a vitrína v profilu', { skip: !chromium && 'Playwright ne
             if (SHOTS) await tab.evaluate(() => new MutationObserver(() => { const card = document.getElementById('celebration'); if (card) card.remove(); }).observe(document.body, { childList: true }));
 
             // Pruh pod kartou ligy: sezóna listopad, 20 dní do konce (11. 11.), další odměna Mistr
+            await nav.challenges(tab);
             await tab.waitForSelector('#league-card [data-league-strip]');
             assert.match(await text(tab, '#league-card [data-league-strip]'), /Ligová sezóna listopad · ještě 20 dní ?Dosáhni Mistra a získáš rámeček$/);
             assert.equal(await tab.locator('#league-card [data-league-strip] .frame-liga-mistr').count(), 1, 'náhled rámečku další odměny');
@@ -180,6 +181,7 @@ test('ligové sezóny a vitrína v profilu', { skip: !chromium && 'Playwright ne
             await shot(tab, 'sezona-karta', scheme);
 
             // Okno Ligové sezóny: běžící sezóna, další odměna, rámečky (3 získané, Mistr zamčený), minulé sezóny
+            await nav.challenges(tab);
             await tab.click('#league-card [data-league-strip]');
             await tab.waitForSelector('[data-league-seasons]');
             assert.match(await text(tab, '[data-season-now]'), /Ligová sezóna listopad 2026 Nejvýš zatím: Zlato 1380 · 7 výzev · ještě 20 dní/);
@@ -217,7 +219,7 @@ test('ligové sezóny a vitrína v profilu', { skip: !chromium && 'Playwright ne
             await tab.waitForSelector('[data-league-seasons]');
             await tab.keyboard.press('Escape');
 
-            // Odznak do vitríny (Můj postup → Odznaky): nejvyšší stupeň jde vystavit, nižší ne
+            // Odznak do vitríny (záložka Postup → Odznaky): nejvyšší stupeň jde vystavit, nižší ne
             await nav.settings(tab);
             await tab.click('[data-open-progress]');
             await tab.click('[data-open-badges]');
@@ -295,6 +297,7 @@ test('ligové sezóny a vitrína v profilu', { skip: !chromium && 'Playwright ne
             await tab.waitForSelector('#settings-overlay', { state: 'detached' });
 
             // Cizí profil: vitrína Petra (Mistr, odznak, diplom), bez tlačítek Odebrat
+            await nav.challenges(tab);
             await tab.click('#league-card [data-action="weekly-board"]');
             await tab.waitForSelector('#weekly-list');
             await tab.click('#weekly-list [data-player-id="u-2"]');
@@ -310,6 +313,7 @@ test('ligové sezóny a vitrína v profilu', { skip: !chromium && 'Playwright ne
             // Po obnovení stránky se oslava nezopakuje (pamatuje se v zařízení)
             await tab.reload();
             await waitForHome(tab);
+            await nav.challenges(tab);
             await tab.waitForSelector('#league-card [data-league-strip]');
             await tab.waitForTimeout(1500);
             assert.equal(await tab.locator('#celebration').count(), 0, 'oslava jen jednou');
@@ -330,7 +334,9 @@ test('ligové sezóny a vitrína v profilu', { skip: !chromium && 'Playwright ne
         await backend(context, db);
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
+        await nav.challenges(tab);
         await tab.waitForSelector('#league-card');
+        await nav.challenges(tab);
         await tab.click('#league-card [data-action="weekly-board"]');
         await tab.waitForSelector('#weekly-list');
         assert.equal(await tab.locator('#weekly-list [data-player-id="u-1"].frame-liga-diamant').count(), 1, 'rámeček sezóny vidí i ostatní');
@@ -353,6 +359,7 @@ test('ligové sezóny a vitrína v profilu', { skip: !chromium && 'Playwright ne
         await tab.waitForSelector('#btn-settings .frame-liga-platina');
         assert.equal(await tab.evaluate(() => window.MudrlantLook.prefs().frame), 'liga-platina', 'zvolený rámeček se nezahodí');
         // Bez spojení se ukáže uložená sezóna (pruh i okno)
+        await nav.challenges(tab);
         await tab.waitForSelector('#league-card [data-league-strip]');
         await tab.waitForTimeout(800);
         assert.doesNotMatch(await tab.locator('#celebration').count() ? await text(tab, '#celebration') : '', /sezóna/i, 'bez spojení žádná oslava sezóny');
@@ -366,9 +373,11 @@ test('ligové sezóny a vitrína v profilu', { skip: !chromium && 'Playwright ne
         await backend(context, db);
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
+        await nav.challenges(tab);
         await tab.waitForSelector('#league-card');
         await tab.waitForTimeout(800);
         assert.equal(await tab.locator('[data-league-strip]').count(), 0, 'pruh sezóny se neukáže');
+        await nav.challenges(tab);
         await tab.click('#league-card [data-action="league-help"]');
         await tab.waitForSelector('#league-help');
         assert.equal(await tab.locator('[data-help-seasons]').count(), 0);
@@ -382,12 +391,10 @@ test('ligové sezóny a vitrína v profilu', { skip: !chromium && 'Playwright ne
         await tab.click('[data-open-badges]');
         await tab.click('#dialog-overlay [data-badge="vyhry-25"]');
         assert.equal(await tab.locator('[data-showcase-toggle]').count(), 0, 'bez Vystavit');
-        // Odznaky → Můj postup → Nastavení → zavřeno
-        await tab.keyboard.press('Escape');
-        await tab.waitForSelector('#dialog-overlay [data-progress-dialog]');
-        await tab.keyboard.press('Escape');
-        await tab.waitForSelector('#settings-overlay');
-        await tab.keyboard.press('Escape');
+        // Titul v hlavičce Nastavení vede na záložku Postup; okno Odznaky se zavře zpět na ni
+        await escapeAll(tab);
+        assert.equal(await nav.currentTab(tab), 'postup');
+        await nav.challenges(tab);
         await tab.click('#league-card [data-action="weekly-board"]');
         await tab.waitForSelector('#weekly-list');
         await tab.click('#weekly-list [data-player-id="u-2"]');

@@ -79,7 +79,7 @@ test('kronika týdne: pruh, příběh, sdílení, skrytí a Můj postup', { skip
         tab.on('console', message => { if (/Content Security Policy/i.test(message.text())) problems.push(message.text()); });
         await tab.clock.setFixedTime(new Date(now));
         await tab.goto(`${origin}/`);
-        await tab.waitForSelector('[data-action="play-topic"]');
+        await nav.waitForHome(tab);
         return { context, tab, problems };
     };
     const storage = (tab, key) => tab.evaluate((name) => JSON.parse(localStorage.getItem(name)), key);
@@ -101,9 +101,10 @@ test('kronika týdne: pruh, příběh, sdílení, skrytí a Můj postup', { skip
             const strip = tab.locator(`[data-chronicle-strip="${WEEK}"]`);
             await strip.waitFor();
             assert.match(await strip.textContent(), /Tvůj týden v kostce je hotový[\s\S]*Zeměpisný cestovatel týdne · 9\. – 15\. 11\./);
-            assert.equal(await tab.locator('#weekly-goals').count(), 1, 'pruh je místo pruhu cílů týdne');
-            assert.equal(await tab.locator('[data-action="goals-open"]').count(), 0);
-            assert.ok(await noScroll(tab), 'úvod bez posouvání');
+            // Pruh je mezi příležitostnými pruhy záložky Dnes (cíle týdne má záložka Postup); vejde se celý
+            assert.equal(await tab.locator('#dnes-extras #chronicle-strip').count(), 1);
+            assert.equal(await strip.isVisible(), true, 'pruh se vejde celý, ne jako čip');
+            assert.ok(await noScroll(tab), 'záložka Dnes bez posouvání');
             await shot(tab, `kronika-uvod-${tag}`);
 
             await tab.click('[data-action="chronicle-open"]');
@@ -162,13 +163,13 @@ test('kronika týdne: pruh, příběh, sdílení, skrytí a Můj postup', { skip
             assert.ok(shared.files[0].size > 5000, 'obrázek není prázdný');
             assert.match(shared.text, /^Můj týden v Mudrlantovi \(9\. – 15\. 11\.\): 50 odpovědí, 78 % správně, \+640 XP, 5 dní ze 7\. Titul: Zeměpisný cestovatel týdne\./);
             assert.equal((await storage(tab, 'mudrlant.progress')).counters.sharedImages, 1, 'počítadlo sdílených obrázků');
-            // Hotovo zavře okno; pruh zmizí a na úvodu jsou zase cíle týdne
+            // Hotovo zavře okno a pruh ze záložky Dnes zmizí
             await tab.click('[data-kr-next]');
             await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
-            await tab.waitForSelector('[data-action="goals-open"]');
-            assert.equal(await tab.locator('[data-chronicle-strip]').count(), 0);
+            await tab.waitForSelector('[data-chronicle-strip]', { state: 'detached' });
+            assert.equal(await tab.locator('#dnes-extras').count(), 0, 'žádný jiný pruh nečeká');
             await tab.reload();
-            await tab.waitForSelector('[data-action="goals-open"]');
+            await tab.waitForSelector('#daily-card');
             assert.equal(await tab.locator('[data-chronicle-strip]').count(), 0, 'jednou za týden');
             assert.deepEqual(problems, []);
             await context.close();
@@ -196,30 +197,28 @@ test('kronika týdne: pruh, příběh, sdílení, skrytí a Můj postup', { skip
         const monday = await open({ now: MONDAY, viewport: { width: 360, height: 640 } });
         await monday.tab.waitForSelector(`[data-chronicle-strip="${WEEK}"]`);
         await monday.tab.click('[data-action="chronicle-dismiss"]');
-        await monday.tab.waitForSelector('[data-action="goals-open"]');
-        assert.equal(await monday.tab.locator('[data-chronicle-strip]').count(), 0);
+        await monday.tab.waitForSelector('[data-chronicle-strip]', { state: 'detached' });
         assert.equal((await storage(monday.tab, 'mudrlant.week')).seen, WEEK);
         assert.equal(await monday.tab.locator('#dialog-overlay').count(), 0, 'skrytí okno neotevře');
         assert.deepEqual(monday.problems, []);
         await monday.context.close();
         const wednesday = await open({ now: WEDNESDAY });
-        await wednesday.tab.waitForSelector('[data-action="goals-open"]');
+        await wednesday.tab.waitForSelector('#daily-card');
         assert.equal(await wednesday.tab.locator('[data-chronicle-strip]').count(), 0);
         await wednesday.context.close();
         // Neděle večer, ale týden s jediným dnem hraní: pruh se nenabízí
         const thin = await open({ seed: { 'mudrlant.week': { v: 1, days: { '2026-11-15': { a: 3, c: 2 } } } } });
-        await thin.tab.waitForSelector('[data-action="goals-open"]');
+        await thin.tab.waitForSelector('#daily-card');
         assert.equal(await thin.tab.locator('[data-chronicle-strip]').count(), 0);
         await thin.context.close();
     });
 
     for (const [name, viewport] of [['390×780', { width: 390, height: 780 }], ['360×640', { width: 360, height: 640 }]]) {
-        await t.test(`Kronika týdne z Mého postupu: minulý a tento týden, zpět do Mého postupu (${name})`, async () => {
+        await t.test(`Kronika týdne ze záložky Postup: minulý a tento týden, zavřením zpět na záložku (${name})`, async () => {
             const { context, tab, problems } = await open({ now: WEDNESDAY, viewport });
-            await nav.settings(tab);
-            await tab.click('[data-open-progress]');
-            await tab.waitForSelector('[data-progress-dialog]');
-            assert.deepEqual(await dialogOverflow(tab), { v: 0, h: 0 }, 'Můj postup se vejde i s odkazem na kroniku');
+            await nav.go(tab, 'postup');
+            await tab.waitForSelector('#tab-postup [data-open-chronicle]');
+            assert.ok(await noScroll(tab), 'záložka Postup se vejde i s dlaždicí Kronika');
             await tab.click('[data-open-chronicle]');
             await tab.waitForSelector('[data-chronicle]');
             // Ve středu: minulý týden (2.–8. 11.) je dokončený, jen úterý s Historií
@@ -237,9 +236,10 @@ test('kronika týdne: pruh, příběh, sdílení, skrytí a Můj postup', { skip
             assert.equal((await tab.innerText('[data-kr-answered]')).replace(/\s+/g, ' ').trim(), '50 odpovědí');
             assert.deepEqual(await dialogOverflow(tab), { v: 0, h: 0 });
             await shot(tab, `kronika-postup-tento-${viewport.width}x${viewport.height}`);
-            // Křížek vrátí do Mého postupu
+            // Křížek okno zavře a jsme zpět na záložce Postup
             await tab.click('#dialog-overlay [data-close]');
-            await tab.waitForSelector('[data-progress-dialog]');
+            await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
+            assert.equal(await nav.currentTab(tab), 'postup');
             assert.deepEqual(problems, []);
             await context.close();
         });

@@ -1,5 +1,5 @@
 // Odměny v prohlížeči (rewards.js, app.js): Truhla Mudrlanta na úvodu (otevření, věc, nasazení, omezený pohyb), ochrana série
-// (štít u dnešních otázek, sama zachrání vynechaný den), Můj postup bez posouvání a Diplomy (náhled na plátně, Sdílet/Stáhnout).
+// (štít u série v hlavičce, sama zachrání vynechaný den), záložka Postup bez posouvání a Diplomy (náhled na plátně, Sdílet/Stáhnout).
 // Sdílet obrázek u Bleskovky hlídá e2e-modes. Telefon 360×640 i 390×780, světlý i tmavý režim, bez posouvání úvodu a bez chyb CSP.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -58,7 +58,7 @@ test('odměny: truhla, ochrana série, diplomy, sdílení obrázku', { skip: !ch
         tab.on('pageerror', error => problems.push(error.message));
         tab.on('console', message => { if (/Content Security Policy/i.test(message.text())) problems.push(message.text()); });
         await tab.goto(`${origin}/`);
-        await tab.waitForSelector('[data-action="play-topic"]');
+        await nav.waitForHome(tab);
         return { context, tab, problems };
     };
     // Po doběhnutí úvodních animací (fade-in posouvá obsah o 10 px), nekonečné (pohupování truhly) se nečekají
@@ -71,12 +71,13 @@ test('odměny: truhla, ochrana série, diplomy, sdílení obrázku', { skip: !ch
     const clearCelebrations = async (tab) => { for (let i = 0; i < 8 && await tab.locator('#celebration').count(); i++) { await tab.locator('#celebration').click({ timeout: 1500 }).catch(() => {}); await tab.waitForTimeout(300); } };
 
     for (const [name, viewport, colorScheme] of [['390×780', { width: 390, height: 780 }, 'light'], ['360×640', { width: 360, height: 640 }, 'light'], ['390×780 tmavý', { width: 390, height: 780 }, 'dark'], ['360×640 tmavý', { width: 360, height: 640 }, 'dark']]) {
-        await t.test(`truhla: pruh na úvodu, otevření, věc a nasazení (${name})`, async () => {
+        await t.test(`truhla: řádek na záložce Dnes, otevření, věc a nasazení (${name})`, async () => {
             const { context, tab, problems } = await open({ viewport, colorScheme, seed: { 'mudrlant.progress': { xp: 400, counters: {}, badges: {} }, 'mudrlant.rewards': { ready: [week], freezes: 1 } } });
             const strip = tab.locator('[data-chest-ready]');
             await strip.waitFor();
             assert.match(await strip.textContent(), /Truhla Mudrlanta čeká/);
-            assert.equal(await tab.locator('[data-freeze-chip]').count(), 1, 'štít ochrany u dnešních otázek');
+            assert.equal(await tab.locator('#chest-row[data-action="chest-open"]').count(), 1, 'zlatý řádek na záložce Dnes');
+            assert.equal(await tab.locator('#streak-chip [data-freeze-chip]').count(), 1, 'štít ochrany série v hlavičce');
             assert.ok(await noScroll(tab), `úvod s truhlou bez posouvání: ${await tab.evaluate(() => { const box = document.getElementById('app-content'); return `${box.scrollHeight}/${box.clientHeight}, šířka ${document.documentElement.scrollWidth}/${window.innerWidth}`; })}`);
             const tag = `${viewport.width}-${colorScheme}`;
             await shot(tab, `uvod-truhla-${tag}`);
@@ -123,7 +124,9 @@ test('odměny: truhla, ochrana série, diplomy, sdílení obrázku', { skip: !ch
                 else assert.equal(Object.values(look.acc).map(entry => entry.id).includes(id), true, 'doplněk nasazen');
             } else await tab.click('[data-chest-close]');
             assert.equal(await tab.locator('#chest-overlay').count(), 0);
-            // Pruh je zase cíle týdne; truhla jde otevřít jen jednou
+            // Řádek s truhlou ze záložky Dnes zmizí (truhla jde otevřít jen jednou); cíle týdne jsou na záložce Postup
+            await tab.waitForSelector('[data-chest-ready]', { state: 'detached' });
+            await nav.go(tab, 'postup');
             await tab.waitForSelector('#weekly-goals [data-goal]');
             assert.equal(await tab.locator('[data-chest-ready]').count(), 0);
             assert.equal((await storage(tab, 'mudrlant.progress')).counters.chestsOpened, 1);
@@ -176,31 +179,38 @@ test('odměny: truhla, ochrana série, diplomy, sdílení obrázku', { skip: !ch
         assert.equal((await storage(tab, 'mudrlant.progress')).counters.freezesUsed, 1);
         await clearCelebrations(tab);
         await tab.evaluate(() => document.getElementById('btn-home').click());
-        await tab.waitForSelector('[data-action="daily"][data-topic="zemepis"]');
-        assert.match(await tab.textContent('[data-action="daily"][data-topic="zemepis"]'), /3/, 'série 3 dní přes zachráněný den');
+        await nav.waitForHome(tab);
+        await nav.dailySheet(tab);
+        assert.match(await tab.textContent('#daily-sheet [data-action="daily"][data-topic="zemepis"]'), /3/, 'série 3 dní přes zachráněný den');
+        await tab.keyboard.press('Escape');
         assert.equal(await tab.locator('[data-freeze-chip]').count(), 0, 'bez ochrany štít není');
         // Další spuštění téhož dne už nic nespotřebuje
         await tab.reload();
-        await tab.waitForSelector('[data-action="play-topic"]');
+        await nav.waitForHome(tab);
         assert.equal((await storage(tab, 'mudrlant.rewards')).freezes, 0);
         assert.deepEqual(problems, []);
         await context.close();
     });
 
-    // Můj postup se vejde bez posouvání na 390×780, na 360×640 nejvýš trochu (hráč s hodně odznaky a dvěma odměnami u odznaků)
+    // Záložka Postup se vejde bez posouvání na 390×780 i 360×640 (hráč s hodně odznaky a dvěma odměnami u odznaků); okna z ní také
+    const tabOverflow = (tab) => tab.evaluate(async () => {
+        await Promise.all(document.getAnimations().filter(animation => animation.effect && animation.effect.getComputedTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => {})));
+        const content = document.getElementById('app-content');
+        return { y: content.firstElementChild.scrollHeight - content.clientHeight, x: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+    });
     const overflow = (tab) => tab.evaluate(async () => {
         await Promise.all(document.getAnimations().filter(animation => animation.effect && animation.effect.getComputedTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => {})));
         const box = document.getElementById('dialog-overlay').firstElementChild;
         return { y: box.scrollHeight - box.clientHeight, x: document.documentElement.scrollWidth - document.documentElement.clientWidth };
     });
     for (const [viewport, colorScheme] of [[{ width: 390, height: 780 }, 'light'], [{ width: 390, height: 780 }, 'dark'], [{ width: 360, height: 640 }, 'light'], [{ width: 360, height: 640 }, 'dark']]) {
-        await t.test(`Můj postup bez posouvání: odměny a diplomy, diplom jako obrázek (${viewport.width}×${viewport.height}, ${colorScheme})`, async () => {
+        await t.test(`záložka Postup bez posouvání: odměny a diplomy, diplom jako obrázek (${viewport.width}×${viewport.height}, ${colorScheme})`, async () => {
             const learned = { zemepis: Array.from({ length: 300 }, (_, i) => `Q${900000 + i}`), historie: Array.from({ length: 70 }, (_, i) => `Q${800000 + i}`) };
             const { context, tab, problems } = await open({ viewport, colorScheme, seed: { 'mudrlant.learned': learned, 'mudrlant.rewards': { freezes: 1, name: 'Jana' }, 'mudrlant.progress': { xp: 2000, counters: { correct: 120, bestRun: 9, topicBest: { zemepis: 10 } }, badges: {} } } });
             const tag = `${viewport.width}-${colorScheme}`;
             // Plné mistrovství zeměpisu: diplom se zapíše (a oslaví) při přepočtu odznaků
             await tab.evaluate(() => document.getElementById('status-badge').click());
-            await tab.waitForSelector('[data-rewards-section]');
+            await tab.waitForSelector('#tab-postup #postup-tiles');
             // Oslava diplomu ukáže legendární postavičku za něj (místo sovy) a řekne, kde se vybírá
             const cards = [];
             for (let i = 0; i < 8 && await tab.locator('#celebration').count(); i++) {
@@ -211,25 +221,30 @@ test('odměny: truhla, ochrana série, diplomy, sdílení obrázku', { skip: !ch
             await clearCelebrations(tab);
             const diplomaCard = cards.find(card => /Nový diplom/.test(card.text));
             assert.ok(diplomaCard, `oslava diplomu (${cards.map(card => card.text).join(' | ')})`);
-            assert.match(diplomaCard.text, /Mistr zeměpisu – najdeš ho v Mém postupu\. Odměna: legendární postavička Albatros mořeplavec – vyber si ji v Nastavení → Profil \(po přihlášení\)/);
+            assert.match(diplomaCard.text, /Mistr zeměpisu – najdeš ho na záložce Postup\. Odměna: legendární postavička Albatros mořeplavec – vyber si ji v Nastavení → Profil \(po přihlášení\)/);
             assert.equal(diplomaCard.art, 1, 'v oslavě je obrázek Albatrose');
-            const scroll = await overflow(tab);
+            await tab.waitForTimeout(300);
+            const scroll = await tabOverflow(tab);
             await shot(tab, `muj-postup-${tag}`);
             assert.equal(scroll.x, 0, 'bez vodorovného posouvání');
-            if (viewport.height >= 780) assert.equal(scroll.y, 0, `Můj postup bez posouvání (přetéká o ${scroll.y} px)`);
-            else assert.ok(scroll.y <= 48, `na 360×640 nejvýš trochu posouvání (${scroll.y} px)`);
-            assert.equal(await tab.locator('[data-progress-dialog] [data-mastery]').count(), 14, 'mistrovství všech témat');
-            assert.doesNotMatch(await tab.textContent('#dialog-overlay'), /sláva/, 'odznak jen pro slávu neuvádí odměnu');
+            assert.equal(scroll.y, 0, `záložka Postup bez posouvání (přetéká o ${scroll.y} px)`);
+            await tab.click('#tab-postup [data-open-mastery-all]');
+            assert.equal(await tab.locator('#dialog-overlay [data-mastery-dialog] [data-mastery]').count(), 14, 'mistrovství všech témat');
+            assert.ok((await overflow(tab)).y <= 0, 'okno Mistrovství témat bez posouvání');
+            await tab.keyboard.press('Escape');
+            assert.doesNotMatch(await tab.textContent('#tab-postup'), /sláva/, 'odznak jen pro slávu neuvádí odměnu');
             assert.match(await tab.textContent('[data-freeze-count]'), /1 z 2/);
             assert.match(await tab.textContent('[data-diploma-count]'), /\d+ \/ 14/);
             await tab.click('[data-rewards-info="freeze"]');
             await tab.waitForSelector('[data-freeze-help]');
             assert.match(await tab.textContent('[data-freeze-help]'), /jeden den vynecháš/);
             await shot(tab, `ochrana-vysvetleni-${tag}`);
-            await tab.click('[data-dialog-back]');
+            await tab.keyboard.press('Escape');
+            await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
             await tab.click('[data-rewards-info="chest"]');
             await tab.waitForSelector('[data-chest-help]');
-            await tab.click('[data-dialog-back]');
+            await tab.keyboard.press('Escape');
+            await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
             // Diplomy: vlastní okno se všemi tématy
             await tab.click('[data-rewards-info="diplomas"]');
             await tab.waitForSelector('[data-diplomas] [data-diploma="zemepis"]');

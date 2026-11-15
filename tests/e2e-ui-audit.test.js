@@ -156,7 +156,7 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
         });
         await tab.clock.setFixedTime(new Date(now));
         await tab.goto(`${origin}/`);
-        await tab.waitForSelector('[data-action="daily"][data-topic="zemepis"]', { timeout: 30000 });
+        await nav.waitForHome(tab);
         return { context, tab, problems };
     };
     const check = async (tab, scene, scheme) => {
@@ -420,7 +420,7 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
                 await check(tab, `${kind}: výsledek`, scheme);
                 await fitsScreen(tab, `${kind}: výsledek`, scheme);
                 await tab.click('[data-action="mode-home"]');
-                await tab.waitForSelector('[data-action="play-topic"]');
+                await nav.waitForHome(tab);
             }
             assert.deepEqual(problems, [], 'bez chyb v konzoli a bez porušení CSP');
             await context.close();

@@ -151,7 +151,7 @@ const setup = async (browser, { key = VAPID, permission = 'default', answer = 'g
     await backend(context, db, key);
     return { context, tab, log, db };
 };
-const waitForHome = (tab) => tab.waitForFunction(() => { const content = document.getElementById('app-content'); return Boolean(content && (content.textContent.includes('Dnešní otázky') || content.querySelector('#home-tabs'))); }, null, { timeout: 30000 });
+const waitForHome = (tab) => nav.waitForHome(tab);
 const openSettings = async (tab) => { await nav.settings(tab); await tab.waitForSelector('#settings-overlay'); };
 const overflow = (tab, selector = '#settings-overlay > div') => tab.evaluate((selector) => { const box = document.querySelector(selector); return { page: document.documentElement.scrollWidth - document.documentElement.clientWidth, box: box.scrollWidth - box.clientWidth }; }, selector);
 // Text u přepínače (podtitulek řádku) a rada pod ním
@@ -398,7 +398,7 @@ test('upozornění (push) v Nastavení', { skip: !chromium && 'Playwright není 
 
     await t.test('?tab=multi z upozornění otevře Více hráčů a adresa se vyčistí', async () => {
         const { context, tab } = await start({ query: '?tab=multi' });
-        await tab.waitForSelector('#home-tabs');
+        await nav.waitForHome(tab);
         assert.equal(await tab.getAttribute('#home-tabs [data-tab="multi"]', 'aria-selected'), 'true');
         assert.equal(new URL(tab.url()).search, '');
         await context.close();

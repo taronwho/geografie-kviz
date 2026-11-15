@@ -90,7 +90,7 @@ test('Bleskovka, Přežití, zvuky a vibrace', { skip: !chromium && 'Playwright 
         tab.on('pageerror', error => problems.push(error.message));
         tab.on('console', message => { if (/Content Security Policy/i.test(message.text())) problems.push(message.text()); });
         await tab.goto(`${origin}/`);
-        await tab.waitForSelector('[data-action="play-topic"]');
+        await nav.waitForHome(tab);
         return { context, tab, problems };
     };
     const shot = async (tab, name) => { if (SHOTS) await tab.screenshot({ path: path.join(SHOTS, `${name}.png`) }); };
@@ -176,13 +176,13 @@ test('Bleskovka, Přežití, zvuky a vibrace', { skip: !chromium && 'Playwright 
         assert.deepEqual(await fits(tab), { scroll: 0, wide: 0 });
         // Zpět na úvod
         await tab.click('[data-action="mode-home"]');
-        await tab.waitForSelector('[data-action="play-topic"]');
+        await nav.waitForHome(tab);
         // Tlačítko Zpět (telefon) během hry: domů, hra se zahodí
         await openMode(tab, 'survival');
         await tab.click('[data-action="mode-start"]');
         await waitQuestion(tab, 1);
         await tab.goBack();
-        await tab.waitForSelector('[data-action="play-topic"]');
+        await nav.waitForHome(tab);
         assert.equal(await storage(tab, 'mudrlant.modes'), null, 'nedohraná hra se nezapíše');
         assert.deepEqual(problems, []);
         await context.close();
@@ -288,7 +288,7 @@ test('Bleskovka, Přežití, zvuky a vibrace', { skip: !chromium && 'Playwright 
         await tab.click('[data-action="mode-again"]');
         await waitQuestion(tab, 1);
         await tab.click('#btn-home');
-        await tab.waitForSelector('[data-action="play-topic"]');
+        await nav.waitForHome(tab);
         await tab.waitForTimeout(300);
         assert.equal((await storage(tab, 'mudrlant.modes')).blitz.games, 2, 'odehraná je jen dokončená hra');
         assert.equal(await tab.evaluate(() => Boolean(document.querySelector('[data-mode-question]'))), false);
@@ -425,7 +425,7 @@ test('Bleskovka, Přežití, zvuky a vibrace', { skip: !chromium && 'Playwright 
             await tab.click('#settings-overlay [data-close]');
             // Po obnovení stránky platí uložená volba a hra mlčí
             await tab.reload();
-            await tab.waitForSelector('[data-action="play-topic"]');
+            await nav.waitForHome(tab);
             await openMode(tab, 'survival');
             await tab.click('[data-action="mode-start"]');
             await waitQuestion(tab, 1);

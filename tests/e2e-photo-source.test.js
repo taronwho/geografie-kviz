@@ -82,7 +82,7 @@ test('zdroj obrázku: „i“ u vlajky před odpovědí a po ní', { skip: !chro
             if (message.type() === 'error' && !/\/(data\/fakt|version)\.json$/.test(message.location().url || '')) log.console.push(message.text());
         });
         await tab.goto(`${origin}/`);
-        await tab.waitForSelector('#btn-learn', { timeout: 30000 });
+        await nav.waitForHome(tab);
         await nav.learn(tab);
         if (atlas) {
             // Atlas učení (zeměpis, velkoměsta popořadě): karta s fotkou, žádná otázka

@@ -79,7 +79,7 @@ const setup = async (browser, storage, { viewport = { width: 390, height: 780 },
     await context.addInitScript(entries => {
         if (sessionStorage.getItem('test-storage-set')) return;
         sessionStorage.setItem('test-storage-set', '1');
-        Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
+        Object.entries(entries).forEach(([key, value]) => (key.startsWith('session:') ? sessionStorage.setItem(key.slice(8), value) : localStorage.setItem(key, value)));
     }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), 'mudrlant.tips': JSON.stringify({ off: true }), ...storage });
     const tab = await context.newPage();
     const log = { errors: [], csp: [] };
@@ -98,7 +98,7 @@ const setup = async (browser, storage, { viewport = { width: 390, height: 780 },
     return { context, tab, log };
 };
 const progress = (xp, badges = {}) => ({ 'mudrlant.progress': JSON.stringify({ xp, counters: {}, badges }) });
-const waitForHome = (tab) => tab.waitForFunction(() => { const content = document.getElementById('app-content'); return Boolean(content && (content.textContent.includes('Dnešní otázky') || content.querySelector('#home-tabs'))); }, null, { timeout: 30000 });
+const waitForHome = (tab) => nav.waitForHome(tab);
 const shot = async (tab, name) => { if (SHOTS) await tab.screenshot({ path: path.join(SHOTS, `${name}.png`) }); };
 // Stránka se neposouvá (ani do strany); obsah úvodu se vejde do plochy
 const fits = (tab) => tab.evaluate(() => ({

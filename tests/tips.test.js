@@ -118,7 +118,7 @@ test('tipy na Kvíz dne, Bleskovku a Přežití, Seřaď a Odhadni, mapu, sdíle
     assert.equal(at('kviz-poradi', base({ counters: { answered: 40, quizDone: 1 }, signedIn: true })).id, 'kviz-poradi');
     assert.equal(at('kviz-poradi', base({ counters: { answered: 40 }, signedIn: true })), null, 'ještě nehrál');
     // Bleskovka a Přežití: kde je najít (okno po klepnutí na dlaždici tématu nebo Mix), kdo hrál, nedostane
-    assert.match(Tips.BY_ID.get('rezimy').text, /dlaždici tématu nebo na Mix/);
+    assert.match(Tips.BY_ID.get('rezimy').text, /na záložce Hrát mezi Režimy/);
     assert.equal(at('rezimy', base({ counters: { answered: 10 } })).action.kind, 'play');
     assert.equal(at('rezimy', base({ counters: { answered: 10, survivalGames: 1 } })), null);
     // Seřaď, Odhadni a mapa: až po první takové otázce, body za přesnost

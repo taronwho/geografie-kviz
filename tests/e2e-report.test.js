@@ -80,7 +80,7 @@ test('Nahlásit chybu v otázce', { skip: !chromium && 'Playwright není nainsta
         tab.on('pageerror', error => problems.push(error.message));
         tab.on('console', message => { if (/Content Security Policy/i.test(message.text())) problems.push(message.text()); });
         await tab.goto(`${origin}/`);
-        await tab.waitForSelector('[data-action="daily"][data-topic="historie"]');
+        await nav.waitForHome(tab);
         await nav.daily(tab, 'historie');
         await tab.waitForSelector('[data-action="choice"]', { timeout: 30000 });
         await tab.waitForTimeout(600);

@@ -332,7 +332,7 @@ const setup = async (browser, { viewport, storage = {}, db = newDb(), query = ''
     await context.addInitScript(entries => {
         if (sessionStorage.getItem('test-storage-set')) return;
         sessionStorage.setItem('test-storage-set', '1');
-        Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
+        Object.entries(entries).forEach(([key, value]) => (key.startsWith('session:') ? sessionStorage.setItem(key.slice(8), value) : localStorage.setItem(key, value)));
     }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.tips': JSON.stringify({ off: true }), 'mudrlant.variant': 'choices', ...(welcome ? {} : { 'mudrlant.account': JSON.stringify('host') }), ...(signedOut ? {} : login), ...richStorage(), ...storage });
     const tab = await context.newPage();
     tab.setDefaultTimeout(10000);
@@ -504,7 +504,7 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
             // Nastavení: tři záložky (Hra, Profil = jak mě vidí ostatní, Mudrlant) a jejich stavy (skupiny obrázků, barva části postavičky,
             // posuvník všech barev, doplněk s barvou); na obou velikostech bez posouvání (SETTINGS_STRICT)
             const settingsTab = async (id) => {
-                await nav.settings(tab, id);
+                await nav.settingsFromJa(tab, id);
                 await tab.click(`[data-me-tab="${id}"]`);
                 await tab.waitForSelector(`[data-me-tab="${id}"][aria-selected="true"]`);
             };
@@ -564,19 +564,19 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
                 await settled();
             });
             await scene(tab, 'Zablokovaní hráči', size, async () => {
-                await nav.settings(tab);
+                await nav.settingsFromJa(tab);
                 await tab.click('[data-me-tab="game"]');
                 await tab.click('[data-open-blocked]');
                 await tab.waitForSelector('#blocked-list');
             });
             await scene(tab, 'Moje data', size, async () => {
-                await nav.settings(tab);
+                await nav.settingsFromJa(tab);
                 await tab.click('[data-me-tab="game"]');
                 await tab.click('[data-open-privacy]');
                 await tab.waitForSelector('#dialog-overlay [data-delete-account]');
             });
             await scene(tab, 'Moje data – potvrzení smazání', size, async () => {
-                await nav.settings(tab);
+                await nav.settingsFromJa(tab);
                 await tab.click('[data-me-tab="game"]');
                 await tab.click('[data-open-privacy]');
                 await tab.click('#dialog-overlay [data-delete-account]');
@@ -588,7 +588,7 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
                 await tab.waitForTimeout(400);
             });
             await scene(tab, 'Jak povolit upozornění', size, async () => {
-                await nav.settings(tab);
+                await nav.settingsFromJa(tab);
                 await tab.click('[data-me-tab="game"]');
                 await tab.waitForSelector('[data-push-toggle="on"]');
                 await tab.click('[data-push-toggle="on"]');
@@ -680,7 +680,7 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
                 await tab.waitForSelector('[data-season-detail="2026-07"] [data-showcase-toggle]');
             });
             await scene(tab, 'Vitrína', size, async () => {
-                await nav.settings(tab);
+                await nav.settingsFromJa(tab);
                 await tab.click('[data-me-tab="profile"]');
                 await tab.click('#settings-overlay [data-open-showcase]');
                 await tab.waitForSelector('[data-showcase-dialog] [data-showcase-item]');
@@ -762,7 +762,7 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
             rewards.gifts.accessories = ['cepice-zimni', 'karneval', 'jarni-venecek', 'destnik', 'konvalinky', 'slamak', 'snorchl', 'zmrzlina', 'tuzka', 'dyne', 'lampion', 'sala-zimni'];
             const { context, tab, log } = await setup(browser, { viewport: size, storage: { 'mudrlant.rewards': JSON.stringify(rewards) } });
             const openSlot = async (slot, pick = null) => {
-                await nav.settings(tab, 'owl');
+                await nav.settingsFromJa(tab, 'owl');
                 await tab.click('[data-me-tab="owl"]');
                 await tab.waitForSelector('[data-me-tab="owl"][aria-selected="true"]');
                 await tab.click(`[data-owl-slot="${slot}"]`);
@@ -792,7 +792,7 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
         await t.test(`Nastavení bez účtu (${size.width}×${size.height})`, async () => {
             const { context, tab, log } = await setup(browser, { viewport: size, signedOut: true });
             const open = async (id) => {
-                await nav.settings(tab, id);
+                await nav.settingsFromJa(tab, id);
                 await tab.click(`[data-me-tab="${id}"]`);
                 await tab.waitForSelector(`[data-me-tab="${id}"][aria-selected="true"]`);
                 await tab.waitForFunction(() => [...document.querySelectorAll('#settings-overlay img')].every(img => img.complete));
@@ -981,7 +981,7 @@ test('stránka se neposouvá: obrazovky a okna ve světlém i tmavém režimu', 
                 await scene(tab, 'Mistrovství témat', key, async () => { await nav.go(tab, 'postup'); await tab.click('[data-open-mastery-all]'); await tab.waitForSelector('[data-mastery-dialog]'); });
                 for (const [id, title] of [['game', 'Hra'], ['profile', 'Profil'], ['owl', 'Mudrlant']]) {
                     await scene(tab, `Nastavení – ${title}`, key, async () => {
-                        await nav.settings(tab, id);
+                        await nav.settingsFromJa(tab, id);
                         await tab.waitForSelector(`[data-me-tab="${id}"][aria-selected="true"]`);
                         await tab.waitForTimeout(300);
                     });
@@ -1078,17 +1078,22 @@ test('stránka se neposouvá: obrazovky a okna ve světlém i tmavém režimu', 
             await measure(tab, 'Dnes se všemi pruhy', key, [], true);
             const state = await tab.evaluate(() => {
                 const shown = (el) => Boolean(el) && el.getBoundingClientRect().height > 0;
+                // V dokumentu je jen jedna podoba (data-mode), druhá čeká v <template>
                 const extras = document.getElementById('dnes-extras');
-                const strips = extras.querySelector('[data-strips]');
-                const chips = extras.querySelector('[data-chips]');
                 const actions = (root) => [...root.querySelectorAll('[data-action]')].map(el => el.dataset.action).filter(name => name !== 'mystery-dismiss' && name !== 'chronicle-dismiss').sort();
-                return { strips: shown(strips), chips: shown(chips), stripActions: actions(strips), chipActions: actions(chips), chest: shown(document.getElementById('chest-row')) };
+                const live = extras.querySelector(':scope > [data-live]');
+                return { mode: extras.dataset.mode, shown: shown(live), live: actions(live), stored: actions(extras.querySelector(':scope > template').content), chest: shown(document.getElementById('chest-row')),
+                    twice: [...document.querySelectorAll('#app-content [data-action]')].map(el => el.dataset.action).filter((name, index, all) => ['gold-chest', 'mystery-reveal', 'season-claim', 'weekend-play'].includes(name) && all.indexOf(name) !== index) };
             });
             assert.equal(state.chest, true, `${key}: řádek Truhla čeká je vidět vždy`);
-            assert.notEqual(state.strips, state.chips, `${key}: buď celé pruhy, nebo čipy`);
-            assert.deepEqual(state.chipActions, state.stripActions, `${key}: čipy vedou na stejná místa jako pruhy`);
-            for (const name of ['gold-chest', 'mystery-reveal', 'season-claim', 'weekend-play']) assert.ok(state.stripActions.includes(name), `${key}: ${name} (${iso})`);
-            if (size.height <= 640) assert.equal(state.chips, true, `${key}: na nízkém displeji čipy`);
+            assert.equal(state.shown, true, `${key}: pruhy nebo čipy jsou vidět`);
+            assert.deepEqual(state.stored, state.live, `${key}: čipy vedou na stejná místa jako pruhy`);
+            assert.deepEqual(state.twice, [], `${key}: každá akce je na záložce jen jednou`);
+            for (const name of ['gold-chest', 'mystery-reveal', 'season-claim', 'weekend-play']) assert.ok(state.live.includes(name), `${key}: ${name} (${iso})`);
+            if (size.height <= 640) assert.equal(state.mode, 'chips', `${key}: na nízkém displeji čipy`);
+            if (size.height >= 900) assert.equal(state.mode, 'strips', `${key}: na vysokém displeji celé pruhy`);
+            // Čip jde klepnout (Zlatá truhla se otevře)
+            if (state.mode === 'chips') { await tab.click('#dnes-extras [data-action="gold-chest"]'); await tab.waitForSelector('#chest-overlay'); }
             assert.deepEqual(log.csp, []);
             assert.deepEqual(log.errors, []);
             await context.close();

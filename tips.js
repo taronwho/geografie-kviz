@@ -31,7 +31,7 @@
             action: { kind: 'settings', tab: 'game', label: 'Otevřít Nastavení' }, used: (u) => num(u.counters.typedCorrect) > 0 },
         { id: 'uceni', icon: 'graduation-cap', after: 6, title: 'Učení', text: 'V Učení (záložka Hrát) si projdeš všechna témata a jejich okruhy a uvidíš, co už znáš a co ještě ne. Hodí se to i jako příprava na výzvu.',
             action: { kind: 'learn', label: 'Do Učení' }, used: (u) => Boolean(u.visited.learn) },
-        { id: 'rezimy', icon: 'zap', after: 10, title: 'Bleskovka a Přežití', text: 'V Bleskovce máš 60 sekund na co nejvíc správných odpovědí. V Přežití máš 3 životy a každá chyba ti jeden vezme. Obě hry najdeš na záložce Hrát mezi Režimy; s jedním tématem je spustíš z okna, které se otevře po klepnutí na jeho dlaždici. Rekordy se ti ukládají.',
+        { id: 'rezimy', icon: 'zap', after: 10, title: 'Bleskovka a Přežití', text: 'V Bleskovce máš 60 sekund na co nejvíc správných odpovědí. V Přežití máš 3 životy a každá chyba ti jeden vezme. Obě hry najdeš na záložce Hrát mezi Režimy, s jedním tématem v okně po klepnutí na jeho dlaždici. Rekordy se ti ukládají.',
             action: { kind: 'play', label: 'Na záložku Hrát' }, ready: (u) => u.modes, used: (u) => num(u.counters.blitzGames) + num(u.counters.survivalGames) > 0 },
         { id: 'turnaj', icon: 'trophy', multi: true, account: true, after: 14, title: 'Týdenní turnaj', text: 'Každý týden začíná turnaj. Každý den se hraje jedno kolo: 10 otázek proti jednomu soupeři a kdo vyhraje, postupuje do dalšího kola. Přihlásit se můžeš na záložce Soupeři v okně Turnaje.',
             action: { kind: 'tournaments', label: 'Zobrazit' }, used: (u) => num(u.counters.tourPlayed) > 0 },

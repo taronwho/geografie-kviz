@@ -23,14 +23,37 @@ const openSub = async (tab, view, selector) => {
 const challenges = (tab) => openSub(tab, 'vyzvy', '#challenges-section');
 const tournaments = (tab) => openSub(tab, 'turnaje', '#tournaments-section');
 
-// Okno Nastavení: při hře ho otevře obrázek hráče (ozubené kolečko) v hlavičce, na hlavních obrazovkách vede tlačítko na záložku Já
-// a Nastavení otevře její řádek (which: game = Nastavení hry, profile = Profil, owl = Mudrlant)
-const settings = async (tab, which = 'game') => {
+// Akce aplikace bez klepnutí na konkrétní prvek (stejné jako tlačítko s data-action v obsahu): pro okna, která jdou otevřít z více míst
+const action = (tab, name, data = {}) => tab.evaluate(([name, data]) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.action = name;
+    Object.assign(button.dataset, data);
+    button.className = 'hidden';
+    document.getElementById('app-content').appendChild(button);
+    button.click();
+    button.remove();
+}, [name, data]);
+
+// Okno Nastavení tak, jak ho otevírá hráč: při hře obrázek hráče (ozubené kolečko) v hlavičce, na hlavních obrazovkách vede obrázek
+// na záložku Já a Nastavení otevře její řádek (which: game = Nastavení hry, profile = Profil, owl = Mudrlant). Test skončí na záložce Já.
+const settingsFromJa = async (tab, which = 'game') => {
     if (!(await tab.$('#settings-overlay'))) {
         await tab.click('#btn-settings');
         if (!(await tab.$('#settings-overlay'))) await tab.click(`#ja-rows [data-ja="${which}"]`);
     }
     await tab.waitForSelector('#settings-overlay');
+};
+// Okno Nastavení pro testy, které po jeho zavření pokračují na své záložce (Výzvy, Turnaje…): na hlavních obrazovkách se otevře
+// akcí aplikace přímo nad zobrazenou záložkou (cestu přes záložku Já hlídá settingsFromJa v e2e.test.js a e2e-dialogs-fit.test.js),
+// při hře tlačítkem v hlavičce. which = záložka okna, na kterou se má přepnout (jinak naposledy otevřená, zprvu Hra).
+const settings = async (tab, which = '') => {
+    if (!(await tab.$('#settings-overlay'))) {
+        if (await tab.$('#app-content > [data-tab-root]')) await action(tab, 'settings');
+        else await tab.click('#btn-settings');
+    }
+    await tab.waitForSelector('#settings-overlay');
+    if (which) await tab.click(`#settings-overlay [data-me-tab="${which}"]`);
 };
 
 // Dnešní otázka tématu: karta Dnešní otázky na záložce Dnes otevře okno s tématy (bez tématu první téma v okně)
@@ -70,4 +93,4 @@ const learn = async (tab) => {
     await tab.click('[data-action="open-learn"]');
 };
 
-module.exports = { waitForHome, currentTab, go, challenges, tournaments, settings, daily, dailySheet, topic, mix, learn };
+module.exports = { waitForHome, currentTab, go, challenges, tournaments, action, settings, settingsFromJa, daily, dailySheet, topic, mix, learn };

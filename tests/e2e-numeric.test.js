@@ -101,7 +101,7 @@ test('číselné otázky Seřaď a Odhadni číslo v prohlížeči', { skip: !ch
 
     await t.test('Seřaď: klepání čísluje, druhé klepnutí číslo zruší, potvrzení dá body, XP a správné pořadí', async () => {
         const { context, tab, problems } = await open({ force: 'order' });
-        await nav.topic(tab, 'zemepis', { play: false });
+        await nav.topic(tab, 'zemepis');
         await tab.waitForSelector('[data-numeric-question="order"]');
         const data = (await read(tab, 'mudrlant.session')).data;
         assert.equal(data.numeric.kind, 'order');
@@ -150,7 +150,7 @@ test('číselné otázky Seřaď a Odhadni číslo v prohlížeči', { skip: !ch
 
     await t.test('Seřaď: jedna prohozená sousední dvojice dá 2 body, jinak nic a jde to do statistik jako chyba bez karty opakování', async () => {
         const { context, tab, problems } = await open({ force: 'order' });
-        await nav.topic(tab, 'zemepis', { play: false });
+        await nav.topic(tab, 'zemepis');
         await tab.waitForSelector('[data-numeric-question="order"]');
         const data = (await read(tab, 'mudrlant.session')).data;
         const [a, b, c, d] = data.numeric.order;
@@ -182,7 +182,7 @@ test('číselné otázky Seřaď a Odhadni číslo v prohlížeči', { skip: !ch
 
     await t.test('Odhadni číslo: číselné pole s jednotkou, nesmysl neodešle, mezery a tečky nevadí, body podle přesnosti a stupnice', async () => {
         const { context, tab, problems } = await open({ force: 'estimate' });
-        await nav.topic(tab, 'zemepis', { play: false });
+        await nav.topic(tab, 'zemepis');
         await tab.waitForSelector('[data-numeric-question="estimate"]');
         const data = (await read(tab, 'mudrlant.session')).data;
         assert.equal(data.numeric.kind, 'estimate');
@@ -217,7 +217,7 @@ test('číselné otázky Seřaď a Odhadni číslo v prohlížeči', { skip: !ch
 
     await t.test('psaní odpovědí: číselné otázky za 1,5× víc; vzdání bez bodů; dnešní otázka nikdy číselná', async () => {
         const { context, tab, problems } = await open({ variant: 'typed', force: 'estimate' });
-        await nav.topic(tab, 'zemepis', { play: false });
+        await nav.topic(tab, 'zemepis');
         await tab.waitForSelector('[data-numeric-question="estimate"]');
         assert.match(await tab.textContent('[data-numeric-question]'), /Až 6 bodů podle přesnosti/);
         const data = (await read(tab, 'mudrlant.session')).data;
@@ -236,7 +236,7 @@ test('číselné otázky Seřaď a Odhadni číslo v prohlížeči', { skip: !ch
         await tab.waitForFunction(() => document.querySelectorAll('#numeric-scale svg circle').length === 1, null, { timeout: 5000 });
         // Dnešní otázka: i s vynucenou číselnou otázkou obyčejná otázka
         await tab.click('#btn-home');
-        await tab.waitForSelector('[data-action="daily"][data-topic="zemepis"]');
+        await nav.waitForHome(tab);
         await nav.daily(tab, 'zemepis');
         await tab.waitForSelector('#answer-form', { timeout: 30000 });
         assert.equal(await tab.locator('[data-numeric-question]').count(), 0);

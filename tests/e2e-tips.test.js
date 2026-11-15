@@ -48,7 +48,7 @@ test('tipy od Mudrlanta', { skip: !chromium && 'Playwright není nainstalovaný'
         tab.on('pageerror', error => problems.push(error.message));
         tab.on('console', message => { if (/Content Security Policy/i.test(message.text())) problems.push(message.text()); });
         await tab.goto(`${origin}/`);
-        await tab.waitForSelector('[data-action="play-topic"]');
+        await nav.waitForHome(tab);
         return { context, tab, problems };
     };
     const bulbVisible = (tab) => tab.evaluate(() => { const el = document.getElementById('fact-hint'); return Boolean(el) && !el.classList.contains('hidden'); });
@@ -97,7 +97,7 @@ test('tipy od Mudrlanta', { skip: !chromium && 'Playwright není nainstalovaný'
         await tab.evaluate(() => localStorage.setItem('mudrlant.tips', JSON.stringify({ seen: ['dnesni', 'napoveda'], day: '2000-01-01', n: 0, lastAt: 0, off: false, visited: {} })));
         await tab.evaluate(() => { const p = JSON.parse(localStorage.getItem('mudrlant.progress') || '{}'); p.counters = { ...(p.counters || {}), answered: 10 }; localStorage.setItem('mudrlant.progress', JSON.stringify(p)); });
         await tab.reload();
-        await tab.waitForSelector('[data-action="play-topic"]');
+        await nav.waitForHome(tab);
         await tab.waitForFunction(() => { const el = document.getElementById('fact-hint'); return el && !el.classList.contains('hidden'); });
         await tab.click('#fact-hint');
         await tab.waitForSelector('#tip-dialog');

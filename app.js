@@ -2169,6 +2169,8 @@
             if (event.target.closest('[data-review-toggle]')) {
                 writeJson(KEYS.reviewOn, !reviewEnabled());
                 updateControlsUI();
+                // Čip u dlaždice Učení na záložce Hrát
+                paintTab('hrat');
                 openSettings(reviewEnabled() ? 'Procvičování chyb je zapnuté.' : 'Procvičování chyb je vypnuté.', '[data-review-toggle]');
                 return;
             }
@@ -2875,15 +2877,33 @@
         const wrap = appContent.firstElementChild;
         if (!mainShown() || !wrap) return;
         const wasShort = root.classList.contains(FIT_SHORT);
-        const strips = wrap.querySelector('[data-strips]');
-        const chips = wrap.querySelector('[data-chips]');
-        const asChips = (on) => { if (strips) strips.classList.toggle('hidden', on); if (chips) chips.classList.toggle('hidden', !on); };
+        // Příležitostné pruhy záložky Dnes: v dokumentu je vždy jen jedna podoba (celé pruhy, nebo čipy), druhá čeká v <template>.
+        // Zpět na pruhy se přepne, až když by se podle naposledy změřené výšky pruhů vešly (ať se při každém měření nepřepisuje obsah).
+        const extras = wrap.querySelector('#dnes-extras');
+        const setExtras = (mode) => {
+            if (!extras || extras.dataset.mode === mode) return;
+            const live = extras.querySelector(':scope > [data-live]');
+            const store = extras.querySelector(':scope > template');
+            const html = live.innerHTML;
+            live.innerHTML = store.innerHTML;
+            store.innerHTML = html;
+            live.className = mode === 'chips' ? EXTRAS_CHIPS : EXTRAS_STRIPS;
+            extras.dataset.mode = mode;
+            renderIcons(live);
+            applyProgress(live);
+        };
         // Bloky navíc (data-optional: nejbližší odznaky na záložce Postup) se ukážou, jen když se vejdou; schovávají se od posledního
         const optional = [...wrap.querySelectorAll('[data-optional]')];
         const over = () => wrap.scrollHeight > appContent.clientHeight + 1;
-        const relax = () => { asChips(false); optional.forEach(block => block.classList.remove('hidden')); };
+        const relax = () => {
+            optional.forEach(block => block.classList.remove('hidden'));
+            if (extras && extras.dataset.mode === 'chips' && appContent.clientHeight - wrap.scrollHeight + extras.offsetHeight >= Number(extras.dataset.stripsHeight || Infinity)) setExtras('strips');
+        };
         const squeeze = () => {
-            if (over() && strips) asChips(true);
+            if (extras && extras.dataset.mode === 'strips') {
+                extras.dataset.stripsHeight = String(extras.offsetHeight);
+                if (over()) setExtras('chips');
+            }
             for (let index = optional.length - 1; index >= 0 && over(); index--) optional[index].classList.add('hidden');
         };
         // Měří se bez přechodů (dlaždice mají transition): jinak by se hned po odebrání třídy změřila ještě zhuštěná výška (fit-measure v src/input.css)
@@ -3028,13 +3048,16 @@
             </button>` : '');
     // Příležitostné pruhy na záložce Dnes: včerejší Tajemná otázka, odměna Sezóny, Kronika týdne, Zlatá truhla a tematický víkend.
     // Každý má i malý čip; fitHome ukáže celé pruhy, jen když se vejdou, jinak řadu čipů (nikdy kvůli nim obrazovka neposouvá).
+    // V dokumentu je vždy jen jedna podoba (druhá čeká v <template>), ať je každá akce na záložce právě jednou.
+    const EXTRAS_STRIPS = 'flex flex-col gap-2 short:gap-1.5';
+    const EXTRAS_CHIPS = 'flex flex-wrap gap-1.5 tiny:flex-nowrap tiny:overflow-x-auto';
     const HOME_CHIP = 'flex min-h-[2.5rem] min-w-0 shrink-0 items-center gap-1.5 rounded-full bg-white px-3 text-[12px] font-black text-slate-800 shadow-sm ring-1 ring-slate-200/80 active:scale-95 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700/70';
     const dnesExtrasHtml = () => {
         const items = [];
         const reveal = mysteryRevealCard();
         if (reveal) items.push({ strip: reveal, chip: `<button type="button" data-action="mystery-reveal" title="Včerejší tajemná otázka: odpověď" class="${HOME_CHIP}">${uiArt('sova-dalekohled', 'h-6 w-6 -my-1 -ml-1')}<span class="truncate">Včerejší záhada</span></button>` });
         const season = seasonStripHtml();
-        if (season) items.push({ strip: season, chip: `<button type="button" data-action="season-claim" data-season-ready class="${HOME_CHIP} ring-2 ring-gold-400 dark:ring-gold-500">${uiArt('sezona', 'h-6 w-6 -my-1 -ml-1')}<span class="truncate">Odměna Sezóny</span></button>` });
+        if (season) items.push({ strip: season, chip: `<button type="button" data-action="season-claim" data-season-ready data-chip class="${HOME_CHIP} ring-2 ring-gold-400 dark:ring-gold-500">${uiArt('sezona', 'h-6 w-6 -my-1 -ml-1')}<span class="truncate">Odměna Sezóny</span></button>` });
         const chronicle = chronicleStripHtml();
         if (chronicle) items.push({ strip: chronicle, chip: `<button type="button" data-action="chronicle-open" class="${HOME_CHIP}">${uiArt('sova-kronika', 'h-6 w-6 -my-1 -ml-1')}<span class="truncate">Kronika týdne</span></button>` });
         if (Gold && Rewards && loadGold().ready > 0) {
@@ -3046,9 +3069,9 @@
         if (weekendNow()) items.push({ strip: weekendBannerHtml(), chip: weekendChipHtml() });
         if (!items.length) return '';
         return `
-            <div id="dnes-extras" class="flex flex-col">
-                <div data-strips class="flex flex-col gap-2 short:gap-1.5">${items.map(item => item.strip).join('')}</div>
-                <div data-chips class="hidden flex flex-wrap gap-1.5 tiny:flex-nowrap tiny:overflow-x-auto">${items.map(item => item.chip).join('')}</div>
+            <div id="dnes-extras" data-mode="strips" class="flex shrink-0 flex-col">
+                <div data-live class="${EXTRAS_STRIPS}">${items.map(item => item.strip).join('')}</div>
+                <template>${items.map(item => item.chip).join('')}</template>
             </div>`;
     };
     const renderDnes = () => `${specialsSection()}${dailyCardHtml()}${chestRowHtml()}${dnesExtrasHtml()}`;
@@ -9041,7 +9064,7 @@
         const tiles = [
             postupTile({ attrs: `data-open-badges aria-label="Všechny odznaky ${earnedCount} / ${BADGES.length}"`, art: postupArt('odznak-sberatel'), title: 'Odznaky', value: `${earnedCount} / ${BADGES.length}` }),
             postupTile({ attrs: 'data-open-mastery-all aria-label="Mistrovství témat: hvězdy za poznané položky"', art: postupArt('odznak-hvezdy'), title: 'Mistrovství', value: `${stars} / ${TOPICS.length * MASTERY_STEPS.length} hvězd`, valueAttrs: 'data-mastery-stars' }),
-            ...(Rewards ? [postupTile({ attrs: 'data-rewards-info="diplomas"', art: postupArt('diplom'), title: 'Diplomy', value: `${diplomas} / ${TOPICS.length}`, valueAttrs: 'data-diplomas-count' })] : []),
+            ...(Rewards ? [postupTile({ attrs: 'data-rewards-info="diplomas"', art: postupArt('diplom'), title: 'Diplomy', value: `${diplomas} / ${TOPICS.length}`, valueAttrs: 'data-diploma-count' })] : []),
             ...(Album && Rewards ? [postupTile({ attrs: 'data-rewards-info="album"', art: postupArt(Album.ALBUM_ART || 'album'), title: 'Album', value: `${album} %`, valueAttrs: 'data-album-percent' })] : []),
             ...(Showcase && signedUser() && myShowcase !== null ? [postupTile({ attrs: 'data-open-showcase', art: postupArt('vitrina'), title: 'Vitrína', value: `${myShowcase.length} / ${Showcase.MAX}` })] : []),
             ...(Chronicle ? [postupTile({ attrs: 'data-open-chronicle aria-label="Kronika týdne: můj týden v kostce"', art: postupArt('sova-kronika'), title: 'Kronika', value: 'týden v kostce' })] : []),
