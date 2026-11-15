@@ -701,7 +701,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(await tab.textContent('#status-text'), 'Zeměpis · Hory a sopky');
         assert.match(await tab.getAttribute('#app-header', 'class'), /border-emerald-500/, 'barva tématu v hlavičce');
 
-        // Další otázka zase z vybrané kategorie; tlačítko Hrát dál vrátí rozehranou otázku
+        // Další otázka zase z vybrané kategorie; rozehranou otázku jde dohrát ze záložky Hrát
         await tab.click('[data-action="give-up"]');
         await waitForResult(tab);
         await tab.click('[data-action="next"]');
@@ -710,7 +710,9 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(second.category, 'hora');
         await nav.learn(tab);
         await tab.waitForSelector('[data-action="learn-topic"]');
-        await tab.click('#btn-practice');
+        // V Učení je spodní lišta: záložka Hrát nabízí vedle Mixu dohrání rozehrané otázky
+        await nav.go(tab, 'hrat');
+        await tab.click('[data-action="resume-practice"]');
         await waitForQuestion(tab);
         assert.equal((await readRound(tab)).id, second.id, 'rozehraná otázka zůstala');
 

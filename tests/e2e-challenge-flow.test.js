@@ -521,7 +521,9 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
             await jana.tab.waitForSelector('[data-opponent-chip]', { timeout: 30000 });
             assert.deepEqual(await opponentHeader(jana.tab).then(h => [h.kind, h.name, h.topRight, h.clear]), ['open', 'Otevřená výzva', true, true]);
             // Trénink: body ano, soupeř ne
-            await jana.tab.click('#btn-practice');
+            await jana.tab.click('#btn-home');
+            await waitForHome(jana.tab);
+            await nav.mix(jana.tab);
             await jana.tab.waitForSelector('[data-score-chip]', { timeout: 30000 });
             assert.equal(await jana.tab.locator('[data-opponent-chip], [data-match-bar]').count(), 0, 'trénink je bez soupeře');
             assert.deepEqual(jana.log.errors, []);

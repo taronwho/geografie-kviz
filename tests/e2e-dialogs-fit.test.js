@@ -1018,7 +1018,8 @@ test('stránka se neposouvá: obrazovky a okna ve světlém i tmavém režimu', 
                 await tab.click('#btn-home');
                 await tab.waitForSelector('#app-content > [data-tab-root="hrat"]');
                 assert.equal(await tab.locator('#app-nav:not(.hidden) [data-nav="hrat"][aria-current="page"]').count(), 1);
-                assert.equal(await tab.locator('#btn-home.hidden, #btn-practice.hidden, #btn-learn.hidden').count(), 3, 'na hlavních obrazovkách nejsou tlačítka Domů, Hrát dál a Učení');
+                assert.equal(await tab.locator('#btn-home.hidden').count(), 1, 'na hlavních obrazovkách není šipka zpět');
+                assert.equal(await tab.locator('#btn-practice, #btn-learn').count(), 0, 'tlačítka Hrát dál a Učení v hlavičce už nejsou');
                 assert.deepEqual(log.csp, []);
                 assert.deepEqual(log.errors, []);
                 await context.close();
@@ -1105,7 +1106,7 @@ test('stránka se neposouvá: obrazovky a okna ve světlém i tmavém režimu', 
 // --- Jednotný vzhled hlavních obrazovek: tlačítka akcí v řádcích mají všude stejný rozměr a rozložení, čip série v hlavičce ---
 // Tlačítko akce (data-cta) má na záložce Dnes, v řádku Čeká na tebe, v okně Čeká na tebe a v oknech Výzvy a Turnaje stejnou šířku
 // i výšku, ikonu na stejném místě a popisek, který se vejde (i na 360 px); fajfka hotového řádku sedí vystředěná ve stejném sloupci.
-// Čip série v hlavičce: plamen s počtem dní, čárka a štít s počtem ochran; od obrázku hráče ho dělí 12 px (s obrázkovým rámečkem
+// Čip série v hlavičce: obrázek plamene s počtem dní, čárka a obrázek štítu s počtem ochran; od obrázku hráče ho dělí 12 px (s obrázkovým rámečkem
 // o jeho přesah víc), je svisle vystředěný s obrázkem a bez série je celý šedý.
 // Svislé posouvání obsahu a stránky (obojí má být 0)
 const pageOverflowSimple = (tab) => tab.evaluate(() => { const main = document.getElementById('app-content'); return [main.scrollHeight - main.clientHeight, document.documentElement.scrollHeight - window.innerHeight]; });
@@ -1203,7 +1204,7 @@ test('jednotný vzhled: tlačítka akcí v řádcích a čip série v hlavičce'
                 const badge = document.getElementById('status-badge').getBoundingClientRect();
                 const style = getComputedStyle(document.querySelector('#streak-chip [data-chip]'));
                 const friends = getComputedStyle(document.createElement('span'));
-                const icons = [...document.querySelectorAll('#streak-chip svg')].map(svg => ({ size: Math.round(svg.getBoundingClientRect().width), color: getComputedStyle(svg).color, stroke: getComputedStyle(svg).strokeWidth }));
+                const icons = [...document.querySelectorAll('#streak-chip img')].map(img => ({ size: Math.round(img.getBoundingClientRect().width), src: img.getAttribute('src'), loaded: img.complete && img.naturalWidth > 0, grey: getComputedStyle(img).filter.includes('grayscale') }));
                 return {
                     gap: Math.round(avatar.left - chip.right), centre: Math.abs((chip.top + chip.height / 2) - (avatar.top + avatar.height / 2)), chipHeight: Math.round(chip.height), touch: Math.round(button.height),
                     left: Math.round(chip.left - badge.right), radius: style.borderRadius, font: [style.fontSize, style.fontWeight], icons, friends: Boolean(friends),
@@ -1218,12 +1219,10 @@ test('jednotný vzhled: tlačítka akcí v řádcích a čip série v hlavičce'
             assert.ok(seen.left >= 8, `čip se nedotýká štítku s úrovní (${seen.left} px)`);
             assert.equal(seen.header, 0, 'hlavička nepřetéká');
             assert.deepEqual([seen.streak, seen.freezes, seen.divider], [String(streak), streak ? '2' : '0', 1], 'plamen s počtem dní, čárka, štít s počtem ochran');
-            assert.deepEqual(seen.icons.map(icon => icon.size), [16, 16], 'obě ikony stejně velké');
-            assert.equal(new Set(seen.icons.map(icon => icon.stroke)).size, 1, 'obě ikony stejně silné');
+            assert.deepEqual(seen.icons.map(icon => [icon.src, icon.size, icon.loaded]), [['icons/topics/serie.webp', 24, true], ['icons/topics/ochrana-serie.webp', 24, true]], 'obrázky aplikace (plamen série, štít ochrany), stejně velké');
             assert.deepEqual(seen.font, ['12px', '900']);
             // Zlatý plamen (a modrý štít) jen s běžící sérií a ochranou; jinak mají obě ikony stejnou klidnou šedou
-            if (streak) assert.notEqual(seen.icons[0].color, seen.icons[1].color, 'zlatý plamen a modrý štít');
-            else assert.equal(seen.icons[0].color, seen.icons[1].color, 'bez série a ochran jsou obě ikony šedé');
+            assert.deepEqual(seen.icons.map(icon => icon.grey), streak ? [false, false] : [true, true], 'barevné jen s běžící sérií a ochranou, jinak šedé');
             assert.match(seen.label, streak ? /^Série: 12 dní v řadě, ochrana série: 2 z 2$/ : /^Série dní: zatím žádná, ochrana série: 0 z 2$/);
             // Stejný čip jako „N dnes aktivní“ u přátel: plocha, okraj, zaoblení a písmo
             await nav.go(tab, 'souperi');
@@ -1299,9 +1298,44 @@ test('snímky hlavních obrazovek (NAV_SHOTS)', { skip: !chromium ? 'Playwright 
                 await shot(tab, `okno-turnaje-${key}`);
             }
             if (size.height === 780 && scheme === 'dark') {
+                // Otázka: šipka zpět a štítek tématu v hlavičce, lišta skrytá; po odpovědi je lišta zpátky
                 await nav.topic(tab, 'zemepis');
                 await tab.waitForSelector('[data-action="give-up"]', { timeout: 30000 });
                 await shot(tab, `otazka-bez-listy-${key}`);
+                await tab.click('[data-action="choice"] >> nth=0');
+                await tab.waitForSelector('[data-verdict]');
+                await tab.waitForSelector('#app-nav:not(.hidden)');
+                await shot(tab, `vysledek-otazky-s-listou-${key}`);
+                // Bleskovka: úvod s lištou, výsledek s lištou
+                await tab.click('#app-nav [data-nav="hrat"]');
+                await tab.waitForSelector('#mode-tiles');
+                await tab.click('[data-action="mode-tile"][data-mode="blitz"]');
+                await tab.waitForSelector('[data-mode-intro="blitz"]');
+                await shot(tab, `bleskovka-uvod-s-listou-${key}`);
+                await tab.click('[data-action="mode-start"]');
+                await tab.waitForSelector('[data-mode-question][data-phase="question"]', { timeout: 30000 });
+                await tab.click('[data-action="mode-quit"]');
+                await tab.waitForSelector('[data-mode-result="blitz"]');
+                await shot(tab, `bleskovka-vysledek-s-listou-${key}`);
+                // Rozcestník Dobývání s lištou
+                await tab.click('#app-nav [data-nav="souperi"]');
+                await tab.waitForSelector('#conquest-card');
+                await tab.click('#conquest-card');
+                await tab.waitForSelector('#conquest-hub');
+                await tab.waitForTimeout(600);
+                await shot(tab, `dobyvani-rozcestnik-s-listou-${key}`);
+            }
+            await context.close();
+        }
+        // Barevná témata aplikace (odměny za úrovně): pět záložek v tématu Oceán (světle) a Hluboký les (tmavě)
+        for (const [theme, scheme] of [['ocean', 'light'], ['les', 'dark']]) {
+            const storage = { ...shotStorage(), 'mudrlant.look': JSON.stringify({ theme }) };
+            const { context, tab } = await setup(browser, { viewport: { width: 390, height: 780 }, scheme, db: shotDb(), storage, scale: 2 });
+            await tab.waitForSelector('#friends-strip [data-player-id]', { timeout: 20000 });
+            assert.equal(await tab.evaluate(() => document.documentElement.dataset.theme), theme);
+            for (const id of ['dnes', 'hrat', 'souperi', 'postup', 'ja']) {
+                await nav.go(tab, id);
+                await shot(tab, `tema-${theme}-${id}-390x780-${scheme === 'dark' ? 'tmave' : 'svetle'}`);
             }
             await context.close();
         }

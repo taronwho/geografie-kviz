@@ -62,7 +62,7 @@
     const DAY = 86400000;
     const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
     // Nadpis oddílu a čip mají stejný styl jako na ostatních záložkách (app.js SEC_LABEL a CHIP)
-    const LABEL = 'px-1 text-[11px] font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400';
+    const LABEL = "flex items-center gap-1.5 px-1 text-[11px] font-black uppercase tracking-[0.12em] text-slate-500 before:h-3 before:w-1 before:shrink-0 before:rounded-full before:bg-brand-600 before:content-[''] dark:text-slate-400 dark:before:bg-brand-400";
 
     // --- Aktivita ---
     // Podle poslední návštěvy (profiles.last_seen): today (do 24 h), recent (do týdne), away (déle), unknown (nikdy / starší databáze)
@@ -187,7 +187,7 @@
             ${h.avatarHtml(row, 'h-10 w-10 text-xl short:h-9 short:w-9', true)}
             <span class="min-w-0 flex-1"><span class="block truncate text-[15px] font-extrabold leading-tight text-slate-800 dark:text-slate-100">${esc(row.display_name)}</span><span class="block truncate text-[12px] font-semibold leading-tight text-slate-500 max-[379px]:text-[11.5px] dark:text-slate-400">tě chce mít v přátelích</span></span>
             <button type="button" data-action="friend-decline" data-id="${esc(row.id)}" aria-label="Odmítnout žádost od ${esc(row.display_name)}" title="Odmítnout" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 ring-1 ring-slate-200 active:scale-95 short:h-9 short:w-9 dark:bg-slate-700/70 dark:text-slate-300 dark:ring-slate-600"><i data-lucide="x" class="h-4 w-4"></i></button>
-            <button type="button" data-action="friend-accept" data-id="${esc(row.id)}" data-cta aria-label="Přijmout žádost od ${esc(row.display_name)}" class="flex h-10 w-[6rem] shrink-0 items-center gap-1 whitespace-nowrap rounded-xl bg-gradient-to-b from-gold-300 to-gold-500 pl-2.5 pr-1.5 text-[13px] font-black leading-none text-brand-950 shadow-[0_3px_0_#94571a] active:translate-y-px short:h-9"><i data-lucide="check" class="h-4 w-4 shrink-0"></i><span data-cta-label class="min-w-0 flex-1 text-center">Přijmout</span></button>
+            <button type="button" data-action="friend-accept" data-id="${esc(row.id)}" data-cta aria-label="Přijmout žádost od ${esc(row.display_name)}" class="btn-3d flex h-10 w-[6rem] shrink-0 items-center gap-1 whitespace-nowrap rounded-xl bg-brand-700 pl-2.5 pr-1.5 text-[13px] font-black leading-none text-white short:h-9"><i data-lucide="check" class="h-4 w-4 shrink-0"></i><span data-cta-label class="min-w-0 flex-1 text-center">Přijmout</span></button>
         </div>`;
     }).join('');
     // Rychlý výběr přátel ve formuláři nové výzvy (nad hledáním): popisek a vedle něj řada čipů s avatarem a jménem, data-pick-opp jako výsledky hledání

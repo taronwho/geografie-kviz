@@ -2225,8 +2225,8 @@
 
     // Řádek Dobývání v části Čeká na tebe (záložka Soupeři): moje rozehraná hra (náhled, zbývá, tahy) nebo pozvánka do lobby; pozvánka od přítele (invites) jako
     // hlavní obsah karty, nebo s rozehranou hrou jako proužek pod ní, vždy s tlačítkem Přidat se (barva a znak, pak do hry)
-    // Tlačítko akce v řádku na záložce Soupeři: stejná šířka, výška a rozložení jako ostatní tlačítka řádků (app.js CTA_GOLD)
-    const HOME_CTA = 'flex h-10 w-[6rem] shrink-0 items-center gap-1 whitespace-nowrap rounded-xl bg-gradient-to-b from-gold-300 to-gold-500 pl-2.5 pr-1.5 text-[13px] font-black leading-none text-brand-950 shadow-[0_3px_0_#94571a] active:translate-y-px short:h-9';
+    // Tlačítko akce v řádku na záložce Soupeři: stejná šířka, výška a rozložení jako ostatní tlačítka řádků (app.js CTA_BRAND)
+    const HOME_CTA = 'btn-3d flex h-10 w-[6rem] shrink-0 items-center gap-1 whitespace-nowrap rounded-xl bg-brand-700 pl-2.5 pr-1.5 text-[13px] font-black leading-none text-white short:h-9';
     const HOME_CARD = 'rounded-[1.15rem] bg-white shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-800/80 dark:ring-slate-700/70';
     const homeCardHtml = ({ games = null, invites = [], maps = {}, now = Date.now(), loading = false, avatar = null }) => {
         const running = (games || []).filter(game => game.status === 'running');

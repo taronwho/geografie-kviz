@@ -1,4 +1,4 @@
-// Mudrlantova kronika v prohlížeči (chronicle.js, app.js): pruh „Tvůj týden v kostce je hotový“ na úvodu v neděli večer a v pondělí
+// Mudrlantova kronika v prohlížeči (chronicle.js, app.js): řádek „Kronika týdne“ na záložce Dnes v neděli večer a v pondělí
 // (jednou za týden, jde skrýt), okno s příběhem v pěti kartách (titul, čísla, téma a objev, souboje, cíl a sdílení), sdílení obrázku,
 // Kronika týdne z Mého postupu (minulý a tento týden) a zápis odpovědi do denních záznamů. Telefon 390×780 i 360×640 (tmavý),
 // okna bez posouvání a bez chyb CSP. MUDRLANT_SHOTS=adresář uloží snímky (deviceScaleFactor 1).
@@ -99,7 +99,8 @@ test('kronika týdne: pruh, příběh, sdílení, skrytí a Můj postup', { skip
             const tag = `${viewport.width}x${viewport.height}-${colorScheme}`;
             const strip = tab.locator(`[data-chronicle-strip="${WEEK}"]`);
             await strip.waitFor();
-            assert.match(await strip.textContent(), /Tvůj týden v kostce je hotový[\s\S]*Zeměpisný cestovatel týdne · 9\. – 15\. 11\./);
+            assert.match((await strip.textContent()).replace(/\s+/g, ' '), /Kronika týdne: Zeměpisný cestovatel týdne · 9\. – 15\. 11\.\s*Otevřít/);
+            assert.match(await strip.locator('[data-action="chronicle-open"]').getAttribute('aria-label'), /^Tvůj týden v kostce je hotový: Zeměpisný cestovatel týdne\. Otevřít kroniku týdne$/);
             // Pruh je mezi příležitostnými pruhy záložky Dnes (cíle týdne má záložka Postup); vejde se celý
             assert.equal(await tab.locator('#dnes-extras #chronicle-strip').count(), 1);
             assert.equal(await strip.isVisible(), true, 'pruh se vejde celý, ne jako čip');

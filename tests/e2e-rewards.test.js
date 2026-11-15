@@ -75,7 +75,7 @@ test('odměny: truhla, ochrana série, diplomy, sdílení obrázku', { skip: !ch
             const { context, tab, problems } = await open({ viewport, colorScheme, seed: { 'mudrlant.progress': { xp: 400, counters: {}, badges: {} }, 'mudrlant.rewards': { ready: [week], freezes: 1 } } });
             const strip = tab.locator('[data-chest-ready]');
             await strip.waitFor();
-            assert.match(await strip.textContent(), /Truhla Mudrlanta čeká/);
+            assert.match((await strip.textContent()).replace(/\s+/g, ' '), /Truhla Mudrlanta: Čeká za splněné cíle týdne\s*Otevřít/);
             assert.equal(await tab.locator('#chest-row[data-action="chest-open"]').count(), 1, 'zlatý řádek na záložce Dnes');
             assert.equal((await tab.textContent('#streak-chip [data-freeze-part]')).trim(), String(JSON.parse(await tab.evaluate(() => localStorage.getItem('mudrlant.rewards'))).freezes), 'štít s počtem ochran série v hlavičce');
             assert.ok(await noScroll(tab), `úvod s truhlou bez posouvání: ${await tab.evaluate(() => { const box = document.getElementById('app-content'); return `${box.scrollHeight}/${box.clientHeight}, šířka ${document.documentElement.scrollWidth}/${window.innerWidth}`; })}`);

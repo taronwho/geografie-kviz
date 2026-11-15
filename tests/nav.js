@@ -86,9 +86,9 @@ const mix = async (tab, { play = true } = {}) => {
     await tab.waitForSelector('#play-chooser');
     if (play) await tab.click('[data-chooser-play]');
 };
-// Učení (dlaždice mezi Režimy na záložce Hrát; při hře tlačítko v hlavičce)
+// Učení (dlaždice mezi Režimy na záložce Hrát). Uprostřed otázky, kdy je spodní lišta skrytá, se nejdřív šipkou zpět odejde ze hry
 const learn = async (tab) => {
-    if (await tab.locator('#btn-learn:not(.hidden)').count()) { await tab.click('#btn-learn'); return; }
+    if (await tab.locator('#app-nav.hidden').count()) { await tab.click('#btn-home'); await waitForHome(tab); }
     await go(tab, 'hrat');
     await tab.click('[data-action="open-learn"]');
 };

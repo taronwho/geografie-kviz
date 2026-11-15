@@ -113,7 +113,11 @@
     <div id="app-shell" class="w-full h-full flex flex-col relative shadow-2xl bg-slate-50 dark:bg-slate-900 max-w-md mx-auto border-x border-slate-200 dark:border-slate-800">
 
         <!-- Hlavička – samostatná lišta, obsah pod ní neprojíždí; spodní okraj má barvu hraného tématu -->
-        <header id="app-header" class="shrink-0 w-full px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-3 flex justify-between items-center gap-2 z-30 bg-slate-50 dark:bg-slate-900 border-b-4 border-slate-200/70 dark:border-slate-800">
+        <header id="app-header" class="shrink-0 w-full px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-3 flex items-center gap-2 z-30 bg-slate-50 dark:bg-slate-900 border-b-4 border-brand-200 dark:border-brand-900">
+            <!-- Mimo hlavní obrazovky (hra, režim, rozcestník režimu): šipka zpět na záložku, ze které hráč přišel; vedle ní štítek, kde hráč je -->
+            <button id="btn-home" type="button" class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-2xl btn-3d-light bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-200" title="Zpět" aria-label="Zpět">
+                <i data-lucide="chevron-left" class="h-5 w-5"></i>
+            </button>
             <!-- Štítek: kde hráč je; při hraní tématu nebo mixu po klepnutí změna tématu -->
             <button id="status-badge" type="button" class="min-w-0 bg-white dark:bg-slate-800 px-2.5 py-2 rounded-2xl shadow-sm text-sm font-bold text-slate-700 flex items-center gap-2 max-[370px]:gap-1 max-[370px]:px-2 transition-colors border border-slate-200/60 dark:border-slate-700">
                 <span id="status-icon-slot" class="flex shrink-0"><img src="icons/logo.webp" alt="" class="-my-1 h-11 w-auto drop-shadow-md"></span>
@@ -127,18 +131,9 @@
                 <img src="icons/topics/napoveda.webp" alt="" class="fact-bulb relative h-7 w-7 object-contain">
             </button>
 
-            <!-- Vpravo: na hlavních obrazovkách čipy (série dní) a obrázek hráče (záložka Já); při hře tlačítka Domů, Hrát dál, Učení a Nastavení -->
-            <div class="flex shrink-0 items-center gap-1.5">
+            <!-- Vpravo: na hlavních obrazovkách čip série dní a obrázek hráče (záložka Já); při hře jen obrázek hráče (Nastavení) -->
+            <div class="ml-auto flex shrink-0 items-center gap-1.5">
                 <div id="header-chips" class="mr-1.5 flex shrink-0 items-center gap-1.5 empty:hidden"></div>
-                <button id="btn-home" type="button" class="hidden h-11 w-11 items-center justify-center rounded-2xl btn-3d bg-brand-700 text-white" title="Domů" aria-label="Domů">
-                    <i data-lucide="house" class="w-5 h-5"></i>
-                </button>
-                <button id="btn-practice" type="button" class="hidden h-11 w-11 items-center justify-center rounded-2xl btn-3d-light bg-white text-slate-700" title="Hrát dál" aria-label="Hrát dál">
-                    <i data-lucide="shuffle" class="w-5 h-5" id="practice-icon"></i>
-                </button>
-                <button id="btn-learn" type="button" class="hidden h-11 w-11 items-center justify-center rounded-2xl btn-3d-light bg-white text-slate-600 hover:text-brand-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:text-white" title="Učení: okruhy, atlas a chyby k zopakování" aria-label="Učení">
-                    <i data-lucide="graduation-cap" class="w-5 h-5"></i>
-                </button>
                 <button id="btn-settings" type="button" class="flex h-11 w-11 items-center justify-center rounded-2xl btn-3d-light bg-white text-slate-600 hover:text-brand-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:text-white" title="Já: profil a nastavení" aria-label="Já: profil a nastavení">
                     <i data-lucide="user-round" class="w-5 h-5"></i>
                 </button>

@@ -270,7 +270,7 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
             assert.match(await tab.textContent('#status-text'), /Úr\. 1/);
             // Na hlavních obrazovkách jsou vpravo jen čipy a obrázek hráče (tlačítka Domů, Procvičovat a Učení až při hře), takže se název vejde i na 360 px
             assert.equal(await tab.isVisible('#status-text > span:first-child'), true, `${scene}: název Mudrlant je vidět`);
-            assert.equal(await tab.locator('#btn-home:visible, #btn-practice:visible, #btn-learn:visible').count(), 0, `${scene}: tlačítka hry v hlavičce hlavní obrazovky nejsou`);
+            assert.equal(await tab.locator('#btn-home:visible').count(), 0, `${scene}: šipka zpět na hlavní obrazovce není`);
             // Plocha, která vede do Mého postupu (tlačítko bez sovy), je aspoň 40 × 40 px a nic ji nepřekrývá
             const area = await tab.evaluate(() => {
                 const badge = document.getElementById('status-badge').getBoundingClientRect();

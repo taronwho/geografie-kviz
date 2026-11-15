@@ -2501,11 +2501,7 @@
 
     // --- Hlavička ---
 
-    const BUTTON_BASE = 'flex h-11 w-11 items-center justify-center rounded-2xl';
-    // Vybrané tlačítko navigace ve vínové barvě loga
-    const BUTTON_SELECTED = `${BUTTON_BASE} btn-3d bg-brand-700 text-white`;
-    const BUTTON_ACTIVE = { home: BUTTON_SELECTED, practice: BUTTON_SELECTED, learn: BUTTON_SELECTED };
-    const BUTTON_INACTIVE = `${BUTTON_BASE} btn-3d-light bg-white text-slate-600 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:text-white`;
+    const BUTTON_BACK = 'flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl btn-3d-light bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-200';
 
     const shortDay = (dayKey) => formatDayKey(dayKey).replace(/ \d{4}$/, '');
 
@@ -2544,7 +2540,7 @@
         return { icon: topic.icon, text: `${topic.title}${scope}`, topic, switch: true };
     };
 
-    const HEADER_BASE = 'relative shrink-0 w-full px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-3 flex justify-between items-center gap-2 z-30 bg-slate-50 dark:bg-slate-900 border-b-4';
+    const HEADER_BASE = 'relative shrink-0 w-full px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-3 flex items-center gap-2 z-30 bg-slate-50 dark:bg-slate-900 border-b-4';
     const BADGE_BASE = 'min-h-[2.75rem] min-w-0 px-2.5 py-2 rounded-2xl shadow-sm text-sm font-bold flex items-center gap-2 transition-colors border';
     const BADGE_LOGO = 'min-h-[2.75rem] min-w-[2.75rem] flex items-center gap-2 rounded-2xl py-0.5 pr-1 text-left';
 
@@ -2556,32 +2552,13 @@
         const settingsButton = document.getElementById('btn-settings');
         settingsButton.disabled = isLoading;
         settingsButton.classList.toggle('opacity-50', isLoading);
-        // Na hlavních obrazovkách (spodní lišta) tlačítka Domů, Hrát dál a Učení nejsou: jejich funkce mají záložky a dlaždice
+        // Mimo hlavní obrazovky je vlevo šipka zpět (na záložku, ze které hráč přišel); tlačítka Domů, Hrát dál a Učení už nejsou:
+        // jejich funkce mají záložky spodní lišty, která je vidět všude, kde hráč zrovna neodpovídá
         const main = mainShown();
-        const buttons = { home: document.getElementById('btn-home'), practice: document.getElementById('btn-practice'), learn: document.getElementById('btn-learn') };
-        Object.entries(buttons).forEach(([key, button]) => {
-            button.className = main ? 'hidden' : section === key ? BUTTON_ACTIVE[key] : BUTTON_INACTIVE;
-            button.setAttribute('aria-pressed', String(section === key));
-            button.disabled = isLoading;
-            button.classList.toggle('opacity-50', isLoading);
-        });
-        const practiceIcon = document.getElementById('practice-icon');
-        if (practiceIcon) practiceIcon.classList.toggle('spin', isLoading && mode === 'practice');
-        // Čip u Učení: kolik karet opakování je dnes na řadě (jen když nějaká je); na hlavních obrazovkách ho má dlaždice Učení na záložce Hrát
-        const due = reviewDueCount();
-        let chip = buttons.learn.querySelector('[data-review-due]');
-        if (due && !main) {
-            if (!chip) {
-                chip = document.createElement('span');
-                chip.dataset.reviewDue = '';
-                chip.className = 'absolute -right-1.5 -top-1.5 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-gold-500 px-1 text-[10px] font-black leading-none text-brand-950 ring-2 ring-slate-50 dark:ring-slate-900';
-                buttons.learn.appendChild(chip);
-            }
-            chip.innerHTML = `<span class="sr-only">K procvičení: </span>${due}`;
-            chip.title = `K procvičení: ${due}`;
-        } else if (chip) chip.remove();
-        if (!main) buttons.learn.classList.add('relative');
-        buttons.learn.setAttribute('aria-label', due ? `Učení – k procvičení: ${due}` : 'Učení');
+        const back = document.getElementById('btn-home');
+        back.className = main ? 'hidden' : BUTTON_BACK;
+        back.disabled = isLoading;
+        back.classList.toggle('opacity-50', isLoading);
         renderNav();
         renderHeaderChips();
 
@@ -2589,7 +2566,7 @@
         const place = describePlace();
         const style = place.topic ? styleOf(place.topic) : null;
         updateFactHint();
-        document.getElementById('app-header').className = `${HEADER_BASE} ${style && (screen === 'round' || screen === 'mode') ? style.accent : 'border-slate-200/70 dark:border-slate-800'}`;
+        document.getElementById('app-header').className = `${HEADER_BASE} ${style && (screen === 'round' || screen === 'mode') ? style.accent : 'border-brand-200 dark:border-brand-900'}`;
         const badge = document.getElementById('status-badge');
         badge.className = place.logo ? BADGE_LOGO
             : `${BADGE_BASE} ${style ? `${style.soft} border-transparent` : 'bg-white text-slate-700 border-slate-200/60 dark:bg-slate-800 dark:border-slate-700'}`;
@@ -2794,7 +2771,7 @@
         const nav = document.getElementById('app-nav');
         const shell = document.getElementById('app-shell');
         if (!nav) return;
-        const show = mainShown();
+        const show = barShown();
         nav.classList.toggle('hidden', !show);
         nav.classList.toggle('flex', show);
         if (shell) shell.classList.toggle('nav-on', show);
@@ -2830,9 +2807,43 @@
     document.getElementById('app-nav').addEventListener('click', (event) => {
         const button = event.target.closest('[data-nav]');
         if (!button || isLoading) return;
+        if (screen !== 'home') { leaveToTab(button.dataset.nav); return; }
         // Klepnutí na vybranou záložku s otevřeným oknem (Výzvy, Turnaje) vrátí na její začátek
         if (button.dataset.nav !== navTab || navSub) goTab(button.dataset.nav);
     });
+    // Lišta mimo hlavní obrazovky (úvod a výsledek režimu, rozcestník Dobývání, Učení, výsledek otázky): režim se ukončí stejně jako
+    // šipkou zpět (zastaví časovače, uklidí rozehranou hru režimu) a otevře se zvolená záložka
+    const leaveToTab = (tab) => {
+        setNav(tab);
+        tabSwitched = true;
+        if (screen === 'mode') leaveMode();
+        else if (screen === 'boss' || screen === 'boss-done') leaveBoss();
+        else if (screen === 'chain' && chainCtl) chainCtl.leave();
+        else renderHome();
+        if (navTab === 'souperi') refreshTournaments();
+    };
+    // Kde je spodní lišta vidět: všude, kde hráč zrovna neodpovídá. Na hlavních obrazovkách, v úvodech a na výsledcích režimů
+    // (Kvíz dne, Řetězovka, Boss týdne, Bleskovka, Přežití), v rozcestníku Dobývání, v Učení, u Tajemné otázky a po zodpovězení
+    // otázky (výsledek otázky, výsledek výzvy). Skrytá je, dokud hráč odpovídá: u jedné otázky od zadání po odpověď, v režimech
+    // na čas a v sérii (Kvíz dne, Řetězovka, souboj s bossem, Bleskovka, Přežití) od první otázky po výsledek, a v běžící hře
+    // Dobývání (mapa přes celou plochu a tahy na čas).
+    const CALM_SCREENS = '[data-tab-root], #quiz-intro, #quiz-result, #chain-intro, #chain-result, #boss-intro, #boss-result, [data-mode-intro], [data-mode-result], #conquest-hub, #mystery-screen';
+    const barShown = () => {
+        if (screen === 'welcome' || !appContent.firstElementChild) return false;
+        if (screen === 'home') return mainShown();
+        if (isLoading) return false;
+        if (screen === 'round') return Boolean(round && round.answered);
+        if (screen === 'learn' || screen === 'challenge-done') return true;
+        return Boolean(appContent.querySelector(CALM_SCREENS));
+    };
+    // Obrazovky režimů se překreslují samy (úvod → otázka → výsledek): lištu podle obsahu přepne hlídač změn obsahu
+    let barFrame = 0;
+    const syncBar = () => {
+        barFrame = 0;
+        const nav = document.getElementById('app-nav');
+        if (nav && nav.classList.contains('hidden') === barShown()) renderNav();
+    };
+    if (window.MutationObserver) new MutationObserver(() => { if (!barFrame) barFrame = requestAnimationFrame(syncBar); }).observe(appContent, { childList: true, subtree: true });
 
     // Série dní v hlavičce hlavních obrazovek: nejdelší běžící série dnešních otázek (a Kvízu dne), s ochranami série; klepnutí otevře Ochranu série
     const daysWord = (count) => `${count} ${count === 1 ? 'den' : count >= 2 && count <= 4 ? 'dny' : 'dní'}`;
@@ -2847,20 +2858,23 @@
     // zlatý odznak s počtem (BADGE) a tlačítko akce v řádku (CTA_*: všechna mají stejnou šířku i výšku, viz níž)
     const SURFACE = 'bg-white shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-800/80 dark:ring-slate-700/70';
     const CARD_R = 'rounded-[1.15rem]';
-    const SEC_LABEL = 'px-1 text-[11px] font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400';
+    // Plastická světlá dlaždice (dveře do okna, režim, sbírka): tmavší spodní hrana jako u tlačítek, při stisku se zmáčkne
+    const TILE_3D = 'btn-3d-light bg-white dark:bg-slate-800';
+    const SEC_LABEL = "flex items-center gap-1.5 px-1 text-[11px] font-black uppercase tracking-[0.12em] text-slate-500 before:h-3 before:w-1 before:shrink-0 before:rounded-full before:bg-brand-600 before:content-[''] dark:text-slate-400 dark:before:bg-brand-400";
     const CHIP = 'flex h-9 min-w-0 shrink-0 items-center gap-1.5 rounded-full bg-white px-3 text-[12px] font-black leading-none text-slate-700 shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700/70';
     const CHIP_TAP = `${CHIP} relative active:scale-95 before:absolute before:inset-x-0 before:-inset-y-0.5 before:content-['']`;
     const BADGE = 'flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-gold-400 px-1.5 text-[11px] font-black leading-none text-brand-950';
     // Čip série v hlavičce: plamen s počtem dní v řadě, tenká čárka a štít s počtem ochran série. Vypadá jako ostatní čipy; zlatý
-    // plamen jen při běžící sérii (modrý štít jen s ochranou v zásobě), jinak je celý čip klidně šedý. Tlačítko má výšku obrázku
+    // (barevný) plamen jen při běžící sérii a štít jen s ochranou v zásobě, jinak je celý čip klidně šedý. Tlačítko má výšku obrázku
     // hráče (44 px, dotyková plocha), viditelný čip 36 px. Klepnutí otevře vysvětlení ochrany série.
     const headerChipsHtml = () => {
         if (!mainShown()) return '';
         const streak = dayStreakNow();
         const freezes = Rewards ? loadRewards().freezes : 0;
         const label = `${streak ? `Série: ${daysWord(streak)} v řadě` : 'Série dní: zatím žádná'}${Rewards ? `, ochrana série: ${freezes} z ${Rewards.MAX_FREEZES}` : ''}`;
-        const part = (attr, icon, on, tone, value) => `<span ${attr} class="flex items-center gap-1 tabular-nums ${on ? '' : 'text-slate-500 dark:text-slate-400'}"><i data-lucide="${icon}" class="h-4 w-4 shrink-0 ${on ? tone : 'text-slate-400 dark:text-slate-500'}"></i>${value}</span>`;
-        return `<button type="button" id="streak-chip" data-header-chip="streak" data-streak="${streak}" data-freezes="${freezes}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" class="flex h-11 shrink-0 items-center rounded-full active:scale-95"><span data-chip class="${CHIP} gap-2">${part('data-streak-part', 'flame', streak > 0, 'fill-gold-400 text-gold-600 dark:fill-gold-500/60 dark:text-gold-400', streak)}${Rewards ? `<span aria-hidden="true" class="h-4 w-px bg-slate-200 dark:bg-slate-600"></span>${part('data-freeze-part', 'shield', freezes > 0, 'fill-sky-200 text-sky-600 dark:fill-sky-500/30 dark:text-sky-400', freezes)}` : ''}</span></button>`;
+        // Plamen série a štít ochrany jsou obrázky aplikace (icons/topics/serie.webp, ochrana-serie.webp); bez série a bez ochran zešednou
+        const part = (attr, art, on, value) => `<span ${attr} class="flex items-center gap-1 tabular-nums ${on ? '' : 'text-slate-500 dark:text-slate-400'}"><img src="icons/topics/${art}.webp" alt="" class="-my-1 h-6 w-6 shrink-0 object-contain ${on ? 'drop-shadow-sm' : 'opacity-60 grayscale'}">${value}</span>`;
+        return `<button type="button" id="streak-chip" data-header-chip="streak" data-streak="${streak}" data-freezes="${freezes}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" class="flex h-11 shrink-0 items-center rounded-full active:scale-95"><span data-chip class="${CHIP} !gap-2 !px-2.5">${part('data-streak-part', 'serie', streak > 0, streak)}${Rewards ? `<span aria-hidden="true" class="h-4 w-px bg-slate-200 dark:bg-slate-600"></span>${part('data-freeze-part', 'ochrana-serie', freezes > 0, freezes)}` : ''}</span></button>`;
     };
     let chipsSeen = null;
     const renderHeaderChips = () => {
@@ -2972,19 +2986,20 @@
     // --- Společné stavební prvky záložek: nadpis oddílu, řádek s akcí vpravo a tlačítko akce ---
     // Na úzkém displeji (do 380 px) má řádek menší mezery a podtitulek menší písmo, ať se vejde i delší stav („Nápověda 4/8 · další v 13:00“)
     const HOME_ROW = `group relative flex w-full min-w-0 items-center gap-3 ${CARD_R} ${SURFACE} px-3 py-2 text-left max-[379px]:gap-2 max-[379px]:px-2.5 transition-transform active:scale-[0.985]`;
-    // Zvýrazněný řádek (to nejbližší, co je na řadě): zlatý okraj a jemný zlatý přechod zleva
-    const HOME_ROW_HOT = 'data-[hot]:bg-gradient-to-r data-[hot]:from-gold-100 data-[hot]:to-white data-[hot]:ring-2 data-[hot]:ring-gold-400 dark:data-[hot]:from-gold-900/40 dark:data-[hot]:to-slate-800/80 dark:data-[hot]:ring-gold-600';
+    // Zvýrazněný řádek (to nejbližší, co je na řadě): okraj a jemný přechod zleva v barvě tématu aplikace (--brand-*)
+    const HOME_ROW_HOT = 'data-[hot]:bg-gradient-to-r data-[hot]:from-brand-100 data-[hot]:to-white data-[hot]:ring-2 data-[hot]:ring-brand-500 dark:data-[hot]:from-brand-900/60 dark:data-[hot]:to-slate-800/80 dark:data-[hot]:ring-brand-400';
     const ROW_TITLE = 'block truncate text-[15px] font-extrabold leading-tight text-slate-800 dark:text-slate-100';
     const ROW_SUB = 'block truncate text-[12px] font-semibold leading-tight text-slate-500 max-[379px]:text-[11.5px] max-[379px]:tracking-tight dark:text-slate-400';
     // Tlačítko akce v řádku: všechna mají stejnou šířku i výšku (sloupec vpravo, 96 × 40 px, na nízkém displeji 36 px), ikonu na
-    // stejném místě vlevo a popisek vystředěný ve zbytku; zlaté (to nejbližší, co je na řadě), tlumené i vínové se liší jen barvou.
-    // Popisky jsou krátké (nejvýš „Hrát vše“, „Hrát dál“, „Přidat se“), ať se vejdou i na 360 px. Hotový řádek má ve stejném sloupci fajfku.
+    // stejném místě vlevo a popisek vystředěný ve zbytku. Jsou plastická jako ostatní tlačítka aplikace (btn-3d: tmavší spodní hrana,
+    // při stisku se zmáčknou): hlavní (to nejbližší, co je na řadě) v barvě tématu, ostatní světlá s písmem v barvě tématu, zlaté
+    // jen odměny. Popisky jsou krátké (nejvýš „Hrát vše“, „Hrát dál“, „Přidat se“), ať se vejdou i na 360 px.
     const CTA_SLOT = 'h-10 w-[6rem] shrink-0 short:h-9';
-    const CTA_BASE = `flex ${CTA_SLOT} items-center gap-1 whitespace-nowrap rounded-xl pl-2.5 pr-1.5 text-[13px] font-black leading-none`;
-    const CTA_GOLD = `${CTA_BASE} bg-gradient-to-b from-gold-300 to-gold-500 text-brand-950 shadow-[0_3px_0_#94571a]`;
-    const CTA_BRAND = `${CTA_BASE} bg-brand-700 text-white shadow-[0_3px_0_rgb(var(--brand-950))]`;
-    // Běžné tlačítko řádku je tlumené; ve zvýrazněném řádku (group data-hot) zezlátne
-    const CTA_SOFT = `${CTA_BASE} bg-slate-100 text-slate-700 ring-1 ring-slate-200 dark:bg-slate-700/70 dark:text-slate-100 dark:ring-slate-600 group-data-[hot]:bg-gradient-to-b group-data-[hot]:from-gold-300 group-data-[hot]:to-gold-500 group-data-[hot]:text-brand-950 group-data-[hot]:shadow-[0_3px_0_#94571a] group-data-[hot]:ring-0`;
+    const CTA_BASE = `flex ${CTA_SLOT} items-center gap-1 whitespace-nowrap rounded-xl pr-1.5 text-[13px] font-black leading-none`;
+    const CTA_BRAND = `${CTA_BASE} btn-3d bg-brand-700 pl-2.5 text-white`;
+    const CTA_GOLD = `${CTA_BASE} btn-3d bg-gradient-to-b from-gold-300 to-gold-500 pl-2.5 text-brand-950`;
+    // Světlé tlačítko má navíc okraj 1 px (btn-3d-light), proto o 1 px menší odsazení: ikona je u všech na stejném místě
+    const CTA_SOFT = `${CTA_BASE} btn-3d-light bg-white pl-[9px] text-brand-800 dark:bg-slate-700 dark:text-brand-100`;
     const ctaInner = (label, icon = 'play') => `<i data-lucide="${icon}" class="h-4 w-4 shrink-0"></i><span data-cta-label class="min-w-0 flex-1 text-center">${escapeHtml(label)}</span>`;
     const ctaHtml = (label, cls = CTA_SOFT, icon = 'play') => `<span data-cta class="${cls}">${ctaInner(label, icon)}</span>`;
     const ctaDone = (icon = 'circle-check', attrs = 'data-special-done', label = '') => `<span ${attrs} data-cta-done class="flex ${CTA_SLOT} items-center justify-center text-emerald-600 dark:text-emerald-400"><i data-lucide="${icon}" class="h-6 w-6"></i>${label ? `<span class="sr-only">${escapeHtml(label)}</span>` : ''}</span>`;
@@ -3015,7 +3030,7 @@
         return `
             <section id="home-specials" aria-label="Dnešní výzvy" data-specials-done="${done}" class="flex flex-col gap-2 short:gap-1.5">
                 <h2 class="${SEC_LABEL}">Dnešní výzvy <span class="font-bold">· ${done}/${rows.length} hotovo</span></h2>
-                ${rows.map((html, index) => (index === hot ? html.replace('data-special-tile', 'data-special-tile data-hot') : html)).join('')}
+                ${rows.map((html, index) => (index === hot ? html.replace('data-special-tile', 'data-special-tile data-hot').replace(`data-cta class="${CTA_SOFT}"`, `data-cta class="${CTA_BRAND}"`) : html)).join('')}
             </section>`;
     };
     const dailyStats = () => {
@@ -3036,10 +3051,10 @@
                         ${uiArt('dnes', 'h-10 w-10 short:h-9 short:w-9 tiny:h-8 tiny:w-8')}
                         <span class="min-w-0 flex-1">
                             <span class="flex items-center gap-1.5"><span class="whitespace-nowrap text-[15px] font-extrabold leading-tight text-slate-800 dark:text-slate-100">${answered}/${TOPICS.length} témat</span><span data-daily-pick class="flex h-4 min-w-0 flex-1 flex-wrap justify-end overflow-hidden text-[11.5px] font-black leading-4 text-brand-700 dark:text-cream"><span class="h-4 w-px"></span><span class="whitespace-nowrap">Vybrat téma</span></span><i data-lucide="chevron-right" class="h-3.5 w-3.5 shrink-0 text-brand-700 dark:text-cream"></i></span>
-                            <span class="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-500" data-progress="${Math.round(answered / Math.max(1, TOPICS.length) * 100)}"></span></span>
+                            <span class="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-brand-600 dark:bg-brand-400" data-progress="${Math.round(answered / Math.max(1, TOPICS.length) * 100)}"></span></span>
                         </span>
                     </button>
-                    ${left ? `<button type="button" data-action="play-daily" data-cta aria-label="${answered ? 'Hrát dál' : 'Hrát vše'}: zbývá ${left}" class="${CTA_BRAND} active:translate-y-px">${ctaInner(answered ? 'Hrát dál' : 'Hrát vše')}</button>`
+                    ${left ? `<button type="button" data-action="play-daily" data-cta aria-label="${answered ? 'Hrát dál' : 'Hrát vše'}: zbývá ${left}" class="${CTA_BRAND}">${ctaInner(answered ? 'Hrát dál' : 'Hrát vše')}</button>`
                         : ctaDone('circle-check', 'data-daily-all title="Dnes máš všechno hotové"', 'Vše hotové')}
                 </div>
             </section>`;
@@ -3082,22 +3097,23 @@
     // Řádek s akcí (Truhla, příležitostné řádky záložky Dnes): obrázek, název, podtitulek a tlačítko ve společném sloupci vpravo.
     // Mezi názvem a podtitulkem je pro čtečku (a textContent) dvojtečka. dismiss = malý křížek v rohu řádku (skrýt), pak je řádek
     // v obalu s id a wrapAttrs. hot = zlatě zvýrazněný řádek se zlatým tlačítkem (to nejbližší, co je na řadě); gold = jen zlaté
-    // tlačítko (čeká odměna: truhla, Sezóna), řádek sám zůstává klidný, ať je zlatě orámovaný vždy jen jeden.
+    // tlačítko (čeká odměna: truhla, Sezóna), řádek sám zůstává klidný, ať je zvýrazněný vždy jen jeden. wrap = podtitulek smí na dva řádky.
     const ROW_ART = 'h-10 w-10 short:h-9 short:w-9 tiny:h-8 tiny:w-8';
-    const dismissHtml = ({ action, label }) => `<button type="button" data-action="${action}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}" class="absolute -right-1 -top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-slate-600 shadow ring-2 ring-slate-50 before:absolute before:-inset-2 before:content-[''] active:scale-95 dark:bg-slate-600 dark:text-slate-100 dark:ring-slate-900"><i data-lucide="x" class="h-3.5 w-3.5"></i></button>`;
-    const actionRow = ({ id = '', attrs = '', wrapAttrs = '', art, title, text = '', cta, icon = 'play', hot = false, gold = false, dismiss = null }) => {
+    const dismissHtml = ({ action, label }) => `<button type="button" data-action="${action}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}" class="absolute -right-1 -top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-slate-600 shadow ring-2 ring-slate-50 before:absolute before:-bottom-2 before:-left-2 before:-right-1.5 before:-top-2 before:content-[''] active:scale-95 dark:bg-slate-600 dark:text-slate-100 dark:ring-slate-900"><i data-lucide="x" class="h-3.5 w-3.5"></i></button>`;
+    const ROW_SUB_WRAP = 'line-clamp-2 text-[12px] font-semibold leading-tight text-slate-500 max-[379px]:text-[11.5px] dark:text-slate-400';
+    const actionRow = ({ id = '', attrs = '', wrapAttrs = '', art, title, text = '', cta, icon = 'play', hot = false, gold = false, wrap = false, dismiss = null }) => {
         const row = `
             <button type="button" ${id && !dismiss ? `id="${id}" ` : ''}${attrs}${hot ? ' data-hot' : ''} class="${HOME_ROW} ${HOME_ROW_HOT} min-h-[3.5rem] short:min-h-[3rem] short:py-1.5 tiny:min-h-[2.75rem] tiny:py-1">
                 <span class="flex shrink-0">${art}</span>
-                <span class="min-w-0 flex-1"><span class="${ROW_TITLE}">${title}</span>${text ? `<span class="sr-only">: </span><span data-row-text class="${ROW_SUB}">${text}</span>` : ''}</span>
-                ${ctaHtml(cta, gold ? CTA_GOLD : CTA_SOFT, icon)}
+                <span class="min-w-0 flex-1"><span class="${ROW_TITLE}">${title}</span>${text ? `<span class="sr-only">: </span><span data-row-text class="${wrap ? ROW_SUB_WRAP : ROW_SUB}">${text}</span>` : ''}</span>
+                ${ctaHtml(cta, gold ? CTA_GOLD : hot ? CTA_BRAND : CTA_SOFT, icon)}
             </button>`;
         return dismiss ? `<div ${id ? `id="${id}" ` : ''}${wrapAttrs} class="relative">${row}${dismissHtml(dismiss)}</div>` : row;
     };
     // Truhla Mudrlanta čeká: zlatý řádek s Otevřít (jen když nějaká čeká)
     const chestRowHtml = () => (Rewards && Rewards.pendingChest(loadRewards()) ? actionRow({
         id: 'chest-row', attrs: 'data-action="chest-open" data-chest-ready title="Všechny cíle týdne jsou splněné. Otevři ji!"', art: `<span class="chest-mini flex">${uiArt('truhla', ROW_ART)}</span>`,
-        title: 'Truhla Mudrlanta', text: 'Čeká za splněné cíle týdne', cta: 'Otevřít', icon: 'sparkles', gold: true }) : '');
+        title: 'Truhla Mudrlanta', text: 'Čeká za splněné cíle týdne', cta: 'Otevřít', icon: 'chevron-right', gold: true }) : '');
     // Příležitostné řádky na záložce Dnes: včerejší Tajemná otázka, odměna Sezóny, Kronika týdne, Zlatá truhla a tematický víkend.
     // Vypadají jako ostatní řádky (stejná plocha, stejné tlačítko ve sloupci vpravo). Každý má i malý čip; fitHome ukáže celé řádky,
     // jen když se vejdou, jinak řadu čipů (nikdy kvůli nim obrazovka neposouvá). V dokumentu je vždy jen jedna podoba (druhá čeká
@@ -3112,7 +3128,7 @@
         if (reveal) {
             items.push({
                 strip: actionRow({ id: 'mystery-reveal', wrapAttrs: 'data-mystery-kind="reveal"', attrs: 'data-action="mystery-reveal"', art: uiArt('sova-dalekohled', ROW_ART), title: 'Včerejší záhada', text: escapeHtml(Mystery.homeText(reveal)),
-                    cta: 'Zobrazit', icon: 'eye', dismiss: { action: 'mystery-dismiss', label: 'Skrýt včerejší tajemnou otázku' } }),
+                    cta: 'Zobrazit', icon: 'chevron-right', wrap: true, dismiss: { action: 'mystery-dismiss', label: 'Skrýt včerejší tajemnou otázku' } }),
                 chip: `<button type="button" data-action="mystery-reveal" title="Včerejší tajemná otázka: odpověď" class="${HOME_CHIP}">${uiArt('sova-dalekohled', CHIP_ART)}<span class="truncate">Včerejší záhada</span></button>`
             });
         }
@@ -3120,7 +3136,7 @@
         if (season) {
             items.push({
                 strip: actionRow({ id: 'season-strip', attrs: 'data-action="season-claim" data-season-ready', art: Season.emblemHtml(season.id, 'mx-1 h-8 w-8 season-mini tiny:h-7 tiny:w-7', 'text-[1.2rem]'), title: escapeHtml(season.title), text: escapeHtml(season.text),
-                    cta: 'Vzít', icon: 'sparkles', gold: true }),
+                    cta: 'Vzít', icon: 'chevron-right', gold: true }),
                 chip: `<button type="button" data-action="season-claim" data-season-ready data-chip class="${HOME_CHIP}">${uiArt('sezona', CHIP_ART)}<span class="truncate">Odměna Sezóny</span><span aria-hidden="true" class="h-2 w-2 shrink-0 rounded-full bg-gold-500"></span></button>`
             });
         }
@@ -3128,13 +3144,13 @@
         if (chronicle) {
             items.push({
                 strip: actionRow({ id: 'chronicle-strip', wrapAttrs: `data-chronicle-strip="${escapeHtml(chronicle.week)}"`, attrs: `data-action="chronicle-open" aria-label="${escapeHtml(`Tvůj týden v kostce je hotový: ${chronicle.title}. Otevřít kroniku týdne`)}"`,
-                    art: uiArt('sova-kronika', ROW_ART), title: 'Kronika týdne', text: escapeHtml(`${chronicle.title} · ${chronicle.label}`), cta: 'Otevřít', icon: 'book-open', dismiss: { action: 'chronicle-dismiss', label: 'Skrýt kroniku týdne' } }),
+                    art: uiArt('sova-kronika', ROW_ART), title: 'Kronika týdne', text: escapeHtml(`${chronicle.title} · ${chronicle.label}`), cta: 'Otevřít', icon: 'chevron-right', wrap: true, dismiss: { action: 'chronicle-dismiss', label: 'Skrýt kroniku týdne' } }),
                 chip: `<button type="button" data-action="chronicle-open" class="${HOME_CHIP}">${uiArt('sova-kronika', CHIP_ART)}<span class="truncate">Kronika týdne</span></button>`
             });
         }
         if (Gold && Rewards && loadGold().ready > 0) {
             items.push({
-                strip: actionRow({ id: 'gold-chest-row', attrs: 'data-action="gold-chest"', art: uiArt('zlata-truhla', ROW_ART), title: 'Zlatá truhla', text: 'Čeká za pět zlatých střípků', cta: 'Otevřít', icon: 'sparkles', gold: true }),
+                strip: actionRow({ id: 'gold-chest-row', attrs: 'data-action="gold-chest"', art: uiArt('zlata-truhla', ROW_ART), title: 'Zlatá truhla', text: 'Čeká za pět zlatých střípků', cta: 'Otevřít', icon: 'chevron-right', gold: true }),
                 chip: `<button type="button" data-action="gold-chest" class="${HOME_CHIP}">${uiArt('zlata-truhla', CHIP_ART)}<span class="truncate">Zlatá truhla</span><span aria-hidden="true" class="h-2 w-2 shrink-0 rounded-full bg-gold-500"></span></button>`
             });
         }
@@ -3159,7 +3175,7 @@
     // ----- Záložka Hrát: volná hra podle chuti (Mix, 14 témat, režimy) -----
     // Rozehraná otázka tréninku (Domů uprostřed otázky, obnovená relace) jde dohrát tlačítkem vedle Mixu
     const practiceOpen = () => Boolean(current && mode === 'practice' && round && !round.answered && TOPIC_BY_ID[current.topic]);
-    const MODE_TILE = `relative flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-1 ${CARD_R} ${SURFACE} px-0.5 py-1.5 text-center transition-transform active:scale-[0.97] short:min-h-[3.75rem] short:gap-0.5 tiny:min-h-[3.25rem]`;
+    const MODE_TILE = `relative flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-1 ${CARD_R} ${TILE_3D} px-0.5 py-1.5 text-center short:min-h-[3.75rem] short:gap-0.5 tiny:min-h-[3.25rem]`;
     const modeTile = (attrs, art, title, extra = '') => `<button type="button" ${attrs} class="${MODE_TILE}">${art}<span class="block max-w-full truncate text-[12px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span>${extra}</button>`;
     const renderHrat = () => {
         // Dlouhý název („Výtvarné umění“) má na dlaždici krátký název tématu (shortTitle), celý zůstane v popisku pro čtečku
@@ -3174,7 +3190,7 @@
             const doubled = weekend && weekend.state === 'active' && weekend.topic === topic.id;
             const name = topic.shortTitle || topic.title;
             return `
-                <button type="button" data-action="play-topic" data-topic="${topic.id}" title="${escapeHtml(scope ? `${topic.title} · ${scope}` : topic.title)}" class="relative flex min-h-[4.25rem] min-w-0 flex-col items-center justify-center gap-1 overflow-hidden ${CARD_R} bg-gradient-to-br p-1 text-center text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] max-[379px]:px-0.5 short:min-h-[3.4rem] short:gap-0.5 short:p-0.5 tiny:min-h-[2.9rem] ${styleOf(topic).tile}">
+                <button type="button" data-action="play-topic" data-topic="${topic.id}" title="${escapeHtml(scope ? `${topic.title} · ${scope}` : topic.title)}" class="btn-3d relative flex min-h-[4.25rem] min-w-0 flex-col items-center justify-center gap-1 overflow-hidden ${CARD_R} bg-gradient-to-br p-1 text-center text-white max-[379px]:px-0.5 short:min-h-[3.4rem] short:gap-0.5 short:p-0.5 tiny:min-h-[2.9rem] ${styleOf(topic).tile}">
                     ${topicArt(topic) ? topicIcon(topic, 'h-10 w-10 short:h-8 short:w-8 tiny:h-7 tiny:w-7') : `<i data-lucide="${topic.icon}" class="h-[1.625rem] w-[1.625rem]"></i>`}
                     <span class="block max-w-full truncate ${name.length > 12 ? 'text-[10.5px] max-[379px]:text-[10px]' : name.length > 10 ? 'text-[10.5px]' : 'text-[12px]'} font-black leading-tight tracking-tight short:leading-none">${tileTitle(topic)}</span>
                     ${doubled ? '<span data-weekend-tile class="pointer-events-none absolute right-1 top-1 rounded-md bg-gold-400 px-1 text-[9px] font-black leading-tight text-brand-950 shadow">2× XP</span>' : ''}
@@ -3184,7 +3200,7 @@
         const resume = practiceOpen();
         const mixRow = `
             <div class="flex shrink-0 gap-2">
-                <button type="button" data-action="play-mix" title="${escapeHtml(`Mix · ${mixScope}`)}" class="relative flex min-h-[4.25rem] min-w-0 flex-1 items-center justify-center gap-3 overflow-hidden rounded-[1.4rem] bg-gradient-to-br px-3 py-2 text-left text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.98] short:min-h-[3.5rem] tiny:min-h-[3rem] ${styleOf(MIX).tile}">
+                <button type="button" data-action="play-mix" title="${escapeHtml(`Mix · ${mixScope}`)}" class="btn-3d relative flex min-h-[4.25rem] min-w-0 flex-1 items-center justify-center gap-3 overflow-hidden rounded-[1.4rem] bg-gradient-to-br px-3 py-2 text-left text-white short:min-h-[3.5rem] tiny:min-h-[3rem] ${styleOf(MIX).tile}">
                     ${topicIcon(MIX, 'h-12 w-12 short:h-10 short:w-10')}
                     <span class="min-w-0"><span class="block truncate text-xl font-black leading-tight short:text-lg">${resume || settings.topics.length !== TOPICS.length ? 'Mix' : 'Mix všech témat'}</span>${settings.topics.length === TOPICS.length ? '' : `<span class="block truncate text-[11.5px] font-bold leading-tight text-white/85">${escapeHtml(mixScope)}</span>`}</span>
                 </button>
@@ -7548,7 +7564,7 @@
                 <span class="${ROW_TITLE}">${escapeHtml(playerName(invite.creator))} tě vyzývá</span>
                 <span class="flex min-w-0 items-center gap-1.5 text-[12px] font-semibold leading-tight text-slate-500 max-[379px]:text-[11.5px] dark:text-slate-400"><span class="truncate">${escapeHtml(challengeTopicTitle(invite.topic))} · ${invite.count} otázek</span>${betBadge(invite.id)}</span>
             </span>
-            ${ctaHtml('Hrát')}
+            ${ctaHtml('Hrát', CTA_BRAND)}
         </button>`;
     // Rating a ligy (rating.js; počítá je databáze po dohrání výzvy proti jinému hráči). Barvy lig jsou třídy .league-* v src/input.css.
     const Rating = window.MudrlantRating;
@@ -7885,7 +7901,7 @@
     const QUICK_TILE = `flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-1 ${CARD_R} px-1 py-2 text-center text-[12px] font-black leading-tight short:min-h-[2.75rem] short:flex-row short:gap-1 short:py-1 short:text-left short:text-[11.5px]`;
     // Kostky a klíč jsou vzdušnější kresby než meče u Vyzvat: obrázek je o kousek větší, místo zabere stejné (h-9, na nízkém displeji h-7)
     const QUICK_ART = 'h-11 w-11 -my-1 short:h-8 short:w-8 short:-my-1 short:-mx-1 short:shrink-0';
-    const QUICK_LIGHT = `${SURFACE} text-slate-800 active:scale-95 dark:text-slate-100`;
+    const QUICK_LIGHT = `${TILE_3D} text-slate-800 dark:text-slate-100`;
     const quickActions = () => `
         <div class="flex shrink-0 flex-col gap-1.5 short:gap-1">
             <div class="grid grid-cols-3 gap-2 short:gap-1.5">
@@ -7894,7 +7910,7 @@
                 <button type="button" data-action="join-challenge" class="${QUICK_TILE} ${QUICK_LIGHT}">${uiArt('kod', QUICK_ART)}Zadat kód</button>
             </div>
             <div class="flex max-w-full items-center justify-center gap-1.5">
-                <button type="button" data-action="open-accept" title="Změnit, z jakých témat přijímám výzvy" class="${CHIP_TAP} !shrink max-w-full"><i data-lucide="shield-check" class="h-4 w-4 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 truncate font-bold text-slate-500 dark:text-slate-400">Přijímám výzvy z: <b class="font-black text-slate-700 dark:text-slate-200">${escapeHtml(acceptSummary())}</b></span><i data-lucide="pencil" class="h-3.5 w-3.5 shrink-0 text-slate-400"></i></button>
+                <button type="button" data-action="open-accept" title="Změnit, z jakých témat přijímám výzvy" class="${CHIP_TAP} !shrink max-w-full">${uiArt('vyzva', 'h-6 w-6 -my-1 -ml-1')}<span class="min-w-0 truncate font-bold text-slate-500 dark:text-slate-400">Přijímám výzvy z: <b class="font-black text-slate-700 dark:text-slate-200">${escapeHtml(acceptSummary())}</b></span><i data-lucide="pencil" class="h-3.5 w-3.5 shrink-0 text-slate-400"></i></button>
                 ${Bets && betsReady() ? `<button type="button" data-action="bets-help" title="Kamarádské sázky: pravidla a moje bilance" class="${CHIP_TAP}"><img src="icons/topics/mince.webp" alt="" class="-my-1 -ml-1 h-5 w-5 object-contain">Sázky</button>` : ''}
             </div>
         </div>`;
@@ -7941,7 +7957,7 @@
         <button type="button" data-action="challenge-resume" data-hot class="${WAIT_ROW}">
             ${uiArt('vyzva', 'h-10 w-10 short:h-9 short:w-9')}
             <span class="min-w-0 flex-1"><span class="${ROW_TITLE}">Rozehraná výzva</span><span class="${ROW_SUB}">${escapeHtml(resumeLabel(challenge))}</span></span>
-            ${ctaHtml(challengeNextIndex(challenge) < 0 ? 'Dokončit' : 'Hrát dál', CTA_GOLD, challengeNextIndex(challenge) < 0 ? 'send' : 'play')}
+            ${ctaHtml(challengeNextIndex(challenge) < 0 ? 'Dokončit' : 'Hrát dál', CTA_BRAND, challengeNextIndex(challenge) < 0 ? 'chevron-right' : 'play')}
         </button>`;
     const tournamentWaitRow = (view) => {
         const { tournament, state } = view;
@@ -7954,7 +7970,7 @@
                 ${special ? specialArt(tournament) : uiArt('turnaj', 'h-10 w-10 short:h-9 short:w-9')}
                 <span class="min-w-0 flex-1"><span class="${ROW_TITLE}">${escapeHtml(title)}${state.roundName ? ` · ${escapeHtml(state.roundName)}` : ''}</span>
                     <span class="${ROW_SUB}">${resume ? 'Rozehraný zápas čeká na dohrání' : opponent ? `Dnes hraješ proti: ${escapeHtml(playerName(opponent.player))}` : 'Dnes hraješ zápas'}</span></span>
-                ${ctaHtml(resume ? 'Hrát dál' : 'Hrát', CTA_GOLD)}
+                ${ctaHtml(resume ? 'Hrát dál' : 'Hrát', CTA_BRAND)}
             </button>`;
     };
     const waitingRows = () => {
@@ -7986,18 +8002,18 @@
         return `
             <section id="waiting-section" aria-label="Čeká na tebe" data-waiting="${rows.length}" class="flex shrink-0 flex-col gap-2 short:gap-1.5">
                 <div class="flex items-center justify-between gap-2">
-                    <h2 class="flex items-center gap-1.5 ${SEC_LABEL}"><span class="h-2 w-2 rounded-full bg-gold-500"></span>Čeká na tebe</h2>
+                    <h2 class="${SEC_LABEL}">Čeká na tebe</h2>
                     ${rows.length > 1 ? `<button type="button" data-action="waiting-all" class="-my-2.5 flex min-h-[2.5rem] items-center gap-0.5 rounded-lg px-1.5 text-[12px] font-black text-brand-700 active:scale-95 dark:text-cream">+${rows.length - 1} ${rows.length - 1 >= 5 ? 'dalších' : 'další'}<i data-lucide="chevron-right" class="h-3.5 w-3.5"></i></button>` : ''}
                 </div>
                 ${rows[0]}
             </section>`;
     };
     // Velká dlaždice (dveře do vlastního okna): obrázek, název, řádek stavu a zlatý odznak s počtem čekajících věcí
-    const BIG_TILE = `relative flex min-h-[7.5rem] min-w-0 flex-col items-start gap-1 rounded-[1.4rem] ${SURFACE} p-3 text-left transition-transform active:scale-[0.98] short:min-h-[6rem] short:gap-0.5 short:p-2.5 tiny:min-h-[5rem]`;
+    const BIG_TILE = `relative flex min-h-[7.5rem] min-w-0 flex-col items-start gap-1 rounded-[1.4rem] ${TILE_3D} p-3 text-left short:min-h-[6rem] short:gap-0.5 short:p-2.5 tiny:min-h-[5rem]`;
     const bigTile = ({ id = '', attrs, art, title, text, badge = 0 }) => `
             <button type="button" ${id ? `id="${id}" ` : ''}${attrs} class="${BIG_TILE}">
                 ${uiArt(art, 'h-11 w-11 short:h-9 short:w-9 tiny:h-8 tiny:w-8')}
-                <span class="block text-[17px] font-black leading-tight text-slate-800 short:text-[15.5px] dark:text-slate-100">${title}</span>
+                <span class="block text-[17px] font-black leading-tight text-brand-800 short:text-[15.5px] dark:text-brand-100">${title}</span>
                 <span data-tile-text class="line-clamp-2 text-[12px] font-semibold leading-snug text-slate-500 short:text-[11.5px] short:leading-tight dark:text-slate-400">${text}</span>
                 ${badge ? `<span data-tile-badge class="absolute right-2.5 top-2.5 ${BADGE}">${badge}</span>` : ''}
             </button>`;
@@ -8043,7 +8059,7 @@
     // Okno Výzvy: nahoře rychlé akce (vždy vidět), pod nimi panel, který vyplní zbytek a posouvá se jen uvnitř: co čeká, liga a poslední výzvy
     const challengesView = () => {
         const incoming = visibleIncoming();
-        const waiting = incoming.length ? `<div class="flex flex-col gap-1.5 short:gap-1"><p class="flex items-center gap-1.5 ${SEC_LABEL}"><span class="h-2 w-2 rounded-full bg-gold-500"></span>Čekají na tebe</p>${incoming.map(incomingRow).join('')}</div>` : '';
+        const waiting = incoming.length ? `<div class="flex flex-col gap-1.5 short:gap-1"><p class="${SEC_LABEL}">Čekají na tebe</p>${incoming.map(incomingRow).join('')}</div>` : '';
         return `
             <section id="challenges-section" class="flex min-h-0 flex-1 flex-col gap-2.5 short:gap-2">
                 ${subHead('Výzvy', 'vyzva')}
@@ -8064,7 +8080,7 @@
                 ${uiArt('turnaj', 'h-12 w-12 -my-1')}
                 <p class="text-sm font-semibold leading-snug text-slate-600 dark:text-slate-300">${tournamentsMissing ? 'Turnaje tu teď nejsou k dispozici.' : tournamentView === null && tournamentRefreshing ? 'Načítám turnaje…' : 'Teď se žádný turnaj nehraje. Týdenní turnaj se otevírá každý týden, přihlášky najdeš tady.'}</p>
             </div>`;
-        const LINK = `flex min-h-[2.75rem] min-w-0 items-center justify-center gap-2 ${CARD_R} ${SURFACE} px-2 text-[13px] font-black text-slate-800 active:scale-[0.98] dark:text-slate-100`;
+        const LINK = `flex min-h-[2.75rem] min-w-0 items-center justify-center gap-2 ${CARD_R} ${TILE_3D} px-2 text-[13px] font-black text-slate-800 dark:text-slate-100`;
         return `
             <section id="tournaments-section" class="flex min-h-0 flex-1 flex-col gap-2.5 short:gap-2">
                 ${subHead('Turnaje', 'turnaj')}
@@ -8158,7 +8174,7 @@
                 </form>
                 ${friendsDraft.note ? `<p role="alert" class="-mt-1 px-1 text-[12.5px] font-semibold text-rose-700 dark:text-rose-400">${escapeHtml(friendsDraft.note)}</p>` : ''}
                 ${results}
-                ${requests ? `<div class="flex flex-col gap-1.5"><p class="flex items-center gap-1.5 ${SEC_LABEL}"><span class="h-2 w-2 rounded-full bg-gold-500"></span>Žádosti o přátelství</p>${requests}</div>` : ''}
+                ${requests ? `<div class="flex flex-col gap-1.5"><p class="${SEC_LABEL}">Žádosti o přátelství</p>${requests}</div>` : ''}
                 <div class="flex flex-col gap-1.5"><p class="${SEC_LABEL}">Moji přátelé <span class="font-bold normal-case tracking-normal">· ${social.friends.length}</span></p>${friends}</div>
                 ${social.outgoing && social.outgoing.length ? `<p class="px-1 text-[11.5px] font-semibold text-slate-500 dark:text-slate-400">Odeslané žádosti: ${social.outgoing.map(row => escapeHtml(playerName(row))).join(', ')}</p>` : ''}
                 ${referralCardHtml()}
@@ -8284,7 +8300,7 @@
         } else {
             // Bez přihlášení: na hlavních obrazovkách postavička (záložka Já), při hře ozubené kolečko (Nastavení)
             const main = mainShown();
-            button.className = BUTTON_INACTIVE;
+            button.className = BUTTON_BACK;
             button.innerHTML = `<i data-lucide="${main ? 'user-round' : 'settings-2'}" class="h-5 w-5"></i>`;
             button.setAttribute('aria-label', main ? 'Já: profil a nastavení' : 'Nastavení');
             button.title = main ? 'Já: profil a nastavení' : 'Nastavení';
@@ -9114,8 +9130,8 @@
         } catch (error) { console.error(error); }
         return count;
     };
-    const POSTUP_TILE = `relative flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-0.5 ${CARD_R} ${SURFACE} px-1 py-1.5 text-center transition-transform active:scale-[0.97] short:min-h-[3.75rem] tiny:min-h-[3.25rem] tiny:gap-0 tiny:py-1`;
-    const POSTUP_READY = '!ring-2 !ring-gold-400 dark:!ring-gold-500';
+    const POSTUP_TILE = `relative flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-0.5 ${CARD_R} ${TILE_3D} px-1 py-1.5 text-center short:min-h-[3.75rem] tiny:min-h-[3.25rem] tiny:gap-0 tiny:py-1`;
+    const POSTUP_READY = 'ring-2 ring-gold-400 dark:ring-gold-500';
     const postupTile = ({ attrs, art, title, value, valueAttrs = '', ready = false }) => `
             <button type="button" ${attrs} class="${POSTUP_TILE}${ready ? ` ${POSTUP_READY}` : ''}">
                 ${art}
@@ -9219,6 +9235,7 @@
 
     // ----- Záložka Já: karta hráče a řádky do oken (Mudrlant, Profil, Nastavení hry, Upozornění, Účet, Pozvi kamarády) -----
     const JA_ROW = `${HOME_ROW} min-h-[3.4rem] short:min-h-[3rem] short:py-1.5 tiny:min-h-[2.7rem] tiny:py-1`;
+    const JA_ART = 'h-10 w-10 short:h-9 short:w-9 tiny:h-8 tiny:w-8';
     const jaRow = ({ attrs, icon = '', art = '', title, text = '', tone = 'bg-brand-100 text-brand-700 dark:bg-brand-900/60 dark:text-brand-200', right = '<i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-400"></i>' }) => `
             <button type="button" ${attrs} class="${JA_ROW}">
                 ${art || `<span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl short:h-9 short:w-9 tiny:h-8 tiny:w-8 ${tone}"><i data-lucide="${icon}" class="h-5 w-5"></i></span>`}
@@ -9245,12 +9262,12 @@
                 </div>
             </div>`;
         const rows = [
-            ...(Owl ? [jaRow({ attrs: 'data-ja="owl"', icon: 'sparkles', title: 'Mudrlant', text: 'Oblek, čepice a doplňky sovy' })] : []),
-            ...(user ? [jaRow({ attrs: 'data-ja="profile"', icon: 'user-round', title: 'Profil', text: 'Přezdívka, obrázek, rámeček a titul' })] : []),
+            ...(Owl ? [jaRow({ attrs: 'data-ja="owl"', art: uiArt('sova-radost', JA_ART), title: 'Mudrlant', text: 'Oblek, čepice a doplňky sovy' })] : []),
+            ...(user ? [jaRow({ attrs: 'data-ja="profile"', art: uiArt('vitrina', JA_ART), title: 'Profil', text: 'Přezdívka, obrázek, rámeček a titul' })] : []),
             jaRow({ attrs: 'data-ja="game"', icon: 'settings-2', title: 'Nastavení hry', text: 'Varianta, obtížnost, barvy a zvuky' }),
-            ...(user && Push && Push.configured() && !(pushState && pushState.kind === 'hidden') ? [jaRow({ attrs: 'data-ja="push"', icon: pushState && pushState.kind === 'on' ? 'bell' : 'bell-off', title: 'Upozornění', text: `<span data-ja-push>${escapeHtml(pushRowText())}</span>` })] : []),
-            ...(user ? [jaRow({ attrs: 'data-ja="account"', icon: 'shield-check', title: 'Účet', text: 'Přijímané výzvy, zablokovaní, moje data, odhlášení' })] : []),
-            ...(user && Referral && referralState ? [jaRow({ attrs: 'data-ja="referral"', icon: 'user-plus', title: 'Pozvi kamarády', text: referralState.ready.length ? 'Čeká odměna za pozvání' : 'Odměna pro tebe i kamaráda', tone: 'referral-orb text-white' })] : [])
+            ...(user && Push && Push.configured() && !(pushState && pushState.kind === 'hidden') ? [jaRow({ attrs: 'data-ja="push"', art: uiArt('sova-zvonek', `${JA_ART}${pushState && pushState.kind === 'on' ? '' : ' opacity-60 grayscale'}`), title: 'Upozornění', text: `<span data-ja-push>${escapeHtml(pushRowText())}</span>` })] : []),
+            ...(user ? [jaRow({ attrs: 'data-ja="account"', art: uiArt('pecet', JA_ART), title: 'Účet', text: 'Přijímané výzvy, zablokovaní, moje data, odhlášení' })] : []),
+            ...(user && Referral && referralState ? [jaRow({ attrs: 'data-ja="referral"', art: uiArt('sova-vitej', JA_ART), title: 'Pozvi kamarády', text: referralState.ready.length ? 'Čeká odměna za pozvání' : 'Odměna pro tebe i kamaráda' })] : [])
         ];
         const login = state.configured && !user ? `
             <button type="button" data-ja="login" class="flex w-full shrink-0 items-center gap-3 rounded-[1.15rem] btn-3d bg-brand-700 px-4 py-2.5 text-left text-white">
@@ -12868,7 +12885,7 @@
         const title = special ? `${tournament.title}${state.phase === 'running' && state.roundName ? ` · ${state.roundName}` : state.phase === 'finished' ? ' · skončil' : ''}`
             : state.phase === 'running' ? `Běží${state.roundName ? ` · ${state.roundName}` : ''}` : state.phase === 'finished' ? 'Poslední turnaj' : 'Turnaj';
         const playing = state.step === 'play' || state.step === 'resume';
-        const play = playing ? `<button type="button" data-action="${state.step === 'resume' ? 'tournament-resume' : 'tournament-play'}" data-tid="${id}" data-cta class="${CTA_GOLD} active:translate-y-px">${ctaInner(state.step === 'resume' ? 'Hrát dál' : 'Hrát')}</button>` : '';
+        const play = playing ? `<button type="button" data-action="${state.step === 'resume' ? 'tournament-resume' : 'tournament-play'}" data-tid="${id}" data-cta class="${CTA_BRAND}">${ctaInner(state.step === 'resume' ? 'Hrát dál' : 'Hrát')}</button>` : '';
         const bracket = state.phase === 'finished' ? ['award', 'Výsledky'] : ['git-branch', 'Pavouk'];
         // S velkým tlačítkem Hrát je pavouk jen malá ikona, jinak ikona s popiskem
         const open = `<button type="button" data-action="tournament-open" data-tid="${id}" ${playing ? `aria-label="${bracket[1]}" title="${bracket[1]}"` : ''} class="${TOUR_SMALL} ${playing ? 'h-10 w-10' : 'px-2.5 py-2'}"><i data-lucide="${bracket[0]}" class="h-4 w-4"></i>${playing ? '' : bracket[1]}</button>`;
@@ -14133,16 +14150,8 @@
         renderHome();
     };
 
-    document.getElementById('btn-home').addEventListener('click', () => renderHome());
-    document.getElementById('btn-practice').addEventListener('click', () => showPractice());
-    // Učení: z procvičování okruhu nebo chyb zpět k nim, jinak na začátek učení
-    document.getElementById('btn-learn').addEventListener('click', () => {
-        if (screen === 'round' && mode === 'practice' && pool.kind === 'collection' && TOPIC_BY_ID[pool.topic]) {
-            learn.collection = pool.collection || null;
-            openLearn('collection', pool.topic);
-        } else if (screen === 'round' && mode === 'practice' && pool.kind === 'mistakes') openLearn('mistakes');
-        else openLearn('home');
-    });
+    // Šipka zpět v hlavičce: totéž co Zpět v prohlížeči (o úroveň výš v Učení a v Dobývání, jinak na záložku, ze které hráč přišel)
+    document.getElementById('btn-home').addEventListener('click', () => goBack());
     // Obrázek hráče vpravo nahoře: na hlavních obrazovkách vede na záložku Já, při hře otevře Nastavení (hru neukončí)
     document.getElementById('btn-settings').addEventListener('click', () => {
         if (!mainShown()) openSettings();

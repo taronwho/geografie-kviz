@@ -287,7 +287,7 @@ test('Tajemná otázka dne v prohlížeči', { skip: !chromium && 'Playwright ne
         await tab.goto(`${ORIGIN}/`);
         await tab.waitForSelector('#dnes-extras #mystery-reveal[data-mystery-kind="reveal"]');
         await tab.waitForFunction(() => /uhodlo 34 %/.test(document.querySelector('#mystery-reveal').textContent));
-        assert.equal(await compact(tab, '#mystery-reveal'), `Včerejší tajemná otázka Odpověď: ${round.name} · uhodlo 34 %`);
+        assert.equal(await compact(tab, '#mystery-reveal'), `Včerejší záhada: Odpověď: ${round.name} · uhodlo 34 % Zobrazit`);
         // Dnešní záhada je přitom dál mezi dnešními výzvami
         assert.equal(await compact(tab, '#mystery-card [data-mystery-text]'), 'Nápověda 4/8 · další v 13:00');
         await fitsScreen(tab, 'úvod se včerejší odpovědí (390×780)');
@@ -317,7 +317,7 @@ test('Tajemná otázka dne v prohlížeči', { skip: !chromium && 'Playwright ne
     await t.test('druhý den skrytí křížkem přímo na úvodu (360×640, tmavý režim)', async () => {
         const solved = M.addTip(M.newEntry({ topic: 'zemepis', q: 'Q4242', name: 'Testovací hora' }), { text: 'Testovací hora', correct: true, clues: 3, at: prague('10:05').getTime() });
         const { context, tab, log } = await open(browser, { 'mudrlant.mystery': JSON.stringify({ days: { [TODAY]: { ...solved, xp: 26 } }, rounds: {} }) }, { colorScheme: 'dark', time: prague('11:00', TOMORROW) });
-        assert.equal(await compact(tab, '#mystery-reveal'), 'Včerejší tajemná otázka Odpověď: Testovací hora');
+        assert.equal(await compact(tab, '#mystery-reveal'), 'Včerejší záhada: Odpověď: Testovací hora Zobrazit');
         await fitsScreen(tab, 'úvod se včerejší odpovědí (360×640, tmavý)');
         await shot(tab, 'vcerejsi-odpoved-tmavy-360x640');
         await audit(tab, 'úvod se včerejší odpovědí (360×640, tmavý)');
