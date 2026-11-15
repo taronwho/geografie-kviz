@@ -7,6 +7,7 @@
 // SCREENSHOT_DIR=/cesta uloží snímky (dobyvani-*.png). Potřebuje Playwright (viz tests/e2e.test.js), jinak se přeskočí.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const nav = require('./nav.js');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -354,7 +355,7 @@ const setup = async (browser, { viewport = { width: 360, height: 640 }, colorSch
         if (sessionStorage.getItem('test-storage-set')) return;
         sessionStorage.setItem('test-storage-set', '1');
         Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
-    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), 'mudrlant.homeTab': JSON.stringify('multi'), 'mudrlant.tips': JSON.stringify({ off: true }), ...login('tok-u1'), ...storage });
+    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), 'mudrlant.tips': JSON.stringify({ off: true }), ...login('tok-u1'), ...storage });
     const tab = await context.newPage();
     const log = { errors: [], csp: [] };
     tab.on('pageerror', error => log.errors.push(error.message));
@@ -1290,7 +1291,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         const progress = { xp: 26000, counters: { bestStreak: 5 }, badges: { tyden: '2026-10-01', 'serie-3': '2026-10-01', 'uroven-5': '2026-10-01', 'uroven-10': '2026-10-01', 'uroven-20': '2026-10-01' } };
         const rewards = { season: { id: '2026-11', startXp: 24300, claimed: { 1: 'robes:fialova', 2: 'freeze', 3: 'freeze', 4: 'themes:les' } }, freezes: 2 };
         // Úvod na záložce Jeden hráč (pruh sezóny je místo cílů týdne)
-        const { context, tab, log } = await setup(browser, { storage: { 'mudrlant.homeTab': JSON.stringify('single'), 'mudrlant.progress': JSON.stringify(progress), 'mudrlant.rewards': JSON.stringify(rewards) } });
+        const { context, tab, log } = await setup(browser, { storage: { 'mudrlant.progress': JSON.stringify(progress), 'mudrlant.rewards': JSON.stringify(rewards) } });
         await backend(context, db);
         await tab.goto(`${ORIGIN}/`);
         const strip = tab.locator('[data-season-ready]');

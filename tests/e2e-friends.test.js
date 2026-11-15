@@ -3,6 +3,7 @@
 // CSP bez chyb, 360×640 a 390×780 bez vodorovného posouvání, tmavý režim. Potřebuje Playwright (viz tests/e2e.test.js), jinak se přeskočí.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const nav = require('./nav.js');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -119,7 +120,7 @@ const setup = async (browser, storage, { viewport = { width: 390, height: 780 },
         if (sessionStorage.getItem('test-storage-set')) return;
         sessionStorage.setItem('test-storage-set', '1');
         Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
-    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), 'mudrlant.homeTab': JSON.stringify('multi'), ...storage });
+    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), ...storage });
     const tab = await context.newPage();
     const log = { errors: [], csp: [] };
     tab.on('pageerror', error => log.errors.push(error.message));
@@ -244,7 +245,7 @@ test('přátelé, reakce, blokování a nahlášení', { skip: !chromium && 'Pla
         await closeDialog(tab);
         assert.equal(await tab.locator('#friends-strip').count(), 0, 'blokovaný zmizel z přátel');
         // Nastavení → Zablokovaní hráči → Odblokovat
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="game"]');
         await tab.click('[data-open-blocked]');
         await tab.waitForSelector('#blocked-list');
@@ -289,12 +290,12 @@ test('přátelé, reakce, blokování a nahlášení', { skip: !chromium && 'Pla
         await page.tab.goto(`${ORIGIN}/`);
         await waitForHome(page.tab);
         const { tab, log, context } = page;
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-dev="player-reports"]');
         await tab.waitForFunction(() => /dev_admins/.test(document.getElementById('dialog-overlay').textContent));
         await closeDialog(tab);
         db.devAdmin = true;
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-dev="player-reports"]');
         await tab.waitForSelector('#dev-reports');
         assert.match(await compact(tab, '#dev-reports'), /Lenka Dvořáková · Podvádění ?od Jana Nováková.*Podezřelé časy/);

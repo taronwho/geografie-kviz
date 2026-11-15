@@ -5,6 +5,7 @@
 // SCREENSHOT_DIR=… uloží snímky 390×780 ve světlém i tmavém režimu. Potřebuje Playwright (viz tests/e2e.test.js), jinak se přeskočí.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const nav = require('./nav.js');
 const fs = require('node:fs');
 const path = require('node:path');
 const Core = require('../quiz-core.js');
@@ -111,7 +112,7 @@ const setup = async (browser, storage, { viewport = { width: 390, height: 780 },
         sessionStorage.setItem('test-storage-set', '1');
         Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
     }, {
-        'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.tips': JSON.stringify({ off: true }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), 'mudrlant.homeTab': JSON.stringify('multi'),
+        'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.tips': JSON.stringify({ off: true }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'),
         // sberatel-25: hráč s takovým postupem má čtvrtinu Alba sbírky dávno (oslava milníku alba by jinak předběhla oslavu rámečku sezóny)
         'mudrlant.progress': JSON.stringify({ xp: 26000, counters: { correct: 2600, answered: 3400, challengesPlayed: 120, challengeWins: 30 }, badges: { vitez: '2026-10-01', 'vyhry-5': '2026-10-02', 'vyhry-25': '2026-10-20', 'serie-60': '2026-10-21', 'sberatel-25': '2026-10-22' } }),
         'mudrlant.rewards': JSON.stringify({ v: 1, diplomas: { zemepis: '2026-10-20' }, name: 'Jana Nováková' }),
@@ -217,7 +218,7 @@ test('ligové sezóny a vitrína v profilu', { skip: !chromium && 'Playwright ne
             await tab.keyboard.press('Escape');
 
             // Odznak do vitríny (Můj postup → Odznaky): nejvyšší stupeň jde vystavit, nižší ne
-            await tab.click('#btn-settings');
+            await nav.settings(tab);
             await tab.click('[data-open-progress]');
             await tab.click('[data-open-badges]');
             await tab.click('#dialog-overlay [data-badge="vyhry-5"]');
@@ -232,7 +233,7 @@ test('ligové sezóny a vitrína v profilu', { skip: !chromium && 'Playwright ne
             await escapeAll(tab);
 
             // Diplom do vitríny (tlačítko vedle Diplomy, okno se nezvětší)
-            await tab.click('#btn-settings');
+            await nav.settings(tab);
             await tab.click('[data-open-progress]');
             await tab.click('[data-rewards-info="diplomas"]');
             await tab.click('[data-diploma="zemepis"]');
@@ -246,7 +247,7 @@ test('ligové sezóny a vitrína v profilu', { skip: !chromium && 'Playwright ne
             await escapeAll(tab);
 
             // Nastavení → Profil: náhled vitríny vedle titulu a rámečky sezón (Diamant odemčený, Mistr zamčený); plná vitrína
-            await tab.click('#btn-settings');
+            await nav.settings(tab);
             await tab.click('[data-me-tab="profile"]');
             await tab.waitForSelector('#settings-overlay [data-open-showcase]');
             assert.equal(await tab.locator('#settings-overlay [data-open-showcase] img').count() >= 3, true, 'tři trofeje v náhledu');
@@ -372,7 +373,7 @@ test('ligové sezóny a vitrína v profilu', { skip: !chromium && 'Playwright ne
         await tab.waitForSelector('#league-help');
         assert.equal(await tab.locator('[data-help-seasons]').count(), 0);
         await tab.keyboard.press('Escape');
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="profile"]');
         await tab.waitForSelector('[data-frame="liga-zlato"]');
         assert.equal(await tab.locator('[data-open-showcase]').count(), 0, 'bez vitríny v databázi žádný náhled');

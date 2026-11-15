@@ -8,6 +8,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const fixtures = require('./fixtures.js');
+const nav = require('./nav.js');
 
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
@@ -215,7 +216,7 @@ test('kronika týdne: pruh, příběh, sdílení, skrytí a Můj postup', { skip
     for (const [name, viewport] of [['390×780', { width: 390, height: 780 }], ['360×640', { width: 360, height: 640 }]]) {
         await t.test(`Kronika týdne z Mého postupu: minulý a tento týden, zpět do Mého postupu (${name})`, async () => {
             const { context, tab, problems } = await open({ now: WEDNESDAY, viewport });
-            await tab.click('#btn-settings');
+            await nav.settings(tab);
             await tab.click('[data-open-progress]');
             await tab.waitForSelector('[data-progress-dialog]');
             assert.deepEqual(await dialogOverflow(tab), { v: 0, h: 0 }, 'Můj postup se vejde i s odkazem na kroniku');
@@ -246,7 +247,7 @@ test('kronika týdne: pruh, příběh, sdílení, skrytí a Můj postup', { skip
 
     await t.test('odpověď se zapíše do denního záznamu kroniky (Praha)', async () => {
         const { context, tab, problems } = await open({ now: WEDNESDAY, seed: { 'mudrlant.week': { v: 1, days: {} } } });
-        await tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await nav.daily(tab, 'zemepis');
         await tab.waitForSelector('[data-action="choice"]');
         await tab.click('[data-action="choice"] >> nth=0');
         await tab.waitForFunction(() => { const log = JSON.parse(localStorage.getItem('mudrlant.week') || '{}'); return log.days && log.days['2026-11-11']; });

@@ -246,8 +246,9 @@ test('napojení: modul v index.html, service workeru, nasazení a Tailwindu; sch
     assert.equal(core.EMPTY_COUNTERS.mysterySolved, 0);
     const Tips = require('../tips.js');
     assert.equal(Tips.BY_ID.get('tajemna').action.kind, 'mystery');
-    // Karta na úvodu je jedna vložená funkce (ostatní pruhy úvodu se jí nedotknou)
-    assert.equal((read('app.js').match(/\$\{mysteryHomeCard\(\)\}/g) || []).length, 1);
+    // Řádek mezi dnešními výzvami na záložce Dnes (třetí, mezi Řetězovkou a Bossem); včerejší odpověď je zvlášť mezi příležitostnými pruhy
+    assert.match(read('app.js'), /\[quizHomeCard\(\), chainHomeTile\(\), mysteryHomeCard\(\), bossHomeTile\(\)\]/);
+    assert.match(read('app.js'), /const reveal = mysteryRevealCard\(\);/);
     assert.match(read('docs/SUPABASE.md'), /## Tajemná otázka dne \(schéma 19\)/);
 });
 

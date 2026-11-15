@@ -8,6 +8,7 @@ const http = require('node:http');
 const path = require('node:path');
 const zlib = require('node:zlib');
 const fixtures = require('./fixtures.js');
+const nav = require('./nav.js');
 
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
@@ -80,7 +81,7 @@ test('vlajka státu na vlaječce sovy', { skip: !chromium && 'Playwright není n
     const fits = (tab) => tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return box.scrollHeight <= box.clientHeight; });
     // Doplněk se vybírá v otevřeném místě: nejdřív čip místa vedle sovy, pak dlaždice doplňku
     const pickAcc = async (tab, value, options = {}) => { await tab.click(`[data-owl-slot="${value.split(':')[0]}"]`); await tab.click(`[data-owl-pick="${value}"]`, options); };
-    const openOwlTab = async (tab) => { await tab.click('#btn-settings'); await tab.click('[data-me-tab="owl"]'); await tab.waitForSelector('[data-owl-pick]'); };
+    const openOwlTab = async (tab) => { await nav.settings(tab); await tab.click('[data-me-tab="owl"]'); await tab.waitForSelector('[data-owl-pick]'); };
     // Obrázek vlajky v daném místě + jestli je vidět (kontejner s maskou se odkryje až po načtení)
     const flagState = (tab, scope) => tab.evaluate((selector) => {
         const image = document.querySelector(`${selector} [data-owl-flag-img]`);
@@ -230,7 +231,7 @@ test('vlajka státu na vlaječce sovy', { skip: !chromium && 'Playwright není n
         };
         const login = { 'mudrlant.auth': JSON.stringify({ access_token: 'tok-u2', refresh_token: 'r', expires_at: 4102444800, user: { id: 'u-2', email: 'x@example.com', name: 'Petr' } }) };
         const { context, tab, problems } = await open({ backend, extra: { ...login, 'mudrlant.look': JSON.stringify({ robe: 'modra', acc: { hand: { id: 'vlajka', color: 'original', flag: 'q101472' } } }), 'mudrlant.progress': JSON.stringify({ xp: 5000, counters: {}, badges: { 'zbehly-vlajky': '2026-11-01' } }) } });
-        await tab.click('[data-action="home-tab"][data-tab="multi"]');
+        await nav.go(tab, 'souperi');
         await tab.waitForSelector('#challenges-section [data-player-id="u-1"] [data-owl-flag-img]');
         await tab.waitForFunction(() => { const image = document.querySelector('#challenges-section [data-player-id="u-1"] [data-owl-flag-img]'); return image && image.complete && image.naturalWidth > 0; });
         await tab.waitForFunction(() => { const box = document.querySelector('#challenges-section [data-player-id="u-1"] .owl-flag'); return box && getComputedStyle(box).opacity === '1'; });

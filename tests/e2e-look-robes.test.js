@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const fixtures = require('./fixtures.js');
+const nav = require('./nav.js');
 const Core = require('../quiz-core.js');
 
 let chromium = null;
@@ -47,7 +48,7 @@ const open = async (browser, { level, storage = {} }) => {
     return { context, tab, problems };
 };
 const openLook = async (tab) => {
-    await tab.click('#btn-settings');
+    await nav.settings(tab);
     await tab.click('[data-me-tab="owl"]');
     await tab.waitForSelector('[data-robe-pick]');
 };
@@ -88,7 +89,7 @@ test('barva obleku sovy', { skip: !chromium && 'Playwright není nainstalovaný'
 
         // Nově vykreslená sova (zavření okna, jiná obrazovka) je také modrá
         await tab.click('[data-close]');
-        await tab.click('#btn-learn');
+        await nav.learn(tab);
         assert.ok((await owlSources(tab)).every(src => /-modra\.webp$/.test(src)));
 
         // Zpět na vínovou = původní soubory

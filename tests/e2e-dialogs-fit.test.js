@@ -38,8 +38,9 @@ const SCHEME = process.env.FIT_SCHEME === 'dark' ? 'dark' : 'light';
 // Dlouhé seznamy, které se posouvat smí: reason = proč, size = jen na této velikosti (jinak na obou), keep = hlavní akce, která při posouvání
 // zůstane vidět (lepkavě). Lepkavý nadpis okna se zavíráním (data-dialog-head) se hlídá u všech výjimek v #dialog-overlay.
 const EXEMPT = {
-    'Všechny odznaky': { reason: 'seznam všech odznaků (stovky medailí po skupinách)', keep: '[data-dialog-back]' },
-    'Úrovně a tituly': { reason: 'seznam všech úrovní s tituly', keep: '[data-dialog-back]' },
+    // Ze záložky Postup se otevírají bez rodičovského okna: zavírá je lepkavý nadpis s křížkem (hlídá se u všech výjimek)
+    'Všechny odznaky': { reason: 'seznam všech odznaků (stovky medailí po skupinách)' },
+    'Úrovně a tituly': { reason: 'seznam všech úrovní s tituly' },
     'Rozpis otázek výzvy': { reason: 'seznam všech otázek s odpověďmi obou hráčů (záhlaví sloupců lepkavě)' },
     'Týdenní žebříček': { reason: 'žebříček hráčů' },
     'Turnaj (běží)': { reason: 'pavouk a pořadí desítek hráčů', keep: '[data-t-play]' },
@@ -718,7 +719,8 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
         await t.test(`Kvíz dne – úvod, tip, pozvánka do turnaje a přezdívka (${size.width}×${size.height})`, async () => {
             const db = newDb({ quizDone: false });
             db.entries = db.entries.filter(e => !(e.tournament_id === uid(900) && e.user_id === ME));
-            const { context, tab } = await setup(browser, { viewport: size, db, storage: { 'mudrlant.nickPending': JSON.stringify(Date.parse(NOW)), 'mudrlant.tips': JSON.stringify({}) } });
+            // Okno s přezdívkou vyskočí hned po načtení (přes záložku Dnes), proto se po startu nepřepíná
+            const { context, tab } = await setup(browser, { viewport: size, db, start: '', storage: { 'mudrlant.nickPending': JSON.stringify(Date.parse(NOW)), 'mudrlant.tips': JSON.stringify({}) } });
             await scene(tab, 'Přezdívka', size, async () => { await tab.waitForSelector('#nick-input', { timeout: 20000 }); });
             await scene(tab, 'Kvíz dne – úvod', size, async () => { await action(tab, 'quiz-open'); await tab.waitForSelector('[data-action="quiz-start"]', { timeout: 20000 }); }, { screen: true });
             await action(tab, 'quiz-home');

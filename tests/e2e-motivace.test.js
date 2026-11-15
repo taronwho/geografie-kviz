@@ -5,6 +5,7 @@
 // bez posouvání stránky a bez chyb CSP. SCREENSHOT_DIR=adresář uloží snímky. Potřebuje Playwright, jinak se přeskočí.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const nav = require('./nav.js');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -181,7 +182,7 @@ test('motivace: tematický víkend, prestiž, pozvi kamarády, reakce a efekty, 
 
     await t.test('pozvi kamarády: karta na Více hráčů, okno s kódem a odměnami, vyzvednutí (rámeček a XP)', async () => {
         const db = newDb();
-        const { context, tab, log } = await setup(browser, { ...login(), ...progress(30000), 'mudrlant.homeTab': JSON.stringify('multi') }, { db, viewport: { width: 360, height: 640 } });
+        const { context, tab, log } = await setup(browser, { ...login(), ...progress(30000), }, { db, viewport: { width: 360, height: 640 } });
         await tab.goto(`${ORIGIN}/`);
         await tab.waitForSelector('#referral-card', { timeout: 30000 });
         assert.match(await tab.textContent('#referral-card'), /Pozvi kamarády[\s\S]*Čeká 1 odměna/);
@@ -241,7 +242,7 @@ test('motivace: tematický víkend, prestiž, pozvi kamarády, reakce a efekty, 
         const { context, tab, log } = await setup(browser, { ...login(), ...progress(30000), 'mudrlant.rewards': JSON.stringify(rewards) }, { db });
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="profile"]');
         await tab.waitForSelector('[data-open-showcase]', { timeout: 15000 });
         await tab.click('[data-open-showcase]');
@@ -261,7 +262,7 @@ test('motivace: tematický víkend, prestiž, pozvi kamarády, reakce a efekty, 
         const { context, tab, log } = await setup(browser, { ...login(), ...progress(30000) }, { db: newDb(), viewport: { width: 360, height: 640 } });
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="profile"]');
         await tab.click('[data-pic-group="postavicky"]');
         await tab.waitForSelector('[data-locked-avatar="caj"]', { state: 'attached' });
@@ -279,7 +280,7 @@ test('motivace: tematický víkend, prestiž, pozvi kamarády, reakce a efekty, 
         const locked = await setup(browser, progress(9000), { viewport: { width: 360, height: 640 } });
         await locked.tab.goto(`${ORIGIN}/`);
         await waitForHome(locked.tab);
-        await locked.tab.click('#btn-settings');
+        await nav.settings(locked.tab);
         await locked.tab.click('[data-me-tab="owl"]');
         await locked.tab.waitForSelector('[data-robe-custom][data-locked]');
         assert.match(await locked.tab.textContent('[data-robe-custom]'), /Od 20\. úrovně/);
@@ -291,7 +292,7 @@ test('motivace: tematický víkend, prestiž, pozvi kamarády, reakce a efekty, 
         const { context, tab, log } = await setup(browser, { ...login(), ...progress(30000), 'mudrlant.owl-avatar': 'true' }, { db, viewport: { width: 360, height: 640 } });
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="owl"]');
         await tab.waitForSelector('[data-robe-hue]');
         await tab.evaluate(() => { const range = document.querySelector('[data-robe-hue]'); range.value = '210'; range.dispatchEvent(new Event('input', { bubbles: true })); range.dispatchEvent(new Event('change', { bubbles: true })); });

@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const fixtures = require('./fixtures.js');
+const nav = require('./nav.js');
 
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
@@ -80,7 +81,7 @@ test('Nahlásit chybu v otázce', { skip: !chromium && 'Playwright není nainsta
         tab.on('console', message => { if (/Content Security Policy/i.test(message.text())) problems.push(message.text()); });
         await tab.goto(`${origin}/`);
         await tab.waitForSelector('[data-action="daily"][data-topic="historie"]');
-        await tab.click('[data-action="daily"][data-topic="historie"]');
+        await nav.daily(tab, 'historie');
         await tab.waitForSelector('[data-action="choice"]', { timeout: 30000 });
         await tab.waitForTimeout(600);
         return { context, tab, problems, backend };
@@ -196,7 +197,7 @@ test('Nahlásit chybu v otázce', { skip: !chromium && 'Playwright není nainsta
     await t.test('vývojářský panel: seznam hlášení a Vyřízeno', async () => {
         const { context, tab, backend, problems } = await open({ signedIn: true, dev: true });
         backend.rows = [{ id: 7, user_id: 'u-2', topic: 'historie', item_id: 'Q1', question_type: 'name', reason: 'spatna-odpoved', note: 'Správně je <b>jiný</b> panovník', title: 'Který panovník to byl?', answer: 'Karel IV.', created_at: '2026-11-04T10:00:00Z', author: { display_name: 'Petr' } }];
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         // Panel ukazuje verzi schématu v databázi vedle verze, kterou aplikace potřebuje
         assert.match(await tab.locator('[data-dev-schema]').innerText(), /Databáze: .+ · aplikace potřebuje \d+/);
         await tab.click('[data-dev="reports"]');

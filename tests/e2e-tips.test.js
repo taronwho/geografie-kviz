@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const fixtures = require('./fixtures.js');
+const nav = require('./nav.js');
 
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
@@ -75,14 +76,14 @@ test('tipy od Mudrlanta', { skip: !chromium && 'Playwright není nainstalovaný'
     await t.test('Nastavení: vypnutí tipů skryje žárovku, dev tlačítko je vrátí', async () => {
         const { context, tab } = await open({ dev: true });
         await tab.waitForFunction(() => { const el = document.getElementById('fact-hint'); return el && !el.classList.contains('hidden'); });
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.waitForSelector('[data-tips-toggle]');
         assert.equal(await tab.getAttribute('[data-tips-toggle]', 'aria-checked'), 'true');
         await tab.click('[data-tips-toggle]');
         await tab.waitForFunction(() => document.querySelector('[data-tips-toggle]').getAttribute('aria-checked') === 'false');
         await tab.click('[data-close]');
         assert.equal(await bulbVisible(tab), false);
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-tips-toggle]');
         await tab.waitForFunction(() => document.querySelector('[data-tips-toggle]').getAttribute('aria-checked') === 'true');
         await tab.click('[data-dev="tips"]');

@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const fixtures = require('./fixtures.js');
+const nav = require('./nav.js');
 
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
@@ -100,7 +101,7 @@ test('robustnost v prohlížeči', { skip: !chromium && 'Playwright není nainst
             await tab.waitForTimeout(400);
             assert.ok(await tab.isVisible('[data-action="play-topic"]'));
             // hra jde spustit a odpovědět
-            await tab.click('[data-action="play-topic"][data-topic="zemepis"]');
+            await nav.topic(tab, 'zemepis', { play: false });
             await tab.waitForTimeout(300);
             const start = await tab.$('[data-start-game], [data-action="start-game"], [data-chooser-start]');
             if (start) await start.click();
@@ -124,7 +125,7 @@ test('robustnost v prohlížeči', { skip: !chromium && 'Playwright není nainst
 
     await t.test('vývojářský režim: „Vše“ dá hvězdy, „Vymazat hvězdičky“ je smaže a „Vrátit“ je nevrátí', async () => {
         const { context, tab, problems } = await open(`(() => { if (sessionStorage.getItem('seeded')) return; sessionStorage.setItem('seeded', '1'); localStorage.setItem('mudrlant.account', '"host"'); localStorage.setItem('mudrlant.tutorial', '{"how":"done"}'); localStorage.setItem('mudrlant.tips', '{"off":true}'); localStorage.setItem('mudrlant.variant', 'choices'); localStorage.setItem('mudrlant.dev', '1'); localStorage.removeItem('mudrlant.dev.backup'); })()`);
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-dev="max"]');
         const count = () => tab.evaluate(() => Object.values(JSON.parse(localStorage.getItem('mudrlant.learned') || '{}')).reduce((sum, ids) => sum + ids.length, 0));
         assert.ok(await count() > 0, 'po „Vše“ jsou poznané položky');

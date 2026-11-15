@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const fixtures = require('./fixtures.js');
+const nav = require('./nav.js');
 
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
@@ -100,7 +101,7 @@ test('opakování s rozestupy a týdenní cíle', { skip: !chromium && 'Playwrig
         const { context, tab, problems } = await open({ mistakes: ['zemepis:Q4242', 'zemepis:Q39'] });
         await tab.waitForSelector('[data-review-due]');
         assert.equal((await tab.textContent('[data-review-due]')).replace(/\D/g, ''), '2');
-        await tab.click('#btn-learn');
+        await nav.learn(tab);
         await tab.waitForSelector('[data-review-section]');
         assert.match(await tab.textContent('[data-review-section]'), /K procvičení dnes \(2\)/);
         assert.equal(await tab.locator('[data-review-section] img[src="icons/topics/procvicovani.webp"]').count(), 1, 'ilustrace opakování');
@@ -128,7 +129,7 @@ test('opakování s rozestupy a týdenní cíle', { skip: !chromium && 'Playwrig
     await t.test('opakování jde v Nastavení vypnout: zmizí čip i dlaždice a nezakládají se karty; zapnout jde zpět', async () => {
         const { context, tab, problems } = await open({ mistakes: ['zemepis:Q4242', 'zemepis:Q39'] });
         await tab.waitForSelector('[data-review-due]');
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.waitForSelector('[data-review-toggle]');
         assert.equal(await tab.getAttribute('[data-review-toggle]', 'aria-checked'), 'true', 've výchozím stavu zapnuto');
         await tab.click('[data-review-toggle]');
@@ -136,11 +137,11 @@ test('opakování s rozestupy a týdenní cíle', { skip: !chromium && 'Playwrig
         assert.equal(await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.reviewOn'))), false);
         assert.equal(await tab.locator('[data-review-due]').count(), 0, 'čip zmizel');
         await tab.click('[data-close]');
-        await tab.click('#btn-learn');
+        await nav.learn(tab);
         await tab.waitForSelector('[data-action="learn-topic"], #app-content');
         await tab.waitForTimeout(300);
         assert.equal(await tab.locator('[data-review-section]').count(), 0, 'dlaždice opakování zmizela');
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-review-toggle]');
         await tab.waitForFunction(() => document.querySelector('[data-review-toggle]').getAttribute('aria-checked') === 'true');
         await tab.click('[data-close]');

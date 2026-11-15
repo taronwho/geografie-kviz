@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const fixtures = require('./fixtures.js');
+const nav = require('./nav.js');
 const Look = require('../look.js');
 
 let chromium = null;
@@ -56,7 +57,7 @@ test('barevná témata v Nastavení → Hra', { skip: !chromium && 'Playwright n
         return { context, tab, problems };
     };
     const openLook = async (tab) => {
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="game"]');
         await tab.waitForSelector('[data-theme-pick]');
     };

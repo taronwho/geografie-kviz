@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const fixtures = require('./fixtures.js');
+const nav = require('./nav.js');
 
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
@@ -174,7 +175,7 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
             const { context, tab, problems } = await open(scheme);
             await check(tab, 'úvod', scheme);
 
-            await tab.click('[data-action="daily"][data-topic="zemepis"]');
+            await nav.daily(tab, 'zemepis');
             await tab.waitForSelector('[data-action="give-up"]', { timeout: 30000 });
             await check(tab, 'otázka', scheme);
             await fitsScreen(tab, 'otázka', scheme);
@@ -194,14 +195,14 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
             const next = await tab.evaluate(() => { const b = document.querySelector('[data-action="next"]').getBoundingClientRect(); return { bottom: b.bottom, height: innerHeight }; });
             assert.ok(next.bottom <= next.height + 0.5, `${scheme}: Další je pod okrajem (${next.bottom} > ${next.height})`);
 
-            await tab.click('#btn-settings');
+            await nav.settings(tab);
             await tab.waitForSelector('#settings-overlay');
             await check(tab, 'nastavení – hra', scheme);
             await tab.click('[data-me-tab="owl"]');
             await check(tab, 'nastavení – Mudrlant', scheme);
             await tab.keyboard.press('Escape');
 
-            await tab.click('#btn-learn');
+            await nav.learn(tab);
             await tab.waitForSelector('[data-action="learn-topic"]');
             await check(tab, 'učení', scheme);
 
@@ -233,7 +234,7 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
             await tab.keyboard.press('Escape');
             await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
 
-            await tab.click('[data-action="play-topic"][data-topic="zemepis"]');
+            await nav.topic(tab, 'zemepis', { play: false });
             await tab.waitForSelector('#play-chooser [data-chooser-play]');
             await check(tab, 'výběr tématu', scheme);
 
@@ -322,7 +323,7 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
             if (viewport.height >= 900) assert.equal(fitShort, false, `${scheme} / ${scene}: velký displej zůstává beze zhuštění`);
             assert.equal(sizes.status, viewport.height > 770 && !fitShort ? sizes.count : 0, `${scheme} / ${scene}: popisek stavu dnešní otázky jen na vyšším displeji`);
             // Záložka Více hráčů (host: nabídka přihlášení) projde stejnými kontrolami
-            await tab.click('[data-action="home-tab"][data-tab="multi"]');
+            await nav.go(tab, 'souperi');
             await tab.waitForSelector('[data-action="auth-login"]');
             await check(tab, `${scene}: více hráčů`, scheme);
             await fitsScreen(tab, `${scene}: více hráčů`, scheme);
@@ -360,7 +361,7 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
     for (const [viewport, signedIn, scheme, limit] of [[{ width: 390, height: 780 }, false, 'light', 0], [{ width: 390, height: 780 }, true, 'dark', 0], [{ width: 360, height: 640 }, true, 'light', 0], [{ width: 360, height: 640 }, false, 'dark', 80]]) {
         await t.test(`karta Hra v Nastavení (${viewport.width}×${viewport.height}, ${signedIn ? 'přihlášený' : 'host'}, ${scheme})`, async () => {
             const { context, tab, problems } = await open(scheme, { viewport, signedIn });
-            await tab.click('#btn-settings');
+            await nav.settings(tab);
             await tab.waitForSelector(signedIn ? '[data-me-tab="profile"]' : '[data-auth-login]');
             const scene = `karta Hra ${viewport.width}×${viewport.height}`;
             await check(tab, scene, scheme);
@@ -400,7 +401,7 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
         await t.test(`Bleskovka a Přežití (360×640, ${scheme})`, async () => {
             const { context, tab, problems } = await open(scheme);
             for (const kind of ['blitz', 'survival']) {
-                await tab.click('[data-action="play-mix"]');
+                await nav.mix(tab, { play: false });
                 await tab.waitForSelector('#play-chooser [data-chooser-mode]');
                 await tab.click(`[data-chooser-mode="${kind}"]`);
                 await tab.waitForSelector(`[data-mode-intro="${kind}"]`);
@@ -430,7 +431,7 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
     for (const scheme of ['light', 'dark']) {
         await t.test(`nastavení přihlášeného hráče: tři záložky (${scheme})`, async () => {
             const { context, tab, problems } = await open(scheme, { signedIn: true });
-            await tab.click('#btn-settings');
+            await nav.settings(tab);
             await tab.waitForSelector('[data-me-tab="profile"]');
             const tabs = await tab.evaluate(() => {
                 const list = document.querySelector('#settings-overlay [role="tablist"]');

@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const fixtures = require('./fixtures.js');
+const nav = require('./nav.js');
 
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
@@ -119,7 +120,7 @@ test('Moje data, smazání účtu a právní stránky', { skip: !chromium && 'Pl
         const page = await open();
         await page.goto();
         await page.tab.waitForSelector('#btn-settings span');
-        await page.tab.click('#btn-settings');
+        await nav.settings(page.tab);
         assert.ok(await page.tab.locator('#settings-overlay a[href="soukromi.html"]').count());
         assert.ok(await page.tab.locator('#settings-overlay a[href="licence.html"]').count());
         assert.equal(await page.tab.locator('[data-delete-account]').count(), 0, 'mazání není přímo v Nastavení');
@@ -138,7 +139,7 @@ test('Moje data, smazání účtu a právní stránky', { skip: !chromium && 'Pl
         const page = await open();
         await page.goto();
         await page.tab.waitForSelector('#btn-settings span');
-        await page.tab.click('#btn-settings');
+        await nav.settings(page.tab);
         await page.tab.click('[data-open-privacy]');
         const [download] = await Promise.all([page.tab.waitForEvent('download'), page.tab.click('[data-export-data]')]);
         assert.match(download.suggestedFilename(), /^mudrlant-moje-data-.*\.json$/);
@@ -157,7 +158,7 @@ test('Moje data, smazání účtu a právní stránky', { skip: !chromium && 'Pl
         const page = await open();
         await page.goto();
         await page.tab.waitForSelector('#btn-settings span');
-        await page.tab.click('#btn-settings');
+        await nav.settings(page.tab);
         await page.tab.click('[data-open-privacy]');
         await page.tab.click('[data-delete-account]');
         await page.tab.waitForSelector('[data-delete-confirm]');
@@ -178,7 +179,7 @@ test('Moje data, smazání účtu a právní stránky', { skip: !chromium && 'Pl
         const page = await open();
         await page.goto();
         await page.tab.waitForSelector('#btn-settings span');
-        await page.tab.click('#btn-settings');
+        await nav.settings(page.tab);
         await page.tab.click('[data-open-privacy]');
         await page.tab.click('[data-delete-account]');
         await page.tab.click('[data-delete-confirm]');
@@ -194,7 +195,7 @@ test('Moje data, smazání účtu a právní stránky', { skip: !chromium && 'Pl
         const page = await open();
         await page.goto();
         await page.tab.waitForSelector('#btn-settings span');
-        await page.tab.click('#btn-settings');
+        await nav.settings(page.tab);
         await page.tab.click('[data-open-privacy]');
         await page.tab.click('[data-delete-account]');
         await Promise.all([page.tab.waitForNavigation(), page.tab.click('[data-delete-confirm]')]);
@@ -215,7 +216,7 @@ test('Moje data, smazání účtu a právní stránky', { skip: !chromium && 'Pl
         const page = await open();
         await page.goto();
         await page.tab.waitForSelector('#btn-settings span');
-        await page.tab.click('#btn-settings');
+        await nav.settings(page.tab);
         await page.tab.click('[data-open-privacy]');
         await page.tab.click('[data-delete-account]');
         await Promise.all([page.tab.waitForNavigation(), page.tab.click('[data-delete-confirm]')]);

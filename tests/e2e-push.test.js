@@ -8,6 +8,7 @@
 // Potřebuje Playwright (viz tests/e2e.test.js), jinak se přeskočí.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const nav = require('./nav.js');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -132,7 +133,7 @@ const setup = async (browser, { key = VAPID, permission = 'default', answer = 'g
         if (sessionStorage.getItem('test-storage-set')) return;
         sessionStorage.setItem('test-storage-set', '1');
         Object.entries(entries).forEach(([name, value]) => localStorage.setItem(name, value));
-    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), 'mudrlant.homeTab': JSON.stringify('single'), 'mudrlant.tips': JSON.stringify({ off: true }), ...login, ...storage });
+    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), 'mudrlant.tips': JSON.stringify({ off: true }), ...login, ...storage });
     await context.addInitScript(pushStub, { permission, answer, realNotification, delay, subscribeError, readyNever, noPush });
     const tab = await context.newPage();
     const log = { errors: [], csp: [] };
@@ -151,7 +152,7 @@ const setup = async (browser, { key = VAPID, permission = 'default', answer = 'g
     return { context, tab, log, db };
 };
 const waitForHome = (tab) => tab.waitForFunction(() => { const content = document.getElementById('app-content'); return Boolean(content && (content.textContent.includes('Dnešní otázky') || content.querySelector('#home-tabs'))); }, null, { timeout: 30000 });
-const openSettings = async (tab) => { await tab.click('#btn-settings'); await tab.waitForSelector('#settings-overlay'); };
+const openSettings = async (tab) => { await nav.settings(tab); await tab.waitForSelector('#settings-overlay'); };
 const overflow = (tab, selector = '#settings-overlay > div') => tab.evaluate((selector) => { const box = document.querySelector(selector); return { page: document.documentElement.scrollWidth - document.documentElement.clientWidth, box: box.scrollWidth - box.clientWidth }; }, selector);
 // Text u přepínače (podtitulek řádku) a rada pod ním
 const status = (tab) => tab.textContent('[data-push-status]');
@@ -558,7 +559,7 @@ test('upozornění (push) v Nastavení', { skip: !chromium && 'Playwright není 
     };
     // Nabídka se neukáže: počká se déle, než je její zpoždění, a okno nesmí být
     const noOffer = async (tab, wait = 4500) => { await tab.waitForTimeout(wait); assert.equal(await tab.locator('#push-offer, #push-offer-ios').count(), 0, 'nabídka se nemá ukázat'); };
-    const multi = { 'mudrlant.homeTab': JSON.stringify('multi') };
+    const multi = { };
     // Znovu načtená aplikace s odhlášeným hráčem z turnaje (ať jde přihlásit znovu)
     // (pozvánka do turnaje vyskakuje při každém druhém spuštění: počítadlo spuštění se vrátí, ať tu nepřekáží)
     const reloadOut = async (tab, db) => { db.entries = []; await tab.evaluate(() => localStorage.setItem('mudrlant.tourPromo', JSON.stringify({ launches: 0 }))); await tab.reload(); await waitForHome(tab); };

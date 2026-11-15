@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const fixtures = require('./fixtures.js');
+const nav = require('./nav.js');
 
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
@@ -116,7 +117,7 @@ test('denní zajímavost', { skip: !chromium && 'Playwright není nainstalovaný
         await tab.click('[data-fact-close]');
         await tab.waitForSelector('#fact-overlay', { state: 'detached' });
         assert.equal(await tab.isVisible('#fact-hint'), false, 'po přečtení žárovka zmizí');
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-dev="bulb"]');
         await tab.waitForSelector('#settings-overlay');
         await tab.click('[data-close]');

@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const fixtures = require('./fixtures.js');
+const nav = require('./nav.js');
 const Goals = require('../goals.js');
 
 let chromium = null;
@@ -274,7 +275,7 @@ test('odměny: truhla, ochrana série, diplomy, sdílení obrázku', { skip: !ch
     for (const [viewport, colorScheme] of [[{ width: 390, height: 780 }, 'light'], [{ width: 390, height: 780 }, 'dark'], [{ width: 360, height: 640 }, 'light'], [{ width: 360, height: 640 }, 'dark']]) {
         await t.test(`odměny vzhledu bez posouvání (${viewport.width}×${viewport.height}, ${colorScheme})`, async () => {
             const { context, tab, problems } = await open({ viewport, colorScheme, seed: { 'mudrlant.progress': { xp: 2000, counters: {}, badges: { vitez: '2026-11-01' } }, 'mudrlant.rewards': { gifts: { themes: ['zlata'] } } } });
-            await tab.click('#btn-settings');
+            await nav.settings(tab);
             const check = async (tabId, picks) => {
                 await tab.click(`[data-me-tab="${tabId}"]`);
                 await tab.waitForSelector(`[data-me-tab="${tabId}"][aria-selected="true"]`);

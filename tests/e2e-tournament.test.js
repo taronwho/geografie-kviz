@@ -3,6 +3,7 @@
 // CSP bez chyb, 360×640 a 390×780 bez vodorovného posouvání, tmavý režim. Potřebuje Playwright (viz tests/e2e.test.js), jinak se přeskočí.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const nav = require('./nav.js');
 const fs = require('node:fs');
 const path = require('node:path');
 // Rozpis otázek se po dohrání otevře sám (za 0,7 s): před odchodem z výsledku se zavře
@@ -353,7 +354,7 @@ const setup = async (browser, storage, { viewport = { width: 400, height: 800 },
         if (sessionStorage.getItem('test-storage-set')) return;
         sessionStorage.setItem('test-storage-set', '1');
         Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
-    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.tips': JSON.stringify({ off: true }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), 'mudrlant.homeTab': JSON.stringify('multi'), ...storage });
+    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.tips': JSON.stringify({ off: true }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), ...storage });
     const tab = await context.newPage();
     const log = { errors: [], csp: [] };
     tab.on('pageerror', error => log.errors.push(error.message));
@@ -481,9 +482,9 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         const db = newDb({ today: '2026-11-11' });
         openTournament(db, 40);
         // Sudé spuštění (uložené jedno předchozí): okno vyskočí po přepnutí na Více hráčů
-        const { context, tab, log } = await start(db, { now: '2026-11-11T10:00:00Z' }, { ...login('tok-u1'), 'mudrlant.homeTab': JSON.stringify('single'), 'mudrlant.tourPromo': JSON.stringify({ launches: 1, day: '2026-11-11', bulbs: 0 }) });
+        const { context, tab, log } = await start(db, { now: '2026-11-11T10:00:00Z' }, { ...login('tok-u1'), 'mudrlant.tourPromo': JSON.stringify({ launches: 1, day: '2026-11-11', bulbs: 0 }) });
         assert.equal(await tab.locator('#tournament-offer').count(), 0, 'v singlu okno nevyskočí');
-        await tab.click('[data-action="home-tab"][data-tab="multi"]');
+        await nav.go(tab, 'souperi');
         await tab.waitForSelector('#tournament-offer');
         assert.match(await tab.textContent('#tournament-offer'), /Přihlášky do týdenního turnaje jsou otevřené/);
         assert.match(await tab.textContent('#tournament-offer'), /pondělí 16\. 11\./);
@@ -492,8 +493,8 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         await tab.click('#tournament-offer [data-close]');
         await tab.waitForFunction(() => !document.getElementById('tournament-offer'));
         // Po zavření se ve stejném spuštění už nevrací
-        await tab.click('[data-action="home-tab"][data-tab="single"]');
-        await tab.click('[data-action="home-tab"][data-tab="multi"]');
+        await nav.go(tab, 'dnes');
+        await nav.go(tab, 'souperi');
         await tab.waitForTimeout(600);
         assert.equal(await tab.locator('#tournament-offer').count(), 0);
         assert.deepEqual(log.errors, []);
@@ -503,7 +504,7 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         // Z okna jde rovnou přihlásit
         const joinDb = newDb({ today: '2026-11-11' });
         openTournament(joinDb, 40);
-        const second = await start(joinDb, { now: '2026-11-11T10:00:00Z' }, { ...login('tok-u1'), 'mudrlant.homeTab': JSON.stringify('multi'), 'mudrlant.tourPromo': JSON.stringify({ launches: 3, day: '2026-11-11', bulbs: 2 }) });
+        const second = await start(joinDb, { now: '2026-11-11T10:00:00Z' }, { ...login('tok-u1'), 'mudrlant.tourPromo': JSON.stringify({ launches: 3, day: '2026-11-11', bulbs: 2 }) });
         await second.tab.waitForSelector('#tournament-offer');
         await second.tab.click('[data-offer-join]');
         await second.tab.waitForFunction(() => /Jsi přihlášen/.test(document.getElementById('tournament-card') ? document.getElementById('tournament-card').textContent : ''));
@@ -512,14 +513,14 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         await second.context.close();
 
         // Liché spuštění: okno nevyskočí; přihlášený hráč ho nedostane nikdy
-        const odd = await start(db, { now: '2026-11-11T10:00:00Z' }, { ...login('tok-u1'), 'mudrlant.homeTab': JSON.stringify('multi'), 'mudrlant.tourPromo': JSON.stringify({ launches: 0, day: '2026-11-11', bulbs: 0 }) });
+        const odd = await start(db, { now: '2026-11-11T10:00:00Z' }, { ...login('tok-u1'), 'mudrlant.tourPromo': JSON.stringify({ launches: 0, day: '2026-11-11', bulbs: 0 }) });
         await odd.tab.waitForSelector('#tournament-card');
         await odd.tab.waitForTimeout(600);
         assert.equal(await odd.tab.locator('#tournament-offer').count(), 0);
         await odd.context.close();
         const mineDb = newDb({ today: '2026-11-11' });
         openTournament(mineDb, 40, { mine: true });
-        const mine = await start(mineDb, { now: '2026-11-11T10:00:00Z' }, { ...login('tok-u1'), 'mudrlant.homeTab': JSON.stringify('multi'), 'mudrlant.tourPromo': JSON.stringify({ launches: 1, day: '2026-11-11', bulbs: 0 }) });
+        const mine = await start(mineDb, { now: '2026-11-11T10:00:00Z' }, { ...login('tok-u1'), 'mudrlant.tourPromo': JSON.stringify({ launches: 1, day: '2026-11-11', bulbs: 0 }) });
         await mine.tab.waitForSelector('#tournament-card');
         await mine.tab.waitForTimeout(600);
         assert.equal(await mine.tab.locator('#tournament-offer').count(), 0, 'přihlášený okno nedostane');
@@ -530,7 +531,7 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
     await t.test('žárovka u sovy zve do turnaje i v singlu, nejvýš ve dvou spuštěních za den', async () => {
         const db = newDb({ today: '2026-11-11' });
         openTournament(db, 40);
-        const single = { ...login('tok-u1'), 'mudrlant.homeTab': JSON.stringify('single') };
+        const single = { ...login('tok-u1'), };
         const first = await start(db, { now: '2026-11-11T10:00:00Z' }, { ...single, 'mudrlant.tourPromo': JSON.stringify({ launches: 0, day: '2026-11-11', bulbs: 0 }) });
         await first.tab.waitForSelector('#fact-hint:not(.hidden)');
         assert.match(await first.tab.getAttribute('#fact-hint', 'aria-label'), /Týdenní turnaj/);
@@ -561,7 +562,7 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         const db = newDb({ today: '2026-11-11' });
         openTournament(db, 3);
         const { context, tab, log } = await start(db, { now: '2026-11-11T10:00:00Z' }, { ...login('tok-u1'), 'mudrlant.dev': '1' });
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.waitForSelector('[data-dev="tour-bots"]');
         const toast = () => tab.evaluate(() => (document.getElementById('toast') || {}).textContent || '');
         await tab.click('[data-dev="tour-bots"]');
@@ -1060,7 +1061,7 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         page = await start(db);
         await page.tab.waitForSelector('#schema-notice[data-kind="database"]');
         await page.tab.click('#schema-notice [data-action="schema-close"]');
-        await page.tab.click('#btn-settings');
+        await nav.settings(page.tab);
         await page.tab.waitForSelector('#schema-banner');
         assert.match(await page.tab.textContent('#schema-banner'), /spusť znovu supabase\/schema\.sql/);
         assert.deepEqual(page.log.errors, []);
@@ -1094,7 +1095,7 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
             { hash: 'aaaa1111', count: 3, last_at: '2026-11-09T09:00:00Z', kind: 'error', message: 'TypeError: x is undefined', stack: 'at f (app.js:1:1)', url: 'https://x.cz/app/', user_agent: 'UA', app_version: 'abc1234' },
             { hash: 'bbbb2222', count: 1, last_at: '2026-11-09T08:00:00Z', kind: 'rejection', message: '<img src=x onerror=alert(1)>', stack: null, url: null, user_agent: null, app_version: null }
         ] }));
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.waitForSelector('[data-dev="errors"]');
         await tab.click('[data-dev="errors"]');
         await tab.waitForSelector('#client-errors li');
@@ -1289,8 +1290,8 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         assert.equal(await tab.locator('#tournament-notices').count(), 0);
         assert.equal(await tab.locator('[data-action="tournament-help"]').count(), 0);
         // Přepnutí záložek a návrat domů dál funguje
-        await tab.click('[data-action="home-tab"][data-tab="single"]');
-        await tab.click('[data-action="home-tab"][data-tab="multi"]');
+        await nav.go(tab, 'dnes');
+        await nav.go(tab, 'souperi');
         await tab.waitForSelector('[data-action="new-challenge"]');
         assert.equal(await tab.locator('#tournament-card').count(), 0);
         assert.deepEqual(log.errors, []);

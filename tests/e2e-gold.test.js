@@ -10,6 +10,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const fixtures = require('./fixtures.js');
+const nav = require('./nav.js');
 
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
@@ -101,7 +102,7 @@ test('Zlatá otázka', { skip: !chromium && 'Playwright není nainstalovaný' },
     });
     // Trénink Zeměpisu (okno Co hrát jen poprvé) a první otázka
     const practice = async (tab) => {
-        await tab.click('[data-action="play-topic"][data-topic="zemepis"]');
+        await nav.topic(tab, 'zemepis', { play: false });
         if (await tab.waitForSelector('#chooser-title', { timeout: 2500 }).then(() => true, () => false)) await tab.click('[data-chooser-play]');
         await tab.waitForSelector('[data-action="choice"]', { timeout: 30000 });
     };
@@ -240,12 +241,12 @@ test('Zlatá otázka', { skip: !chromium && 'Playwright není nainstalovaný' },
 
     await t.test('dnešní otázka zůstane zlatá i po návratu (počítadlo se nezvýší dvakrát)', async () => {
         const { context, tab, problems } = await open({ seed: { 'mudrlant.gold': { since: 79, intro: true } } });
-        await tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await nav.daily(tab, 'zemepis');
         await tab.waitForSelector('[data-action="choice"]', { timeout: 30000 });
         await tab.waitForSelector('.gold-card');
         await tab.click('#btn-home');
         await tab.waitForSelector('[data-action="daily"][data-topic="zemepis"]');
-        await tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await nav.daily(tab, 'zemepis');
         await tab.waitForSelector('.gold-card');
         assert.equal((await storage(tab, 'mudrlant.gold')).since, 0);
         assert.deepEqual(problems, []);
@@ -265,7 +266,7 @@ test('Zlatá otázka', { skip: !chromium && 'Playwright není nainstalovaný' },
         };
         for (const [viewport, colorScheme] of [[{ width: 360, height: 640 }, 'light'], [{ width: 390, height: 780 }, 'dark']]) {
             const { context, tab, problems } = await open({ viewport, colorScheme, motion: true, clock: true, seed: { 'mudrlant.gold': { since: 79 } } });
-            await tab.click('[data-action="play-topic"][data-topic="zemepis"]');
+            await nav.topic(tab, 'zemepis', { play: false });
             await tab.waitForSelector('#chooser-title');
             await tab.click('[data-chooser-mode="blitz"]');
             await tab.click('[data-action="mode-start"]');
@@ -319,7 +320,7 @@ test('Zlatá otázka', { skip: !chromium && 'Playwright není nainstalovaný' },
         for (const [viewport, colorScheme] of [[{ width: 360, height: 640 }, 'light'], [{ width: 390, height: 780 }, 'dark'], [{ width: 360, height: 640 }, 'dark'], [{ width: 390, height: 780 }, 'light']]) {
             const seed = { 'mudrlant.gold': { total: 14, correct: 11, found: 9, shards: 3, chests: 1, intro: true, last: 'frames:ruze' }, 'mudrlant.tips': { off: true } };
             const { context, tab, problems } = await open({ viewport, colorScheme, seed });
-            await tab.click('#btn-settings');
+            await nav.settings(tab);
             await tab.click('[data-open-progress]');
             await tab.waitForSelector('[data-progress-dialog]');
             const tile = (await tab.textContent('[data-rewards-info="gold"]')).replace(/\s+/g, ' ');
@@ -344,7 +345,7 @@ test('Zlatá otázka', { skip: !chromium && 'Playwright není nainstalovaný' },
         }
         // Čekající Zlatá truhla: dlaždice svítí a okno nabídne Otevřít Zlatou truhlu
         const { context, tab } = await open({ seed: { 'mudrlant.gold': { ready: 1, intro: true } } });
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-open-progress]');
         await tab.waitForSelector('[data-progress-dialog]');
         assert.match((await tab.textContent('[data-rewards-info="gold"]')).replace(/\s+/g, ' '), /Čeká!/);

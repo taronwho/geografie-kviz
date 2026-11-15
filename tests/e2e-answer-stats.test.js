@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const fixtures = require('./fixtures.js');
+const nav = require('./nav.js');
 
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
@@ -164,21 +165,21 @@ test('Jak odpověděli ostatní', { skip: !chromium && 'Playwright není nainsta
 
     await t.test('souhrn tématu platí den: po novém načtení se nestahuje znovu, po dni ano', async () => {
         const { context, tab, backend } = await open({ topic: null });
-        await tab.click('[data-action="daily"][data-topic="historie"]');
+        await nav.daily(tab, 'historie');
         await cached(tab);
         assert.deepEqual(backend.topicCalls, ['historie']);
         const saved = JSON.parse(await tab.evaluate(() => localStorage.getItem('mudrlant.answerStats.topic.historie')));
         assert.equal(saved.rows.length, TOPIC_ROWS.length);
         await tab.reload();
         await tab.waitForSelector('[data-action="daily"][data-topic="historie"]');
-        await tab.click('[data-action="daily"][data-topic="historie"]');
+        await nav.daily(tab, 'historie');
         await tab.waitForSelector('[data-action="choice"]', { timeout: 30000 });
         await tab.waitForTimeout(400);
         assert.deepEqual(backend.topicCalls, ['historie'], 'v den stažení se neptá znovu');
         await context.clock.setFixedTime(new Date('2026-11-05T13:00:00'));
         await tab.reload();
         await tab.waitForSelector('[data-action="daily"][data-topic="historie"]');
-        await tab.click('[data-action="daily"][data-topic="historie"]');
+        await nav.daily(tab, 'historie');
         await tab.waitForFunction(() => document.querySelector('[data-action="choice"]') || document.querySelector('[data-action="next"]'), null, { timeout: 30000 });
         await tab.waitForFunction(() => JSON.parse(localStorage.getItem('mudrlant.answerStats.topic.historie')).at > Date.parse('2026-11-05T00:00:00'));
         assert.deepEqual(backend.topicCalls, ['historie', 'historie'], 'po dni znovu');
@@ -254,7 +255,7 @@ test('Jak odpověděli ostatní', { skip: !chromium && 'Playwright není nainsta
         ];
         for (const [width, height, colorScheme] of [[360, 640, 'dark'], [390, 780, 'light']]) {
             const { context, tab, problems } = await open({ dev: true, topic: null, width, height, colorScheme, suspicious });
-            await tab.click('#btn-settings');
+            await nav.settings(tab);
             await tab.click('[data-dev="suspicious"]');
             await tab.waitForSelector('#suspicious-list li');
             const text = await tab.locator('#dialog-overlay').innerText();
@@ -289,7 +290,7 @@ test('Jak odpověděli ostatní', { skip: !chromium && 'Playwright není nainsta
     await t.test('Podezřelé otázky: účet mimo dev_admins dostane srozumitelnou hlášku', async () => {
         const { context, tab } = await open({ dev: true, topic: null });
         await context.route('https://proj.supabase.co/rest/v1/rpc/dev_suspicious_questions', route => route.fulfill({ status: 400, json: { message: 'Vývojářské nástroje turnajů nejsou pro tento účet zapnuté (viz docs/SUPABASE.md, dev_admins).' } }));
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-dev="suspicious"]');
         await tab.waitForSelector('#dialog-overlay [role="status"]:has-text("dev_admins")');
         await context.close();

@@ -2796,19 +2796,32 @@
         if (shell) shell.classList.toggle('nav-on', show);
         if (!show) return;
         const badges = navBadges();
-        const html = NAV_TABS.filter(([id]) => id !== 'souperi' || multiOn()).map(([id, icon, label]) => {
+        const tabs = NAV_TABS.filter(([id]) => id !== 'souperi' || multiOn());
+        // Tlačítka se vykreslí jednou (a znovu jen když přibude či ubude záložka Soupeři); pak se jen upravují na místě, ať klepnutí
+        // ve chvíli, kdy se načtou data a změní se odznak, nepřijde nazmar (vyměněné tlačítko by klepnutí nedostalo)
+        const key = tabs.map(([id]) => id).join(',');
+        if (key !== navSeen || nav.childElementCount !== tabs.length) {
+            navSeen = key;
+            nav.innerHTML = tabs.map(([id, icon, label]) => `
+                <button type="button" data-nav="${id}" class="relative flex min-h-[3rem] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-extrabold leading-none">
+                    <span class="nav-pill relative flex h-8 w-[3.25rem] items-center justify-center rounded-[0.9rem]"><i data-lucide="${icon}" class="h-[1.3rem] w-[1.3rem]"></i><span data-nav-badge aria-hidden="true" class="absolute -right-1 -top-1 hidden h-[1.15rem] min-w-[1.15rem] items-center justify-center rounded-full bg-gold-400 px-1 text-[10.5px] font-black leading-none text-brand-950 ring-2 ring-white dark:ring-slate-950"></span></span>
+                    <span aria-hidden="true">${label}</span>
+                </button>`).join('');
+            renderIcons(nav);
+        }
+        tabs.forEach(([id, , label]) => {
+            const button = nav.querySelector(`[data-nav="${id}"]`);
             const on = id === navTab;
             const badge = badges[id] || 0;
-            return `
-                <button type="button" data-nav="${id}"${on ? ' aria-current="page"' : ''} aria-label="${label}${badge ? ` – čeká: ${badge}` : ''}" class="relative flex min-h-[3rem] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-extrabold leading-none ${on ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'}">
-                    <span class="nav-pill relative flex h-8 w-[3.25rem] items-center justify-center rounded-[0.9rem]"><i data-lucide="${icon}" class="h-[1.3rem] w-[1.3rem]"></i>${badge ? `<span data-nav-badge aria-hidden="true" class="absolute -right-1 -top-1 flex h-[1.15rem] min-w-[1.15rem] items-center justify-center rounded-full bg-gold-400 px-1 text-[10.5px] font-black leading-none text-brand-950 ring-2 ring-white dark:ring-slate-950">${badge}</span>` : ''}</span>
-                    <span aria-hidden="true">${label}</span>
-                </button>`;
-        }).join('');
-        if (html === navSeen && nav.childElementCount) return;
-        navSeen = html;
-        nav.innerHTML = html;
-        renderIcons(nav);
+            if (on) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
+            button.setAttribute('aria-label', `${label}${badge ? ` – čeká: ${badge}` : ''}`);
+            ['text-slate-900', 'dark:text-white'].forEach(name => button.classList.toggle(name, on));
+            ['text-slate-500', 'dark:text-slate-400'].forEach(name => button.classList.toggle(name, !on));
+            const mark = button.querySelector('[data-nav-badge]');
+            if (mark.textContent !== String(badge || '')) mark.textContent = badge || '';
+            mark.classList.toggle('hidden', !badge);
+            mark.classList.toggle('flex', Boolean(badge));
+        });
     };
     document.getElementById('app-nav').addEventListener('click', (event) => {
         const button = event.target.closest('[data-nav]');
@@ -2959,9 +2972,9 @@
         return `
             <section aria-label="Dnešní otázky" class="flex flex-col gap-2 short:gap-1.5">
                 <h2 class="${SEC_LABEL}">Dnešní otázky</h2>
-                <div id="daily-card" data-daily-done="${answered}" class="flex min-h-[3.75rem] items-center gap-2 rounded-[1.15rem] bg-white py-2 pl-3 pr-2 shadow-sm ring-1 ring-slate-200/80 short:min-h-[3.1rem] short:py-1.5 dark:bg-slate-800/80 dark:ring-slate-700/70">
+                <div id="daily-card" data-daily-done="${answered}" class="flex min-h-[3.75rem] items-center gap-2 rounded-[1.15rem] bg-white py-2 pl-3 pr-2 shadow-sm ring-1 ring-slate-200/80 short:min-h-[3.1rem] short:py-1.5 tiny:min-h-[2.75rem] tiny:py-1 dark:bg-slate-800/80 dark:ring-slate-700/70">
                     <button type="button" data-action="daily-sheet" aria-label="Dnešní otázky: splněno ${answered} ze ${TOPICS.length} témat. Vybrat téma" class="flex min-w-0 flex-1 items-center gap-3 text-left active:scale-[0.99]">
-                        ${uiArt('dnes', 'h-10 w-10 short:h-9 short:w-9')}
+                        ${uiArt('dnes', 'h-10 w-10 short:h-9 short:w-9 tiny:h-8 tiny:w-8')}
                         <span class="min-w-0 flex-1">
                             <span class="flex items-baseline justify-between gap-2"><span class="whitespace-nowrap text-[15px] font-extrabold leading-tight text-slate-800 dark:text-slate-100">${answered}/${TOPICS.length} témat</span><span class="flex items-center truncate text-[11.5px] font-black text-brand-700 dark:text-cream">Vybrat téma<i data-lucide="chevron-right" class="h-3.5 w-3.5 shrink-0"></i></span></span>
                             <span class="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-500" data-progress="${Math.round(answered / Math.max(1, TOPICS.length) * 100)}"></span></span>
@@ -3008,8 +3021,8 @@
     };
     // Truhla Mudrlanta čeká: zlatý řádek s Otevřít (jen když nějaká čeká)
     const chestRowHtml = () => (Rewards && Rewards.pendingChest(loadRewards()) ? `
-            <button type="button" id="chest-row" data-action="chest-open" data-chest-ready data-hot class="${HOME_ROW} ${HOME_ROW_HOT} min-h-[3.5rem] short:min-h-[3rem] short:py-1.5">
-                <span class="chest-mini flex shrink-0">${uiArt('truhla', 'h-10 w-10 short:h-9 short:w-9')}</span>
+            <button type="button" id="chest-row" data-action="chest-open" data-chest-ready data-hot class="${HOME_ROW} ${HOME_ROW_HOT} min-h-[3.5rem] short:min-h-[3rem] short:py-1.5 tiny:min-h-[2.75rem] tiny:py-1">
+                <span class="chest-mini flex shrink-0">${uiArt('truhla', 'h-10 w-10 short:h-9 short:w-9 tiny:h-8 tiny:w-8')}</span>
                 <span class="min-w-0 flex-1"><span class="${ROW_TITLE}" title="Všechny cíle týdne jsou splněné. Otevři ji!">Truhla Mudrlanta čeká</span></span>
                 ${ctaHtml('Otevřít', CTA_GOLD, '')}
             </button>` : '');
@@ -3019,7 +3032,7 @@
     const dnesExtrasHtml = () => {
         const items = [];
         const reveal = mysteryRevealCard();
-        if (reveal) items.push({ strip: reveal, chip: `<button type="button" data-action="mystery-reveal" class="${HOME_CHIP}">${uiArt('sova-dalekohled', 'h-6 w-6 -my-1 -ml-1')}<span class="truncate">Včerejší záhada</span></button>` });
+        if (reveal) items.push({ strip: reveal, chip: `<button type="button" data-action="mystery-reveal" title="Včerejší tajemná otázka: odpověď" class="${HOME_CHIP}">${uiArt('sova-dalekohled', 'h-6 w-6 -my-1 -ml-1')}<span class="truncate">Včerejší záhada</span></button>` });
         const season = seasonStripHtml();
         if (season) items.push({ strip: season, chip: `<button type="button" data-action="season-claim" data-season-ready class="${HOME_CHIP} ring-2 ring-gold-400 dark:ring-gold-500">${uiArt('sezona', 'h-6 w-6 -my-1 -ml-1')}<span class="truncate">Odměna Sezóny</span></button>` });
         const chronicle = chronicleStripHtml();
@@ -3035,7 +3048,7 @@
         return `
             <div id="dnes-extras" class="flex flex-col">
                 <div data-strips class="flex flex-col gap-2 short:gap-1.5">${items.map(item => item.strip).join('')}</div>
-                <div data-chips class="hidden flex flex-wrap gap-1.5">${items.map(item => item.chip).join('')}</div>
+                <div data-chips class="hidden flex flex-wrap gap-1.5 tiny:flex-nowrap tiny:overflow-x-auto">${items.map(item => item.chip).join('')}</div>
             </div>`;
     };
     const renderDnes = () => `${specialsSection()}${dailyCardHtml()}${chestRowHtml()}${dnesExtrasHtml()}`;
@@ -3070,7 +3083,7 @@
             <div class="flex shrink-0 gap-2">
                 <button type="button" data-action="play-mix" title="${escapeHtml(`Mix · ${mixScope}`)}" class="relative flex min-h-[4.25rem] min-w-0 flex-1 items-center justify-center gap-3 overflow-hidden rounded-[1.4rem] bg-gradient-to-br px-3 py-2 text-left text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.98] short:min-h-[3.5rem] tiny:min-h-[3rem] ${styleOf(MIX).tile}">
                     ${topicIcon(MIX, 'h-12 w-12 short:h-10 short:w-10')}
-                    <span class="min-w-0"><span class="block truncate text-xl font-black leading-tight short:text-lg">${resume ? 'Mix' : 'Mix všech témat'}</span>${settings.topics.length === TOPICS.length ? '' : `<span class="block truncate text-[11.5px] font-bold leading-tight text-white/85">${escapeHtml(mixScope)}</span>`}</span>
+                    <span class="min-w-0"><span class="block truncate text-xl font-black leading-tight short:text-lg">${resume || settings.topics.length !== TOPICS.length ? 'Mix' : 'Mix všech témat'}</span>${settings.topics.length === TOPICS.length ? '' : `<span class="block truncate text-[11.5px] font-bold leading-tight text-white/85">${escapeHtml(mixScope)}</span>`}</span>
                 </button>
                 ${resume ? `<button type="button" data-action="resume-practice" title="Dohrát rozehranou otázku" class="flex min-h-[4.25rem] w-[6.5rem] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[1.4rem] btn-3d bg-gradient-to-b from-gold-300 to-gold-500 px-2 text-center text-brand-950 short:min-h-[3.5rem] tiny:min-h-[3rem]"><span class="flex items-center gap-1 text-[13.5px] font-black leading-tight"><i data-lucide="play" class="h-4 w-4"></i>Pokračovat</span><span class="block max-w-full truncate text-[10.5px] font-bold leading-tight">${escapeHtml(TOPIC_BY_ID[current.topic].shortTitle || TOPIC_BY_ID[current.topic].title)}</span></button>` : ''}
             </div>`;
