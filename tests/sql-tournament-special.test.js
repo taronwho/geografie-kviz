@@ -62,8 +62,8 @@ test('SQL: speciální turnaje na téma a hlasování', { skip: !available && 'P
     NOW = new Date().toISOString();
     let poll;
 
-    await t.test('verze schématu 31 a nabídka témat', () => {
-        assert.equal(last(ok(as(A, 'select schema_version();'))), '31');
+    await t.test('verze schématu 31 nebo novější a nabídka témat', () => {
+        assert.ok(Number(last(ok(as(A, 'select schema_version();')))) >= 31, 'schéma se speciálními turnaji (31) nebo novější');
         assert.ok(Number(q('select count(*) from tournament_themes where active')) >= 12);
         assert.equal(q(`select title || '|' || topics || '|' || capacity from tournament_themes where id = 'vlajky-afriky'`), 'Vlajky Afriky|vlajky|64');
     });
