@@ -237,7 +237,7 @@ test('Řetězovka dne v prohlížeči', { skip: !chromium && 'Playwright není n
         // Zavření aplikace a návrat: rozhodnutí čeká
         await tab.click('#btn-home');
         await tab.waitForSelector('#chain-card');
-        assert.equal(await compact(tab, '#chain-card'), 'Řetězovka Článek 3/7 Pokračovat');
+        assert.equal(await compact(tab, '#chain-card'), 'Řetězovka Článek 3/7 Hrát dál');
         assert.equal(await tab.$('#chain-card [data-chain-new]'), null);
         await openChain(tab);
         await tab.waitForSelector('[data-chain-decide]');

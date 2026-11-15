@@ -142,7 +142,7 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
 
         // Druhý hráč (jiný oblek, jiná barva) vidí sovu hráčky 1 tak, jak ji nastavila; příchozí výzva ji ukáže u tvůrce
         const two = await open('tok-u2', { extra: { 'mudrlant.look': JSON.stringify({ robe: 'modra' }) } });
-        await nav.go(two.tab, 'souperi');
+        await nav.challenges(two.tab);
         await two.tab.waitForSelector('#challenges-section [data-player-id="u-1"]');
         const seen = await two.tab.$$eval('#challenges-section [data-player-id="u-1"] img', nodes => nodes.map(node => [node.getAttribute('src'), node.hasAttribute('data-keep')]));
         assert.deepEqual(seen, [['icons/logo-bez-monoklu-zelena.webp', true], ['icons/doplnky/bryle.webp', true]]);
@@ -282,7 +282,7 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
 
         // Druhý hráč (zelený oblek) vidí sovu titulu hráčky 1 v jejím modrém taláru: u výzvy i v jejím profilu
         const two = await open('tok-u2', { extra: { 'mudrlant.look': JSON.stringify({ robe: 'zelena' }) } });
-        await nav.go(two.tab, 'souperi');
+        await nav.challenges(two.tab);
         await two.tab.waitForSelector('#challenges-section [data-player-id="u-1"] img[data-owl-pose="titul-4"]');
         await two.tab.waitForTimeout(300);
         const seen = await two.tab.$$eval('#challenges-section [data-player-id="u-1"] img', nodes => nodes.map(node => [node.getAttribute('src'), node.hasAttribute('data-keep')]));
@@ -350,7 +350,7 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
         await one.tab.click('#settings-overlay [data-close]');
         await one.tab.waitForSelector('#btn-settings img[data-owl-pose="titul-11"][src="icons/topics/sova-titul-11-zlata.webp"]');
         const two = await open('tok-u2', { extra: { 'mudrlant.look': JSON.stringify({ robe: 'zelena' }) } });
-        await nav.go(two.tab, 'souperi');
+        await nav.challenges(two.tab);
         await two.tab.waitForSelector('#challenges-section [data-player-id="u-1"] img[data-owl-pose="titul-11"][src="icons/topics/sova-titul-11-zlata.webp"]');
         assert.deepEqual(two.problems, []);
         await two.context.close();
@@ -417,7 +417,7 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
         db.profiles['u-1'].avatar = '🦉';
         for (const viewport of [{ width: 390, height: 780 }, { width: 360, height: 640 }]) {
             const two = await open('tok-u2', { viewport });
-            await nav.go(two.tab, 'souperi');
+            await nav.challenges(two.tab);
             await two.tab.waitForSelector('#challenges-section [data-player-id="u-1"]');
             await two.tab.click('#challenges-section [data-player-id="u-1"]');
             await two.tab.waitForSelector('#dialog-overlay [data-profile-head] [data-owl-look="zemepis"]');
@@ -433,7 +433,7 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
         for (const owl of ['robe=zelena;head=cestovatelsky-klobouk.modra;neck=kompas.original', 'robe=zelena;pose=titul-1;head=cestovatelsky-klobouk.modra;neck=kompas.original;hand=globus.h40']) {
             db.profiles['u-1'].owl = owl;
             const two = await open('tok-u2');
-            await nav.go(two.tab, 'souperi');
+            await nav.challenges(two.tab);
             await two.tab.waitForSelector('#challenges-section [data-player-id="u-1"]');
             await two.tab.click('#challenges-section [data-player-id="u-1"]');
             await two.tab.waitForSelector('#dialog-overlay [data-profile-head]');

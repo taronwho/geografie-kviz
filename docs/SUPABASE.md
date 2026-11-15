@@ -432,7 +432,7 @@ celý soubor znovu; token i úloha `upozorneni` zůstanou.
    service worker, jestli má prohlížeč předplatné (adresa zkráceně), prvních 8 znaků klíče `vapidPublicKey` a jestli server odpovídá a zná toto zařízení.
    Klíče předplatného se nezobrazují, snímek obrazovky se dá bez obav poslat vývojáři.
 4. **Zkusit upozornění v tomto zařízení** (bez serveru, hned): stránka pošle zprávu service workeru a ten ukáže upozornění „Zkušební upozornění Mudrlanta“ stejnou
-   funkcí jako skutečné upozornění ze serveru. Klepni na něj: aplikace se otevře na záložce Více hráčů a napíše „Klepnutí na upozornění funguje“. Když upozornění nejsou
+   funkcí jako skutečné upozornění ze serveru. Klepni na něj: aplikace se otevře na záložce Soupeři (text upozornění ze serveru ji zatím jmenuje postaru „Více hráčů“) a napíše „Klepnutí na upozornění funguje“. Když upozornění nejsou
    povolená, okno to řekne a nabídne povolení. Tím je ověřený telefon a prohlížeč (zobrazení i klepnutí), ne server.
 5. **Poslat zkušební upozornění přes server** (celá cesta: databáze → GitHub → push služba → telefon). Jednou zapiš svůj účet do `dev_admins` (SQL Editor, přezdívku
    nahraď svou): `insert into public.dev_admins (user_id) select id from public.profiles where lower(display_name) = lower('Taron') on conflict do nothing;`

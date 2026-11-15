@@ -1102,6 +1102,147 @@ test('stránka se neposouvá: obrazovky a okna ve světlém i tmavém režimu', 
     await t.test('výsledek: nic se neposouvá', () => assert.deepEqual(found, [], 'obrazovky a okna bez posouvání stránky'));
 });
 
+// --- Jednotný vzhled hlavních obrazovek: tlačítka akcí v řádcích mají všude stejný rozměr a rozložení, čip série v hlavičce ---
+// Tlačítko akce (data-cta) má na záložce Dnes, v řádku Čeká na tebe, v okně Čeká na tebe a v oknech Výzvy a Turnaje stejnou šířku
+// i výšku, ikonu na stejném místě a popisek, který se vejde (i na 360 px); fajfka hotového řádku sedí vystředěná ve stejném sloupci.
+// Čip série v hlavičce: plamen s počtem dní, čárka a štít s počtem ochran; od obrázku hráče ho dělí 12 px (s obrázkovým rámečkem
+// o jeho přesah víc), je svisle vystředěný s obrázkem a bez série je celý šedý.
+// Svislé posouvání obsahu a stránky (obojí má být 0)
+const pageOverflowSimple = (tab) => tab.evaluate(() => { const main = document.getElementById('app-content'); return [main.scrollHeight - main.clientHeight, document.documentElement.scrollHeight - window.innerHeight]; });
+test('jednotný vzhled: tlačítka akcí v řádcích a čip série v hlavičce', { skip: !chromium && 'Playwright není nainstalovaný' }, async (t) => {
+    const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
+    t.after(() => browser.close());
+    // Rozměry tlačítek akcí v zadaném místě stránky: šířka, výška, pravý okraj, poloha ikony od levého okraje tlačítka, přetečení popisku
+    const ctas = (tab, scope) => tab.evaluate((scope) => [...document.querySelectorAll(`${scope} [data-cta], ${scope} [data-cta-done]`)].filter(el => el.getBoundingClientRect().width > 0).map(el => {
+        const box = el.getBoundingClientRect();
+        const icon = el.querySelector('svg');
+        const label = el.querySelector('[data-cta-label]');
+        const row = el.closest('[data-special-tile], [data-wait], #daily-card, #chest-row, #season-strip, #gold-chest-row, #weekend-banner, #conquest-wait, [data-tournament-row], [data-friend-request], button, div');
+        return {
+            text: el.textContent.replace(/\s+/g, ' ').trim(), done: el.hasAttribute('data-cta-done'), w: Math.round(box.width * 10) / 10, h: Math.round(box.height * 10) / 10, right: Math.round(box.right),
+            icon: icon ? Math.round((icon.getBoundingClientRect().left - box.left) * 10) / 10 : null, iconSize: icon ? Math.round(icon.getBoundingClientRect().width) : null,
+            centred: icon && el.hasAttribute('data-cta-done') ? Math.abs((icon.getBoundingClientRect().left + icon.getBoundingClientRect().width / 2) - (box.left + box.width / 2)) <= 0.6 : null,
+            over: label ? label.scrollWidth - label.clientWidth : 0, vertical: row ? Math.abs((box.top + box.height / 2) - (row.getBoundingClientRect().top + row.getBoundingClientRect().height / 2)) : 0
+        };
+    }), scope);
+    const uniform = (list, what, size) => {
+        assert.ok(list.length > 0, `${what}: aspoň jedno tlačítko`);
+        for (const item of list) {
+            assert.deepEqual([item.w, item.h], size, `${what}: „${item.text}“ má rozměr ${item.w}×${item.h}, čeká se ${size.join('×')}`);
+            assert.ok(item.over <= 0, `${what}: popisek „${item.text}“ se nevejde (o ${item.over} px)`);
+            if (item.done) assert.equal(item.centred, true, `${what}: fajfka je vystředěná ve sloupci tlačítek`);
+            else { assert.equal(item.icon, 10, `${what}: ikona „${item.text}“ je 10 px od levého okraje tlačítka`); assert.equal(item.iconSize, 16, `${what}: ikona „${item.text}“ má 16 px`); }
+        }
+    };
+    const sameColumn = (list, what) => assert.equal(new Set(list.map(item => item.right)).size, 1, `${what}: tlačítka jsou v jednom sloupci vpravo: ${JSON.stringify(list.map(item => [item.text, item.right]))}`);
+
+    for (const [size, scheme] of [[{ width: 360, height: 640 }, 'dark'], [{ width: 390, height: 780 }, 'light']]) {
+        await t.test(`tlačítka akcí ${size.width}×${size.height} (${scheme}): Dnes, Čeká na tebe, Výzvy, Turnaje`, async () => {
+            // Tři dnešní otázky hotové (Hrát dál), Kvíz dne hotový (fajfka), Truhla, odměna Sezóny, Zlatá truhla, dnes zápas turnaje,
+            // dvě pozvánky do výzev, tahy v Dobývání a žádost o přátelství
+            const stats = { daily: Object.fromEntries(['zemepis', 'historie', 'vlajky'].map(topic => [topic, { [TODAY]: { correct: true, points: 3, hintLevel: 1, levelCount: 5 } }])), practice: { played: 10, correct: 8, points: 20 } };
+            const { context, tab, log } = await setup(browser, { viewport: size, scheme, start: 'dnes', storage: { 'mudrlant.stats': JSON.stringify(stats) } });
+            const expected = size.height <= 770 ? [96, 36] : [96, 40];
+            await tab.waitForSelector('#home-specials [data-special-tile]');
+            await tab.waitForTimeout(500);
+            const dnes = await ctas(tab, '#tab-dnes');
+            assert.ok(dnes.length >= 5, `Dnes: ${JSON.stringify(dnes.map(item => item.text))}`);
+            assert.ok(dnes.some(item => item.done), 'Dnes: hotový řádek s fajfkou');
+            assert.ok(dnes.some(item => item.text === 'Hrát dál'), 'Dnes: Dnešní otázky s Hrát dál');
+            uniform(dnes, 'Dnes', expected);
+            sameColumn(dnes, 'Dnes');
+            for (const item of dnes) assert.ok(item.vertical <= 1, `Dnes: „${item.text}“ je svisle uprostřed řádku`);
+            // Zlaté tlačítko zvýrazněného řádku a tlumená tlačítka mají stejný rozměr (hlídá uniform), zlatě orámovaný je jen jeden řádek
+            assert.equal(await tab.locator('#tab-dnes [data-hot]').count(), 1, 'Dnes: zlatě zvýrazněný je jen řádek, který je na řadě');
+            assert.deepEqual(await pageOverflowSimple(tab), [0, 0], 'Dnes se neposouvá');
+            // Záložka Soupeři: řádek Čeká na tebe a okno se všemi čekajícími
+            await nav.go(tab, 'souperi');
+            await tab.waitForSelector('#waiting-section');
+            const waiting = await ctas(tab, '#waiting-section');
+            uniform(waiting, 'Čeká na tebe', expected);
+            sameColumn([...waiting, { text: 'sloupec záložky Dnes', right: dnes[0].right }], 'Čeká na tebe a Dnes');
+            await tab.click('#waiting-section [data-action="waiting-all"]');
+            await tab.waitForSelector('#waiting-list');
+            const list = await ctas(tab, '#waiting-list');
+            assert.ok(list.length >= 3, `okno Čeká na tebe: ${JSON.stringify(list.map(item => item.text))}`);
+            uniform(list, 'okno Čeká na tebe', expected);
+            sameColumn(list, 'okno Čeká na tebe');
+            await tab.keyboard.press('Escape');
+            await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
+            // Okna Výzvy a Turnaje
+            await nav.challenges(tab);
+            await tab.waitForSelector('#challenges-section [data-wait="challenge"]');
+            uniform(await ctas(tab, '#challenges-section'), 'okno Výzvy', expected);
+            await nav.tournaments(tab);
+            await tab.waitForSelector('#tournament-card [data-cta]');
+            uniform(await ctas(tab, '#tournaments-section'), 'okno Turnaje', expected);
+            assert.deepEqual(log.errors, []);
+            assert.deepEqual(log.csp, []);
+            await context.close();
+        });
+    }
+
+    // Čip série: s obrázkovým rámečkem (duha s mraky) i bez rámečku, na 360 i 390 px; se sérií a ochranami i bez nich
+    for (const [width, framed, streak] of [[360, true, 12], [390, true, 0], [360, false, 0], [390, false, 12]]) {
+        await t.test(`čip série v hlavičce ${width} px, ${framed ? 's obrázkovým rámečkem' : 'bez rámečku'}, ${streak ? `série ${streak} dní` : 'bez série'}`, async () => {
+            const db = newDb();
+            if (!framed) db.profiles[ME].frame = null;
+            const days = Array.from({ length: streak }, (_, i) => new Date(Date.parse(`${TODAY}T00:00:00Z`) - i * 86400000).toISOString().slice(0, 10));
+            const rewards = JSON.parse(richStorage()['mudrlant.rewards']);
+            rewards.freezes = streak ? 2 : 0;
+            const storage = { 'mudrlant.rewards': JSON.stringify(rewards), 'mudrlant.stats': JSON.stringify({ daily: streak ? { zemepis: Object.fromEntries(days.map(day => [day, { correct: true, points: 3, hintLevel: 1, levelCount: 5 }])) } : {}, practice: { played: 1, correct: 1, points: 1 } }),
+                ...(framed ? {} : { 'mudrlant.look': JSON.stringify({ frame: 'zadny' }) }) };
+            const { context, tab, log } = await setup(browser, { viewport: { width, height: width === 360 ? 640 : 780 }, scheme: width === 360 ? 'dark' : 'light', db, storage, start: 'dnes' });
+            await tab.waitForSelector('#streak-chip');
+            await tab.waitForFunction((want) => Boolean(document.querySelector('#btn-settings .frame-art')) === want, framed, { timeout: 15000 });
+            await tab.waitForTimeout(300);
+            const seen = await tab.evaluate(() => {
+                const chip = document.querySelector('#streak-chip [data-chip]').getBoundingClientRect();
+                const button = document.getElementById('streak-chip').getBoundingClientRect();
+                const avatar = document.querySelector('#btn-settings').getBoundingClientRect();
+                const badge = document.getElementById('status-badge').getBoundingClientRect();
+                const style = getComputedStyle(document.querySelector('#streak-chip [data-chip]'));
+                const friends = getComputedStyle(document.createElement('span'));
+                const icons = [...document.querySelectorAll('#streak-chip svg')].map(svg => ({ size: Math.round(svg.getBoundingClientRect().width), color: getComputedStyle(svg).color, stroke: getComputedStyle(svg).strokeWidth }));
+                return {
+                    gap: Math.round(avatar.left - chip.right), centre: Math.abs((chip.top + chip.height / 2) - (avatar.top + avatar.height / 2)), chipHeight: Math.round(chip.height), touch: Math.round(button.height),
+                    left: Math.round(chip.left - badge.right), radius: style.borderRadius, font: [style.fontSize, style.fontWeight], icons, friends: Boolean(friends),
+                    streak: document.querySelector('#streak-chip [data-streak-part]').textContent.trim(), freezes: document.querySelector('#streak-chip [data-freeze-part]').textContent.trim(),
+                    divider: document.querySelectorAll('#streak-chip [data-chip] > span[aria-hidden="true"]').length, label: document.getElementById('streak-chip').getAttribute('aria-label'),
+                    header: document.getElementById('app-header').scrollWidth - document.getElementById('app-header').clientWidth
+                };
+            });
+            assert.equal(seen.gap, framed ? 18 : 12, `mezera mezi čipem a obrázkem hráče: ${JSON.stringify(seen)}`);
+            assert.ok(seen.centre <= 0.6, 'čip je svisle vystředěný s obrázkem hráče');
+            assert.deepEqual([seen.chipHeight, seen.touch], [36, 44], 'čip 36 px, dotyková plocha 44 px');
+            assert.ok(seen.left >= 8, `čip se nedotýká štítku s úrovní (${seen.left} px)`);
+            assert.equal(seen.header, 0, 'hlavička nepřetéká');
+            assert.deepEqual([seen.streak, seen.freezes, seen.divider], [String(streak), streak ? '2' : '0', 1], 'plamen s počtem dní, čárka, štít s počtem ochran');
+            assert.deepEqual(seen.icons.map(icon => icon.size), [16, 16], 'obě ikony stejně velké');
+            assert.equal(new Set(seen.icons.map(icon => icon.stroke)).size, 1, 'obě ikony stejně silné');
+            assert.deepEqual(seen.font, ['12px', '900']);
+            // Zlatý plamen (a modrý štít) jen s běžící sérií a ochranou; jinak mají obě ikony stejnou klidnou šedou
+            if (streak) assert.notEqual(seen.icons[0].color, seen.icons[1].color, 'zlatý plamen a modrý štít');
+            else assert.equal(seen.icons[0].color, seen.icons[1].color, 'bez série a ochran jsou obě ikony šedé');
+            assert.match(seen.label, streak ? /^Série: 12 dní v řadě, ochrana série: 2 z 2$/ : /^Série dní: zatím žádná, ochrana série: 0 z 2$/);
+            // Stejný čip jako „N dnes aktivní“ u přátel: plocha, okraj, zaoblení a písmo
+            await nav.go(tab, 'souperi');
+            await tab.waitForSelector('[data-friends-active]');
+            const same = await tab.evaluate(() => {
+                const pick = (el) => { const style = getComputedStyle(el); return [style.backgroundColor, style.borderRadius, style.fontSize, style.fontWeight, style.boxShadow, Math.round(el.getBoundingClientRect().height)]; };
+                return [pick(document.querySelector('#streak-chip [data-chip]')), pick(document.querySelector('[data-friends-active]'))];
+            });
+            assert.deepEqual(same[0], same[1], 'čip série vypadá stejně jako čip aktivních přátel');
+            // Klepnutí má stejnou funkci jako dřív: vysvětlení ochrany série
+            await tab.click('#streak-chip');
+            await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Ochrana série');
+            assert.deepEqual(log.errors, []);
+            assert.deepEqual(log.csp, []);
+            await context.close();
+        });
+    }
+});
+
 // --- Snímky hlavních obrazovek ke schválení vzhledu: NAV_SHOTS=složka (jinak se přeskočí) ---
 // Přihlášená hráčka s přáteli, čekající výzvou, hrou Dobývání, ve které má tahy, přihláškou do týdenního turnaje s hlasováním o tématu
 // a čekající Truhlou Mudrlanta. Pět záložek na 390×780 a 360×640 tmavě a 390×780 světle, okna Výzvy a Turnaje, Soupeři bez účtu a otázka
@@ -1148,7 +1289,7 @@ test('snímky hlavních obrazovek (NAV_SHOTS)', { skip: !chromium ? 'Playwright 
                 await nav.go(tab, id);
                 await shot(tab, `zalozka-${id}-${key}`);
             }
-            if (size.height === 780 && scheme === 'dark') {
+            if (scheme === 'dark') {
                 await nav.challenges(tab);
                 await tab.waitForSelector('#challenges-section [data-action="challenge-open"]');
                 await tab.waitForSelector('#league-card');
@@ -1156,6 +1297,8 @@ test('snímky hlavních obrazovek (NAV_SHOTS)', { skip: !chromium ? 'Playwright 
                 await nav.tournaments(tab);
                 await tab.waitForSelector('#tournament-poll');
                 await shot(tab, `okno-turnaje-${key}`);
+            }
+            if (size.height === 780 && scheme === 'dark') {
                 await nav.topic(tab, 'zemepis');
                 await tab.waitForSelector('[data-action="give-up"]', { timeout: 30000 });
                 await shot(tab, `otazka-bez-listy-${key}`);
@@ -1166,6 +1309,24 @@ test('snímky hlavních obrazovek (NAV_SHOTS)', { skip: !chromium ? 'Playwright 
         await nav.go(guest.tab, 'souperi');
         await shot(guest.tab, 'zalozka-souperi-bez-uctu-390x780-tmave');
         await guest.context.close();
+        // Hlavička zblízka: čip série vedle obrázku hráče s obrázkovým rámečkem i bez něj, se sérií i bez, na 360 a 390 px
+        for (const [width, framed, streak, scheme] of [[360, true, 12, 'dark'], [390, true, 12, 'light'], [360, false, 0, 'dark'], [390, false, 0, 'light']]) {
+            const db = shotDb();
+            if (!framed) db.profiles[ME].frame = null;
+            const storage = shotStorage();
+            if (!streak) {
+                const rewards = JSON.parse(storage['mudrlant.rewards']);
+                rewards.freezes = 0;
+                Object.assign(storage, { 'mudrlant.rewards': JSON.stringify(rewards), 'mudrlant.stats': JSON.stringify({ daily: {}, practice: { played: 1, correct: 1, points: 1 } }) });
+            }
+            if (!framed) storage['mudrlant.look'] = JSON.stringify({ frame: 'zadny' });
+            const { context, tab } = await setup(browser, { viewport: { width, height: 640 }, scheme, db, storage, start: 'dnes', scale: 2 });
+            await tab.waitForSelector('#streak-chip');
+            await tab.waitForFunction((want) => Boolean(document.querySelector('#btn-settings .frame-art')) === want, framed, { timeout: 15000 });
+            await tab.waitForTimeout(500);
+            await tab.screenshot({ path: path.join(NAV_SHOTS, `hlavicka-${width}-${framed ? 'ramecek' : 'bez-ramecku'}-${streak ? 'serie' : 'bez-serie'}-${scheme === 'dark' ? 'tmave' : 'svetle'}.png`), clip: { x: 0, y: 0, width, height: 84 } });
+            await context.close();
+        }
     } finally {
         await browser.close();
     }

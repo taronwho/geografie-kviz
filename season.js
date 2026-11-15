@@ -329,13 +329,12 @@
         ? Object.fromEntries(Object.entries(POMUCKA_TIERS).filter(([, kind]) => !stock || (stock[kind] || 0) < (max[kind] || 1))) : {});
     const countText = (n) => `${n} ${n === 1 ? 'odměna' : n >= 2 && n <= 4 ? 'odměny' : 'odměn'}`;
 
-    // Pruh na úvodu (místo cílů týdne, jako Truhla Mudrlanta): čekající odměny sezóny, klepnutím se vyzvedne první
-    const stripHtml = ({ id, count, past = false, until = '' }) => `
-            <button type="button" id="season-strip" data-action="season-claim" data-season-ready class="season-strip season-m${mm(id)} flex min-h-[2.5rem] w-full items-center gap-2 rounded-2xl px-2.5 py-1.5 text-left text-white shadow-md ring-2 transition-all active:scale-[0.98]">
-                ${emblemHtml(id, 'h-7 w-7 -my-1 -ml-0.5 season-mini', 'text-[1.1rem]')}
-                <span class="min-w-0 flex-1 truncate text-[12px] font-black leading-tight">${past ? `Sezóna ${esc(monthName(id))}: ${countText(count)} jen do ${formatDay(until)}` : `Sezóna ${esc(monthName(id))}: ${count === 1 ? 'čeká odměna' : `čekají ${countText(count)}`}`}</span>
-                <span class="shrink-0 rounded-lg bg-white px-2 py-1 text-[11px] font-black text-violet-900">Vyzvednout</span>
-            </button>`;
+    // Řádek na záložce Dnes (kreslí ho app.js jako ostatní řádky s akcí): čekající odměny sezóny, klepnutím se vyzvedne první.
+    // Vrací název a podtitulek; u minulé sezóny i datum, do kdy jdou odměny vyzvednout
+    const stripText = ({ id, count, past = false, until = '' }) => ({
+        title: `Sezóna ${monthName(id)}`,
+        text: past ? `${countText(count)} jen do ${formatDay(until)}` : count === 1 ? 'čeká odměna' : `čekají ${countText(count)}`
+    });
 
     // Karta v Mém postupu: znak, stupeň, ukazatel k dalšímu stupni, dny do konce; vpravo Vyzvednout s počtem (nebo šipka do okna)
     const cardHtml = (view) => {
@@ -343,7 +342,7 @@
         const count = list.length;
         const step = progress.next ? `${formatXp(progress.into)} / ${formatXp(progress.needed)} XP` : 'Cesta je celá!';
         return `
-        <div data-season-card class="season-card season-m${mm(id)} relative flex items-center gap-1.5 overflow-hidden rounded-2xl p-1.5 pl-2 text-white shadow-sm">
+        <div data-season-card class="season-card season-m${mm(id)} relative flex items-center gap-1.5 overflow-hidden rounded-[1.15rem] p-1.5 pl-2 text-white shadow-sm">
             <button type="button" data-season-open aria-label="Sezóna ${esc(label(id))}: stupeň ${progress.tier} z ${TIERS}, ${step}, ${left} ${daysWord(left)} do konce. Zobrazit cestu odměn" class="flex min-w-0 flex-1 items-center gap-2 text-left">
                 ${artHtml('h-11 w-11 -my-1')}
                 <span class="min-w-0 flex-1">
@@ -464,6 +463,6 @@
         TIERS, STEPS, THRESHOLDS, GRACE_DAYS, FREEZE_TIERS, DOUBLE_TIER, BUNDLE_TIER, FALLBACK_XP, POMUCKA_TIERS, POMUCKA_NAMES, pomuckaOf, pomuckyFor, CHEST_PERIODS, CHEST_READY, periodOf, seasonChestArt, MONTHS, MONTHS_GEN,
         pragueDay, isSeason, seasonOf, monthOf, shiftSeason, label, monthName, lastDay, daysLeft, graceEnd, inGrace, formatDay, LAUNCH, availability,
         tierOf, progressOf, kindOf, xpOf, ensure, shift, pending, info, rngFor, encode, decode, pickItem, claim,
-        emblemHtml, prizeHtml, partName, partKind, tierText, stripHtml, cardHtml, pathHtml, revealHtml
+        emblemHtml, prizeHtml, partName, partKind, tierText, stripText, cardHtml, pathHtml, revealHtml
     };
 });

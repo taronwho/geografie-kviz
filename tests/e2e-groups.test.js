@@ -1,5 +1,5 @@
-// Skupiny v prohlížeči s falešným Supabase v paměti (jako tests/e2e-friends.test.js): čip na záložce Více hráčů (ve stejném řádku jako
-// „Přijímám výzvy z“, záložka se tím neprodlouží), okno Skupiny s dnešním vedoucím, detail se záložkami Dnes / Týden (Kvíz dne, XP),
+// Skupiny v prohlížeči s falešným Supabase v paměti (jako tests/e2e-friends.test.js): dlaždice na záložce Soupeři (vedle Turnajů,
+// záložka se nikdy neposouvá), okno Skupiny s dnešním vedoucím, detail se záložkami Dnes / Týden (Kvíz dne, XP),
 // založení (kontrola názvu), přidání kódem i odkazem …?skupina=KÓD (přihlášený i nepřihlášený), správa zakladatelem (název a ikona,
 // nový kód, odebrání člena, smazání), opuštění skupiny, Vyzvat skupinu (výzva pro kohokoli připojená ke skupině), starší databáze bez skupin,
 // CSP bez chyb, 360×640 a 390×780 bez vodorovného posouvání, tmavý režim. Potřebuje Playwright (viz tests/e2e.test.js), jinak se přeskočí.
@@ -184,24 +184,25 @@ test('skupiny', { skip: !chromium && 'Playwright není nainstalovaný' }, async 
         return page;
     };
 
-    await t.test('čip na Více hráčů, okno Skupiny a detail: Dnes, Týden (Kvíz dne, XP), 390×780 i 360×640, světlý i tmavý', async () => {
+    await t.test('dlaždice na záložce Soupeři, okno Skupiny a detail: Dnes, Týden (Kvíz dne, XP), 390×780 i 360×640, světlý i tmavý', async () => {
         for (const viewport of [{ width: 390, height: 780 }, { width: 360, height: 640 }]) {
             for (const colorScheme of ['light', 'dark']) {
                 const db = newDb();
                 const { context, tab, log } = await start(db, { viewport, colorScheme });
-                await tab.waitForFunction(() => /Skupiny\s*2/.test((document.getElementById('groups-chip') || {}).textContent || ''));
-                // Čip je ve stejném řádku jako „Přijímám výzvy z“: záložka se nijak neprodlouží
+                await tab.waitForFunction(() => /Skupiny\s*2 skupiny · žebříčky/.test((document.getElementById('groups-tile') || {}).textContent || ''));
+                // Dlaždice Skupiny je čtvrtá z dlaždic záložky Soupeři (vedle Turnajů) a záložka se s ní neposouvá
                 const row = await tab.evaluate(() => {
-                    const chip = document.getElementById('groups-chip').getBoundingClientRect();
-                    const accept = document.querySelector('[data-action="open-accept"]').getBoundingClientRect();
-                    return { sameRow: Math.abs(chip.top - accept.top) < 2, gap: accept.left - chip.right, acceptWidth: accept.width };
+                    const tile = document.getElementById('groups-tile').getBoundingClientRect();
+                    const tournaments = document.getElementById('tournaments-tile').getBoundingClientRect();
+                    const main = document.getElementById('app-content');
+                    return { sameRow: Math.abs(tile.top - tournaments.top) < 2, gap: tile.left - tournaments.right, width: tile.width, scroll: main.scrollHeight - main.clientHeight };
                 });
-                assert.ok(row.sameRow, 'čip a Přijímám výzvy jsou v jednom řádku');
-                assert.ok(row.gap >= 0 && row.acceptWidth > 120, JSON.stringify(row));
+                assert.ok(row.sameRow, 'Turnaje a Skupiny jsou v jednom řádku');
+                assert.ok(row.gap >= 0 && row.width > 120 && row.scroll === 0, JSON.stringify(row));
                 assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
                 const label = `${viewport.width}-${colorScheme}`;
                 await shot(tab, `skupiny-tab-${label}`);
-                await tab.click('#groups-chip');
+                await tab.click('#groups-tile');
                 await waitTitle(tab, 'Skupiny');
                 await tab.waitForSelector('#groups-list');
                 assert.equal(await tab.locator('#groups-list [data-group-open]').count(), 2);
@@ -238,7 +239,7 @@ test('skupiny', { skip: !chromium && 'Playwright není nainstalovaný' }, async 
     await t.test('založení skupiny: kontrola názvu, výběr ikony, po založení detail s kódem', async () => {
         const db = newDb();
         const { context, tab, log } = await start(db);
-        await tab.click('#groups-chip');
+        await tab.click('#groups-tile');
         await tab.waitForSelector('[data-group-new]');
         await tab.click('[data-group-new]');
         await waitTitle(tab, 'Nová skupina');
@@ -258,7 +259,7 @@ test('skupiny', { skip: !chromium && 'Playwright není nainstalovaný' }, async 
         assert.deepEqual(db.calls.find(call => call.name === 'group_create').body, { group_name: 'Hokejisti z Kladna', group_icon: '⚽' });
         assert.match(await compact(tab, '[data-group-name]'), /Hokejisti z Kladna/);
         assert.match(await compact(tab, '[data-group-code-value]'), /NVA234/);
-        await tab.waitForFunction(() => /Skupiny\s*3/.test(document.getElementById('groups-chip').textContent));
+        await tab.waitForFunction(() => /Skupiny\s*3 skupiny/.test(document.getElementById('groups-tile').textContent));
         assert.deepEqual(log.errors, []);
         await context.close();
     });
@@ -266,7 +267,7 @@ test('skupiny', { skip: !chromium && 'Playwright není nainstalovaný' }, async 
     await t.test('přidání kódem: neznámý kód, náhled a Přidat se; odkaz ?skupina= přihlášeného i nepřihlášeného', async () => {
         const db = newDb();
         const { context, tab, log } = await start(db);
-        await tab.click('#groups-chip');
+        await tab.click('#groups-tile');
         await tab.waitForSelector('[data-group-code]');
         await tab.click('[data-group-code]');
         await waitTitle(tab, 'Přidat se ke skupině');
@@ -316,7 +317,7 @@ test('skupiny', { skip: !chromium && 'Playwright není nainstalovaný' }, async 
     await t.test('správa zakladatelem: název a ikona, nový kód, odebrání člena a smazání (vždy druhým klepnutím)', async () => {
         const db = newDb();
         const { context, tab, log } = await start(db);
-        await tab.click('#groups-chip');
+        await tab.click('#groups-tile');
         await tab.waitForSelector(`[data-group-open="${G1}"]`);
         await tab.click(`[data-group-open="${G1}"]`);
         await tab.waitForSelector('[data-group-manage]');
@@ -343,7 +344,7 @@ test('skupiny', { skip: !chromium && 'Playwright není nainstalovaný' }, async 
         await tab.click('[data-group-delete]');
         await waitTitle(tab, 'Skupiny');
         assert.equal(db.groups.some(g => g.id === G1), false);
-        await tab.waitForFunction(() => /Skupiny\s*1/.test(document.getElementById('groups-chip').textContent));
+        await tab.waitForFunction(() => /Skupiny\s*1 skupina/.test(document.getElementById('groups-tile').textContent));
         assert.deepEqual(log.errors, []);
         await context.close();
     });
@@ -351,7 +352,7 @@ test('skupiny', { skip: !chromium && 'Playwright není nainstalovaný' }, async 
     await t.test('člen: nevidí správu, opustí skupinu až druhým klepnutím', async () => {
         const db = newDb();
         const { context, tab, log } = await start(db);
-        await tab.click('#groups-chip');
+        await tab.click('#groups-tile');
         await tab.waitForSelector(`[data-group-open="${G2}"]`);
         await tab.click(`[data-group-open="${G2}"]`);
         await tab.waitForSelector('[data-group-leave]');
@@ -371,7 +372,7 @@ test('skupiny', { skip: !chromium && 'Playwright není nainstalovaný' }, async 
     await t.test('Vyzvat skupinu: Nová výzva pro skupinu, výzva se připojí ke skupině a hned se hraje; v detailu je karta výzvy', async () => {
         const db = newDb();
         const { context, tab, log } = await start(db);
-        await tab.click('#groups-chip');
+        await tab.click('#groups-tile');
         await tab.waitForSelector(`[data-group-open="${G1}"]`);
         await tab.click(`[data-group-open="${G1}"]`);
         await tab.waitForSelector('[data-group-challenge-new]');
@@ -397,7 +398,7 @@ test('skupiny', { skip: !chromium && 'Playwright není nainstalovaný' }, async 
         db2.groupChallenges[G1] = 'GRP234';
         db2.results = [{ challenge_id: 'GRP234', user_id: 'u-2', correct: 4, points: 9 }];
         const other = await start(db2);
-        await other.tab.click('#groups-chip');
+        await other.tab.click('#groups-tile');
         await other.tab.waitForSelector(`[data-group-open="${G1}"]`);
         await other.tab.click(`[data-group-open="${G1}"]`);
         await other.tab.waitForSelector('[data-group-challenge]');
@@ -414,10 +415,13 @@ test('skupiny', { skip: !chromium && 'Playwright není nainstalovaný' }, async 
         assert.deepEqual(log.errors, []);
     });
 
-    await t.test('starší databáze bez skupin: čip zmizí, nic nespadne', async () => {
+    await t.test('starší databáze bez skupin: dlaždice zmizí, nic nespadne', async () => {
         const db = newDb({ missing: true });
         const { context, tab, log } = await start(db);
-        await tab.waitForFunction(() => document.querySelector('[data-action="open-accept"]') && !document.getElementById('groups-chip'));
+        await tab.waitForSelector('#souperi-tiles #challenges-tile');
+        await tab.waitForTimeout(600);
+        assert.equal(await tab.locator('#groups-tile').count(), 0);
+        assert.deepEqual(await tab.$$eval('#souperi-tiles > *', tiles => tiles.map(tile => tile.id)), ['challenges-tile', 'conquest-card', 'tournaments-tile']);
         assert.deepEqual(log.errors, []);
         await context.close();
     });

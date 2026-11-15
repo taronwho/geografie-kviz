@@ -67,7 +67,7 @@ test('otázka „Ukaž na mapě“', { skip: !chromium && 'Playwright není nain
         tab.on('pageerror', error => problems.push(error.message));
         tab.on('console', message => { if (/Content Security Policy/i.test(message.text())) problems.push(message.text()); });
         await tab.goto(`${origin}/`);
-        await tab.waitForSelector('[data-action="play-topic"][data-topic="zemepis"]');
+        await nav.waitForHome(tab);
         return { context, tab, problems };
     };
     const startZemepis = async (tab) => {

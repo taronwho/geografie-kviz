@@ -1,4 +1,4 @@
-// Dobývání v prohlížeči (pravidla a vykreslení jsou v conquest.js): karta na záložce Více hráčů, rozcestník (Moje hry s pozvánkami
+// Dobývání v prohlížeči (pravidla a vykreslení jsou v conquest.js): dlaždice a řádek Čeká na tebe na záložce Soupeři, rozcestník (Moje hry s pozvánkami
 // od přátel, Lobby, Založit hru s výběrem přátel k pozvání), detail otevřené hry (Chci hrát, Odejít, Pozvat přátele, sdílení odkazu,
 // Barva a znak, pozvaní „Pozváno“), obrazovka hry s mapou (posun a přiblížení prsty,
 // kolečkem i dvojitým klepnutím), spodní list území, otázka tahu (připraví se už při otevření listu; otázka Mudrlanta s popisem,
@@ -315,7 +315,7 @@
             if (!active() || ui.kind !== 'hub') { stopGame(); ui.kind = 'hub'; ui.tab = 'mine'; ui.error = ''; if (!active()) deps.enter(); renderHub(); schedule(); }
             joinGame({ id });
         };
-        // Z karty na záložce Více hráčů
+        // Z dlaždice a z řádku Čeká na tebe na záložce Soupeři
         const openInvite = (id) => {
             if (!deps.signedUser()) { deps.login(); return; }
             if (findInvite(id)) { acceptInvite(id); return; }

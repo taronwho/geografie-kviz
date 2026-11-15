@@ -77,7 +77,7 @@ test('odměny: truhla, ochrana série, diplomy, sdílení obrázku', { skip: !ch
             await strip.waitFor();
             assert.match(await strip.textContent(), /Truhla Mudrlanta čeká/);
             assert.equal(await tab.locator('#chest-row[data-action="chest-open"]').count(), 1, 'zlatý řádek na záložce Dnes');
-            assert.equal(await tab.locator('#streak-chip [data-freeze-chip]').count(), 1, 'štít ochrany série v hlavičce');
+            assert.equal((await tab.textContent('#streak-chip [data-freeze-part]')).trim(), String(JSON.parse(await tab.evaluate(() => localStorage.getItem('mudrlant.rewards'))).freezes), 'štít s počtem ochran série v hlavičce');
             assert.ok(await noScroll(tab), `úvod s truhlou bez posouvání: ${await tab.evaluate(() => { const box = document.getElementById('app-content'); return `${box.scrollHeight}/${box.clientHeight}, šířka ${document.documentElement.scrollWidth}/${window.innerWidth}`; })}`);
             const tag = `${viewport.width}-${colorScheme}`;
             await shot(tab, `uvod-truhla-${tag}`);

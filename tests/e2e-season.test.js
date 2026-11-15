@@ -316,7 +316,8 @@ test('sezóna: pruh, odhalení odměn, cesta, Sezónní truhla, dovybrání a od
         const { context, tab, problems } = await open({ seed });
         await clearCelebrations(tab);
         // Hlavička: série 6 dní se štítem ochrany; v okně Dnešní otázky má téma štítek série s další odměnou
-        assert.match(await tab.textContent('#streak-chip'), /6 dní\s*1/);
+        assert.deepEqual([await tab.getAttribute('#streak-chip', 'data-streak'), await tab.getAttribute('#streak-chip', 'data-freezes')], ['6', '1']);
+        assert.match(await tab.getAttribute('#streak-chip', 'aria-label'), /Série: 6 dní v řadě, ochrana série: 1 z 2/);
         await nav.dailySheet(tab);
         assert.match(await tab.getAttribute('#daily-sheet [data-action="daily"][data-topic="zemepis"] [title^="Série"]', 'title'), /Série 6 dní · Další odměna za sérii: Jiskra za 7 dní \(zbývá 1\)/);
         await tab.click('#daily-sheet [data-action="freeze-info"]');

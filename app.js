@@ -1920,6 +1920,7 @@
                     ${user && Social ? '<button type="button" data-open-privacy class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-1.5 font-bold underline underline-offset-2">Moje data</button>' : ''}
                 </div>` : ''}
             </div>`;
+        fitOverlay(overlay);
         overlay.firstElementChild.scrollTop = scroll;
         if (stripScroll) overlay.querySelectorAll('.overflow-x-auto').forEach((el, index) => { if (stripScroll[index]) el.scrollLeft = stripScroll[index]; });
         const strip = overlay.querySelector('[data-avatar-strip]');
@@ -2398,8 +2399,9 @@
                 <h3 class="${SETTINGS_HEADING} mb-1.5 mt-3 short:mb-1 short:mt-1.5 tiny:mt-1">Obtížnost</h3>
                 <div class="grid grid-cols-3 gap-1.5" role="group" aria-label="Obtížnost">${renderTierButtons(style.on, isMix ? null : topic, true, true, true)}</div>
             </div>`;
-        overlay.firstElementChild.scrollTop = scroll;
         renderIcons(overlay);
+        fitOverlay(overlay);
+        overlay.firstElementChild.scrollTop = scroll;
         const focusTarget = focusSelector && overlay.querySelector(focusSelector);
         if (focusTarget) focusTarget.focus({ preventScroll: true });
     };
@@ -2806,7 +2808,7 @@
             navSeen = key;
             nav.innerHTML = tabs.map(([id, icon, label]) => `
                 <button type="button" data-nav="${id}" class="relative flex min-h-[3rem] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-extrabold leading-none">
-                    <span class="nav-pill relative flex h-8 w-[3.25rem] items-center justify-center rounded-[0.9rem]"><i data-lucide="${icon}" class="h-[1.3rem] w-[1.3rem]"></i><span data-nav-badge aria-hidden="true" class="absolute -right-1 -top-1 hidden h-[1.15rem] min-w-[1.15rem] items-center justify-center rounded-full bg-gold-400 px-1 text-[10.5px] font-black leading-none text-brand-950 ring-2 ring-white dark:ring-slate-950"></span></span>
+                    <span class="nav-pill relative flex h-8 w-[3.25rem] items-center justify-center rounded-[0.9rem]"><i data-lucide="${icon}" class="h-[1.3rem] w-[1.3rem]"></i><span data-nav-badge aria-hidden="true" class="absolute -right-1.5 -top-1 hidden h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-gold-400 px-1.5 text-[11px] font-black leading-none text-brand-950 ring-2 ring-white dark:ring-slate-950"></span></span>
                     <span aria-hidden="true">${label}</span>
                 </button>`).join('');
             renderIcons(nav);
@@ -2839,14 +2841,26 @@
         try { if (DailyQuiz) quizDays = quizStreakOf(DailyQuiz.playedDays(quizState(), DailyQuiz.pragueDay()), DailyQuiz.pragueDay()); } catch (error) { quizDays = 0; }
         return Math.max(longestStreak(), quizDays);
     };
+    // --- Jednotný vzhled hlavních obrazovek (záložky spodní lišty a okna Výzvy a Turnaje) ---
+    // Plocha karty a řádku (SURFACE) se zaoblením řádků a malých dlaždic (CARD_R; velké dlaždice a karta profilu mají 1.4rem),
+    // nadpis oddílu (SEC_LABEL), čip (CHIP: stejná plocha, okraj a písmo; CHIP_TAP = čip, na který se klepe, s dotykovou plochou 40 px),
+    // zlatý odznak s počtem (BADGE) a tlačítko akce v řádku (CTA_*: všechna mají stejnou šířku i výšku, viz níž)
+    const SURFACE = 'bg-white shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-800/80 dark:ring-slate-700/70';
+    const CARD_R = 'rounded-[1.15rem]';
+    const SEC_LABEL = 'px-1 text-[11px] font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400';
+    const CHIP = 'flex h-9 min-w-0 shrink-0 items-center gap-1.5 rounded-full bg-white px-3 text-[12px] font-black leading-none text-slate-700 shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700/70';
+    const CHIP_TAP = `${CHIP} relative active:scale-95 before:absolute before:inset-x-0 before:-inset-y-0.5 before:content-['']`;
+    const BADGE = 'flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-gold-400 px-1.5 text-[11px] font-black leading-none text-brand-950';
+    // Čip série v hlavičce: plamen s počtem dní v řadě, tenká čárka a štít s počtem ochran série. Vypadá jako ostatní čipy; zlatý
+    // plamen jen při běžící sérii (modrý štít jen s ochranou v zásobě), jinak je celý čip klidně šedý. Tlačítko má výšku obrázku
+    // hráče (44 px, dotyková plocha), viditelný čip 36 px. Klepnutí otevře vysvětlení ochrany série.
     const headerChipsHtml = () => {
         if (!mainShown()) return '';
         const streak = dayStreakNow();
         const freezes = Rewards ? loadRewards().freezes : 0;
-        if (!streak && !freezes) return '';
-        // Bez běžící série zůstane jen štítek ochrany série (kolik jich hráč má)
-        const label = streak ? `Série: ${daysWord(streak)} v řadě${freezes ? `, ochrana série: ${freezes}` : ''}` : `Ochrana série: ${freezes}`;
-        return `<button type="button" id="streak-chip" data-header-chip="streak" data-streak="${streak}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" class="flex h-10 shrink-0 items-center gap-1 rounded-full bg-gold-100 pl-2.5 pr-3 text-[13px] font-black text-gold-900 ring-1 ring-gold-300 active:scale-95 dark:bg-gold-900/30 dark:text-gold-200 dark:ring-gold-700/70">${streak ? `<i data-lucide="flame" class="h-4 w-4"></i><span class="whitespace-nowrap">${daysWord(streak)}</span>` : ''}${freezes && Rewards ? Rewards.freezeChip(freezes) : ''}</button>`;
+        const label = `${streak ? `Série: ${daysWord(streak)} v řadě` : 'Série dní: zatím žádná'}${Rewards ? `, ochrana série: ${freezes} z ${Rewards.MAX_FREEZES}` : ''}`;
+        const part = (attr, icon, on, tone, value) => `<span ${attr} class="flex items-center gap-1 tabular-nums ${on ? '' : 'text-slate-500 dark:text-slate-400'}"><i data-lucide="${icon}" class="h-4 w-4 shrink-0 ${on ? tone : 'text-slate-400 dark:text-slate-500'}"></i>${value}</span>`;
+        return `<button type="button" id="streak-chip" data-header-chip="streak" data-streak="${streak}" data-freezes="${freezes}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" class="flex h-11 shrink-0 items-center rounded-full active:scale-95"><span data-chip class="${CHIP} gap-2">${part('data-streak-part', 'flame', streak > 0, 'fill-gold-400 text-gold-600 dark:fill-gold-500/60 dark:text-gold-400', streak)}${Rewards ? `<span aria-hidden="true" class="h-4 w-px bg-slate-200 dark:bg-slate-600"></span>${part('data-freeze-part', 'shield', freezes > 0, 'fill-sky-200 text-sky-600 dark:fill-sky-500/30 dark:text-sky-400', freezes)}` : ''}</span></button>`;
     };
     let chipsSeen = null;
     const renderHeaderChips = () => {
@@ -2872,6 +2886,23 @@
     // v dalším snímku a jen když se výška obsahu od posledního měření změnila.
     const FIT_SHORT = 'fit-short';
     let fitSeen = -1;
+    // Okna (Nastavení, Co hrát, dialogy) se na vyšším displeji zhustí sama, když se jejich obsah nevejde bez posouvání a zhuštěný
+    // se vejde: stejná varianta short:, ale jen uvnitř okna (třída fit-short na překryvu; tailwind.config.js ji bere u kteréhokoli
+    // předka). Dlouhé seznamy, které se nevejdou ani zhuštěné, zůstanou v běžné velikosti a posouvají se. Dřív okna zhušťovala jen
+    // úvodní obrazovka, když se sama nevešla; záložky spodní lišty se ale na 390×780 vejdou bez zhuštění.
+    const fitOverlay = (overlay) => {
+        const panel = overlay && overlay.isConnected ? overlay.firstElementChild : null;
+        if (!panel) return;
+        const root = document.documentElement;
+        const over = () => panel.scrollHeight > panel.clientHeight + 1;
+        root.classList.add('fit-measure');
+        overlay.classList.remove(FIT_SHORT);
+        if (over()) {
+            overlay.classList.add(FIT_SHORT);
+            if (over()) overlay.classList.remove(FIT_SHORT);
+        }
+        root.classList.remove('fit-measure');
+    };
     const fitHome = () => {
         const root = document.documentElement;
         const wrap = appContent.firstElementChild;
@@ -2939,17 +2970,24 @@
     if (typeof ResizeObserver === 'function') new ResizeObserver(() => scheduleFit(true)).observe(appContent);
 
     // --- Společné stavební prvky záložek: nadpis oddílu, řádek s akcí vpravo a tlačítko akce ---
-    const SEC_LABEL = 'px-1 text-[11px] font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400';
-    const HOME_ROW = 'group relative flex w-full min-w-0 items-center gap-3 rounded-[1.15rem] bg-white px-3 py-2 text-left shadow-sm ring-1 ring-slate-200/80 transition-transform active:scale-[0.985] dark:bg-slate-800/80 dark:ring-slate-700/70';
+    // Na úzkém displeji (do 380 px) má řádek menší mezery a podtitulek menší písmo, ať se vejde i delší stav („Nápověda 4/8 · další v 13:00“)
+    const HOME_ROW = `group relative flex w-full min-w-0 items-center gap-3 ${CARD_R} ${SURFACE} px-3 py-2 text-left max-[379px]:gap-2 max-[379px]:px-2.5 transition-transform active:scale-[0.985]`;
     // Zvýrazněný řádek (to nejbližší, co je na řadě): zlatý okraj a jemný zlatý přechod zleva
     const HOME_ROW_HOT = 'data-[hot]:bg-gradient-to-r data-[hot]:from-gold-100 data-[hot]:to-white data-[hot]:ring-2 data-[hot]:ring-gold-400 dark:data-[hot]:from-gold-900/40 dark:data-[hot]:to-slate-800/80 dark:data-[hot]:ring-gold-600';
     const ROW_TITLE = 'block truncate text-[15px] font-extrabold leading-tight text-slate-800 dark:text-slate-100';
-    const ROW_SUB = 'block truncate text-[12px] font-semibold leading-tight text-slate-500 dark:text-slate-400';
-    const CTA_BASE = 'flex min-h-[2.4rem] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3 text-[13.5px] font-black short:min-h-[2.2rem]';
+    const ROW_SUB = 'block truncate text-[12px] font-semibold leading-tight text-slate-500 max-[379px]:text-[11.5px] max-[379px]:tracking-tight dark:text-slate-400';
+    // Tlačítko akce v řádku: všechna mají stejnou šířku i výšku (sloupec vpravo, 96 × 40 px, na nízkém displeji 36 px), ikonu na
+    // stejném místě vlevo a popisek vystředěný ve zbytku; zlaté (to nejbližší, co je na řadě), tlumené i vínové se liší jen barvou.
+    // Popisky jsou krátké (nejvýš „Hrát vše“, „Hrát dál“, „Přidat se“), ať se vejdou i na 360 px. Hotový řádek má ve stejném sloupci fajfku.
+    const CTA_SLOT = 'h-10 w-[6rem] shrink-0 short:h-9';
+    const CTA_BASE = `flex ${CTA_SLOT} items-center gap-1 whitespace-nowrap rounded-xl pl-2.5 pr-1.5 text-[13px] font-black leading-none`;
     const CTA_GOLD = `${CTA_BASE} bg-gradient-to-b from-gold-300 to-gold-500 text-brand-950 shadow-[0_3px_0_#94571a]`;
+    const CTA_BRAND = `${CTA_BASE} bg-brand-700 text-white shadow-[0_3px_0_rgb(var(--brand-950))]`;
     // Běžné tlačítko řádku je tlumené; ve zvýrazněném řádku (group data-hot) zezlátne
     const CTA_SOFT = `${CTA_BASE} bg-slate-100 text-slate-700 ring-1 ring-slate-200 dark:bg-slate-700/70 dark:text-slate-100 dark:ring-slate-600 group-data-[hot]:bg-gradient-to-b group-data-[hot]:from-gold-300 group-data-[hot]:to-gold-500 group-data-[hot]:text-brand-950 group-data-[hot]:shadow-[0_3px_0_#94571a] group-data-[hot]:ring-0`;
-    const ctaHtml = (label, cls = CTA_SOFT, icon = 'play') => `<span data-cta class="${cls}">${icon ? `<i data-lucide="${icon}" class="h-4 w-4"></i>` : ''}${escapeHtml(label)}</span>`;
+    const ctaInner = (label, icon = 'play') => `<i data-lucide="${icon}" class="h-4 w-4 shrink-0"></i><span data-cta-label class="min-w-0 flex-1 text-center">${escapeHtml(label)}</span>`;
+    const ctaHtml = (label, cls = CTA_SOFT, icon = 'play') => `<span data-cta class="${cls}">${ctaInner(label, icon)}</span>`;
+    const ctaDone = (icon = 'circle-check', attrs = 'data-special-done', label = '') => `<span ${attrs} data-cta-done class="flex ${CTA_SLOT} items-center justify-center text-emerald-600 dark:text-emerald-400"><i data-lucide="${icon}" class="h-6 w-6"></i>${label ? `<span class="sr-only">${escapeHtml(label)}</span>` : ''}</span>`;
 
     // ----- Záložka Dnes: to, co se dá dnes splnit -----
     // Řádek dnešní výzvy (Kvíz dne, Řetězovka, Tajemná otázka, Boss týdne): obrázek, název, krátký stav a vpravo akce; celý stav
@@ -2963,7 +3001,7 @@
                     <span data-special-text ${textAttr} class="${ROW_SUB}">${escapeHtml(text)}</span>
                     ${extra}
                 </span>
-                ${done ? `<span data-special-done class="flex h-9 w-9 shrink-0 items-center justify-center text-emerald-600 dark:text-emerald-400"><i data-lucide="${doneIcon}" class="h-6 w-6"></i></span>` : ctaHtml(cta)}
+                ${done ? ctaDone(doneIcon) : ctaHtml(cta)}
             </button>`;
     // Řádky Řetězovky dne a Bosse týdne (doplní je jejich moduly; prázdný řetězec = řádek se nevykreslí)
     let chainCtl = null; // ovladač Řetězovky (chain.js), založí se níž u Kvízu dne a Tajemné otázky
@@ -2993,20 +3031,21 @@
         return `
             <section aria-label="Dnešní otázky" class="flex flex-col gap-2 short:gap-1.5">
                 <h2 class="${SEC_LABEL}">Dnešní otázky</h2>
-                <div id="daily-card" data-daily-done="${answered}" class="flex min-h-[3.75rem] items-center gap-2 rounded-[1.15rem] bg-white py-2 pl-3 pr-2 shadow-sm ring-1 ring-slate-200/80 short:min-h-[3.1rem] short:py-1.5 tiny:min-h-[2.75rem] tiny:py-1 dark:bg-slate-800/80 dark:ring-slate-700/70">
-                    <button type="button" data-action="daily-sheet" aria-label="Dnešní otázky: splněno ${answered} ze ${TOPICS.length} témat. Vybrat téma" class="flex min-w-0 flex-1 items-center gap-3 text-left active:scale-[0.99]">
+                <div id="daily-card" data-daily-done="${answered}" class="flex min-h-[3.75rem] items-center gap-3 ${CARD_R} ${SURFACE} px-3 py-2 max-[379px]:gap-2 max-[379px]:px-2.5 short:min-h-[3.1rem] short:py-1.5 tiny:min-h-[2.75rem] tiny:py-1">
+                    <button type="button" data-action="daily-sheet" aria-label="Dnešní otázky: splněno ${answered} ze ${TOPICS.length} témat. Vybrat téma" class="flex min-w-0 flex-1 items-center gap-3 text-left active:scale-[0.99] max-[379px]:gap-2">
                         ${uiArt('dnes', 'h-10 w-10 short:h-9 short:w-9 tiny:h-8 tiny:w-8')}
                         <span class="min-w-0 flex-1">
                             <span class="flex items-center gap-1.5"><span class="whitespace-nowrap text-[15px] font-extrabold leading-tight text-slate-800 dark:text-slate-100">${answered}/${TOPICS.length} témat</span><span data-daily-pick class="flex h-4 min-w-0 flex-1 flex-wrap justify-end overflow-hidden text-[11.5px] font-black leading-4 text-brand-700 dark:text-cream"><span class="h-4 w-px"></span><span class="whitespace-nowrap">Vybrat téma</span></span><i data-lucide="chevron-right" class="h-3.5 w-3.5 shrink-0 text-brand-700 dark:text-cream"></i></span>
                             <span class="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-500" data-progress="${Math.round(answered / Math.max(1, TOPICS.length) * 100)}"></span></span>
                         </span>
                     </button>
-                    ${left ? `<button type="button" data-action="play-daily" aria-label="${answered ? 'Pokračovat' : 'Hrát vše'}: zbývá ${left}" class="flex min-h-[2.5rem] shrink-0 items-center gap-1.5 rounded-xl btn-3d bg-brand-700 px-3 text-[13.5px] font-black text-white short:min-h-[2.3rem]"><i data-lucide="play" class="h-4 w-4"></i>${answered ? 'Pokračovat' : 'Hrát vše'}</button>`
-                        : '<span data-daily-all class="flex min-h-[2.5rem] shrink-0 items-center gap-1.5 rounded-xl bg-emerald-50 px-2.5 text-[12.5px] font-bold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"><i data-lucide="circle-check" class="h-4 w-4"></i>Vše hotové</span>'}
+                    ${left ? `<button type="button" data-action="play-daily" data-cta aria-label="${answered ? 'Hrát dál' : 'Hrát vše'}: zbývá ${left}" class="${CTA_BRAND} active:translate-y-px">${ctaInner(answered ? 'Hrát dál' : 'Hrát vše')}</button>`
+                        : ctaDone('circle-check', 'data-daily-all title="Dnes máš všechno hotové"', 'Vše hotové')}
                 </div>
             </section>`;
     };
-    // Okno Dnešní otázky: všech 14 témat se stavem dne a sérií; klepnutí spustí dnešní otázku tématu (zodpovězenou ukáže znovu)
+    // Okno Dnešní otázky: všech 14 témat se stavem dne a sérií; klepnutí spustí dnešní otázku tématu (zodpovězenou ukáže znovu).
+    // Tři sloupce: do čtyř by se na telefonu nevešly celé názvy („Vlajky a znaky“, „Architektura“)
     const openDailySheet = () => {
         const { stats, today, answered } = dailyStats();
         const badges = loadProgress().badges;
@@ -3029,8 +3068,8 @@
         showDialog('Dnešní otázky', `
             <div id="daily-sheet" class="flex flex-col gap-2.5 short:gap-2">
                 <p class="flex items-center gap-1.5 text-[12.5px] font-semibold leading-snug text-slate-600 dark:text-slate-300"><span>Každý den jedna otázka z každého tématu. Splněno <b class="text-slate-800 dark:text-slate-100">${answered}/${TOPICS.length}</b>.</span>${Rewards && loadRewards().freezes ? `<button type="button" data-action="freeze-info" class="ml-auto shrink-0 rounded-md">${Rewards.freezeChip(loadRewards().freezes)}</button>` : ''}</p>
-                <div class="grid grid-cols-4 gap-2 short:gap-1.5">${tiles}</div>
-                ${left ? `<button type="button" data-action="play-daily" class="${PRIMARY_BUTTON}"><i data-lucide="play" class="h-5 w-5"></i> ${answered ? 'Pokračovat' : 'Hrát vše'} <span class="font-bold opacity-90">· zbývá ${left}</span></button>`
+                <div class="grid grid-cols-3 gap-2 short:gap-1.5">${tiles}</div>
+                ${left ? `<button type="button" data-action="play-daily" class="${PRIMARY_BUTTON}"><i data-lucide="play" class="h-5 w-5"></i> ${answered ? 'Hrát dál' : 'Hrát vše'} <span class="font-bold opacity-90">· zbývá ${left}</span></button>`
                     : '<p class="flex items-center justify-center gap-1.5 rounded-2xl bg-emerald-50 px-3 py-2.5 text-[13px] font-bold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"><i data-lucide="circle-check" class="h-4 w-4"></i> Dnes máš všechno hotové</p>'}
             </div>`, { onClick: (event) => {
             const button = event.target.closest('[data-action]');
@@ -3040,34 +3079,74 @@
             ACTIONS[button.dataset.action](button);
         } });
     };
+    // Řádek s akcí (Truhla, příležitostné řádky záložky Dnes): obrázek, název, podtitulek a tlačítko ve společném sloupci vpravo.
+    // Mezi názvem a podtitulkem je pro čtečku (a textContent) dvojtečka. dismiss = malý křížek v rohu řádku (skrýt), pak je řádek
+    // v obalu s id a wrapAttrs. hot = zlatě zvýrazněný řádek se zlatým tlačítkem (to nejbližší, co je na řadě); gold = jen zlaté
+    // tlačítko (čeká odměna: truhla, Sezóna), řádek sám zůstává klidný, ať je zlatě orámovaný vždy jen jeden.
+    const ROW_ART = 'h-10 w-10 short:h-9 short:w-9 tiny:h-8 tiny:w-8';
+    const dismissHtml = ({ action, label }) => `<button type="button" data-action="${action}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}" class="absolute -right-1 -top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-slate-600 shadow ring-2 ring-slate-50 before:absolute before:-inset-2 before:content-[''] active:scale-95 dark:bg-slate-600 dark:text-slate-100 dark:ring-slate-900"><i data-lucide="x" class="h-3.5 w-3.5"></i></button>`;
+    const actionRow = ({ id = '', attrs = '', wrapAttrs = '', art, title, text = '', cta, icon = 'play', hot = false, gold = false, dismiss = null }) => {
+        const row = `
+            <button type="button" ${id && !dismiss ? `id="${id}" ` : ''}${attrs}${hot ? ' data-hot' : ''} class="${HOME_ROW} ${HOME_ROW_HOT} min-h-[3.5rem] short:min-h-[3rem] short:py-1.5 tiny:min-h-[2.75rem] tiny:py-1">
+                <span class="flex shrink-0">${art}</span>
+                <span class="min-w-0 flex-1"><span class="${ROW_TITLE}">${title}</span>${text ? `<span class="sr-only">: </span><span data-row-text class="${ROW_SUB}">${text}</span>` : ''}</span>
+                ${ctaHtml(cta, gold ? CTA_GOLD : CTA_SOFT, icon)}
+            </button>`;
+        return dismiss ? `<div ${id ? `id="${id}" ` : ''}${wrapAttrs} class="relative">${row}${dismissHtml(dismiss)}</div>` : row;
+    };
     // Truhla Mudrlanta čeká: zlatý řádek s Otevřít (jen když nějaká čeká)
-    const chestRowHtml = () => (Rewards && Rewards.pendingChest(loadRewards()) ? `
-            <button type="button" id="chest-row" data-action="chest-open" data-chest-ready data-hot class="${HOME_ROW} ${HOME_ROW_HOT} min-h-[3.5rem] short:min-h-[3rem] short:py-1.5 tiny:min-h-[2.75rem] tiny:py-1">
-                <span class="chest-mini flex shrink-0">${uiArt('truhla', 'h-10 w-10 short:h-9 short:w-9 tiny:h-8 tiny:w-8')}</span>
-                <span class="min-w-0 flex-1"><span class="${ROW_TITLE}" title="Všechny cíle týdne jsou splněné. Otevři ji!">Truhla Mudrlanta čeká</span></span>
-                ${ctaHtml('Otevřít', CTA_GOLD, '')}
-            </button>` : '');
-    // Příležitostné pruhy na záložce Dnes: včerejší Tajemná otázka, odměna Sezóny, Kronika týdne, Zlatá truhla a tematický víkend.
-    // Každý má i malý čip; fitHome ukáže celé pruhy, jen když se vejdou, jinak řadu čipů (nikdy kvůli nim obrazovka neposouvá).
-    // V dokumentu je vždy jen jedna podoba (druhá čeká v <template>), ať je každá akce na záložce právě jednou.
+    const chestRowHtml = () => (Rewards && Rewards.pendingChest(loadRewards()) ? actionRow({
+        id: 'chest-row', attrs: 'data-action="chest-open" data-chest-ready title="Všechny cíle týdne jsou splněné. Otevři ji!"', art: `<span class="chest-mini flex">${uiArt('truhla', ROW_ART)}</span>`,
+        title: 'Truhla Mudrlanta', text: 'Čeká za splněné cíle týdne', cta: 'Otevřít', icon: 'sparkles', gold: true }) : '');
+    // Příležitostné řádky na záložce Dnes: včerejší Tajemná otázka, odměna Sezóny, Kronika týdne, Zlatá truhla a tematický víkend.
+    // Vypadají jako ostatní řádky (stejná plocha, stejné tlačítko ve sloupci vpravo). Každý má i malý čip; fitHome ukáže celé řádky,
+    // jen když se vejdou, jinak řadu čipů (nikdy kvůli nim obrazovka neposouvá). V dokumentu je vždy jen jedna podoba (druhá čeká
+    // v <template>), ať je každá akce na záložce právě jednou.
     const EXTRAS_STRIPS = 'flex flex-col gap-2 short:gap-1.5';
-    const EXTRAS_CHIPS = 'flex flex-wrap gap-1.5 tiny:flex-nowrap tiny:overflow-x-auto';
-    const HOME_CHIP = 'flex min-h-[2.5rem] min-w-0 shrink-0 items-center gap-1.5 rounded-full bg-white px-3 text-[12px] font-black text-slate-800 shadow-sm ring-1 ring-slate-200/80 active:scale-95 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700/70';
+    const EXTRAS_CHIPS = 'flex flex-wrap gap-x-1.5 gap-y-2 py-0.5 tiny:flex-nowrap tiny:overflow-x-auto';
+    const HOME_CHIP = CHIP_TAP;
+    const CHIP_ART = 'h-6 w-6 -my-1 -ml-1';
     const dnesExtrasHtml = () => {
         const items = [];
-        const reveal = mysteryRevealCard();
-        if (reveal) items.push({ strip: reveal, chip: `<button type="button" data-action="mystery-reveal" title="Včerejší tajemná otázka: odpověď" class="${HOME_CHIP}">${uiArt('sova-dalekohled', 'h-6 w-6 -my-1 -ml-1')}<span class="truncate">Včerejší záhada</span></button>` });
-        const season = seasonStripHtml();
-        if (season) items.push({ strip: season, chip: `<button type="button" data-action="season-claim" data-season-ready data-chip class="${HOME_CHIP} ring-2 ring-gold-400 dark:ring-gold-500">${uiArt('sezona', 'h-6 w-6 -my-1 -ml-1')}<span class="truncate">Odměna Sezóny</span></button>` });
-        const chronicle = chronicleStripHtml();
-        if (chronicle) items.push({ strip: chronicle, chip: `<button type="button" data-action="chronicle-open" class="${HOME_CHIP}">${uiArt('sova-kronika', 'h-6 w-6 -my-1 -ml-1')}<span class="truncate">Kronika týdne</span></button>` });
-        if (Gold && Rewards && loadGold().ready > 0) {
+        const reveal = Mystery ? mysteryRevealView() : null;
+        if (reveal) {
             items.push({
-                strip: `<button type="button" id="gold-chest-row" data-action="gold-chest" class="${HOME_ROW} min-h-[3.25rem] short:min-h-[2.9rem] short:py-1.5">${uiArt('zlata-truhla', 'h-9 w-9')}<span class="min-w-0 flex-1"><span class="${ROW_TITLE}">Zlatá truhla čeká</span><span class="${ROW_SUB}">Za pět zlatých střípků</span></span>${ctaHtml('Otevřít', CTA_GOLD, '')}</button>`,
-                chip: `<button type="button" data-action="gold-chest" class="${HOME_CHIP} ring-2 ring-gold-400 dark:ring-gold-500">${uiArt('zlata-truhla', 'h-6 w-6 -my-1 -ml-1')}<span class="truncate">Zlatá truhla</span></button>`
+                strip: actionRow({ id: 'mystery-reveal', wrapAttrs: 'data-mystery-kind="reveal"', attrs: 'data-action="mystery-reveal"', art: uiArt('sova-dalekohled', ROW_ART), title: 'Včerejší záhada', text: escapeHtml(Mystery.homeText(reveal)),
+                    cta: 'Zobrazit', icon: 'eye', dismiss: { action: 'mystery-dismiss', label: 'Skrýt včerejší tajemnou otázku' } }),
+                chip: `<button type="button" data-action="mystery-reveal" title="Včerejší tajemná otázka: odpověď" class="${HOME_CHIP}">${uiArt('sova-dalekohled', CHIP_ART)}<span class="truncate">Včerejší záhada</span></button>`
             });
         }
-        if (weekendNow()) items.push({ strip: weekendBannerHtml(), chip: weekendChipHtml() });
+        const season = seasonStripView();
+        if (season) {
+            items.push({
+                strip: actionRow({ id: 'season-strip', attrs: 'data-action="season-claim" data-season-ready', art: Season.emblemHtml(season.id, 'mx-1 h-8 w-8 season-mini tiny:h-7 tiny:w-7', 'text-[1.2rem]'), title: escapeHtml(season.title), text: escapeHtml(season.text),
+                    cta: 'Vzít', icon: 'sparkles', gold: true }),
+                chip: `<button type="button" data-action="season-claim" data-season-ready data-chip class="${HOME_CHIP}">${uiArt('sezona', CHIP_ART)}<span class="truncate">Odměna Sezóny</span><span aria-hidden="true" class="h-2 w-2 shrink-0 rounded-full bg-gold-500"></span></button>`
+            });
+        }
+        const chronicle = chronicleStripView();
+        if (chronicle) {
+            items.push({
+                strip: actionRow({ id: 'chronicle-strip', wrapAttrs: `data-chronicle-strip="${escapeHtml(chronicle.week)}"`, attrs: `data-action="chronicle-open" aria-label="${escapeHtml(`Tvůj týden v kostce je hotový: ${chronicle.title}. Otevřít kroniku týdne`)}"`,
+                    art: uiArt('sova-kronika', ROW_ART), title: 'Kronika týdne', text: escapeHtml(`${chronicle.title} · ${chronicle.label}`), cta: 'Otevřít', icon: 'book-open', dismiss: { action: 'chronicle-dismiss', label: 'Skrýt kroniku týdne' } }),
+                chip: `<button type="button" data-action="chronicle-open" class="${HOME_CHIP}">${uiArt('sova-kronika', CHIP_ART)}<span class="truncate">Kronika týdne</span></button>`
+            });
+        }
+        if (Gold && Rewards && loadGold().ready > 0) {
+            items.push({
+                strip: actionRow({ id: 'gold-chest-row', attrs: 'data-action="gold-chest"', art: uiArt('zlata-truhla', ROW_ART), title: 'Zlatá truhla', text: 'Čeká za pět zlatých střípků', cta: 'Otevřít', icon: 'sparkles', gold: true }),
+                chip: `<button type="button" data-action="gold-chest" class="${HOME_CHIP}">${uiArt('zlata-truhla', CHIP_ART)}<span class="truncate">Zlatá truhla</span><span aria-hidden="true" class="h-2 w-2 shrink-0 rounded-full bg-gold-500"></span></button>`
+            });
+        }
+        const weekend = weekendNow();
+        if (weekend) {
+            const label = escapeHtml(Weekend.bannerLabel(weekend, { topicTitle: (id) => TOPIC_BY_ID[id].title }));
+            const attrs = `data-action="weekend-play" data-topic="${escapeHtml(weekend.topic)}" data-weekend-state="${weekend.state}" aria-label="${label}" title="${label}"`;
+            items.push({
+                strip: actionRow({ id: 'weekend-banner', attrs, art: topicIcon(TOPIC_BY_ID[weekend.topic], ROW_ART), title: escapeHtml(weekend.title), text: escapeHtml(Weekend.rowText(weekend)), cta: 'Hrát' }),
+                chip: `<button type="button" id="weekend-chip" ${attrs} class="${HOME_CHIP}">${topicIcon(TOPIC_BY_ID[weekend.topic], CHIP_ART)}<span class="truncate">${escapeHtml(weekend.title)}</span><span class="shrink-0 rounded-md bg-gold-400 px-1 py-0.5 text-[10px] font-black leading-none text-brand-950">2×</span></button>`
+            });
+        }
         if (!items.length) return '';
         return `
             <div id="dnes-extras" data-mode="strips" class="flex shrink-0 flex-col">
@@ -3080,7 +3159,7 @@
     // ----- Záložka Hrát: volná hra podle chuti (Mix, 14 témat, režimy) -----
     // Rozehraná otázka tréninku (Domů uprostřed otázky, obnovená relace) jde dohrát tlačítkem vedle Mixu
     const practiceOpen = () => Boolean(current && mode === 'practice' && round && !round.answered && TOPIC_BY_ID[current.topic]);
-    const MODE_TILE = 'relative flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl bg-white px-0.5 py-1.5 text-center shadow-sm ring-1 ring-slate-200/80 transition-transform active:scale-[0.97] short:min-h-[3.75rem] short:gap-0.5 tiny:min-h-[3.25rem] dark:bg-slate-800/80 dark:ring-slate-700/70';
+    const MODE_TILE = `relative flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-1 ${CARD_R} ${SURFACE} px-0.5 py-1.5 text-center transition-transform active:scale-[0.97] short:min-h-[3.75rem] short:gap-0.5 tiny:min-h-[3.25rem]`;
     const modeTile = (attrs, art, title, extra = '') => `<button type="button" ${attrs} class="${MODE_TILE}">${art}<span class="block max-w-full truncate text-[12px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span>${extra}</button>`;
     const renderHrat = () => {
         // Dlouhý název („Výtvarné umění“) má na dlaždici krátký název tématu (shortTitle), celý zůstane v popisku pro čtečku
@@ -3095,9 +3174,9 @@
             const doubled = weekend && weekend.state === 'active' && weekend.topic === topic.id;
             const name = topic.shortTitle || topic.title;
             return `
-                <button type="button" data-action="play-topic" data-topic="${topic.id}" title="${escapeHtml(scope ? `${topic.title} · ${scope}` : topic.title)}" class="relative flex min-h-[4.25rem] min-w-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-2xl bg-gradient-to-br p-1 text-center text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] short:min-h-[3.4rem] short:gap-0.5 short:p-0.5 tiny:min-h-[2.9rem] ${styleOf(topic).tile}">
+                <button type="button" data-action="play-topic" data-topic="${topic.id}" title="${escapeHtml(scope ? `${topic.title} · ${scope}` : topic.title)}" class="relative flex min-h-[4.25rem] min-w-0 flex-col items-center justify-center gap-1 overflow-hidden ${CARD_R} bg-gradient-to-br p-1 text-center text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] max-[379px]:px-0.5 short:min-h-[3.4rem] short:gap-0.5 short:p-0.5 tiny:min-h-[2.9rem] ${styleOf(topic).tile}">
                     ${topicArt(topic) ? topicIcon(topic, 'h-10 w-10 short:h-8 short:w-8 tiny:h-7 tiny:w-7') : `<i data-lucide="${topic.icon}" class="h-[1.625rem] w-[1.625rem]"></i>`}
-                    <span class="block max-w-full truncate ${name.length > 10 ? 'text-[10.5px]' : 'text-[12px]'} font-black leading-tight tracking-tight short:leading-none">${tileTitle(topic)}</span>
+                    <span class="block max-w-full truncate ${name.length > 12 ? 'text-[10.5px] max-[379px]:text-[10px]' : name.length > 10 ? 'text-[10.5px]' : 'text-[12px]'} font-black leading-tight tracking-tight short:leading-none">${tileTitle(topic)}</span>
                     ${doubled ? '<span data-weekend-tile class="pointer-events-none absolute right-1 top-1 rounded-md bg-gold-400 px-1 text-[9px] font-black leading-tight text-brand-950 shadow">2× XP</span>' : ''}
                 </button>`;
         };
@@ -3117,7 +3196,7 @@
             ...(Modes ? Modes.IDS.map(id => modeTile(`data-action="mode-tile" data-mode="${id}" title="${escapeHtml(`${Modes.MODES[id].title}: ${Modes.MODES[id].tagline}`)}"`, modeBadge(id, 'h-9 w-9 short:h-8 short:w-8', 'h-5 w-5'), escapeHtml(Modes.MODES[id].title))) : []),
             ...(MapQuestion ? [modeTile('data-action="map-tile" title="Ukaž na mapě: jen otázky na mapě, zkušební režim"', uiArt('rezim-mapa', 'h-9 w-9 short:h-8 short:w-8'), 'Na mapě')] : []),
             modeTile(`data-action="open-learn" title="Učení: okruhy, atlas a chyby k zopakování" aria-label="${due ? `Učení – k procvičení: ${due}` : 'Učení'}"`, uiArt('ucit-procvicit', 'h-9 w-9 short:h-8 short:w-8'), 'Učení',
-                due ? `<span data-review-due title="K procvičení: ${due}" class="absolute right-1 top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-gold-500 px-1 text-[10px] font-black leading-none text-brand-950"><span class="sr-only">K procvičení: </span>${due}</span>` : '')
+                due ? `<span data-review-due title="K procvičení: ${due}" class="absolute right-1.5 top-1.5 ${BADGE}"><span class="sr-only">K procvičení: </span>${due}</span>` : '')
         ];
         return `
             ${mixRow}
@@ -3166,7 +3245,7 @@
         notePushHomeTab();
         if (navTab === 'postup') touchTip('progress');
         if (navTab === 'ja' && pushState === null) refreshPush();
-        appContent.innerHTML = `<div id="tab-${navTab}" data-tab-root="${tabRootKey()}" class="${tabSwitched ? 'tab-in' : 'fade-in'} ${TAB_WRAP} ${navSub ? 'h-full min-h-0' : 'min-h-full'}">${tabBody()}</div>`;
+        appContent.innerHTML = `<div id="tab-${navTab}" data-tab-root="${tabRootKey()}" class="${tabSwitched ? 'tab-in' : 'tab-first'} ${TAB_WRAP} ${navSub ? 'h-full min-h-0' : 'min-h-full'}">${tabBody()}</div>`;
         tabSwitched = false;
         afterTabPaint(appContent.firstElementChild);
         if (homeFitObserver) { homeFitObserver.disconnect(); homeFitObserver.observe(appContent.firstElementChild, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'hidden', 'src'] }); }
@@ -5479,11 +5558,13 @@
         applyProgress(document.getElementById('dialog-overlay'));
     };
     // Pruh na úvodu, když čeká odměna sezóny (místo cílů týdne; Truhla Mudrlanta má přednost)
-    const seasonStripHtml = () => {
+    // Řádek na záložce Dnes: čekající odměny Sezóny (z minulé sezóny s datem, do kdy jdou vyzvednout)
+    const seasonStripView = () => {
         const view = seasonView();
-        if (!view || !view.pending.length) return '';
+        if (!view || !view.pending.length) return null;
         const past = view.pastPending.length > 0;
-        return Season.stripHtml({ id: past ? view.past.id : view.id, count: past ? view.pastPending.length : view.pending.length, past, until: view.pastUntil });
+        const id = past ? view.past.id : view.id;
+        return { id, ...Season.stripText({ id, count: past ? view.pastPending.length : view.pending.length, past, until: view.pastUntil }) };
     };
     // --- Mudrlantova kronika (chronicle.js): týden v kostce. Denní záznamy (mudrlant.week) jsou jen v zařízení; dny před kronikou
     // doplní dnešní otázky a Kvíz dne. Pruh na úvodu (místo pruhu cílů) od neděle 18:00 do konce pondělí, jednou za týden; okno i z Mého postupu ---
@@ -5506,12 +5587,13 @@
             goal: Chronicle.nextGoal(summary, groupedTopics().flatMap(group => group.topics))
         };
     };
-    const chronicleStripHtml = () => {
-        if (!Chronicle) return '';
+    // Řádek na záložce Dnes: hotová kronika týdne (týden, titulek týdne a popisek dnů)
+    const chronicleStripView = () => {
+        if (!Chronicle) return null;
         try {
             const summary = Chronicle.stripSummary(readJson(Chronicle.KEY), chronicleLegacy());
-            return summary ? Chronicle.stripHtml(summary, Chronicle.verdict(summary, chronicleTitles()), { uiArt }) : '';
-        } catch (error) { console.error(error); return ''; }
+            return summary ? { week: summary.week, label: summary.label, title: Chronicle.verdict(summary, chronicleTitles()).title } : null;
+        } catch (error) { console.error(error); return null; }
     };
     const markChronicleSeen = (week) => writeJson(Chronicle.KEY, Chronicle.markSeen(readJson(Chronicle.KEY), week));
     const dismissChronicle = () => {
@@ -7449,7 +7531,7 @@
             : ['bg-slate-300 dark:bg-slate-600', 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'];
         const rivals = row.others.slice(0, 2).map(other => avatarHtml(other.player, 'h-7 w-7 text-sm ring-2 ring-white dark:ring-slate-800', true)).join('');
         return `
-            <button type="button" data-action="challenge-open" data-code="${escapeHtml(row.challenge_id)}" class="relative flex min-h-[2.75rem] w-full items-center gap-2 overflow-hidden rounded-xl bg-white py-1.5 pl-3.5 pr-2.5 text-left shadow-sm ring-1 ring-slate-200/70 active:scale-[0.98] dark:bg-slate-800/70 dark:ring-slate-700/70">
+            <button type="button" data-action="challenge-open" data-code="${escapeHtml(row.challenge_id)}" class="relative flex min-h-[2.75rem] w-full items-center gap-2 overflow-hidden ${CARD_R} ${SURFACE} py-1.5 pl-3.5 pr-2.5 text-left active:scale-[0.98]">
                 <span aria-hidden="true" class="absolute inset-y-0 left-0 w-1.5 ${look[0]}"></span>
                 <span class="flex shrink-0 -space-x-2">${rivals || `<span class="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:text-slate-400 dark:bg-slate-700"><i data-lucide="users" class="h-4 w-4"></i></span>`}</span>
                 <span class="min-w-0 flex-1 truncate text-[13px] font-bold text-slate-800 dark:text-slate-100">${escapeHtml(row.challenge ? challengeTopicTitle(row.challenge.topic) : '')}</span>
@@ -7460,13 +7542,13 @@
             </button>`;
     };
     const incomingRow = (invite) => `
-        <button type="button" data-action="challenge-open" data-code="${escapeHtml(invite.id)}" class="flex w-full items-center gap-2.5 rounded-2xl bg-gold-50 p-2 text-left shadow-sm ring-1 ring-gold-300/70 active:scale-[0.98] short:py-1 dark:bg-gold-900/20 dark:ring-gold-700/60">
+        <button type="button" data-action="challenge-open" data-code="${escapeHtml(invite.id)}" data-wait="challenge" data-hot class="${HOME_ROW} ${HOME_ROW_HOT} min-h-[3.5rem] short:min-h-[3.1rem] short:py-1.5">
             ${avatarHtml(invite.creator, 'h-10 w-10 text-xl short:h-9 short:w-9', true)}
             <span class="min-w-0 flex-1">
-                <span class="block truncate text-[13px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(invite.creator))} tě vyzývá</span>
-                <span class="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-slate-600 dark:text-slate-400"><span class="truncate">${escapeHtml(challengeTopicTitle(invite.topic))} · ${invite.count} otázek</span>${betBadge(invite.id)}</span>
+                <span class="${ROW_TITLE}">${escapeHtml(playerName(invite.creator))} tě vyzývá</span>
+                <span class="flex min-w-0 items-center gap-1.5 text-[12px] font-semibold leading-tight text-slate-500 max-[379px]:text-[11.5px] dark:text-slate-400"><span class="truncate">${escapeHtml(challengeTopicTitle(invite.topic))} · ${invite.count} otázek</span>${betBadge(invite.id)}</span>
             </span>
-            <span class="flex min-h-[2.5rem] shrink-0 items-center gap-1 rounded-xl bg-gold-500 px-3.5 text-[13px] font-black text-brand-950 shadow-sm"><i data-lucide="play" class="h-3.5 w-3.5"></i>Hrát</span>
+            ${ctaHtml('Hrát')}
         </button>`;
     // Rating a ligy (rating.js; počítá je databáze po dohrání výzvy proti jinému hráči). Barvy lig jsou třídy .league-* v src/input.css.
     const Rating = window.MudrlantRating;
@@ -7490,7 +7572,7 @@
         // Pod řádkem ligy pruh ligové sezóny (schéma 18): sezóna, kolik dní zbývá a další odměna
         const strip = leagueSeasonStrip();
         return `
-            <div id="league-card" class="rounded-2xl bg-white p-2 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
+            <div id="league-card" class="${CARD_R} ${SURFACE} p-2">
               <div class="flex items-center gap-2.5">
                 ${leagueBubble(progress.league, 'h-10 w-10')}
                 <div class="min-w-0 flex-1">
@@ -7800,10 +7882,10 @@
     const visibleIncoming = () => (incomingList || []).filter(invite => !(myBlocks || []).some(row => invite.creator && row.id === invite.creator.id));
     // Rychlé akce okna Výzvy: tři dlaždice (Vyzvat, Náhodný soupeř, Zadat kód) a pod nimi čip s nastavením přijímaných výzev
     // Na nízkém displeji obrázek vedle popisku a dlaždice 44 px vysoké
-    const QUICK_TILE = 'flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 text-center text-[12px] font-black leading-tight short:min-h-[2.75rem] short:flex-row short:gap-1 short:py-1 short:text-left short:text-[11.5px]';
+    const QUICK_TILE = `flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-1 ${CARD_R} px-1 py-2 text-center text-[12px] font-black leading-tight short:min-h-[2.75rem] short:flex-row short:gap-1 short:py-1 short:text-left short:text-[11.5px]`;
     // Kostky a klíč jsou vzdušnější kresby než meče u Vyzvat: obrázek je o kousek větší, místo zabere stejné (h-9, na nízkém displeji h-7)
     const QUICK_ART = 'h-11 w-11 -my-1 short:h-8 short:w-8 short:-my-1 short:-mx-1 short:shrink-0';
-    const QUICK_LIGHT = 'bg-white text-slate-800 shadow-sm ring-1 ring-slate-200/70 active:scale-95 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700/70';
+    const QUICK_LIGHT = `${SURFACE} text-slate-800 active:scale-95 dark:text-slate-100`;
     const quickActions = () => `
         <div class="flex shrink-0 flex-col gap-1.5 short:gap-1">
             <div class="grid grid-cols-3 gap-2 short:gap-1.5">
@@ -7812,13 +7894,12 @@
                 <button type="button" data-action="join-challenge" class="${QUICK_TILE} ${QUICK_LIGHT}">${uiArt('kod', QUICK_ART)}Zadat kód</button>
             </div>
             <div class="flex max-w-full items-center justify-center gap-1.5">
-                <button type="button" data-action="open-accept" title="Změnit, z jakých témat přijímám výzvy" class="flex min-h-[2.5rem] min-w-0 max-w-full items-center gap-1.5 rounded-full bg-slate-200/60 px-3 py-1 text-[11.5px] font-bold text-slate-600 active:scale-95 dark:bg-slate-800/80 dark:text-slate-300"><i data-lucide="shield-check" class="h-3.5 w-3.5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 truncate">Přijímám výzvy z: <b class="text-slate-800 dark:text-slate-100">${escapeHtml(acceptSummary())}</b></span><i data-lucide="pencil" class="h-3 w-3 shrink-0 text-brand-700 dark:text-cream"></i></button>
-                ${Bets && betsReady() ? '<button type="button" data-action="bets-help" title="Kamarádské sázky: pravidla a moje bilance" class="flex min-h-[2.5rem] shrink-0 items-center gap-1 rounded-full bg-gold-50 px-3 py-1 text-[11.5px] font-black text-brand-950 ring-1 ring-gold-300/70 active:scale-95 dark:bg-gold-900/20 dark:text-gold-200 dark:ring-gold-700/60"><img src="icons/topics/mince.webp" alt="" class="-my-1 -ml-1 h-5 w-5 object-contain">Sázky</button>' : ''}
+                <button type="button" data-action="open-accept" title="Změnit, z jakých témat přijímám výzvy" class="${CHIP_TAP} !shrink max-w-full"><i data-lucide="shield-check" class="h-4 w-4 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 truncate font-bold text-slate-500 dark:text-slate-400">Přijímám výzvy z: <b class="font-black text-slate-700 dark:text-slate-200">${escapeHtml(acceptSummary())}</b></span><i data-lucide="pencil" class="h-3.5 w-3.5 shrink-0 text-slate-400"></i></button>
+                ${Bets && betsReady() ? `<button type="button" data-action="bets-help" title="Kamarádské sázky: pravidla a moje bilance" class="${CHIP_TAP}"><img src="icons/topics/mince.webp" alt="" class="-my-1 -ml-1 h-5 w-5 object-contain">Sázky</button>` : ''}
             </div>
         </div>`;
     // Poslední výzvy: jen tři nejnovější, Zobrazit vše rozbalí zbytek
     const recentSection = (incoming) => {
-        const LABEL = 'px-1 text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
         const seen = new Set();
         const rows = myChallenges === null ? [] : [...myChallenges, ...(recentExpanded ? recentOlder.rows : [])]
             .filter(row => !incoming.some(invite => invite.id === row.challenge_id) && !seen.has(row.challenge_id) && seen.add(row.challenge_id));
@@ -7831,8 +7912,8 @@
         const body = myChallenges === null
             ? '<p class="px-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Načítám výzvy…</p>'
             : rows.length ? `<div data-recent-list class="flex flex-col gap-1.5">${(recentExpanded ? rows : rows.slice(0, 3)).map(challengeRow).join('')}${tail}</div>`
-                : `<div class="flex items-center gap-3 rounded-2xl bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">${uiArt('sova-prazdna-posta', 'h-12 w-12 -my-1')}<p class="text-sm text-slate-600 dark:text-slate-300">Zatím žádné výzvy. Založ první tlačítkem Vyzvat.</p></div>`;
-        return `<div class="flex flex-col gap-1"><div class="flex min-h-[2rem] items-center justify-between gap-2"><p class="${LABEL}">Poslední výzvy</p>${toggle}</div>${body}</div>`;
+                : `<div class="flex items-center gap-3 ${CARD_R} ${SURFACE} p-2.5">${uiArt('sova-prazdna-posta', 'h-12 w-12 -my-1')}<p class="text-sm text-slate-600 dark:text-slate-300">Zatím žádné výzvy. Založ první tlačítkem Vyzvat.</p></div>`;
+        return `<div class="flex flex-col gap-1"><div class="flex min-h-[2rem] items-center justify-between gap-2"><h2 class="${SEC_LABEL}">Poslední výzvy</h2>${toggle}</div>${body}</div>`;
     };
     // První nezodpovězená otázka rozehrané výzvy (-1 = všechny zodpovězené)
     const challengeNextIndex = (c) => { for (let i = 0; i < c.count; i++) if (!(c.results || [])[i]) return i; return -1; };
@@ -7860,7 +7941,7 @@
         <button type="button" data-action="challenge-resume" data-hot class="${WAIT_ROW}">
             ${uiArt('vyzva', 'h-10 w-10 short:h-9 short:w-9')}
             <span class="min-w-0 flex-1"><span class="${ROW_TITLE}">Rozehraná výzva</span><span class="${ROW_SUB}">${escapeHtml(resumeLabel(challenge))}</span></span>
-            ${ctaHtml(challengeNextIndex(challenge) < 0 ? 'Dokončit' : 'Hrát', CTA_GOLD)}
+            ${ctaHtml(challengeNextIndex(challenge) < 0 ? 'Dokončit' : 'Hrát dál', CTA_GOLD, challengeNextIndex(challenge) < 0 ? 'send' : 'play')}
         </button>`;
     const tournamentWaitRow = (view) => {
         const { tournament, state } = view;
@@ -7873,7 +7954,7 @@
                 ${special ? specialArt(tournament) : uiArt('turnaj', 'h-10 w-10 short:h-9 short:w-9')}
                 <span class="min-w-0 flex-1"><span class="${ROW_TITLE}">${escapeHtml(title)}${state.roundName ? ` · ${escapeHtml(state.roundName)}` : ''}</span>
                     <span class="${ROW_SUB}">${resume ? 'Rozehraný zápas čeká na dohrání' : opponent ? `Dnes hraješ proti: ${escapeHtml(playerName(opponent.player))}` : 'Dnes hraješ zápas'}</span></span>
-                ${ctaHtml(resume ? 'Pokračovat' : 'Hrát', CTA_GOLD)}
+                ${ctaHtml(resume ? 'Hrát dál' : 'Hrát', CTA_GOLD)}
             </button>`;
     };
     const waitingRows = () => {
@@ -7912,13 +7993,13 @@
             </section>`;
     };
     // Velká dlaždice (dveře do vlastního okna): obrázek, název, řádek stavu a zlatý odznak s počtem čekajících věcí
-    const BIG_TILE = 'relative flex min-h-[7.5rem] min-w-0 flex-col items-start gap-1 rounded-[1.4rem] bg-white p-3 text-left shadow-sm ring-1 ring-slate-200/80 transition-transform active:scale-[0.98] short:min-h-[6rem] short:gap-0.5 short:p-2.5 tiny:min-h-[5rem] dark:bg-slate-800/80 dark:ring-slate-700/70';
+    const BIG_TILE = `relative flex min-h-[7.5rem] min-w-0 flex-col items-start gap-1 rounded-[1.4rem] ${SURFACE} p-3 text-left transition-transform active:scale-[0.98] short:min-h-[6rem] short:gap-0.5 short:p-2.5 tiny:min-h-[5rem]`;
     const bigTile = ({ id = '', attrs, art, title, text, badge = 0 }) => `
             <button type="button" ${id ? `id="${id}" ` : ''}${attrs} class="${BIG_TILE}">
                 ${uiArt(art, 'h-11 w-11 short:h-9 short:w-9 tiny:h-8 tiny:w-8')}
                 <span class="block text-[17px] font-black leading-tight text-slate-800 short:text-[15.5px] dark:text-slate-100">${title}</span>
                 <span data-tile-text class="line-clamp-2 text-[12px] font-semibold leading-snug text-slate-500 short:text-[11.5px] short:leading-tight dark:text-slate-400">${text}</span>
-                ${badge ? `<span data-tile-badge class="absolute right-2.5 top-2.5 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-gold-400 px-1.5 text-[11.5px] font-black leading-none text-brand-950">${badge}</span>` : ''}
+                ${badge ? `<span data-tile-badge class="absolute right-2.5 top-2.5 ${BADGE}">${badge}</span>` : ''}
             </button>`;
     // Dlaždice Turnaje: co se právě děje (dnešní zápas, běžící kolo, otevřené přihlášky, hlasování o tématu)
     const tournamentTileInfo = () => {
@@ -7979,16 +8060,16 @@
     const tournamentsView = () => {
         const card = tournamentCard();
         const empty = `
-            <div data-tournament-empty class="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
+            <div data-tournament-empty class="flex items-center gap-3 ${CARD_R} ${SURFACE} p-3">
                 ${uiArt('turnaj', 'h-12 w-12 -my-1')}
-                <p class="text-sm font-semibold leading-snug text-slate-600 dark:text-slate-300">${tournamentView === null && tournamentRefreshing ? 'Načítám turnaje…' : 'Teď se žádný turnaj nehraje. Týdenní turnaj se otevírá každý týden, přihlášky najdeš tady.'}</p>
+                <p class="text-sm font-semibold leading-snug text-slate-600 dark:text-slate-300">${tournamentsMissing ? 'Turnaje tu teď nejsou k dispozici.' : tournamentView === null && tournamentRefreshing ? 'Načítám turnaje…' : 'Teď se žádný turnaj nehraje. Týdenní turnaj se otevírá každý týden, přihlášky najdeš tady.'}</p>
             </div>`;
-        const LINK = 'flex min-h-[2.75rem] min-w-0 items-center justify-center gap-2 rounded-2xl btn-3d-light bg-white px-2 text-[13px] font-black text-slate-800 dark:bg-slate-800 dark:text-slate-100';
+        const LINK = `flex min-h-[2.75rem] min-w-0 items-center justify-center gap-2 ${CARD_R} ${SURFACE} px-2 text-[13px] font-black text-slate-800 active:scale-[0.98] dark:text-slate-100`;
         return `
             <section id="tournaments-section" class="flex min-h-0 flex-1 flex-col gap-2.5 short:gap-2">
                 ${subHead('Turnaje', 'turnaj')}
                 <div data-scroll-list class="${SCROLL_PANEL}">${card || empty}</div>
-                <div class="grid shrink-0 grid-cols-2 gap-2">
+                <div class="grid shrink-0 grid-cols-2 gap-2 ${tournamentsMissing ? 'hidden' : ''}">
                     <button type="button" data-action="tournament-archive" class="${LINK}">${uiArt('archiv-turnaju', 'h-8 w-8 -my-1')}<span class="truncate">Archiv turnajů</span></button>
                     <button type="button" data-action="tournament-help" class="${LINK}"><i data-lucide="info" class="h-4 w-4 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="truncate">Jak to funguje</span></button>
                 </div>
@@ -7998,7 +8079,7 @@
         const user = signedUser();
         if (!user) {
             return `
-                <div id="souperi-login" class="my-auto flex flex-col items-center gap-3 rounded-[1.6rem] bg-white p-5 text-center shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
+                <div id="souperi-login" class="my-auto flex flex-col items-center gap-3 rounded-[1.4rem] ${SURFACE} p-5 text-center">
                     ${uiArt('sova-vyzva', 'h-28 w-28 short:h-24 short:w-24')}
                     <div><p class="text-lg font-black text-slate-800 dark:text-slate-100">Hraj s kamarády</p><p class="mt-1 text-sm leading-snug text-slate-500 dark:text-slate-400">Přihlas se, vyber si přezdívku a obrázek a vyzvi kamaráda nebo náhodného hráče. Dostanete stejné otázky a porovnáte, kdo je lepší. Čekají tu i turnaje, Dobývání a skupiny.</p></div>
                     <button type="button" data-action="auth-login" class="${PRIMARY_BUTTON}"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>
@@ -8016,7 +8097,7 @@
             <section id="souperi-tiles" aria-label="Hry s ostatními" class="grid shrink-0 grid-cols-2 gap-2.5 short:gap-2">
                 ${bigTile({ id: 'challenges-tile', attrs: 'data-action="souperi-open" data-view="vyzvy"', art: 'vyzva', title: 'Výzvy', text: escapeHtml(challenges.text), badge: challenges.badge })}
                 ${conquest ? bigTile({ id: 'conquest-card', attrs: 'data-action="conquest-open"', art: 'dobyvani', title: 'Dobývání', text: conquest.html, badge: conquest.badge }) : ''}
-                ${bigTile({ id: 'tournaments-tile', attrs: 'data-action="souperi-open" data-view="turnaje"', art: 'turnaj', title: 'Turnaje', text: escapeHtml(tournaments.text), badge: tournaments.badge })}
+                ${tournamentsMissing ? '' : bigTile({ id: 'tournaments-tile', attrs: 'data-action="souperi-open" data-view="turnaje"', art: 'turnaj', title: 'Turnaje', text: escapeHtml(tournaments.text), badge: tournaments.badge })}
                 ${GroupsUI && GroupsUI.groups() !== null ? bigTile({ id: 'groups-tile', attrs: 'data-action="groups-open"', art: 'skupiny', title: 'Skupiny', text: escapeHtml(groups.text) }) : ''}
             </section>
             ${Friends && friendRows !== null ? Friends.friendsStrip(social.friends, friendsHelpers(), Date.now(), { add: true }) : ''}`;
@@ -8333,8 +8414,9 @@
                 </div>
                 ${body}
             </div>`;
-        overlay.firstElementChild.scrollTop = scroll;
         renderIcons(overlay);
+        fitOverlay(overlay);
+        overlay.firstElementChild.scrollTop = scroll;
         if (created || retitled) {
             const focus = overlay.querySelector('[data-autofocus]') || overlay.querySelector('[data-close]');
             if (focus) focus.focus({ preventScroll: true });
@@ -9032,8 +9114,8 @@
         } catch (error) { console.error(error); }
         return count;
     };
-    const POSTUP_TILE = 'relative flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl bg-white px-1 py-1.5 text-center shadow-sm ring-1 ring-slate-200/80 transition-transform active:scale-[0.97] short:min-h-[3.75rem] tiny:min-h-[3.25rem] tiny:gap-0 tiny:py-1 dark:bg-slate-800/80 dark:ring-slate-700/70';
-    const POSTUP_READY = 'ring-2 ring-gold-400 dark:ring-gold-500';
+    const POSTUP_TILE = `relative flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-0.5 ${CARD_R} ${SURFACE} px-1 py-1.5 text-center transition-transform active:scale-[0.97] short:min-h-[3.75rem] tiny:min-h-[3.25rem] tiny:gap-0 tiny:py-1`;
+    const POSTUP_READY = '!ring-2 !ring-gold-400 dark:!ring-gold-500';
     const postupTile = ({ attrs, art, title, value, valueAttrs = '', ready = false }) => `
             <button type="button" ${attrs} class="${POSTUP_TILE}${ready ? ` ${POSTUP_READY}` : ''}">
                 ${art}
@@ -9054,7 +9136,7 @@
         const goals = badgeGoals(progress).slice(0, 2);
         const badgeRow = (goal) => {
             const reward = badgeReward(goal.badge);
-            return `<li class="flex items-center gap-2 rounded-xl bg-white px-2 py-1.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/80 dark:ring-slate-700/70" title="${escapeHtml(`${goal.badge.title}: ${goal.badge.text}${reward ? ` ${reward}` : ''}`)}">${medalHtml(goal.badge, false, 'h-8 w-8', 'h-4 w-4')}<span class="min-w-0 flex-1"><span class="flex items-baseline justify-between gap-2"><span class="truncate text-[12px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(goal.badge.title)}</span><span class="shrink-0 text-[11px] font-bold tabular-nums text-slate-500 dark:text-slate-400">${goal.value} / ${goal.badge.goal}</span></span>${reward
+            return `<li class="flex items-center gap-2 ${CARD_R} ${SURFACE} px-2.5 py-1.5" title="${escapeHtml(`${goal.badge.title}: ${goal.badge.text}${reward ? ` ${reward}` : ''}`)}">${medalHtml(goal.badge, false, 'h-8 w-8', 'h-4 w-4')}<span class="min-w-0 flex-1"><span class="flex items-baseline justify-between gap-2"><span class="truncate text-[12px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(goal.badge.title)}</span><span class="shrink-0 text-[11px] font-bold tabular-nums text-slate-500 dark:text-slate-400">${goal.value} / ${goal.badge.goal}</span></span>${reward
                 ? `<span class="block truncate text-[10px] font-bold leading-tight text-gold-800 dark:text-gold-300" data-badge-reward>${escapeHtml(reward)}</span>`
                 : `<span class="block truncate text-[10px] font-semibold leading-tight text-slate-500 dark:text-slate-400">${escapeHtml(goal.badge.text)}</span>`}${goalBar(goal.ratio)}</span></li>`;
         };
@@ -9079,7 +9161,7 @@
             <button type="button" data-open-levels class="btn-3d flex w-full shrink-0 items-center gap-3 rounded-[1.4rem] bg-gradient-to-br from-brand-700 to-brand-900 p-3 text-left text-white short:p-2.5 tiny:py-1.5" aria-label="Tabulka úrovní a titulů">
                 <span class="relative h-16 w-16 shrink-0 short:h-14 short:w-14 tiny:h-12 tiny:w-12" data-title-owl>${uiArt(titleOwlArt(level.realLevel), 'h-full w-full')}<span class="absolute -bottom-1 -right-1.5 flex h-8 w-8 flex-col items-center justify-center rounded-full ${level.prestige ? 'prestige-orb' : 'bg-gold-500 text-brand-950'} shadow-md ring-2 ring-brand-800"><span class="text-[7px] font-black uppercase leading-none">${level.prestige ? `★${level.prestige}` : 'úr.'}</span><span class="text-[13px] font-black leading-none">${level.level}</span></span></span>
                 <span class="min-w-0 flex-1">
-                    <span class="flex min-w-0 items-center gap-1.5 text-xl font-black leading-tight short:text-lg"><span class="truncate">${escapeHtml(titleForLevel(level.realLevel))}</span>${level.prestige && Prestige ? Prestige.markHtml(level.prestige, 'text-[11px]') : ''}</span>
+                    <span class="flex min-w-0 items-center gap-1.5 text-xl font-black leading-tight short:text-lg"><span data-level-title class="truncate">${escapeHtml(titleForLevel(level.realLevel))}</span>${level.prestige && Prestige ? Prestige.markHtml(level.prestige, 'text-[11px]') : ''}</span>
                     <span class="mt-1 block h-2 overflow-hidden rounded-full bg-white/25" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-400" data-progress="${Math.round(level.ratio * 100)}"></span></span>
                     <span class="mt-0.5 flex items-center justify-between gap-2 text-[11px] font-bold text-white/85"><span>${level.needed ? `${formatXp(level.into)} / ${formatXp(level.needed)} XP` : level.canPrestige ? '<span data-prestige-ready class="text-gold-300">Můžeš do prestiže ★</span>' : 'Nejvyšší úroveň'}</span>${level.needed ? `<span>do úr. ${level.level + 1}</span>` : ''}</span>
                     <span class="flex items-center justify-between gap-2 text-[11px] font-semibold leading-tight tiny:hidden"><span class="min-w-0 truncate text-gold-300">${next ? `Další titul: ${escapeHtml(next.title)} (úr. ${next.from})` : ''}</span><span data-total-xp class="shrink-0 text-white/80" title="Celkem získané XP">celkem ${formatXp(xp)} XP</span></span>
@@ -9104,7 +9186,7 @@
             const goal = nextMastery(known);
             return `
                 <li>
-                    <button type="button" data-mastery="${topic.id}" class="flex min-h-[4.25rem] w-full flex-col items-center justify-center gap-0.5 rounded-2xl bg-white px-0.5 py-1.5 shadow-sm ring-1 ring-slate-200/70 active:scale-95 dark:bg-slate-800 dark:ring-slate-700/70" title="${escapeHtml(`${topic.title}: ${known} poznaných${goal ? ` · další hvězda za ${goal}` : ' · plné mistrovství'}`)}" aria-label="${escapeHtml(topic.title)}: ${stars} z ${MASTERY_STEPS.length} hvězd, klepnutím se dozvíš víc">
+                    <button type="button" data-mastery="${topic.id}" class="flex min-h-[4.25rem] w-full flex-col items-center justify-center gap-0.5 rounded-2xl bg-white px-1 py-1.5 short:min-h-[3.6rem] short:py-1 shadow-sm ring-1 ring-slate-200/70 active:scale-95 dark:bg-slate-800 dark:ring-slate-700/70" title="${escapeHtml(`${topic.title}: ${known} poznaných${goal ? ` · další hvězda za ${goal}` : ' · plné mistrovství'}`)}" aria-label="${escapeHtml(topic.title)}: ${stars} z ${MASTERY_STEPS.length} hvězd, klepnutím se dozvíš víc">
                         ${topicIcon(topic, 'h-8 w-8', `rounded-lg p-1 ${styleOf(topic).soft}`, 'h-5 w-5')}
                         <span class="block max-w-full truncate text-[10.5px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(topic.shortTitle || topic.title)}</span>
                         <span class="flex" aria-hidden="true">${MASTERY_STEPS.map((_, index) => `<i data-lucide="star" class="h-2.5 w-2.5 ${index < stars ? 'fill-gold-500 text-gold-500' : 'text-slate-300 dark:text-slate-600'}"></i>`).join('')}</span>
@@ -9114,7 +9196,7 @@
         showDialog('Mistrovství témat', `
             <div class="flex flex-col gap-2.5" data-mastery-dialog>
                 <p class="text-[12.5px] font-semibold leading-snug text-slate-600 dark:text-slate-300">Za poznané položky tématu sbíráš hvězdy. Pět hvězd je plné mistrovství a přináší diplom.</p>
-                <ul class="grid grid-cols-4 gap-2 short:gap-1.5">${rows}</ul>
+                <ul class="grid grid-cols-3 gap-2 short:gap-1.5">${rows}</ul>
                 ${dialogBackButton()}
             </div>`, { onClick: (event) => {
             const mastery = event.target.closest('[data-mastery]');
@@ -9154,7 +9236,7 @@
         const level = prestigeView();
         const league = user && Rating && myRating ? Rating.leagueFor(myRating.rating) : null;
         const card = `
-            <div id="ja-card" class="flex shrink-0 items-center gap-3 rounded-[1.4rem] bg-white p-3 shadow-sm ring-1 ring-slate-200/80 short:p-2.5 dark:bg-slate-800/80 dark:ring-slate-700/70">
+            <div id="ja-card" class="flex shrink-0 items-center gap-3 rounded-[1.4rem] ${SURFACE} p-3 short:p-2.5">
                 ${profile ? avatarHtml(profile, 'h-16 w-16 text-4xl short:h-14 short:w-14 short:text-3xl') : owlLogo('shrink-0', 'h-16 w-auto drop-shadow-md short:h-14')}
                 <div class="min-w-0 flex-1">
                     <p data-ja-name class="truncate text-xl font-black leading-tight text-slate-800 short:text-lg dark:text-slate-100">${user ? escapeHtml(playerName(profile)) : 'Hraješ bez účtu'}</p>
@@ -10614,7 +10696,7 @@
         const view = quizHomeView();
         const tile = DailyQuiz.homeTile(view);
         return specialTile({ id: 'quiz-card', action: 'quiz-open', art: 'stopky', title: 'Kvíz dne', text: tile.text, label: tile.label, dot: tile.fresh ? 'data-quiz-new' : '', attrs: `data-quiz-status="${view.status}"`,
-            done: view.status === 'done', cta: view.status === 'progress' ? 'Pokračovat' : 'Hrát' });
+            done: view.status === 'done', cta: view.status === 'progress' ? 'Hrát dál' : 'Hrát' });
     };
     // Řádky dnešních výzev se překreslují společně (zvýrazněný řádek a počet hotových závisí na všech)
     const paintQuizCard = () => paintTab('dnes');
@@ -10970,10 +11052,6 @@
         return specialTile({ id: 'mystery-card', action: 'mystery-open', art: 'sova-dalekohled', title: 'Tajemná otázka', text, label: `Tajemná otázka dne: ${text}`, dot: fresh ? 'data-mystery-new' : '', dotShown: true,
             attrs: `data-mystery-kind="today" data-mystery-status="${view.status || ''}"`, textAttr: 'data-mystery-text', done: over, cta: 'Hádat', doneIcon: view.status === 'failed' ? 'moon' : 'circle-check' });
     };
-    const mysteryRevealCard = () => {
-        const view = Mystery ? mysteryRevealView() : null;
-        return view ? Mystery.homeCardHtml(view) : '';
-    };
     const paintMysteryCard = () => paintTab('dnes');
     // Statistiky včerejška pro kartu na úvodu (jednou za den)
     const refreshMysteryReveal = async () => {
@@ -11307,7 +11385,7 @@
         // Portrét bosse se nepřebarví podle obleku Mudrlanta (data-keep, look-robes.js)
         return specialTile({ id: 'boss-card', action: 'boss-open', art: tile.art, title: 'Boss týdne', text: status === 'out' ? `${tile.text} · pokusy došly` : tile.text, label: tile.label, dot: tile.fresh ? 'data-boss-new' : '',
             attrs: `data-boss-status="${status}" data-boss-stage="${tile.stage}"${tile.standIn ? ' data-boss-standin' : ''}`, extra: bar,
-            done: status === 'defeated' || status === 'out', doneIcon: status === 'defeated' ? 'circle-check' : 'moon', cta: status === 'open' ? 'Pokračovat' : 'Souboj' }).replace('<img src=', '<img data-keep src=');
+            done: status === 'defeated' || status === 'out', doneIcon: status === 'defeated' ? 'circle-check' : 'moon', cta: status === 'open' ? 'Hrát dál' : 'Souboj' }).replace('<img src=', '<img data-keep src=');
     };
     const paintBossCard = () => paintTab('dnes');
     const bossCommunity = (week) => Boss.communityHtml({
@@ -12074,6 +12152,7 @@
     const tourDialogTitle = (view) => view && Tournament.isSpecial(view.tournament) ? SPECIAL_DIALOG : TOUR_DIALOG;
     const tourDialogOpen = () => { const overlay = document.getElementById('dialog-overlay'); return Boolean(overlay && (overlay.dataset.title === TOUR_DIALOG || overlay.dataset.title === SPECIAL_DIALOG)); };
     let tournamentView = null; // null = turnaje nejsou (databáze je nemá nebo se ještě nenačetly); jinak [{ tournament, entries, matches, state }]
+    let tournamentsMissing = false; // databáze turnaje nemá (starší schéma): dlaždice Turnaje na záložce Soupeři se neukáže
     let tournamentRefreshing = false;
     let tournamentAgain = null;
     let tournamentTickAt = 0;
@@ -12235,15 +12314,6 @@
     const weekendNow = () => {
         const weekend = Weekend ? Weekend.at(new Date()) : null;
         return weekend && TOPIC_BY_ID[weekend.topic] ? weekend : null;
-    };
-    const weekendBannerHtml = () => {
-        const weekend = weekendNow();
-        return weekend ? Weekend.bannerHtml(weekend, { topicIcon: (id, cls) => topicIcon(TOPIC_BY_ID[id], cls), topicTitle: (id) => TOPIC_BY_ID[id].title }) : '';
-    };
-    // Na nízkém displeji malý čip vedle cílů týdne místo pruhu
-    const weekendChipHtml = () => {
-        const weekend = weekendNow();
-        return weekend ? Weekend.chipHtml(weekend, { topicIcon: (id, cls) => topicIcon(TOPIC_BY_ID[id], cls), topicTitle: (id) => TOPIC_BY_ID[id].title }) : '';
     };
     // XP navíc za odpověď z tématu běžícího tematického víkendu (řádek do rozpisu XP), jinak null
     const weekendXpPart = (topicId, baseXp) => {
@@ -12692,11 +12762,12 @@
             if (force || Date.now() - tournamentTickAt > 30000) {
                 const ticked = await Social.tournamentTick();
                 tournamentTickAt = Date.now();
-                if (ticked === null) { tournamentView = null; paintChallenges(); return; }
+                if (ticked === null) { tournamentView = null; tournamentsMissing = true; paintChallenges(); return; }
             }
             const list = await Social.getTournaments();
             if (!signedUser() || signedUser().id !== user.id) return;
-            if (list === null) { tournamentView = null; paintChallenges(); return; }
+            if (list === null) { tournamentView = null; tournamentsMissing = true; paintChallenges(); return; }
+            tournamentsMissing = false;
             await showTournamentNotices(user).catch(() => {});
             await updateTournamentOffer(user, list).catch(() => {});
             if (!force && navTab !== 'souperi') return;
@@ -12797,7 +12868,7 @@
         const title = special ? `${tournament.title}${state.phase === 'running' && state.roundName ? ` · ${state.roundName}` : state.phase === 'finished' ? ' · skončil' : ''}`
             : state.phase === 'running' ? `Běží${state.roundName ? ` · ${state.roundName}` : ''}` : state.phase === 'finished' ? 'Poslední turnaj' : 'Turnaj';
         const playing = state.step === 'play' || state.step === 'resume';
-        const play = playing ? `<button type="button" data-action="${state.step === 'resume' ? 'tournament-resume' : 'tournament-play'}" data-tid="${id}" class="flex shrink-0 items-center gap-1.5 rounded-2xl btn-3d bg-gradient-to-b from-gold-400 to-gold-600 px-4 py-2.5 text-[14px] font-black text-brand-950"><i data-lucide="play" class="h-4 w-4"></i>${state.step === 'resume' ? 'Pokračovat' : 'Hrát'}</button>` : '';
+        const play = playing ? `<button type="button" data-action="${state.step === 'resume' ? 'tournament-resume' : 'tournament-play'}" data-tid="${id}" data-cta class="${CTA_GOLD} active:translate-y-px">${ctaInner(state.step === 'resume' ? 'Hrát dál' : 'Hrát')}</button>` : '';
         const bracket = state.phase === 'finished' ? ['award', 'Výsledky'] : ['git-branch', 'Pavouk'];
         // S velkým tlačítkem Hrát je pavouk jen malá ikona, jinak ikona s popiskem
         const open = `<button type="button" data-action="tournament-open" data-tid="${id}" ${playing ? `aria-label="${bracket[1]}" title="${bracket[1]}"` : ''} class="${TOUR_SMALL} ${playing ? 'h-10 w-10' : 'px-2.5 py-2'}"><i data-lucide="${bracket[0]}" class="h-4 w-4"></i>${playing ? '' : bracket[1]}</button>`;
@@ -12873,7 +12944,7 @@
         // S ohlášeným nebo rozehraným speciálním turnajem (nebo jen s hlasováním) je to karta „Turnaje“, jinak „Týdenní turnaj“
         const heading = !views.length || views.some(view => Tournament.isSpecial(view.tournament)) ? 'Turnaje' : 'Týdenní turnaj';
         return `
-            <div id="tournament-card" class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gold-100 via-gold-50 to-emerald-100 p-2.5 shadow-md ring-1 ring-gold-300/80 dark:from-gold-900/50 dark:via-slate-800 dark:to-emerald-900/40 dark:ring-gold-700/60 ${invite ? 'tour-glow' : ''}">
+            <div id="tournament-card" class="relative overflow-hidden ${CARD_R} bg-gradient-to-br from-gold-100 via-gold-50 to-emerald-100 p-2.5 shadow-md ring-1 ring-gold-300/80 dark:from-gold-900/50 dark:via-slate-800 dark:to-emerald-900/40 dark:ring-gold-700/60 ${invite ? 'tour-glow' : ''}">
                 <div class="relative mb-1.5 flex items-center justify-between gap-2">
                     <p class="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-gold-800 dark:text-gold-200"><i data-lucide="trophy" class="h-3.5 w-3.5"></i>${heading}</p>
                 </div>

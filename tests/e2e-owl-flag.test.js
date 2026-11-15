@@ -231,7 +231,7 @@ test('vlajka státu na vlaječce sovy', { skip: !chromium && 'Playwright není n
         };
         const login = { 'mudrlant.auth': JSON.stringify({ access_token: 'tok-u2', refresh_token: 'r', expires_at: 4102444800, user: { id: 'u-2', email: 'x@example.com', name: 'Petr' } }) };
         const { context, tab, problems } = await open({ backend, extra: { ...login, 'mudrlant.look': JSON.stringify({ robe: 'modra', acc: { hand: { id: 'vlajka', color: 'original', flag: 'q101472' } } }), 'mudrlant.progress': JSON.stringify({ xp: 5000, counters: {}, badges: { 'zbehly-vlajky': '2026-11-01' } }) } });
-        await nav.go(tab, 'souperi');
+        await nav.challenges(tab);
         await tab.waitForSelector('#challenges-section [data-player-id="u-1"] [data-owl-flag-img]');
         await tab.waitForFunction(() => { const image = document.querySelector('#challenges-section [data-player-id="u-1"] [data-owl-flag-img]'); return image && image.complete && image.naturalWidth > 0; });
         await tab.waitForFunction(() => { const box = document.querySelector('#challenges-section [data-player-id="u-1"] .owl-flag'); return box && getComputedStyle(box).opacity === '1'; });

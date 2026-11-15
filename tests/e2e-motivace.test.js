@@ -112,19 +112,27 @@ test('motivace: tematický víkend, prestiž, pozvi kamarády, reakce a efekty, 
     const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
     t.after(() => browser.close());
 
-    await t.test('úvod o tematickém víkendu: pruh na 390×780, čip vedle cílů na 360×640, štítek 2× XP; bez posouvání', async () => {
+    await t.test('tematický víkend: pruh (nebo čip, když se nevejde) na záložce Dnes, štítek 2× XP na záložce Hrát; bez posouvání', async () => {
         for (const [viewport, colorScheme, name] of [[{ width: 390, height: 780 }, 'light', 'vikend-390'], [{ width: 360, height: 640 }, 'light', 'vikend-360'], [{ width: 360, height: 640 }, 'dark', 'vikend-360-tmavy']]) {
             const { context, tab, log } = await setup(browser, progress(3000), { viewport, colorScheme, now: WEEKEND });
             await tab.goto(`${ORIGIN}/`);
             await waitForHome(tab);
             await tab.waitForTimeout(400);
-            assert.equal(await tab.locator('[data-weekend-tile]').count(), 1, 'štítek na dlaždici Filmu');
-            const label = await tab.getAttribute(viewport.height > 700 ? '#weekend-banner' : '#weekend-chip', 'aria-label');
+            // Záložka Dnes: víkend je mezi příležitostnými pruhy, a to právě jednou: jako pruh, když se vejde (390×780 vždy), jinak jako čip
+            assert.equal(await tab.locator('#dnes-extras [data-action="weekend-play"]').count(), 1, 'víkend je na záložce Dnes právě jednou');
+            if (viewport.height > 700) assert.equal(await visible(tab, '#weekend-banner'), true, 'na 390×780 jako pruh');
+            const label = await tab.getAttribute('#dnes-extras #weekend-banner, #dnes-extras #weekend-chip', 'aria-label');
             assert.match(label, /Víkend filmu: do neděle 24:00 dvojnásobek XP za otázky z tématu Film/);
-            if (viewport.height < 700) { assert.equal(await visible(tab, '#weekend-chip'), true); assert.equal(await visible(tab, '#weekend-banner'), false); }
-            const size = await fits(tab);
-            assert.ok(size.page <= 0 && size.wide <= 0 && size.content <= 1, `${name}: ${JSON.stringify(size)}`);
+            let size = await fits(tab);
+            assert.ok(size.page <= 0 && size.wide <= 0 && size.content <= 0, `${name}: ${JSON.stringify(size)}`);
             await shot(tab, name);
+            // Záložka Hrát: štítek 2× XP na dlaždici Filmu
+            await nav.go(tab, 'hrat');
+            assert.equal(await tab.locator('[data-action="play-topic"][data-topic="film"] [data-weekend-tile]').count(), 1, 'štítek na dlaždici Filmu');
+            assert.equal(await tab.locator('[data-weekend-tile]').count(), 1);
+            size = await fits(tab);
+            assert.ok(size.page <= 0 && size.wide <= 0 && size.content <= 0, `${name} (Hrát): ${JSON.stringify(size)}`);
+            await shot(tab, `${name}-hrat`);
             assert.deepEqual(log.errors, []);
             assert.deepEqual(log.csp, []);
             await context.close();
@@ -134,6 +142,8 @@ test('motivace: tematický víkend, prestiž, pozvi kamarády, reakce a efekty, 
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
         assert.equal(await tab.locator('#weekend-banner, #weekend-chip, [data-weekend-tile]').count(), 0);
+        await nav.go(tab, 'hrat');
+        assert.equal(await tab.locator('[data-weekend-tile]').count(), 0);
         await context.close();
     });
 

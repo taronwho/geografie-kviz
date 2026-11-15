@@ -68,7 +68,6 @@ test('kronika týdne: pruh, příběh, sdílení, skrytí a Můj postup', { skip
             sessionStorage.setItem('seeded', '1');
             localStorage.setItem('mudrlant.account', JSON.stringify('host'));
             localStorage.setItem('mudrlant.variant', 'choices');
-            localStorage.setItem('mudrlant.homeTab', JSON.stringify('single'));
             localStorage.setItem('mudrlant.tutorial', JSON.stringify({ how: 'done' }));
             localStorage.setItem('mudrlant.tips', JSON.stringify({ off: true }));
             for (const [key, value] of Object.entries(data)) localStorage.setItem(key, JSON.stringify(value));

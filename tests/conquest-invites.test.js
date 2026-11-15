@@ -1,5 +1,5 @@
 // Pozvánky přátel do Dobývání (blok 24): vykreslení okna Pozvat přátele, řádku ve formuláři Založit hru, „Pozváno“ v lobby, karet pozvánek
-// v Mých hrách, odznaku na záložce a karty na Více hráčů; texty bez rodu a bez inline stylů (CSP); tip Mudrlanta; blok 24 ve schema.sql
+// v Mých hrách, odznaku na záložce a řádku Čeká na tebe na záložce Soupeři; texty bez rodu a bez inline stylů (CSP); tip Mudrlanta; blok 24 ve schema.sql
 // a volání v social.js (pozvat, moje pozvánky, odmítnout; databáze bez pozvánek Dobývání nevypne).
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -116,7 +116,7 @@ test('Moje hry: pozvánky od přátel nahoře (kdo zve, mapa, délka, obsazenost
     assert.doesNotMatch(C.hubHtml({ tab: 'mine', body: '' }), /data-cq-invite-count/);
 });
 
-test('karta na Více hráčů: pozvánka od přítele s Přidat se; s rozehranou hrou proužek pod ní; víc pozvánek +N', () => {
+test('řádek Dobývání (Čeká na tebe): pozvánka od přítele s Přidat se; s rozehranou hrou proužek pod ní; víc pozvánek +N', () => {
     const one = C.homeCardHtml({ games: [], invites: [invite()], maps, avatar });
     clean(one, 'karta s pozvánkou');
     assert.match(text(one), /Dobývání 1 Pozvánka od Jana Nováková Evropa · 3 dny Přidat se$/);

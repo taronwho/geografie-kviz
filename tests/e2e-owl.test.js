@@ -237,6 +237,7 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
 
         // Mistrovství tématu: řádek looku pod sadou; Vlajky bez dvou kusů, Historie celá s tlačítkem Obléknout celou sadu
         await tab.evaluate(() => document.getElementById('status-badge').click());
+        await tab.click('[data-open-mastery-all]');
         await tab.waitForSelector('[data-mastery="vlajky"]');
         await tab.click('[data-mastery="vlajky"]');
         await tab.waitForSelector('[data-mastery-look="missing"]');
@@ -265,8 +266,11 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
 
         // Album sbírky → Doplňky: Sady témat (14 looků), Historie nošená, Zeměpis celý; klepnutí vede do Mistrovství a zpět do alba
         await tab.click('[data-dialog-back]');
-        await tab.waitForSelector('[data-rewards-info="album"]');
-        await tab.click('[data-rewards-info="album"]');
+        // Zpět v okně Mistrovství témat; křížek vrátí na záložku Postup, kde je dlaždice Album
+        await tab.waitForSelector('[data-mastery-dialog]');
+        await tab.keyboard.press('Escape');
+        await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
+        await tab.click('#app-content [data-rewards-info="album"]');
         await tab.click('[data-album-tab="accessories"]');
         await tab.waitForSelector('[data-album-looks]');
         assert.equal(await tab.locator('[data-album-look]').count(), 14);
@@ -300,6 +304,7 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         await shot(small.tab, 'look-nastaveni-360.png');
         await small.tab.click('#settings-overlay [data-close]');
         await small.tab.evaluate(() => document.getElementById('status-badge').click());
+        await small.tab.click('[data-open-mastery-all]');
         await small.tab.click('[data-mastery="historie"]');
         await small.tab.waitForSelector('[data-wear-set="historie"]');
         const over = await small.tab.evaluate(() => { const box = document.querySelector('#dialog-overlay > div'); return box.scrollHeight - box.clientHeight; });

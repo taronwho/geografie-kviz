@@ -1281,18 +1281,21 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         await context.close();
     });
 
-    await t.test('starší databáze bez turnajů: karta se neukáže a nic nespadne', async () => {
+    await t.test('starší databáze bez turnajů: karta ani dlaždice Turnaje se neukážou a nic nespadne', async () => {
         const db = newDb();
         db.missing = true;
         const { context, tab, log } = await start(db);
-        await tab.waitForSelector('[data-action="new-challenge"]');
-        await tab.waitForTimeout(500);
+        // Okno Turnaje (zapamatované z dřívějška): jen věta, že turnaje nejsou; bez karty, archivu a nápovědy
+        await tab.waitForFunction(() => /Turnaje tu teď nejsou k dispozici/.test((document.querySelector('[data-tournament-empty]') || { textContent: '' }).textContent));
         assert.equal(await tab.locator('#tournament-card').count(), 0);
         assert.equal(await tab.locator('#tournament-notices').count(), 0);
-        assert.equal(await tab.locator('[data-action="tournament-help"]').count(), 0);
-        // Přepnutí záložek a návrat domů dál funguje
+        assert.equal(await tab.locator('[data-action="tournament-help"]:visible, [data-action="tournament-archive"]:visible').count(), 0);
+        // Záložka Soupeři je bez dlaždice Turnaje; přepnutí záložek a okno Výzvy dál fungují
         await nav.go(tab, 'dnes');
         await nav.go(tab, 'souperi');
+        await tab.waitForSelector('#souperi-tiles #challenges-tile');
+        assert.equal(await tab.locator('#tournaments-tile').count(), 0);
+        await nav.challenges(tab);
         await tab.waitForSelector('[data-action="new-challenge"]');
         assert.equal(await tab.locator('#tournament-card').count(), 0);
         assert.deepEqual(log.errors, []);
@@ -1695,6 +1698,7 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
             await tab.keyboard.press('Escape');
             // Nová výzva: způsob odpovídání se nevybírá (psaní jen ve hře pro jednoho hráče)
             if (width === 360) {
+                await nav.challenges(tab);
                 await tab.click('#challenges-section [data-action="new-challenge"]');
                 await tab.click('[data-ch-open="settings"]');
                 assert.equal(await tab.locator('[data-ch-variant]').count(), 0);

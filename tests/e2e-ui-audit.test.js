@@ -207,32 +207,47 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
             await check(tab, 'učení', scheme);
 
             await tab.click('#btn-home');
-            await tab.waitForSelector('[data-action="play-topic"][data-topic="zemepis"]');
+            await nav.waitForHome(tab);
 
-            // Můj postup: úroveň, nejbližší odznaky s odměnou, mistrovství témat (vysvětlení se vejde bez posouvání), úrovně a všechny odznaky
+            // Záložky Hrát a Já
+            await nav.go(tab, 'hrat');
+            await check(tab, 'záložka Hrát', scheme);
+            await fitsScreen(tab, 'záložka Hrát', scheme);
+            await nav.go(tab, 'ja');
+            await check(tab, 'záložka Já', scheme);
+            await fitsScreen(tab, 'záložka Já', scheme);
+
+            // Záložka Postup (klepnutí na úroveň v hlavičce): úroveň, cíle, dlaždice; Mistrovství témat (vysvětlení se vejde bez posouvání), úrovně a všechny odznaky
             await tab.click('#status-badge');
-            await tab.waitForSelector('[data-open-levels]');
-            await check(tab, 'můj postup', scheme);
+            await tab.waitForSelector('#app-content [data-open-levels]');
+            assert.equal(await nav.currentTab(tab), 'postup');
+            await check(tab, 'záložka Postup', scheme);
+            await fitsScreen(tab, 'záložka Postup', scheme);
+            await tab.click('[data-open-mastery-all]');
+            await tab.waitForSelector('[data-mastery-dialog] [data-mastery="zemepis"]');
+            await check(tab, 'mistrovství témat', scheme);
             await tab.click('[data-mastery="zemepis"]');
             await tab.waitForSelector('[data-mastery-info]');
             await check(tab, 'mistrovství tématu', scheme);
             const fits = await tab.evaluate(() => { const box = document.getElementById('dialog-overlay').firstElementChild; return { scroll: box.scrollHeight, client: box.clientHeight }; });
             assert.ok(fits.scroll <= fits.client + 1, `${scheme}: vysvětlení mistrovství se vejde bez posouvání (${fits.scroll} > ${fits.client})`);
+            // Zpět na Mistrovství témat a křížkem zpět na záložku Postup
             await tab.click('[data-dialog-back]');
+            await tab.waitForSelector('[data-mastery-dialog]');
+            await tab.keyboard.press('Escape');
+            await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
             await tab.click('[data-open-levels]');
             await tab.waitForSelector('[data-title-row]');
             await check(tab, 'úrovně a tituly', scheme);
-            // Escape vrátí na Můj postup, odkud tabulka vedla
-            await tab.keyboard.press('Escape');
-            await tab.waitForSelector('#dialog-overlay [data-open-badges]');
-            await tab.click('[data-open-badges]');
-            await tab.click('[data-badge="zbehly-zemepis"]');
-            await check(tab, 'všechny odznaky', scheme);
-            // Odznaky → Můj postup → zavřeno
-            await tab.keyboard.press('Escape');
-            await tab.waitForSelector('#dialog-overlay [data-progress-dialog]');
+            // Escape okno zavře: jsme zpět na záložce Postup, odkud tabulka vedla
             await tab.keyboard.press('Escape');
             await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
+            await tab.click('#app-content [data-open-badges]');
+            await tab.click('[data-badge="zbehly-zemepis"]');
+            await check(tab, 'všechny odznaky', scheme);
+            await tab.keyboard.press('Escape');
+            await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
+            assert.equal(await nav.currentTab(tab), 'postup');
 
             await nav.topic(tab, 'zemepis', { play: false });
             await tab.waitForSelector('#play-chooser [data-chooser-play]');
@@ -243,17 +258,19 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
         });
     }
 
-    // Hlavička se zajímavostí dne: sova (s žárovkou) otevře zajímavost, úroveň vedle ní Můj postup – i na 360 px,
-    // kde se název Mudrlant nevejde (vidět je jen „Úr. 1“ s pruhem); plocha úrovně aspoň 40 px
+    // Hlavička se zajímavostí dne: sova (s žárovkou) otevře zajímavost, úroveň vedle ní záložku Postup – i na 360 px
+    // (název Mudrlant i „Úr. 1“ s pruhem jsou vidět celé); plocha úrovně aspoň 40 px
     for (const [viewport, scheme] of [[{ width: 360, height: 640 }, 'light'], [{ width: 360, height: 640 }, 'dark'], [{ width: 390, height: 780 }, 'light'], [{ width: 390, height: 780 }, 'dark']]) {
-        await t.test(`hlavička: zajímavost i můj postup (${viewport.width}×${viewport.height}, ${scheme})`, async () => {
+        await t.test(`hlavička: zajímavost i záložka Postup (${viewport.width}×${viewport.height}, ${scheme})`, async () => {
             const fact = { date: '2026-10-16', year: 1922, title: 'Objev hrobky Tutanchamona', text: 'V roce 1922 objevil Howard Carter vchod do hrobky faraona Tutanchamona.', url: 'https://cs.wikipedia.org/wiki/Tutanchamon', page: 'Tutanchamon', source: 'Wikipedie' };
             const { context, tab, problems } = await open(scheme, { viewport, fact });
             await tab.waitForSelector('#fact-hint:not(.hidden)');
             const scene = `hlavička ${viewport.width} ${scheme}`;
             assert.equal(await tab.isVisible('#status-text'), true, `${scene}: úroveň vedle sovy je vidět`);
             assert.match(await tab.textContent('#status-text'), /Úr\. 1/);
-            if (viewport.width <= 370) assert.equal(await tab.isVisible('#status-text > span:first-child'), false, `${scene}: název se na úzký displej nevejde`);
+            // Na hlavních obrazovkách jsou vpravo jen čipy a obrázek hráče (tlačítka Domů, Procvičovat a Učení až při hře), takže se název vejde i na 360 px
+            assert.equal(await tab.isVisible('#status-text > span:first-child'), true, `${scene}: název Mudrlant je vidět`);
+            assert.equal(await tab.locator('#btn-home:visible, #btn-practice:visible, #btn-learn:visible').count(), 0, `${scene}: tlačítka hry v hlavičce hlavní obrazovky nejsou`);
             // Plocha, která vede do Mého postupu (tlačítko bez sovy), je aspoň 40 × 40 px a nic ji nepřekrývá
             const area = await tab.evaluate(() => {
                 const badge = document.getElementById('status-badge').getBoundingClientRect();
@@ -272,14 +289,16 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
             await tab.keyboard.press('Escape');
             await tab.waitForSelector('#fact-overlay', { state: 'detached' });
             await tab.click('#status-text');
-            await tab.waitForSelector('[data-open-levels]');
-            await check(tab, `${scene}: můj postup`, scheme);
-            // Karta s úrovní a titulem má sovu titulu (místo kolečka úrovně, úroveň je štítek na sově) a nenaroste: okno se kvůli ní
-            // nenaroste (nejvýš 106 px; Můj postup je kompaktní a vejde se bez posouvání, viz tests/e2e-rewards.test.js)
+            await tab.waitForSelector('#app-content [data-open-levels]');
+            assert.equal(await nav.currentTab(tab), 'postup');
+            await check(tab, `${scene}: záložka Postup`, scheme);
+            await fitsScreen(tab, `${scene}: záložka Postup`, scheme);
+            // Karta s úrovní a titulem má sovu titulu (místo kolečka úrovně, úroveň je štítek na sově) a nenaroste
+            // (nejvýš 106 px; záložka Postup je kompaktní a vejde se bez posouvání, viz tests/e2e-rewards.test.js)
             const card = await tab.evaluate(() => {
                 const box = document.querySelector('[data-open-levels]').getBoundingClientRect();
                 const owl = document.querySelector('[data-open-levels] [data-title-owl] img');
-                const title = document.querySelector('[data-open-levels] .text-lg');
+                const title = document.querySelector('[data-open-levels] [data-level-title]');
                 return { height: box.height, owl: owl && owl.getAttribute('src'), owlHeight: owl && owl.getBoundingClientRect().height, titleLines: Math.round(title.getBoundingClientRect().height / parseFloat(getComputedStyle(title).lineHeight)) };
             });
             assert.ok(card.height <= 106.5, `${scene}: karta úrovně ${card.height} px`);
@@ -291,58 +310,77 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
         });
     }
 
-    // Úvod (záložka Jeden hráč) se vejde bez posouvání i na nízkém telefonu 360×640: tam je rozvržení kompaktní (varianta short:
-    // v tailwind.config.js) – dnešní otázky jen jako ikony se stavem v odznaku, menší dlaždice témat; na vyšších displejích zůstává
-    // popisek stavu („čeká“) a velké ikony. Dlaždice mají aspoň 40 px, ikony témat aspoň 32 px a popisky aspoň 10 px.
-    // Úzký vyšší telefon (360×800, často s aplikací až k okrajům): běžné rozložení by se nevešlo, úvod zapne zhuštění sám (fit-short).
+    // Všech pět záložek spodní lišty se vejde bez posouvání i na nízkém telefonu 360×640: tam je rozvržení kompaktní (varianta short:
+    // v tailwind.config.js, případně zhuštění fit-short, které si záložka zapne sama, když se nevejde). Řádky dnešních výzev a dlaždice
+    // témat mají aspoň 40 px, ikony témat aspoň 32 px a popisky aspoň 10 px; tlačítka spodní lišty aspoň 44 px.
     for (const [viewport, scheme] of [[{ width: 360, height: 640 }, 'light'], [{ width: 360, height: 640 }, 'dark'], [{ width: 360, height: 800 }, 'dark'], [{ width: 390, height: 780 }, 'light'], [{ width: 412, height: 915 }, 'dark']]) {
-        await t.test(`úvod bez posouvání (${viewport.width}×${viewport.height}, ${scheme})`, async () => {
+        await t.test(`pět záložek bez posouvání (${viewport.width}×${viewport.height}, ${scheme})`, async () => {
             const { context, tab, problems } = await open(scheme, { viewport });
-            const scene = `úvod ${viewport.width}×${viewport.height}`;
-            await check(tab, scene, scheme);
-            await fitsScreen(tab, scene, scheme);
+            const scene = `záložky ${viewport.width}×${viewport.height}`;
+            const side = (selector) => tab.evaluate((s) => Math.min(...[...document.querySelectorAll(s)].map(el => { const r = el.getBoundingClientRect(); return Math.min(r.width, r.height); })), selector);
+            // Dnes: čtyři dnešní výzvy a karta Dnešní otázky
+            await check(tab, `${scene}: Dnes`, scheme);
+            await fitsScreen(tab, `${scene}: Dnes`, scheme);
+            assert.equal(await tab.locator('#home-specials [data-special-tile]').count(), 4);
+            assert.ok(await side('#home-specials [data-special-tile]') >= 40, `${scheme} / ${scene}: řádek dnešní výzvy`);
+            assert.ok(await side('#daily-card [data-action="play-daily"]') >= 36, `${scheme} / ${scene}: tlačítko Hrát vše`);
+            assert.ok(await side('#app-nav [data-nav]') >= 44, `${scheme} / ${scene}: tlačítka spodní lišty`);
+            assert.deepEqual(await tab.$$eval('#app-nav [data-nav]', buttons => buttons.map(button => button.textContent.replace(/\s+/g, ' ').trim())), ['Dnes', 'Hrát', 'Soupeři', 'Postup', 'Já']);
+            // Okno Dnešní otázky: 14 témat, dlaždice aspoň 40 px
+            await nav.dailySheet(tab);
+            await check(tab, `${scene}: Dnešní otázky`, scheme);
+            assert.equal(await tab.locator('#daily-sheet [data-action="daily"]').count(), 14);
+            assert.ok(await side('#daily-sheet [data-action="daily"]') >= 39.5, `${scheme} / ${scene}: dnešní otázka tématu`);
+            await tab.keyboard.press('Escape');
+            await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
+            // Hrát: Mix, 14 témat a režimy
+            await nav.go(tab, 'hrat');
+            await check(tab, `${scene}: Hrát`, scheme);
+            await fitsScreen(tab, `${scene}: Hrát`, scheme);
             const sizes = await tab.evaluate(() => {
                 const side = (el) => { const r = el.getBoundingClientRect(); return Math.min(r.width, r.height); };
                 const min = (selector, measure) => Math.min(...[...document.querySelectorAll(selector)].map(measure));
                 return {
-                    daily: min('[data-action="daily"]', side),
                     tiles: min('[data-action="play-topic"], [data-action="play-mix"]', side),
                     icons: min('[data-action="play-topic"] img', el => el.getBoundingClientRect().height),
                     labels: min('[data-action="play-topic"] > span', el => parseFloat(getComputedStyle(el).fontSize)),
-                    status: [...document.querySelectorAll('[data-action="daily"] > span.truncate')].filter(el => el.getBoundingClientRect().height > 0).length,
-                    count: document.querySelectorAll('[data-action="daily"]').length
+                    modes: min('#mode-tiles > *', side),
+                    count: document.querySelectorAll('#topic-grid [data-action="play-topic"]').length
                 };
             });
-            assert.ok(sizes.daily >= 39.5, `${scheme} / ${scene}: dnešní otázka ${sizes.daily} px`);
-            assert.ok(sizes.tiles >= 48, `${scheme} / ${scene}: dlaždice tématu ${sizes.tiles} px`);
-            assert.ok(sizes.icons >= 32, `${scheme} / ${scene}: ikona tématu ${sizes.icons} px`);
+            assert.equal(sizes.count, 14);
+            assert.ok(sizes.tiles >= 44, `${scheme} / ${scene}: dlaždice tématu ${sizes.tiles} px`);
+            assert.ok(sizes.icons >= 28, `${scheme} / ${scene}: ikona tématu ${sizes.icons} px`);
             assert.ok(sizes.labels >= 10, `${scheme} / ${scene}: popisek tématu ${sizes.labels} px`);
-            const fitShort = await tab.evaluate(() => document.documentElement.classList.contains('fit-short'));
-            // Zhuštění navíc: na úzkém vyšším telefonu ano, na velkém (412×915) ne; 390×780 je na hraně (podle obsahu řady Výzvy)
-            if (viewport.width === 360 && viewport.height > 770) assert.equal(fitShort, true, `${scheme} / ${scene}: úzký vyšší telefon se zhustí`);
-            if (viewport.height >= 900) assert.equal(fitShort, false, `${scheme} / ${scene}: velký displej zůstává beze zhuštění`);
-            assert.equal(sizes.status, viewport.height > 770 && !fitShort ? sizes.count : 0, `${scheme} / ${scene}: popisek stavu dnešní otázky jen na vyšším displeji`);
-            // Záložka Více hráčů (host: nabídka přihlášení) projde stejnými kontrolami
+            assert.ok(sizes.modes >= 40, `${scheme} / ${scene}: dlaždice režimu ${sizes.modes} px`);
+            // Postup a Já
+            await nav.go(tab, 'postup');
+            await check(tab, `${scene}: Postup`, scheme);
+            await fitsScreen(tab, `${scene}: Postup`, scheme);
+            await nav.go(tab, 'ja');
+            await check(tab, `${scene}: Já`, scheme);
+            await fitsScreen(tab, `${scene}: Já`, scheme);
+            // Záložka Soupeři (host: nabídka přihlášení) projde stejnými kontrolami
             await nav.go(tab, 'souperi');
             await tab.waitForSelector('[data-action="auth-login"]');
-            await check(tab, `${scene}: více hráčů`, scheme);
-            await fitsScreen(tab, `${scene}: více hráčů`, scheme);
+            await check(tab, `${scene}: Soupeři`, scheme);
+            await fitsScreen(tab, `${scene}: Soupeři`, scheme);
             assert.deepEqual(problems, [], 'bez chyb v konzoli a bez porušení CSP');
             await context.close();
         });
     }
 
-    // Mudrlantova kronika (chronicle.js): pruh na úvodu v neděli večer (místo cílů týdne) a každá karta okna: kontrast, dotykové plochy, bez posouvání
+    // Mudrlantova kronika (chronicle.js): pruh na záložce Dnes v neděli večer a každá karta okna: kontrast, dotykové plochy, bez posouvání
     for (const scheme of ['light', 'dark']) {
-        await t.test(`Mudrlantova kronika: pruh na úvodu a karty okna (${scheme})`, async () => {
+        await t.test(`Mudrlantova kronika: pruh na záložce Dnes a karty okna (${scheme})`, async () => {
             const week = { v: 1, days: {
                 '2026-10-12': { a: 20, c: 15, p: 40, xp: 200, run: 6, h: [0, 20, 0, 0], t: { zemepis: [12, 10], historie: [8, 5] }, n: 3, ex: ['Mongolsko', 'zemepis'], cw: 1, cp: 1 },
                 '2026-10-15': { a: 9, c: 6, p: 18, xp: 80, h: [0, 0, 9, 0], t: { hudba: [9, 6] } } } };
-            const { context, tab, problems } = await open(scheme, { now: '2026-10-18T19:30:00', storage: { 'mudrlant.week': week, 'mudrlant.homeTab': 'single' } });
-            await tab.waitForSelector('[data-chronicle-strip]');
-            await check(tab, 'úvod s kronikou', scheme);
-            await fitsScreen(tab, 'úvod s kronikou', scheme);
-            await tab.click('[data-action="chronicle-open"]');
+            const { context, tab, problems } = await open(scheme, { now: '2026-10-18T19:30:00', storage: { 'mudrlant.week': week } });
+            await tab.waitForSelector('#app-content [data-action="chronicle-open"]');
+            await check(tab, 'záložka Dnes s kronikou', scheme);
+            await fitsScreen(tab, 'záložka Dnes s kronikou', scheme);
+            await tab.click('#app-content [data-action="chronicle-open"]');
             for (let i = 0; i < 5; i++) {
                 await tab.waitForSelector('[data-chronicle]');
                 const page = await tab.getAttribute('[data-chronicle]', 'data-kr-page');
@@ -377,6 +415,7 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
     for (const [action, scheme] of [['[data-action="play-topic"][data-topic="zemepis"]', 'light'], ['[data-action="play-mix"]', 'dark']]) {
         await t.test(`výběr ${action.includes('mix') ? 'Mix' : 'Zeměpis'}: Hrát vždy vidět (${scheme})`, async () => {
             const { context, tab, problems } = await open(scheme);
+            await nav.go(tab, 'hrat');
             await tab.click(action);
             await tab.waitForSelector('#play-chooser [data-chooser-play]');
             await check(tab, 'výběr kategorií', scheme);

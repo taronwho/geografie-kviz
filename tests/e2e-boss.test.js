@@ -476,7 +476,7 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         await wait(tab, 5000);
         await tab.reload();
         await tab.waitForSelector('#boss-card[data-boss-status="open"]');
-        assert.equal(await compact(tab, '#boss-card'), 'Boss týdne Souboj běží Pokračovat');
+        assert.equal(await compact(tab, '#boss-card'), 'Boss týdne Souboj běží Hrát dál');
         await tab.click('[data-action="boss-open"]');
         await tab.waitForSelector('#boss-intro');
         assert.match(await compact(tab, '[data-action="boss-start"]'), /Pokračovat v souboji · otázka 2\/10/);

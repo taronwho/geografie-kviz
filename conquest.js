@@ -2223,8 +2223,11 @@
     const fromLine = (invite, cls) => (invite && invite.invited_by && invite.invited_by.display_name ? nameLine(invite, { before: 'Pozvánka od ', cls })
         : `<span class="truncate ${cls}">Pozvánka do hry</span>`);
 
-    // Karta na záložce Více hráčů: moje rozehraná hra (náhled, zbývá, tahy) nebo pozvánka do lobby; pozvánka od přítele (invites) jako
+    // Řádek Dobývání v části Čeká na tebe (záložka Soupeři): moje rozehraná hra (náhled, zbývá, tahy) nebo pozvánka do lobby; pozvánka od přítele (invites) jako
     // hlavní obsah karty, nebo s rozehranou hrou jako proužek pod ní, vždy s tlačítkem Přidat se (barva a znak, pak do hry)
+    // Tlačítko akce v řádku na záložce Soupeři: stejná šířka, výška a rozložení jako ostatní tlačítka řádků (app.js CTA_GOLD)
+    const HOME_CTA = 'flex h-10 w-[6rem] shrink-0 items-center gap-1 whitespace-nowrap rounded-xl bg-gradient-to-b from-gold-300 to-gold-500 pl-2.5 pr-1.5 text-[13px] font-black leading-none text-brand-950 shadow-[0_3px_0_#94571a] active:translate-y-px short:h-9';
+    const HOME_CARD = 'rounded-[1.15rem] bg-white shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-800/80 dark:ring-slate-700/70';
     const homeCardHtml = ({ games = null, invites = [], maps = {}, now = Date.now(), loading = false, avatar = null }) => {
         const running = (games || []).filter(game => game.status === 'running');
         const waiting = (games || []).filter(game => game.status === 'lobby');
@@ -2247,29 +2250,29 @@
                     ${head}<span class="truncate text-[11.5px] font-bold text-slate-600 dark:text-slate-300">${esc(mapTitle(first.map))} · zbývá ${esc(timeLeft((parseTime(first.ends_at) || now) - now))}${esc(more)}</span>
                     <span class="flex items-center gap-1 text-[11.5px] font-black text-brand-800 dark:text-gold-200" data-conquest-moves>${meSeat !== undefined ? pennantSvg(first.players.find(p => p.me).flag_color, first.players.find(p => p.me).emblem, 'h-3.5 w-4') : ''}Tahy ${budget.left}/${budget.total}</span></span>
                 </button>
-                <button type="button" data-action="conquest-play" data-game="${esc(first.id)}" class="${GOLD_BUTTON} shrink-0 px-3.5"><i data-lucide="play" class="h-4 w-4"></i> Hrát</button>`;
-            if (!invite) return `<div id="conquest-card" class="flex items-center gap-2.5 ${CARD} cq-card-paper p-1.5 pr-2">${row}</div>`;
-            return `<div id="conquest-card" class="flex flex-col gap-1.5 ${CARD} cq-card-paper p-1.5 pr-2">
+                <button type="button" data-action="conquest-play" data-game="${esc(first.id)}" data-cta class="${HOME_CTA}"><i data-lucide="play" class="h-4 w-4 shrink-0"></i><span data-cta-label class="min-w-0 flex-1 text-center">Hrát</span></button>`;
+            if (!invite) return `<div id="conquest-card" class="flex items-center gap-2.5 ${HOME_CARD} cq-card-paper p-2 pr-3 max-[379px]:pr-2.5">${row}</div>`;
+            return `<div id="conquest-card" class="flex flex-col gap-1.5 ${HOME_CARD} cq-card-paper p-2 pr-3 max-[379px]:pr-2.5">
                 <div class="flex items-center gap-2.5">${row}</div>
                 <div data-cq-card-invite="${esc(invite.id)}" class="flex items-center gap-2 border-t border-amber-900/15 pt-1.5 dark:border-gold-200/15">
                     ${draw(invite.invited_by || {}, 'h-8 w-8 text-base')}
                     <span class="flex min-w-0 flex-1 flex-col leading-tight">${fromLine(invite, 'text-[12px] font-bold text-slate-700 dark:text-slate-200')}<span class="truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${esc(mapTitle(invite.map))} · ${esc(minutesLabel(gameMinutes(invite)))}${esc(moreInvites)}</span></span>
-                    <button type="button" data-action="conquest-invite" data-game="${esc(invite.id)}" class="${BRAND_BUTTON} min-h-[2.25rem] shrink-0"><i data-lucide="user-plus" class="h-4 w-4"></i> Přidat se</button>
+                    <button type="button" data-action="conquest-invite" data-game="${esc(invite.id)}" data-cta class="${HOME_CTA}"><i data-lucide="user-plus" class="h-4 w-4 shrink-0"></i><span data-cta-label class="min-w-0 flex-1 text-center">Přidat se</span></button>
                 </div>
             </div>`;
         }
         if (invite) {
-            return `<div id="conquest-card" class="flex items-center gap-2.5 ${CARD} cq-card-paper p-1.5 pr-2">
+            return `<div id="conquest-card" class="flex items-center gap-2.5 ${HOME_CARD} cq-card-paper p-2 pr-3 max-[379px]:pr-2.5">
                 <button type="button" data-action="conquest-open" class="flex min-w-0 flex-1 items-center gap-2.5 text-left" aria-label="Otevřít Dobývání">
                     <span class="relative shrink-0">${art(ART.card, 'h-11 w-11 -my-1')}<span class="absolute -bottom-1.5 -right-1.5 rounded-full ring-2 ring-white dark:ring-slate-800">${draw(invite.invited_by || {}, 'h-6 w-6 text-xs')}</span></span>
                     ${head}${fromLine(invite, 'text-[12px] font-bold text-slate-600 dark:text-slate-300')}
                     <span class="truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${esc(mapTitle(invite.map))} · ${esc(minutesLabel(gameMinutes(invite)))}${esc(moreInvites)}</span></span>
                 </button>
-                <button type="button" data-action="conquest-invite" data-game="${esc(invite.id)}" class="${GOLD_BUTTON} shrink-0"><i data-lucide="user-plus" class="h-4 w-4"></i> Přidat se</button>
+                <button type="button" data-action="conquest-invite" data-game="${esc(invite.id)}" data-cta class="${HOME_CTA}"><i data-lucide="user-plus" class="h-4 w-4 shrink-0"></i><span data-cta-label class="min-w-0 flex-1 text-center">Přidat se</span></button>
             </div>`;
         }
         const text = loading && !games ? 'Načítám hry…' : waiting.length ? (waiting.length === 1 ? 'Tvoje hra čeká na další hráče' : `Tvoje hry čekají na další hráče (${waiting.length})`) : 'Najdi hru nebo založ vlastní';
-        return `<div id="conquest-card" class="flex items-center gap-2.5 ${CARD} cq-card-paper p-1.5 pr-2">
+        return `<div id="conquest-card" class="flex items-center gap-2.5 ${HOME_CARD} cq-card-paper p-2 pr-3 max-[379px]:pr-2.5">
             <button type="button" data-action="conquest-open" class="flex min-w-0 flex-1 items-center gap-2.5 text-left">
                 ${art(ART.card, 'h-11 w-11 -my-1')}${head}<span class="truncate text-[12px] font-bold text-slate-600 dark:text-slate-300">${esc(text)}</span></span>
             </button>

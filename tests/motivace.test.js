@@ -50,12 +50,11 @@ test('tematický víkend: pevný rozpis každý druhý víkend, pátek 18:00 až
     const year = [];
     for (let day = Date.UTC(2026, 0, 2); day < Date.UTC(2027, 0, 1); day += 7 * 86400000) year.push(Weekend.topicOf(new Date(day).toISOString().slice(0, 10)));
     assert.equal(year.filter(Boolean).length, Math.ceil(year.length / 2));
-    const html = Weekend.bannerHtml(friday, { topicIcon: () => '<i></i>', topicTitle: () => 'Film' });
-    assert.match(html, /Víkend filmu/);
-    assert.match(html, /2× XP/);
-    assert.match(html, /data-action="weekend-play" data-topic="film"/);
-    noInlineStyle(html + Weekend.chipHtml(friday, {}), 'pruh víkendu');
-    assert.equal(Weekend.bannerHtml(null), '');
+    // Řádek na záložce Dnes kreslí app.js; modul dává název, podtitulek a popisek pro čtečku
+    assert.equal(friday.title, 'Víkend filmu');
+    assert.equal(Weekend.rowText({ ...friday, state: 'active' }), '2× XP · do neděle');
+    assert.equal(Weekend.rowText({ ...friday, state: 'soon' }), '2× XP · dnes od 18:00');
+    assert.match(Weekend.bannerLabel({ ...friday, state: 'active' }, { topicTitle: () => 'Film' }), /^Víkend filmu: do neděle 24:00 dvojnásobek XP za otázky z tématu Film/);
 });
 
 test('prestiž: jen vrstva zobrazení nad XP, stejné hranice jako server', () => {

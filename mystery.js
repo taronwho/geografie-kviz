@@ -857,27 +857,6 @@
         if (view.status === 'failed') return 'Tentokrát ne · odpověď zítra';
         return `Nápověda ${view.shown}/${CLUES}${view.next ? ` · další v ${view.next.label}` : ` · ${leftWord(tipsLeft(view.entry))}`}`;
     };
-    // Kompaktní pruh: se včerejší odpovědí (kind 'reveal', id mystery-reveal) patří mezi příležitostné pruhy záložky Dnes; dnešní záhadu
-    // kreslí app.js jako řádek mezi dnešními výzvami (id mystery-card, text z homeText). Zlatá tečka = nová nápověda
-    const homeCardHtml = (view) => {
-        const text = homeText(view);
-        const title = view.kind === 'reveal' ? 'Včerejší tajemná otázka' : 'Tajemná otázka dne';
-        const fresh = view.kind === 'today' && view.status !== 'solved' && view.status !== 'failed' && view.shown > (view.entry ? view.entry.seen : 0);
-        const icon = view.kind === 'reveal' ? 'eye' : view.status === 'solved' ? 'circle-check' : view.status === 'failed' ? 'moon' : 'telescope';
-        return `
-            <div id="${view.kind === 'reveal' ? 'mystery-reveal' : 'mystery-card'}" data-mystery-kind="${view.kind}" data-mystery-status="${view.status || ''}" class="relative flex w-full shrink-0 items-stretch overflow-hidden rounded-[1.1rem] bg-gradient-to-r from-indigo-950 via-violet-900 to-indigo-900 text-white shadow-sm ring-1 ring-violet-400/40">
-                <button type="button" data-action="${view.kind === 'reveal' ? 'mystery-reveal' : 'mystery-open'}" aria-label="${esc(`${title}: ${text}`)}" class="flex min-w-0 flex-1 items-center gap-2 px-2.5 py-1 text-left transition-all active:scale-[0.99] short:py-0.5">
-                    <span class="relative flex shrink-0">${art(ART, 'h-9 w-9 -my-1 short:h-7 short:w-7')}${fresh ? '<span aria-hidden="true" data-mystery-new class="absolute -right-0.5 top-0 h-2.5 w-2.5 rounded-full bg-gold-400 ring-2 ring-violet-900"></span>' : ''}</span>
-                    <span class="min-w-0 flex-1">
-                        <span class="block truncate text-[13px] font-black leading-[1.15] text-gold-200 short:text-[12px] short:leading-none">${esc(title)}</span>
-                        <span data-mystery-text class="block truncate text-[11px] font-bold leading-[1.15] text-violet-100 short:leading-tight">${esc(text)}</span>
-                    </span>
-                    <i data-lucide="${icon}" class="h-4 w-4 shrink-0 text-gold-300"></i>
-                </button>
-                ${view.kind === 'reveal' ? '<button type="button" data-action="mystery-dismiss" aria-label="Skrýt včerejší tajemnou otázku" class="flex w-10 shrink-0 items-center justify-center border-l border-white/15 text-violet-100"><i data-lucide="x" class="h-4 w-4"></i></button>' : ''}
-            </div>`;
-    };
-
     const factsHtml = (facts) => `<dl class="grid grid-cols-2 gap-1.5">${facts.map(fact => `<div class="rounded-xl bg-slate-50 px-2.5 py-1.5 dark:bg-slate-900/60"><dt class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">${esc(fact.label)}</dt><dd class="text-[14px] font-bold leading-snug text-slate-800 dark:text-slate-100">${esc(fact.value)}</dd></div>`).join('')}</dl>`;
     // Malá růžice: světové strany (S, V, J, Z) a šipka z Prahy (tečka uprostřed) ve směru místa; otočení je atribut SVG, ne inline styl
     const compassSvg = (part) => `<svg viewBox="-30 -30 60 60" class="h-16 w-16 shrink-0" aria-hidden="true">
@@ -1014,6 +993,6 @@
         sentencesOf, answerPattern, letterCount, strongMask, textScore, revealScore, buildClues, pointsFor, xpFor,
         PRAGUE, haversineKm, bearingDeg, roundKm, compassOf, compassFor, eraOfYear, eraOfSpan, eraOf, yesNoOf, riddleOf, answerGuard,
         parseState, newEntry, cleanEntry, statusOf, tipsLeft, addTip, wrongTips, shareGrid, shareText, cardInput,
-        homeText, homeCardHtml, statsHtml, screenHtml, MARK
+        homeText, statsHtml, screenHtml, MARK
     };
 });

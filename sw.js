@@ -109,7 +109,7 @@ self.addEventListener('fetch', (event) => {
     })());
 });
 
-// Web push (odesílá GitHub Actions, viz docs/SUPABASE.md): ukáže upozornění a po klepnutí otevře aplikaci na záložce Více hráčů
+// Web push (odesílá GitHub Actions, viz docs/SUPABASE.md): ukáže upozornění a po klepnutí otevře aplikaci na záložce Soupeři (adresa ?tab=multi)
 // (upozornění k výzvě rovnou výzvu, upozornění na útok v Dobývání rovnou hru: parametry vyzva a dobyvani)
 const pushText = (value, max, fallback) => (typeof value === 'string' && value.trim() ? value.trim().slice(0, max) : fallback);
 // Jedna funkce pro skutečný push i pro zkoušku z vývojářského režimu (zpráva push-test od stránky): stejné ořezání textů, ikona, tag a adresa

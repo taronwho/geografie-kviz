@@ -269,11 +269,14 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click('[data-action="daily-home"]');
         await waitForHome(tab);
         // Zeměpis je odehraný a série běží (čip v hlavičce); karta pokračuje ve zbývajících dnešních otázkách
-        assert.match(await tab.textContent('#daily-card'), /1\/14 témat[\s\S]*Pokračovat/);
-        assert.match(await tab.textContent('#streak-chip'), /1 den/);
+        assert.match(await tab.textContent('#daily-card'), /1\/14 témat[\s\S]*Hrát dál/);
+        // Čip série v hlavičce: plamen s počtem dní (zlatý při běžící sérii) a štít s počtem ochran série
+        assert.equal(await tab.getAttribute('#streak-chip', 'data-streak'), '1');
+        assert.equal((await tab.textContent('#streak-chip [data-streak-part]')).trim(), '1');
+        assert.match(await tab.getAttribute('#streak-chip', 'aria-label'), /^Série: 1 den v řadě/);
         await nav.dailySheet(tab);
         assert.match(await tab.textContent('#daily-sheet [data-action="daily"][data-topic="zemepis"]'), /1 bod\s*1/);
-        assert.match(await tab.textContent('#daily-sheet [data-action="play-daily"]'), /Pokračovat\s*· zbývá 13/);
+        assert.match(await tab.textContent('#daily-sheet [data-action="play-daily"]'), /Hrát dál\s*· zbývá 13/);
 
         // Odehraná dnešní otázka zůstane uložená i po obnovení stránky
         const requestsBefore = log.wiki.length;
@@ -1660,7 +1663,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await one.tab.click('#settings-overlay [data-close]');
         await one.tab.waitForFunction(() => document.getElementById('btn-settings').textContent.includes('🐼'));
 
-        // Přijímané výzvy: z profilu i ze záložky Více hráčů; vypnuté téma se uloží, Zapnout vše je vrátí.
+        // Přijímané výzvy: z profilu i z okna Výzvy na záložce Soupeři; vypnuté téma se uloží, Zapnout vše je vrátí.
         // Okno klepnutí ignoruje, dokud se uložené nastavení nenačte (souhrn „nastavit“), proto se čeká na načtený souhrn. Uložení
         // se pozná podle nového stavu přepínače spolu s „Uloženo.“ – starý stav s hláškou z minulého klepnutí podmínku nesplní.
         const acceptSaved = (selector, checked) => one.tab.waitForFunction(({ selector, checked }) => {

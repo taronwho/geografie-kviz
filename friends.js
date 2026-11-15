@@ -61,7 +61,8 @@
     const FRIEND_LIMIT = 200;
     const DAY = 86400000;
     const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
-    const LABEL = 'px-1 text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
+    // Nadpis oddílu a čip mají stejný styl jako na ostatních záložkách (app.js SEC_LABEL a CHIP)
+    const LABEL = 'px-1 text-[11px] font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400';
 
     // --- Aktivita ---
     // Podle poslední návštěvy (profiles.last_seen): today (do 24 h), recent (do týdne), away (déle), unknown (nikdy / starší databáze)
@@ -172,9 +173,9 @@
             <div id="friends-section" class="flex shrink-0 flex-col gap-1.5 short:gap-1">
                 ${add ? `<button type="button" data-action="friends-open" class="-my-2 flex min-h-[2.5rem] w-fit items-center gap-0.5 rounded-lg ${LABEL}">${head}<i data-lucide="chevron-right" class="h-3.5 w-3.5"></i></button>` : `<p class="${LABEL}">${head}</p>`}
                 <div class="flex items-center gap-2.5">
-                    ${list.length ? `<div id="friends-strip" class="flex min-w-0 items-center gap-2.5" aria-label="Přátelé">${items}</div>` : ''}${more}${plus}
+                    ${list.length ? `<div id="friends-strip" class="flex min-w-0 items-center gap-2.5 pl-1.5" aria-label="Přátelé">${items}</div>` : ''}${more}${plus}
                     ${list.length ? '' : '<span class="min-w-0 flex-1 text-[12.5px] font-semibold leading-snug text-slate-500 dark:text-slate-400">Najdi hráče podle přezdívky nebo pozvi kamarády</span>'}
-                    ${active ? `<span data-friends-active class="ml-auto flex min-h-[2rem] shrink-0 items-center gap-1.5 rounded-full bg-white px-2.5 text-[12px] font-black text-slate-700 shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700/70"><span class="h-2 w-2 rounded-full bg-emerald-500"></span>${active} dnes ${active === 1 ? 'aktivní' : active <= 4 ? 'aktivní' : 'aktivních'}</span>` : ''}
+                    ${active ? `<span data-friends-active class="ml-auto flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-white px-3 text-[12px] font-black leading-none text-slate-700 shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700/70"><span class="h-2 w-2 rounded-full bg-emerald-500"></span>${active} dnes ${active === 1 ? 'aktivní' : active <= 4 ? 'aktivní' : 'aktivních'}</span>` : ''}
                 </div>
             </div>`;
     };
@@ -182,11 +183,11 @@
     const requestRows = (incoming, h) => (incoming || []).slice(0, 5).map(row => {
         if (h.register) h.register(row);
         return `
-        <div data-friend-request="${esc(row.id)}" class="flex items-center gap-2 rounded-2xl bg-white p-2 shadow-sm short:py-1 ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
-            ${h.avatarHtml(row, 'h-9 w-9 text-lg', true)}
-            <span class="min-w-0 flex-1 text-[12.5px] font-bold leading-tight text-slate-800 dark:text-slate-100"><span class="block truncate">${esc(row.display_name)}</span><span class="block truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">tě chce mít v přátelích</span></span>
-            <button type="button" data-action="friend-accept" data-id="${esc(row.id)}" aria-label="Přijmout žádost od ${esc(row.display_name)}" class="flex h-9 shrink-0 items-center justify-center rounded-xl bg-emerald-600 px-2.5 text-[12px] font-black text-white active:scale-95">Přijmout</button>
-            <button type="button" data-action="friend-decline" data-id="${esc(row.id)}" aria-label="Odmítnout žádost od ${esc(row.display_name)}" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 active:scale-95 dark:bg-slate-700 dark:text-slate-300"><i data-lucide="x" class="h-4 w-4"></i></button>
+        <div data-friend-request="${esc(row.id)}" data-wait="friend" class="flex min-h-[3.5rem] items-center gap-3 rounded-[1.15rem] bg-white px-3 py-2 shadow-sm ring-1 ring-slate-200/80 max-[379px]:gap-2 max-[379px]:px-2.5 short:min-h-[3.1rem] short:py-1.5 dark:bg-slate-800/80 dark:ring-slate-700/70">
+            ${h.avatarHtml(row, 'h-10 w-10 text-xl short:h-9 short:w-9', true)}
+            <span class="min-w-0 flex-1"><span class="block truncate text-[15px] font-extrabold leading-tight text-slate-800 dark:text-slate-100">${esc(row.display_name)}</span><span class="block truncate text-[12px] font-semibold leading-tight text-slate-500 max-[379px]:text-[11.5px] dark:text-slate-400">tě chce mít v přátelích</span></span>
+            <button type="button" data-action="friend-decline" data-id="${esc(row.id)}" aria-label="Odmítnout žádost od ${esc(row.display_name)}" title="Odmítnout" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 ring-1 ring-slate-200 active:scale-95 short:h-9 short:w-9 dark:bg-slate-700/70 dark:text-slate-300 dark:ring-slate-600"><i data-lucide="x" class="h-4 w-4"></i></button>
+            <button type="button" data-action="friend-accept" data-id="${esc(row.id)}" data-cta aria-label="Přijmout žádost od ${esc(row.display_name)}" class="flex h-10 w-[6rem] shrink-0 items-center gap-1 whitespace-nowrap rounded-xl bg-gradient-to-b from-gold-300 to-gold-500 pl-2.5 pr-1.5 text-[13px] font-black leading-none text-brand-950 shadow-[0_3px_0_#94571a] active:translate-y-px short:h-9"><i data-lucide="check" class="h-4 w-4 shrink-0"></i><span data-cta-label class="min-w-0 flex-1 text-center">Přijmout</span></button>
         </div>`;
     }).join('');
     // Rychlý výběr přátel ve formuláři nové výzvy (nad hledáním): popisek a vedle něj řada čipů s avatarem a jménem, data-pick-opp jako výsledky hledání
