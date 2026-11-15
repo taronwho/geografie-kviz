@@ -125,6 +125,9 @@
         return text.replace(pattern, '[***]').replace(/\s{2,}/g, ' ');
     };
 
+    // Hlavní obrázek osobnosti, který ji neukazuje (hrob, pamětní deska, známka; quiz-core.js offSubjectRule, npm run audit:obrazky)
+    const offSubjectPhoto = core.offSubjectRule({ words: { chemici: core.OFF_SUBJECT.memorial } });
+
     return {
         id: 'chemie',
         title: 'Chemie',
@@ -142,6 +145,7 @@
             tierKnown: 'Běžné prvky a látky, slavní chemici'
         },
         categories: CATEGORIES,
+        offSubjectPhoto,
 
         // Jiný zápis názvu látky: cukry na -osa (glukosa), glycerin; platí jako psaná odpověď i se zakryje v popisu
         nameAliases: (item) => {

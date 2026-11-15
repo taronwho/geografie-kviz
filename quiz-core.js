@@ -65,6 +65,81 @@
         return !fileName.toLowerCase().split(/[^\p{L}]+/u).some(word => NON_PHOTO_WORDS.has(word));
     };
 
+    // Hlavní obrázek z Wikidat (P18), který neukazuje to, na co se otázka ptá: u stavby sad s poníkem, model nebo interiér, u města
+    // mapa či rytina, u hory výhled z vrcholu, u přírodního místa zvíře nebo květina, u osobnosti hrob, pamětní deska nebo rodný dům.
+    // Téma si pravidlo (topic.offSubjectPhoto) sestaví ze slov názvu souboru po kategoriích ('*' = všechny kategorie tématu),
+    // ručně ověřených položek (ids) a výjimek (keep). Slova se porovnávají bez diakritiky a velikosti písmen, i víceslovná
+    // („coat of arms“); slovo, které je i ve vlastním názvu položky (Horse Guards, Hôtel des Invalides), obrázek nevyřadí.
+    // views = kategorie, kde „X from <název položky>“ / „pohled z <názvu>“ je výhled z ní (z rozhledny, z hradu, z vrcholu), ne na ni.
+    // app.js loadTopic obrázek takové položky vynechá všude (otázka, nápověda, atlas, Dobývání); položka zůstane.
+    const photoWords = (text) => String(text || '').replace(/\.[a-z0-9]{2,5}$/i, '').replace(/(\p{Ll})(\p{Lu})/gu, '$1 $2')
+        .normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().split(/[^\p{L}]+/u).filter(Boolean);
+    const VIEW_FROM = new Set(['from', 'z', 'ze', 'vom', 'depuis', 'desde', 'dalla', 'dal']);
+    const VIEW_SKIP = new Set(['the', 'der', 'dem', 'den', 'la', 'le', 'el', 'il', 'lo', 'top', 'atop', 'of', 'mount', 'mt']);
+    const hasPhrase = (words, phrase) => words.some((word, i) => phrase.every((part, j) => words[i + j] === part));
+    // Slovo souboru je tvarem slova názvu (Petřín – z Petřína, Eiffelova – Eiffel): společný začátek bez posledních dvou písmen
+    const sameStem = (word, own) => {
+        if (word.length < 4 || own.length < 4) return false;
+        const stem = own.length > 5 ? own.slice(0, -2) : own;
+        return word.startsWith(stem) || (word.length >= 5 && stem.startsWith(word));
+    };
+    // Výhled z položky: „Prague from Petřín“, „Santiaguito from Santa María“; slova názvu jen před upřesněním místa („Kostel
+    // sv. Vavřince na Petříně“ z Petřínské rozhledny je pohled na kostel). Když je položka i před „from“ („Lincoln Cathedral viewed
+    // from Lincoln Castle“, „Palác Granovských z Granova“), ukazuje ji
+    const PLACE_PREPOSITIONS = new Set(['na', 'v', 've', 'u', 'nad', 'pod', 'pri', 'pred', 'za', 'in', 'on', 'at', 'near']);
+    const headWords = (name) => { const words = photoWords(name); const cut = words.findIndex(word => PLACE_PREPOSITIONS.has(word)); return cut > 0 ? words.slice(0, cut) : words; };
+    const viewsFromItself = (file, head) => {
+        const names = (word) => head.some(name => sameStem(word, name));
+        const at = file.findIndex((word, i) => {
+            if (!VIEW_FROM.has(word)) return false;
+            const next = file.slice(i + 1, i + 4).find(other => !VIEW_SKIP.has(other));
+            return Boolean(next) && names(next);
+        });
+        return at >= 0 && !file.slice(0, at).some(names);
+    };
+    // Skupiny slov pro pravidla témat (ověřené na všech názvech souborů: npm run audit:obrazky)
+    const OFF_SUBJECT = {
+        // Kresba, mapa, model, pohlednice nebo znak místo místa či stavby
+        depiction: ['model', 'maquette', 'modell', 'engraving', 'lithograph', 'drawing', 'sketch', 'postcard', 'pohlednice', 'ansichtskarte', 'ticket', 'stamp',
+            'briefmarke', 'banknote', 'map', 'mapa', 'karte', 'carte', 'plan', 'grundriss', 'locator', 'coat of arms', 'wappen', 'logo', 'plaque', 'pametni deska', 'gedenktafel'],
+        // Sad, louka, vinice nebo pastvina se zvířaty (sad s poníkem u Jasné Poljany)
+        farm: ['orchard', 'orchards', 'meadow', 'pasture', 'pony', 'horse', 'horses', 'cow', 'cows', 'cattle', 'sheep', 'goat', 'goats', 'vineyard'],
+        // Interiér, když otázka chce stavbu zvenku
+        interior: ['interior', 'interier', 'interno', 'interieur', 'innenansicht', 'innenraum', 'inside'],
+        // Hrob, pamětní deska, známka nebo rodný dům místo podoby osobnosti
+        memorial: ['grave', 'graves', 'gravestone', 'headstone', 'tombstone', 'hrob', 'nahrobek', 'grab', 'grabstein', 'grabmal', 'grabstatte', 'plaque',
+            'pametni deska', 'deska', 'gedenktafel', 'stamp', 'briefmarke', 'birthplace', 'rodny dum', 'geburtshaus'],
+        // Výhled z vrcholu místo hory
+        summit: ['from the summit', 'from summit', 'summit view', 'view from the top', 'z vrcholu', 'vom gipfel']
+    };
+    // Stavby, které jsou v Architektuře i v Zeměpisu: ručně ověřené obrázky jiné věci (madrasa u Kutub Minaru, výhled z Petřínské
+    // rozhledny u Karlova mostu, solné jezero u mešity Hala Sultan Tekke, lázně ve Fatehpur Síkrí, předmět ze sbírky u mešity v Mekce,
+    // mozaika filozofů u Platónovy akademie, památník v Buchenwaldu, květiny u muzea v Derby, kočár před Royal Albert Hall, návštěva
+    // ministra u Elysejského paláce, pamětní deska u Dvořákova muzea…); keep = slavné interiéry, které stavbu ukazují (Sixtinská kaple)
+    const OFF_SUBJECT_BUILDINGS = {
+        words: () => [...OFF_SUBJECT.depiction, ...OFF_SUBJECT.farm, ...OFF_SUBJECT.interior, 'pilgrimage', 'procession'],
+        ids: ['Q749556', 'Q187635', 'Q204871', 'Q1570185', 'Q179046', 'Q428858', 'Q47476', 'Q1054203', 'Q193093', 'Q152802', 'Q8012', 'Q62677', 'Q685414',
+            'Q334311', 'Q608318', 'Q12029848', 'Q741051', 'Q193639', 'Q188190'],
+        keep: ['Q2943', 'Q902532', 'Q2015116']
+    };
+    const offSubjectRule = ({ words = {}, ids = [], keep = [], views = [] } = {}) => {
+        const lists = new Map(Object.entries(words).map(([key, list]) => [key, list.map(photoWords).filter(phrase => phrase.length)]));
+        const flagged = new Set(ids);
+        const kept = new Set(keep);
+        const viewing = new Set(views);
+        const rule = (item) => {
+            if (!item || !item.im || kept.has(item.q)) return false;
+            if (flagged.has(item.q)) return true;
+            const file = photoWords(item.im);
+            const own = new Set(photoWords(`${item.n || ''} ${item.t || ''}`));
+            const phrases = [...(lists.get('*') || []), ...(lists.get(item.c) || [])];
+            if (phrases.some(phrase => !phrase.some(word => own.has(word)) && hasPhrase(file, phrase))) return true;
+            return viewing.has(item.c) && viewsFromItself(file, headWords(item.n || ''));
+        };
+        rule.ids = flagged;
+        return rule;
+    };
+
     const displayName = (title) => stripBrackets(title).replace(/\s{2,}/g, ' ').trim();
 
     const plural = (count, one, few, many) => {
@@ -1556,6 +1631,89 @@
     // Pod touto hodnotou je kandidát jen nouzová možnost (téma ho srazilo, třeba region jiného státu)
     const CHOICE_FLOOR = -20;
     // culture(item) = země položky pro výběr podle kultury (výchozí landsOf; téma může zvolit jinou, např. zemi místa bitvy)
+    // --- Dvě možnosti, na které sedí stejný popis („Takové věci se nesmí nikdy stát“) ---
+    // Boson W a Boson Z mají na Wikipedii společný článek „Bosony W a Z“ (přesměrování, pole w ze scripts/build-clanky.mjs): úvod
+    // článku sedí na obě, mezi možnostmi jedné otázky by byly dvě správné. Stejně položka ze společného článku jiné položky
+    // („Romulus a Remus“ a Remus). sameArticle(a, b) = stejný článek (t nebo w po přesměrování), nebo článek jedné je „X a Y“
+    // a jméno druhé v něm je
+    // Klíč článku i s upřesněním v závorce a diakritikou (Katedrála Notre-Dame (Paříž) a (Chartres), Miltiades a Miltiadés jsou různé články)
+    const articleKey = (item) => String((item && (item.w || item.t)) || '').replace(/#.*$/, '').toLowerCase().replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+    const JOINT_TITLE = /\s(?:a|i|and|und|et|&)\s/iu;
+    const nameTokens = (text) => normalizeAnswer(String(text || '').replace(/\[\*\*\*\]/g, ' ')).split(' ').filter(Boolean);
+    // Slovo jména v textu i skloněné (Boson – Bosony, Gluon – gluony); krátké (W, Z, II) jen celé
+    const tokenFits = (word, words) => words.some(other => other === word
+        || (word.length >= 4 && other.length <= word.length + 3 && other.startsWith(word.slice(0, Math.max(4, word.length - 2)))));
+    // Všechna slova jména jsou v textu (zakrytá místa [***] se nepočítají)
+    const namedIn = (text, name) => {
+        const words = nameTokens(text);
+        const own = nameTokens(name);
+        return own.length > 0 && words.length > 0 && own.every(word => tokenFits(word, words));
+    };
+    // Společný článek: jméno druhé položky je celou částí názvu („Romulus a Remus“ – Remus), ne jen podobné slovo (Grenadiny – Grenada)
+    // Výpočty pro položku jednou (výběr možností porovnává položku s celou kategorií): klíč článku, části společného článku, slova jména
+    const articleCache = new WeakMap();
+    const articleInfo = (item) => {
+        let info = articleCache.get(item);
+        if (!info) {
+            const title = stripBrackets(String(item.w || item.t || ''));
+            info = { key: articleKey(item), name: nameTokens(item.n),
+                parts: JOINT_TITLE.test(title) ? title.split(/\s*,\s*|\s+(?:a|i|and|und|et|&)\s+/iu).map(nameTokens).filter(part => part.length) : [] };
+            articleCache.set(item, info);
+        }
+        return info;
+    };
+    const jointWith = (a, b) => {
+        const { parts } = articleInfo(a);
+        if (!parts.length) return false;
+        const own = articleInfo(b).name;
+        return parts.some(part => part.length === own.length && part.every(word => tokenFits(word, own)) && own.every(word => tokenFits(word, part)));
+    };
+    const sameArticle = (a, b) => {
+        if (!a || !b || a === b || (a.q && a.q === b.q) || typeof a !== 'object' || typeof b !== 'object') return false;
+        const key = articleInfo(a).key;
+        return Boolean(key && key === articleInfo(b).key) || jointWith(a, b) || jointWith(b, a);
+    };
+    // Nesprávná možnost, na kterou sedí to, co hráč vidí: její jméno v popisu či dalších větách nezakryté, popis je přesně její krátký
+    // popis z Wikidat (záložní popis), nebo je to položka téhož článku jako správná odpověď
+    const choiceConflict = (choice, { question, item, ctx, text = '' }) => {
+        if (!choice || choice.correct || question.match) return false;
+        const other = ctx && ctx.byId ? ctx.byId.get(choice.id) : null;
+        if (other && item && sameArticle(item, other)) return true;
+        if (text && namedIn(text, choice.label)) return true;
+        return Boolean(other && other.d && text && normalizeAnswer(other.d) === normalizeAnswer(text));
+    };
+    // Náhrada nesprávné možnosti, na kterou sedí popis: položka stejné kategorie co nejpodobnější té vyřazené (similarity tématu),
+    // u států jiný stát stejného kontinentu; bez střetu s ostatními možnostmi i s popisem. Pořadí možností zůstane. Vrátí novou otázku,
+    // nebo null, když náhrada nejde
+    const replaceConflicts = ({ question, item, ctx, text, rng }) => {
+        const conflicts = (question.choices || []).filter(choice => choiceConflict(choice, { question, item, ctx, text }));
+        if (!conflicts.length) return question;
+        const choices = [...question.choices];
+        const inUse = new Set(choices.map(choice => choice.id));
+        const labels = new Set(choices.map(choice => normalizeAnswer(choice.label)));
+        for (const conflict of conflicts) {
+            const other = ctx.byId ? ctx.byId.get(conflict.id) : null;
+            let pool;
+            if (other) {
+                const score = (candidate) => (ctx.topic && ctx.topic.similarity ? ctx.topic.similarity(other, candidate, ctx) || 0 : 0) + (candidate.k === other.k ? 1 : 0) + (candidate.ty && candidate.ty === other.ty ? 2 : 0) + rng() * 0.5;
+                pool = ctx.items.filter(candidate => candidate.c === other.c && !candidate.nq && candidate.q !== item.q)
+                    .map(candidate => ({ id: candidate.q, label: candidate.n, ref: candidate, value: score(candidate) })).sort((a, b) => b.value - a.value);
+            } else if (ctx.countries && ctx.countries[conflict.id]) {
+                const continent = ctx.countries[conflict.id].continent;
+                pool = shuffle(Object.entries(ctx.countries).filter(([, country]) => country.continent === continent).map(([id, country]) => ({ id, label: country.name })), rng);
+            } else return null;
+            const pick = pool.find(candidate => !inUse.has(candidate.id) && !labels.has(normalizeAnswer(candidate.label))
+                && !choices.some(choice => choice.id !== conflict.id && candidate.ref && ctx.byId.get(choice.id) && sameArticle(candidate.ref, ctx.byId.get(choice.id)))
+                && !(candidate.ref && isNamePart(item.n, candidate.label))
+                && !choiceConflict({ id: candidate.id, label: candidate.label, correct: false }, { question, item, ctx, text }));
+            if (!pick) return null;
+            choices[choices.indexOf(conflict)] = { ...conflict, id: pick.id, label: pick.label };
+            inUse.add(pick.id);
+            labels.add(normalizeAnswer(pick.label));
+        }
+        return { ...question, choices };
+    };
+
     const buildItemChoices = (item, items, rng, similarity = () => 0, culture = landsOf) => {
         // Ke známé odpovědi známá možnost váží víc – jinak by známá odpověď mezi samými neznámými byla nápadná
         const tier = (other) => other.k !== item.k ? 0 : item.k === 1 ? 3 : 2;
@@ -1569,12 +1727,18 @@
         // (Paříž) u katedrály v Rouenu, jejíž článek se jmenuje Katedrála Notre-Dame (Rouen)
         const namesOf = (other) => [other.n, displayName(other.t || '')].map(normalizeAnswer).filter(Boolean);
         const ownNames = new Set(namesOf(item));
-        const entries = shuffle(items.filter(other => other.c === item.c && other.q !== item.q && !namesOf(other).some(name => ownNames.has(name))), rng)
+        // Položka téhož článku (Boson W k Bosonu Z) by měla stejný popis: mezi možnostmi není, ani dvě takové mezi sebou
+        const entries = shuffle(items.filter(other => other.c === item.c && other.q !== item.q && !namesOf(other).some(name => ownNames.has(name)) && !sameArticle(item, other)), rng)
             .map(candidate => ({ candidate, value: score(candidate) }))
             .filter(entry => entry.value > -Infinity)
             .sort((a, b) => b.value - a.value);
         const taken = new Set([normalizeAnswer(item.n)]);
-        let distractors = takeDistinct(entries.map(entry => entry.candidate), 3, taken, other => other.n);
+        const apart = [];
+        let distractors = takeDistinct(entries.map(entry => entry.candidate).filter(candidate => {
+            if (apart.some(other => sameArticle(other, candidate))) return false;
+            apart.push(candidate);
+            return true;
+        }), 3, taken, other => other.n);
         // Ke známé položce aspoň jedna známá možnost, i když ze stejné země jsou jen méně známé (jinak by známá odpověď mezi
         // samými neznámými byla nápadná): nahradí nejhorší z vybraných nejlepší známou ze stejné oblasti kultury
         if (item.k === 1 && distractors.length === 3 && !distractors.some(other => other.k === 1)) {
@@ -1582,7 +1746,7 @@
             const sameArea = (other) => !own.length || Math.min(...own.map(x => Math.min(...((culture(other) || []).map(y => cultureDistance(x, y)).concat([2.5]))))) <= 2;
             // Jen kandidát bez velké srážky (cizí stát u regionu, část názvu správné odpovědi): ten je mimo hru i tady
             const known = entries.find(entry => entry.candidate.k === 1 && entry.value > CHOICE_FLOOR && !distractors.includes(entry.candidate) && sameArea(entry.candidate)
-                && !taken.has(normalizeAnswer(entry.candidate.n)));
+                && !taken.has(normalizeAnswer(entry.candidate.n)) && !distractors.slice(0, 2).some(other => sameArticle(other, entry.candidate)));
             if (known) distractors = [...distractors.slice(0, 2), known.candidate];
         }
         return shuffle([
@@ -2654,7 +2818,7 @@
         MAX_LEVEL, LEVEL_XP, questionsForLevel, xpForLevel, levelFromXp, levelProgress, LEVEL_TITLES, titleForLevel, nextTitle, TITLE_OWL_FROM, titleOwlTier, answerXp, DAILY_XP, DAILY_ALL_XP, streakXp, MASTERY_STEPS, masteryStars, nextMastery,
         UNKNOWN_COUNTRY, INTERNATIONAL_WATERS, CZECHIA_QID, AFTER_SYMBOL_WORD, TILE_SIZE, COUNTRIES, CONTINENT_NAMES,
         SATELLITE_TILES, OSM_TILES,
-        escapeHtml, stripBrackets, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, plural, formatPoints,
+        escapeHtml, stripBrackets, isRealPhoto, photoWords, OFF_SUBJECT, OFF_SUBJECT_BUILDINGS, offSubjectRule, commonsPhotoUrl, commonsFileUrl, displayName, plural, formatPoints,
         getDayKey, shiftDayKey, formatDayKey, createSeededRandom, pickRandom, pickWeighted, shuffle,
         ELEMENT_FAMILIES, elementFamily, periodicPosition,
         maskLeaks, findLeaks, answerTokens, foldKeys, isPersonName, genericWordsOf, isGenericWord, specificWords, absorbGenericWords, hideNicknames, CHOICE_MARK, hideOtherChoices,
@@ -2664,7 +2828,7 @@
         setCountries, landOf, landsOf, landFromDescription, cultureDistance, CULTURE_GROUPS, cultureScore, cultureLandsFor, getWordStems, censorName, mergeCensored, swallowAliases, censorCountry, isKnownCountry, processWikiText, stripFactSentences, takeLeadFacts, normalizeAnswer, levenshtein, isAnswerMatch, isSymbolMatch, isCenturyMatch, isFormulaMatch, formulaCounts, checkAnswer,
         inCollection, filterItems, levelOf, tierLevel, pickItem, sortItems, getCountryNames, getContinent, continentAt, getCountryAliases,
         distanceKm, nearness, STATE_STEPS, sharesGroup, eraNearness, personSimilarity, rankBySimilarity, takeDistinct, isNamePart,
-        buildItemChoices, buildCountryChoices, findAnswerItem, findAnswerCountry, updateMistakes, nameAnswers, countryAnswers,
+        buildItemChoices, buildCountryChoices, sameArticle, namedIn, choiceConflict, replaceConflicts, findAnswerItem, findAnswerCountry, updateMistakes, nameAnswers, countryAnswers,
         pointsFor, dropKnownFacts, scaleKnown, timelineKnown, dropChoiceNames, sharesWordRoot, chooseDescription, censoredShare, MAX_CENSORED_SHARE, isFactVisible, formatNumber, formatPopulation, formatYear, formatFacts, getMapSpan, buildBlindMap, blindMapSpan, visibleOutline,
         mercatorY, inverseMercatorY, ringLons, regionalView, buildRegionalMap, mapExtent, REGIONAL_WINDOW, REGIONAL_DIGITS, decodeNumbers,
         buildTimeline, centuryOf, centuryLabel, computeStreak, buildShareText, getTileLayout

@@ -367,6 +367,9 @@
     const conflicts = (item, other) => ((item.f || {}).cf || []).includes(other.n) || ((other.f || {}).cf || []).includes(item.n)
         || (item.c === 'obdobi' && (item.f.par === other.n || other.f.par === item.n));
 
+    // Hlavní obrázek útvaru, který ho neukazuje (mapa, kresba, model; quiz-core.js offSubjectRule, npm run audit:obrazky)
+    const offSubjectPhoto = core.offSubjectRule({ words: { utvary: core.OFF_SUBJECT.depiction }, views: ['utvary'] });
+
     return {
         id: 'geologie',
         title: 'Geologie',
@@ -385,6 +388,7 @@
             czechBadge: 'Česká stopa'
         },
         categories: CATEGORIES,
+        offSubjectPhoto,
 
         // Nerosty stejné třídy a barvy (k pyritu chalkopyrit, markazit), kameny stejné barvy (k rubínu almandin, jaspis),
         // horniny stejné skupiny, období stejné úrovně a blízké doby

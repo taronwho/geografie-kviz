@@ -95,6 +95,9 @@
         // Moře, zálivy a průlivy omývají víc států (Finský záliv i Estonsko) – otázka by neměla jednu správnou odpověď
         if (SEA_TYPES.has(item.ty)) return false;
         if (item.c === 'stat' || (item.co || []).length !== 1 || !countries[item.co[0]] || isSharedName(item, items)) return false;
+        // Řeka, která teče, pramení nebo má povodí i v jiném státě (pole ca: Spréva i v Česku, Siret na Ukrajině), by měla víc
+        // správných odpovědí a sousední stát by byl „nesprávnou“ možností
+        if ((item.ca || []).length) return false;
         const countryId = item.co[0];
         if (DISPUTED.has(countryId) || (countryId === ISRAEL && item.la !== undefined && distanceKm(item, JERUSALEM) < 25)) return false;
         // Místa v Česku: český název a popis (jižní Čechy, Jindřichohradecko, Morava) odpověď prozradí vždycky, otázka by byla zadarmo
@@ -128,6 +131,33 @@
         return item.c === 'jezero' ? 'Mezinárodní vody' : 'Mimo území států';
     };
 
+    // Hlavní obrázek z Wikidat, který neukazuje místo (pravidlo quiz-core.js offSubjectRule, audit npm run audit:obrazky): u přírody
+    // a vod mapa, kresba nebo známka, zvíře místo národního parku (slon v Garambě, žirafa v Nairobi), rozhledna nebo kaple místo hory,
+    // výhled z vrcholu; u staveb jako v Architektuře. Položka zůstane, jen bez obrázku (app.js loadTopic, i v Dobývání a atlase)
+    const NATURE_OFF = [...core.OFF_SUBJECT.depiction, 'location', 'topo', 'topographic', 'drainage basin'];
+    const offSubjectPhoto = core.offSubjectRule({
+        words: {
+            mesto: core.OFF_SUBJECT.depiction, stavba: core.OFF_SUBJECT_BUILDINGS.words(), hora: [...NATURE_OFF, ...core.OFF_SUBJECT.summit],
+            reka: NATURE_OFF, jezero: NATURE_OFF, ostrov: NATURE_OFF, priroda: NATURE_OFF
+        },
+        ids: [...core.OFF_SUBJECT_BUILDINGS.ids,
+            // Řeky: hrad, kostel, vesnice, krajina jinde, ptáci, vinice, oběd u řeky, mapa povodí
+            'Q237901', 'Q171436', 'Q215653', 'Q828869', 'Q26799', 'Q655754', 'Q155045', 'Q1673', 'Q118850',
+            // Vodní plochy: velryba, ptáci
+            'Q876470', 'Q1365115',
+            // Hory: rozhledna, výhled z rozhledny, hrad, klášter, botanická zahrada, les, kaple
+            'Q666418', 'Q3487012', 'Q1288656', 'Q452251', 'Q519263', 'Q587808', 'Q1345416', 'Q1578621',
+            // Přírodní místa: zvířata a květiny místo parku, chata, brána, hrad, cedule, družstvo, práce v jeskyni, dům
+            'Q192764', 'Q308893', 'Q532440', 'Q726863', 'Q391338', 'Q506511', 'Q675633', 'Q739993', 'Q949297', 'Q48608', 'Q856665', 'Q1480481',
+            'Q1520200', 'Q716801', 'Q935435', 'Q1270310', 'Q1571380', 'Q8465595', 'Q12048882', 'Q12048884', 'Q12056211', 'Q1641326', 'Q11935101',
+            'Q1539772', 'Q319356', 'Q201149', 'Q571322', 'Q168272',
+            // Ostrovy: klokani, kraby, rypouši, mroži, tučňák, ptáci, ryby, traktor, letiště
+            'Q210371', 'Q31063', 'Q46772', 'Q185018', 'Q914225', 'Q83639', 'Q233124', 'Q605839', 'Q938563'],
+        // Družicový snímek ostrova nebo souostroví s názvem „map“ místo ukazuje
+        keep: [...core.OFF_SUBJECT_BUILDINGS.keep, 'Q16635', 'Q166131', 'Q325652'],
+        views: ['stavba', 'hora']
+    });
+
     const topic = {
         id: 'zemepis',
         title: 'Zeměpis',
@@ -146,6 +176,7 @@
             tierKnown: 'Hlavní města, velké řeky, slavné stavby'
         },
         categories: CATEGORIES,
+        offSubjectPhoto,
 
         // Místa mají vlastní pravidla podle vzdálenosti, ne kulturu jmen osob
         culture: () => [],

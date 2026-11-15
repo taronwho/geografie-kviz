@@ -2,7 +2,8 @@
 // Kontrola a ukázky otázek Časové souvislosti (time-questions.js) na skutečných datech: npm run audit:souvislosti [-- --sample=30 --runs=400 --topic=hudba,film --seed=x]
 // Pro každé téma sestaví otázky jako hra (plan → buildRound, Základní i Mudrlant) a ověří: právě jedna správná možnost, odstupy let,
 // různé názvy, zadání bez slovesa ve shodě s pohlavím hráče, vysvětlení s roky u každé možnosti a nápovědy, které odpověď neprozradí
-// (osa bez let možností, roky nanejvýš jedné nesprávné možnosti, u otázek bez osobnosti dvou). Vypíše počty podle druhu
+// (osa bez let možností, roky nanejvýš jedné nesprávné možnosti, u otázek bez osobnosti dvou) a mezi známými jen slavné položky
+// (bez pole obscure v data/souvislosti.json, scripts/lib/souvislosti-fame.mjs). Vypíše počty podle druhu
 // a ukázky (--sample); exit kód je nenulový při chybě.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -60,8 +61,14 @@ for (const topicId of topics) {
             if (hint.kind === 'visual' && data.time.rows.some(row => hint.spec.spans.some(span => span.from === row.from && span.to === row.to && row.id !== (data.time.subject || {}).id))) report('osa v nápovědě ukazuje možnost');
         }
         if (data.hints.filter(hint => hint.kind === 'facts').length > 2) report('víc než dvě nápovědy s fakty');
-        const issues = Time.check(planned, Time.entriesFor(ctx));
+        const entries = Time.entriesFor(ctx);
+        const issues = Time.check(planned, entries);
         issues.forEach(report);
+        // Známost: z ostatních témat jen slavné položky, na úrovni Základní ani z hraného tématu položka bez slávy (data/souvislosti.json obscure)
+        for (const id of Time.idsOf(data)) {
+            const entry = entries.byId.get(id);
+            if (entry && entry.o && (entry.tp !== topicId || tier === 'known')) report(`položka bez slávy mezi známými: ${entry.n}`);
+        }
         if (sample && samples.filter(entry => entry.key.startsWith(`${topicId}:`)).length < sample) samples.push({ key, data });
     }
 }

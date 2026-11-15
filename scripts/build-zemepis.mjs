@@ -5,11 +5,13 @@
 // 2. krok: podrobnosti po dávkách – článek na české Wikipedii, název, souřadnice, státy, fotka, čísla
 // 3. krok: zápis v UNESCO a okruhy pro systematické učení
 // 4. krok: úrovně obtížnosti (scripts/lib/zemepis-levels.mjs) – u míst v Česku podle návštěvnosti článků na české Wikipedii
+// 5. krok: další státy řek (pole ca, scripts/lib/zemepis-reky.mjs) – podle průběhu v data/mapa-tvary.json a Wikidat
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { sparql, id, round, values, parsePoint, imageFields, cached, inBatches, readCountries, writeTopic, sleep, CZECHIA, buildingTypeFromName } from './lib/wikidata.mjs';
 import { czechPageviews, cachedByKey, assignLevels, levelSummary } from './lib/zemepis-levels.mjs';
+import { addRiverCountries } from './lib/zemepis-reky.mjs';
 
 const require = createRequire(import.meta.url);
 const { getContinent, normalizeAnswer } = require('../quiz-core.js');
@@ -516,5 +518,8 @@ console.log(levelSummary('vše', items));
 for (const category of CATEGORIES) console.log(levelSummary(category.key, items.filter(p => p.c === category.key)));
 for (const collection of collections) console.log(levelSummary(`okruh ${collection.label}`, items.filter(item => (item.g || []).includes(collection.id))));
 console.log(levelSummary('Česko (bez státu)', czechSamples));
+
+// --- 5. krok: státy, kterými řeka také teče (pramen, hranice, povodí), ale nejsou v co ---
+await addRiverCountries(items, countries);
 
 writeTopic('zemepis', { collections, items });

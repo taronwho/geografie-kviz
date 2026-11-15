@@ -192,6 +192,6 @@ test('architektura: obrázek, který neukazuje stavbu (sad, model, rytina, jiná
     assert.ok(!topic.offSubjectPhoto({ c: 'architekti', q: 'Q1', n: 'I. M. Pei', t: 'I. M. Pei', im: 'Pei looking at model.jpg' }));
     const sound = data.items.filter(item => item.c === 'stavby' && item.im && item.k === 1 && !topic.offSubjectPhoto(item));
     assert.ok(sound.length > 400, `${sound.length} známých staveb s obrázkem`);
-    assert.ok(data.items.filter(item => topic.offSubjectPhoto(item)).length < 20);
+    assert.ok(data.items.filter(item => topic.offSubjectPhoto(item)).length < 40);
     assert.equal(topic.questionTitle(find('Karlův most')), null);
 });

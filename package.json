@@ -13,6 +13,7 @@
     "build:regiony": "node scripts/build-regiony.mjs",
     "build:casti": "node scripts/build-casti-mest.mjs",
     "build:zemepis": "node scripts/build-zemepis.mjs",
+    "build:reky": "node scripts/build-reky.mjs",
     "build:historie": "node scripts/build-historie.mjs",
     "build:biologie": "node scripts/build-biologie.mjs",
     "build:chemie": "node scripts/build-chemie.mjs",
@@ -35,7 +36,8 @@
     "audit:questions": "node scripts/audit-questions.mjs",
     "audit:otazky": "node scripts/audit-questions.mjs",
     "audit:mapa": "node scripts/audit-mapa.mjs",
-    "audit:souvislosti": "node scripts/audit-souvislosti.mjs"
+    "audit:souvislosti": "node scripts/audit-souvislosti.mjs",
+    "audit:obrazky": "node scripts/audit-obrazky.mjs"
   },
   "devDependencies": {
     "web-push": "^3.6.7"

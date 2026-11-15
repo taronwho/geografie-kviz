@@ -29,7 +29,7 @@ const audit = async (tab, scene) => {
     await tab.waitForTimeout(150);
     const found = await tab.evaluate(`(${INSPECT})()`);
     // Štítek tématu a kategorie v hlavičce aplikace („Chemie · Chemické prvky“) se zkracuje záměrně, s otázkou nesouvisí
-    found.clipped = found.clipped.filter(text => !/^„(Fyzika|Chemie|Hudba|Film|Historie) · /.test(text));
+    found.clipped = found.clipped.filter(text => !/^„(Fyzika|Chemie|Hudba|Film|Historie|Literatura) · /.test(text));
     for (const kind of Object.keys(found)) assert.deepEqual(found[kind], [], `${scene}: ${kind}`);
 };
 
@@ -177,6 +177,22 @@ test('Časové souvislosti v prohlížeči', { skip: !chromium && 'Playwright ne
         assert.equal(progress.counters.timeAnswered, 1, 'počítadlo pro tip Mudrlanta');
         assert.deepEqual(problems, []);
         await context.close();
+    });
+
+    await t.test('Kdo se narodil nejdřív a Co bylo dřív na 360×640: panel se čtyřmi položkami se vejde bez posouvání uvnitř, popisy v možnostech', async () => {
+        for (const [topic, categories, force, colorScheme] of [['literatura', ['spisovatele'], 'born', 'light'], ['film', ['filmy'], 'order', 'dark'], ['hudba', ['skladatele'], 'oldest', 'dark']]) {
+            const { context, tab, problems } = await open({ topic, categories, force, colorScheme });
+            const { data } = await session(tab);
+            assert.equal(data.time.type, force);
+            const inner = await tab.evaluate(() => { const lead = document.querySelector('[data-time-lead="items"]'); return lead.scrollHeight - lead.clientHeight; });
+            assert.ok(inner <= 1, `${force}: panel se neposouvá uvnitř (${inner} px)`);
+            assert.ok(await overflow(tab) <= 1, `${force}: bez posouvání stránky`);
+            assert.ok(data.question.choices.filter(choice => choice.detail).length >= 3, `${force}: popisy v možnostech`);
+            await shot(tab, `cas-${force}-360-${colorScheme}`);
+            await audit(tab, `otázka ${force} (360×640, ${colorScheme})`);
+            assert.deepEqual(problems, []);
+            await context.close();
+        }
     });
 
     await t.test('ve variantě psaní jsou u Časových souvislostí možnosti (body jako u psaní, jako u číselných otázek)', async () => {

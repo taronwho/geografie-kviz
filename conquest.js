@@ -790,8 +790,11 @@
                 let home;
                 if (kraje) { const at = krajOf(item); home = at ? [at] : []; } else home = (id === 'city' || id === 'building') && co.length !== 1 ? [] : co.filter(q => ids.has(q));
                 if (!home.length) continue;
-                const multi = !kraje && co.length > 1;
-                add(id, { ...about(item, topic), home, ok: home, rel: new Set(kraje ? home : [...co, ...nationQ(item.d)]), text: kraje ? '' : item.d || '', multi, sub: item.ty || '', place: true });
+                // Řeka teče i státy mimo co (pole ca: pramen, hraniční úsek, povodí – Garonna pramení ve Španělsku): pro ně není
+                // správnou odpovědí ani nesprávnou možností (scripts/lib/zemepis-reky.mjs)
+                const also = kraje ? [] : (item.ca || []).filter(Boolean);
+                const multi = !kraje && co.length + also.length > 1;
+                add(id, { ...about(item, topic), home, ok: home, rel: new Set(kraje ? home : [...co, ...also, ...nationQ(item.d)]), text: kraje ? '' : item.d || '', multi, sub: item.ty || '', place: true });
                 // Najdi na mapě: město v území (u států jen v jednom státě)
                 if (PLACE_CATEGORIES.has(item.c) && !multi && !(item.ty && /moře|oceán|záliv|zátoka|průliv/.test(item.ty))) places.byTerritory.get(home[0]).push({ item, topic });
             }
@@ -1456,15 +1459,25 @@
         const found = family && family.byTerritory ? family.byTerritory.get(ctx.item.id) : null;
         return found ? found.filter(entry => entry.ok.includes(ctx.item.id) && usable(entry, ctx.level)) : [];
     });
-    // Rodiny, ze kterých jde pro území otázka Mudrlanta v dané formě: aspoň čtyři použitelné položky jednoho tématu (u obrázku
-    // aspoň jedna s obrázkem); jako rodiny pro losování podle oborů (familyShares)
+    // Možnosti otázky Mudrlanta o místech na úrovni 0–1: správná odpověď je známé místo, nesprávné možnosti napřed známá místa, a když
+    // jich v území není dost, i méně známá (ne pro znalce) – místa jsou mírnější jako u vztahových rodin. Území s malým počtem známých
+    // míst (Afrika: Keňa má jedno známé jezero a tři méně známá, Alžírsko tři známá pohoří) tak mají popis, fakta i obrázek, ne jen
+    // letopočet; poznat je potřeba jen známé místo. Osoby a díla zůstávají na úrovni 0–1 jen známé
+    const PLACE_FAMILIES = new Set(['city', 'building', 'castle', 'mountain', 'lake', 'island', 'nature', 'river', 'region', 'venue']);
+    const choiceEntries = (ctx, id) => cached(ctx, `choices|${id}`, () => {
+        if (ctx.level > 1 || !PLACE_FAMILIES.has(id)) return ownEntries(ctx, id);
+        const family = ctx.pools.families.get(id);
+        const found = family && family.byTerritory ? family.byTerritory.get(ctx.item.id) : null;
+        return found ? found.filter(entry => entry.ok.includes(ctx.item.id) && !entry.expert) : [];
+    });
+    // Rodiny, ze kterých jde pro území otázka Mudrlanta v dané formě: položka použitelná jako odpověď (u obrázku s obrázkem) a aspoň
+    // čtyři možnosti jejího tématu; jako rodiny pro losování podle oborů (familyShares)
     const mudrlantFamilies = (ctx, form) => cached(ctx, `mudrlant|${form}`, () => MUDRLANT_IDS.filter(id => {
         const spec = MUDRLANT[id];
         if ((form === 'photo' && !spec.photo) || (form === 'text' && spec.noText)) return false;
-        const own = ownEntries(ctx, id);
-        const byTopic = new Map();
-        own.forEach(entry => Object.keys(entry.srcs).forEach(topic => byTopic.set(topic, (byTopic.get(topic) || 0) + 1)));
-        return [...byTopic.values()].some(count => count >= 4) && (form !== 'photo' || own.some(entry => hasImage(entry, spec)));
+        const pool = choiceEntries(ctx, id);
+        const answers = pool.filter(entry => usable(entry, ctx.level) && (form !== 'photo' || hasImage(entry, spec)));
+        return answers.some(answer => pool.filter(entry => entry.srcs[answer.topic]).length >= 4);
     }).map(id => ({ id, domain: FAMILY_DOMAIN[id], w: [1, 1, 1, 1] })));
     // Tři nesprávné možnosti k položce: ze stejného území, rodiny i tématu, osoby stejného pohlaví; napřed stejná kategorie a druh
     // (ke katedrále katedrály: druh je u otázky vidět a popis ho říká), nízko nejznámější, výš podobně známé; názvy různé a žádný není
@@ -1508,6 +1521,10 @@
     // Jmenovci s jiným pořadovým číslem (Přemysl Otakar I. a II., Fridrich Vilém I. a III.) jsou dvě různé osoby
     const ordinalOf = (label) => (/(?<![\p{L}])([IVXLC]+)(?:\.|$)/u.exec(String(label || '')) || [])[1] || '';
     const nearDuplicate = (a, b, family, ctx, person = false) => {
+        // Položky téhož článku Wikipedie (Boson W a Boson Z → Bosony W a Z) nebo ze společného článku („X a Y“): popis sedí na obě
+        const x = a && a.srcs ? a.srcs[a.topic] : null;
+        const y = b && b.srcs ? b.srcs[b.topic] : null;
+        if (x && y && core && core.sameArticle && core.sameArticle(x, y)) return true;
         if (COORD_FAMILIES.has(family)) {
             const x = coordsOf(a);
             const y = coordsOf(b);
@@ -1541,8 +1558,8 @@
         const families = mudrlantFamilies(ctx, form);
         for (const family of weightedOrder(families, familyShares(families, level), rng).slice(0, 8)) {
             const spec = MUDRLANT[family.id];
-            const own = ownEntries(ctx, family.id);
-            const fresh = own.filter(entry => !used.has(entry.key) && (form !== 'photo' || hasImage(entry, spec)));
+            const own = choiceEntries(ctx, family.id);
+            const fresh = own.filter(entry => !used.has(entry.key) && usable(entry, level) && (form !== 'photo' || hasImage(entry, spec)));
             const picks = [...new Set([...shuffle(levelWindow(fresh, level), rng), ...shuffle(fresh, rng)])].slice(0, 6);
             for (const pick of picks) {
                 const wrong = distractorsFor(pick, own, spec, ctx, family.id);

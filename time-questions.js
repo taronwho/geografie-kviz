@@ -23,6 +23,8 @@
         : root && root.MUDRLANT_NUMERIC_RATE === 0 ? 0 : RATE;
     // Kvíz dne má Časové souvislosti od tohoto dne (dřívější dny zůstanou, jak je hráči hráli)
     const QUIZ_FROM = '2026-11-14';
+    // Od tohoto dne bere Kvíz dne mezi známé jen slavné položky (bez pole obscure v data/souvislosti.json); dřívější dny jako dřív
+    const FAME_FROM = '2026-11-16';
     const DATA_FILE = 'data/souvislosti.json';
     const THIS_YEAR = new Date().getFullYear();
     const LABEL = 'Časové souvislosti';
@@ -66,7 +68,32 @@
         const words = plain.split(/[\s,;:]+/u).map(word => word.replace(/[^\p{L}-]/gu, '')).filter(Boolean);
         return words.find(word => word.length > 2 && word === word.toLowerCase() && !ADJECTIVE_END.test(word)) || '';
     };
-    const personKind = (item, topicId) => (topicId === 'historie' && item.c === 'osobnost' && kindFromDescription(item.d)) || item.ty || '';
+    // Obor podle kategorie (fotograf u Fotografů, zpěvák u Hudebníků, fyzik u Fyziků) bývá u osob, které jsou hlavně něčím jiným,
+    // zavádějící: Henry Scott Tuke („britský malíř a fotograf“) je v datech fotograf, Vangelis („řecký hudební skladatel“) zpěvák,
+    // Kepler („německý astronom“) fyzik. Když popis začíná oborem jiné kategorie osob, platí popis: „malíř a fotograf“ (obor z dat je
+    // v popisu dál), jinak jen obor z popisu („skladatel“, „astronom“)
+    const FIELD_WORDS = {
+        umelci: ['malíř', 'malířka', 'sochař', 'sochařka', 'grafik', 'grafička', 'výtvarník', 'výtvarnice'], fotografove: ['fotograf', 'fotografka'],
+        ilustratori: ['ilustrátor', 'ilustrátorka', 'kreslíř', 'kreslířka', 'karikaturista', 'karikaturistka'],
+        spisovatele: ['spisovatel', 'spisovatelka', 'básník', 'básnířka', 'dramatik', 'dramatička', 'prozaik', 'prozaička', 'romanopisec', 'romanopiskyně'],
+        skladatele: ['skladatel', 'skladatelka'], hudebnici: ['zpěvák', 'zpěvačka', 'hudebník', 'hudebnice'], herci: ['herec', 'herečka'], reziseri: ['režisér', 'režisérka'],
+        architekti: ['architekt', 'architektka'], fyzici: ['fyzik', 'fyzička'], astronomove: ['astronom', 'astronomka'], chemici: ['chemik', 'chemička']
+    };
+    const FIELD_OF = new Map(Object.entries(FIELD_WORDS).flatMap(([category, words]) => words.map(word => [word, category])));
+    const descriptionNouns = (text) => {
+        const plain = String(text || '').replace(/\([^)]*\)/g, ' ').trim();
+        if (!plain || /\d/.test(plain)) return [];
+        return plain.split(/[\s,;:]+/u).map(word => word.replace(/[^\p{L}-]/gu, '')).filter(word => word.length > 2 && word === word.toLowerCase() && !ADJECTIVE_END.test(word));
+    };
+    const fieldFromDescription = (item) => {
+        const own = FIELD_WORDS[item.c];
+        if (!own || !own.includes(item.ty)) return '';
+        const nouns = descriptionNouns(item.d);
+        const first = nouns[0];
+        if (!first || own.includes(first) || !FIELD_OF.has(first)) return '';
+        return nouns.includes(item.ty) ? `${first} a ${item.ty}` : first;
+    };
+    const personKind = (item, topicId) => (topicId === 'historie' && item.c === 'osobnost' && kindFromDescription(item.d)) || fieldFromDescription(item) || item.ty || '';
 
     // Domovská kategorie objevů a vynálezů z data/vynalezy.json v tématu (výběr kategorií hráče)
     const EXTRA_CATEGORY = { fyzika: { vynalez: 'vynalezy', objev: 'pojmy' }, chemie: { vynalez: 'latky', objev: 'pojmy' }, historie: { vynalez: 'udalosti', objev: 'udalosti' } };
@@ -239,9 +266,12 @@
     const setIndex = (data) => {
         // Soubor má jen známé položky (úroveň Základní); žijící osoby bez roku úmrtí
         const known = (list) => list.filter(entry => entry && typeof entry.q === 'string' && typeof entry.n === 'string').map(entry => ({ ...entry, lvl: 1, ...(Number.isInteger(entry.b) && entry.d === undefined ? { d: null } : {}) }));
+        // obscure = položky k = 1, které český hráč skoro nezná (Klaus Ebner, Černý leden): mezi známé se neberou (příznak o)
+        const obscure = new Set(data && Array.isArray(data.obscure) ? data.obscure : []);
+        const flag = (list) => list.map(entry => (obscure.has(entry.q) ? { ...entry, o: true } : entry));
         index = data && Array.isArray(data.people) && Array.isArray(data.dated) ? {
-            people: known(data.people).filter(isPerson), dated: known(data.dated).filter(entry => Number.isInteger(entry.y) && entry.kd),
-            extras: new Set(data.dated.filter(entry => entry && entry.x).map(entry => entry.q))
+            people: flag(known(data.people).filter(isPerson)), dated: flag(known(data.dated).filter(entry => Number.isInteger(entry.y) && entry.kd)),
+            extras: new Set(data.dated.filter(entry => entry && entry.x).map(entry => entry.q)), obscure
         } : null;
         entryCache = new WeakMap();
         return index;
@@ -265,6 +295,7 @@
         for (const item of ctx.items) {
             if (index.extras.has(item.q)) continue;
             const entry = timeFacts(item, topicId);
+            if (entry && index.obscure.has(entry.q)) entry.o = true;
             if (entry && (isPerson(entry) || authorFits(entry, authors.get(entry.byq)))) own.push(entry);
         }
         const ownIds = new Set(own.map(entry => entry.q));
@@ -501,7 +532,8 @@
     // Plán otázky: druh, osobnost či věc, možnosti v pořadí a správná. null = obyčejná otázka. Volání rng v pevném pořadí (Kvíz dne:
     // stejné semínko = stejná otázka). pool = položky, ze kterých hra právě vybírá (kategorie a známost), item = vylosovaná položka;
     // položky hraného tématu jen z pool, z ostatních témat jen známé
-    const plan = ({ ctx, item, pool, rng, rate = api.rate, force = api.force }) => {
+    // legacy = výběr jako před FAME_FROM (Kvíz dne dřívějších dnů): i položky bez slávy (příznak o) se berou mezi známé
+    const plan = ({ ctx, item, pool, rng, rate = api.rate, force = api.force, legacy = false }) => {
         const topic = ctx && ctx.topic;
         if (!index || !topic || !Array.isArray(pool) || !pool.length || typeof rng !== 'function') return null;
         if (!(rng() < (force ? 1 : rate))) return null;
@@ -509,8 +541,11 @@
         if (!data || !data.own.length) return null;
         const poolIds = new Set(pool.map(entry => entry.q));
         const poolCategories = new Set(pool.map(entry => entry.c));
-        const okOwn = (entry) => entry.tp === topic.id && (entry.x ? !entry.c || poolCategories.has(entry.c) : poolIds.has(entry.q));
-        const okAny = (entry) => okOwn(entry) || (entry.tp !== topic.id && entry.lvl === 1);
+        // Hraní jen známých (úroveň Základní, Kvíz dne): položka tématu bez slávy se nebere ani za otázku, ani za možnost
+        const knownPool = pool.every(entry => core.levelOf(entry) === 1);
+        const famous = (entry) => legacy || !entry.o;
+        const okOwn = (entry) => entry.tp === topic.id && (entry.x ? !entry.c || poolCategories.has(entry.c) : poolIds.has(entry.q)) && (!knownPool || famous(entry));
+        const okAny = (entry) => okOwn(entry) || (entry.tp !== topic.id && entry.lvl === 1 && famous(entry));
         const anchor = item ? data.byId.get(item.q) : null;
         const kinds = force && typeof force === 'string' && TYPES.includes(force) ? [force] : TYPES;
         // Přednost má vylosovaná položka (Mozart → Za života), jinak pár dalších z pool
@@ -618,6 +653,18 @@
         // Druh, který je už v názvu (Šestidenní válka · válka), se neopakuje
         return detail && !normalizeAnswer(label).includes(normalizeAnswer(detail)) ? detail : '';
     };
+    // Popis možnosti u otázek bez osobnosti (Co bylo dřív, Kdo se narodil nejdřív, Kdo žil nejdéle): všechny možnosti jsou stejného
+    // druhu, takže místo druhu autor či režisér (u více autorů první), u osoby obor a země, když se vejdou (jinak jen obor)
+    const LIST_DETAIL = 26;
+    const listDetail = (entry, label) => {
+        if (isPerson(entry)) {
+            const kind = shortKind(entry.ty);
+            const full = [kind, entry.l].filter(Boolean).join(' · ');
+            return full.length <= LIST_DETAIL ? full : kind;
+        }
+        const author = [entry.by, String(entry.by || '').split(/,\s*| a /u)[0]].find(text => text && text.length <= LIST_DETAIL);
+        return author && !normalizeAnswer(label).includes(normalizeAnswer(author)) ? author : choiceDetail(entry, label);
+    };
     // Popis pod názvem (panel, vysvětlení): obor a země osoby, druh a autor věci (film · Andy Muschietti, ne holé „To“)
     const detailOf = (entry) => (isPerson(entry) ? [entry.ty, entry.l].filter(Boolean).join(' · ')
         : [entry.ty && entry.ty !== 'událost' ? entry.ty : KIND_ONE[entry.kd], entry.by].filter(Boolean).join(' · '));
@@ -696,9 +743,9 @@
         const subjectRow = subject ? { ...row(subject, false), relation: '' } : null;
         const title = titleOf(planned, subject);
         const correct = rows[planned.correct];
-        // Možnosti: název bez roků, u otázek s osobností či věcí i krátký popis (bez ní jsou popisy v panelu nad možnostmi)
+        // Možnosti: název bez roků a krátký popis (u otázek s osobností či věcí druh nebo obor, u otázek bez ní autor nebo obor a země)
         const choiceOf = (entry, index) => {
-            const detail = subject ? choiceDetail(choices[index], entry.name) : '';
+            const detail = subject ? choiceDetail(choices[index], entry.name) : listDetail(choices[index], entry.name);
             return { id: entry.id, topic: entry.topic, label: entry.name, ...(detail ? { detail } : {}), correct: entry.correct };
         };
         const question = {
@@ -784,7 +831,10 @@
         return order.slice(0, second ? 2 : 1).sort((a, b) => a - b);
     };
     // Plán otázky Kvízu dne: jen známé položky, vlastní řada čísel ze semínka otázky
-    const quizPlan = (seed, ctx, item) => plan({ ctx, item, pool: ctx.items.filter(entry => entry.k === 1 && !entry.nq), rng: createSeededRandom(`${seed}:cas`), force: true });
+    const quizPlan = (seed, ctx, item) => {
+        const day = (/\d{4}-\d{2}-\d{2}/.exec(String(seed)) || [''])[0];
+        return plan({ ctx, item, pool: ctx.items.filter(entry => entry.k === 1 && !entry.nq), rng: createSeededRandom(`${seed}:cas`), force: true, legacy: Boolean(day) && day < FAME_FROM });
+    };
 
     // --- Rozvržení osy výsledku (visuals.js typ chronology kreslí SVG) ---
 
@@ -835,7 +885,7 @@
     const thumb = (photo, size) => (photo
         ? `<span data-time-photo="${escapeHtml(photo)}" class="${size} shrink-0 rounded-xl bg-slate-200 bg-contain bg-center bg-no-repeat dark:bg-slate-600" aria-hidden="true"></span>`
         : `<span class="${size} flex shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-slate-700 dark:text-amber-300" aria-hidden="true"><i data-lucide="${ICON}" class="h-5 w-5"></i></span>`);
-    // Panel otázky: osobnost či věc (bez roků, ty jsou nápovědou), u otázek bez ní čtyři položky s obrázky a autorem
+    // Panel otázky: osobnost či věc (bez roků, ty jsou nápovědou), u otázek bez ní obrázky čtyř možností
     const leadHtml = (data) => {
         const time = data.time;
         if (time.subject) {
@@ -854,16 +904,24 @@
                 </div>
             </div>`;
         }
+        // Bez osobnosti: obrázky čtyř možností ve stejném rozložení 2 × 2 jako tlačítka možností pod panelem (názvy, autoři a obory
+        // jsou v tlačítkách). Dlaždice se roztáhnou na výšku panelu, takže se vejdou bez posouvání i na telefonu 360 × 640.
+        // Když obrázky skoro chybí (filmy, seriály), panel jen řekne, co se porovnává a co ukáže nápověda
+        if (time.rows.filter(row => row.photo).length < 2) {
+            return `
+            <div class="absolute inset-0 flex items-center gap-3 px-4 py-2" data-time-lead="items">
+                <i data-lucide="${ICON}" class="h-8 w-8 shrink-0 text-amber-600 short:h-6 short:w-6 dark:text-amber-300" aria-hidden="true"></i>
+                <p class="text-sm font-semibold leading-snug text-slate-600 short:text-[13px] dark:text-slate-300">${escapeHtml(listNote(time))}</p>
+            </div>`;
+        }
         return `
-            <div class="absolute inset-0 overflow-y-auto overscroll-contain p-2.5" data-time-lead="items">
-                <ul class="grid grid-cols-2 gap-2">
+            <div class="absolute inset-0 p-2 short:p-1.5" data-time-lead="items">
+                <ul class="grid h-full grid-cols-2 grid-rows-2 gap-1.5" aria-hidden="true">
                     ${time.rows.map(row => `
-                        <li class="flex min-w-0 items-center gap-2 rounded-xl bg-slate-50 p-1.5 dark:bg-slate-900/50">
-                            ${thumb(row.photo, 'h-11 w-11')}
-                            <span class="min-w-0">
-                                <span class="block text-[13px] font-bold leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(row.name)}</span>
-                                ${row.detail ? `<span class="block text-[11px] font-semibold leading-tight text-slate-500 dark:text-slate-400">${escapeHtml(row.detail)}</span>` : ''}
-                            </span>
+                        <li class="relative flex min-h-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-900/60">
+                            ${row.photo
+                                ? `<span data-time-photo="${escapeHtml(row.photo)}" class="absolute inset-1 bg-contain bg-center bg-no-repeat"></span>`
+                                : `<i data-lucide="${ICON}" class="h-5 w-5 text-amber-600 dark:text-amber-300"></i>`}
                         </li>`).join('')}
                 </ul>
             </div>`;
@@ -874,6 +932,16 @@
         after: 'Rok úmrtí ukáže nápověda.', during: 'Roky života ukáže nápověda.', alive: 'Rok ukáže nápověda.', century: 'Rok ukáže nápověda.', age: 'Rok vzniku ukáže nápověda.'
     };
     const leadNote = (time) => LEAD_NOTES[time.type] || '';
+    const ORDER_BY = {
+        vynalez: 'roku vynálezu', objev: 'roku objevu', teleso: 'roku objevu', prvek: 'roku objevu', film: 'roku premiéry', opera: 'roku premiéry',
+        serial: 'roku, kdy se začal vysílat', mise: 'roku startu', literarni: 'roku vzniku', skladba: 'roku vzniku', obraz: 'roku vzniku', socha: 'roku vzniku', stavba: 'roku vzniku'
+    };
+    const listNote = (time) => (time.type === 'order'
+        ? `Porovnej čtyři možnosti pod otázkou podle ${ORDER_BY[time.kind] || 'roku'}. Roky dvou z nich ukáže nápověda.` : LIST_NOTES[time.type] || '');
+    const LIST_NOTES = {
+        born: 'Porovnej čtyři osobnosti pod otázkou podle roku narození. Roky dvou z nich ukáže nápověda.',
+        oldest: 'Porovnej, jak dlouho žily čtyři osobnosti pod otázkou. Roky života dvou z nich ukáže nápověda.'
+    };
     // Vysvětlení ve výsledku: osobnost či věc a možnosti s roky a vztahem (správná zeleně)
     const explainHtml = (data) => {
         const time = data.time;
@@ -916,7 +984,7 @@
     const idsOf = (data) => (isKind(data) ? [data.time.subject && data.time.subject.id, ...data.time.rows.map(row => row.id)].filter(id => typeof id === 'string' && !id.startsWith('vek-')) : []);
 
     const api = {
-        RATE, rate: START_RATE, force: null, QUIZ_FROM, DATA_FILE, LABEL, ICON, TYPES, WEIGHTS, GROUPS, KIND_ONE, TYPE_LABELS, SUBJECT_TYPES,
+        RATE, rate: START_RATE, force: null, QUIZ_FROM, FAME_FROM, DATA_FILE, LABEL, ICON, TYPES, WEIGHTS, GROUPS, KIND_ONE, TYPE_LABELS, SUBJECT_TYPES,
         timeFacts, extraFacts, authorFits, authorsOf, setIndex, load, entriesFor, plan, buildRound, check, isKind, idsOf,
         adultOverlap, lifeOverlap, lifeGap, canMeet, cannotMeet, marginAt, orderGap, centuryCore, inOneCentury, aliveAt, missedBy, yearsText, titleOf, relatedTo,
         quizSlots, quizPlan, chronologyLayout, leadHtml, leadLabel, explainHtml, mount, hintTimeline,
