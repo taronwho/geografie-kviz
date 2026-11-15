@@ -90,6 +90,8 @@ test('SQL: zneužití (RLS, oprávnění, XP, odznaky, limity)', { skip: !availa
 
     await t.test('sova jako obrázek profilu: vlastní řádek, jen platný tvar, jde i smazat', () => {
         const owl = 'robe=zelena;head=koruna.modra;face=bryle.original;neck=sala.ruzova;hand=lupa.zelena';
+        // Doplňky sovy kontroluje server podle úrovně (blok 32, check_unlocks; zamčené by vypadly): úroveň 42 kvůli koruně, na konci zase 0 XP
+        q(`update profiles set xp = 60000 where id = '${A}'`);
         ok(asUser(A, `update profiles set avatar = '🦉', owl = '${owl}' where id = '${A}'`));
         assert.equal(q(`select owl from profiles where id = '${A}'`), owl);
         // cizí řádek se nezmění
@@ -103,7 +105,7 @@ test('SQL: zneužití (RLS, oprávnění, XP, odznaky, limity)', { skip: !availa
         // ostatní hráči sovu čtou
         q(`update profiles set owl = '${owl}' where id = '${A}'`);
         assert.equal(last(asUser(B, `select owl from profiles where id = '${A}'`)), owl);
-        q(`update profiles set owl = null where id = '${A}'`);
+        q(`update profiles set owl = null, xp = 0 where id = '${A}'`);
     });
 
     await t.test('XP jen roste a má strop; odznaky jen přibývají a jen z katalogu', () => {

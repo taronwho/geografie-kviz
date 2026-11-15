@@ -150,7 +150,7 @@ test('service worker má v mezipaměti obrázky všech postaviček a obrázky i 
     }
 });
 
-test('sezónní postavičky: jedna za každý měsíc jen ze Sezónní truhly, úrovní, odznakem ani Truhlou Mudrlanta ne; ve výběru jen vlastněné', () => {
+test('sezónní postavičky: jedna za každý měsíc jen ze Sezónní truhly, úrovní, odznakem ani Truhlou Mudrlanta ne; ve výběru vlastněné a zašedlá postavička běžící Sezóny', () => {
     const Rewards = require('../rewards.js');
     const SEASONAL = Look.SEASON_AVATARS;
     assert.deepEqual(SEASONAL.map(item => item.id), ['ramp', 'kobliz', 'snezen', 'kapka', 'pampel', 'vysved', 'meloun', 'hvezda', 'aktovk', 'drakpa', 'caj', 'pernik']);
@@ -185,9 +185,11 @@ test('sezónní postavičky: jedna za každý měsíc jen ze Sezónní truhly, �
         assert.equal(Social.cleanAvatar('drakpa123'), '🦊');
     } finally { delete globalThis.MudrlantLook; }
     assert.equal(Look.parseAvatar('drakpa3').item.id, 'drakpa');
-    // Výběr obrázku v Nastavení ukazuje sezónní postavičky jen vlastněné (nebo uloženou v profilu), jako sezónní rámečky
+    // Výběr obrázku v Nastavení ukazuje sezónní postavičky vlastněné (nebo uloženou v profilu) a postavičku běžící Sezóny zašedlou
+    // s textem „Získáš v Sezóně Mudrlanta (20. stupeň)“ (blok 32; ostatní měsíce skryté, jako sezónní rámečky)
     const app = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
-    assert.match(app, /group === 'postavicky'\) return Look \? Look\.AVATARS\.filter\(item => !item\.diploma && \(!item\.exclusive \|\| Look\.isUnlocked\(item, lookContext\(\)\)/);
+    assert.match(app, /group === 'postavicky'\) return Look \? Look\.AVATARS\.filter\(item => !item\.diploma && \(!item\.exclusive \|\| item\.month === seasonMonth \|\| Look\.isUnlocked\(item, lookContext\(\)\)/);
+    assert.match(app, /Získáš v Sezóně Mudrlanta \(\$\{item\.seasonTier \|\| \(Season \? Season\.BUNDLE_TIER : 20\)\}\. stupeň\)/);
     // Zdroje obrázků jsou v branding/ikony (scripts/avatar-icons.py)
     for (const item of SEASONAL) assert.ok(fs.existsSync(path.join(ROOT, 'branding', 'ikony', `avatar-${item.id}.png`)), item.id);
 });

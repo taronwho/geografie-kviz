@@ -27,7 +27,7 @@ test('ilustrace dlaždic a tipu: zdroj, WebP, mezipaměť service workeru a pou�
 });
 
 test('sova s žárovkou má všechny barvy obleku a přebarví se jako ostatní sovy', () => {
-    for (const robe of Look.ROBES.filter(item => item.id !== 'vinova')) {
+    for (const robe of Look.ROBES.filter(item => item.id !== 'vinova' && !item.custom)) {
         const file = path.join(ROOT, 'icons', 'topics', `sova-tip-${robe.id}.webp`);
         assert.ok(fs.existsSync(file) && isWebp(file), `sova-tip-${robe.id}.webp`);
     }
@@ -58,7 +58,7 @@ test('obrázky do tlačítek a prázdných míst: zdroj, WebP, mezipaměť servi
 test('nové pózy sovy mají všechny barvy obleku a přebarví se jako ostatní sovy', () => {
     const owlSrc = new RegExp(read('look-robes.js').match(/const OWL_SRC = \/(.+)\/;/)[1]);
     for (const name of OWL_POSES) {
-        for (const robe of Look.ROBES.filter(item => item.id !== 'vinova')) {
+        for (const robe of Look.ROBES.filter(item => item.id !== 'vinova' && !item.custom)) {
             const file = path.join(ROOT, 'icons', 'topics', `${name}-${robe.id}.webp`);
             assert.ok(fs.existsSync(file) && isWebp(file), `${name}-${robe.id}.webp`);
             assert.equal(owlSrc.exec(`icons/topics/${name}-${robe.id}.webp`)[1], `icons/topics/${name}`);

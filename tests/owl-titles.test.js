@@ -50,7 +50,7 @@ test('sovy titulů: zdroj v branding/ikony, výřez 320 × 320 a všechny barvy 
         const base = path.join(ROOT, 'icons', 'topics', `sova-${id}.webp`);
         assert.ok(fs.existsSync(base), base);
         assert.deepEqual(webpSize(base), [320, 320], `sova-${id}.webp`);
-        for (const robe of Look.ROBES.filter(entry => entry.id !== 'vinova')) {
+        for (const robe of Look.ROBES.filter(entry => entry.id !== 'vinova' && !entry.custom)) {
             const file = path.join(ROOT, 'icons', 'topics', `sova-${id}-${robe.id}.webp`);
             assert.ok(fs.existsSync(file), `sova-${id}-${robe.id}.webp`);
             assert.deepEqual(webpSize(file), [320, 320], `sova-${id}-${robe.id}.webp`);

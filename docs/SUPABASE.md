@@ -698,3 +698,30 @@ se na ně dál neptá): souboje, XP, emblémy a titul fungují, chybí jen spole
 - Odznaky **Kamarádské sázky** (`sazky-1`, `sazkar` = Sázkař za 5 sázek, `sazky-15`, `sazky-30`, `sazky-60`) a **Vyhrané sázky v řadě**
   (`sazky-v-rade-3`, `sazky-v-rade-5` = Neomylný sázkař, `-7`, `-10`, `-15`) v `badge_catalog()`. Export dat má sázky ve výzvách a součty v profilu.
 - Testy: `tests/sql-bets.test.js`, `tests/bets.test.js` a `tests/e2e-bets.test.js`.
+
+## Motivace: pozvánky kamarádů, prestiž, reakce a vítězné efekty, kontrola odemčení (schéma 32)
+
+**Po aktualizaci spusť znovu celý `supabase/schema.sql` (verze 32).** Dokud ho nespustíš, aplikace okno Pozvi kamarády a výběr vítězného efektu
+nenabídne (funkce vrátí 404, sloupec 400), prestiž platí jen v zařízení a reakce navíc server odmítne (zůstanou základní).
+
+- **Pozvi kamarády**: `referral_codes` (kód přítele, 8 znaků bez 0/O/1/I/L), `referrals` (kdo koho pozval: jen nový účet do 14 dnů, jednou, ne vlastní,
+  ne přes blok ani navzájem) a `referral_rewards` (vyzvednuté odměny `novacek`, `pritel-1`, `pritel-3`, `pritel-10`, každá jednou za účet). Klient tabulky
+  jen čte (své řádky), zapisují je funkce: `referral_status()` (kód, kdo mě pozval, pozvaní s počtem her, co čeká), `referral_join(code)` (i přátelství)
+  a `referral_claim()` (vrátí klíče, XP a věci připíše aplikace). Kamarád se počítá po 3 hrách známých serveru (`referral_games`: Kvíz dne, výzva,
+  Řetězovka, Tajemná otázka s tipem, souboje s bossem); pozvaný dostane odměnu po první hře (hra nebo XP v účtu).
+- **Prestiž**: `profiles.prestige` a `profiles.prestige_xp` zapisuje jen `prestige_up()` (první na 330 000 XP v účtu, další o 49 500 XP později;
+  aplikace před voláním nahraje postup). Strop XP 500 000 stačí na 4 prestiže hned po sobě.
+- **Vítězný efekt**: `profiles.victory_fx` (tvar `^[a-z0-9-]{1,24}$`), ostatní ho čtou s profilem.
+- **Reakce navíc**: kontrola `match_reactions_emoji_list` má 13 emoji a `check_reaction` přijme jen reakci, kterou má odesílatel odemčenou (i při změně).
+- **Kontrola odemčení** (`check_unlocks`, spoušť `profiles_unlock_check`): rámeček, titul u jména, sova (talár, sova titulu, doplňky a barvy), obrázek
+  hráče a vítězný efekt se při změně od klienta uloží, jen když je hráč má odemčené. Katalog `unlock_catalog()` odpovídá `look.js` a `friends.js`
+  (hlídá `tests/motivace.test.js`); úroveň z XP v účtu (`level_of_xp`), odznaky i vyšším stupněm skupiny (`badge_tiers`, `badge_owned`), liga skončené
+  sezóny (`league_best_rank`), prestiž a odměny za pozvání. **Co zná jen zařízení** (věci z Truhly Mudrlanta a Sezóny, diplomy): server je bere ze zápisu
+  aplikace v účtu (`profiles.rewards` → `gifts`, `diplomas`), takže tam jde jen o soudržnost, ne o ochranu; truhla dává věci za úroveň dřív, proto
+  u nich stačí dar. Zamčenou volbu server tiše nepřijme (zůstane předchozí, ze sovy vypadne zamčený doplněk, talár se změní na vínový, sova titulu
+  na nejvyšší dosaženou); co profil už má, se nemění. Hodnotu ve špatném tvaru dál odmítne kontrola sloupce.
+- **Vlastní barva obleku** (od úrovně 20) je talár `vlastni` v katalogu (úroveň 20) a v textu sovy část `robec=odstín.světlost`, kterou server nechá být.
+- **Vitrína**: i `t:<titul>` (titul ze Sezóny, Šampion sezóny) a `s:<druh>:<id>` (rámeček, postavička nebo doplněk ze Sezóny); server je přijme,
+  jen když jsou mezi dary v účtu (aplikace před uložením nahraje odměny).
+- Export dat má `pozvanky` (kód, kdo mě pozval, koho jsem pozval, vyzvednuté odměny). Smazání účtu je smaže (cizí klíče s kaskádou).
+- Testy: `tests/sql-motivace.test.js`, `tests/motivace.test.js` a `tests/e2e-motivace.test.js`.

@@ -63,9 +63,10 @@ test('sekce v pořadí a počty z katalogu: věci od začátku se nepočítají,
     assert.equal(reward.counted, false);
     // Rámečky: bez „Bez rámečku“, bez rámečku za album a bez sezónních z měsíců, které ještě nebyly (10. 11. 2026 jdou získat jen dva
     // listopadové: ze Sezónní truhly a z Truhly v půli sezóny)
-    assert.equal(sectionOf(album, 'frames').total, Look.FRAMES.filter(item => item.id !== 'zadny' && !item.album && Album.availability(item, 'frames', TODAY) !== 'upcoming').length);
+    // Bonusové rámečky (pozvánky a prestiž, look.js PERK_FRAMES) se do procent nepočítají
+    assert.equal(sectionOf(album, 'frames').total, Look.FRAMES.filter(item => item.id !== 'zadny' && !item.album && !item.bonus && Album.availability(item, 'frames', TODAY) !== 'upcoming').length);
     assert.equal(Look.FRAMES.filter(item => item.source === 'season').length, 24, 'dva rámečky na měsíc');
-    assert.equal(sectionOf(album, 'frames').total, Look.FRAMES.length - 2 - 22, 'dvaadvacet sezónních rámečků je zatím skrytých');
+    assert.equal(sectionOf(album, 'frames').total, Look.FRAMES.length - 2 - 22 - Look.PERK_FRAMES.length, 'dvaadvacet sezónních rámečků je zatím skrytých');
     const keys2 = keys('frames');
     assert.ok(NOVEMBER_FRAMES.every(id => keys2.includes(id)) && !keys2.includes('sezona-12') && !keys2.includes('sezona-12-b') && keys2.includes('liga-mistr'), 'listopadové sezónní a ligové rámečky jsou běžně ke sbírání');
     // Oba listopadové jsou omezené (sezónní věc) a chybí, dokud je hráč nemá; text říká, na kterém stupni sezóny čekají

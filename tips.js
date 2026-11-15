@@ -84,7 +84,7 @@
             action: { kind: 'progress', label: 'Můj postup' }, ready: (u) => num(u.maxStars) >= 3, used: (u) => Boolean(u.visited.looks) },
         { id: 'skupiny', icon: 'users', art: 'skupiny', multi: true, account: true, after: 25, title: 'Skupiny', text: 'Založ si skupinu s kamarády, rodinou nebo spolužáky. Budete mít společné výzvy, vlastní týdenní žebříček a přehled, kdo z vás hrál. Ostatní pozveš odkazem.',
             action: { kind: 'groups', label: 'Skupiny' }, ready: (u) => num(u.counters.challenges) >= 1, used: (u) => Boolean(u.visited.groups) },
-        { id: 'vitrina', icon: 'gem', art: 'vitrina', multi: true, account: true, after: 80, title: 'Vitrína v profilu', text: 'V Nastavení na záložce Profil si vyber až 3 trofeje, které ostatní uvidí ve tvém profilu: odznak, diplom nebo výsledek ligové sezóny.',
+        { id: 'vitrina', icon: 'gem', art: 'vitrina', multi: true, account: true, after: 80, title: 'Vitrína v profilu', text: 'V Nastavení na záložce Profil si vyber až 3 trofeje, které ostatní uvidí ve tvém profilu: odznak, diplom, výsledek ligové sezóny, titul nebo věc ze Sezóny Mudrlanta.',
             action: { kind: 'settings', label: 'Nastavení', tab: 'profile' }, ready: (u) => u.showcase, used: (u) => Boolean(u.visited.showcase) },
         // Zlatá otázka (gold.js): art = stejný obrázek jako gold.js ART.owl (hlídá tests/gold.test.js)
         { id: 'zlata', icon: 'sparkles', art: 'zlata-otazka', after: 12, title: 'Zlatá otázka', text: 'Zhruba jednou za 50 otázek přijde Zlatá otázka se zlatým rámečkem. Dává trojnásobek XP a za správnou odpověď bez nápovědy i zlatý střípek. Pět střípků otevře Zlatou truhlu se vzácnou věcí.',
@@ -114,13 +114,25 @@
             action: { kind: 'multi', label: 'Zkusit' }, ready: (u) => u.bets && num(u.counters.challenges) >= 2, used: (u) => Boolean(u.visited.bets) || num(u.counters.bets) > 0 },
         // Řetězovka dne (chain.js); art = č. 212 retezovka (jako chain.js ART.tile)
         { id: 'retezovka', icon: 'trophy', art: 'retezovka', after: 7, title: 'Řetězovka dne', text: 'V řadě Výzvy na úvodu čeká Řetězovka: 7 otázek, kde odpověď na jednu je začátkem další. Článek 1 dává 1 bod, článek 7 sedm bodů. Špatná odpověď řetěz přetrhne, jednou za hru ale pomůže Záchrana.',
-            action: { kind: 'chain', label: 'Zkusit Řetězovku' }, ready: (u) => u.chain, used: (u) => num(u.counters.chainDone) > 0 }
+            action: { kind: 'chain', label: 'Zkusit Řetězovku' }, ready: (u) => u.chain, used: (u) => num(u.counters.chainDone) > 0 },
+        // Motivace (blok 32): tematické víkendy (weekend.js), prestiž (prestige.js), Pozvi kamarády (referral.js), reakce a vítězné efekty
+        // (friends.js) a vlastní barva obleku od úrovně 20 (robe-color.js)
+        { id: 'vikend', icon: 'calendar-days', after: 15, title: 'Tematické víkendy', text: 'Každý druhý víkend má jedno téma, třeba Víkend historie. Od pátku 18:00 do neděle 24:00 dávají otázky z něj dvojnásobek XP. Které téma to je, ukáže pruh na úvodu.',
+            action: { kind: 'single', label: 'Na úvod' }, ready: (u) => u.weekend, used: () => false },
+        { id: 'prestiz', icon: 'star', after: 100, title: 'Prestiž po úrovni 100', text: 'Na úrovni 100 můžeš v Mém postupu (Úrovně a tituly) přejít do prestiže. Úroveň se ti ukáže znovu od 1 s hvězdou ★ a získáš rámeček Prestižní. XP, odznaky ani nic odemčeného neztratíš.',
+            action: { kind: 'progress', label: 'Můj postup' }, ready: (u) => num(u.level) >= 90, used: (u) => num(u.prestige) > 0 },
+        { id: 'pozvi', icon: 'user-plus', multi: true, account: true, after: 25, title: 'Pozvi kamarády', text: 'Na záložce Více hráčů klepni na Pozvi kamarády a pošli odkaz nebo kód přítele. Až si kamarád zahraje, oba dostanete rámeček Přátelský a XP navíc. Za 3 a 10 kamarádů jsou další odměny.',
+            action: { kind: 'multi', label: 'Více hráčů' }, ready: (u) => u.referral, used: (u) => Boolean(u.visited.referral) || num(u.invited) > 0 },
+        { id: 'reakce-plus', icon: 'sparkles', multi: true, account: true, after: 40, title: 'Nové reakce a vítězné efekty', text: 'S vyšší úrovní, odznaky a Sezónou Mudrlanta odemykáš další reakce po zápase a vítězné efekty. Efekt, který si vybereš, uvidíš ty i soupeř po tvé vyhrané výzvě.',
+            action: { kind: 'multi', label: 'Více hráčů' }, ready: (u) => u.perks && num(u.counters.challenges) >= 3, used: (u) => Boolean(u.visited.perks) },
+        { id: 'barva-obleku', icon: 'sparkles', after: 30, title: 'Vlastní barva obleku', text: 'Od úrovně 20 si v Nastavení na záložce Mudrlant namícháš vlastní barvu obleku: posuvníky odstínu a světlosti. Stínování i obrys sovy zůstanou.',
+            action: { kind: 'settings', label: 'Nastavení', tab: 'owl' }, ready: (u) => num(u.level) >= 20, used: (u) => Boolean(u.visited.robeColor) }
     ];
     const BY_ID = new Map(TIPS.map(tip => [tip.id, tip]));
 
     const EMPTY = { seen: [], day: '', n: 0, lastAt: 0, off: false, visited: {} };
     // Navštívené části hry (tip o nich už není potřeba): Učení, Můj postup, Vzhled, Diplomy, Sezóna, Album, Vitrína, Kronika týdne
-    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle', 'gold', 'conquest', 'bets', 'conquestInvite'];
+    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle', 'gold', 'conquest', 'bets', 'conquestInvite', 'referral', 'perks', 'robeColor'];
     const parse = (value) => {
         const v = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
         const visited = {};
@@ -158,7 +170,8 @@
             gold: ctx.gold !== false,
             boss: ctx.boss !== false,
             bets: Boolean(ctx.bets),
-            chain: ctx.chain !== false };
+            chain: ctx.chain !== false,
+            weekend: ctx.weekend !== false, level: ctx.level, prestige: ctx.prestige, referral: Boolean(ctx.referral), invited: ctx.invited, perks: ctx.perks !== false };
         const answered = num(u.counters.answered);
         return TIPS.find(tip => {
             if (state.seen.includes(tip.id)) return false;

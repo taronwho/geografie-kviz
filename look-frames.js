@@ -15,6 +15,8 @@
         'liga-stribro': 'Sezóna Stříbro', 'liga-zlato': 'Sezóna Zlato', 'liga-platina': 'Sezóna Platina', 'liga-diamant': 'Sezóna Diamant', 'liga-mistr': 'Sezóna Mistr' };
     // Rámeček za celé album sbírky (album.js)
     SHORT.sberatel = 'Sběratel';
+    // Rámečky za pozvané kamarády a prestiž (look.js PERK_FRAMES)
+    Object.assign(SHORT, { pratelsky: 'Přátelský', parta: 'Parta', prestiz: 'Prestiž' });
     // Obrázkové rámečky (look.js ART_FRAMES)
     Object.assign(SHORT, { ohen: 'Ohnivý', more: 'Vlna', soukoli: 'Soukolí', galaxie: 'Galaxie', 'kralovsky-vavrin': 'Král. vavřín', blesk: 'Blesk', led: 'Led', drak: 'Drak', 'duha-mracky': 'Duha', ruze: 'Růže' });
     // Rámečky sezóny (look.js SEASON_FRAMES: měsíc, SEASON_MID_FRAMES: čím je druhý rámeček měsíce ozdobený)
@@ -33,12 +35,13 @@
 
     // Možnosti výběru titulu: úroveň (výchozí), nic a získané odznaky (id → název); vybraný odznak je v nabídce vždy
     // ownTitles = vlastní tituly (Look.TITLES, např. Šampion sezóny), které hráč má: jdou před odznaky
-    const titleOptions = ({ level, levelTitle, earnedIds, current, badgeTitle, ownTitles = [] }) => {
+    // levelLabel = úroveň, jak ji hráč vidí (s prestiží „★1 · úr. 7“, prestige.js levelText); bez něj „Úr. 100“
+    const titleOptions = ({ level, levelTitle, earnedIds, current, badgeTitle, ownTitles = [], levelLabel = '' }) => {
         const own = ownTitles.map(item => item.id);
         const ids = [...earnedIds];
         if (current && current !== 'level' && current !== 'none' && !ids.includes(current) && !own.includes(current)) ids.push(current);
         return [
-            { value: 'level', label: `Úr. ${level} · ${levelTitle}` },
+            { value: 'level', label: `${levelLabel || `Úr. ${level}`} · ${levelTitle}` },
             { value: 'none', label: 'Nic' },
             ...ownTitles.map(item => ({ value: item.id, label: item.title, own: true })),
             ...ids.map(id => ({ value: id, label: badgeTitle(id) || id, badge: true }))
@@ -58,7 +61,8 @@
         // Sezónní rámečky (exclusive) jen ty, které hráč má: zamčených by byla dlouhá řada a získat jdou jen v sezóně svého měsíce
         const tiles = Look.FRAMES.filter(item => !item.exclusive || Look.isUnlocked(item, ctx) || item.id === selected).map(item => {
             const unlocked = Look.isUnlocked(item, ctx);
-            const label = unlocked || item.id === 'zadny' ? (SHORT[item.id] || item.title) : (item.league ? 'Ligová sezóna' : item.badge ? 'Odznak' : item.exclusive ? 'Sezóna' : item.chest || item.rare ? 'Truhla' : `Úr. ${item.level}`);
+            const label = unlocked || item.id === 'zadny' ? (SHORT[item.id] || item.title) : (item.league ? 'Ligová sezóna' : item.badge ? 'Odznak' : item.exclusive ? 'Sezóna' : item.chest || item.rare ? 'Truhla'
+                : item.referral ? 'Pozvánky' : item.prestige ? 'Prestiž' : `Úr. ${item.level}`);
             const text = unlocked ? item.title : `${item.title}: ${Look.unlockText(item, item.badge ? badgeTitle(item.badge) : null)}`;
             // Obrázkový prsten je dvakrát širší než obrázek hráče (i po zmenšení .frame-art): v dlaždici je obrázek menší, ať se celý prsten i s ozdobami vejde
             return `<button type="button" data-frame="${item.id}" aria-pressed="${item.id === selected}" aria-label="${escapeHtml(unlocked ? item.title : `${text} (zamčeno)`)}" title="${escapeHtml(text)}" class="flex h-11 w-11 shrink-0 snap-start items-center justify-center rounded-xl border-2 active:scale-95 ${item.id === selected ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-slate-100 dark:bg-slate-700/60'} ${unlocked ? '' : 'opacity-50 grayscale'}">
@@ -90,7 +94,8 @@
     const renderTitle = (ctx) => {
         const ownTitles = (Look.TITLES || []).filter(item => Look.isUnlocked(item, ctx));
         const options = titleOptions({
-            level: ctx.level, levelTitle: Core && Core.titleForLevel ? Core.titleForLevel(ctx.level) : '', earnedIds: earnedBadgeIds(ctx), current: ctx.prefs.title, badgeTitle, ownTitles
+            level: ctx.level, levelTitle: Core && Core.titleForLevel ? Core.titleForLevel(ctx.level) : '', earnedIds: earnedBadgeIds(ctx), current: ctx.prefs.title, badgeTitle, ownTitles,
+            levelLabel: ctx.levelLabel || ''
         });
         const optionHtml = (option) => `<option value="${escapeHtml(option.value)}"${option.value === ctx.prefs.title ? ' selected' : ''}>${escapeHtml(option.label)}</option>`;
         // Popisek vlevo, výběr vedle (jeden řádek); první možnost ukazuje přesně to, co bude u jména
