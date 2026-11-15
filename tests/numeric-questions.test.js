@@ -82,21 +82,24 @@ test('Odhadni číslo: velikost podle poměru (5 %, 10 %, 25 %, 50 %), letopoče
     assert.equal(Numeric.missText(battle, 1807), 'o 2 roky později');
     assert.equal(Numeric.missText(element, 25), 'o 1 méně');
     assert.equal(Numeric.ladderText(ratio, 'choices'), '4 body do 5 %, 3 do 10 %, 2 do 25 %, 1 do 50 %');
-    assert.equal(Numeric.ladderText(battle, 'typed'), '8 bodů do 2 let, 6 do 6 let, 4 do 16 let, 2 do 30 let');
+    assert.equal(Numeric.ladderText(battle, 'typed'), '6 bodů do 2 let, 5 do 6 let, 3 do 16 let, 2 do 30 let');
+    // starší psaná výzva: dvojnásobek (násobek 2)
+    assert.equal(Numeric.ladderText(battle, 2), '8 bodů do 2 let, 6 do 6 let, 4 do 16 let, 2 do 30 let');
     assert.equal(Numeric.ladderText(film, 'choices'), '4 body do 1 roku, 3 do 3 let, 2 do 8 let, 1 do 15 let');
     assert.equal(Numeric.ladderText(element, 'choices'), '4 body přesně, 3 do 2, 2 do 5, 1 do 10');
 });
 
-test('body sedí s pravidly serveru: výběr z možností nejvýš 4, psaní nejvýš 8, správně právě když jsou body', () => {
-    for (const variant of ['choices', 'typed']) {
+test('body sedí s pravidly serveru: výběr z možností nejvýš 4, psaní (1,5×) nejvýš 6, starší psaná výzva nejvýš 8, správně právě když jsou body', () => {
+    for (const variant of ['choices', 'typed', 2]) {
         for (let base = -1; base <= 6; base++) {
             const points = Numeric.pointsFor(base, variant);
-            assert.ok(Number.isInteger(points) && points >= 0 && points <= (variant === 'typed' ? 8 : 4), `${variant} ${base}`);
+            assert.ok(Number.isInteger(points) && points >= 0 && points <= (variant === 2 ? 8 : variant === 'typed' ? 6 : 4), `${variant} ${base}`);
         }
     }
     assert.equal(Numeric.pointsFor(4, 'choices'), 4);
-    assert.equal(Numeric.pointsFor(4, 'typed'), 8);
-    assert.equal(Numeric.pointsFor(2, 'typed'), 4);
+    assert.deepEqual([4, 3, 2, 1].map(base => Numeric.pointsFor(base, 'typed')), [6, 5, 3, 2]);
+    assert.equal(Numeric.pointsFor(4, 2), 8);
+    assert.equal(Numeric.pointsFor(2, 2), 4);
     // Za body z číselné otázky stejné XP jako za stejné body jinde (10 + 5 za bod)
     assert.equal(core.answerXp({ correct: true, points: Numeric.pointsFor(2, 'choices') }), 20);
 });
@@ -249,7 +252,7 @@ test('HTML otázky a výsledku: bez stylů v atributech (CSP), tlačítka s popi
     assert.match(html[0], /data-action="order-confirm" disabled/);
     assert.match(html[0], /Za 4 body/);
     assert.match(html[1], /inputmode="numeric"/);
-    assert.match(html[1], /Až 8 bodů podle přesnosti/);
+    assert.match(html[1], /Až 6 bodů podle přesnosti/);
     assert.match(html[2], /Skoro! \+2 body/);
     assert.match(html[2], /data-action="item-info"/);
     assert.match(html[3], /Skvělý odhad! \+3 body/);

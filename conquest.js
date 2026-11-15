@@ -790,8 +790,11 @@
                 let home;
                 if (kraje) { const at = krajOf(item); home = at ? [at] : []; } else home = (id === 'city' || id === 'building') && co.length !== 1 ? [] : co.filter(q => ids.has(q));
                 if (!home.length) continue;
-                const multi = !kraje && co.length > 1;
-                add(id, { ...about(item, topic), home, ok: home, rel: new Set(kraje ? home : [...co, ...nationQ(item.d)]), text: kraje ? '' : item.d || '', multi, sub: item.ty || '', place: true });
+                // Řeka teče i státy mimo co (pole ca: pramen, hraniční úsek, povodí – Garonna pramení ve Španělsku): pro ně není
+                // správnou odpovědí ani nesprávnou možností (scripts/lib/zemepis-reky.mjs)
+                const also = kraje ? [] : (item.ca || []).filter(Boolean);
+                const multi = !kraje && co.length + also.length > 1;
+                add(id, { ...about(item, topic), home, ok: home, rel: new Set(kraje ? home : [...co, ...also, ...nationQ(item.d)]), text: kraje ? '' : item.d || '', multi, sub: item.ty || '', place: true });
                 // Najdi na mapě: město v území (u států jen v jednom státě)
                 if (PLACE_CATEGORIES.has(item.c) && !multi && !(item.ty && /moře|oceán|záliv|zátoka|průliv/.test(item.ty))) places.byTerritory.get(home[0]).push({ item, topic });
             }
@@ -1456,15 +1459,25 @@
         const found = family && family.byTerritory ? family.byTerritory.get(ctx.item.id) : null;
         return found ? found.filter(entry => entry.ok.includes(ctx.item.id) && usable(entry, ctx.level)) : [];
     });
-    // Rodiny, ze kterých jde pro území otázka Mudrlanta v dané formě: aspoň čtyři použitelné položky jednoho tématu (u obrázku
-    // aspoň jedna s obrázkem); jako rodiny pro losování podle oborů (familyShares)
+    // Možnosti otázky Mudrlanta o místech na úrovni 0–1: správná odpověď je známé místo, nesprávné možnosti napřed známá místa, a když
+    // jich v území není dost, i méně známá (ne pro znalce) – místa jsou mírnější jako u vztahových rodin. Území s malým počtem známých
+    // míst (Afrika: Keňa má jedno známé jezero a tři méně známá, Alžírsko tři známá pohoří) tak mají popis, fakta i obrázek, ne jen
+    // letopočet; poznat je potřeba jen známé místo. Osoby a díla zůstávají na úrovni 0–1 jen známé
+    const PLACE_FAMILIES = new Set(['city', 'building', 'castle', 'mountain', 'lake', 'island', 'nature', 'river', 'region', 'venue']);
+    const choiceEntries = (ctx, id) => cached(ctx, `choices|${id}`, () => {
+        if (ctx.level > 1 || !PLACE_FAMILIES.has(id)) return ownEntries(ctx, id);
+        const family = ctx.pools.families.get(id);
+        const found = family && family.byTerritory ? family.byTerritory.get(ctx.item.id) : null;
+        return found ? found.filter(entry => entry.ok.includes(ctx.item.id) && !entry.expert) : [];
+    });
+    // Rodiny, ze kterých jde pro území otázka Mudrlanta v dané formě: položka použitelná jako odpověď (u obrázku s obrázkem) a aspoň
+    // čtyři možnosti jejího tématu; jako rodiny pro losování podle oborů (familyShares)
     const mudrlantFamilies = (ctx, form) => cached(ctx, `mudrlant|${form}`, () => MUDRLANT_IDS.filter(id => {
         const spec = MUDRLANT[id];
         if ((form === 'photo' && !spec.photo) || (form === 'text' && spec.noText)) return false;
-        const own = ownEntries(ctx, id);
-        const byTopic = new Map();
-        own.forEach(entry => Object.keys(entry.srcs).forEach(topic => byTopic.set(topic, (byTopic.get(topic) || 0) + 1)));
-        return [...byTopic.values()].some(count => count >= 4) && (form !== 'photo' || own.some(entry => hasImage(entry, spec)));
+        const pool = choiceEntries(ctx, id);
+        const answers = pool.filter(entry => usable(entry, ctx.level) && (form !== 'photo' || hasImage(entry, spec)));
+        return answers.some(answer => pool.filter(entry => entry.srcs[answer.topic]).length >= 4);
     }).map(id => ({ id, domain: FAMILY_DOMAIN[id], w: [1, 1, 1, 1] })));
     // Tři nesprávné možnosti k položce: ze stejného území, rodiny i tématu, osoby stejného pohlaví; napřed stejná kategorie a druh
     // (ke katedrále katedrály: druh je u otázky vidět a popis ho říká), nízko nejznámější, výš podobně známé; názvy různé a žádný není
@@ -1486,6 +1499,10 @@
     const distanceKm = (a, b) => (core && core.distanceKm ? core.distanceKm(a, b) : Math.hypot(a.la - b.la, (a.lo - b.lo) * Math.cos(a.la * Math.PI / 180)) * 111.2);
     // Jmenovci s jiným pořadovým číslem (Přemysl Otakar I. a II., Fridrich Vilém I. a III.) jsou dvě různé osoby (quiz-core sameNameStem)
     const nearDuplicate = (a, b, family, ctx, person = false) => {
+        // Položky téhož článku Wikipedie (Boson W a Boson Z → Bosony W a Z) nebo ze společného článku („X a Y“): popis sedí na obě
+        const x = a && a.srcs ? a.srcs[a.topic] : null;
+        const y = b && b.srcs ? b.srcs[b.topic] : null;
+        if (x && y && core && core.sameArticle && core.sameArticle(x, y)) return true;
         if (COORD_FAMILIES.has(family)) {
             const x = coordsOf(a);
             const y = coordsOf(b);
@@ -1516,8 +1533,8 @@
         const families = mudrlantFamilies(ctx, form);
         for (const family of weightedOrder(families, familyShares(families, level), rng).slice(0, 8)) {
             const spec = MUDRLANT[family.id];
-            const own = ownEntries(ctx, family.id);
-            const fresh = own.filter(entry => !used.has(entry.key) && (form !== 'photo' || hasImage(entry, spec)));
+            const own = choiceEntries(ctx, family.id);
+            const fresh = own.filter(entry => !used.has(entry.key) && usable(entry, level) && (form !== 'photo' || hasImage(entry, spec)));
             const picks = [...new Set([...shuffle(levelWindow(fresh, level), rng), ...shuffle(fresh, rng)])].slice(0, 6);
             for (const pick of picks) {
                 const wrong = distractorsFor(pick, own, spec, ctx, family.id);
@@ -2215,7 +2232,10 @@
         const invite = (invites || [])[0] || null;
         const moreInvites = (invites || []).length > 1 ? ` · +${invites.length - 1}` : '';
         const draw = avatarFn(avatar);
-        const head = `<span class="flex min-w-0 flex-1 flex-col"><span class="text-[14px] font-black leading-tight text-slate-800 dark:text-slate-100">Dobývání</span>`;
+        // Pozvánky od přátel: zlatý odznak s počtem u názvu karty
+        const count = (invites || []).length;
+        const badge = count ? `<span data-cq-invite-badge aria-label="${esc(count === 1 ? 'Pozvánka do hry' : `Pozvánky do her: ${count}`)}" class="flex h-5 min-w-[1.25rem] items-center justify-center gap-0.5 rounded-full bg-gold-500 px-1.5 text-[11px] font-black leading-none text-brand-950 shadow-sm"><i data-lucide="user-plus" class="h-3 w-3" aria-hidden="true"></i><span aria-hidden="true">${count}</span></span>` : '';
+        const head = `<span class="flex min-w-0 flex-1 flex-col"><span class="flex items-center gap-1.5 text-[14px] font-black leading-tight text-slate-800 dark:text-slate-100">Dobývání${badge}</span>`;
         if (first) {
             const data = maps[first.map];
             const meSeat = (first.players.find(player => player.me) || {}).seat;
@@ -2321,6 +2341,28 @@
                 <button type="button" data-cq-decline="${esc(invite.id)}" class="${LIGHT_BUTTON}"><i data-lucide="x" class="h-4 w-4"></i> Odmítnout</button>
             </div>
         </li>`;
+    };
+    // „Evropa · Rychlá hra“, u vlastní hry „Asie · 1 den“
+    const inviteLine = (invite) => `${mapTitle(invite.map)} · ${invite.preset ? PRESET_NAMES[invite.preset] || 'Rychlá hra' : minutesLabel(gameMinutes(invite))}`;
+    // Okno po otevření aplikace (conquest-ui.js promptInvites): kdo zve a do jaké hry, Přijmout / Odmítnout / Později. Ukáže se jednou
+    // za pozvánku i bez upozornění; vejde se na 360×640
+    const invitePromptHtml = (invite, { maps = {}, avatar = null } = {}) => {
+        const data = maps[invite.map];
+        const seatColors = Object.fromEntries((invite.players || []).map(player => [player.seat, player.flag_color]));
+        const who = invite.invited_by && invite.invited_by.display_name ? invite.invited_by.display_name : 'Kamarád';
+        return `<div data-cq-invite-prompt="${esc(invite.id)}" class="flex flex-col gap-3">
+            <div class="flex items-center gap-3 ${CARD} cq-card-paper p-2.5">
+                <span class="relative shrink-0">${avatarFn(avatar)(invite.invited_by || {}, 'h-12 w-12 text-2xl')}${art(ART.card, 'absolute -bottom-2 -right-2 h-7 w-7')}</span>
+                <p class="min-w-0 flex-1 text-[15px] font-bold leading-snug text-slate-800 dark:text-slate-100"><span class="font-black">${esc(who)}</span> tě zve do Dobývání: <span class="font-black">${esc(inviteLine(invite))}</span></p>
+                ${data ? `<span class="cq-thumb-frame hidden h-12 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl min-[380px]:flex">${thumbSvg(data, {}, seatColors)}</span>` : ''}
+            </div>
+            <p class="text-[13px] font-semibold leading-snug text-slate-600 dark:text-slate-300">S přáteli soupeříte o mapu a každé území dobudeš správnou odpovědí. ${esc(`${(invite.players || []).length}/${invite.max_players} hráčů`)}${invite.visibility === 'private' ? ', soukromá hra' : ''}.</p>
+            <button type="button" data-cq-prompt="accept" class="${GOLD_BUTTON} w-full"><i data-lucide="user-plus" class="h-4 w-4"></i> Přijmout</button>
+            <div class="grid grid-cols-2 gap-2">
+                <button type="button" data-cq-prompt="decline" class="${LIGHT_BUTTON}"><i data-lucide="x" class="h-4 w-4"></i> Odmítnout</button>
+                <button type="button" data-cq-prompt="later" class="${LIGHT_BUTTON}"><i data-lucide="clock" class="h-4 w-4"></i> Později</button>
+            </div>
+        </div>`;
     };
     const invitesHtml = (invites, opts) => (invites && invites.length ? `<section aria-label="Pozvánky" class="flex flex-col gap-1.5">
         <p class="flex items-center gap-1.5 px-1 ${LABEL}"><span class="h-2 w-2 rounded-full bg-gold-500"></span>Pozvánky od přátel</p>
@@ -2565,7 +2607,7 @@
                 <div data-cq-chips class="pointer-events-none absolute bottom-1.5 left-1.5 right-1.5 flex flex-col items-start gap-1">${view.sieges.size ? siegeChipsHtml(view, { now }) : ''}</div>
             </div>
             <div data-cq-round class="pointer-events-none absolute inset-0 z-30 hidden"></div>
-            <div data-cq-panel class="flex min-h-[2.25rem] flex-1 flex-col gap-1.5 overflow-hidden short:gap-1">
+            <div data-cq-panel class="flex min-h-[2.25rem] flex-1 flex-col gap-1.5 overflow-hidden short:min-h-[14rem] short:gap-1">
                 <section data-cq-players class="cq-ledger shrink-0 rounded-2xl px-2 pb-1.5 pt-1 short:pb-1" aria-label="Pořadí">${playersStripHtml(view, { now })}</section>
                 <button type="button" data-cq="feed" data-cq-recent class="cq-ledger flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl px-2 pb-1 pt-1 text-left">${recentHtml(view, { now })}</button>
                 ${dev && !view.finished ? devBarHtml({ kind: 'game' }) : ''}
@@ -2643,21 +2685,22 @@
             const detail = `${territoriesWord(count)}${regions ? ` · ${regionsWord(regions)}` : ''}`;
             return `<li class="cq-rank-row${player.me ? ' cq-rank-me' : ''} flex min-w-0 items-center gap-2 rounded-xl px-1.5 py-1 short:py-0.5" aria-label="${esc(label)}">${medal}${pennantSvg(player.flag_color, player.emblem, 'h-5 w-[1.6rem] shrink-0')}
                 <span class="min-w-0 flex-1"><span class="flex items-center gap-1.5"><span class="min-w-0 truncate text-[13.5px] font-black text-slate-800 dark:text-slate-100">${esc(name)}</span><span class="min-w-0 flex-1 truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${esc(detail)}</span>${movesChip(view, player)}</span>${bar}</span>
-                <span class="flex w-9 shrink-0 flex-col items-end leading-none"><b class="text-[17px] font-black text-slate-900 dark:text-white">${player.score}</b><span class="mt-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">${esc(pointsWord(player.score).replace(/^\d+ /, ''))}</span></span></li>`;
+                <span class="flex w-9 shrink-0 flex-col items-end leading-none"><b class="text-[17px] font-black text-slate-900 dark:text-white">${player.score}</b><span class="mt-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-500 short:hidden dark:text-slate-400">${esc(pointsWord(player.score).replace(/^\d+ /, ''))}</span></span></li>`;
         }).join('');
         return `<div class="flex items-baseline justify-between gap-2"><h2 class="cq-ledger-title">Pořadí</h2><span data-cq-next class="truncate text-[11px] font-bold text-amber-900/75 dark:text-gold-200/80">${esc(periodLine(view, now))}</span></div>
             <ol class="mt-0.5 ${compact ? 'grid grid-cols-2 gap-x-1.5 gap-y-0.5' : 'flex flex-col gap-0.5'}">${rows}</ol>`;
     };
-    // Poslední události pod mapou (klepnutí otevře celou kroniku); karta vyplní zbytek obrazovky, kolik se vejde, tolik je vidět
+    // Poslední události pod mapou (klepnutí otevře celou kroniku); karta vyplní zbytek obrazovky, kolik se vejde, tolik je vidět.
+    // Na nízkém displeji (short:) je každá událost na jednom řádku (co · kde vlevo, kdo a kdy vpravo), ať jsou vidět aspoň tři
     const recentHtml = (view, { now = Date.now() } = {}) => {
         const items = feedItems(view.state.moves || [], view).slice(0, 8);
         const head = `<span class="flex w-full shrink-0 items-baseline justify-between gap-2"><span class="cq-ledger-title">Kronika tažení</span>${items.length ? '<span class="flex items-center gap-0.5 text-[11px] font-bold text-amber-900/75 dark:text-gold-200/80">Celá kronika<i data-lucide="chevron-right" class="h-3.5 w-3.5"></i></span>' : ''}</span>`;
         if (!items.length) return `${head}<span class="flex min-h-0 flex-1 items-center justify-center px-2 text-center text-[12px] font-semibold text-slate-500 dark:text-slate-400">Zatím je klid. Každé dobytí, opevnění i odražený útok se zapíše sem.</span>`;
         // Dva řádky: území a co se stalo vlevo, vpravo kdo (jméno, za ním praporec, praporce pod sebou v jednom sloupci) a kdy
-        const rows = items.map(item => `<span class="cq-feed-row flex min-w-0 shrink-0 items-center gap-2 py-1">
-                <span class="cq-tone cq-tone-${item.tone} flex h-6 w-6 shrink-0 items-center justify-center rounded-full"><i data-lucide="${item.icon}" class="h-3.5 w-3.5"></i></span>
-                <span class="min-w-0 flex-1 leading-tight"><b class="block truncate text-[12.5px] font-black text-slate-900 dark:text-white">${esc(item.title)}</b><span class="block truncate text-[11.5px] font-semibold text-slate-600 dark:text-slate-300">${esc(item.text)}</span></span>
-                <span class="flex min-w-0 max-w-[45%] shrink-0 flex-col items-end leading-tight">${item.actor ? `<span class="flex min-w-0 max-w-full items-center gap-1 text-[11.5px] font-bold text-slate-700 dark:text-slate-200"><span class="min-w-0 truncate">${esc(item.actor.me ? 'ty' : item.actor.display_name)}</span>${pennantSvg(item.actor.flag_color, item.actor.emblem, 'h-3 w-4')}</span>` : ''}
+        const rows = items.map(item => `<span class="cq-feed-row flex min-w-0 shrink-0 items-center gap-2 py-1 short:py-[3px]">
+                <span class="cq-tone cq-tone-${item.tone} flex h-6 w-6 shrink-0 items-center justify-center rounded-full short:h-5 short:w-5"><i data-lucide="${item.icon}" class="h-3.5 w-3.5"></i></span>
+                <span class="min-w-0 flex-1 leading-tight short:flex short:items-baseline short:gap-1"><b class="block truncate text-[12.5px] font-black text-slate-900 short:max-w-[60%] short:shrink-0 dark:text-white">${esc(item.title)}</b><span class="block truncate text-[11.5px] font-semibold text-slate-600 short:min-w-0 short:flex-1 dark:text-slate-300">${esc(item.text)}</span></span>
+                <span class="flex min-w-0 max-w-[45%] shrink-0 flex-col items-end leading-tight short:flex-row short:items-center short:gap-1.5">${item.actor ? `<span class="flex min-w-0 max-w-full items-center gap-1 text-[11.5px] font-bold text-slate-700 dark:text-slate-200"><span class="min-w-0 truncate">${esc(item.actor.me ? 'ty' : item.actor.display_name)}</span>${pennantSvg(item.actor.flag_color, item.actor.emblem, 'h-3 w-4')}</span>` : ''}
                     <span class="text-[10.5px] font-semibold tabular-nums text-slate-400 dark:text-slate-500">${esc(agoLabel(item.at, now))}</span></span></span>`).join('');
         return `${head}<span class="cq-feed-list flex min-h-0 w-full flex-1 flex-col overflow-hidden">${rows}</span>`;
     };
@@ -2743,7 +2786,10 @@
     // možnost od serveru (kdo se do bitvy přidal, ji v otázce nemá); answered = -1: čas vypršel; compact = čekání v bitvě: místo možností
     // jen moje odpověď (a správná), aby se pod otázku vešlo, kdo ještě odpovídá (footer). Pomůcka Půl na půl (blok 30): fifty = { state:
     // 'offer' | 'confirm' | 'used', items } pro tlačítko v záhlaví, removed = indexy odebraných možností (zůstanou přeškrtnuté a vypnuté),
-    // fresh = odebraly se právě teď (přeškrtnutí a zmizení s animací)
+    // fresh = odebraly se právě teď (přeškrtnutí a zmizení s animací). photos = hotové adresy blob: obrázků otázky ({ content, 0…3 },
+    // conquest-ui.js questionPhotos): adresa z Commons nese název souboru (Flag of Serbia.svg) a ten je odpovědí, proto do HTML nejde
+    // nikdy; obrázek bez hotového blobu je zatím neviditelný a doplní ho conquest-ui.js (mountPhotos)
+    const photoImg = (key, src, cls, alt = '') => `<img data-cq-img="${esc(key)}"${src && /^blob:/.test(src) ? ` src="${esc(src)}"` : ''} alt="${esc(alt)}" class="${cls}${src && /^blob:/.test(src) ? '' : ' invisible'}" referrerpolicy="no-referrer">`;
     const starsHtml = (difficulty) => '<span class="flex shrink-0 gap-0.5" role="img" aria-label="Obtížnost ' + difficulty + ' ze 3">' + [1, 2, 3].map(n => `<i data-lucide="star" class="h-3.5 w-3.5 ${n <= difficulty ? 'fill-gold-400 text-gold-500' : 'text-slate-300 dark:text-slate-600'}"></i>`).join('') + '</span>';
     // right = index správné možnosti (null: zatím ji nezná ani aplikace, jen server → vybraná možnost bez verdiktu)
     const choiceState = (i, answered, right) => (answered === null ? '' : right === null ? (answered === i ? ' cq-choice-picked' : ' opacity-60') : right === i ? ' cq-choice-ok' : answered === i ? ' cq-choice-bad' : ' opacity-60');
@@ -2759,7 +2805,7 @@
                 <span class="w-9 shrink-0 text-right text-[12.5px] font-black tabular-nums text-slate-800 dark:text-slate-100" data-cq-timer-text>${clockText(battle.deadline - battle.now)}</span></div>
             <div class="mt-1 flex min-w-0 shrink-0 items-center gap-1.5 text-[11.5px] font-bold text-slate-600 dark:text-slate-300" data-cq-fighters>${fightersHtml(view, battle.fighters)}</div>` : '');
     const joinedSlot = (top = '-top-11') => `<div data-cq-joined class="pointer-events-none absolute inset-x-2 ${top} z-10 flex justify-center" aria-live="polite"></div>`;
-    const questionHtml = (question, { title, item, data, answered = null, kind = 'attack', correctIndex = null, battle = null, view = null, footer = '', compact = false, fifty = null, removed = null, fresh = false }) => {
+    const questionHtml = (question, { title, item, data, answered = null, kind = 'attack', correctIndex = null, battle = null, view = null, footer = '', compact = false, fifty = null, removed = null, fresh = false, photos = {} }) => {
         const right = rightIndex(question, correctIndex);
         const gone = new Set(removed || []);
         const stars = starsHtml(question.difficulty);
@@ -2780,7 +2826,7 @@
                 ${footer}
             </div>`;
         }
-        if (isFullQuestion(question)) return fullQuestionHtml(question, { title, answered, kind, right, battle, view, fifty, gone, fresh });
+        if (isFullQuestion(question)) return fullQuestionHtml(question, { title, answered, kind, right, battle, view, fifty, gone, fresh, photos });
         let visual = '';
         if (question.kind === 'map') {
             const [x0, y0, x1, y1] = item.b;
@@ -2795,8 +2841,8 @@
         // Krátké možnosti (letopočty, čísla) ve dvou sloupcích
         const grid = question.images || question.kind === 'year' || question.kind === 'number' ? 'grid grid-cols-2 gap-1.5' : question.kind === 'map' ? 'grid grid-cols-4 gap-1.5' : 'grid grid-cols-1 gap-1.5';
         const options = question.choices.map((choice, i) => {
-            // Náhled z Commons; když nejde, conquest-ui.js podle data-fallback načte původní soubor
-            const inner = question.images ? `<img src="${esc(choice.image)}"${choice.fallback ? ` data-fallback="${esc(choice.fallback)}"` : ''} alt="" class="h-12 w-full object-contain short:h-10" referrerpolicy="no-referrer"><span class="sr-only">Možnost ${i + 1}</span>` : esc(choice.label);
+            // Náhled z Commons jako blob (conquest-ui.js mountPhotos; když náhled nejde, původní soubor)
+            const inner = question.images ? `${photoImg(String(i), (photos || {})[i], 'h-12 w-full object-contain short:h-10')}<span class="sr-only">Možnost ${i + 1}</span>` : esc(choice.label);
             return `<button type="button" data-cq-answer="${i}" ${answered !== null || gone.has(i) ? 'disabled' : ''}${gone.has(i) ? ' data-cq-gone' : ''} class="cq-choice${choiceState(i, answered, right)}${goneState(i, gone, fresh)} flex min-h-[2.75rem] items-center justify-center rounded-xl px-2 py-1 text-center text-[14px] font-bold leading-tight text-slate-800 dark:text-slate-100">${inner}</button>`;
         }).join('');
         const solved = right !== null ? question.choices[right] : null;
@@ -2918,13 +2964,13 @@
     // Otázka Mudrlanta na pergamenu: záhlaví s tahem a hvězdami, otázka, rámeček s popisem, fakty nebo obrázkem a štítkem druhu, pod ním
     // čtyři možnosti ve dvou sloupcích; po odpovědi správná možnost. Popis a fakta: list je vysoký podle obsahu (krátký popis = list
     // dole, nad ním je vidět mapa), nejvýš přes celou obrazovku hry, delší text se pak posouvá ve svém rámečku. Obrázek: celá obrazovka.
-    const fullQuestionHtml = (question, { title, answered, kind, right = null, battle = null, view = null, fifty = null, gone = new Set(), fresh = false }) => {
+    const fullQuestionHtml = (question, { title, answered, kind, right = null, battle = null, view = null, fifty = null, gone = new Set(), fresh = false, photos = {} }) => {
         const content = question.content;
         const type = content.type ? `<span class="cq-qtype mb-1.5 inline-flex max-w-full items-center gap-1 rounded-lg px-2 py-0.5 text-[11.5px] font-black"><i data-lucide="tag" class="h-3.5 w-3.5 shrink-0"></i><span class="truncate">${esc(content.type)}</span></span>` : '';
         const facts = (list) => `<dl class="flex flex-col gap-1" aria-label="Fakta">${list.map(fact => `<div class="cq-fact flex items-baseline gap-2 rounded-lg px-2 py-1"><dt class="w-[36%] shrink-0 text-[11px] font-black uppercase leading-tight tracking-wide text-amber-900/80 dark:text-gold-200/80">${esc(fact.label)}</dt><dd class="min-w-0 break-words text-[14px] font-bold leading-snug text-slate-900 dark:text-white">${esc(fact.value)}</dd></div>`).join('')}</dl>`;
         let body;
         if (content.image) {
-            body = `<div class="cq-qimg relative min-h-0 flex-1 overflow-hidden rounded-xl"><img src="${esc(content.image)}" alt="Obrázek k otázce" class="absolute inset-0 h-full w-full object-contain" referrerpolicy="no-referrer">${content.type ? `<div class="absolute left-1.5 top-1.5 max-w-[80%]">${type}</div>` : ''}</div>`;
+            body = `<div class="cq-qimg relative min-h-0 flex-1 overflow-hidden rounded-xl">${photoImg('content', (photos || {}).content, 'absolute inset-0 h-full w-full object-contain', 'Obrázek k otázce')}${content.type ? `<div class="absolute left-1.5 top-1.5 max-w-[80%]">${type}</div>` : ''}</div>`;
         } else if (content.text) {
             body = `<div data-cq-qtext class="min-h-0 overflow-y-auto overscroll-contain px-3 py-2.5">${type ? `<div>${type}</div>` : ''}<p class="text-[15px] font-medium italic leading-snug text-slate-800 dark:text-slate-100">„${esc(content.text)}“</p>${content.facts ? `<div class="mt-2">${facts(content.facts)}</div>` : ''}</div>`;
         } else {
@@ -3062,6 +3108,6 @@
         pennantSvg, pennantGroup, emblemSvg, sealSvg, mapSvg, thumbSvg, marksFor, clockText, localTime, roundHtml, roundChipHtml, ROUND_COUNTDOWN, fastPeriod, battleWaitHtml, battleResultHtml, joinedHtml, fightersHtml, siegeChipsHtml, RISK_TEXT, homeCardHtml, hubHtml, mineHtml, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,
         gameScreenHtml, playersStripHtml, recentHtml, sheetHtml, devBarHtml, questionHtml, feedHtml, resultHtml, helpHtml, HELP_TABS, mapTitle, paramChips,
         // Pozvánky přátel (blok 24)
-        friendsPickerHtml, inviteCardHtml
+        friendsPickerHtml, inviteCardHtml, inviteLine, invitePromptHtml
     };
 });

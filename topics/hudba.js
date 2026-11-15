@@ -350,6 +350,16 @@
         return (item.f || {}).kind;
     };
 
+    // Hlavní obrázek, který neukazuje osobnost, kapelu nebo dílo (quiz-core.js offSubjectRule, npm run audit:obrazky): hrob, pamětní
+    // deska, známka, logo kapely nebo alba, u opery a muzikálu portrét skladatele nebo budova divadla s plakátem
+    const offSubjectPhoto = core.offSubjectRule({
+        words: {
+            skladatele: core.OFF_SUBJECT.memorial, hudebnici: core.OFF_SUBJECT.memorial, kapely: ['logo', ...core.OFF_SUBJECT.memorial],
+            opery: ['portrait'], dila: ['logo', 'portrait']
+        },
+        ids: ['Q830581', 'Q553890', 'Q2771', 'Q579927', 'Q2210892', 'Q1074321']
+    });
+
     return {
         id: 'hudba',
         title: 'Hudba',
@@ -367,6 +377,7 @@
             tierKnown: 'Slavní skladatelé, zpěváci, kapely a díla'
         },
         categories: CATEGORIES,
+        offSubjectPhoto,
 
         // Nesprávné možnosti: stejné pohlaví a doba, stejná země, období a žánrová skupina; u díla díla téhož autora a druhu
         similarity: (item, other) => {

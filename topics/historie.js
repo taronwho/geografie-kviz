@@ -337,6 +337,16 @@
         };
     };
 
+    // Hlavní obrázek, který neukazuje osobnost ani událost (pravidlo quiz-core.js offSubjectRule, audit npm run audit:obrazky): hrob,
+    // pamětní deska, známka; u bitev a událostí pozdější památník; skarabeus se jménem, památník či busta jiného vojevůdce
+    const offSubjectPhoto = core.offSubjectRule({
+        words: {
+            statnik: core.OFF_SUBJECT.memorial, osobnost: core.OFF_SUBJECT.memorial, panovnik: core.OFF_SUBJECT.memorial,
+            bitva: ['memorial', 'pamatnik', 'pomnik', 'mohyla', 'gedenkstein'], udalosti: ['memorial', 'pamatnik', 'pomnik', 'gedenkstein']
+        },
+        ids: ['Q322169', 'Q367350', 'Q319124', 'Q3245204']
+    });
+
     return {
         id: 'historie',
         title: 'Historie',
@@ -354,6 +364,7 @@
             tierKnown: 'Slavní panovníci, prezidenti, bitvy a události'
         },
         categories: CATEGORIES,
+        offSubjectPhoto,
 
         // Bitvy se řadí podle státu, kde se odehrály (osoby podle země, ze které pocházejí)
         culture: (item, ctx) => isEvent(item) ? core.getCountryNames(item, (ctx && ctx.countries) || {}).slice(0, 3) : undefined,
@@ -370,6 +381,10 @@
             if (isPerson(item) && f.y !== undefined && g.y !== undefined) score += Math.max(0, 3 - Math.abs(f.y - g.y) / 30);
             if (isPerson(item) && f.land && f.land === g.land) score += 2;
             if (isEvent(item) && f.war && f.war === g.war) score += 3;
+            // Události: víc než pár století od sebe je poznat hned (k bitvě z roku 1514 ne válka v Pásmu Gazy jen proto, že je
+            // ze stejného státu), a druh (bitva, válka, revoluce) bývá v názvu
+            if (isEvent(item) && f.y !== undefined && g.y !== undefined) score -= Math.min(8, Math.max(0, Math.abs(f.y - g.y) - 150) / 60);
+            if (isEvent(item) && item.ty && item.ty === other.ty) score += 3;
             // Události stejné skupiny (ke smlouvě smlouvy a kongresy, k zemětřesení katastrofy a epidemie)
             if (item.c === 'udalosti' && eventGroup(item) && eventGroup(item) === eventGroup(other)) score += 3;
             const regions = cachedRegions(item);

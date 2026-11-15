@@ -13,6 +13,7 @@ Zadání pro pět nových částí hry. Cíl: každá je vidět na místě, kam 
 | Okno **Vyzvat** a seznam výzev | **Kamarádské sázky**: volba vkladu při zakládání výzvy, mince u výzvy v seznamu a výsledek sázky po zápase. |
 | **Můj postup** | Zlaté střípky a Zlatá truhla, emblémy poražených bossů (také v Albu a ve Vitríně), odznaky Zlatokop, Dobyvatel, Sázkař a Neomylný. |
 | **Profil** hráče | Sázková bilance, vystavené emblémy bossů ve vitríně. |
+| Úvod, záložka **Více hráčů**, karta **Turnaje** | **Speciální turnaj na téma** (řádek s ikonou tématu, přihlášky do začátku, kola po minutách) a **Hlasování: jaké téma příště?** (4 témata ve dvou řadách, po hlasu procenta). Viz část Speciální turnaje níž. |
 
 Řada Výzvy je hotová v `app.js` (`specialTile`, `specialsRow`). Kvíz dne je první dlaždice. Řetězovka vrací svou dlaždici z `chainHomeTile()`
 a Boss z `bossHomeTile()`; prázdný řetězec znamená, že se dlaždice nevykreslí. Dlaždice se staví jen přes `specialTile({...})`:
@@ -440,3 +441,31 @@ Do dodání hra používá existující obrázky. Po dodání stačí vyměnit k
 | 261 | `pevnost` | Kamenná pevnost s praporkem (opevnění 3. stupně) |
 | 262 | `hrad-domov` | Hrádek na domovském území (hlavní město) |
 | 263 | `poklad` | Truhlička přetékající zlatem (poklad na neutrálním území) |
+
+## Speciální turnaje na téma a hlasování (schéma 31)
+
+Nárazové turnaje mimo týdenní Mix. Nikdy je nezakládá plánovač ani `tournament_tick`, jen správce (`dev_admins`) ve vývojářských nástrojích.
+
+- **Témata**: `tournament.js` `THEMES` (28 témat, např. Hrady a zámky, Opery, Olympijské hry, Vlajky Afriky). Každé téma říká, z kterých okruhů
+  (`g`) a kategorií (`c`) kterých témat otázek se berou položky, do jaké obtížnosti (`level`) a pro kolik hráčů nejvýš (`capacity`), aby na všechna
+  kola (10 otázek v kole) stačily položky bez opakování. Stejná id, názvy, témata a kapacitu má tabulka `tournament_themes`; shodu i počty položek
+  hlídá `tests/tournament-special.test.js`.
+- **Hlasování**: v kartě Turnaje na záložce Více hráčů. Vždy jedno otevřené hlasování se 4 tématy (`tournament_polls`), jeden hlas na hráče
+  (`tournament_votes`), změnit ho jde, dokud hlasování běží (nejvýš 10krát). Počty vidí jen ten, kdo hlasoval (a správce). Nová čtveřice témat se
+  otevře sama, když správce založí turnaj na téma z hlasování nebo hlasování uzavře; vybírá ji server (bez témat dvou posledních hlasování a šesti
+  posledních speciálních turnajů, pořadí podle otisku čísla hlasování), takže na ni nikdo nemá vliv.
+- **Turnaj**: stejný pavouk, otázky, XP a odznaky jako týdenní. Přihlášky do začátku, kolo n se hraje od začátku + (n − 1) × délka kola.
+  Najednou nejvýš jeden. V kartě a okně turnaje je čas začátku a konce kola, v archivu je mezi týdenními.
+- **Upozornění**: „Začíná speciální turnaj: Hrady a zámky“ (druh `tournament_special`, jednou za turnaj hráčům s upozorněními na turnaje,
+  kteří se ještě nepřihlásili); připomínka zápasu říká, do kolika hodin se kolo musí odehrát.
+
+### Jak spustit speciální turnaj (správce)
+
+1. Otevři aplikaci s `?vyvojar` a přihlas se účtem z `dev_admins`.
+2. Nastavení → Vývojářský režim → **Speciální turnaj a hlasování** → **Založit speciální turnaj…**
+3. Téma je předvybrané podle hlasování (vítězné téma, u každého počet hlasů); jde vybrat i jiné.
+4. Zadej **začátek** (konec přihlášek) a **délku kola** (15 minut až 24 hodin) a klepni na **Založit turnaj**.
+5. Hlasování se uzavře a otevře nové. Hráči se přihlašují v kartě Turnaje; turnaj začne sám v zadaný čas (potřebuje aspoň 8 hráčů).
+6. Na zkoušku: **+31 botů**, **Spustit hned**, **Boti odehrají kolo**, **Další kolo**; špatně zadaný turnaj před začátkem **Smazat nezačatý**.
+   **Uzavřít hlasování** jen otočí témata bez turnaje.
+

@@ -151,7 +151,7 @@ test('otázka je čistá funkce položky (stejná pro všechny hráče) a ptá s
     assert.equal(MapQuestion.titleFor({ n: 'Camp Nou', c: 'sportoviste', ty: 'stadion' }), 'Kde stojí Camp Nou?');
 });
 
-test('body: plné do 3 % diagonály, pak ubývají do nuly na 20 %; celé číslo 0…max, psaní dvojnásobek', () => {
+test('body: plné do 3 % diagonály, pak ubývají do nuly na 20 %; celé číslo 0…max, psaní 1,5× (starší psaná výzva dvojnásobek)', () => {
     const cz = MapQuestion.radiiFor({ c: 'mesto' }, 'cesko');
     const diagonal = MapQuestion.frameOf('cesko').diagonalKm;
     assert.equal(cz.full, MapQuestion.roundKm(diagonal * 0.03));
@@ -170,7 +170,8 @@ test('body: plné do 3 % diagonály, pak ubývají do nuly na 20 %; celé čísl
     }
     assert.deepEqual(MapQuestion.pointTiers({ full: 20, zero: 120 }, 8).map(tier => tier.points), [8, 7, 6, 5, 4, 3, 2, 1]);
     assert.equal(MapQuestion.maxPoints(false), 4);
-    assert.equal(MapQuestion.maxPoints(true), 8);
+    assert.equal(MapQuestion.maxPoints(true), 6);
+    assert.equal(MapQuestion.maxPoints(2), 8);
     for (const max of [4, 8]) {
         let previous = Infinity;
         for (let km = 0; km <= cz.zero + 20; km += 0.5) {
@@ -194,7 +195,7 @@ test('body: plné do 3 % diagonály, pak ubývají do nuly na 20 %; celé čísl
     assert.ok(result.km > 70 && result.km < 80, `${result.km} km`);
     assert.ok(result.points > 0 && result.points < 4);
     assert.equal(result.max, 4);
-    assert.equal(MapQuestion.evaluate(brno, { lat: brno.map.lat, lon: brno.map.lon }, true).points, 8);
+    assert.equal(MapQuestion.evaluate(brno, { lat: brno.map.lat, lon: brno.map.lon }, true).points, 6);
     assert.equal(MapQuestion.evaluate(brno, { lat: 50.08, lon: 14.42 }, false).points, 0, 'Praha místo Brna (185 km) bez bodů');
     assert.equal(MapQuestion.evaluate(brno, null, false), null);
     assert.equal(MapQuestion.evaluate(brno, { lat: NaN, lon: 1 }, false), null);
@@ -202,7 +203,7 @@ test('body: plné do 3 % diagonály, pak ubývají do nuly na 20 %; celé čísl
     for (const typed of [false, true]) {
         for (const km of [0, 10, 30, 60, 90, 130, 1000]) {
             const points = MapQuestion.pointsForDistance(km, cz, MapQuestion.maxPoints(typed));
-            assert.ok(points >= 0 && points <= (typed ? 8 : 4));
+            assert.ok(points >= 0 && points <= (typed ? 6 : 4));
         }
     }
 });

@@ -229,6 +229,13 @@
         return (f.sys && f.sys === g.sys ? 3 : 0) + (f.part && f.part === g.part ? 3 : 0);
     };
 
+    // Hlavní obrázek, na kterém není živý organismus (pravidlo quiz-core.js offSubjectRule, audit npm run audit:obrazky): poštovní
+    // známka nebo mince (často s názvem druhu), u žijících druhů kostra či lebka (kudu, vorvaňovec, netopýr)
+    const offSubjectPhoto = core.offSubjectRule({
+        words: { '*': ['stamp', 'briefmarke', 'znamka', 'coin', 'banknote', 'logo'] },
+        ids: ['Q139487', 'Q629227', 'Q301862', 'Q398445']
+    });
+
     return {
         id: 'biologie',
         title: 'Biologie',
@@ -247,6 +254,7 @@
             czechBadge: 'Žije v Česku'
         },
         categories: CATEGORIES,
+        offSubjectPhoto,
 
         // Nesprávné možnosti: nejbližší příbuzní (stejná čeleď, pak řád), podobné jméno (sýkora k sýkorám)
         // a stejný původ (k naší přírodě naše druhy, k exotickým exotické)

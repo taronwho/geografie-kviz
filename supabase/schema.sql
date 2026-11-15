@@ -466,6 +466,24 @@ alter table public.tournaments drop constraint if exists tournaments_capacity_ra
 alter table public.tournaments add constraint tournaments_capacity_range check (capacity between 8 and 128);
 alter table public.tournaments drop constraint if exists tournaments_topic_format;
 alter table public.tournaments add constraint tournaments_topic_format check (topic ~ '^[a-z0-9,]{1,200}$');
+-- Speciální (nárazové) turnaje na téma (blok 31; sloupce jsou tady, protože je čtou funkce turnajů níž). kind 'special' zakládá jen správce
+-- (dev_special_tournament_create), nikdy tournament_tick. theme = id tématu z tournament_themes (otázky vybírá aplikace podle tournament.js THEMES),
+-- title = název do karty („Hrady a zámky“), starts_at = začátek (konec přihlášek a začátek 1. kola), round_minutes = délka kola v minutách:
+-- kolo n se hraje od starts_at + (n − 1) × délka do starts_at + n × délka. Týdenní Mix (kind 'weekly') je má prázdné a kola má dál po pražských dnech.
+-- week_start je u speciálního turnaje den začátku (Praha), topic témata otázek (jako u výzvy).
+alter table public.tournaments add column if not exists kind text not null default 'weekly';
+alter table public.tournaments add column if not exists theme text;
+alter table public.tournaments add column if not exists title text;
+alter table public.tournaments add column if not exists starts_at timestamptz;
+alter table public.tournaments add column if not exists round_minutes integer;
+alter table public.tournaments add column if not exists created_by uuid references public.profiles (id) on delete set null;
+alter table public.tournaments drop constraint if exists tournaments_kind_list;
+alter table public.tournaments add constraint tournaments_kind_list check (kind in ('weekly', 'special'));
+alter table public.tournaments drop constraint if exists tournaments_special_fields;
+alter table public.tournaments add constraint tournaments_special_fields check (
+    (kind = 'weekly' and theme is null and starts_at is null and round_minutes is null)
+    or (kind = 'special' and theme ~ '^[a-z0-9-]{1,40}$' and char_length(btrim(coalesce(title, ''))) between 2 and 60 and starts_at is not null
+        and round_minutes between 10 and 1440));
 
 create table if not exists public.tournament_entries (
     tournament_id uuid not null references public.tournaments (id) on delete cascade,
@@ -541,6 +559,30 @@ create or replace function public.tournament_today() returns date
 language sql stable set search_path = public as $$
     select coalesce(nullif(current_setting('mudrlant.test_today', true), '')::date, (now() at time zone 'Europe/Prague')::date)
 $$;
+-- Okamžik pro kola speciálních turnajů (blok 31; nastavení mudrlant.test_now používají jen testy)
+create or replace function public.tournament_now() returns timestamptz
+language sql stable set search_path = public as $$
+    select coalesce(nullif(current_setting('mudrlant.test_now', true), '')::timestamptz, now())
+$$;
+-- Fáze kola round_no: 'before' (ještě nezačalo), 'open' (hraje se), 'over' (skončilo). Týdenní turnaj po pražských dnech od started_on
+-- (kolo n v den started_on + n − 1), speciální po round_minutes od starts_at (blok 31).
+create or replace function public.tournament_round_phase(t public.tournaments, round_no integer) returns text
+language sql stable set search_path = public as $$
+    select case when t.kind = 'special' then
+            case when public.tournament_now() < t.starts_at + (round_no - 1) * t.round_minutes * interval '1 minute' then 'before'
+                 when public.tournament_now() < t.starts_at + round_no * t.round_minutes * interval '1 minute' then 'open'
+                 else 'over' end
+        else
+            case when t.started_on + (round_no - 1) > public.tournament_today() then 'before'
+                 when t.started_on + (round_no - 1) = public.tournament_today() then 'open'
+                 else 'over' end
+        end
+$$;
+-- Konec kola speciálního turnaje (týdenní turnaj: null, kolo končí o půlnoci)
+create or replace function public.tournament_round_end(t public.tournaments, round_no integer) returns timestamptz
+language sql stable set search_path = public as $$
+    select case when t.kind = 'special' then t.starts_at + round_no * t.round_minutes * interval '1 minute' end
+$$;
 
 create or replace function public.tournament_notice(uid uuid, tid uuid, notice_kind text, notice_detail text default null) returns void
 language sql security definer set search_path = public as $$
@@ -576,6 +618,13 @@ begin
     update public.tournament_matches set winner = win, decided_by = how where id = m.id;
     if how <> 'played' then
         perform public.tournament_notice(case when win = m.p1 then m.p2 else m.p1 end, m.tournament_id, 'eliminated_noplay', null);
+        -- Kontumace (blok 31): kdo zápas začal a nedohrál (vzdal nebo mu vypršel čas), má u výsledku aspoň to, co stihl (správné a body
+        -- z uložených odpovědí; finished_at zůstane prázdné, takže se to nepočítá jako odehraný zápas). Rozpis zápasu pak ukáže jeho odpovědi.
+        update public.tournament_results r set correct = a.good, points = a.total
+            from (select ta.user_id, (count(*) filter (where ta.correct))::integer as good, coalesce(sum(ta.points), 0)::integer as total
+                  from public.tournament_answers ta where ta.match_id = m.id group by ta.user_id) a
+            where r.match_id = m.id and r.user_id = a.user_id and r.finished_at is null;
+        update public.tournament_results set correct = coalesce(correct, 0), points = coalesce(points, 0) where match_id = m.id and finished_at is null;
     end if;
     return win;
 end;
@@ -595,7 +644,8 @@ begin
         select max(round) into cur from public.tournament_matches where tournament_id = tid;
         -- po termínu (konec dne kola) se zápasy rozhodnou i bez odehrání
         for m in select * from public.tournament_matches where tournament_id = tid and round = cur and winner is null loop
-            if t.started_on + (cur - 1) < today then
+            -- (fáze kola: týdenní turnaj po dnech, speciální po minutách od začátku, blok 31)
+            if public.tournament_round_phase(t, cur) = 'over' then
                 perform public.tournament_pick_winner(m, true); changed := true;
             else
                 perform public.tournament_pick_winner(m, false);
@@ -682,7 +732,16 @@ begin
         perform public.tournament_notice(e.user_id, tid, 'excluded_full', s::text);
     end loop;
     update public.tournament_entries set status = 'excluded' where tournament_id = tid and status = 'registered';
-    update public.tournaments set status = 'running', size = s, rounds = k, started_on = case when force then public.tournament_today() else greatest(t.week_start, public.tournament_today()) end where id = tid;
+    -- Speciální turnaj (blok 31) začíná v starts_at; při pozdním spuštění (tick nikdo nezavolal) nebo vývojářském „Spustit hned“ od teď (na celé minuty),
+    -- ať první kolo nevyprší dřív, než ho kdo uvidí. Týdenní turnaj od pondělí, nejdřív dnes.
+    if t.kind = 'special' then
+        update public.tournaments set status = 'running', size = s, rounds = k,
+            starts_at = case when force then date_trunc('minute', public.tournament_now()) else greatest(t.starts_at, date_trunc('minute', public.tournament_now())) end
+            where id = tid;
+        update public.tournaments set started_on = (starts_at at time zone 'Europe/Prague')::date where id = tid;
+    else
+        update public.tournaments set status = 'running', size = s, rounds = k, started_on = case when force then public.tournament_today() else greatest(t.week_start, public.tournament_today()) end where id = tid;
+    end if;
     -- náhodné nasazení do pavouka (podle id hráče a semínka turnaje)
     select array_agg(user_id order by md5(user_id::text || t.seed)) into ids from public.tournament_entries where tournament_id = tid and status = 'playing';
     for i in 1 .. s / 2 loop
@@ -699,7 +758,9 @@ begin
     perform pg_advisory_xact_lock(74610);
     next_monday := today + (8 - extract(isodow from today)::integer);
     insert into public.tournaments (topic, week_start) values ('mix', next_monday) on conflict (topic, week_start) do nothing;
-    for t in select id from public.tournaments where status = 'open' and week_start <= today order by week_start loop
+    -- týdenní od svého pondělí, speciální (blok 31) od starts_at
+    for t in select id from public.tournaments where status = 'open'
+            and (case when kind = 'special' then starts_at <= public.tournament_now() else week_start <= today end) order by week_start, id loop
         perform public.tournament_start(t.id);
     end loop;
     -- boti v turnajích odehrají své kolo každý den od 9:00 (Praha); před posunem kol i po něm, ať stihnou včerejší kolo i nově otevřené
@@ -720,7 +781,9 @@ begin
     if auth.uid() is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
     perform public.tournament_tick();
     select * into t from public.tournaments where id = tid for update;
-    if t.id is null or t.status <> 'open' or t.week_start <= public.tournament_today() then raise exception 'Přihlášky do tohoto turnaje jsou zavřené.' using errcode = '22023'; end if;
+    if t.id is null or t.status <> 'open' or (case when t.kind = 'special' then t.starts_at <= public.tournament_now() else t.week_start <= public.tournament_today() end) then
+        raise exception 'Přihlášky do tohoto turnaje jsou zavřené.' using errcode = '22023';
+    end if;
     select count(*) into n from public.tournament_entries where tournament_id = tid;
     if exists (select 1 from public.tournament_entries where tournament_id = tid and user_id = auth.uid()) then return; end if;
     if n >= t.capacity then raise exception 'Turnaj je plný.' using errcode = '22023'; end if;
@@ -748,7 +811,9 @@ begin
     if m.id is null or auth.uid() not in (m.p1, m.p2) then raise exception 'Tohle není tvůj zápas.' using errcode = '42501'; end if;
     select * into t from public.tournaments where id = m.tournament_id;
     if m.winner is not null or t.status <> 'running' then raise exception 'Zápas už je rozhodnutý.' using errcode = '22023'; end if;
-    if t.started_on + (m.round - 1) <> public.tournament_today() then raise exception 'Kolo se dnes nehraje.' using errcode = '22023'; end if;
+    if public.tournament_round_phase(t, m.round) <> 'open' then
+        raise exception '%', case when t.kind = 'special' then 'Kolo se teď nehraje.' else 'Kolo se dnes nehraje.' end using errcode = '22023';
+    end if;
     if exists (select 1 from public.tournament_results where match_id = mid and user_id = auth.uid()) then raise exception 'Kolo jsi už začal.' using errcode = '22023'; end if;
     insert into public.tournament_results (match_id, user_id) values (mid, auth.uid());
 end;
@@ -830,7 +895,7 @@ begin
     select * into t from public.tournaments where id = tid;
     select max(round) into cur from public.tournament_matches where tournament_id = tid;
     -- boti hrají jen kolo, jehož den už nastal (další kolo čeká na svůj den)
-    if cur is null or t.started_on + (cur - 1) > public.tournament_today() then return; end if;
+    if cur is null or public.tournament_round_phase(t, cur) = 'before' then return; end if;
     for m in select * from public.tournament_matches where tournament_id = tid and round = cur and winner is null loop
         foreach uid in array array[m.p1, m.p2] loop
             if public.dev_is_bot(uid) and not exists (select 1 from public.tournament_results where match_id = m.id and user_id = uid and finished_at is not null) then
@@ -895,7 +960,9 @@ begin
     select * into t from public.tournaments where id = tid for update;
     if t.id is null or t.status <> 'running' then raise exception 'Turnaj neběží.' using errcode = '22023'; end if;
     perform public.dev_bots_play(tid);
-    update public.tournaments set started_on = started_on - 1 where id = tid;
+    -- speciální turnaj (blok 31): začátek o jedno kolo dřív (den začátku podle něj)
+    update public.tournaments set started_on = case when kind = 'special' then ((starts_at - round_minutes * interval '1 minute') at time zone 'Europe/Prague')::date else started_on - 1 end,
+        starts_at = starts_at - round_minutes * interval '1 minute' where id = tid;
     perform public.tournament_progress(tid);
     perform public.dev_bots_play(tid);
 end;
@@ -946,10 +1013,12 @@ create or replace function public.tournament_bots_due() returns void
 language plpgsql security definer set search_path = public as $$
 declare t record; today date := public.tournament_today();
 begin
-    for t in select tr.id, tr.started_on, (select max(m.round) from public.tournament_matches m where m.tournament_id = tr.id) as cur
+    for t in select tr.id, tr.kind, public.tournament_round_phase(tr, x.cur) as phase, x.cur
              from public.tournaments tr
+             cross join lateral (select max(m.round) as cur from public.tournament_matches m where m.tournament_id = tr.id) x
              where tr.status = 'running' and exists (select 1 from public.tournament_entries e where e.tournament_id = tr.id and public.dev_is_bot(e.user_id)) loop
-        if t.cur is not null and (t.started_on + (t.cur - 1) < today or (t.started_on + (t.cur - 1) = today and public.tournament_clock() >= time '09:00')) then
+        -- speciální turnaj (blok 31): kolo je krátké, boti hrají hned, jak začne
+        if t.cur is not null and (t.phase = 'over' or (t.phase = 'open' and (t.kind = 'special' or public.tournament_clock() >= time '09:00'))) then
             perform public.dev_bots_play(t.id);
         end if;
     end loop;
@@ -1095,7 +1164,8 @@ $$;
 
 -- Co poslat: (a) dnešní neodehraný turnajový zápas, (b) nevyřízená příchozí výzva mladší než 3 dny a výsledek výzvy, kterou hráč založil, (c) nepřečtená zpráva o turnaji,
 -- (e) útoky soupeřů v Dobývání (conquest_push_items, blok 23), (f) pozvánky přátel do hry Dobývání (conquest_invite_push_items, blok 24),
--- (g) kola v Dobývání: všichni dohráli kolo a kolo brzy končí (conquest_round_push_items, blok 29).
+-- (g) kola v Dobývání: všichni dohráli kolo a kolo brzy končí (conquest_round_push_items, blok 29),
+-- (h) nový speciální turnaj s otevřenými přihláškami (tournament_special_push_items, blok 31).
 -- Jeden řádek na odběr (zařízení); z každého druhu nejvýš jedna věc na hráče a běh a nic, co téhož druhu dostal v poslední hodině
 -- (útoky a pozvánky v Dobývání: v posledních 10 minutách, období hry bývá jen hodina a pozvaný se má přidat, dokud je místo;
 -- kola v Dobývání: v posledních 3 minutách, kolo rychlé hry trvá 5 minut).
@@ -1109,17 +1179,19 @@ declare today date := public.tournament_today(); part text := public.push_day_pa
 begin
     return query
     with items as (
+        -- speciální turnaj (blok 31): kolo končí v daný čas, připomínka jednou za zápas
         select m.p as user_id, 'tournament'::text as kind,
-            'Turnaj: dnes hraješ ' || public.push_round_name(t.size, m.round, m.third) as title,
-            'Soupeř: ' || coalesce(op.display_name, 'Hráč') || '. Kolo musíš odehrát do půlnoci.' as body,
+            case when t.kind = 'special' then 'Speciální turnaj: hraješ ' else 'Turnaj: dnes hraješ ' end || public.push_round_name(t.size, m.round, m.third) as title,
+            'Soupeř: ' || coalesce(op.display_name, 'Hráč') || '. ' || case when t.kind = 'special'
+                then 'Kolo musíš odehrát ' || public.tournament_push_until(public.tournament_round_end(t, m.round)) || '.' else 'Kolo musíš odehrát do půlnoci.' end as body,
             './?tab=multi'::text as url,
-            'tour:' || m.id || ':' || m.p || ':' || today || ':' || part as dedupe_key, m.id::text as sort_at
+            'tour:' || m.id || ':' || m.p || ':' || case when t.kind = 'special' then 'special' else today || ':' || part end as dedupe_key, m.id::text as sort_at
         from (
             select mm.id, mm.tournament_id, mm.round, mm.third, mm.p1 as p, mm.p2 as other from public.tournament_matches mm where mm.winner is null
             union all
             select mm.id, mm.tournament_id, mm.round, mm.third, mm.p2, mm.p1 from public.tournament_matches mm where mm.winner is null
         ) m
-        join public.tournaments t on t.id = m.tournament_id and t.status = 'running' and t.started_on + (m.round - 1) = today
+        join public.tournaments t on t.id = m.tournament_id and t.status = 'running' and public.tournament_round_phase(t, m.round) = 'open'
         join public.profiles me on me.id = m.p and me.push_tournament
         left join public.profiles op on op.id = m.other
         where not exists (select 1 from public.tournament_results r where r.match_id = m.id and r.user_id = m.p)
@@ -1171,6 +1243,9 @@ begin
         union all
         -- (g) kola v Dobývání: všichni dohráli kolo (druh 'conquest_round') a kolo brzy končí (druh 'conquest_ending'), blok 29
         select c.user_id, c.kind, c.title, c.body, c.url, c.dedupe_key, c.sort_at from public.conquest_round_push_items() c
+        union all
+        -- (h) „Začíná speciální turnaj: …“ (druh 'tournament_special', klíč tsp:), blok 31
+        select c.user_id, c.kind, c.title, c.body, c.url, c.dedupe_key, c.sort_at from public.tournament_special_push_items() c
     ), fresh as (
         select i.*, row_number() over (partition by i.user_id, i.kind order by i.sort_at, i.dedupe_key) as rn
         from items i
@@ -1210,7 +1285,8 @@ begin
     insert into public.push_sent (dedupe_key, user_id, kind)
     select k, case when split_part(k, ':', 3) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then split_part(k, ':', 3)::uuid end,
         case split_part(k, ':', 1) when 'tour' then 'tournament' when 'chal' then 'challenge' when 'chalr' then 'challenge' when 'notice' then 'notice' when 'test' then 'test'
-            when 'cq' then 'conquest' when 'cqi' then 'conquest_invite' when 'cqr' then 'conquest_round' when 'cqe' then 'conquest_ending' end
+            when 'cq' then 'conquest' when 'cqi' then 'conquest_invite' when 'cqr' then 'conquest_round' when 'cqe' then 'conquest_ending'
+            when 'tsp' then 'tournament_special' end
     from unnest(coalesce(keys, '{}')) k where char_length(k) between 1 and 200
     on conflict (dedupe_key) do nothing;
     -- Odeslaná zkušební zpráva je vyřízená; novější žádost (jiný čas, jiný klíč) zůstane čekat. Nevyřízené žádosti starší než den se zahodí.
@@ -1512,6 +1588,9 @@ begin
         'turnaje_zapasy', coalesce((select jsonb_agg(to_jsonb(m)) from public.tournament_matches m where uid in (m.p1, m.p2)), '[]'::jsonb),
         'turnaje_vysledky', coalesce((select jsonb_agg(to_jsonb(t) order by t.started_at) from public.tournament_results t where t.user_id = uid), '[]'::jsonb),
         'turnaje_zpravy', coalesce((select jsonb_agg(to_jsonb(n) order by n.created_at) from public.tournament_notices n where n.user_id = uid), '[]'::jsonb),
+        -- Hlasování o tématu speciálního turnaje (schéma 31, tabulka na konci souboru)
+        'turnaje_hlasovani', coalesce((select jsonb_agg(jsonb_build_object('hlasovani', v.poll_id, 'tema', v.theme, 'cas', v.voted_at, 'zmen', v.changes) order by v.voted_at)
+            from public.tournament_votes v where v.user_id = uid), '[]'::jsonb),
         -- Sociální vrstva a hlášení (tabulky jsou níž v tomto souboru; tělo funkce se kontroluje až při volání)
         'posledni_aktivita', (select s.last_seen from public.player_seen s where s.user_id = uid),
         'pratele', coalesce((select jsonb_agg(to_jsonb(f) order by f.created_at) from public.friendships f where uid in (f.user_id, f.friend_id)), '[]'::jsonb),
@@ -1544,7 +1623,13 @@ begin
         -- Pomůcky do Dobývání (schéma 30): zásoba a odkud přišly
         'pomucky', jsonb_build_object(
             'zasoba', coalesce((select jsonb_agg(to_jsonb(i) order by i.kind) from public.player_items i where i.user_id = uid), '[]'::jsonb),
-            'ziskane', coalesce((select jsonb_agg(to_jsonb(x) order by x.at) from public.player_item_grants x where x.user_id = uid), '[]'::jsonb))
+            'ziskane', coalesce((select jsonb_agg(to_jsonb(x) order by x.at) from public.player_item_grants x where x.user_id = uid), '[]'::jsonb)),
+        -- Pozvi kamarády (schéma 32): můj kód přítele, kdo mě pozval, koho jsem pozval a vyzvednuté odměny (prestiž a vítězný efekt jsou v profilu)
+        'pozvanky', jsonb_build_object(
+            'kod', (select c.code from public.referral_codes c where c.user_id = uid),
+            'pozval_me', (select jsonb_build_object('hrac', r.inviter, 'kdy', r.created_at) from public.referrals r where r.invitee = uid),
+            'pozvani', coalesce((select jsonb_agg(jsonb_build_object('hrac', r.invitee, 'kdy', r.created_at) order by r.created_at) from public.referrals r where r.inviter = uid), '[]'::jsonb),
+            'odmeny', coalesce((select jsonb_agg(to_jsonb(x) order by x.claimed_at) from public.referral_rewards x where x.user_id = uid), '[]'::jsonb))
     ) into result;
     return result;
 end;
@@ -1987,7 +2072,9 @@ begin
     if r.match_id is null then raise exception 'Zápas jsi ještě nezačal.' using errcode = '22023'; end if;
     if r.finished_at is not null or m.winner is not null then raise exception 'Zápas už je dohraný.' using errcode = '22023'; end if;
     select * into t from public.tournaments tt where tt.id = m.tournament_id;
-    if t.status <> 'running' or t.started_on + (m.round - 1) <> public.tournament_today() then raise exception 'Kolo se dnes nehraje.' using errcode = '22023'; end if;
+    if t.status <> 'running' or public.tournament_round_phase(t, m.round) <> 'open' then
+        raise exception '%', case when t.kind = 'special' then 'Kolo se teď nehraje.' else 'Kolo se dnes nehraje.' end using errcode = '22023';
+    end if;
     if idx is null or idx < 0 or idx > 9 then raise exception 'Neplatné číslo otázky.' using errcode = '22023'; end if;
     if correct is null or points is null or points < 0 or points > 4 or correct <> (points > 0) then raise exception 'Neplatný výsledek otázky.' using errcode = '22023'; end if;
     select count(*)::integer into saved from public.tournament_answers a where a.match_id = mid and a.user_id = uid;
@@ -2916,7 +3003,9 @@ begin
     if r.match_id is null then raise exception 'Zápas jsi ještě nezačal.' using errcode = '22023'; end if;
     if r.finished_at is not null or m.winner is not null then raise exception 'Zápas už je dohraný.' using errcode = '22023'; end if;
     select * into t from public.tournaments tt where tt.id = m.tournament_id;
-    if t.status <> 'running' or t.started_on + (m.round - 1) <> public.tournament_today() then raise exception 'Kolo se dnes nehraje.' using errcode = '22023'; end if;
+    if t.status <> 'running' or public.tournament_round_phase(t, m.round) <> 'open' then
+        raise exception '%', case when t.kind = 'special' then 'Kolo se teď nehraje.' else 'Kolo se dnes nehraje.' end using errcode = '22023';
+    end if;
     if idx is null or idx < 0 or idx > 9 then raise exception 'Neplatné číslo otázky.' using errcode = '22023'; end if;
     if correct is null or points is null or points < 0 or points > 4 or correct <> (points > 0) then raise exception 'Neplatný výsledek otázky.' using errcode = '22023'; end if;
     perform public.check_answer_details(hints, ms);
@@ -2982,7 +3071,9 @@ begin
             limit 20;
         return;
     end if;
-    if not exists (select 1 from public.tournament_results tr where tr.match_id = m.id and tr.user_id = uid and tr.finished_at is not null) then
+    -- Kontumace (blok 31): zápas, který hráč nedohrál (vzdal, vypršel mu čas, nebo ho vůbec nezačal), uvidí v rozpisu, až je rozhodnutý
+    -- (dál už se hrát nedá) – s vlastními uloženými odpověďmi a se soupeřovými
+    if m.winner is null and not exists (select 1 from public.tournament_results tr where tr.match_id = m.id and tr.user_id = uid and tr.finished_at is not null) then
         raise exception 'Rozpis otázek uvidíš, až zápas dohraješ.' using errcode = '42501';
     end if;
     rival := case when m.p1 = uid then m.p2 else m.p1 end;
@@ -7037,6 +7128,900 @@ grant execute on function public.player_items_mine(), public.player_items_claim(
     to authenticated;
 -- ===== 30: Dobývání – pomůcky Tah navíc a Půl na půl — KONEC BLOKU =====
 
+-- ===== 31: Speciální turnaje na téma, hlasování o tématu a psaní odpovědí jen pro jednoho hráče =====
+-- Nárazové turnaje (kind 'special' v tournaments; sloupce a fáze kol jsou u Týdenních turnajů výš): stejný pavouk a stejné otázky pro všechny
+-- ze semínka turnaje a kola (vybírá je aplikace jen z položek tématu, tournament.js THEMES), odpovědi přes tournament_answer_save, výsledek
+-- z nich (tournament_finish_match), XP za výhry i odznaky jako u týdenního turnaje. Nikdy je nezakládá tournament_tick: spustí je správce
+-- (dev_admins) ve vývojářských nástrojích aplikace s tématem, začátkem a délkou kola (dev_special_tournament_create), najednou nejvýš jeden.
+-- Kolo n se hraje od starts_at + (n − 1) × round_minutes, přihlášky se zavřou v starts_at.
+-- Téma vybírají hráči v hlasování: vždy je otevřené jedno (tournament_polls) se 4 tématy z nabídky (tournament_themes); každý přihlášený hráč
+-- má jeden hlas (tournament_votes), který může do konce hlasování změnit (nejvýš 10krát). Počty hlasů uvidí, až sám hlasuje (správce vždy).
+-- Když správce založí turnaj na téma z hlasování, nebo hlasování uzavře (dev_tournament_poll_close), hlasování se uzavře (vítěz = téma turnaje,
+-- nebo nejvíc hlasů, při shodě dřívější v nabídce) a hned se otevře další se 4 jinými tématy: bez témat dvou posledních hlasování a šesti
+-- posledních speciálních turnajů, pořadí určuje otisk (md5) id tématu a čísla hlasování – výběr dělá server a nikdo ho neovlivní.
+-- Tabulky čte hráč přes pravidla řádků (svůj hlas jen sám), zapisují jen funkce.
+create table if not exists public.tournament_themes (
+    id text primary key,
+    title text not null,
+    topics text not null,
+    capacity integer not null default 128,
+    sort integer not null default 0,
+    active boolean not null default true
+);
+alter table public.tournament_themes drop constraint if exists tournament_themes_values;
+alter table public.tournament_themes add constraint tournament_themes_values check (id ~ '^[a-z0-9-]{1,40}$' and char_length(title) between 2 and 60
+    and topics ~ '^[a-z0-9,]{1,200}$' and capacity in (8, 16, 32, 64, 128));
+-- Nabídka témat (stejná id, názvy, témata otázek a kapacita jako tournament.js THEMES; hlídá tests/tournament-special.test.js). Kapacita = kolik
+-- hráčů nejvýš, aby na všechna kola (10 otázek v kole) stačily položky tématu bez opakování. Téma, které ze seznamu zmizí, se jen vypne.
+with list (id, title, topics, capacity, sort) as (values
+    ('hrady-zamky', 'Hrady a zámky', 'zemepis,architektura', 128, 1),
+    ('opery', 'Opery', 'hudba', 128, 2),
+    ('olympijske-hry', 'Olympijské hry', 'sport', 128, 3),
+    ('vlajky-afriky', 'Vlajky Afriky', 'vlajky', 64, 4),
+    ('vlajky-statu', 'Vlajky států', 'vlajky', 128, 5),
+    ('ceske-dejiny', 'České dějiny', 'historie', 128, 6),
+    ('starovek', 'Starověk', 'historie', 128, 7),
+    ('svetove-valky', 'Světové války', 'historie', 128, 8),
+    ('panovnici', 'Králové a císaři', 'historie', 128, 9),
+    ('recke-baje', 'Řecké báje', 'mytologie', 128, 10),
+    ('pravek', 'Pravěká zvířata', 'biologie', 128, 11),
+    ('psi-plemena', 'Psí plemena', 'biologie', 128, 12),
+    ('nase-priroda', 'Naše příroda', 'biologie', 128, 13),
+    ('vesmir', 'Vesmír', 'fyzika', 128, 14),
+    ('chemicke-prvky', 'Chemické prvky', 'chemie', 128, 15),
+    ('rock', 'Rock a punk', 'hudba', 128, 16),
+    ('cesky-film', 'Český film', 'film', 128, 17),
+    ('pohadky', 'Filmové pohádky', 'film', 128, 18),
+    ('sci-fi', 'Sci-fi a fantasy', 'film,literatura', 128, 19),
+    ('ceska-literatura', 'Česká literatura', 'literatura', 128, 20),
+    ('renesance', 'Renesance', 'umeni,architektura', 128, 21),
+    ('fotbal', 'Fotbal', 'sport', 128, 22),
+    ('hokej', 'Lední hokej', 'sport', 128, 23),
+    ('hlavni-mesta', 'Hlavní města', 'zemepis', 128, 24),
+    ('ceska-mesta', 'Česká města', 'zemepis', 128, 25),
+    ('unesco', 'Světové dědictví UNESCO', 'zemepis,architektura', 128, 26),
+    ('kostely', 'Kostely a kláštery', 'architektura', 128, 27),
+    ('nobelova-cena', 'Nobelova cena', 'chemie,fyzika,literatura', 128, 28)
+), saved as (
+    insert into public.tournament_themes (id, title, topics, capacity, sort) select id, title, topics, capacity, sort from list
+    on conflict (id) do update set title = excluded.title, topics = excluded.topics, capacity = excluded.capacity, sort = excluded.sort, active = true
+    returning id
+)
+update public.tournament_themes set active = false where id not in (select id from list);
+
+create table if not exists public.tournament_polls (
+    id bigint generated always as identity primary key,
+    options text[] not null,
+    opened_at timestamptz not null default now(),
+    closed_at timestamptz,
+    winner text,
+    tournament_id uuid references public.tournaments (id) on delete set null
+);
+alter table public.tournament_polls drop constraint if exists tournament_polls_options_count;
+alter table public.tournament_polls add constraint tournament_polls_options_count check (cardinality(options) = 4);
+-- otevřené je vždy nejvýš jedno
+create unique index if not exists tournament_polls_one_open on public.tournament_polls ((true)) where closed_at is null;
+
+create table if not exists public.tournament_votes (
+    poll_id bigint not null references public.tournament_polls (id) on delete cascade,
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    theme text not null,
+    voted_at timestamptz not null default now(),
+    changes integer not null default 0,
+    primary key (poll_id, user_id)
+);
+alter table public.tournament_votes drop constraint if exists tournament_votes_changes_range;
+alter table public.tournament_votes add constraint tournament_votes_changes_range check (changes between 0 and 10);
+create index if not exists tournament_votes_user_idx on public.tournament_votes (user_id);
+
+alter table public.tournament_themes enable row level security;
+alter table public.tournament_polls enable row level security;
+alter table public.tournament_votes enable row level security;
+drop policy if exists "turnaje: nabídka témat" on public.tournament_themes;
+create policy "turnaje: nabídka témat" on public.tournament_themes for select to authenticated using (true);
+drop policy if exists "turnaje: hlasování" on public.tournament_polls;
+create policy "turnaje: hlasování" on public.tournament_polls for select to authenticated using (true);
+drop policy if exists "turnaje: vlastní hlas" on public.tournament_votes;
+create policy "turnaje: vlastní hlas" on public.tournament_votes for select to authenticated using (user_id = auth.uid());
+revoke all on public.tournament_themes, public.tournament_polls, public.tournament_votes from public, anon, authenticated;
+grant select on public.tournament_themes, public.tournament_polls, public.tournament_votes to authenticated;
+
+-- 4 témata pro hlasování číslo seq: nejdřív ta, která nebyla ve dvou posledních hlasováních ani v šesti posledních speciálních turnajích
+create or replace function public.tournament_poll_pick(seq bigint) returns text[]
+language sql stable set search_path = public as $$
+    with recent as (
+        select unnest(p.options) as id from (select tp.options from public.tournament_polls tp order by tp.id desc limit 2) p
+        union
+        select s.theme from (select t.theme from public.tournaments t where t.kind = 'special' order by t.created_at desc limit 6) s
+    )
+    select array(select th.id from public.tournament_themes th where th.active
+        order by (th.id in (select r.id from recent r)), md5(th.id || ':' || seq), th.id limit 4)
+$$;
+
+-- Otevřené hlasování; když žádné není, otevře se nové
+create or replace function public.tournament_poll_current() returns public.tournament_polls
+language plpgsql security definer set search_path = public as $$
+declare p public.tournament_polls;
+begin
+    select * into p from public.tournament_polls where closed_at is null;
+    if p.id is not null then return p; end if;
+    perform pg_advisory_xact_lock(74631);
+    select * into p from public.tournament_polls where closed_at is null;
+    if p.id is not null then return p; end if;
+    insert into public.tournament_polls (options) values (public.tournament_poll_pick(coalesce((select max(tp.id) from public.tournament_polls tp), 0) + 1)) returning * into p;
+    return p;
+end;
+$$;
+
+-- Hlasování jako JSON pro hráče uid: { id, opened_at, closed, options: [{ id, title, topics, votes }], mine, total, changes_left }.
+-- votes a total jen tomu, kdo už hlasoval, a správci (dev_admins); ostatní je mají null.
+create or replace function public.tournament_poll_json(p public.tournament_polls, uid uuid) returns jsonb
+language sql stable security definer set search_path = public as $$
+    with me as (select v.theme, v.changes from public.tournament_votes v where v.poll_id = p.id and v.user_id = uid),
+    shown as (select exists (select 1 from me) or exists (select 1 from public.dev_admins d where d.user_id = uid) as ok),
+    counts as (select v.theme, count(*)::integer as n from public.tournament_votes v where v.poll_id = p.id group by v.theme)
+    select jsonb_build_object(
+        'id', p.id, 'opened_at', p.opened_at, 'closed', p.closed_at is not null,
+        'options', coalesce((select jsonb_agg(jsonb_build_object('id', o.id, 'title', coalesce(th.title, o.id), 'topics', th.topics,
+                'votes', case when (select ok from shown) then coalesce((select c.n from counts c where c.theme = o.id), 0) end) order by o.ord)
+            from unnest(p.options) with ordinality as o(id, ord) left join public.tournament_themes th on th.id = o.id), '[]'::jsonb),
+        'mine', (select me.theme from me),
+        'total', case when (select ok from shown) then coalesce((select sum(c.n) from counts c), 0)::integer end,
+        'changes_left', 10 - coalesce((select me.changes from me), 0))
+$$;
+
+-- Hráč: stav hlasování (otevřené, s mým hlasem; když žádné není, otevře se)
+create or replace function public.tournament_poll_state() returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid();
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    return public.tournament_poll_json(public.tournament_poll_current(), uid);
+end;
+$$;
+
+-- Hráč: hlas pro téma (jeden na hlasování; změna nejvýš 10krát, stejný hlas znovu nic nemění). Vrací stav hlasování.
+create or replace function public.tournament_vote(poll bigint, theme text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+#variable_conflict use_variable
+declare uid uuid := auth.uid(); p public.tournament_polls; prev public.tournament_votes;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    -- uzavření hlasování (for update) počká na rozjeté hlasy a naopak
+    select * into p from public.tournament_polls tp where tp.id = poll for share;
+    if p.id is null or p.closed_at is not null then raise exception 'Hlasování už skončilo. Hlasuj v novém.' using errcode = '22023'; end if;
+    if theme is null or not (theme = any (p.options)) then raise exception 'Tohle téma v hlasování není.' using errcode = '22023'; end if;
+    perform pg_advisory_xact_lock(hashtext('tournament_vote:' || poll::text || ':' || uid::text));
+    select * into prev from public.tournament_votes v where v.poll_id = poll and v.user_id = uid;
+    if prev.poll_id is null then
+        insert into public.tournament_votes (poll_id, user_id, theme) values (poll, uid, theme);
+    elsif prev.theme <> theme then
+        if prev.changes >= 10 then raise exception 'Hlas jde změnit nejvýš 10krát, teď už platí ten poslední.' using errcode = '22023'; end if;
+        update public.tournament_votes v set theme = theme, voted_at = now(), changes = v.changes + 1 where v.poll_id = poll and v.user_id = uid;
+    end if;
+    return public.tournament_poll_json(p, uid);
+end;
+$$;
+
+-- Uzavře otevřené hlasování (vítěz: chosen, jinak téma s nejvíc hlasy, při shodě dřívější v nabídce; bez hlasů žádný) a hned otevře další.
+-- Vrací nové hlasování.
+create or replace function public.tournament_poll_close(chosen text default null, tid uuid default null) returns public.tournament_polls
+language plpgsql security definer set search_path = public as $$
+declare p public.tournament_polls; best text;
+begin
+    perform pg_advisory_xact_lock(74631);
+    select * into p from public.tournament_polls where closed_at is null for update;
+    if p.id is not null then
+        select o.id into best from unnest(p.options) with ordinality as o(id, ord)
+            join (select v.theme, count(*) as n from public.tournament_votes v where v.poll_id = p.id group by v.theme) c on c.theme = o.id
+            order by c.n desc, o.ord limit 1;
+        update public.tournament_polls set closed_at = now(), winner = coalesce(chosen, best), tournament_id = tid where id = p.id;
+    end if;
+    insert into public.tournament_polls (options) values (public.tournament_poll_pick(coalesce((select max(tp.id) from public.tournament_polls tp), 0) + 1)) returning * into p;
+    return p;
+end;
+$$;
+
+-- Správce: uzavře hlasování a otevře další (vrací nové hlasování jako tournament_poll_state)
+create or replace function public.dev_tournament_poll_close() returns jsonb
+language plpgsql security definer set search_path = public as $$
+begin
+    perform public.dev_check();
+    return public.tournament_poll_json(public.tournament_poll_close(), auth.uid());
+end;
+$$;
+
+-- Správce: speciální turnaj na téma z nabídky se začátkem (od teď za minutu až za 60 dní) a délkou kola (10 minut až 24 hodin, po 5 minutách);
+-- přihlášky se otevřou hned. Téma z otevřeného hlasování ho uzavře (vítěz = toto téma) a otevře další. Vrací id turnaje.
+create or replace function public.dev_special_tournament_create(theme_id text, start_at timestamptz, round_len integer) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare th public.tournament_themes; tid uuid; poll public.tournament_polls;
+begin
+    perform public.dev_check();
+    select * into th from public.tournament_themes where id = theme_id and active;
+    if th.id is null then raise exception 'Takové téma v nabídce není.' using errcode = '22023'; end if;
+    if start_at is null or start_at < public.tournament_now() + interval '1 minute' or start_at > public.tournament_now() + interval '60 days' then
+        raise exception 'Začátek turnaje musí být v budoucnu, nejpozději za 60 dní.' using errcode = '22023';
+    end if;
+    if round_len is null or round_len < 10 or round_len > 1440 or round_len % 5 <> 0 then
+        raise exception 'Délka kola musí být 10 minut až 24 hodin (po 5 minutách).' using errcode = '22023';
+    end if;
+    perform pg_advisory_xact_lock(74632);
+    if exists (select 1 from public.tournaments t where t.kind = 'special' and t.status in ('open', 'running')) then
+        raise exception 'Speciální turnaj už běží nebo má otevřené přihlášky. Další jde založit, až skončí.' using errcode = '22023';
+    end if;
+    begin
+        insert into public.tournaments (kind, topic, week_start, capacity, theme, title, starts_at, round_minutes, created_by)
+            values ('special', th.topics, (start_at at time zone 'Europe/Prague')::date, th.capacity, th.id, th.title, date_trunc('minute', start_at), round_len, auth.uid())
+            returning id into tid;
+    exception when unique_violation then
+        raise exception 'Ten den už začíná turnaj se stejnými tématy. Zvol jiný den.' using errcode = '22023';
+    end;
+    select * into poll from public.tournament_polls where closed_at is null;
+    if poll.id is not null and th.id = any (poll.options) then perform public.tournament_poll_close(th.id, tid); end if;
+    return tid;
+end;
+$$;
+
+-- Správce: smaže speciální turnaj, který ještě nezačal (třeba se špatným začátkem); přihlášky zmizí s ním
+create or replace function public.dev_special_tournament_delete(tid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+    perform public.dev_check();
+    delete from public.tournaments where id = tid and kind = 'special' and status = 'open';
+    if not found then raise exception 'Smazat jde jen speciální turnaj, který ještě nezačal.' using errcode = '22023'; end if;
+end;
+$$;
+
+-- Čas do upozornění (Praha): „ve čtvrtek 26. 11. v 18:00“
+create or replace function public.tournament_special_when(ts timestamptz) returns text
+language sql stable set search_path = public as $$
+    select (array['v neděli', 'v pondělí', 'v úterý', 've středu', 've čtvrtek', 'v pátek', 'v sobotu'])[extract(dow from (ts at time zone 'Europe/Prague'))::integer + 1]
+        || ' ' || to_char(ts at time zone 'Europe/Prague', 'FMDD. FMMM.') || ' v ' || to_char(ts at time zone 'Europe/Prague', 'FMHH24:MI')
+$$;
+-- Konec kola do připomínky zápasu: „do 19:00“, jiný den „do 27. 11. 18:00“
+create or replace function public.tournament_push_until(ts timestamptz) returns text
+language sql stable set search_path = public as $$
+    select 'do ' || case when (ts at time zone 'Europe/Prague')::date = (public.tournament_now() at time zone 'Europe/Prague')::date then ''
+        else to_char(ts at time zone 'Europe/Prague', 'FMDD. FMMM.') || ' ' end || to_char(ts at time zone 'Europe/Prague', 'FMHH24:MI')
+$$;
+
+-- (h) v push_pending: „Začíná speciální turnaj: Hrady a zámky“ – jednou za turnaj (klíč tsp:turnaj:hráč) každému, kdo chce upozornění na turnaje
+-- (profiles.push_tournament), má funkční odběr a ještě se nepřihlásil; jen u turnaje s otevřenými přihláškami založeného v posledních 3 dnech
+create or replace function public.tournament_special_push_items() returns table (user_id uuid, kind text, title text, body text, url text, dedupe_key text, sort_at text)
+language sql stable set search_path = public as $$
+    select pr.id, 'tournament_special'::text, 'Začíná speciální turnaj: ' || t.title,
+        'Přihlášky jsou otevřené, začíná ' || public.tournament_special_when(t.starts_at) || '. Přihlas se na záložce Více hráčů.',
+        './?tab=multi'::text, 'tsp:' || t.id || ':' || pr.id, t.created_at::text
+    from public.tournaments t
+    join public.profiles pr on pr.push_tournament
+    where t.kind = 'special' and t.status = 'open' and t.starts_at > public.tournament_now() and t.created_at > now() - interval '3 days'
+        and exists (select 1 from public.push_subscriptions s where s.user_id = pr.id and s.fails < 3)
+        and not exists (select 1 from public.tournament_entries e where e.tournament_id = t.id and e.user_id = pr.id)
+        and not public.dev_is_bot(pr.id)
+$$;
+
+-- Psaní odpovědí jen pro jednoho hráče: nová výzva (i výzva skupině, odveta a výzva se sázkou) má vždy výběr z možností. Psanou výzvu
+-- odmítne (starší aplikace dostane českou hlášku), bez způsobu odpovídání ji založí s výběrem z možností. Výzvy založené dřív (i psané,
+-- 'typed', a bez způsobu odpovídání) se hrají dál jako dřív: challenge_progress_save u nich pustí až 8 bodů za otázku. Správce (postgres)
+-- se tím neřídí (jako result_from_progress).
+create or replace function public.challenge_variant_choices() returns trigger
+language plpgsql set search_path = public as $$
+begin
+    if current_user not in ('authenticated', 'anon') then return new; end if;
+    if new.variant = 'typed' then
+        raise exception 'Psaní odpovědí je jen ve hře pro jednoho hráče, výzvy se hrají s výběrem z možností.' using errcode = 'P0001';
+    end if;
+    new.variant := 'choices';
+    return new;
+end;
+$$;
+drop trigger if exists challenges_variant_choices on public.challenges;
+create trigger challenges_variant_choices before insert on public.challenges for each row execute function public.challenge_variant_choices();
+
+-- Oprávnění: hráč volá stav hlasování a hlas, správce své nástroje (dev_check); pomocné funkce jen interně
+revoke all on function public.tournament_now(), public.tournament_round_phase(public.tournaments, integer), public.tournament_round_end(public.tournaments, integer),
+    public.tournament_poll_pick(bigint), public.tournament_poll_current(), public.tournament_poll_json(public.tournament_polls, uuid),
+    public.tournament_poll_close(text, uuid), public.tournament_special_when(timestamptz), public.tournament_push_until(timestamptz),
+    public.tournament_special_push_items(), public.challenge_variant_choices() from public, anon, authenticated;
+revoke all on function public.tournament_poll_state(), public.tournament_vote(bigint, text), public.dev_tournament_poll_close(),
+    public.dev_special_tournament_create(text, timestamptz, integer), public.dev_special_tournament_delete(uuid) from public, anon;
+grant execute on function public.tournament_poll_state(), public.tournament_vote(bigint, text), public.dev_tournament_poll_close(),
+    public.dev_special_tournament_create(text, timestamptz, integer), public.dev_special_tournament_delete(uuid) to authenticated;
+-- ===== 31: Speciální turnaje na téma, hlasování o tématu a psaní odpovědí jen pro jednoho hráče — KONEC BLOKU =====
+
+-- ===== 32: Motivace – pozvánky kamarádů, prestiž, reakce a vítězné efekty, vitrína se sezónou a kontrola odemčení =====
+-- Pět věcí, které spojuje „co hráč získal“:
+-- 1) Kontrola odemčení na serveru (unlock_catalog, unlock_ok, check_unlocks): rámeček, titul u jména, sova (talár, sova titulu, doplňky
+--    a jejich barvy), obrázek hráče (postavička) a vítězný efekt se do profilu uloží, jen když je hráč má odemčené podle toho, co ví server:
+--    úroveň z XP v účtu (level_of_xp, stejné hranice jako quiz-core.js LEVEL_XP), odznaky v účtu (i vyšší stupeň téže skupiny, badge_owned
+--    a badge_tiers podle quiz-core.js BADGE_GROUPS), nejlepší skončená ligová sezóna (league_peaks), prestiž a odměny za pozvané kamarády.
+--    Podmínky, které zná jen zařízení, server nehlídá a bere je ze zápisu aplikace v účtu (profiles.rewards): věci z Truhly Mudrlanta
+--    a ze Sezóny Mudrlanta (gifts; truhla dává i věci za úroveň dřív, proto u nich stačí dar) a diplomy (legendární postavičky). Je to kontrola
+--    soudržnosti, ne ochrana: rewards píše aplikace. Zamčenou volbu server tiše nepřijme (zůstane předchozí hodnota, ze sovy vypadne zamčený
+--    doplněk, zamčený talár se změní na vínový, zamčená sova titulu na nejvyšší dosaženou); hodnoty, které profil už má, se nemění.
+--    Katalog odpovídá look.js a friends.js (hlídá tests/motivace.test.js). Vlastní barva obleku (robe-color.js) je talár 'vlastni' za úroveň 20;
+--    její odstín a světlost nese část sovy 'robec=odstín.světlost', kterou kontrola nechá být.
+-- 2) Pozvi kamarády (referral.js): kód přítele (referral_codes), kdo koho pozval (referrals, jen nový účet do 14 dnů, jednou) a vyzvednuté
+--    odměny (referral_rewards: 'novacek' pozvanému po první hře, 'pritel-1', 'pritel-3', 'pritel-10' zvoucímu za kamarády, kteří odehráli
+--    aspoň 3 hry známé serveru: referral_games). Funkce referral_status, referral_join (i přátelství) a referral_claim.
+-- 3) Prestiž po úrovni 100 (prestige.js): profiles.prestige a prestige_xp jen přes prestige_up() (XP v účtu musí stačit).
+-- 4) Reakce po zápase navíc (friends.js EXTRA_REACTIONS): check_reaction přijme jen reakci, kterou má odesílatel odemčenou;
+--    vítězný efekt profiles.victory_fx (friends.js VICTORY_EFFECTS).
+-- 5) Vitrína: i titul ze Sezóny Mudrlanta (t:<titul>) a věc ze Sezóny (s:<druh>:<id>), jen když je hráč má mezi dárky v účtu.
+
+-- Úroveň z XP (1–100): stejné hranice jako quiz-core.js LEVEL_XP
+create or replace function public.level_of_xp(xp integer) returns integer
+language sql immutable set search_path = public as $$
+    select count(*)::integer from unnest(array[0, 90, 250, 480, 750, 1150, 1550, 2000, 2600, 3200, 3900, 4700, 5500, 6400, 7300, 8300, 9400, 10500, 12000, 13000, 14500, 16000, 17500, 19000, 20500, 22000, 24000, 25500, 27500, 29500, 31500, 33500, 36000, 38000, 40500, 42500, 45000, 47500, 50000, 53000, 55000, 58000, 61000, 64000, 67000, 70000, 73000, 76000, 79000, 82000, 86000, 89000, 93000, 96000, 100000, 103000, 107000, 111000, 115000, 119000, 123000, 127000, 131000, 135000, 139000, 144000, 148000, 152000, 157000, 162000, 166000, 171000, 176000, 181000, 185000, 190000, 196000, 201000, 206000, 211000, 216000, 222000, 227000, 233000, 238000, 244000, 250000, 255000, 261000, 267000, 273000, 279000, 285000, 292000, 298000, 304000, 310000, 317000, 323000, 330000]) t where coalesce(xp, 0) >= t;
+$$;
+
+-- Skupiny odznaků se stupni od nejnižšího (quiz-core.js BADGE_GROUPS): do účtu jde jen nejvyšší stupeň, nižší se dopočítají
+create or replace function public.badge_tiers() returns table (grp text, tiers text[])
+language sql immutable set search_path = public as $$
+    select * from (values
+        ('odpovedi', array['prvni-krok', 'odpovedi-10', 'odpovedi-50', 'stovka', 'odpovedi-250', 'odpovedi-500', 'tisicovka', 'odpovedi-2500', 'odpovedi-5000', 'odpovedi-10000']),
+        ('rada', array['rada-5', 'strelec', 'neomylny', 'rada-50', 'rada-100', 'rada-200']),
+        ('serie', array['serie-3', 'tyden', 'serie-14', 'mesic', 'serie-60', 'serie-100', 'serie-200', 'serie-365']),
+        ('dny', array['dny-5', 'dny-15', 'dny-30', 'dny-60', 'dny-100', 'dny-200', 'dny-365']),
+        ('dokonale', array['dokonaly-den', 'dokonale-3', 'dokonale-7', 'dokonale-14', 'dokonale-30', 'dokonale-60']),
+        ('dnes', array['dnes-10', 'dnes-50', 'dnes-100', 'dnes-250', 'dnes-500', 'dnes-1000']),
+        ('bez-napovedy', array['bez-napovedy-10', 'bez-napovedy', 'bez-napovedy-100', 'bez-napovedy-500', 'bez-napovedy-1000', 'bez-napovedy-2500']),
+        ('psani', array['psani-10', 'pisatel', 'psani-100', 'psani-500', 'psani-1000', 'psani-2500']),
+        ('tezke', array['do-hloubky', 'tezke-50', 'tezke-200', 'tezke-500', 'tezke-1000']),
+        ('chyby', array['chyby-10', 'chyby-50', 'chyby-200', 'chyby-500', 'chyby-1000']),
+        ('vyzvy', array['soupere', 'vyzvy-5', 'vyzvy-25', 'vyzvy-100', 'vyzvy-250', 'vyzvy-500']),
+        ('vyhry', array['vitez', 'vyhry-5', 'gladiator', 'vyhry-25', 'vyhry-50', 'vyhry-100']),
+        ('vyhry-v-rade', array['vyhry-v-rade-3', 'vyhry-v-rade-5', 'vyhry-v-rade-10', 'vyhry-v-rade-15', 'vyhry-v-rade-25']),
+        ('zalozene', array['zalozene-1', 'zalozene-10', 'zalozene-50', 'zalozene-100', 'zalozene-250']),
+        ('perfektni-vyzvy', array['perfektni-vyzvy-1', 'perfektni-vyzvy-5', 'perfektni-vyzvy-25', 'perfektni-vyzvy-50', 'perfektni-vyzvy-100']),
+        ('uroven', array['uroven-5', 'znalec', 'uroven-20', 'mudrc', 'uroven-50', 'uroven-65', 'uroven-80', 'uroven-100']),
+        ('poznane', array['poznane-100', 'poznane-500', 'poznane-1000', 'poznane-3000', 'poznane-5000', 'poznane-10000']),
+        ('vsestrannost', array['vsestrannost-3', 'vsestrannost-6', 'vsestrannost-9', 'vsestrannost-12', 'vsestranny']),
+        ('hvezdy', array['hvezdy-1', 'hvezdy-2', 'hvezdar', 'hvezdy-4', 'mistr-oboru']),
+        ('vsechna-temata', array['vsechna-temata-1', 'vsechna-temata-2', 'vsechna-temata-3', 'vsechna-temata-4', 'vsechna-temata-5']),
+        ('tema-zemepis', array['tema-zemepis-25', 'tema-zemepis-100', 'tema-zemepis-300', 'tema-zemepis-600', 'tema-zemepis-1000']),
+        ('tema-vlajky', array['tema-vlajky-25', 'tema-vlajky-100', 'tema-vlajky-300', 'tema-vlajky-600', 'tema-vlajky-1000']),
+        ('tema-historie', array['tema-historie-25', 'tema-historie-100', 'tema-historie-300', 'tema-historie-600', 'tema-historie-1000']),
+        ('tema-mytologie', array['tema-mytologie-25', 'tema-mytologie-100', 'tema-mytologie-300', 'tema-mytologie-600', 'tema-mytologie-1000']),
+        ('tema-biologie', array['tema-biologie-25', 'tema-biologie-100', 'tema-biologie-300', 'tema-biologie-600', 'tema-biologie-1000']),
+        ('tema-geologie', array['tema-geologie-25', 'tema-geologie-100', 'tema-geologie-300', 'tema-geologie-600', 'tema-geologie-1000']),
+        ('tema-chemie', array['tema-chemie-25', 'tema-chemie-100', 'tema-chemie-300', 'tema-chemie-600', 'tema-chemie-1000']),
+        ('tema-fyzika', array['tema-fyzika-25', 'tema-fyzika-100', 'tema-fyzika-300', 'tema-fyzika-600', 'tema-fyzika-1000']),
+        ('tema-umeni', array['tema-umeni-25', 'tema-umeni-100', 'tema-umeni-300', 'tema-umeni-600', 'tema-umeni-1000']),
+        ('tema-architektura', array['tema-architektura-25', 'tema-architektura-100', 'tema-architektura-300', 'tema-architektura-600', 'tema-architektura-1000']),
+        ('tema-hudba', array['tema-hudba-25', 'tema-hudba-100', 'tema-hudba-300', 'tema-hudba-600', 'tema-hudba-1000']),
+        ('tema-literatura', array['tema-literatura-25', 'tema-literatura-100', 'tema-literatura-300', 'tema-literatura-600', 'tema-literatura-1000']),
+        ('tema-film', array['tema-film-25', 'tema-film-100', 'tema-film-300', 'tema-film-600', 'tema-film-1000']),
+        ('tema-sport', array['tema-sport-25', 'tema-sport-100', 'tema-sport-300', 'tema-sport-600', 'tema-sport-1000']),
+        ('zbehly-zemepis', array['zbehly-zemepis-5', 'zbehly-zemepis', 'zbehly-zemepis-25', 'zbehly-zemepis-50', 'zbehly-zemepis-100']),
+        ('zbehly-vlajky', array['zbehly-vlajky-5', 'zbehly-vlajky', 'zbehly-vlajky-25', 'zbehly-vlajky-50', 'zbehly-vlajky-100']),
+        ('zbehly-historie', array['zbehly-historie-5', 'zbehly-historie', 'zbehly-historie-25', 'zbehly-historie-50', 'zbehly-historie-100']),
+        ('zbehly-mytologie', array['zbehly-mytologie-5', 'zbehly-mytologie', 'zbehly-mytologie-25', 'zbehly-mytologie-50', 'zbehly-mytologie-100']),
+        ('zbehly-biologie', array['zbehly-biologie-5', 'zbehly-biologie', 'zbehly-biologie-25', 'zbehly-biologie-50', 'zbehly-biologie-100']),
+        ('zbehly-geologie', array['zbehly-geologie-5', 'zbehly-geologie', 'zbehly-geologie-25', 'zbehly-geologie-50', 'zbehly-geologie-100']),
+        ('zbehly-chemie', array['zbehly-chemie-5', 'zbehly-chemie', 'zbehly-chemie-25', 'zbehly-chemie-50', 'zbehly-chemie-100']),
+        ('zbehly-fyzika', array['zbehly-fyzika-5', 'zbehly-fyzika', 'zbehly-fyzika-25', 'zbehly-fyzika-50', 'zbehly-fyzika-100']),
+        ('zbehly-umeni', array['zbehly-umeni-5', 'zbehly-umeni', 'zbehly-umeni-25', 'zbehly-umeni-50', 'zbehly-umeni-100']),
+        ('zbehly-architektura', array['zbehly-architektura-5', 'zbehly-architektura', 'zbehly-architektura-25', 'zbehly-architektura-50', 'zbehly-architektura-100']),
+        ('zbehly-hudba', array['zbehly-hudba-5', 'zbehly-hudba', 'zbehly-hudba-25', 'zbehly-hudba-50', 'zbehly-hudba-100']),
+        ('zbehly-literatura', array['zbehly-literatura-5', 'zbehly-literatura', 'zbehly-literatura-25', 'zbehly-literatura-50', 'zbehly-literatura-100']),
+        ('zbehly-film', array['zbehly-film-5', 'zbehly-film', 'zbehly-film-25', 'zbehly-film-50', 'zbehly-film-100']),
+        ('zbehly-sport', array['zbehly-sport-5', 'zbehly-sport', 'zbehly-sport-25', 'zbehly-sport-50', 'zbehly-sport-100']),
+        ('turnaje', array['turnaj-ucast', 'turnaj-ctvrtfinale', 'turnaj-semifinale', 'turnaj-bronz', 'turnaj-stribro', 'turnaj-zlato']),
+        ('turnaj-postupy', array['turnaj-postupy-1', 'turnaj-postupy-5', 'turnaj-postupy-15', 'turnaj-postupy-30', 'turnaj-postupy-60']),
+        ('tydenni-cile', array['tydenni-cile', 'tydenni-cile-5', 'tydenni-cile-10', 'tydenni-cile-20', 'tydenni-cile-52']),
+        ('kviz-dne', array['kviz-dne', 'kviz-dne-10', 'kviz-dne-50', 'kviz-dne-100', 'kviz-dne-365']),
+        ('kviz-serie', array['kviz-serie-3', 'kviz-tyden', 'kviz-serie-14', 'kviz-serie-30', 'kviz-serie-100']),
+        ('kviz-perfekt', array['kviz-perfekt', 'kviz-perfekt-5', 'kviz-perfekt-20', 'kviz-perfekt-50', 'kviz-perfekt-100']),
+        ('bleskovka', array['bleskovka-8', 'bleskovka-12', 'bleskovka-16', 'bleskovka-20', 'bleskovka-25']),
+        ('preziti', array['preziti-10', 'preziti-20', 'preziti-35', 'preziti-50', 'preziti-75']),
+        ('mapa', array['mapa-5', 'mapa-25', 'mapa-100', 'mapa-250', 'mapa-500']),
+        ('odhad', array['odhad-5', 'odhad-25', 'odhad-100', 'odhad-250', 'odhad-500']),
+        ('serad', array['serad-5', 'serad-25', 'serad-100', 'serad-250', 'serad-500']),
+        ('detektiv', array['detektiv', 'detektiv-7', 'detektiv-30', 'detektiv-100', 'detektiv-365']),
+        ('zlatokop', array['zlatokop-10', 'zlatokop-50', 'zlatokop-100']),
+        ('dobyvatel', array['dobyvatel', 'dobyvatel-3', 'dobyvatel-10', 'dobyvatel-25', 'dobyvatel-50']),
+        ('sazky', array['sazky-1', 'sazkar', 'sazky-15', 'sazky-30', 'sazky-60']),
+        ('sazky-v-rade', array['sazky-v-rade-3', 'sazky-v-rade-5', 'sazky-v-rade-7', 'sazky-v-rade-10', 'sazky-v-rade-15']),
+        ('sberatel', array['sberatel-25', 'sberatel-50', 'sberatel-75', 'sberatel-100']),
+        ('album-avatars', array['album-avatars']),
+        ('album-accessories', array['album-accessories']),
+        ('album-themes', array['album-themes']),
+        ('album-badges', array['album-badges']),
+        ('album-diplomas', array['album-diplomas']),
+        ('boss-kapitan', array['boss-kapitan']),
+        ('boss-rytir', array['boss-rytir']),
+        ('boss-alchymista', array['boss-alchymista']),
+        ('boss-amper', array['boss-amper']),
+        ('boss-maestro', array['boss-maestro']),
+        ('boss-druid', array['boss-druid']),
+        ('boss-olympan', array['boss-olympan']),
+        ('boss-reziser', array['boss-reziser'])
+    ) as t (grp, tiers);
+$$;
+-- Má hráč odznak (přímo, nebo vyšší stupeň téže skupiny)?
+create or replace function public.badge_owned(badges text[], wanted text) returns boolean
+language sql stable set search_path = public as $$
+    select wanted = any (coalesce(badges, '{}')) or exists (
+        select 1 from public.badge_tiers() g, unnest(coalesce(badges, '{}')) b
+        where wanted = any (g.tiers) and array_position(g.tiers, b) > array_position(g.tiers, wanted));
+$$;
+
+-- Katalog odemykání (look.js FRAMES, TITLES, ROBES, ACCESSORIES, ACC_COLORS, POSES, AVATARS i se starými emoji, friends.js reakce a efekty):
+-- cat = druh, item = id, rule = 'free' | 'level:N' | 'badge:<odznak>' | 'league:<liga>' | 'gift' (jen dar z truhly) | 'season-gift' (dar ze Sezóny)
+-- | 'diploma:<téma>' | 'season:10|20' (stupeň Sezóny podle darů) | 'referral:<klíče>' | 'prestige:N'
+create or replace function public.unlock_catalog() returns table (cat text, item text, rule text)
+language sql immutable set search_path = public as $$
+    select * from (values
+        ('frames', 'zadny', 'free'), ('frames', 'bronz', 'level:5'), ('frames', 'stribro', 'level:15'), ('frames', 'zlato', 'level:25'),
+        ('frames', 'vavrin', 'badge:vitez'), ('frames', 'plamen', 'badge:mesic'), ('frames', 'diamant', 'level:60'), ('frames', 'medailista', 'badge:turnaj-bronz'),
+        ('frames', 'mistr-turnaje', 'badge:turnaj-zlato'), ('frames', 'liga-stribro', 'league:stribro'), ('frames', 'liga-zlato', 'league:zlato'), ('frames', 'liga-platina', 'league:platina'),
+        ('frames', 'liga-diamant', 'league:diamant'), ('frames', 'liga-mistr', 'league:mistr'), ('frames', 'jiskra', 'badge:tyden'), ('frames', 'stovka', 'badge:serie-100'),
+        ('frames', 'vecny-ohen', 'badge:serie-365'), ('frames', 'sezona-01', 'season-gift'), ('frames', 'sezona-01-b', 'season-gift'), ('frames', 'sezona-02', 'season-gift'),
+        ('frames', 'sezona-02-b', 'season-gift'), ('frames', 'sezona-03', 'season-gift'), ('frames', 'sezona-03-b', 'season-gift'), ('frames', 'sezona-04', 'season-gift'),
+        ('frames', 'sezona-04-b', 'season-gift'), ('frames', 'sezona-05', 'season-gift'), ('frames', 'sezona-05-b', 'season-gift'), ('frames', 'sezona-06', 'season-gift'),
+        ('frames', 'sezona-06-b', 'season-gift'), ('frames', 'sezona-07', 'season-gift'), ('frames', 'sezona-07-b', 'season-gift'), ('frames', 'sezona-08', 'season-gift'),
+        ('frames', 'sezona-08-b', 'season-gift'), ('frames', 'sezona-09', 'season-gift'), ('frames', 'sezona-09-b', 'season-gift'), ('frames', 'sezona-10', 'season-gift'),
+        ('frames', 'sezona-10-b', 'season-gift'), ('frames', 'sezona-11', 'season-gift'), ('frames', 'sezona-11-b', 'season-gift'), ('frames', 'sezona-12', 'season-gift'),
+        ('frames', 'sezona-12-b', 'season-gift'), ('frames', 'sberatel', 'badge:sberatel-100'), ('frames', 'ohen', 'level:37'), ('frames', 'more', 'level:49'),
+        ('frames', 'soukoli', 'level:63'), ('frames', 'galaxie', 'level:77'), ('frames', 'kralovsky-vavrin', 'level:94'), ('frames', 'blesk', 'badge:bleskovka-20'),
+        ('frames', 'led', 'badge:preziti-50'), ('frames', 'drak', 'badge:vsechna-temata-3'), ('frames', 'dobyvatel', 'badge:dobyvatel'), ('frames', 'duha-mracky', 'gift'),
+        ('frames', 'ruze', 'gift'), ('frames', 'pratelsky', 'referral:novacek,pritel-1'), ('frames', 'parta', 'referral:pritel-10'), ('frames', 'prestiz', 'prestige:1'),
+        ('titles', 'sampion-sezony', 'season-gift'), ('robes', 'vinova', 'free'), ('robes', 'zelena', 'level:6'), ('robes', 'modra', 'level:12'),
+        ('robes', 'ruzova', 'level:20'), ('robes', 'fialova', 'level:30'), ('robes', 'cerna', 'level:45'), ('robes', 'zlata', 'level:65'),
+        ('robes', 'bila', 'level:100'), ('robes', 'vlastni', 'level:20'), ('accessories', 'bryle', 'level:4'), ('accessories', 'motylek', 'level:9'),
+        ('accessories', 'sala', 'level:14'), ('accessories', 'slunecni-bryle', 'level:18'), ('accessories', 'lupa', 'level:24'), ('accessories', 'kvetina', 'level:32'),
+        ('accessories', 'koruna', 'level:42'), ('accessories', 'sluchatka', 'level:50'), ('accessories', 'medaile', 'level:58'), ('accessories', 'vavrin', 'badge:vitez'),
+        ('accessories', 'kompas', 'badge:zbehly-zemepis'), ('accessories', 'vlajka', 'badge:zbehly-vlajky'), ('accessories', 'svitek', 'badge:zbehly-historie'), ('accessories', 'helma', 'badge:zbehly-mytologie'),
+        ('accessories', 'sitka', 'badge:zbehly-biologie'), ('accessories', 'prilba', 'badge:zbehly-geologie'), ('accessories', 'lab-bryle', 'badge:zbehly-chemie'), ('accessories', 'knir', 'badge:zbehly-fyzika'),
+        ('accessories', 'baret', 'badge:zbehly-umeni'), ('accessories', 'metr', 'badge:zbehly-architektura'), ('accessories', 'mikrofon', 'badge:zbehly-hudba'), ('accessories', 'brk', 'badge:zbehly-literatura'),
+        ('accessories', '3d-bryle', 'badge:zbehly-film'), ('accessories', 'celenka', 'badge:zbehly-sport'), ('accessories', 'cylindr', 'level:62'), ('accessories', 'letecke-bryle', 'level:68'),
+        ('accessories', 'stetoskop', 'level:72'), ('accessories', 'kouzelnicky-klobouk', 'level:76'), ('accessories', 'zlaty-retez', 'level:84'), ('accessories', 'hulka', 'level:88'),
+        ('accessories', 'svatozar', 'level:99'), ('accessories', 'piratsky-klobouk', 'badge:vyhry-25'), ('accessories', 'maska', 'badge:turnaj-zlato'), ('accessories', 'mec', 'badge:turnaj-postupy-15'),
+        ('accessories', 'plast', 'badge:serie-100'), ('accessories', 'pochoden', 'league:diamant'), ('accessories', 'vrtulka', 'gift'), ('accessories', 'srdickove-bryle', 'gift'),
+        ('accessories', 'vencek', 'gift'), ('accessories', 'paska', 'gift'), ('accessories', 'hrnek', 'gift'), ('accessories', 'cestovatelsky-klobouk', 'badge:tema-zemepis-300'),
+        ('accessories', 'globus', 'badge:tema-zemepis-1000'), ('accessories', 'namornicka-cepice', 'badge:tema-vlajky-300'), ('accessories', 'praporky', 'badge:tema-vlajky-1000'), ('accessories', 'krejzlik', 'badge:tema-historie-1000'),
+        ('accessories', 'blesk', 'badge:tema-mytologie-300'), ('accessories', 'zlate-rouno', 'badge:tema-mytologie-1000'), ('accessories', 'hnizdo', 'badge:tema-biologie-300'), ('accessories', 'dalekohled', 'badge:tema-biologie-1000'),
+        ('accessories', 'kladivko', 'badge:tema-geologie-300'), ('accessories', 'krystal', 'badge:tema-geologie-1000'), ('accessories', 'banka', 'badge:tema-chemie-300'), ('accessories', 'vybuch', 'badge:tema-chemie-1000'),
+        ('accessories', 'magnet', 'badge:tema-fyzika-300'), ('accessories', 'jablko', 'badge:tema-fyzika-1000'), ('accessories', 'paleta', 'badge:tema-umeni-300'), ('accessories', 'dali-knir', 'badge:tema-umeni-1000'),
+        ('accessories', 'plany', 'badge:tema-architektura-300'), ('accessories', 'tesarska-tuzka', 'badge:tema-architektura-1000'), ('accessories', 'hvezdne-bryle', 'badge:tema-hudba-300'), ('accessories', 'kytara', 'badge:tema-hudba-1000'),
+        ('accessories', 'knihy', 'badge:tema-literatura-300'), ('accessories', 'pulmesicove-bryle', 'badge:tema-literatura-1000'), ('accessories', 'popcorn', 'badge:tema-film-300'), ('accessories', 'filmovy-pas', 'badge:tema-film-1000'),
+        ('accessories', 'pistalka', 'badge:tema-sport-300'), ('accessories', 'pohar', 'badge:tema-sport-1000'), ('accessories', 'cepice-zimni', 'season-gift'), ('accessories', 'karneval', 'season-gift'),
+        ('accessories', 'jarni-venecek', 'season-gift'), ('accessories', 'destnik', 'season-gift'), ('accessories', 'konvalinky', 'season-gift'), ('accessories', 'slamak', 'season-gift'),
+        ('accessories', 'snorchl', 'season-gift'), ('accessories', 'zmrzlina', 'season-gift'), ('accessories', 'tuzka', 'season-gift'), ('accessories', 'dyne', 'season-gift'),
+        ('accessories', 'lampion', 'season-gift'), ('accessories', 'sala-zimni', 'season-gift'), ('colors', 'original', 'free'), ('colors', 'cervena', 'free'),
+        ('colors', 'modra', 'free'), ('colors', 'zelena', 'level:8'), ('colors', 'oranzova', 'level:16'), ('colors', 'zluta', 'level:26'),
+        ('colors', 'ruzova', 'level:38'), ('colors', 'fialova', 'level:52'), ('colors', 'cerna', 'level:60'), ('colors', 'vlastni', 'level:80'),
+        ('poses', 'titul-1', 'free'), ('poses', 'titul-2', 'level:7'), ('poses', 'titul-3', 'level:12'), ('poses', 'titul-4', 'level:18'),
+        ('poses', 'titul-5', 'level:27'), ('poses', 'titul-6', 'level:36'), ('poses', 'titul-7', 'level:45'), ('poses', 'titul-8', 'level:56'),
+        ('poses', 'titul-9', 'level:68'), ('poses', 'titul-10', 'level:84'), ('poses', 'titul-11', 'level:100'), ('avatars', 'cervik', 'level:3'),
+        ('avatars', '🦅', 'level:3'), ('avatars', 'axolot', 'level:8'), ('avatars', '🐺', 'level:8'), ('avatars', 'kaktus', 'level:13'),
+        ('avatars', '🦈', 'level:13'), ('avatars', 'drak', 'level:20'), ('avatars', '🐉', 'level:20'), ('avatars', 'mamut', 'level:28'),
+        ('avatars', '🦖', 'level:28'), ('avatars', 'meduza', 'level:36'), ('avatars', '🦚', 'level:36'), ('avatars', 'lenoch', 'level:44'),
+        ('avatars', '🦩', 'level:44'), ('avatars', 'tukan', 'level:55'), ('avatars', '🐅', 'level:55'), ('avatars', 'lev', 'level:65'),
+        ('avatars', '🦁', 'level:65'), ('avatars', 'fenix', 'level:80'), ('avatars', '👑', 'level:80'), ('avatars', 'krecek', 'badge:turnaj-ucast'),
+        ('avatars', '🏅', 'badge:turnaj-ucast'), ('avatars', 'rytir', 'badge:turnaj-bronz'), ('avatars', '🥉', 'badge:turnaj-bronz'), ('avatars', 'narval', 'badge:turnaj-stribro'),
+        ('avatars', '🥈', 'badge:turnaj-stribro'), ('avatars', 'zelva', 'badge:turnaj-zlato'), ('avatars', '🏆', 'badge:turnaj-zlato'), ('avatars', 'hodiny', 'badge:kviz-tyden'),
+        ('avatars', '⏱️', 'badge:kviz-tyden'), ('avatars', '⏱', 'badge:kviz-tyden'), ('avatars', 'chamel', 'badge:kviz-perfekt'), ('avatars', '💯', 'badge:kviz-perfekt'),
+        ('avatars', 'gepard', 'badge:bleskovka-16'), ('avatars', '⚡', 'badge:bleskovka-16'), ('avatars', 'zelvus', 'badge:preziti-20'), ('avatars', '🐻', 'badge:preziti-20'),
+        ('avatars', 'tucnak', 'badge:mapa-25'), ('avatars', '🗺️', 'badge:mapa-25'), ('avatars', '🗺', 'badge:mapa-25'), ('avatars', 'zabak', 'badge:odhad-25'),
+        ('avatars', '🎯', 'badge:odhad-25'), ('avatars', 'myval', 'badge:serad-25'), ('avatars', '🧩', 'badge:serad-25'), ('avatars', 'albatr', 'diploma:zemepis'),
+        ('avatars', 'gryf', 'diploma:vlajky'), ('avatars', 'slon', 'diploma:historie'), ('avatars', 'sfinga', 'diploma:mytologie'), ('avatars', 'jelen', 'diploma:biologie'),
+        ('avatars', 'golem', 'diploma:geologie'), ('avatars', 'liska', 'diploma:chemie'), ('avatars', 'chobot', 'diploma:fyzika'), ('avatars', 'pav', 'diploma:umeni'),
+        ('avatars', 'bobr', 'diploma:architektura'), ('avatars', 'vlk', 'diploma:hudba'), ('avatars', 'kndrak', 'diploma:literatura'), ('avatars', 'panda', 'diploma:film'),
+        ('avatars', 'klokan', 'diploma:sport'), ('avatars', 'ramp', 'season-gift'), ('avatars', 'kobliz', 'season-gift'), ('avatars', 'snezen', 'season-gift'),
+        ('avatars', 'kapka', 'season-gift'), ('avatars', 'pampel', 'season-gift'), ('avatars', 'vysved', 'season-gift'), ('avatars', 'meloun', 'season-gift'),
+        ('avatars', 'hvezda', 'season-gift'), ('avatars', 'aktovk', 'season-gift'), ('avatars', 'drakpa', 'season-gift'), ('avatars', 'caj', 'season-gift'),
+        ('avatars', 'pernik', 'season-gift'), ('reactions', '👍', 'free'), ('reactions', '🔥', 'free'), ('reactions', '😅', 'free'),
+        ('reactions', '🤝', 'free'), ('reactions', '😮', 'level:5'), ('reactions', '🧠', 'level:15'), ('reactions', '🦉', 'level:30'),
+        ('reactions', '🙌', 'level:50'), ('reactions', '🎯', 'badge:strelec'), ('reactions', '💪', 'badge:vyzvy-25'), ('reactions', '🎉', 'season:10'),
+        ('reactions', '👑', 'season:20'), ('reactions', '🤗', 'referral:pritel-3'), ('fx', 'konfety', 'level:5'), ('fx', 'hvezdy', 'level:20'),
+        ('fx', 'ohnostroj', 'level:40'), ('fx', 'koruna', 'badge:vyhry-25'), ('fx', 'blesky', 'badge:vyhry-v-rade-5'), ('fx', 'sezona', 'season:20'),
+        ('fx', 'srdicka', 'referral:pritel-3')
+    ) as t (cat, item, rule);
+$$;
+
+-- Nejlepší liga skončené ligové sezóny hráče (pořadí 1 = bronz … 6 = mistr, 0 = žádná)
+create or replace function public.league_best_rank(uid uuid) returns integer
+language sql stable security definer set search_path = public as $$
+    select coalesce(max(array_position(array['bronz', 'stribro', 'zlato', 'platina', 'diamant', 'mistr'], public.rating_league(p.peak))), 0)::integer
+    from public.league_peaks(uid) p where p.month < to_char(now() at time zone 'Europe/Prague', 'YYYY-MM');
+$$;
+
+-- ----- Pozvi kamarády -----
+create table if not exists public.referral_codes (
+    user_id uuid primary key references public.profiles (id) on delete cascade,
+    code text not null unique,
+    created_at timestamptz not null default now()
+);
+alter table public.referral_codes drop constraint if exists referral_codes_format;
+alter table public.referral_codes add constraint referral_codes_format check (code ~ '^[ABCDEFGHJKMNPQRSTUVWXYZ2-9]{8}$');
+create table if not exists public.referrals (
+    invitee uuid primary key references public.profiles (id) on delete cascade,
+    inviter uuid not null references public.profiles (id) on delete cascade,
+    created_at timestamptz not null default now(),
+    check (invitee <> inviter)
+);
+create index if not exists referrals_inviter_idx on public.referrals (inviter, created_at);
+create table if not exists public.referral_rewards (
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    reward text not null,
+    claimed_at timestamptz not null default now(),
+    primary key (user_id, reward)
+);
+alter table public.referral_rewards drop constraint if exists referral_rewards_list;
+alter table public.referral_rewards add constraint referral_rewards_list check (reward in ('novacek', 'pritel-1', 'pritel-3', 'pritel-10'));
+alter table public.referral_codes enable row level security;
+alter table public.referrals enable row level security;
+alter table public.referral_rewards enable row level security;
+drop policy if exists "kód přítele: vlastní" on public.referral_codes;
+create policy "kód přítele: vlastní" on public.referral_codes for select to authenticated using (user_id = auth.uid());
+drop policy if exists "pozvánky: obě strany" on public.referrals;
+create policy "pozvánky: obě strany" on public.referrals for select to authenticated using (auth.uid() in (invitee, inviter));
+drop policy if exists "odměny za pozvání: vlastní" on public.referral_rewards;
+create policy "odměny za pozvání: vlastní" on public.referral_rewards for select to authenticated using (user_id = auth.uid());
+revoke all on public.referral_codes, public.referrals, public.referral_rewards from anon, authenticated;
+grant select on public.referral_codes, public.referrals, public.referral_rewards to authenticated;
+
+-- Kód přítele hráče (založí se při prvním dotazu; 8 znaků bez zaměnitelných 0/O a 1/I/L)
+create or replace function public.referral_code_for(uid uuid) returns text
+language plpgsql security definer set search_path = public as $$
+declare
+    found_code text;
+    candidate text;
+    tries integer := 0;
+begin
+    select code into found_code from public.referral_codes where user_id = uid;
+    if found_code is not null then return found_code; end if;
+    loop
+        candidate := (select string_agg(substr('ABCDEFGHJKMNPQRSTUVWXYZ23456789', 1 + floor(random() * 31)::integer, 1), '') from generate_series(1, 8));
+        begin
+            insert into public.referral_codes (user_id, code) values (uid, candidate);
+            return candidate;
+        exception when unique_violation then
+            -- souběžné založení téhož hráče, nebo srážka kódu: zkusí se znovu
+            select code into found_code from public.referral_codes where user_id = uid;
+            if found_code is not null then return found_code; end if;
+            tries := tries + 1;
+            if tries > 20 then raise; end if;
+        end;
+    end loop;
+end;
+$$;
+-- Odehrané hry, které zná server: dohraný Kvíz dne, výzva, Řetězovka, Tajemná otázka (aspoň jeden tip) a souboje s bossem
+create or replace function public.referral_games(uid uuid) returns integer
+language sql stable security definer set search_path = public as $$
+    select ((select count(*) from public.daily_quiz_results where user_id = uid and answered > 0)
+        + (select count(*) from public.challenge_results where user_id = uid)
+        + (select count(*) from public.chain_results where user_id = uid)
+        + (select count(*) from public.mystery_results where user_id = uid and (solved or guesses > 0))
+        + (select coalesce(sum(attempts), 0) from public.boss_results where user_id = uid))::integer;
+$$;
+-- Kolik pozvaných kamarádů se počítá (aspoň 3 hry)
+create or replace function public.referral_qualified(uid uuid) returns integer
+language sql stable security definer set search_path = public as $$
+    select count(*)::integer from (select r.invitee from public.referrals r where r.inviter = uid order by r.created_at limit 200) x
+    where public.referral_games(x.invitee) >= 3;
+$$;
+-- Odměny, které hráč může vyzvednout (ještě nevyzvednuté): pozvaný po první hře (hra známá serveru, nebo XP v účtu), zvoucí za 1, 3 a 10 kamarádů
+create or replace function public.referral_ready(uid uuid) returns text[]
+language sql stable security definer set search_path = public as $$
+    select coalesce(array_agg(x.k order by x.o), '{}') from (
+        select 'novacek' as k, 0 as o where exists (select 1 from public.referrals r where r.invitee = uid)
+            and (public.referral_games(uid) >= 1 or coalesce((select p.xp from public.profiles p where p.id = uid), 0) > 0)
+        union all
+        select 'pritel-' || t, t from unnest(array[1, 3, 10]) t where public.referral_qualified(uid) >= t
+    ) x where not exists (select 1 from public.referral_rewards rr where rr.user_id = uid and rr.reward = x.k);
+$$;
+-- Stav pro okno Pozvi kamarády
+create or replace function public.referral_status() returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+    uid uuid := auth.uid();
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    return jsonb_build_object(
+        'code', public.referral_code_for(uid),
+        'inviter', (select jsonb_build_object('id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color, 'frame', p.frame, 'owl', p.owl)
+            from public.referrals r join public.profiles p on p.id = r.inviter where r.invitee = uid),
+        'games', public.referral_games(uid),
+        'join_until', (select u.created_at + interval '14 days' from auth.users u where u.id = uid and u.created_at > now() - interval '14 days'
+            and not exists (select 1 from public.referrals r where r.invitee = uid)),
+        'invited', coalesce((select jsonb_agg(jsonb_build_object('id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color, 'frame', p.frame, 'owl', p.owl,
+                'games', x.games, 'qualified', x.games >= 3) order by x.created_at desc)
+            from (select r.invitee, r.created_at, public.referral_games(r.invitee) as games from public.referrals r where r.inviter = uid order by r.created_at desc limit 50) x
+            join public.profiles p on p.id = x.invitee), '[]'::jsonb),
+        'qualified', public.referral_qualified(uid),
+        'claimed', coalesce((select jsonb_agg(rr.reward order by rr.claimed_at, rr.reward) from public.referral_rewards rr where rr.user_id = uid), '[]'::jsonb),
+        'ready', to_jsonb(public.referral_ready(uid))
+    );
+end;
+$$;
+-- Kód od kamaráda (odkaz …?pritel=KÓD nebo ručně): jen nový účet (do 14 dnů od založení), jen jednou, ne vlastní, ne přes blok
+-- a ne navzájem. Pozvaný a zvoucí se stanou přáteli (když to limit přátel dovolí). Vrací { inviter }.
+create or replace function public.referral_join(code text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+    uid uuid := auth.uid();
+    wanted text := upper(regexp_replace(coalesce(code, ''), '[^A-Za-z0-9]', '', 'g'));
+    host uuid;
+    already uuid;
+    created timestamptz;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    perform pg_advisory_xact_lock(hashtext('referral:' || uid::text));
+    select rc.user_id into host from public.referral_codes rc where rc.code = wanted;
+    if host is null then raise exception 'Takový kód přítele neexistuje. Zkontroluj, jestli je opsaný správně.' using errcode = 'P0001'; end if;
+    if host = uid then raise exception 'Vlastní kód přítele použít nejde.' using errcode = 'P0001'; end if;
+    select r.inviter into already from public.referrals r where r.invitee = uid;
+    if already = host then
+        return (select jsonb_build_object('inviter', jsonb_build_object('id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color, 'frame', p.frame, 'owl', p.owl)) from public.profiles p where p.id = host);
+    end if;
+    if already is not null then raise exception 'Pozvánku od kamaráda už máš.' using errcode = 'P0001'; end if;
+    select u.created_at into created from auth.users u where u.id = uid;
+    if created is null or created < now() - interval '14 days' then
+        raise exception 'Kód přítele platí jen pro nové hráče (do 14 dnů od založení účtu).' using errcode = 'P0001';
+    end if;
+    if public.is_blocked(uid, host) or exists (select 1 from public.referrals r where r.invitee = host and r.inviter = uid) then
+        raise exception 'Tento kód přítele použít nejde.' using errcode = 'P0001';
+    end if;
+    insert into public.referrals (invitee, inviter) values (uid, host);
+    -- Přátelství (žádost a hned přijetí; plný seznam přátel pozvánku nezastaví)
+    begin
+        insert into public.friendships (user_id, friend_id) values (uid, host) on conflict do nothing;
+        update public.friendships set status = 'accepted'
+            where ((user_id = uid and friend_id = host) or (user_id = host and friend_id = uid)) and status = 'pending';
+    exception when others then null;
+    end;
+    return (select jsonb_build_object('inviter', jsonb_build_object('id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color, 'frame', p.frame, 'owl', p.owl)) from public.profiles p where p.id = host);
+end;
+$$;
+-- Vyzvednutí všech připravených odměn (každá jednou za účet); vrací pole klíčů, které se teď vyzvedly (XP a věci připíše aplikace)
+create or replace function public.referral_claim() returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+    uid uuid := auth.uid();
+    got text[];
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    perform pg_advisory_xact_lock(hashtext('referral:' || uid::text));
+    with added as (
+        insert into public.referral_rewards (user_id, reward) select uid, k from unnest(public.referral_ready(uid)) k
+        on conflict do nothing returning reward
+    ) select coalesce(array_agg(reward), '{}') into got from added;
+    return to_jsonb(got);
+end;
+$$;
+
+-- ----- Prestiž po úrovni 100 (prestige.js: první na 330 000 XP, další vždy o 49 500 XP později) -----
+alter table public.profiles add column if not exists prestige smallint not null default 0;
+alter table public.profiles add column if not exists prestige_xp integer not null default 0;
+alter table public.profiles drop constraint if exists profiles_prestige_range;
+alter table public.profiles add constraint profiles_prestige_range check (prestige between 0 and 99 and prestige_xp between 0 and 500000);
+create or replace function public.prestige_up() returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+    uid uuid := auth.uid();
+    row_now public.profiles;
+    need integer;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    select * into row_now from public.profiles where id = uid for update;
+    if not found then raise exception 'Profil nenalezen.' using errcode = 'P0001'; end if;
+    if row_now.prestige >= 99 then raise exception 'Víc prestiží už nejde.' using errcode = 'P0001'; end if;
+    need := case when row_now.prestige = 0 then (select max(t) from unnest(array[0, 90, 250, 480, 750, 1150, 1550, 2000, 2600, 3200, 3900, 4700, 5500, 6400, 7300, 8300, 9400, 10500, 12000, 13000, 14500, 16000, 17500, 19000, 20500, 22000, 24000, 25500, 27500, 29500, 31500, 33500, 36000, 38000, 40500, 42500, 45000, 47500, 50000, 53000, 55000, 58000, 61000, 64000, 67000, 70000, 73000, 76000, 79000, 82000, 86000, 89000, 93000, 96000, 100000, 103000, 107000, 111000, 115000, 119000, 123000, 127000, 131000, 135000, 139000, 144000, 148000, 152000, 157000, 162000, 166000, 171000, 176000, 181000, 185000, 190000, 196000, 201000, 206000, 211000, 216000, 222000, 227000, 233000, 238000, 244000, 250000, 255000, 261000, 267000, 273000, 279000, 285000, 292000, 298000, 304000, 310000, 317000, 323000, 330000]) t) else row_now.prestige_xp + 49500 end;
+    if row_now.xp < need then
+        raise exception 'Do prestiže ještě chybí % XP.', need - row_now.xp using errcode = 'P0001';
+    end if;
+    update public.profiles set prestige = row_now.prestige + 1, prestige_xp = row_now.xp where id = uid;
+    return jsonb_build_object('prestige', row_now.prestige + 1, 'prestige_xp', row_now.xp);
+end;
+$$;
+
+-- ----- Vítězný efekt (friends.js VICTORY_EFFECTS) -----
+alter table public.profiles add column if not exists victory_fx text;
+alter table public.profiles drop constraint if exists profiles_victory_fx_format;
+alter table public.profiles add constraint profiles_victory_fx_format check (victory_fx is null or victory_fx ~ '^[a-z0-9-]{1,24}$');
+grant update (victory_fx) on public.profiles to authenticated;
+
+-- ----- Kontrola odemčení -----
+-- Je věc mezi dary v účtu (profiles.rewards → gifts → druh)?
+create or replace function public.unlock_gift(rewards jsonb, cat text, item text) returns boolean
+language sql immutable set search_path = public as $$
+    select coalesce(jsonb_typeof(rewards -> 'gifts' -> cat) = 'array' and (rewards -> 'gifts' -> cat) ? item, false);
+$$;
+-- Má hráč (řádek profilu) věc odemčenou? Neznámá věc: obrázek hráče ano (základní emoji), cokoli jiného ne
+create or replace function public.unlock_ok(p public.profiles, category text, wanted text) returns boolean
+language plpgsql stable security definer set search_path = public as $$
+declare
+    found_rule text;
+    kind text;
+    val text;
+begin
+    select u.rule into found_rule from public.unlock_catalog() u where u.cat = category and u.item = wanted;
+    if found_rule is null then return category = 'avatars'; end if;
+    kind := split_part(found_rule, ':', 1);
+    val := substr(found_rule, length(kind) + 2);
+    if kind = 'free' then return true; end if;
+    -- Prestiž a pozvaní kamarádi: jen podle serveru
+    if kind = 'prestige' then return coalesce(p.prestige, 0) >= val::integer; end if;
+    if kind = 'referral' then return exists (select 1 from public.referral_rewards rr where rr.user_id = p.id and rr.reward = any (string_to_array(val, ','))); end if;
+    -- Ostatní: podmínka, kterou zná server, nebo dar v účtu (Truhla Mudrlanta dává věci za úroveň dřív; dary drží aplikace)
+    if public.unlock_gift(p.rewards, category, wanted) then return true; end if;
+    if kind = 'level' then return public.level_of_xp(p.xp) >= val::integer; end if;
+    if kind = 'badge' then return public.badge_owned(p.badges, val); end if;
+    if kind = 'league' then return public.league_best_rank(p.id) >= coalesce(array_position(array['bronz', 'stribro', 'zlato', 'platina', 'diamant', 'mistr'], val), 99); end if;
+    if kind = 'diploma' then return coalesce(jsonb_typeof(p.rewards -> 'diplomas') = 'object' and (p.rewards -> 'diplomas') ? val, false); end if;
+    if kind = 'season' then
+        if val::integer >= 20 then return public.unlock_gift(p.rewards, 'titles', 'sampion-sezony'); end if;
+        return exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(p.rewards -> 'gifts' -> 'frames') = 'array' then p.rewards -> 'gifts' -> 'frames' else '[]'::jsonb end) f
+            where f ~ '^sezona-(0[1-9]|1[0-2])-b$');
+    end if;
+    return false;
+end;
+$$;
+-- Titul u jména: úroveň, nic, odznak, který hráč má, nebo vlastní titul z katalogu
+create or replace function public.unlock_title_ok(p public.profiles, wanted text) returns boolean
+language sql stable security definer set search_path = public as $$
+    select wanted in ('level', 'none') or (case when wanted = any (public.badge_catalog()) then public.badge_owned(p.badges, wanted) else public.unlock_ok(p, 'titles', wanted) end);
+$$;
+-- Obrázek hráče: postavička '<id><barvy>' (nebo staré emoji odměny) podle katalogu, jiný text (základní emoji) volně
+create or replace function public.unlock_avatar_ok(p public.profiles, wanted text) returns boolean
+language sql stable security definer set search_path = public as $$
+    select public.unlock_ok(p, 'avatars', coalesce(substring(coalesce(wanted, '') from '^([a-z]{1,6})[0-9]{0,2}$'), coalesce(wanted, '')));
+$$;
+-- Barva doplňku: z katalogu, vlastní odstín h<stupně> jako „Vlastní barva“; neznámá zůstane (sova ji vykreslí jako původní)
+create or replace function public.unlock_color_ok(p public.profiles, color text) returns boolean
+language sql stable security definer set search_path = public as $$
+    select case when color ~ '^h[0-9]{1,3}$' then public.unlock_ok(p, 'colors', 'vlastni')
+        when exists (select 1 from public.unlock_catalog() u where u.cat = 'colors' and u.item = color) then public.unlock_ok(p, 'colors', color)
+        else true end;
+$$;
+-- Sova (profiles.owl, look-owl.js encodeOwl): zamčený talár → vínový, zamčená sova titulu → nejvyšší dosažená, zamčený doplněk vypadne,
+-- zamčená barva doplňku → původní. Neznámé části (novější aplikace) zůstanou.
+create or replace function public.unlock_owl(p public.profiles, owl text) returns text
+language plpgsql stable security definer set search_path = public as $$
+declare
+    part text;
+    key text;
+    val text;
+    acc text;
+    color text;
+    rest text;
+    best text;
+    kept text[] := '{}';
+begin
+    if owl is null then return null; end if;
+    foreach part in array string_to_array(owl, ';') loop
+        if position('=' in part) < 2 then kept := kept || part; continue; end if;
+        key := split_part(part, '=', 1);
+        val := substr(part, length(key) + 2);
+        if key = 'robe' then
+            kept := kept || (case when public.unlock_ok(p, 'robes', val) then part else 'robe=vinova' end);
+        elsif key = 'pose' then
+            if public.unlock_ok(p, 'poses', val) then kept := kept || part;
+            else
+                select u.item into best from public.unlock_catalog() u where u.cat = 'poses' and public.unlock_ok(p, 'poses', u.item)
+                    order by split_part(u.item, '-', 2)::integer desc limit 1;
+                if best is not null then kept := kept || ('pose=' || best); end if;
+            end if;
+        elsif key in ('head', 'face', 'neck', 'hand') then
+            acc := split_part(val, '.', 1);
+            color := split_part(val, '.', 2);
+            rest := substr(val, length(acc) + length(color) + 3);
+            if acc = 'bez-monoklu' or not exists (select 1 from public.unlock_catalog() u where u.cat = 'accessories' and u.item = acc) then kept := kept || part;
+            elsif not public.unlock_ok(p, 'accessories', acc) then continue;
+            elsif color <> '' and not public.unlock_color_ok(p, color) then kept := kept || (key || '=' || acc || '.original' || case when rest <> '' then '.' || rest else '' end);
+            else kept := kept || part;
+            end if;
+        else kept := kept || part;
+        end if;
+    end loop;
+    return nullif(array_to_string(kept, ';'), '');
+end;
+$$;
+-- Trigger: jen změny od klienta (role authenticated/anon; i uvnitř funkcí security definer platí nastavená role), a jen změněné sloupce.
+-- Běží po profiles_protect_rating a profiles_showcase_check (abecedně), takže XP a odznaky ze stejné změny už jsou sjednocené.
+-- Hodnotu ve špatném tvaru nechá být: odmítne ji kontrola sloupce (chyba pro klienta jako dřív), ne tiché vrácení.
+create or replace function public.check_unlocks() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+    if coalesce(current_setting('role', true), '') not in ('authenticated', 'anon') then return new; end if;
+    if new.frame is distinct from old.frame and new.frame ~ '^[a-z0-9-]{1,24}$' and new.frame <> 'zadny' and not public.unlock_ok(new, 'frames', new.frame) then new.frame := old.frame; end if;
+    if new.title_pref is distinct from old.title_pref and new.title_pref ~ '^[a-z0-9-]{1,40}$' and not public.unlock_title_ok(new, new.title_pref) then new.title_pref := old.title_pref; end if;
+    if new.owl is distinct from old.owl and new.owl ~ '^[a-z0-9=.;-]{1,200}$' then new.owl := public.unlock_owl(new, new.owl); end if;
+    if new.avatar is distinct from old.avatar and char_length(coalesce(new.avatar, '')) between 1 and 8 and not public.unlock_avatar_ok(new, new.avatar) then new.avatar := old.avatar; end if;
+    if new.victory_fx is distinct from old.victory_fx and new.victory_fx ~ '^[a-z0-9-]{1,24}$' and not public.unlock_ok(new, 'fx', new.victory_fx) then new.victory_fx := old.victory_fx; end if;
+    return new;
+end;
+$$;
+drop trigger if exists profiles_unlock_check on public.profiles;
+create trigger profiles_unlock_check before update of frame, title_pref, owl, avatar, victory_fx on public.profiles for each row execute function public.check_unlocks();
+
+-- ----- Reakce navíc: jen odemčené (seznam povolených emoji + kontrola odesílatele) -----
+alter table public.match_reactions drop constraint if exists match_reactions_emoji_list;
+alter table public.match_reactions add constraint match_reactions_emoji_list check (emoji in ('👍', '🔥', '😅', '🤝', '😮', '🧠', '🦉', '🙌', '🎯', '💪', '🎉', '👑', '🤗'));
+create or replace function public.check_reaction() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+    sender public.profiles;
+begin
+    new.created_at := now();
+    if tg_op = 'UPDATE' then
+        new.challenge_id := old.challenge_id; new.match_id := old.match_id; new.from_id := old.from_id; new.to_id := old.to_id;
+    else
+        if public.is_blocked(new.from_id, new.to_id) then raise exception 'Reakci nejde poslat.' using errcode = 'P0001'; end if;
+        if new.challenge_id is not null and (
+            not exists (select 1 from public.challenge_results where challenge_id = new.challenge_id and user_id = new.from_id)
+            or not exists (select 1 from public.challenge_results where challenge_id = new.challenge_id and user_id = new.to_id)) then
+            raise exception 'Reagovat jde jen na výzvu, kterou jste oba dohráli.' using errcode = 'P0001';
+        end if;
+        if new.match_id is not null and not exists (select 1 from public.tournament_matches m where m.id = new.match_id and new.from_id in (m.p1, m.p2) and new.to_id in (m.p1, m.p2)) then
+            raise exception 'Reagovat jde jen na vlastní zápas.' using errcode = 'P0001';
+        end if;
+    end if;
+    if tg_op = 'INSERT' or new.emoji is distinct from old.emoji then
+        select * into sender from public.profiles where id = new.from_id;
+        if not found or not public.unlock_ok(sender, 'reactions', new.emoji) then
+            raise exception 'Tuhle reakci ještě nemáš odemčenou.' using errcode = 'P0001';
+        end if;
+    end if;
+    return new;
+end;
+$$;
+
+-- ----- Vitrína: i titul a věci ze Sezóny Mudrlanta -----
+create or replace function public.showcase_format_ok(items text[]) returns boolean
+language sql immutable set search_path = public as $$
+    select items is not null and coalesce(array_ndims(items), 1) = 1 and cardinality(items) <= 3
+        and (select count(distinct x) = count(*)
+                and coalesce(bool_and(x ~ '^(b:[a-z0-9-]{1,40}|d:[a-z0-9-]{1,24}|l:[0-9]{4}-(0[1-9]|1[0-2]):(bronz|stribro|zlato|platina|diamant|mistr)|t:[a-z0-9-]{1,40}|s:(frames|avatars|accessories):[a-z0-9-]{1,30})$'), true)
+             from unnest(items) x);
+$$;
+create or replace function public.check_showcase() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+    kept text[] := '{}';
+    entry text;
+    now_month text := to_char(now() at time zone 'Europe/Prague', 'YYYY-MM');
+    peak integer;
+begin
+    if new.showcase is not distinct from old.showcase or new.showcase is null then return new; end if;
+    foreach entry in array new.showcase loop
+        if entry is not null and public.showcase_format_ok(array[entry]) then
+            continue when entry = any (kept);
+            if left(entry, 2) = 'b:' then
+                continue when not (substr(entry, 3) = any (coalesce(new.badges, '{}')));
+            elsif left(entry, 2) = 'l:' then
+                continue when substr(entry, 3, 7) >= now_month;
+                peak := public.league_month_peak(new.id, substr(entry, 3, 7));
+                continue when peak is null or public.rating_league(peak) <> substr(entry, 11);
+            elsif left(entry, 2) = 't:' then
+                -- Titul ze Sezóny Mudrlanta, který hráč má mezi dary v účtu
+                continue when not exists (select 1 from public.unlock_catalog() u where u.cat = 'titles' and u.item = substr(entry, 3) and u.rule = 'season-gift')
+                    or not public.unlock_gift(new.rewards, 'titles', substr(entry, 3));
+            elsif left(entry, 2) = 's:' then
+                -- Věc ze Sezóny Mudrlanta (rámeček, postavička, doplněk měsíce) mezi dary v účtu
+                continue when not exists (select 1 from public.unlock_catalog() u where u.cat = split_part(entry, ':', 2) and u.item = split_part(entry, ':', 3) and u.rule = 'season-gift')
+                    or not public.unlock_gift(new.rewards, split_part(entry, ':', 2), split_part(entry, ':', 3));
+            end if;
+        end if;
+        kept := kept || entry;
+    end loop;
+    new.showcase := kept;
+    return new;
+end;
+$$;
+
+revoke all on function public.level_of_xp(integer), public.badge_tiers(), public.badge_owned(text[], text), public.unlock_catalog(), public.league_best_rank(uuid),
+    public.referral_code_for(uuid), public.referral_games(uuid), public.referral_qualified(uuid), public.referral_ready(uuid),
+    public.unlock_gift(jsonb, text, text), public.unlock_ok(public.profiles, text, text), public.unlock_title_ok(public.profiles, text), public.unlock_avatar_ok(public.profiles, text),
+    public.unlock_color_ok(public.profiles, text), public.unlock_owl(public.profiles, text), public.check_unlocks() from public, anon, authenticated;
+revoke all on function public.referral_status(), public.referral_join(text), public.referral_claim(), public.prestige_up() from public, anon;
+grant execute on function public.referral_status(), public.referral_join(text), public.referral_claim(), public.prestige_up() to authenticated;
+-- ===== 32: Motivace — KONEC BLOKU =====
+
 -- ===== Verze schématu =====
 -- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.
 -- Aplikace ho po přihlášení porovná a správci (dev_admins nebo vývojářský režim) ukáže v Nastavení, že má schéma spustit znovu;
@@ -7102,7 +8087,20 @@ grant execute on function public.player_items_mine(), public.player_items_claim(
 --     conquest_use_fifty; tah druhu 'extra' bez území v conquest_moves, conquest_budget: extra, budgets.extra a items v conquest_state,
 --     items v conquest_lobby, fifty a removed v bitvách; zisk v boss_submit, daily_quiz_answer, chain_submit, conquest_finish
 --     a conquest_claim; export_my_data má i 'pomucky').
+-- 31: Speciální turnaje na téma (tournaments.kind, theme, title, starts_at, round_minutes, created_by; tournament_now, tournament_round_phase,
+--     tournament_round_end – kola po minutách od začátku v tournament_progress, tournament_start, tournament_tick, tournament_join,
+--     tournament_start_match, tournament_answer_save, botech a připomínce zápasu; dev_special_tournament_create a dev_special_tournament_delete)
+--     a hlasování o tématu (tournament_themes, tournament_polls, tournament_votes; tournament_poll_state, tournament_vote, dev_tournament_poll_close;
+--     upozornění druhu 'tournament_special' s klíčem tsp: v push_pending a push_mark; export_my_data má i 'turnaje_hlasovani');
+--     kontumovaný zápas: nedohraný výsledek dostane správné a body z uložených odpovědí (tournament_pick_winner) a tournament_details ukáže
+--     rozpis i hráči, který zápas nedohrál, až je rozhodnutý; nová výzva má vždy výběr z možností (challenge_variant_choices, psaní jen pro
+--     jednoho hráče).
+-- 32: Motivace – kontrola odemčení na serveru (unlock_catalog, unlock_ok, level_of_xp, badge_tiers, badge_owned, league_best_rank,
+--     trigger profiles_unlock_check pro rámeček, titul, sovu, obrázek a vítězný efekt), Pozvi kamarády (referral_codes, referrals,
+--     referral_rewards; referral_status, referral_join, referral_claim; export_my_data má i 'pozvanky'), prestiž (profiles.prestige
+--     a prestige_xp, prestige_up), vítězný efekt (profiles.victory_fx), reakce navíc jen odemčené (match_reactions_emoji_list, check_reaction)
+--     a vitrína s titulem a věcmi ze Sezóny Mudrlanta (showcase_format_ok a check_showcase: t:<titul>, s:<druh>:<id>).
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 30 $$;
+language sql immutable as $$ select 32 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

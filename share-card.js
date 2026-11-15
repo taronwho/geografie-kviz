@@ -79,12 +79,14 @@
     const fileName = (kind, day) => `mudrlant-${String(kind || 'vysledek').replace(/[^a-z0-9-]/g, '')}${day ? `-${day}` : ''}.png`;
 
     // --- Obrázek: kreslení (jen v prohlížeči) ---
+    // Sova ve vlastní barvě obleku (robe-color.js) se před kreslením přebarví z vínové (ROBES vlastní barvu nezná, takže adresa je vínová)
     const loadImage = (src) => new Promise(resolve => {
         const image = new root.Image();
         image.decoding = 'async';
         image.onload = () => resolve(image);
         image.onerror = () => resolve(null);
-        image.src = src;
+        const tinted = root.MudrlantRobeColor && root.MudrlantRobeColor.forShare ? root.MudrlantRobeColor.forShare(src) : Promise.resolve(src);
+        tinted.then(url => { image.src = url || src; }, () => { image.src = src; });
     });
     // Barvy tématu hráče (data-theme na <html>, proměnné --brand-600 a --brand-900)
     const brandColors = () => {

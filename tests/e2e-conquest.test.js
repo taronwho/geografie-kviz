@@ -400,6 +400,27 @@ const tapTerritory = async (tab, id) => {
     await tab.mouse.click(point.x, point.y);
 };
 
+// Atributy (i styl) v obsahu stránky, ve kterých je některý z kousků (adresa z Commons, název souboru – často odpověď)
+const attributeLeaks = (tab, parts) => tab.evaluate((fragments) => {
+    const decoded = (value) => { try { return decodeURIComponent(value); } catch (e) { return value; } };
+    return [document.body, ...document.body.querySelectorAll('*')].flatMap(element => [...element.attributes]
+        .filter(attribute => fragments.some(part => attribute.value.includes(part) || decoded(attribute.value).includes(part)))
+        .map(attribute => `${element.tagName.toLowerCase()}[${attribute.name}]`));
+}, parts);
+// Šířka výřezu mapy (viewBox) a šířka po doběhnutí přiblížení (beze změny po dva snímky)
+const viewWidth = (tab) => tab.evaluate(() => document.querySelector('[data-cq-map] svg').viewBox.baseVal.width);
+// (waitForFunction na Promise nečeká, proto vlastní smyčka s evaluate)
+const settledWidth = async (tab) => {
+    for (let i = 0; i < 100; i += 1) {
+        const steady = await tab.evaluate(() => new Promise(resolve => {
+            const width = () => document.querySelector('[data-cq-map] svg').viewBox.baseVal.width;
+            const first = width();
+            requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(() => resolve(width() === first ? first : null))));
+        }));
+        if (steady !== null) return steady;
+    }
+    throw new Error('Přiblížení mapy nedoběhlo');
+};
 // Popisek území: viditelný, velikost na displeji (px) a jestli je celý (bez okrajů písma) uvnitř území
 const labelBox = (tab, id) => tab.evaluate((territory) => {
     const svg = document.querySelector('[data-cq-map] svg');
@@ -432,6 +453,16 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         const order = await tab.evaluate(() => [document.getElementById('conquest-card'), document.querySelector('[data-action="new-challenge"]')].map(el => el.getBoundingClientRect().top));
         assert.ok(order[0] < order[1], 'karta je nahoře');
         await shot(tab, 'karta-360');
+        // Karta zůstane nahoře i po doběhnutí náběhové animace; fitMulti ji přesune na začátek panelu seznamů jen tehdy, když se záložka
+        // nevejde ani s panelem v nejmenší výšce (tady velmi nízké okno), a po zvětšení okna ji vrátí nahoru. Stránka se neposouvá.
+        const inPanel = () => tab.evaluate(() => Boolean(document.getElementById('conquest-card').closest('[data-multi-more]')));
+        await tab.waitForTimeout(700);
+        assert.equal(await inPanel(), false, 'karta není v panelu seznamů');
+        await tab.setViewportSize({ width: 360, height: 340 });
+        await tab.waitForFunction(() => Boolean(document.getElementById('conquest-card').closest('[data-multi-more]')));
+        assert.ok(await tab.evaluate(() => { const c = document.getElementById('app-content'); return c.firstElementChild.scrollHeight <= c.clientHeight + 1; }), 'po přesunu karty se záložka vejde');
+        await tab.setViewportSize({ width: 360, height: 640 });
+        await tab.waitForFunction(() => !document.getElementById('conquest-card').closest('[data-multi-more]'));
         await tab.click('#conquest-card [data-action="conquest-open"]');
         await tab.waitForSelector('#conquest-hub');
         assert.match(await tab.textContent('#status-text'), /Dobývání/);
@@ -623,11 +654,13 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             assert.match(await tab.textContent('[data-cq-sheet]'), /Rakousko[\s\S]*Neutrální území[\s\S]*Poklad: \+1 tah/);
             assert.equal(await tab.locator('[data-cq-source]').count(), 0, 'odkud útok vede, se nevybírá (na výsledek vliv nemá)');
             assert.match(await tab.textContent('[data-cq-sheet] [data-cq-region]'), /^Region Střední Evropa · /);
-            // Název území uprostřed území a celý uvnitř (7–18 px; jen do území, které je na displeji menší než název v 7 px, se nevejde)
+            // Název území uprostřed území a celý uvnitř (7–18 px): Rakousko se na celé mapě do 7 px nevejde, mapa se po klepnutí přiblíží
+            await settledWidth(tab);
+            assert.ok(await viewWidth(tab) < 1000, 'mapa se kvůli názvu přiblížila');
             await shot(tab, `list-${width}-${colorScheme}`);
             const label = await labelBox(tab, 'Q40');
             assert.ok(label.shown && label.px >= 6.8 && label.px <= 18.1, JSON.stringify(label));
-            assert.ok(label.inside || label.px < 7.3, `název Rakouska je celý uvnitř území ${JSON.stringify(label)}`);
+            assert.ok(label.inside, `název Rakouska je celý uvnitř území ${JSON.stringify(label)}`);
             db.force.push('capture');
             await tab.click('[data-cq-sheet] [data-cq="attack"]');
             await tab.waitForSelector('[data-cq-answer]', { timeout: 30000 });
@@ -691,6 +724,45 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             if (await tab.locator('[data-cq-sheet] [data-cq="sheet-close"]').count()) await tab.click('[data-cq-sheet] [data-cq="sheet-close"]');
             await tab.click('[data-cq="zoom-reset"]');
             await tab.waitForSelector('[data-cq="zoom-reset"].hidden', { state: 'attached' });
+            // Malé území: název Lucemburska se na celé mapě nevejde ani v 7 px. Po klepnutí se mapa plynule přiblíží jen tolik, aby byl
+            // celý uvnitř území (asi 7 px), se středem nad spodním listem; víc přiblížená mapa se neoddálí a kolečko hráče má přednost
+            const fullWidth = await viewWidth(tab);
+            await tapTerritory(tab, 'Q32');
+            await tab.waitForSelector('[data-cq-sheet] [data-cq="sheet-close"]');
+            assert.match(await tab.textContent('[data-cq-sheet]'), /Lucembursko/);
+            const fitted = await settledWidth(tab);
+            assert.ok(fitted < fullWidth / 10, `mapa se přiblížila (výřez ${fitted.toFixed(1)} z ${fullWidth})`);
+            assert.ok(fitted >= fullWidth / 20 - 0.01, 'nejvýš MAX_ZOOM');
+            const tiny = await labelBox(tab, 'Q32');
+            assert.ok(tiny.shown && tiny.inside, `název Lucemburska je celý uvnitř území ${JSON.stringify(tiny)}`);
+            assert.ok(tiny.px >= 6.9 && tiny.px <= 7.6, `jen tolik přiblížení, kolik je potřeba: ${tiny.px.toFixed(2)} px`);
+            assert.equal(await tab.locator('[data-cq="zoom-reset"].flex').count(), 1, 'tlačítko Celá mapa');
+            const placed = await tab.evaluate(() => {
+                const label = document.querySelector('[data-label="Q32"]').getBoundingClientRect();
+                const map = document.querySelector('[data-cq-wrap]').getBoundingClientRect();
+                const sheet = document.querySelector('[data-cq-sheet]').getBoundingClientRect();
+                return { inMap: label.left >= map.left && label.right <= map.right && label.top >= map.top, aboveSheet: label.bottom <= Math.min(map.bottom, sheet.top) };
+            });
+            assert.deepEqual(placed, { inMap: true, aboveSheet: true }, 'název je vidět nad spodním listem');
+            await shot(tab, `male-uzemi-${width}-${colorScheme}`);
+            // Hráč oddálí kolečkem: mapa zůstane oddálená (přiblížení se neopakuje ani nepokračuje)
+            const center = await tab.evaluate(() => { const box = document.querySelector('[data-label="Q32"]').getBoundingClientRect(); return { x: box.left + box.width / 2, y: box.top + box.height / 2 }; });
+            await tab.mouse.move(center.x, center.y);
+            await tab.mouse.wheel(0, 300);
+            const out = await settledWidth(tab);
+            assert.ok(out > fitted * 1.3, `kolečko oddálilo (${out.toFixed(1)} > ${fitted.toFixed(1)})`);
+            await tab.waitForTimeout(500);
+            assert.equal(await viewWidth(tab), out, 'automatické přiblížení se nevrací');
+            // Víc přiblížená mapa (kolečkem na maximum) se klepnutím na malé území neoddálí
+            await tab.mouse.wheel(0, -3000);
+            const deepest = await settledWidth(tab);
+            await tapTerritory(tab, 'Q32');
+            await tab.waitForTimeout(600);
+            assert.ok(Math.abs(await viewWidth(tab) - deepest) < 0.01, 'klepnutí neoddálí');
+            await shot(tab, `male-uzemi-max-${width}-${colorScheme}`);
+            await tab.click('[data-cq-sheet] [data-cq="sheet-close"]');
+            await tab.click('[data-cq="zoom-reset"]');
+            await tab.waitForSelector('[data-cq="zoom-reset"].hidden', { state: 'attached' });
             // Kronika tažení
             await tab.click('#conquest-game button[aria-label="Kronika tažení"]');
             await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || {}).dataset && document.getElementById('dialog-overlay').dataset.title === 'Kronika tažení');
@@ -704,6 +776,13 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             await shot(tab, `kronika-${width}-${colorScheme}`);
             await tab.keyboard.press('Escape');
             assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+            // Kronika pod mapou: aspoň tři celé události i na 360×640 (na nízkém displeji je událost na jednom řádku a mapa ustoupí)
+            const visibleEvents = await tab.evaluate(() => {
+                const card = document.querySelector('[data-cq-recent] .cq-feed-list').getBoundingClientRect();
+                return [...document.querySelectorAll('[data-cq-recent] .cq-feed-row')].filter(row => row.getBoundingClientRect().bottom <= card.bottom + 0.5).length;
+            });
+            assert.ok(visibleEvents >= 3, `vidět ${visibleEvents} událostí kroniky`);
+            await shot(tab, `kronika-pod-mapou-${width}-${colorScheme}`);
             // Zpět z mapy na Moje hry
             await tab.click('#conquest-game [data-cq="hub"]');
             await tab.waitForSelector('#conquest-hub [data-cq-play]');
@@ -879,8 +958,12 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             await answerCapture(tab, 1, 'Q36');
             // Obrázek: Maďarsko
             await attackWith(tab, db, 'Q28', 'photo');
-            await tab.waitForSelector('[data-cq-full] .cq-qimg img', { timeout: 20000 });
-            assert.match(await tab.getAttribute('[data-cq-full] .cq-qimg img', 'src'), /^https:\/\/upload\.wikimedia\.org\//);
+            await tab.waitForSelector('[data-cq-full] .cq-qimg img[src]', { timeout: 20000 });
+            // Obrázek je blob: – adresa z Commons (název souboru bývá odpovědí) není v src ani v žádném jiném atributu, alt je obecný
+            assert.match(await tab.getAttribute('[data-cq-full] .cq-qimg img', 'src'), /^blob:/);
+            assert.equal(await tab.getAttribute('[data-cq-full] .cq-qimg img', 'alt'), 'Obrázek k otázce');
+            assert.equal(await tab.getAttribute('[data-cq-full] .cq-qimg img', 'title'), null);
+            assert.deepEqual(await attributeLeaks(tab, ['upload.wikimedia.org']), [], 'adresa z Commons v atributech není');
             assert.ok(await tab.evaluate(() => { const img = document.querySelector('[data-cq-full] .cq-qimg img'); return img.getBoundingClientRect().height > 120; }), 'obrázek je velký');
             await tab.waitForTimeout(400);
             await shot(tab, `mudrlant-obrazek-${width}-${colorScheme}`);
@@ -893,6 +976,14 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             const asked = await tab.evaluate(() => Object.values(JSON.parse(localStorage.getItem('mudrlant.conquestAsked')))[0]);
             assert.equal(new Set(asked.a).size, 3);
             assert.deepEqual(asked.f.slice(-3), ['text', 'facts', 'photo']);
+            // Vlajky v možnostech (Slovinsko): čtyři obrázky jako blob:, název souboru („Flag of Slovenia.svg“ = odpověď) v atributech není
+            await attackWith(tab, db, 'Q215', 'flag');
+            await tab.waitForFunction(() => document.querySelectorAll('[data-cq-sheet] [data-cq-answer] img[src^="blob:"]:not(.invisible)').length === 4, null, { timeout: 20000 });
+            assert.equal(await tab.locator('[data-cq-sheet] [data-cq-answer] img[alt=""]:not([title])').count(), 4, 'bez popisku s názvem');
+            assert.deepEqual(await attributeLeaks(tab, ['upload.wikimedia.org', 'Flag_of', 'Flag of', 'Coat_of_arms']), []);
+            await tab.waitForTimeout(400);
+            await shot(tab, `vlajky-${width}-${colorScheme}`);
+            await answerCapture(tab, 0, 'Q215');
             assert.deepEqual(log.errors, []);
             assert.deepEqual(log.csp, []);
             await context.close();
@@ -1381,10 +1472,12 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
 
         // Petr (390×780, tmavý režim): pozvánka na kartě Dobývání (od Jany, novější první) a v Mých hrách
         db.invites.sort((a, b) => (a.by === 'u-1' ? -1 : b.by === 'u-1' ? 1 : 0));
-        const guest = await start(db, { viewport: { width: 390, height: 780 }, colorScheme: 'dark', storage: login('tok-u2') });
+        const guest = await start(db, { viewport: { width: 390, height: 780 }, colorScheme: 'dark', storage: { ...login('tok-u2'), 'mudrlant.conquestInvitesSeen': JSON.stringify({ [created.id]: 1, [uuid(3)]: 1 }) } });
         ({ tab, log } = guest);
         await tab.waitForSelector('#conquest-card [data-action="conquest-invite"]', { timeout: 15000 });
-        assert.match((await tab.textContent('#conquest-card')).replace(/\s+/g, ' '), /Dobývání\s*Pozvánka od Jana Nováková Evropa · 3 dny · \+1 Přidat se/);
+        assert.match((await tab.textContent('#conquest-card')).replace(/\s+/g, ' '), /Dobývání\s*2\s*Pozvánka od Jana Nováková Evropa · 3 dny · \+1 Přidat se/);
+        assert.equal(await tab.getAttribute('#conquest-card [data-cq-invite-badge]', 'aria-label'), 'Pozvánky do her: 2');
+        assert.equal(await tab.locator('#dialog-overlay').count(), 0, 'viděné pozvánky se oknem znovu neukážou');
         await shot(tab, 'karta-pozvanka-390-dark');
         // Přidat se z karty: otevře se rozcestník (pozvánky v Mých hrách) a nad ním Barva a znak; zatím zavřít
         await tab.click('#conquest-card [data-action="conquest-invite"]');
@@ -1427,5 +1520,65 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await guest.context.close();
+    });
+    // Pozvánka po otevření aplikace (i bez upozornění): okno „Eva Mistr tě zve do Dobývání: Evropa · Rychlá hra“ s Přijmout /
+    // Odmítnout / Později, jednou za pozvánku; odznak na kartě Dobývání a na záložce Více hráčů; nová pozvánka po návratu do aplikace
+    await t.test('pozvánka po otevření aplikace na 360×640: okno jednou za pozvánku (Později), odznak na kartě i záložce, nová po návratu do aplikace (Odmítnout), Přijmout', async () => {
+        const db = newDb();
+        db.invites = [{ game: uuid(1), user: 'u-2', by: 'u-3', declined: false }];
+        const promptTitle = (tab) => tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Pozvánka do Dobývání', null, { timeout: 15000 });
+        const guest = await start(db, { colorScheme: 'light', storage: login('tok-u2') });
+        let { tab, log, context } = guest;
+        await promptTitle(tab);
+        assert.match((await tab.textContent(`[data-cq-invite-prompt="${uuid(1)}"]`)).replace(/\s+/g, ' '), /Eva Mistr tě zve do Dobývání: Evropa · Rychlá hra/);
+        assert.deepEqual(await tab.$$eval('#dialog-overlay [data-cq-prompt]', buttons => buttons.map(button => button.textContent.trim())), ['Přijmout', 'Odmítnout', 'Později']);
+        assert.ok(await dialogFits(tab, 640), 'okno s pozvánkou se vejde na 360×640');
+        assert.equal(await tab.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
+        await tab.waitForTimeout(300);
+        await shot(tab, 'pozvanka-okno-360');
+        // Později: okno zmizí, pozvánka zůstane na kartě s odznakem a v odznaku záložky Více hráčů
+        await tab.click('#dialog-overlay [data-cq-prompt="later"]');
+        await tab.waitForFunction(() => !document.getElementById('dialog-overlay'));
+        await tab.waitForSelector('#conquest-card [data-cq-invite-badge]');
+        assert.equal(await tab.getAttribute('#conquest-card [data-cq-invite-badge]', 'aria-label'), 'Pozvánka do hry');
+        assert.match(await tab.textContent('[data-action="home-tab"][data-tab="multi"]'), /Více hráčů\s*1/);
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+        await shot(tab, 'pozvanka-karta-odznak-360');
+        assert.equal(db.calls.filter(call => call.name === 'conquest_decline_invite').length, 0, 'Později pozvánku neodmítne');
+        // Po obnovení stránky (i na záložce Jeden hráč) se stejná pozvánka znovu nenabízí, odznak záložky zůstává
+        await tab.evaluate(() => localStorage.setItem('mudrlant.homeTab', JSON.stringify('single')));
+        await tab.reload();
+        await tab.waitForSelector('[data-action="home-tab"][data-tab="multi"]');
+        await tab.waitForFunction(() => /Více hráčů\s*1/.test(document.querySelector('[data-action="home-tab"][data-tab="multi"]').textContent), null, { timeout: 15000 });
+        await tab.waitForTimeout(800);
+        assert.equal(await tab.locator('#dialog-overlay').count(), 0, 'viděná pozvánka nenaléhá');
+        // Nová pozvánka (Jana do Česka): po návratu do aplikace (ověření nejvýš jednou za 5 minut) okno i na záložce Jeden hráč
+        db.invites.push({ game: uuid(2), user: 'u-2', by: 'u-1', declined: false });
+        await tab.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+        await tab.waitForTimeout(800);
+        assert.equal(await tab.locator('#dialog-overlay').count(), 0, 'dřív než za 5 minut se server znovu neptá');
+        await tab.clock.setFixedTime(new Date(Date.parse(NOW) + 6 * 60000));
+        await tab.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+        await promptTitle(tab);
+        assert.match((await tab.textContent(`[data-cq-invite-prompt="${uuid(2)}"]`)).replace(/\s+/g, ' '), /Jana Nováková tě zve do Dobývání: Česko · Rychlá hra/);
+        assert.ok(await dialogFits(tab, 640));
+        await shot(tab, 'pozvanka-okno-navrat-360');
+        await tab.click('#dialog-overlay [data-cq-prompt="decline"]');
+        await toast(tab, /^Pozvánka odmítnuta\.$/);
+        assert.ok(db.invites.find(i => i.game === uuid(2)).declined);
+        await tab.waitForFunction(() => /Více hráčů\s*1/.test(document.querySelector('[data-action="home-tab"][data-tab="multi"]').textContent));
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+        // Jiné zařízení (nic viděného): Přijmout → Barva a znak pro hru, do které Eva zve
+        ({ tab, log, context } = await start(db, { colorScheme: 'dark', storage: login('tok-u2') }));
+        await promptTitle(tab);
+        await shot(tab, 'pozvanka-okno-360-dark');
+        await tab.click('#dialog-overlay [data-cq-prompt="accept"]');
+        await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Tvoje barva a znak', null, { timeout: 15000 });
+        await tab.waitForSelector(`#conquest-hub [data-cq-invite="${uuid(1)}"]`);
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
     });
 });

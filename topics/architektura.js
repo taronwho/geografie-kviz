@@ -12,19 +12,16 @@
         personSimilarity, eraNearness, getCountryNames, nameAnswers
     } = core;
 
-    // Hlavní obrázek z Wikidat, který neukazuje stavbu samotnou: sad s poníkem u Jasné Poljany, model, rytina, panorama města
-    // z rozhledny, jiná stavba v areálu (madrasa u Kutub Minaru), solné jezero u mešity. Otázka „Co je to za stavbu?“ by s ním
-    // nedávala smysl – stavba se pak pozná podle popisu (app.js loadTopic obrázek u položky vynechá všude: otázka, nápověda, Dobývání)
-    const OFF_SUBJECT_WORDS = new Set(['orchard', 'orchards', 'meadow', 'pasture', 'pony', 'horse', 'horses', 'cow', 'cows', 'cattle', 'sheep',
-        'goat', 'goats', 'model', 'maquette', 'engraving', 'lithograph', 'drawing', 'sketch', 'postcard', 'plaque', 'ticket', 'stamp', 'banknote']);
-    const OFF_SUBJECT_PHOTOS = new Set(['Q749556', 'Q187635', 'Q204871', 'Q1570185', 'Q179046']);
-    const wordsOf = (text) => String(text || '').toLowerCase().split(/[^\p{L}]+/u).filter(Boolean);
-    const offSubjectPhoto = (item) => {
-        if (!item || item.c !== 'stavby' || !item.im) return false;
-        if (OFF_SUBJECT_PHOTOS.has(item.q)) return true;
-        const own = new Set(wordsOf(`${item.n} ${item.t}`));
-        return wordsOf(item.im).some(word => OFF_SUBJECT_WORDS.has(word) && !own.has(word));
-    };
+    // Hlavní obrázek z Wikidat, který neukazuje stavbu samotnou: sad s poníkem u Jasné Poljany, model, rytina, plán, interiér,
+    // panorama města z rozhledny, jiná stavba v areálu (madrasa u Kutub Minaru), solné jezero u mešity; u osobností architektury hrob
+    // nebo pamětní deska. Otázka „Co je to za stavbu?“ by s ním nedávala smysl – stavba se pak pozná podle popisu (app.js loadTopic
+    // obrázek u položky vynechá všude: otázka, nápověda, atlas, Dobývání; pravidlo v quiz-core.js offSubjectRule, audit npm run audit:obrazky)
+    const offSubjectPhoto = core.offSubjectRule({
+        words: { stavby: core.OFF_SUBJECT_BUILDINGS.words(), architekti: core.OFF_SUBJECT.memorial },
+        ids: core.OFF_SUBJECT_BUILDINGS.ids,
+        keep: core.OFF_SUBJECT_BUILDINGS.keep,
+        views: ['stavby']
+    });
     // Položka mezi stavbami, která je spíš místo (obec se sídlem, park se sochami, opuštěné město): „Co je to za místo?“
     const PLACE_TYPE = /^(obec|vesnice|město|městys|osada|park|zahrada|zahrady)\b/iu;
 
@@ -384,7 +381,9 @@
             const f = item.f || {};
             const g = other.f || {};
             if (item.c === 'stavby') {
-                return (f.st && f.st === g.st ? 3 : f.st && g.st && isConflict(f.st, g.st) ? -2 : 0) + (item.ty && item.ty === other.ty ? 2 : 0) + eraNearness(f.y, g.y)
+                // Druh (most, věž, knihovna) je vidět u otázky a často i v názvu možnosti: stejný druh z blízké kultury má přednost
+                // před jiným druhem ze stejné země (k mostu Akaši-Kaikjó mosty, ne japonská parlamentní knihovna)
+                return (f.st && f.st === g.st ? 3 : f.st && g.st && isConflict(f.st, g.st) ? -2 : 0) + (item.ty && item.ty === other.ty ? 6 : 0) + eraNearness(f.y, g.y)
                     + ((item.co || []).some(country => (other.co || []).includes(country)) ? 1 : 0) + ((item.cz === 1) === (other.cz === 1) ? 1 : 0);
             }
             if (item.c === 'prvky') return 0;

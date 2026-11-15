@@ -69,7 +69,8 @@ test('zdroj obrázku: „i“ u vlajky před odpovědí a po ní', { skip: !chro
                 if (commonsDown) return route.fulfill({ status: 503, headers: { 'access-control-allow-origin': '*' }, body: '' });
                 return route.fulfill({ contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(metadata(url.searchParams.get('titles'))) });
             }
-            if (url.hostname === 'upload.wikimedia.org') return route.fulfill({ contentType: 'image/png', body: PNG });
+            // Jako skutečné Commons: obrázky s Access-Control-Allow-Origin: * (stahují se přes fetch a ukazují jako blob:)
+            if (url.hostname === 'upload.wikimedia.org') return route.fulfill({ contentType: 'image/png', headers: { 'access-control-allow-origin': '*' }, body: PNG });
             return route.abort();
         });
         const tab = await context.newPage();
@@ -118,6 +119,15 @@ test('zdroj obrázku: „i“ u vlajky před odpovědí a po ní', { skip: !chro
             // Před odpovědí: „i“ v levém dolním rohu vlajky, na dotyk aspoň 44 px
             const button = sourceButton(tab, 'hint-tab-panel');
             await button.waitFor({ timeout: 15000 });
+            // Vlajka otázky je blob: – adresa z Commons s názvem souboru (Flag of …) není v žádném atributu ani stylu, ani u „i“
+            assert.match(await tab.evaluate(() => document.getElementById('question-image').style.backgroundImage), /^url\("blob:/);
+            const leaks = await tab.evaluate((parts) => {
+                const decoded = (value) => { try { return decodeURIComponent(value); } catch (e) { return value; } };
+                return [document.body, ...document.body.querySelectorAll('*')].flatMap(element => [...element.attributes]
+                    .filter(attribute => parts.some(part => attribute.value.includes(part) || decoded(attribute.value).includes(part))).map(attribute => `${element.tagName}[${attribute.name}]`));
+            },
+            ['upload.wikimedia.org', fileName.replace(/\.\w+$/, ''), fileName.replace(/\.\w+$/, '').replace(/ /g, '_')]);
+            assert.deepEqual(leaks, [], 'název souboru vlajky v atributech není');
             const box = await button.boundingBox();
             const frame = await tab.locator('#hint-tab-panel #question-image').boundingBox();
             assert.ok(box.width >= 43.5 && box.height >= 43.5, `dotyková plocha ${box.width}×${box.height}`);

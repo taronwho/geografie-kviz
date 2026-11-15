@@ -208,6 +208,20 @@ const backend = async (context, db) => {
             db.calls.push({ name: rpc[1], body });
             const fail = (message, status = 400) => json({ code: 'P0001', message }, status);
             if (rpc[1] === 'tournament_tick') return route.fulfill({ status: 200, body: '' });
+            // Hlasování o tématu speciálního turnaje (schéma 31): db.poll = undefined → starší databáze bez hlasování (404)
+            if (rpc[1] === 'tournament_poll_state' || rpc[1] === 'tournament_vote') {
+                if (!db.poll) return json({ code: 'PGRST202', message: 'Could not find the function' }, 404);
+                const poll = db.poll;
+                if (rpc[1] === 'tournament_vote') {
+                    if (body.poll !== poll.id || poll.closed) return fail('Hlasování už skončilo. Hlasuj v novém.');
+                    if (!poll.options.some(option => option.id === body.theme)) return fail('Tohle téma v hlasování není.');
+                    poll.votes[me.id] = body.theme;
+                }
+                const mine = poll.votes[me.id] || null;
+                const counts = (theme) => Object.values(poll.votes).filter(value => value === theme).length;
+                return json({ id: poll.id, closed: false, mine, total: mine ? Object.keys(poll.votes).length : null, changes_left: 10,
+                    options: poll.options.map(option => ({ id: option.id, title: option.title, topics: option.topics, votes: mine ? counts(option.id) : null })) });
+            }
             if (rpc[1] === 'tournament_join') {
                 if (db.failJoin) return db.failJoin === 500 ? json({ message: 'boom' }, 500) : fail(db.failJoin);
                 const t = tournament(body.tid);
@@ -253,7 +267,8 @@ const backend = async (context, db) => {
                     if (pending) return fail('Rozpis zápasů tohoto kola uvidíš, až odehraješ svůj zápas.', 403);
                     return json(db.answers.filter(row => row.match_id === m.id).map(({ match_id, ...rest }) => rest));
                 }
-                if (!done(me.id)) return fail('Rozpis otázek uvidíš, až zápas dohraješ.', 403);
+                // Kontumace (schéma 31): nedohraný zápas jde do rozpisu, až je rozhodnutý
+                if (!done(me.id) && !m.winner) return fail('Rozpis otázek uvidíš, až zápas dohraješ.', 403);
                 const rival = m.p1 === me.id ? m.p2 : m.p1;
                 return json(db.answers.filter(row => row.match_id === m.id && (row.user_id === me.id || (row.user_id === rival && (m.winner || done(rival))))).map(({ match_id, ...rest }) => rest));
             }
@@ -1616,6 +1631,141 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         assert.equal(await title(), 'Archiv turnajů');
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    // Speciální turnaj na téma (schéma 31): přihlášky s časem začátku, hlasování o tématu dalšího, hra jen z položek tématu
+    const T_SPECIAL = uuid(3);
+    const POLL = [['opery', 'Opery', 'hudba'], ['olympijske-hry', 'Olympijské hry', 'sport'], ['vlajky-afriky', 'Vlajky Afriky', 'vlajky'], ['pravek', 'Pravěká zvířata', 'biologie']];
+    const specialTournament = (db, { status = 'open', startsAt = '2026-11-21T17:00:00Z', players = 0 } = {}) => {
+        db.tournaments.push({ id: T_SPECIAL, topic: 'zemepis,architektura', week_start: startsAt.slice(0, 10), started_on: status === 'open' ? null : startsAt.slice(0, 10), capacity: 128, status,
+            size: status === 'open' ? null : 8, rounds: status === 'open' ? null : 3, seed: 'seed-hrady', kind: 'special', theme: 'hrady-zamky', title: 'Hrady a zámky', starts_at: startsAt, round_minutes: 60 });
+        addPlayers(db, players).forEach(user => addEntry(db, T_SPECIAL, user, status === 'open' ? 'registered' : 'playing'));
+    };
+    const pollOf = () => ({ id: 7, closed: false, votes: { 'f-1': 'opery', 'f-2': 'opery', 'f-3': 'pravek' }, options: POLL.map(([id, title, topics]) => ({ id, title, topics })) });
+
+    for (const [width, height] of [[360, 640], [390, 780]]) {
+        await t.test(`hlasování o tématu a ohlášený speciální turnaj ${width}×${height}: 4 témata, hlas, počty až po hlasu, změna hlasu`, async () => {
+            const db = newDb({ today: '2026-11-20' });
+            runningEight(db);
+            specialTournament(db, { players: 5 });
+            db.poll = pollOf();
+            const { context, tab, log } = await start(db, { now: '2026-11-20T10:00:00Z', viewport: { width, height } });
+            await tab.waitForSelector('#tournament-poll');
+            assert.match(await tab.textContent('#tournament-poll'), /Hlasování: jaké téma příště\?/);
+            assert.equal(await tab.locator('#tournament-poll [data-action="tournament-vote"]').count(), 4);
+            assert.doesNotMatch(await tab.textContent('#tournament-poll'), /%/, 'počty až po hlasování');
+            const card = (await tab.textContent('#tournament-card')).replace(/\s+/g, ' ');
+            assert.match(card, /Turnaje/);
+            assert.match(card, /Hrady a zámky/);
+            assert.match(card, /Začíná zítra v 18:00/);
+            assert.equal(await tab.locator('#tournament-card [data-tournament-row="open"][data-special] [data-action="tournament-join"]').count(), 1);
+            assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
+            assert.ok(await tab.evaluate(() => document.documentElement.scrollHeight <= document.documentElement.clientHeight + 1), 'stránka se neposouvá (posouvá se jen obsah aplikace)');
+            await tab.evaluate(() => document.getElementById('tournament-card').scrollIntoView({ block: 'center' }));
+            await shot(tab, `hlasovani-${width}`);
+            await tab.click('#tournament-poll [data-theme="pravek"]');
+            await tab.waitForSelector('#tournament-poll[data-voted]');
+            const voted = (await tab.textContent('#tournament-poll')).replace(/\s+/g, ' ');
+            assert.match(voted, /4 hlasy/);
+            assert.match(voted, /Opery 50 %/);
+            assert.match(voted, /Pravěká zvířata 50 %/);
+            assert.equal(await tab.getAttribute('#tournament-poll [data-theme="pravek"]', 'aria-pressed'), 'true');
+            assert.equal(db.calls.filter(call => call.name === 'tournament_vote').length, 1);
+            await shot(tab, `hlasovani-po-hlasu-${width}`);
+            // Změna hlasu
+            await tab.click('#tournament-poll [data-theme="opery"]');
+            await tab.waitForFunction(() => document.querySelector('#tournament-poll [data-theme="opery"]').getAttribute('aria-pressed') === 'true');
+            assert.match((await tab.textContent('#tournament-poll')).replace(/\s+/g, ' '), /Opery 75 %/);
+            assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
+            // Okno speciálního turnaje: téma, začátek, délka kola, pravidla
+            await tab.click(`[data-tournament-row="open"][data-special] [data-action="tournament-open"]`);
+            await tab.waitForSelector('[data-special-theme]');
+            assert.equal(await tab.textContent('#dialog-title'), 'Speciální turnaj');
+            const dialog = (await tab.textContent('#dialog-overlay')).replace(/\s+/g, ' ');
+            assert.match(dialog, /Začíná zítra v 18:00, každé kolo trvá 1 hodinu/);
+            assert.match(dialog, /Všechny otázky jsou z tohoto tématu/);
+            assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
+            await shot(tab, `specialni-turnaj-prihlasky-${width}`);
+            await tab.click('[data-t-help]');
+            await tab.waitForSelector('#tournament-rules');
+            assert.match(await tab.textContent('#tournament-rules'), /Speciální turnaj na téma Hrady a zámky[\s\S]*Každé kolo trvá 1 hodinu/);
+            await tab.keyboard.press('Escape');
+            // Nová výzva: způsob odpovídání se nevybírá (psaní jen ve hře pro jednoho hráče)
+            if (width === 360) {
+                await tab.click('#challenges-section [data-action="new-challenge"]');
+                await tab.click('[data-ch-open="settings"]');
+                assert.equal(await tab.locator('[data-ch-variant]').count(), 0);
+                assert.match(await tab.textContent('[data-ch-answering]'), /Psaní odpovědí je jen ve hře pro jednoho hráče/);
+                await tab.evaluate(() => document.querySelector('[data-ch-answering]').scrollIntoView({ block: 'center' }));
+                await tab.waitForFunction(() => { const toast = document.getElementById('toast'); return !toast || toast.classList.contains('opacity-0'); }, null, { timeout: 8000 }).catch(() => {}); await tab.waitForTimeout(400);
+                await shot(tab, 'vyzva-bez-psani-360');
+            }
+            assert.deepEqual(log.errors, []);
+            assert.deepEqual(log.csp, []);
+            await context.close();
+        });
+    }
+
+    await t.test('běžící speciální turnaj: kolo po minutách, Hrát dá otázky jen z tématu; starší databáze bez hlasování kartu neukáže', async () => {
+        const db = newDb({ today: '2026-11-21' });
+        specialTournament(db, { status: 'running' });
+        const fillers = db.entries.filter(entry => entry.tournament_id === T_SPECIAL).map(entry => entry.user_id);
+        const others = addPlayers(db, 6);
+        ['u-1', 'u-2', ...others].forEach(user => addEntry(db, T_SPECIAL, user, 'playing'));
+        assert.equal(fillers.length, 0);
+        db.matches.push({ id: uuid(301), tournament_id: T_SPECIAL, round: 1, slot: 1, third: false, p1: 'u-1', p2: 'u-2', winner: null, decided_by: null });
+        [[others[0], others[1]], [others[2], others[3]], [others[4], others[5]]].forEach(([a, b], i) => db.matches.push({ id: uuid(302 + i), tournament_id: T_SPECIAL, round: 1, slot: 2 + i, third: false, p1: a, p2: b, winner: null, decided_by: null }));
+        const { context, tab, log } = await start(db, { now: '2026-11-21T17:30:00Z', viewport: { width: 360, height: 640 } });
+        await tab.waitForSelector('#tournament-card [data-special][data-step="play"]');
+        assert.equal(await tab.locator('#tournament-poll').count(), 0, 'databáze bez hlasování: hlasování se neukáže');
+        const row = (await tab.textContent('#tournament-card [data-special]')).replace(/\s+/g, ' ');
+        assert.match(row, /Hrady a zámky · Čtvrtfinále/);
+        assert.match(row, /hraješ proti.*Petr Svoboda/i);
+        await tab.click('#tournament-card [data-special] [data-action="tournament-open"]');
+        await tab.waitForSelector('#tournament-status');
+        assert.match(await tab.textContent('#tournament-status'), /Hraj teď, soupeř: Petr Svoboda\. Kolo končí v 19:00\./);
+        assert.match(await tab.textContent('#dialog-overlay'), /kolo trvá 1 hodinu/);
+        await shot(tab, 'specialni-turnaj-bezi-360');
+        await tab.click('[data-t-play]');
+        await tab.waitForSelector('[data-action="give-up"]', { timeout: 30000 });
+        const session = await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.session')));
+        assert.equal(session.challenge.theme, 'hrady-zamky');
+        assert.ok(['zemepis', 'architektura'].includes(session.data.topic), session.data.topic);
+        const items = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', `${session.data.topic}.json`), 'utf8')).items;
+        const item = items.find(entry => entry.q === session.data.id);
+        if (item) assert.ok((item.g || []).includes('hrady-zamky'), `${item.n} je hrad nebo zámek`);
+        assert.equal(session.round.variant, 'choices');
+        assert.deepEqual(log.errors, []);
+        await context.close();
+    });
+
+    await t.test('kontumovaný zápas (nedohraný, čas vypršel): rozpis s mými uloženými odpověďmi a zadáním otázek', async () => {
+        const db = newDb({ today: '2026-11-10' });
+        runningEight(db);
+        // Moje čtvrtfinále včera: začal jsem, odpověděl na 3 otázky, nedohrál; Petr dohrál a postoupil kontumačně
+        Object.assign(db.matches.find(match => match.id === uuid(101)), { winner: 'u-2', decided_by: 'walkover' });
+        db.results.push({ match_id: uuid(101), user_id: 'u-1', started_at: '2026-11-09T08:00:00Z', finished_at: null, correct: 2, points: 7, time_ms: null },
+            { match_id: uuid(101), user_id: 'u-2', started_at: '2026-11-09T07:00:00Z', finished_at: '2026-11-09T07:02:00Z', correct: 5, points: 15, time_ms: 120000 });
+        for (let idx = 0; idx < 3; idx++) db.answers.push({ match_id: uuid(101), user_id: 'u-1', idx, correct: idx !== 1, points: idx === 0 ? 4 : idx === 2 ? 3 : 0, answer: idx === 1 ? 'Vedle' : null, hints: idx === 2 ? 1 : 0, ms: 6000 });
+        for (let idx = 0; idx < 10; idx++) db.answers.push({ match_id: uuid(101), user_id: 'u-2', idx, correct: idx < 5, points: idx < 5 ? 3 : 0, answer: null, hints: 1, ms: 4000 });
+        Object.assign(db.entries.find(entry => entry.tournament_id === T_RUN && entry.user_id === 'u-1'), { status: 'out', place: 5 });
+        const { context, tab, log } = await start(db, { now: '2026-11-10T10:00:00Z', viewport: { width: 360, height: 640 } });
+        await tab.waitForSelector('#tournament-card');
+        await tab.click('#tournament-card [data-action="tournament-open"]');
+        await tab.waitForSelector('#tournament-status');
+        await tab.click('[data-t-mode="rounds"]');
+        await tab.waitForSelector('#tournament-rounds');
+        assert.match(await tab.textContent(`#tournament-rounds li[data-match="${uuid(101)}"]`), /nedohráno · 7 b · 2\/10/);
+        await tab.click(`#tournament-rounds li[data-match="${uuid(101)}"] [data-action="tournament-breakdown"]`);
+        await tab.waitForSelector('#breakdown-list li');
+        assert.equal(await tab.locator('#breakdown-list li').count(), 10, 'všech 10 otázek zápasu');
+        // (id hráčů tohoto falešného serveru nejsou UUID, takže odpovědi po otázkách rozpis zahodí; ty hlídá tests/sql-tournament-special.test.js)
+        assert.equal(await tab.locator('#breakdown-list [data-bd-cell]').count(), 20, 'oba hráči vedle sebe');
+        assert.match(await tab.textContent('[data-bd-forfeit="nedohráno"]'), /7 b · 2\/10 · nedohráno/);
+        assert.match(await tab.textContent('#dialog-overlay'), /Ty: zápas zůstal nedohraný, v rozpisu jsou odpovědi, které se stihly uložit\./);
+        await shot(tab, 'rozpis-kontumace-360');
+        assert.deepEqual(log.errors, []);
         await context.close();
     });
 

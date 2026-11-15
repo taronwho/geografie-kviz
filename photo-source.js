@@ -130,8 +130,17 @@
     };
 
     // Tlačítko „i“ v levém dolním rohu obrázku: na pohled malé kolečko, na dotyk 44 px (p-2.5 kolem 24 px). Skryté, dokud se obrázek
-    // nenačte; adresu obrázku (data-url) doplní app.js nebo visuals.js
+    // nenačte; adresu obrázku doplní app.js nebo visuals.js přes setUrl (mimo atributy: název souboru bývá odpovědí)
     const buttonHtml = ({ url = '', hidden = true } = {}) => `<button type="button" data-photo-info${url ? ` data-url="${escapeHtml(url)}"` : ''} aria-label="${TITLE}" aria-haspopup="dialog" class="${hidden ? 'hidden ' : ''}absolute bottom-0 left-0 z-10 p-2.5"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-black/55 font-serif text-sm font-bold italic leading-none text-white shadow backdrop-blur-sm" aria-hidden="true">i</span></button>`;
 
-    return { API, TITLE, buttonHtml, fileFromUrl, pageUrl, metadataUrl, decodeEntities, cleanText, parseMetadata, createLoader, buildView, viewHtml, escapeHtml };
+    // Adresa obrázku u tlačítka „i“: jen v paměti (WeakMap), ne v atributu data-url, kde by název souboru šel přečíst před odpovědí
+    const buttonUrls = new WeakMap();
+    const setUrl = (button, url) => {
+        if (!button) return;
+        if (url) buttonUrls.set(button, String(url)); else buttonUrls.delete(button);
+        if (button.removeAttribute) button.removeAttribute('data-url');
+    };
+    const urlOf = (button) => (button && (buttonUrls.get(button) || (button.dataset && button.dataset.url))) || '';
+
+    return { API, TITLE, buttonHtml, setUrl, urlOf, fileFromUrl, pageUrl, metadataUrl, decodeEntities, cleanText, parseMetadata, createLoader, buildView, viewHtml, escapeHtml };
 });

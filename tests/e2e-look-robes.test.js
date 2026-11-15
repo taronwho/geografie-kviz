@@ -64,7 +64,7 @@ test('barva obleku sovy', { skip: !chromium && 'Playwright není nainstalovaný'
         assert.ok((await owlSources(tab)).every(src => !/-(zelena|modra)\.webp$/.test(src)));
 
         await openLook(tab);
-        const tiles = await tab.$$eval('[data-robe-pick]', nodes => nodes.map(node => ({ id: node.dataset.robePick, locked: node.getAttribute('aria-disabled') === 'true', selected: node.getAttribute('aria-pressed') === 'true' })));
+        const tiles = await tab.$$eval('[data-robe-pick]:not([data-robe-pick="vlastni"])', nodes => nodes.map(node => ({ id: node.dataset.robePick, locked: node.getAttribute('aria-disabled') === 'true', selected: node.getAttribute('aria-pressed') === 'true' })));
         assert.deepEqual(tiles.map(tile => tile.id), ['vinova', 'zelena', 'modra', 'ruzova', 'fialova', 'cerna', 'zlata', 'bila']);
         assert.deepEqual(tiles.filter(tile => tile.locked).map(tile => tile.id), ['ruzova', 'fialova', 'cerna', 'zlata', 'bila'], 'na 12. úrovni jsou zamčené růžová a výš');
         assert.match(await tab.textContent('[data-robe-pick="bila"]'), /Úr\. 100/);
@@ -132,7 +132,7 @@ test('barva obleku sovy', { skip: !chromium && 'Playwright není nainstalovaný'
         assert.ok(sources.length > 0 && sources.every(src => /-bila\.webp$/.test(src)), `sova v bílém: ${sources}`);
         await tab.waitForFunction(() => [...document.querySelectorAll('img')].filter(img => /-bila\.webp$/.test(img.getAttribute('src'))).every(img => img.complete && img.naturalWidth > 0));
         // Osm dlaždic v jedné řadě, obrázek nepřetéká z dlaždice
-        const layout = await tab.$$eval('[data-robe-pick]', nodes => nodes.map(node => { const box = node.getBoundingClientRect(); const img = node.querySelector('img').getBoundingClientRect(); return { top: Math.round(box.top), inside: img.left >= box.left - 0.5 && img.right <= box.right + 0.5 }; }));
+        const layout = await tab.$$eval('[data-robe-pick]:not([data-robe-pick="vlastni"])', nodes => nodes.map(node => { const box = node.getBoundingClientRect(); const img = node.querySelector('img').getBoundingClientRect(); return { top: Math.round(box.top), inside: img.left >= box.left - 0.5 && img.right <= box.right + 0.5 }; }));
         assert.equal(new Set(layout.map(tile => tile.top)).size, 1, 'jedna řada');
         assert.ok(layout.every(tile => tile.inside), 'sova se vejde do dlaždice');
         assert.deepEqual(problems, []);

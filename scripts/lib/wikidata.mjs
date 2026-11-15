@@ -95,7 +95,48 @@ export const PHOTO_REPLACEMENTS = {
     // Soubory, které na Commons už nejsou (Wikidata už mají jiné)
     'Bundesarchiv B 145 Bild-F078072-0004, Konrad Adenauer.jpg': 'Konrad Adenauer - 14. CDU-Bundesparteitag-kasf0095.JPG',
     'Parus atricapillus 2 (Marek Szczepanek).jpg': 'Poecile montanus Raschötz 20190905.jpg',
-    'Slobodan Milosevic in French delegation 2000.png': 'Stevan Kragujević, Slobodan Milošević, portret.jpg'
+    'Slobodan Milosevic in French delegation 2000.png': 'Stevan Kragujević, Slobodan Milošević, portret.jpg',
+    // Mapa, satelitní snímek, plán, znak, pečeť nebo naskenovaný obraz (PNG, GIF, TIF, SVG) místo fotky, když Wikidata mají u položky
+    // i skutečnou fotku (další hodnota P18): hlavní hra ani Dobývání jinou než skutečnou fotku neukážou (quiz-core.js isRealPhoto).
+    // Ověřeno na všech položkách míst a osob; mince, pečeti a obrázky jiných věcí jako náhrada ne (npm run build:fotky doplní náhrady
+    // do hotových dat). Afrika: řeky Shire a Lualaba, jezero Bangweulu, faraon Šešonk I. (místo sfingy z Crystal Palace)
+    'Shire (rivière).png': 'Shire fluss liwonde.jpg',
+    'Bangweulu NASA satellite photo.PNG': 'Lake Bangweulu.jpg',
+    'Lualaba River DRC.svg': 'Rivière Lualaba.jpg',
+    'Crystal Palace sphinx.gif': 'HEAD OF Pharaoh Shoshenq I.jpg',
+    'Lake Vättern.png': 'Vättern by Sentinel-2.jpg',
+    'La Leitha.png': 'Leitha Pitten Schwarza.JPG',
+    'Villa Romana del Casale - Plan (numbered).jpg': 'Villa Romana del Casale BW 2025-04-28 11-11-12.jpg',
+    'AUT — Bundesland Salzburg — Bezirk Zell am See — Gemeinde Krimml (unterer Wasserfall) animiert Mattes 2021.gif': '1444 - Nationalpark Hohe Tauern - Krimmler Wasserfälle.JPG',
+    'Coat of Arms Vladislaus II of Bohemia Křivoklát.jpg': 'Křivoklát, výhled na hrad (2018-05-08; 01).jpg',
+    'Domus Aurea NEUTRA.png': 'EingangDomusAurea.jpg',
+    'Hannes Meyer 1928.png': 'Hans Emil Meyer OB.F06496c cropped.jpg',
+    'Fellnerhelmer.gif': 'Ferdinand Fellner jr.jpg',
+    'Baden-Powell USZ62-96893 (retouched and cropped).png': 'Robert Baden-Powell in South Africa, 1896 (2).jpg',
+    'Premier sceau de majesté de Louis IX détouré.png': 'Saintlouis.jpg',
+    'Aureus of Licinius.png': 'Bronze bust of Licinius.jpg',
+    'Frederik V, King of Denmark (Carl Gustav Pilo) - Nationalmuseum - 19318.tif': 'Portrait King Frederik V by Pilo.jpg',
+    'King Charles X Gustavus (Sébastien Bourdon) - Nationalmuseum - 19702.tif': 'Sébastien Bourdons-Karl X Gustav.jpg',
+    'Sebastien le Prestre de Vauban.png': 'Vauban.jpg',
+    'Gustav IV Adolf (Johann Baptist Lampi d.ä.) - Nationalmuseum - 37526.tif': 'Gustav IV Adolf of Sweden.jpg',
+    'Vladislaus II. of Bohemia and Hungary.gif': 'Vladislaus II of Bohemia and Hungary (1509, St. Vitus Cathedral).jpg',
+    'Louis de France, dauphin (1745) by Maurice Quentin de La Tour.png': 'Portrait dauphin louis france hi.jpg',
+    'SetiII-Heliopolis2005.png': 'Turin statue of Seti II.jpg',
+    "Henri de Latour d'Auvergne de Turenne, 1611-1675 - Nationalmuseum - 15172.tif": "Portrait d'Henri de la Tour d'Auvergne, vicomte de Turenne (1611–1675).jpg",
+    'Lennart Torstenson, 1603-51 - Nationalmuseum - 40308.tif': 'Lennart Torstenson.jpg',
+    'Kristina Eberhardina, 1671-1727, prinsessa av Brandenburg-Bayreuth - Nationalmuseum - 15853.tif': 'Christiane Eberhardine of Brandenburg-Bayreuth.jpg',
+    'Gottfried Henrich von Pappenheim-Treuchtlingen, 1594-1632 - Nationalmuseum - 15460.tif': 'Gottfried Heinrich von Pappenheim.jpg',
+    'Beorhtric coin1.png': 'Beorhtric of Wessex.jpg',
+    'ETH-BIB-Bloch, Felix (1905-1983)-Portr 03540.tif': 'Felix Bloch, Stanford University.jpg',
+    'DaveBrubeckbyPabloSecca2.png': 'Dave Brubeck (1964).jpg',
+    'Anton Rubinstein by J Ganz.png': 'Rubinstein-Anton.jpg',
+    'Delibes Leo Luckhard.png': 'Leo Delibes 1888 BNF Gallica.jpg',
+    'Ice Cube September 2025.png': 'Ice-Cube 2014-01-09-Chicago-photoby-Adam-Bielawski.jpg',
+    'NoName skupina.png': 'SlovakNoName.JPG',
+    'Tonya Harding 2006 crop.png': 'Tonya harding mac club 1994 crop.jpg',
+    'Jon Jones being interviewed.png': 'Jon Jones in 2014 (cropped).jpg',
+    'Eugene Fromentin Frontispice de Correspondance.png': 'FromentinEugene.jpg',
+    'Miroslav Zikmund 2017-2018 3.10.png': 'Miroslav Zikmund, Zlín (2) (cropped).jpg'
 };
 
 // Fotka položky: název souboru a hash pro náhled (jen skutečné fotky řeší až aplikace)

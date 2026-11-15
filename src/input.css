@@ -1375,3 +1375,113 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 @keyframes chainPanelIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes chainLoad { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
 @keyframes chainFade { from { opacity: 0; } to { opacity: 1; } }
+
+/* ===== Motivace (blok 32): rámečky za pozvané kamarády a prestiž, tematický víkend, prestiž, Pozvi kamarády, vítězné efekty, vlastní barva obleku ===== */
+/* Rámečky (look.js PERK_FRAMES): Přátelský (tyrkysová a korálová, ruce), Parta (duhový pás s hvězdičkou), Prestižní (fialová a zlatá, hvězda) */
+.frame-pratelsky { --frame-bg: conic-gradient(from 20deg, #14b8a6, #fda4af, #2dd4bf, #fb7185, #5eead4, #f472b6, #14b8a6); }
+.frame-pratelsky::after { content: '🤝'; position: absolute; left: 50%; bottom: calc(var(--fr) * -1 - 0.22em); transform: translateX(-50%); font-size: 0.38em; line-height: 1; pointer-events: none; }
+.frame-parta { --fr: max(2.5px, 0.12em); --frame-bg: conic-gradient(from 0deg, #ef4444, #f59e0b, #eab308, #22c55e, #06b6d4, #6366f1, #d946ef, #ef4444); filter: drop-shadow(0 0 0.14em rgb(217 70 239 / 0.6)); }
+.frame-parta::after { content: '🎉'; position: absolute; right: calc(var(--fr) * -1 - 0.12em); top: calc(var(--fr) * -1 - 0.12em); font-size: 0.36em; line-height: 1; pointer-events: none; }
+.frame-prestiz { --fr: max(2.5px, 0.12em); --frame-bg: conic-gradient(from 45deg, #4c1d95, #fde68a, #7c3aed, #f59e0b, #312e81, #fef3c7, #4c1d95); filter: drop-shadow(0 0 0.18em rgb(250 204 21 / 0.75)); }
+.frame-prestiz::after { content: '★'; position: absolute; left: 50%; top: calc(var(--fr) * -1 - 0.32em); transform: translateX(-50%); font-size: 0.42em; line-height: 1; color: #facc15; text-shadow: 0 0 0.15em #7c3aed; pointer-events: none; }
+@media (prefers-reduced-motion: no-preference) {
+    .frame-parta::before { animation: frameSpin 6s linear infinite; }
+    .frame-prestiz::before { animation: frameSpin 9s linear infinite; }
+}
+
+/* Tematický víkend (weekend.js): pruh na úvodu */
+.weekend-strip { background: linear-gradient(100deg, rgb(var(--brand-800)), #4338ca 70%, #7c3aed); }
+@media (prefers-reduced-motion: no-preference) {
+    .weekend-strip .weekend-x2 { animation: weekendPulse 2.4s ease-in-out infinite; }
+}
+@keyframes weekendPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); box-shadow: 0 0 0.6rem rgb(250 204 21 / 0.8); } }
+
+/* Prestiž (prestige.js): štítek ★N, karta v okně Úrovně a tituly */
+.prestige-mark { background: linear-gradient(135deg, #fde68a, #f59e0b); color: #3b0764; box-shadow: 0 0 0 1px rgb(124 58 237 / 0.45); }
+.prestige-card { background: linear-gradient(135deg, #312e81, #6d28d9 55%, #a16207); }
+.prestige-orb { background: radial-gradient(circle at 35% 30%, #fef3c7, #f59e0b 55%, #92400e); color: #3b0764; box-shadow: 0 0 0.8rem rgb(250 204 21 / 0.6); }
+
+/* Pozvi kamarády (referral.js) */
+.referral-orb { background: linear-gradient(135deg, #14b8a6, #f472b6); }
+
+/* Vítězné efekty (friends.js effectHtml): vrstva přes obrazovku, kousky se rozmístí podle pořadí (nth-child), bez vložených stylů */
+.vfx { position: fixed; inset: 0; z-index: 70; pointer-events: none; overflow: hidden; }
+.vfx-piece { position: absolute; top: -10%; left: 50%; display: block; line-height: 1; opacity: 0; }
+.vfx-caption { position: absolute; left: 50%; top: 18%; transform: translateX(-50%); white-space: nowrap; border-radius: 9999px; padding: 0.35rem 0.9rem; font-size: 0.85rem; font-weight: 900; color: #fff; background: rgb(15 23 42 / 0.72); box-shadow: 0 0 0 2px rgb(250 204 21 / 0.7); opacity: 0; }
+.vfx-crown { position: absolute; left: 50%; top: 30%; font-size: 4.5rem; line-height: 1; opacity: 0; transform: translate(-50%, -60%); filter: drop-shadow(0 0 1rem rgb(250 204 21 / 0.9)); }
+.vfx-piece:nth-child(1) { left: 6%; --d: 0s; --x: 8vw; --r: 340deg; }
+.vfx-piece:nth-child(2) { left: 14%; --d: 0.35s; --x: -6vw; --r: -260deg; }
+.vfx-piece:nth-child(3) { left: 22%; --d: 0.1s; --x: 5vw; --r: 300deg; }
+.vfx-piece:nth-child(4) { left: 30%; --d: 0.5s; --x: -9vw; --r: -320deg; }
+.vfx-piece:nth-child(5) { left: 38%; --d: 0.2s; --x: 7vw; --r: 280deg; }
+.vfx-piece:nth-child(6) { left: 46%; --d: 0.6s; --x: -4vw; --r: -300deg; }
+.vfx-piece:nth-child(7) { left: 54%; --d: 0.05s; --x: 6vw; --r: 320deg; }
+.vfx-piece:nth-child(8) { left: 62%; --d: 0.45s; --x: -7vw; --r: -280deg; }
+.vfx-piece:nth-child(9) { left: 70%; --d: 0.15s; --x: 4vw; --r: 260deg; }
+.vfx-piece:nth-child(10) { left: 78%; --d: 0.55s; --x: -8vw; --r: -340deg; }
+.vfx-piece:nth-child(11) { left: 86%; --d: 0.25s; --x: 5vw; --r: 300deg; }
+.vfx-piece:nth-child(12) { left: 94%; --d: 0.4s; --x: -5vw; --r: -260deg; }
+.vfx-piece:nth-child(13) { left: 34%; --d: 0.7s; --x: 9vw; --r: 280deg; }
+.vfx-piece:nth-child(14) { left: 66%; --d: 0.75s; --x: -9vw; --r: -300deg; }
+/* Konfety: barevné obdélníčky */
+.vfx-konfety .vfx-piece { width: 0.55rem; height: 0.9rem; border-radius: 2px; background: #f43f5e; }
+.vfx-konfety .vfx-piece:nth-child(3n) { background: #facc15; }
+.vfx-konfety .vfx-piece:nth-child(3n + 1) { background: #22d3ee; }
+.vfx-konfety .vfx-piece:nth-child(4n) { background: #a3e635; }
+/* Hvězdný déšť, blesky, sezónní záře a srdíčka: znaky */
+.vfx-hvezdy .vfx-piece { font-size: 1.6rem; color: #fde047; text-shadow: 0 0 0.4rem rgb(250 204 21 / 0.9); }
+.vfx-blesky .vfx-piece { font-size: 2rem; text-shadow: 0 0 0.5rem rgb(96 165 250 / 0.9); }
+.vfx-sezona .vfx-piece { font-size: 1.5rem; color: #e9d5ff; text-shadow: 0 0 0.5rem #a78bfa; }
+.vfx-srdicka .vfx-piece { top: auto; bottom: -10%; font-size: 1.6rem; color: #fb7185; text-shadow: 0 0 0.3rem rgb(244 63 94 / 0.7); }
+.vfx-srdicka .vfx-piece:nth-child(2n) { color: #2dd4bf; }
+/* Ohňostroj: zářící tečky vylétají ze středu */
+.vfx-ohnostroj .vfx-piece { top: 45%; left: 50%; width: 0.6rem; height: 0.6rem; border-radius: 9999px; background: #fde047; box-shadow: 0 0 0.6rem 0.2rem rgb(250 204 21 / 0.8); }
+.vfx-ohnostroj .vfx-piece:nth-child(2n) { background: #f472b6; box-shadow: 0 0 0.6rem 0.2rem rgb(244 114 182 / 0.8); }
+.vfx-ohnostroj .vfx-piece:nth-child(3n) { background: #60a5fa; box-shadow: 0 0 0.6rem 0.2rem rgb(96 165 250 / 0.8); }
+.vfx-ohnostroj .vfx-piece:nth-child(1) { --tx: 0; --ty: -38vh; } .vfx-ohnostroj .vfx-piece:nth-child(2) { --tx: 22vw; --ty: -30vh; }
+.vfx-ohnostroj .vfx-piece:nth-child(3) { --tx: 34vw; --ty: -10vh; } .vfx-ohnostroj .vfx-piece:nth-child(4) { --tx: 30vw; --ty: 14vh; }
+.vfx-ohnostroj .vfx-piece:nth-child(5) { --tx: 14vw; --ty: 28vh; } .vfx-ohnostroj .vfx-piece:nth-child(6) { --tx: -6vw; --ty: 32vh; }
+.vfx-ohnostroj .vfx-piece:nth-child(7) { --tx: -24vw; --ty: 24vh; } .vfx-ohnostroj .vfx-piece:nth-child(8) { --tx: -34vw; --ty: 4vh; }
+.vfx-ohnostroj .vfx-piece:nth-child(9) { --tx: -30vw; --ty: -18vh; } .vfx-ohnostroj .vfx-piece:nth-child(10) { --tx: -14vw; --ty: -34vh; }
+.vfx-ohnostroj .vfx-piece:nth-child(11) { --tx: 10vw; --ty: -20vh; } .vfx-ohnostroj .vfx-piece:nth-child(12) { --tx: -10vw; --ty: 14vh; }
+.vfx-ohnostroj .vfx-piece:nth-child(13) { --tx: 20vw; --ty: 2vh; } .vfx-ohnostroj .vfx-piece:nth-child(14) { --tx: -20vw; --ty: -6vh; }
+/* Zlatá koruna: koruna sestoupí a kolem jiskří zlaté tečky */
+.vfx-koruna .vfx-piece { top: 30%; width: 0.4rem; height: 0.4rem; border-radius: 9999px; background: #fde047; box-shadow: 0 0 0.5rem rgb(250 204 21 / 0.9); }
+@media (prefers-reduced-motion: no-preference) {
+    .vfx-caption { animation: vfxCaption 3.2s ease-out forwards; }
+    .vfx-konfety .vfx-piece, .vfx-hvezdy .vfx-piece, .vfx-blesky .vfx-piece, .vfx-sezona .vfx-piece { animation: vfxFall 2.8s cubic-bezier(0.3, 0.6, 0.5, 1) var(--d, 0s) forwards; }
+    .vfx-blesky .vfx-piece { animation-name: vfxBolt; animation-duration: 1.6s; }
+    .vfx-srdicka .vfx-piece { animation: vfxRise 3s ease-out var(--d, 0s) forwards; }
+    .vfx-ohnostroj .vfx-piece { animation: vfxBurst 1.8s ease-out calc(var(--d, 0s) * 0.6) forwards; }
+    .vfx-koruna .vfx-crown { animation: vfxCrown 3s ease-out forwards; }
+    .vfx-koruna .vfx-piece { animation: vfxTwinkle 1.4s ease-in-out var(--d, 0s) 2 both; }
+}
+/* S omezeným pohybem jen krátké prolnutí popisku a koruny */
+@media (prefers-reduced-motion: reduce) {
+    .vfx-caption, .vfx-crown { animation: vfxFade 2.4s ease-out forwards; }
+}
+@keyframes vfxFall { 0% { opacity: 0; transform: translate(0, 0) rotate(0); } 10% { opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--x, 0), 115vh) rotate(var(--r, 0deg)); } }
+@keyframes vfxBolt { 0% { opacity: 0; transform: translateY(20vh) scale(0.6); } 15% { opacity: 1; transform: translateY(25vh) scale(1.3); } 30% { opacity: 0.2; } 45% { opacity: 1; } 100% { opacity: 0; transform: translateY(32vh) scale(1); } }
+@keyframes vfxRise { 0% { opacity: 0; transform: translate(0, 0) scale(0.6); } 15% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--x, 0), -110vh) scale(1.2); } }
+@keyframes vfxBurst { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.2); } 15% { opacity: 1; } 100% { opacity: 0; transform: translate(calc(-50% + var(--tx, 0)), calc(-50% + var(--ty, 0))) scale(0.6); } }
+@keyframes vfxCrown { 0% { opacity: 0; transform: translate(-50%, -160%) scale(0.6); } 25% { opacity: 1; transform: translate(-50%, -60%) scale(1.1); } 35% { transform: translate(-50%, -60%) scale(1); } 85% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -60%) scale(1); } }
+@keyframes vfxTwinkle { 0%, 100% { opacity: 0; transform: scale(0.4); } 50% { opacity: 1; transform: translate(var(--x, 0), -4vh) scale(1.4); } }
+@keyframes vfxCaption { 0% { opacity: 0; transform: translate(-50%, 0.6rem); } 12% { opacity: 1; transform: translate(-50%, 0); } 80% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes vfxFade { 0% { opacity: 0; } 15% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
+/* Vzorky efektů ve výběru (friends.js perksHtml) */
+.vfx-swatch-zadny { background: repeating-linear-gradient(45deg, #cbd5e1 0 3px, #f1f5f9 3px 6px); }
+.vfx-swatch-konfety { background: conic-gradient(#f43f5e 0 25%, #facc15 0 50%, #22d3ee 0 75%, #a3e635 0); }
+.vfx-swatch-hvezdy { background: radial-gradient(circle, #fde047 0 30%, #1e1b4b 32%); }
+.vfx-swatch-ohnostroj { background: radial-gradient(circle, #fde047 0 18%, #f472b6 20% 45%, #60a5fa 47% 70%, #0f172a 72%); }
+.vfx-swatch-koruna { background: linear-gradient(135deg, #fde68a, #f59e0b); }
+.vfx-swatch-blesky { background: linear-gradient(135deg, #1e3a8a, #60a5fa 50%, #fde047); }
+.vfx-swatch-sezona { background: linear-gradient(135deg, #4c1d95, #c4b5fd 55%, #f5f3ff); }
+.vfx-swatch-srdicka { background: radial-gradient(circle at 35% 40%, #fb7185 0 30%, #2dd4bf 32%); }
+
+/* Vlastní barva obleku (look-robes.js, robe-color.js): duhový okraj dlaždice a pruhy posuvníků (odstín; světlost od tmavé po světlou) */
+.robe-rainbow { background: conic-gradient(#ef4444, #eab308, #22c55e, #06b6d4, #3b82f6, #a855f7, #ef4444); }
+.robe-range { -webkit-appearance: none; appearance: none; border-radius: 9999px; background-color: #cbd5e1; }
+.robe-range-hue { background: linear-gradient(90deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); }
+.robe-range-light { background: linear-gradient(90deg, #111827, #64748b 50%, #f8fafc); }
+.robe-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 1.35rem; height: 1.35rem; border-radius: 9999px; background: #fff; border: 2px solid #334155; box-shadow: 0 1px 3px rgb(0 0 0 / 0.35); }
+.robe-range::-moz-range-thumb { width: 1.2rem; height: 1.2rem; border-radius: 9999px; background: #fff; border: 2px solid #334155; box-shadow: 0 1px 3px rgb(0 0 0 / 0.35); }

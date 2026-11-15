@@ -6,6 +6,8 @@
     else (root.MudrlantTopics = root.MudrlantTopics || []).push(topic);
 })(typeof self !== 'undefined' ? self : this, (core) => {
     'use strict';
+    // Představy z dějin chemie, které neplatí nebo jsou z pověstí (alchymie, flogiston, elixír): k sobě jako nesprávné možnosti
+    const ARCHAIC = /alchym|legendárn|hypotetick|flogist|elixír/iu;
 
     const {
         formatFacts, formatNumber, formatYear, elementFamily, periodicPosition, stripBrackets, censorName, displayName, shuffle, normalizeAnswer,
@@ -125,6 +127,9 @@
         return text.replace(pattern, '[***]').replace(/\s{2,}/g, ' ');
     };
 
+    // Hlavní obrázek osobnosti, který ji neukazuje (hrob, pamětní deska, známka; quiz-core.js offSubjectRule, npm run audit:obrazky)
+    const offSubjectPhoto = core.offSubjectRule({ words: { chemici: core.OFF_SUBJECT.memorial } });
+
     return {
         id: 'chemie',
         title: 'Chemie',
@@ -142,6 +147,7 @@
             tierKnown: 'Běžné prvky a látky, slavní chemici'
         },
         categories: CATEGORIES,
+        offSubjectPhoto,
 
         // Jiný zápis názvu látky: cukry na -osa (glukosa), glycerin; platí jako psaná odpověď i se zakryje v popisu
         nameAliases: (item) => {
@@ -171,7 +177,9 @@
             }
             // Reakce a pojmy: stejný okruh, společné slovo v názvu (Dielsova–Alderova reakce, Grignardova reakce) a stejná koncovka
             if (item.c === 'reakce' || item.c === 'pojmy') {
-                return (item.c === other.c ? 2 : 0) + (sharesGroup(item, other) ? 3 : 0)
+                // Historické a legendární představy (Kámen mudrců, Flogiston) k sobě, ne k Avogadrově konstantě
+                const archaic = (entry) => ARCHAIC.test(`${entry.n} ${entry.d || ''}`);
+                return (item.c === other.c ? 2 : 0) + (sharesGroup(item, other) ? 3 : 0) + (archaic(item) && archaic(other) ? 6 : 0)
                     + (normalizeAnswer(item.n).split(' ').pop() === normalizeAnswer(other.n).split(' ').pop() ? 2 : 0)
                     + (normalizeAnswer(item.n).slice(-3) === normalizeAnswer(other.n).slice(-3) ? 1 : 0);
             }

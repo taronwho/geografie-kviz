@@ -15,12 +15,17 @@ Kvízová aplikace s tématy **Zeměpis**, **Historie**, **Biologie**, **Chemie*
   - **Sezóna Mudrlanta** (`season.js`) – měsíční cesta odměn zdarma: sezóna = kalendářní měsíc v Praze („Sezóna Listopad 2026“), XP sezóny = XP od začátku měsíce (kdo začne uprostřed, počítá se od té chvíle). 20 stupňů s rostoucími kroky (200 → 2 200 XP, celkem 19 100 XP: aktivní hráč s 15–20 minutami denně ji za ~20 dní dohraje, příležitostný dojde zhruba na stupeň 8–12; výpočet v komentáři `season.js`). Každý dosažený stupeň se vyzvedne klepnutím (pečeť praskne a vystoupá z ní odměna; při „omezit pohyb“ hned): věc, kterou hráč nemá (stejný výběr jako truhla, nikdy věc za odznak), na stupních 3, 7, 13 a 17 ochrana série (při plném počtu věc), na 10. Truhla v půli sezóny se dvěma věcmi a na 20. **Sezónní truhla** (fialovo-stříbrná se stuhou sezóny): rámeček měsíce, doplněk a postavička měsíce (data v `Look.SEASON_BUNDLES`, do truhly jde jen to, co už je v katalogu) a titul **Šampion sezóny**. Výběr věci je stejný na všech zařízeních (los podle sezóny, stupně a hráče). Na úvodu místo cílů týdne pruh „Sezóna Listopad: čekají 3 odměny“ (truhla týdne má přednost), v Mém postupu karta se stupněm a okno s celou cestou. Nevyzvednuté stupně skončené sezóny jdou vyzvednout ještě do 7. dne dalšího měsíce. V účtu tatáž sezóna = menší začátek (XP načtené z účtu se do sezóny zařízení nepočítá) a sjednocené stupně, novější sezóna nahradí starší.
   - **Odměny za sérii dní** – rámečky za odznaky série dnešních otázek: Jiskra (7 dní), Plamenný (30), Stovka (100) a Věčný oheň (365), animované (při „omezit pohyb“ stojí). Ve výsledku dnešní otázky a v okně ochrany série řádek „Další odměna za sérii: Stovka za 100 dní (zbývá 37)“, na úvodu v popisku štítku série.
   - **Obrázkové rámečky** (`look.js` `ART_FRAMES`, `icons/frames/`) – deset nejvzácnějších rámečků jako kreslený prsten kolem obrázku hráče (obrázek přesně vyplní jeho díru, obojí se zmenší na 80 %, ať prsten nepřekrývá okolí): Ohnivý prstenec (úroveň 37), Mořská vlna (49), Steampunk soukolí (63), Galaxie (77), Královský vavřín (94), Bleskový prstenec (odznak Hromovládce), Ledová koruna (Nesmrtelný), Strážný drak (Všude hvězdář) a jen z Truhly Mudrlanta Duha s mráčky a Růže a trny. Obrázky vyrábí `scripts/frame-images.py` z `branding/ramecky/`.
+  - **Pozvi kamarády** (`referral.js`, schéma 32) – každý přihlášený hráč má kód přítele (8 znaků, „ABCD-2345“) a odkaz `?pritel=KÓD` (okno Pozvi kamarády z karty na záložce Více hráčů: Sdílet odkaz, odměny, pozvaní s počtem her, pole na kód od kamaráda). Kód použije jen nový účet (do 14 dnů od založení), jednou; pozvaný a zvoucí se stanou přáteli. Pozvaný po první hře dostane rámeček **Přátelský** a 200 XP; zvoucí za 1 kamaráda rámeček Přátelský a 300 XP, za 3 reakci 🤗 Vítej mezi námi, vítězný efekt Srdíčka přátel a 500 XP, za 10 rámeček **Parta** a 1 000 XP. Kamarád se počítá, až odehraje aspoň 3 hry, které zná server (Kvíz dne, výzva, Řetězovka, Tajemná otázka, souboj s bossem), takže falešné účty bez hraní nic nedají. Vše hlídá a jednou vydá server (`referral_status`, `referral_join`, `referral_claim`); odkaz bez přihlášení otevře pozvánku s přihlášením.
+  - **Tematické víkendy** (`weekend.js`) – každý druhý víkend má téma („Víkend historie“): od pátku 18:00 do neděle 24:00 pražského času dávají otázky z něj dvojnásobek XP za odpověď (řádek „Víkend …: dvojnásobek XP“ v rozpisu XP). Rozpis je pevný a pro všechny stejný (pořadí 14 témat od pátku 2. 1. 2026), bez serveru. Na úvodu pruh pod cíli týdne („Víkend filmu · do neděle · 2× XP · Hrát“, v pátek před 18:00 „dnes od 18:00“), na nízkém displeji čip 2× XP vedle cílů; dlaždice tématu má štítek 2× XP.
+  - **Prestiž** (`prestige.js`, schéma 32) – na úrovni 100 jde v okně Úrovně a tituly (Můj postup) po vysvětlení a potvrzení přejít do prestiže: úroveň se ukazuje znovu od 1 se značkou ★1 (hlavička, titul u jména, profil hráče), každá další úroveň za 500 XP, na úrovni 100 další prestiž. Je to jen vrstva zobrazení nad XP: XP, odznaky, žebříčky ani nic odemčeného se nemění. Za první prestiž rámeček **Prestižní**. Přihlášenému ji drží server (`prestige_up` ověří XP v účtu), hostovi zařízení.
+  - **Reakce a vítězné efekty** (`friends.js`, schéma 32) – k základním reakcím po zápase (👍 🔥 😅 🤝) další za úroveň (😮 5, 🧠 15, 🦉 30, 🙌 50), odznaky (🎯 Střelec, 💪 Zkušený bojovník), Sezónu Mudrlanta (🎉 10. stupeň, 👑 20. stupeň) a pozvané kamarády (🤗). Vítězný efekt (Konfety, Hvězdný déšť, Ohňostroj, Zlatá koruna, Blesky, Sezónní záře, Srdíčka přátel) si hráč vybere v okně Reakce a vítězné efekty (odkaz pod reakcemi po zápase) a po vyhrané výzvě ho uvidí on i poražený soupeř. Server přijme jen odemčenou reakci a efekt. Animace jsou třídy CSS (CSP bez vložených stylů), při „omezit pohyb“ jen krátké prolnutí.
+  - **Vlastní barva obleku** (`robe-color.js`, od úrovně 20) – v Nastavení → Mudrlant pod osmi taláry řádek s duhovou dlaždicí a posuvníky odstínu a světlosti (pod úrovní 20 zamčený „Od 20. úrovně“). Sova se přebarví v prohlížeči na plátně stejným postupem jako `scripts/owl-robes.py` (jen vínová oblast taláru a čepice, stínování a obrys zůstanou) a ukáže se všude, kde sova je (hlavička, sovy titulů, profil, sdílené obrázky); u cizí sovy podle `robe=vlastni;robec=odstín.světlost` v profilu. CSP má kvůli tomu `img-src blob:`.
   - Stav je v zařízení (`mudrlant.rewards`) a po přihlášení i v účtu (`profiles.rewards`, schéma 9): věci, truhly, zachráněné dny a diplomy se sčítají, počet ochran platí z novější změny, takže přežijí přeinstalaci. Starší databáze bez sloupce nevadí (odměny zůstanou v zařízení).
 - **Zvuky a vibrace** – krátké tóny syntetizované přes Web Audio (správně, špatně, tikání posledních 5 s Bleskovky, nová úroveň a titul, odznak, nový rekord) a vibrace při chybě a rekordu; AudioContext vzniká až po klepnutí hráče. Obojí jde vypnout v Nastavení → Hra (`sound.js`, `mudrlant.sound`).
 - **Zdroj obrázku** – u každého obrázku z Wikimedia Commons (fotka, vlajka, obraz, mapa rozšíření; v otázce, ve výsledku, v okně s popisem i v atlasu) je vlevo dole malé „i“. Okno ukáže licenci, po odpovědi i autora, datum, popis, název souboru a odkaz na Commons – před odpovědí nic, co by prozradilo odpověď. Údaje se stáhnou z API Commons až po klepnutí, bez sítě zůstane soubor a odkaz (`photo-source.js`).
 - **Učení** – bez bodů a systematicky: v každém tématu jsou celé kategorie a **okruhy** (Česko, Přemyslovci, Angličtí panovníci, Šelmy, Naše příroda, Vyhynulé druhy, Halogeny, Vitamíny, Základní jednotky SI…). Okruh jde procházet popořadě jako atlas, nebo procvičovat jen jeho otázky; postup se ukládá. K tomu **Moje chyby** – co hráč neuhodl, jde si prohlédnout a procvičit znovu.
 
-Při prvním spuštění si hráč zvolí variantu hry – výběr ze čtyř možností, nebo psaní odpovědi za dvojnásobek bodů.
+Při prvním spuštění si hráč zvolí variantu hry – výběr ze čtyř možností, nebo psaní odpovědi za 1,5× víc bodů (zaokrouhleno na celé body: bez nápovědy 6, pak 5, 3 a 2). Psaní platí jen ve hře pro jednoho hráče: výzvy (i výzvy skupině, odvety a sázky), turnaje, Kvíz dne a Dobývání se hrají vždy s výběrem z možností a databáze psanou výzvu nezaloží (schéma 31). Výzvy založené s psaním dřív se dohrají s psaním za dvojnásobek, jako je hrál soupeř.
 
 ## Otázky a nápovědy
 
@@ -55,18 +60,18 @@ jeskyně, skály a národní parky (ne řeky, pohoří, souostroví ani moře), 
 oblast, ať nic neprozradí: kontinent (Evropa od Islandu po Ural, Afrika, Asie, Severní Amerika bez Havaje, Jižní Amerika, Austrálie
 a Oceánie), u míst v Česku celé Česko s kraji a hlavními řekami. Místo mimo výřez, ostrov, který na mapě není, stejné jméno
 na dvou místech a stavba ve velkém českém městě („kde je Praha“) se nekladou. **Body** podle vzdálenosti po zemském povrchu:
-plný počet (4, při psaní 8) do 3 % úhlopříčky výřezu (Česko asi 18 km, Evropa asi 210 km; u ostrovů, jezer a parků navíc
+plný počet (4, při psaní 6) do 3 % úhlopříčky výřezu (Česko asi 18 km, Evropa asi 210 km; u ostrovů, jezer a parků navíc
 poloměr podle rozlohy), pak ubývají až k nule na 20 % úhlopříčky; správně = aspoň bod. Výsledek ukáže tip, správné místo, čáru
 mezi nimi, kruh plných bodů a „Vedle o 37 km“. Otázka přijde v tréninku asi u každé osmé vhodné otázky (po 6 až 10 vhodných
 otázkách, počítadlo `mudrlant.mapGap` v zařízení) a nemá nápovědy. **Ve výzvě** (i výzvě skupině a odvetě) **a v zápase turnaje** je na mapě
 asi desetina otázek: rozhoduje semínko otázky (vlastní řada čísel `<semínko otázky>:mapa`, ne počítadlo), takže ji oba hráči dostanou stejnou,
 a jen u položky, která na mapu jde (jinak zůstane obyčejná). Mají ji jen hry, které to nesou: výzva se semínkem končícím `.mapa` (zakládá ji
 tahle verze aplikace) a turnaj od týdne 16. 11. 2026; výzvy a turnaje starších verzí zůstanou bez mapy. Starší aplikaci srovná uložená otázka
-na serveru (zamrzlé otázky): otázka na mapě má proto i jednu (správnou) možnost, aby ji přijala. Body nejvýš 4 (při psaní 8), v rozpisu otázek
+na serveru (zamrzlé otázky): otázka na mapě má proto i jednu (správnou) možnost, aby ji přijala. Body nejvýš 4 (ve starší psané výzvě 8), v rozpisu otázek
 „Ukaž na mapě“, místo a „Vedle o 312 km“ s body. Dnešní otázky a Kvíz dne ji nemají, chyby a opakování karet také ne.
 
 **Číselné otázky** (`numeric-questions.js`) se v hraní tématu, v Mixu, ve výzvách a v turnajích přimíchají asi do každé osmé otázky, jen kde téma
-má spolehlivá čísla z dat (biologie a mytologie je nemají; dnešní otázky a učení nikdy). Bez nápověd, body za přesnost (ve variantě psaní dvojnásobek):
+má spolehlivá čísla z dat (biologie a mytologie je nemají; dnešní otázky a učení nikdy). Bez nápověd, body za přesnost (ve variantě psaní 1,5×):
 
 - **Seřaď** – čtyři položky ze stejné kategorie (výška hor, délka řek, rozloha a obyvatelé států, česká města, stavby, roky bitev, filmů, děl a založení
   klubů, rok narození osobností, protonové číslo, tvrdost podle Mohse, stáří geologických období, průměr a oběh planet…), hodnoty vždy dost daleko od sebe.
@@ -118,6 +123,7 @@ Statická stránka bez serveru a bez build kroku. Nasazuje se na **GitHub Pages*
 | `numeric-questions.js` | Číselné otázky Seřaď a Odhadni číslo: vlastnosti témat, výběr položek, body, čtení odhadu a vzhled otázky i výsledku – testované |
 | `time-questions.js` | Časové souvislosti: spolehlivé roky z dat témat, výběr a kontrola otázek (Co bylo dřív, Mohli se potkat, Za života…), nápovědy, vysvětlení a rozvržení osy – testované |
 | `visuals.js` | Vykreslení obrazových nápověd (mapa, časová osa, obrázek, periodická tabulka) |
+| `photo-blob.js` | Fotky z Commons stažené přes `fetch()` a ukázané jako `blob:` – název souboru v adrese (často odpověď) nejde vyčíst podržením fotky ani z atributů; uvolnění blobů a záložní obyčejné načtení – testovaná |
 | `modes.js` | Bleskovka a Přežití bez DOM: pravidla, hodiny s trestem, obtížnost Přežití, rekordy a XP s denním stropem – testovaná |
 | `sound.js` | Zvuky (Web Audio, bez zvukových souborů) a vibrace, přepínače v Nastavení – testovaná |
 | `question-map.js` | Otázka „Ukaž na mapě“: výběr míst a výřezu, zobrazení, body podle vzdálenosti (testované), vykreslení a ovládání mapy |
@@ -185,6 +191,16 @@ Jádro a aplikace je uplatní samy, téma pro ně nemusí nic dělat:
   ruční zakrytí v `scripts/photo-masks-manual.json` (stejný tvar, má přednost; `ONLY_MANUAL=1 npm run audit:photo-masks` je
   jen doplní). Vlajka, která je celá nápisem (OSCE, РСФСР, FIFA), má v datech `nq`: zůstává v učení, otázkou se nestane
   (`pickItem`). Rozmazání nese rozmazaná kopie fotky v obdélníku, ne jen `backdrop-filter` (ten bez GPU nefunguje).
+- **Ukázka možností:** `npm run audit:moznosti` (volitelně `-- --topic=umeni,fyzika --count=30 --seed=x --item="Věstonická venuše"`) vypíše u náhodných
+  položek každého tématu otázku i s možnostmi, jak je sestaví hra; „!“ = nesprávná možnost z hodně jiné doby, „?“ = jiného druhu, než ukazuje štítek
+  (`scripts/sample-choices.mjs`). Rychlá kontrola absurdních sad (k pravěké sošce pomník z 20. století, k myšlenkovému experimentu jev).
+- **Obrázky mimo téma:** `npm run audit:obrazky` (`-- --topic=zemepis --flagged --all`) vypíše po tématech a kategoriích, kolik hlavních obrázků
+  z Wikidat pravidlo `topic.offSubjectPhoto` vyřadí (sad s poníkem místo stavby, mapa místo jezera, slon místo národního parku, výhled z vrcholu,
+  hrob nebo pamětní deska místo osobnosti, logo místo alba) a podezřelé názvy souborů k ruční kontrole. Pravidlo skládá `quiz-core.js offSubjectRule`
+  ze slov názvu souboru po kategoriích a ručně ověřených položek; `app.js loadTopic` vyřazený obrázek nepoužije nikde, položka zůstane.
+- **Dvě možnosti se stejným popisem:** položky téhož článku Wikipedie (i po přesměrování, pole `w`) nebo ze společného článku („X a Y“) nejsou
+  mezi možnostmi jedné otázky (`sameArticle`) a nesprávná možnost, jejíž jméno je v ukázaném popisu nezakryté, se nahradí (`replaceConflicts`
+  v `createRoundData`; Dobývání s pevnými možnostmi vezme jinou otázku).
 - **Audit otázek:** `npm run audit:questions` (volitelně `-- --sample=300`, `--topic=historie,hudba`, `--all`) projde témata a sestaví otázky jako hra
   (`scripts/lib/audit.mjs`). Hlásí odpověď prozrazenou v popisu či nápovědách, nápovědy opakující popis, dvě správné či příliš podobné možnosti,
   nesprávné možnosti jiné země/doby, chudé popisy, rozbité odkazy na obrázky (hash souboru na Commons) a nejednoznačné psané odpovědi (aliasy).
@@ -198,7 +214,7 @@ Jádro a aplikace je uplatní samy, téma pro ně nemusí nic dělat:
   - **Prázdná nápověda** (`prazdna-napoveda`): každá nápověda přidá něco nového oproti otázce, štítku, společné části možností
     a dřívějším nápovědám (další věty stejné jako popis, fakt z dřívějšího textu, fakt společný všem možnostem, osa se známými roky).
   - **Měřítko mapy** (`mapa-meritko`): slepá mapa se přiblíží na možnosti, když leží blízko sebe (pražské obvody na mapě Prahy
-    s hranicemi městských částí z OpenStreetMap, `npm run build:casti`); tlačítka +/− mapu přiblíží či oddálí.
+    s hranicemi městských částí a Vltavou pro orientaci z OpenStreetMap, `npm run build:casti`); tlačítka +/− mapu přiblíží či oddálí.
   Zapíše `reports/audit-otazek.md` (souhrn) a `reports/audit-otazek.json` (vše); exit kód je nenulový jen u jistých chyb, které nejsou
   v `scripts/audit-allowlist.json`.
 - **Audit mapy:** `npm run audit:mapa` (volitelně `-- --source`, `--wikidata`, `--only=svet,staty`) zkontroluje mapu otázky „Ukaž na
@@ -213,7 +229,7 @@ Hotovo: přihlášení účtem Google přes Supabase, profil hráče (jméno, em
 hráčů: kód nebo odkaz `?vyzva=KÓD`, žebříček výzvy; `social.js`, tabulky `challenges` a `challenge_results`). Výzvu lze
 poslat komukoli s kódem, konkrétnímu hráči podle jedinečné přezdívky, nebo náhodnému hráči (`random_opponent()`);
 vyzvaný ji uvidí na úvodní stránce. Výzvu lze nastavit: téma nebo mix, okruh tématu (třeba jen vlajky států), obtížnost
-(známé / i těžší), pevný způsob odpovídání (možnosti / psaní) a počet otázek. Schéma databáze je napsané tak, aby šlo pouštět opakovaně; po jeho změně ho
+(známé / i těžší) a počet otázek; odpovídá se vždy výběrem z možností (psaní jen ve hře pro jednoho hráče). Schéma databáze je napsané tak, aby šlo pouštět opakovaně; po jeho změně ho
 v Supabase spusť znovu celé.
 **Rozpis otázek** (schéma 10): když výzvu (nebo zápas turnaje) dohrají oba hráči, výsledek i okno výzvy nabídnou rozpis po otázkách: zadání a správná
 odpověď, u obou hráčů vedle sebe co odpověděli, správně/špatně, nápovědy, body a čas; klepnutí na otázku otevře popis položky. Při hře výzvy, zápasu
@@ -224,6 +240,18 @@ uložené otázky. Než hráč výzvu sám dohraje, vidí u soupeřů jen „doh
 **Týdenní turnaje** (vyřazovací pavouk v Mixu, kolo = jeden den): klient je v `tournament.js` (čistá logika: názvy kol, dny, stav karty, texty zpráv),
 volání databáze v `social.js` a okno turnaje, hra zápasu a karta na záložce Více hráčů v `app.js`; pravidla a posun kol dělá databáze
 (`tournament_tick()` a další funkce v `supabase/schema.sql`). Starší databáze bez turnajů kartu prostě neukáže.
+**Speciální turnaje na téma a hlasování** (schéma 31): nárazové turnaje mimo týdenní Mix, třeba Hrady a zámky, Opery, Olympijské hry nebo Vlajky Afriky.
+Nabídka 28 témat je v `tournament.js` (`THEMES`: okruhy a kategorie témat, obtížnost a kapacita tak, aby otázky stačily na celý pavouk bez opakování)
+a stejná v tabulce `tournament_themes`. Na záložce Více hráčů je v kartě **Turnaje** hlasování „Hlasování: jaké téma příště?“ se 4 tématy:
+každý přihlášený hráč má jeden hlas, může ho měnit, dokud hlasování běží (nejvýš 10krát), a po hlasování vidí procenta. Turnaj sám se nikdy
+nezaloží: spustí ho správce ve vývojářských nástrojích (`?vyvojar`, Nastavení → Speciální turnaj a hlasování → Založit speciální turnaj…) s tématem
+(předvybrané je vítězné téma hlasování), začátkem a délkou kola (15 minut až 24 hodin). Přihlášky jsou otevřené do začátku, kolo n se hraje
+od začátku + (n − 1) × délka kola; otázky, kontumace, XP a odznaky jako v týdenním turnaji, jen z položek tématu. Založení na téma z hlasování
+(nebo Uzavřít hlasování) hlasování uzavře a otevře nové se 4 jinými tématy (bez témat dvou posledních hlasování a šesti posledních turnajů).
+Hráčům s upozorněními na turnaje přijde „Začíná speciální turnaj: …“. Najednou běží nejvýš jeden speciální turnaj; v archivu je mezi týdenními.
+**Rozpis kontumovaného zápasu** (schéma 31): zápas turnaje, který hráč nedohrál (vzdal, nebo mu skončilo kolo), má po rozhodnutí v rozpisu jeho
+uložené odpovědi, zadání všech otázek a u výsledku „nedohráno · 7 b · 2/10“; výzva, kterou soupeř nedohrál, má rozpis s mými odpověďmi
+(u výzvy starší 7 dní i s jeho nedohranými).
 **Skupiny** (třída, rodina, kamarádi; schéma 8): čip Skupiny na záložce Více hráčů otevře seznam skupin s dnešním vedoucím Kvízu dne; detail skupiny
 má pořadí **Dnes** (Kvíz dne) a **Týden** (součet bodů Kvízu dne nebo XP získané od pondělí), kód s pozvánkou (odkaz `?skupina=KÓD`, po přihlášení
 se okno otevře samo) a **Vyzvat skupinu** (jedna výzva pro všechny členy, do ratingu se nepočítá). Nejvýš 10 skupin na hráče a 50 členů ve skupině;
@@ -252,17 +280,20 @@ npm run build:countries  # data/countries.json
 npm run build:world      # data/world.json (Natural Earth 1:110m)
 npm run build:mapa       # data/mapa.json (Natural Earth 1:50m, ostrovy a jezera z otázek 1:10m, Česko 1:10m s kraji a řekami; po datech témat)
 npm run build:regiony    # data/regiony.json (Natural Earth 1:10m: regiony států z okruhu Regiony států a české kraje; po build:vlajky)
-npm run build:casti      # data/regiony.json, cities: hranice pražských městských částí (OpenStreetMap přes Nominatim; po build:regiony)
+npm run build:casti      # data/regiony.json, cities: hranice pražských městských částí a Vltava (OpenStreetMap přes Nominatim; po build:regiony; RIVERS_ONLY=1 jen řeky)
 npm run build:zemepis    # data/zemepis.json
 npm run build:historie   # data/historie.json
 npm run build:biologie   # data/biologie.json
 npm run build:chemie     # data/chemie.json
 npm run build:fyzika     # data/fyzika.json
 npm run build:vynalezy   # data/vynalezy.json (slavné objevy a vynálezy, roky ověřené proti Wikidatům)
-npm run build:souvislosti # data/souvislosti.json (Časové souvislosti; po datech témat a build:vynalezy)
+npm run build:souvislosti # data/souvislosti.json (Časové souvislosti; po datech témat a build:vynalezy; známost podle návštěvnosti české Wikipedie)
+npm run build:reky      # data/zemepis.json, pole ca: další státy řek (průběh řeky proti hranicím Natural Earth 1:10m, Wikidata P205 a P131)
+npm run build:fotky     # náhrady fotek z PHOTO_REPLACEMENTS v hotových datech (mapa či PNG místo fotky); pak node scripts/build-licenses.mjs
+npm run build:clanky    # pole w: článek Wikipedie po přesměrování (Boson W → Boson W a Z); položky téhož článku nejsou mezi možnostmi jedné otázky
 ```
 
-Logo je sova v talároku (`branding/sova-original.jpg`). Z tmavého pozadí ji vyřízne `python3 scripts/logo-cutout.py branding/sova-original.jpg branding/sova.png` (Pillow, numpy) a ikony aplikace, favicon i průhledné logo `icons/logo.webp` z ní vykreslí `node scripts/render-app-icons.js` (Playwright). Barvy aplikace podle loga (vínová `brand`, zlatá `gold`, grafitová šedá místo `slate`) jsou v `tailwind.config.js`.
+Logo je sova v talároku (`branding/sova-original.jpg`). Z tmavého pozadí ji vyřízne `python3 scripts/logo-cutout.py branding/sova-original.jpg branding/sova.png` (Pillow, numpy) a ikony aplikace, favicon i průhledné logo `icons/logo.webp` z ní vykreslí `node scripts/render-app-icons.js` (Playwright). Barvy aplikace podle loga (vínová `brand`, zlatá `gold`, grafitová šedá místo `slate`) jsou v `tailwind.config.js`. Náhled sdíleného odkazu (Open Graph, 1200×630, `icons/og-mudrlant.png`, značky `og:` a `twitter:` v `index.html` i v přesměrování `pages-root/index.html`) vykreslí `python3 scripts/og-image.py` (Pillow) ze stejné sovy.
 
 Service worker (`sw.js`) načítá soubory aplikace přednostně ze sítě, takže se nová verze projeví hned po nasazení; uložené kopie (včetně dat všech témat) slouží bez internetu – hrát jde i offline, jen s krátkým popisem z Wikidat místo úvodu z Wikipedie.
 

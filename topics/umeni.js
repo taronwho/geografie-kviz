@@ -65,6 +65,17 @@
         'Maďarsko', 'Rumunsko', 'Bulharsko', 'Srbsko', 'Chorvatsko', 'Slovinsko', 'Řecko', 'Portugalsko', 'Norsko', 'Švédsko', 'Dánsko', 'Finsko',
         'Island', 'Litva', 'Lotyšsko', 'Estonsko']);
     const sameWorld = (a, b) => Boolean(a && b) && EUROPE.has(a) === EUROPE.has(b);
+    // Rok vzniku díla pro výběr možností: přesný rok, jinak střed století, u pravěkého díla bez data podle směru (paleolit, neolit)
+    const PREHISTORY = -3000;
+    const workYear = (f) => (f.y !== undefined ? f.y : f.yc !== undefined ? f.yc * 100 - 50
+        : /paleolit/iu.test(f.mov || '') ? -25000 : /neolit|mezolit/iu.test(f.mov || '') ? -5000 : undefined);
+    // Blízkost dob u pravěku podle poměru stáří (30 000 a 35 000 let je blízko, 30 000 let a 80 let ne): od +6 po −20;
+    // dílo bez známé doby k pravěkému −8 (bez data jsou skoro jen novější díla)
+    const deepTime = (a, b) => {
+        if (a === undefined || b === undefined) return -8;
+        const ratio = Math.abs(Math.log((THIS_YEAR - a) / Math.max(1, THIS_YEAR - b)));
+        return Math.max(-20, 6 - 10 * ratio);
+    };
     // Umělci stejného pohlaví a co nejbližšího roku narození (k Davidu Černému současníci, ne Štursa)
     const artistSimilarity = (a, b) => {
         const distance = Math.abs(((a.f || {}).born ?? Infinity) - ((b.f || {}).born ?? -Infinity));
@@ -229,6 +240,13 @@
         };
     };
 
+    // Hlavní obrázek osobnosti, který ji neukazuje (quiz-core.js offSubjectRule, npm run audit:obrazky): hrob, pamětní deska, známka,
+    // výstava jejích fotografií, obal desky s desítkami tváří; obrazy a sochy se ukazují samy
+    const offSubjectPhoto = core.offSubjectRule({
+        words: { umelci: core.OFF_SUBJECT.memorial, fotografove: core.OFF_SUBJECT.memorial, ilustratori: core.OFF_SUBJECT.memorial },
+        ids: ['Q121903', 'Q469449', 'Q204218']
+    });
+
     return {
         id: 'umeni',
         title: 'Výtvarné umění',
@@ -248,6 +266,7 @@
             tierKnown: 'Slavné obrazy, sochy a umělci'
         },
         categories: CATEGORIES,
+        offSubjectPhoto,
 
         // Nesprávné možnosti: díla stejného autora a směru či doby, umělci stejného pohlaví, doby a směru; české k českým
         similarity: (item, other) => {
@@ -258,6 +277,12 @@
             const land = (f.land && f.land === g.land ? 3 : 0) + (sameWorld(f.land, g.land) ? 1 : 0);
             if (item.c === 'smery') return eraNearness(f.y, g.y) + (f.land && f.land === g.land ? 2 : 0);
             if (isPerson(item)) return artistSimilarity(item, other) + (sameMovement ? 2 : 0) + land + sameCzech;
+            // Pravěk: stáří se porovná poměrem (k Věstonické venuši sošky staré 20–40 tisíc let, ne pomník z 20. století, jen proto,
+            // že je také z Česka) a stejný směr (paleolitické umění) váží
+            const [ageA, ageB] = [workYear(f), workYear(g)];
+            if (Math.min(ageA ?? Infinity, ageB ?? Infinity) < PREHISTORY) {
+                return (sameMovement || (f.mov && f.mov === g.mov) ? 3 : 0) + deepTime(ageA, ageB) + land + sameCzech;
+            }
             // Doba i přes přelom letopočtu (k Apollónovi Belvederskému antické sochy, ne Socha Svobody)
             const years = f.y !== undefined && g.y !== undefined ? Math.max(0, 4 - Math.abs(f.y - g.y) / 100) : 0;
             return (f.by && f.by === g.by ? 4 : 0) + (sameMovement ? 3 : 0) + eraNearness(f.y, g.y) + years + land + sameCzech;

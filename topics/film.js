@@ -339,6 +339,9 @@
         return [{ kind: 'facts', facts: factsOf(item, 'name') }, castHint, authorHint];
     };
 
+    // Hlavní obrázek osobnosti, který ji neukazuje (hrob, pamětní deska, známka; quiz-core.js offSubjectRule, npm run audit:obrazky)
+    const offSubjectPhoto = core.offSubjectRule({ words: { herci: core.OFF_SUBJECT.memorial, reziseri: core.OFF_SUBJECT.memorial } });
+
     return {
         id: 'film',
         title: 'Film',
@@ -356,6 +359,7 @@
             tierKnown: 'Slavné filmy, seriály, režiséři a herci'
         },
         categories: CATEGORIES,
+        offSubjectPhoto,
 
         // Nesprávné možnosti: filmy ze stejné země, doby a žánru (bez stejného režiséra – jinak by nápověda „režie“ nepomohla);
         // filmaři stejného pohlaví, doby a země, české k českým

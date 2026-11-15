@@ -38,8 +38,6 @@ const SCHEME = process.env.FIT_SCHEME === 'dark' ? 'dark' : 'light';
 // zůstane vidět (lepkavě). Lepkavý nadpis okna se zavíráním (data-dialog-head) se hlídá u všech výjimek v #dialog-overlay.
 const EXEMPT = {
     'Všechny odznaky': { reason: 'seznam všech odznaků (stovky medailí po skupinách)', keep: '[data-dialog-back]' },
-    'Album – Odznaky': { reason: 'všechny skupiny odznaků v albu sbírky (přes 50 dlaždic)', keep: '[data-dialog-back]' },
-    'Album sbírky': { reason: 'sekce Doplňky Mudrlanta (přes 60 dlaždic aspoň 40 px, se sadami k tématům a sezónními) a pod nimi Sady témat (14 looků)', keep: '[data-dialog-back]' },
     'Úrovně a tituly': { reason: 'seznam všech úrovní s tituly', keep: '[data-dialog-back]' },
     'Rozpis otázek výzvy': { reason: 'seznam všech otázek s odpověďmi obou hráčů (záhlaví sloupců lepkavě)' },
     'Týdenní žebříček': { reason: 'žebříček hráčů' },
@@ -309,15 +307,15 @@ const richStorage = () => {
     };
 };
 
-const setup = async (browser, { viewport, storage = {}, db = newDb(), query = '', signedOut = false } = {}) => {
-    const context = await browser.newContext({ serviceWorkers: 'block', colorScheme: SCHEME, viewport, reducedMotion: 'reduce', deviceScaleFactor: SHOTS ? 2 : 1 });
+const setup = async (browser, { viewport, storage = {}, db = newDb(), query = '', signedOut = false, scheme = SCHEME, welcome = false } = {}) => {
+    const context = await browser.newContext({ serviceWorkers: 'block', colorScheme: scheme, viewport, reducedMotion: 'reduce', deviceScaleFactor: SHOTS ? 2 : 1 });
     await context.addInitScript(() => { window.MUDRLANT_NUMERIC_RATE = 0; });
     await context.addInitScript(pushStub);
     await context.addInitScript(entries => {
         if (sessionStorage.getItem('test-storage-set')) return;
         sessionStorage.setItem('test-storage-set', '1');
         Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
-    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.tips': JSON.stringify({ off: true }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), 'mudrlant.homeTab': JSON.stringify('multi'), ...(signedOut ? {} : login), ...richStorage(), ...storage });
+    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.tips': JSON.stringify({ off: true }), 'mudrlant.variant': 'choices', ...(welcome ? {} : { 'mudrlant.account': JSON.stringify('host') }), 'mudrlant.homeTab': JSON.stringify('multi'), ...(signedOut ? {} : login), ...richStorage(), ...storage });
     const tab = await context.newPage();
     tab.setDefaultTimeout(10000);
     const log = { errors: [], csp: [] };
@@ -334,7 +332,8 @@ const setup = async (browser, { viewport, storage = {}, db = newDb(), query = ''
     await backend(context, db);
     await tab.clock.setFixedTime(new Date(NOW));
     await tab.goto(`${ORIGIN}/${query}`);
-    await tab.waitForFunction(() => { const content = document.getElementById('app-content'); return Boolean(content && content.querySelector('#home-tabs')); }, null, { timeout: 30000 });
+    // welcome = uvítání (ještě bez volby účtu): místo úvodu čeká na obrazovku s přihlášením
+    await tab.waitForFunction((welcome) => { const content = document.getElementById('app-content'); return Boolean(content && content.querySelector(welcome ? '#account-welcome' : '#home-tabs')); }, welcome, { timeout: 30000 });
     return { context, tab, log, db };
 };
 
@@ -504,9 +503,12 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
             await scene(tab, 'Nastavení – Profil (Postavičky, barva části)', size, async () => {
                 await settingsTab('profile');
                 await tab.click('[data-pic-group="postavicky"]');
-                // Sezónní postavička ze Sezónní truhly je mezi ostatními (jen ta vlastněná)
+                // Sezónní postavička ze Sezónní truhly je mezi ostatními (vlastněná k výběru); postavička probíhající sezóny (listopad: Hrnek
+                // čaje) je šedá zamčená s cestou k ní (blok 32), jiné nevlastněné sezónní postavičky se neukážou
                 await tab.waitForSelector('[data-pick-avatar="drakpa"]');
-                assert.equal(await tab.locator('[data-pick-avatar="caj"], [data-locked-avatar="caj"]').count(), 0);
+                assert.equal(await tab.locator('[data-pick-avatar="caj"]').count(), 0);
+                assert.equal(await tab.locator('[data-locked-avatar="caj"]').count(), 1);
+                assert.equal(await tab.locator('[data-pick-avatar="pernik"], [data-locked-avatar="pernik"]').count(), 0);
                 await tab.click('[data-pick-avatar="mamut"]');
                 await tab.click('[data-color-target="2"]');
                 await tab.click('[data-pick-part="2:5"]');
@@ -799,4 +801,150 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
             .flatMap(([name, row]) => Object.entries(row.detail || {}).flatMap(([key, found]) => found.small.map(item => `${name} ${key}: ${item}`)));
         assert.deepEqual(tiny, [], 'dotykové plochy v profilu hráče a v Kronice týdne aspoň 40 px');
     });
+});
+
+// --- Stránka se neposouvá (pravidlo: na 360×640 ani 390×780 se nic neposouvá), ve světlém i tmavém režimu ---
+// Hlavní obrazovky a okna s plnými daty: úvod (Jeden hráč, Více hráčů), otázka (se všemi nápovědami a po odpovědi), Co hrát (mix a téma),
+// Můj postup, Nastavení (tři záložky), Album sbírky (všechny sekce), Cíle týdne, profil přítele a uvítání před volbou účtu. Neposouvá se
+// dokument (stránka), obsah aplikace (#app-content) ani panel okna; posouvat se smí jen vnitřní seznam, který je ze své povahy dlouhý
+// (mřížka alba, data-scroll-list), a ten je celý uvnitř okna (hlavička a tlačítko zpět zůstanou vidět). Co hrát i na nejmenším telefonu 320×568.
+// Dlouhé seznamy v oknech (výjimky EXEMPT výše) a ostatní okna hlídá tabulka testu „okna se vejdou bez posouvání“.
+const pageOverflow = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => {
+    const doc = document.scrollingElement || document.documentElement;
+    const main = document.getElementById('app-content');
+    const overlay = ['dialog-overlay', 'settings-overlay', 'play-chooser', 'place-info'].map(id => document.getElementById(id)).find(Boolean);
+    const panel = overlay ? overlay.firstElementChild : null;
+    const box = panel ? panel.getBoundingClientRect() : null;
+    const lists = panel ? [...panel.querySelectorAll('[data-scroll-list]')] : [];
+    resolve({
+        page: Math.max(0, doc.scrollHeight - window.innerHeight),
+        content: main ? Math.max(0, main.scrollHeight - main.clientHeight) : 0,
+        dialog: panel ? Math.max(0, panel.scrollHeight - panel.clientHeight) : 0,
+        outside: lists.filter(list => { const r = list.getBoundingClientRect(); return r.top < box.top - 1 || r.bottom > box.bottom + 1; }).length
+    });
+})));
+
+test('stránka se neposouvá: obrazovky a okna ve světlém i tmavém režimu', { skip: !chromium && 'Playwright není nainstalovaný' }, async (t) => {
+    const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
+    if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true });
+    const found = [];
+    const rows = [];
+    t.after(async () => {
+        await browser.close();
+        console.log(`\n${rows.join('\n')}\n`);
+    });
+    const act = (tab, name, data = {}) => tab.evaluate(([name, data]) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.dataset.action = name;
+        Object.assign(button.dataset, data);
+        button.className = 'hidden';
+        document.getElementById('app-content').appendChild(button);
+        button.click();
+        button.remove();
+    }, [name, data]);
+    const closeOverlays = async (tab) => {
+        for (let i = 0; i < 6 && await tab.evaluate((ids) => ids.some(id => document.getElementById(id)), OVERLAYS); i++) {
+            await tab.keyboard.press('Escape');
+            await tab.waitForTimeout(60);
+        }
+        await tab.evaluate((ids) => ids.forEach(id => { const el = document.getElementById(id); if (el) el.remove(); }), OVERLAYS);
+    };
+    // allow = co se tu posouvat smí: 'content' u výsledku otázky (článek o položce pod verdiktem, tlačítko Další je lepkavé a vidět hned)
+    // a u úvodu pod oknem Co hrát na 320×568 (pravidlo platí od 360×640, tam se hlídá jen okno)
+    const measure = async (tab, name, key, allow = []) => {
+        await tab.evaluate(() => { document.querySelectorAll('#celebration, #celebration-mini, #toast').forEach(el => el.remove()); });
+        await tab.waitForTimeout(200);
+        const size = await tab.evaluate(pageOverflow);
+        const over = ['page', 'content', 'dialog'].filter(kind => size[kind] > 0 && !allow.includes(kind)).map(kind => `${{ page: 'stránka', content: 'obsah', dialog: 'okno' }[kind]} ${size[kind]} px`);
+        if (size.outside) over.push('vnitřní seznam přesahuje okno');
+        rows.push(`${`${name} ${key}`.padEnd(48)} ${over.join(', ') || 'bez posouvání'}`);
+        if (over.length) found.push(`${name} ${key}: ${over.join(', ')}`);
+        if (SHOTS) await tab.screenshot({ path: path.join(SHOTS, `stranka-${name.replace(/[^\p{L}\p{N}]+/gu, '-').toLowerCase()}-${key.replace(/[^\p{L}\p{N}]+/gu, '-')}.png`) });
+    };
+    const scene = async (tab, name, key, open, allow = []) => {
+        try {
+            await open();
+            await measure(tab, name, key, allow);
+        } catch (error) {
+            found.push(`${name} ${key}: ${error.message.split('\n')[0]}`);
+        }
+        await closeOverlays(tab);
+    };
+    const SECTIONS = ['avatars', 'accessories', 'frames', 'themes', 'robes', 'colors', 'badges', 'diplomas'];
+    for (const scheme of ['light', 'dark']) {
+        for (const size of SIZES) {
+            const key = `${size.width}×${size.height} ${scheme}`;
+            await t.test(`obrazovky a okna (${key})`, async () => {
+                const { context, tab, log } = await setup(browser, { viewport: size, scheme });
+                await tab.waitForSelector('#friends-strip [data-player-id]', { timeout: 20000 });
+                await tab.waitForTimeout(800);
+                await closeOverlays(tab);
+                await scene(tab, 'úvod – Více hráčů', key, async () => { await tab.waitForSelector('#challenges-section [data-action="new-challenge"]'); });
+                await scene(tab, 'úvod – Jeden hráč', key, async () => { await act(tab, 'home-tab', { tab: 'single' }); await tab.waitForSelector('[data-action="play-topic"]'); await tab.waitForTimeout(300); });
+                await scene(tab, 'Co hrát – mix', key, async () => { await act(tab, 'play-mix'); await tab.waitForSelector('#play-chooser [data-chooser-play]'); });
+                await scene(tab, 'Co hrát – téma', key, async () => { await tab.click('[data-action="play-topic"][data-topic="zemepis"]'); await tab.waitForSelector('#play-chooser [data-chooser-play]'); });
+                const progress = async () => { await tab.click('#btn-settings'); await tab.click('[data-open-progress]'); await tab.waitForSelector('[data-progress-dialog]'); };
+                await scene(tab, 'Můj postup', key, progress);
+                for (const [id, title] of [['game', 'Hra'], ['profile', 'Profil'], ['owl', 'Mudrlant']]) {
+                    await scene(tab, `Nastavení – ${title}`, key, async () => {
+                        await tab.click('#btn-settings');
+                        await tab.click(`[data-me-tab="${id}"]`);
+                        await tab.waitForSelector(`[data-me-tab="${id}"][aria-selected="true"]`);
+                        await tab.waitForTimeout(300);
+                    });
+                }
+                for (const section of SECTIONS) {
+                    await scene(tab, `Album – ${section}`, key, async () => {
+                        await progress();
+                        await tab.click('[data-rewards-info="album"]');
+                        await tab.waitForSelector('[data-album]');
+                        await tab.click(`[data-album-tab="${section}"]`);
+                        await tab.waitForSelector(`[data-album-section="${section}"]`);
+                    });
+                }
+                await scene(tab, 'Cíle týdne', key, async () => { await act(tab, 'goals-open'); await tab.waitForSelector('#dialog-overlay'); await tab.waitForTimeout(200); });
+                await act(tab, 'home-tab', { tab: 'multi' });
+                await scene(tab, 'Profil hráče (přítel)', key, async () => {
+                    await tab.click(`#friends-strip [data-player-id="${PETR}"]`);
+                    await tab.waitForSelector('[data-rematch]');
+                    await tab.waitForFunction(() => document.getElementById('player-league'));
+                });
+                // Otázka: na začátku, se všemi nápovědami a po odpovědi
+                await act(tab, 'home-tab', { tab: 'single' });
+                await tab.waitForSelector('[data-action="play-topic"][data-topic="zemepis"]');
+                await tab.click('[data-action="play-topic"][data-topic="zemepis"]');
+                await tab.click('#play-chooser [data-chooser-play]');
+                await tab.waitForSelector('[data-action="give-up"]', { timeout: 30000 });
+                await measure(tab, 'otázka', key);
+                for (let step = 0; step < 6 && await tab.$('[data-action="hint"]'); step++) await tab.click('[data-action="hint"]');
+                await measure(tab, 'otázka se všemi nápovědami', key);
+                await (await tab.$$('[data-action="choice"]'))[0].click();
+                await tab.waitForSelector('[data-verdict]');
+                await measure(tab, 'výsledek otázky', key, ['content']);
+                const seen = await tab.evaluate(() => ['[data-verdict]', '[data-action="next"]'].map(selector => { const r = document.querySelector(selector).getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight + 0.5; }));
+                assert.deepEqual(seen, [true, true], 'verdikt i Další vidět bez posouvání');
+                assert.deepEqual(log.csp, []);
+                await context.close();
+            });
+        }
+        // Co hrát na nejmenším telefonu (320×568) a uvítání před volbou účtu
+        await t.test(`Co hrát na 320×568 a uvítání (${scheme})`, async () => {
+            const small = { width: 320, height: 568 };
+            const { context, tab, log } = await setup(browser, { viewport: small, scheme, storage: { 'mudrlant.homeTab': JSON.stringify('single') } });
+            await tab.waitForSelector('[data-action="play-topic"]');
+            await closeOverlays(tab);
+            await scene(tab, 'Co hrát – mix', `320×568 ${scheme}`, async () => { await act(tab, 'play-mix'); await tab.waitForSelector('#play-chooser [data-chooser-play]'); }, ['content']);
+            await scene(tab, 'Co hrát – téma', `320×568 ${scheme}`, async () => { await tab.click('[data-action="play-topic"][data-topic="zemepis"]'); await tab.waitForSelector('#play-chooser [data-chooser-play]'); }, ['content']);
+            assert.deepEqual(log.csp, []);
+            await context.close();
+            for (const size of SIZES) {
+                const welcome = await setup(browser, { viewport: size, scheme, signedOut: true, welcome: true });
+                await measure(welcome.tab, 'uvítání', `${size.width}×${size.height} ${scheme}`);
+                assert.deepEqual(welcome.log.csp, []);
+                await welcome.context.close();
+            }
+        });
+    }
+    await t.test('výsledek: nic se neposouvá', () => assert.deepEqual(found, [], 'obrazovky a okna bez posouvání stránky'));
 });

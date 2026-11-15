@@ -1,6 +1,6 @@
 // Číselné otázky v prohlížeči (numeric-questions.js): Seřaď (klepání 1–4, zrušení a přečíslování, potvrzení, správné pořadí
 // s hodnotami ve výsledku) a Odhadni číslo (číselné pole, mezery a čárky, chybné zadání, stupnice s odhadem ve výsledku).
-// Body a XP podle přesnosti, dvojnásobek ve variantě psaní, vzdání bez bodů, nic v chybách ani v opakování, dnešní otázky bez nich.
+// Body a XP podle přesnosti, 1,5× víc ve variantě psaní, vzdání bez bodů, nic v chybách ani v opakování, dnešní otázky bez nich.
 // Vzhled bez posouvání na 360×640 a 390×780 ve světlém i tmavém režimu, bez chyb CSP. SCREENSHOT_DIR=složka uloží snímky.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -214,16 +214,16 @@ test('číselné otázky Seřaď a Odhadni číslo v prohlížeči', { skip: !ch
         await context.close();
     });
 
-    await t.test('psaní odpovědí: číselné otázky za dvojnásobek; vzdání bez bodů; dnešní otázka nikdy číselná', async () => {
+    await t.test('psaní odpovědí: číselné otázky za 1,5× víc; vzdání bez bodů; dnešní otázka nikdy číselná', async () => {
         const { context, tab, problems } = await open({ variant: 'typed', force: 'estimate' });
         await tab.click('[data-action="play-topic"][data-topic="zemepis"]');
         await tab.waitForSelector('[data-numeric-question="estimate"]');
-        assert.match(await tab.textContent('[data-numeric-question]'), /Až 8 bodů podle přesnosti/);
+        assert.match(await tab.textContent('[data-numeric-question]'), /Až 6 bodů podle přesnosti/);
         const data = (await read(tab, 'mudrlant.session')).data;
         await tab.fill('#estimate-input', core.formatNumber(data.numeric.value));
         await tab.click('#estimate-form button[type="submit"]');
         await tab.waitForSelector('[data-numeric-result="estimate"]');
-        assert.match(await tab.textContent('[data-verdict]'), /Výborně! \+8 bodů/);
+        assert.match(await tab.textContent('[data-verdict]'), /Výborně! \+6 bodů/);
         assert.match(await tab.textContent('[data-verdict]'), /přesně/);
         assert.equal((await read(tab, 'mudrlant.progress')).counters.typedCorrect, 0, 'číslo není psaná odpověď na název');
         await tab.click('[data-action="next"]');

@@ -18,13 +18,14 @@ const CSP = fs.readFileSync(path.join(ROOT, '_headers'), 'utf8').match(/Content-
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp', '.webmanifest': 'application/manifest+json' };
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
 
-// Úvod článku nese značku položky (K + QID): test podle ní pozná správnou odpověď, hra ji nezakryje (není to jméno)
+// Úvod článku nese značku položky (K + QID): test podle ní pozná správnou odpověď, hra ji nezakryje (není to jméno). Ve větě nesmí být
+// slovo se stejným kmenem jako jméno položky z fixtures (dřív „v testu“: u Testova ho hra správně zakryla jako tvar odpovědi)
 const ZEMEPIS = fixtures.files['/data/zemepis.json'].items;
 const COUNTRIES = fixtures.files['/data/countries.json'].countries;
 const BY_TITLE = new Map(ZEMEPIS.map(item => [item.t, item]));
 const BY_Q = new Map(ZEMEPIS.map(item => [item.q, item]));
 const extract = (title) => BY_TITLE.has(title)
-    ? `Tato položka má v testu značku K${BY_TITLE.get(title).q} a je známá svou krásou, dlouhou historií a mnoha zajímavostmi, které je třeba uhodnout. ` +
+    ? `Tato položka má v ukázce značku K${BY_TITLE.get(title).q} a je známá svou krásou, dlouhou historií a mnoha zajímavostmi, které je třeba uhodnout. ` +
       'Ve dvacátém století se o ní začalo psát po celém světě a dodnes ji navštěvují lidé z mnoha různých zemí.'
     : fixtures.extractFor(title);
 
@@ -313,7 +314,7 @@ test('Bleskovka, Přežití, zvuky a vibrace', { skip: !chromium && 'Playwright 
             assert.equal(await tab.locator('[data-action="hint"]').count(), 0, 'bez nápověd');
             // Popis je zakrytý úvod článku z Wikipedie (značka položky zůstane, název ne)
             const panel = await tab.textContent('[data-mode-question] #hint-tab-panel');
-            assert.match(panel, /Tato položka má v testu značku KQ\d+/);
+            assert.match(panel, /Tato položka má v ukázce značku KQ\d+/);
             await shot(tab, `preziti-otazka-${size}-${colorScheme}`);
             const first = await solve(tab);
             await tab.click(`[data-action="mode-choice"][data-index="${first.right}"]`);

@@ -17,7 +17,12 @@
     const STORE = 'mudrlant.conquest';
     const LINK_PARAM = 'dobyvani';
     const PENDING_KEY = 'mudrlant.pendingConquest';
-    const MAX_ZOOM = 8;
+    // Pozvánky, které už hráč viděl v okně po otevření aplikace ({ id hry: čas }; Později = už se neukáže, zůstane na kartě)
+    const SEEN_INVITES_KEY = 'mudrlant.conquestInvitesSeen';
+    // Po návratu do aplikace se pozvánky ověří nejvýš jednou za 5 minut
+    const INVITE_CHECK_MS = 5 * 60000;
+    // Největší přiblížení: i název nejmenšího území (Lucembursko, Trinidad a Tobago, asi 19× na displeji 360 px) se vejde v 7 px
+    const MAX_ZOOM = 20;
     const POLL_GAME = 20000;
     // Bitvy o území (blok 25): puls hry každé 3 s, během bitvy (moje nebo otevřená na mapě) každých 1,5 s; čas na odpověď 60 s
     const POLL_PULSE = 3000;
@@ -35,7 +40,8 @@
     // deps: Conquest (conquest.js), Social, appContent, signedUser, login, enter (obrazovka 'conquest'), isActive, renderHome, renderIcons,
     // showDialog, closeDialog, showToast, loadMap(id), loadTopics(), roundFor(požadavek otázky Mudrlanta → obsah, conquest.js prepareQuestion),
     // award({ xp, badge, place }), itemGranted(zisk pomůcky z conquest_claim, social.js cleanItemGrant), share(payload), sound(name), touchTip, onCard(),
-    // avatarHtml(hráč, třídy) a friends() (přijatí přátelé pro okno Pozvat přátele; null = nenačetli se)
+    // avatarHtml(hráč, třídy) a friends() (přijatí přátelé pro okno Pozvat přátele; null = nenačetli se); canPrompt() = smí se teď ukázat
+    // okno s pozvánkou (úvodní obrazovka, žádné jiné okno ani tutoriál), invitesChanged() = počet pozvánek se změnil (odznak záložky)
     const createUI = (deps) => {
         const C = deps.Conquest;
         const Social = deps.Social;
@@ -83,7 +89,8 @@
             const data = game.data;
             const promise = topics().catch(() => ({})).then(loaded => C.prepareQuestion({ data, territory: target, level: info.level || 0, topics: loaded, seed, avoid: asked, only,
                 roundFor: deps.roundFor || null, timeout: C.ROUND_TIMEOUT }));
-            promise.catch(() => null);
+            // Obrázky otázky (vlajky) se stahují hned jako blob, ať je otázka ukáže bez čekání
+            promise.then(question => { const Blob = root.MudrlantPhotoBlob; if (Blob) questionPhotos(question).forEach(photo => Blob.load(photo.url)); }).catch(() => null);
             prepared = { key, promise };
             return promise;
         };
@@ -142,10 +149,53 @@
         };
         const refresh = async (force = false) => {
             if (!deps.signedUser() || missing) return;
-            if (!force && lobby && Date.now() - lobbyAt < 60000) { paintCard(); return; }
+            if (!force && lobby && Date.now() - lobbyAt < 60000) { paintCard(); promptInvites(); return; }
+            const before = inviteCount();
             await loadLobby();
             paintCard();
             if (active() && ui.kind !== 'game') renderHub();
+            if (inviteCount() !== before && deps.invitesChanged) deps.invitesChanged();
+            promptInvites();
+        };
+
+        // --- Pozvánka po otevření aplikace (i bez upozornění) ---
+        // Přihlášenému hráči s čekající pozvánkou se na úvodní obrazovce ukáže okno: kdo zve a kam, Přijmout / Odmítnout / Později.
+        // Každá pozvánka jen jednou (pamatuje se v zařízení), pak zůstane na kartě Dobývání a v Mých hrách. Ověřuje se při otevření
+        // aplikace a po návratu do ní (nejvýš jednou za INVITE_CHECK_MS).
+        const inviteCount = () => ((lobby && lobby.invites) || []).length;
+        const seenInvites = () => { try { const s = storage(); const value = s ? JSON.parse(s.getItem(SEEN_INVITES_KEY) || '{}') : {}; return value && typeof value === 'object' && !Array.isArray(value) ? value : {}; } catch (error) { return {}; } };
+        const markSeen = (id) => {
+            try {
+                const s = storage();
+                if (!s) return;
+                const keep = Object.entries({ ...seenInvites(), [id]: Date.now() }).sort((a, b) => b[1] - a[1]).slice(0, 50);
+                s.setItem(SEEN_INVITES_KEY, JSON.stringify(Object.fromEntries(keep)));
+            } catch (error) { /* bez úložiště se okno může ukázat znovu */ }
+        };
+        const PROMPT_TITLE = 'Pozvánka do Dobývání';
+        const promptInvites = () => {
+            if (!deps.signedUser() || missing || !lobby || !deps.showDialog || (deps.canPrompt && !deps.canPrompt())) return false;
+            const seen = seenInvites();
+            const invite = (lobby.invites || []).find(entry => entry && entry.id && !seen[entry.id]);
+            if (!invite) return false;
+            markSeen(invite.id);
+            deps.showDialog(PROMPT_TITLE, C.invitePromptHtml(invite, { maps, avatar: deps.avatarHtml }), {
+                onClick: (event) => {
+                    const button = event.target.closest('[data-cq-prompt]');
+                    if (!button || button.disabled) return;
+                    const choice = button.dataset.cqPrompt;
+                    deps.closeDialog();
+                    if (choice === 'accept') openInvite(invite.id);
+                    else if (choice === 'decline') declineInvite(invite.id).then(() => { if (deps.invitesChanged) deps.invitesChanged(); });
+                }
+            });
+            return true;
+        };
+        // Otevření aplikace a návrat do ní (app.js): pozvánky ze serveru nejvýš jednou za INVITE_CHECK_MS, okno s novou pozvánkou hned
+        const checkInvites = async () => {
+            if (!deps.signedUser() || missing) return;
+            if (lobby && Date.now() - lobbyAt < INVITE_CHECK_MS) { promptInvites(); return; }
+            await refresh(true);
         };
         const reset = () => { lobby = null; lobbyAt = 0; missing = false; invitesOff = false; game = null; ui.kind = 'hub'; ui.tab = 'mine'; ui.invites = []; };
 
@@ -557,7 +607,7 @@
                 if (active()) openHub('mine');
             }
         };
-        const stopGame = () => { if (game && game.move) clearFx(); clearTimeout(waitTimer); game = null; };
+        const stopGame = () => { stopFit(); if (game && game.move) clearFx(); clearTimeout(waitTimer); game = null; };
         // Ztracený hrad (budget.penalty): o tahu méně řekne toast jednou za období hry (po otevření hry, nebo se začátkem období)
         const penaltySeen = new Set();
         const penaltyNews = (state) => {
@@ -696,6 +746,61 @@
             element.setAttribute('x', spot.x.toFixed(2));
             element.setAttribute('y', spot.y.toFixed(2));
         };
+        // Malé území (Lucembursko, Slovinsko): když se po klepnutí jeho název nevejde ani v 7 px, mapa se plynule přiblíží tak, aby se
+        // vešel – jen tolik, kolik je potřeba (nejvýš MAX_ZOOM), se středem území uprostřed volné části mapy nad spodním listem.
+        // Nikdy neoddálí, neběží během tahu, bitvy ani přehrávání a skončí, jakmile hráč sám mapu posune nebo přiblíží (prsty, kolečko,
+        // tlačítko Celá mapa). Při omezeném pohybu bez animace.
+        const FIT_MS = 420;
+        let fitting = null;
+        const stopFit = () => { if (fitting) { root.cancelAnimationFrame(fitting.frame); fitting = null; } };
+        // Výřez mapy (w = šířka v jednotkách mapy), ve kterém je bod mapy point na displeji v bodě screen (preserveAspectRatio meet)
+        const viewWith = (point, screen, w) => {
+            const rect = svg.getBoundingClientRect();
+            const h = w * game.data.h / game.data.w;
+            const scale = Math.min(rect.width / w, rect.height / h);
+            const offX = (rect.width - w * scale) / 2, offY = (rect.height - h * scale) / 2;
+            return { x: point.x - (screen.x - rect.left - offX) / scale, y: point.y - (screen.y - rect.top - offY) / scale, w, h };
+        };
+        const fitLabel = (id) => {
+            stopFit();
+            if (!svg || !game || game.move || replaying || gesture || !root.requestAnimationFrame) return;
+            const item = game.view.index.byId.get(id);
+            const entry = labelFits.get(id);
+            if (!item || !entry || entry.data !== game.data || !(entry.max > 0)) return;
+            const need = LABEL_MIN_PX * unitsPerPixel();
+            if (entry.max >= need) return;
+            const from = { ...game.vb };
+            // O 4 % víc: velikost písma se zaokrouhluje po 4 % (placeLabel)
+            const w = Math.max(game.data.w / MAX_ZOOM, from.w * (entry.max / need) / 1.04);
+            if (w >= from.w * 0.99) return;
+            // Střed: místo, kam se název v největší velikosti, která se vejde, položí (u území bez místa jeho střed)
+            const spot = C.labelAt(item, entry.rings, entry.ratio, entry.max, entry.max);
+            const point = { x: spot.x, y: spot.y - spot.size * 0.25 };
+            const map = svg.getBoundingClientRect();
+            const holder = sheet();
+            const sheetTop = holder && holder.childElementCount ? holder.getBoundingClientRect().top : map.bottom;
+            const bottom = Math.min(map.bottom, sheetTop);
+            const screen = { x: (map.left + map.right) / 2, y: bottom - map.top > 80 ? (map.top + bottom) / 2 : (map.top + map.bottom) / 2 };
+            const ctm = svg.getScreenCTM();
+            const start = ctm ? { x: ctm.a * point.x + ctm.c * point.y + ctm.e, y: ctm.b * point.x + ctm.d * point.y + ctm.f } : screen;
+            const step = (t) => {
+                // Šířka výřezu se mění plynule v logaritmu (stejně rychlé přibližování), bod území jde po přímce do středu
+                const e = t >= 1 ? 1 : 1 - Math.pow(1 - t, 3);
+                const width = Math.exp(Math.log(from.w) + (Math.log(w) - Math.log(from.w)) * e);
+                game.vb = viewWith(point, { x: start.x + (screen.x - start.x) * e, y: start.y + (screen.y - start.y) * e }, width);
+                applyView();
+            };
+            if (reduced()) { step(1); return; }
+            const began = root.performance && root.performance.now ? root.performance.now() : Date.now();
+            const tick = (now) => {
+                if (!fitting || !game || !svg || game.move) { fitting = null; return; }
+                const t = Math.min(1, (now - began) / FIT_MS);
+                step(t);
+                if (t < 1) fitting.frame = root.requestAnimationFrame(tick);
+                else fitting = null;
+            };
+            fitting = { frame: root.requestAnimationFrame(tick) };
+        };
         const zoomAt = (point, factor) => {
             const vb = game.vb;
             const w = Math.min(game.data.w, Math.max(game.data.w / MAX_ZOOM, vb.w / factor));
@@ -708,10 +813,12 @@
         const onWheel = (event) => {
             if (!game || !svg) return;
             event.preventDefault();
+            stopFit();
             zoomAt(toSvg(event.clientX, event.clientY), Math.exp(-event.deltaY * 0.0015));
         };
         const onPointerDown = (event) => {
             if (!game || !svg) return;
+            stopFit();
             if (!gesture) gesture = { pointers: new Map(), moved: 0, start: event.timeStamp, multi: false };
             gesture.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY, x0: event.clientX, y0: event.clientY });
             try { event.currentTarget.setPointerCapture(event.pointerId); } catch (error) { /* bez zachycení */ }
@@ -762,7 +869,7 @@
             lastTap = { at: now, x: pointer.x, y: pointer.y };
             const hit = doc.elementFromPoint(pointer.x, pointer.y);
             const territory = hit && hit.closest ? hit.closest('[data-t]') : null;
-            if (territory && !(game.move && game.move.phase !== 'idle')) selectTerritory(territory.dataset.t);
+            if (territory && !(game.move && game.move.phase !== 'idle')) { selectTerritory(territory.dataset.t); fitLabel(territory.dataset.t); }
         };
 
         // --- Výběr území a spodní list ---
@@ -934,6 +1041,7 @@
         // --- Tah: otázka a výsledek ---
         const startMove = async (kind, source) => {
             if (!game || !game.selected || game.move) return;
+            stopFit();
             const target = game.selected;
             const move = { kind, target, source: kind === 'attack' ? (source || C.sourcesFor(game.view, target)[0] || null) : null, phase: 'loading', answered: null };
             game.move = move;
@@ -975,6 +1083,40 @@
                 s.setItem(ASKED_KEY, JSON.stringify(Object.fromEntries(keep)));
             } catch (error) { /* bez úložiště se jen může otázka zopakovat */ }
         };
+        // Obrázky otázky (vlajky a znaky v možnostech, obrázek otázky Mudrlanta) jako blob: (photo-blob.js): adresa z Commons nese
+        // název souboru (Flag of Serbia.svg), tedy odpověď, a do stránky nesmí. Hotový blob jde rovnou do HTML (překreslení po odpovědi
+        // nebliká), jinak se obrázek doplní po stažení; náhled, který Commons nevrátí, nahradí původní soubor. Bez photo-blob.js obyčejně.
+        const questionPhotos = (question) => {
+            const list = [];
+            if (question && question.content && question.content.image) list.push({ key: 'content', url: String(question.content.image), fallback: '' });
+            if (question && question.images) question.choices.forEach((choice, i) => { if (choice && choice.image) list.push({ key: String(i), url: String(choice.image), fallback: String(choice.fallback || '') }); });
+            return list;
+        };
+        const readyPhotos = (question) => {
+            const Blob = root.MudrlantPhotoBlob;
+            const ready = {};
+            if (Blob) questionPhotos(question).forEach(photo => {
+                const done = Blob.resultFor(photo.url) || (photo.fallback ? Blob.resultFor(photo.fallback) : null);
+                if (done && done.hidden) ready[photo.key] = done.src;
+            });
+            return ready;
+        };
+        const mountPhotos = (holder, question) => {
+            const Blob = root.MudrlantPhotoBlob;
+            questionPhotos(question).forEach(photo => {
+                const img = holder.querySelector(`img[data-cq-img="${photo.key}"]`);
+                if (!img) return;
+                const show = (src) => { if (src && img.isConnected) { img.src = src; img.classList.remove('invisible'); } };
+                const ready = img.getAttribute('src');
+                if (ready) { if (Blob) Blob.hold(ready, img); return; }
+                if (!Blob) {
+                    if (photo.fallback) img.addEventListener('error', () => { if (img.src !== photo.fallback) img.src = photo.fallback; }, { once: true });
+                    show(photo.url);
+                    return;
+                }
+                Blob.attach(photo.url, img).then(shown => shown || (photo.fallback ? Blob.attach(photo.fallback, img) : null)).then(shown => show(shown && shown.src), () => {});
+            });
+        };
         // Otázka tahu: ve spodním listu, otázka Mudrlanta (popis, fakta, obrázek) přes celou obrazovku hry; záhlaví „Útok na Francii“
         // nebo „Opevnění Francie“ (v bitvě „Bitva o Francii“) s hvězdami obtížnosti
         const questionTitle = (move, item) => (move.battle ? `Bitva o ${C.accusativeOf(item)}` : C.moveTitle(move.kind, item));
@@ -987,19 +1129,14 @@
             const footer = move.battle && move.phase === 'waiting' && move.siege ? C.battleWaitHtml(game.view, move.siege, { ...(move.mine || {}), offset: game.offset, now: Date.now() }) : '';
             const holder = fillSheet(C.questionHtml(move.question, { title: questionTitle(move, item), item, data: game.data, answered: move.answered, kind: move.kind,
                 correctIndex: move.correctIndex ?? null, battle, view: game.view, footer, compact: Boolean(footer),
-                fifty: { state: fiftyState(move), items: game.state.items }, removed: move.removed || null, fresh: Boolean(move.removedFresh) }), C.isFullQuestion(move.question) && !footer);
+                fifty: { state: fiftyState(move), items: game.state.items }, removed: move.removed || null, fresh: Boolean(move.removedFresh), photos: readyPhotos(move.question) }), C.isFullQuestion(move.question) && !footer);
             move.removedFresh = false;
             if (!holder) return;
             // List vyjede jen poprvé; po odpovědi (a v bitvě při čekání) se jen překreslí
             if (move.shown) { const panel = holder.firstElementChild; if (panel) panel.classList.remove('cq-sheet-in'); }
             move.shown = true;
             if (battle) battleClock();
-            // Náhled vlajky nebo znaku z Commons, který nejde načíst, nahradí původní soubor (data-fallback, jednou)
-            holder.querySelectorAll('img[data-fallback]').forEach(img => {
-                const swap = () => { const next = img.dataset.fallback; img.removeAttribute('data-fallback'); if (next && img.src !== next) img.src = next; };
-                if (img.complete && img.naturalWidth === 0 && img.src) swap();
-                else img.addEventListener('error', swap, { once: true });
-            });
+            mountPhotos(holder, move.question);
         };
         const answer = async (index) => {
             const move = game && game.move;
@@ -1782,7 +1919,7 @@
             else if (name === 'items') openItems();
             else if (name === 'extra-use') confirmExtra();
             else if (name === 'fifty') fiftyTap();
-            else if (name === 'zoom-reset' && game) { game.vb = { x: 0, y: 0, w: game.data.w, h: game.data.h }; applyView(); }
+            else if (name === 'zoom-reset' && game) { stopFit(); game.vb = { x: 0, y: 0, w: game.data.w, h: game.data.h }; applyView(); }
             else if (name === 'sheet-close') closeSheet();
             else if (name === 'attack') startMove('attack', action.dataset.source || game.source);
             else if (name === 'fortify') startMove('fortify');
@@ -1862,8 +1999,8 @@
         // Probíhá tah (oslavy z app.js počkají)
         const busy = () => Boolean(game && game.move);
 
-        return { cardHtml, paintCard, refresh, reset, openHub, openGame, openCode, openInvite, afterLogin, takeLink, back, busy, parseCode };
+        return { cardHtml, paintCard, refresh, reset, openHub, openGame, openCode, openInvite, afterLogin, takeLink, back, busy, parseCode, checkInvites, promptInvites, inviteCount };
     };
 
-    return { createUI, STORE, LINK_PARAM, PENDING_KEY, parseCode };
+    return { createUI, STORE, LINK_PARAM, PENDING_KEY, SEEN_INVITES_KEY, INVITE_CHECK_MS, parseCode };
 });

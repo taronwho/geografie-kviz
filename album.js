@@ -106,7 +106,7 @@
 
     // --- Sbírka ---
     // Věc, kterou má každý od začátku (odemčená na úrovni 1 bez odznaků a truhly), do sbírky nepatří
-    const isStarter = (item) => Boolean(Look) && !isLimited(item) && !item.album && Look.isUnlocked(item, { level: 1, badges: {}, gifts: null });
+    const isStarter = (item) => Boolean(Look) && !isLimited(item) && !item.album && Look.isUnlocked(item, { level: 1, badges: {}, gifts: null, referral: [], prestige: 0 });
     // Položky sekce z katalogu: { key, category, id, item, title, owned, state: 'owned' | 'missing' | 'ended' | 'reward', counted, limited, until }
     const catalogEntries = (category, input) => {
         if (!Look) return [];
@@ -115,11 +115,13 @@
         for (const item of Look.CATALOG[category] || []) {
             if (isStarter(item)) continue;
             const owned = Look.isUnlocked(item, ctx);
+            // Bonusová věc (bonus v look.js: rámečky za pozvané kamarády a prestiž): jen když ji hráč má, do procent se nepočítá
+            if (item.bonus && !owned) continue;
             const limited = isLimited(item);
             const when = owned ? null : availability(item, category, input.today);
             if (when === 'upcoming') continue;
             const state = owned ? 'owned' : item.album ? 'reward' : when === 'ended' ? 'ended' : 'missing';
-            entries.push({ key: `${category}:${item.id}`, category, id: item.id, item, title: item.title, owned, state, counted: !item.album && state !== 'ended', limited, until: limited ? windowOf(item).until : '' });
+            entries.push({ key: `${category}:${item.id}`, category, id: item.id, item, title: item.title, owned, state, counted: !item.album && !item.bonus && state !== 'ended', limited, until: limited ? windowOf(item).until : '' });
         }
         return entries;
     };
@@ -218,6 +220,7 @@
         const topic = item.diploma ? { id: item.diploma, title: (Look && Look.DIPLOMA_TOPICS && Look.DIPLOMA_TOPICS[item.diploma]) || item.diploma } : null;
         if (topic) return `Legendární postavička za diplom „${Rewards ? Rewards.diplomaTitle(topic) : topic.title}“: plné mistrovství tématu ${topic.title} (${MASTERY.length} hvězdiček). Úrovní ani truhlou se nezíská.`;
         let text = item.album ?`Odměna za celé album sbírky (100${NB}%) spolu s titulem „${badgeTitle(item.badge)}“.`
+            : item.bonus && Look ? `${Look.unlockText(item)}. Bonus navíc, do sbírky se nepočítá.`
             : item.rare ? 'Vzácný dárek z Truhly Mudrlanta za splněné cíle týdne (občas místo běžné věci) a ze Zlaté truhly za pět zlatých střípků. Úrovní se neodemyká.'
             : item.chest ? 'Z Truhly Mudrlanta za splněné cíle týdne, ze stupně Sezóny Mudrlanta a ze Zlaté truhly za pět zlatých střípků. Úrovní se neodemyká.'
             : badge ? `Za odznak „${badge.title}“: ${badge.text}`
@@ -247,7 +250,9 @@
         switch (entry.category) {
             case 'avatars': return h.avatar ? h.avatar(entry.id, size) : '';
             case 'accessories': return `<img src="icons/doplnky/${id}-ikona.webp" alt="" class="${size} object-contain drop-shadow-sm">`;
-            case 'robes': return `<img src="icons/topics/sova-vitej${entry.id === 'vinova' ? '' : `-${id}`}.webp" alt="" data-keep class="${size} object-contain drop-shadow-sm">`;
+            // Vlastní barva obleku (robe-color.js): vínová sova s ukázkovou barvou, přebarví ji look-robes.js
+            case 'robes': return entry.item && entry.item.custom ? `<img src="icons/topics/sova-vitej.webp" alt="" data-keep data-robe-color="185.0" class="${size} object-contain drop-shadow-sm">`
+                : `<img src="icons/topics/sova-vitej${entry.id === 'vinova' ? '' : `-${id}`}.webp" alt="" data-keep class="${size} object-contain drop-shadow-sm">`;
             case 'themes': return `<span data-theme="${id}" class="block ${big ? 'h-14 w-14' : 'h-7 w-7'} rounded-full bg-gradient-to-br from-brand-300 via-brand-500 to-brand-800 shadow-inner ring-2 ring-white/80 dark:ring-white/30"></span>`;
             case 'colors': return `<span class="block ${big ? 'h-14 w-14' : 'h-7 w-7'} rounded-full ${COLOR_DOT[entry.id] || 'bg-slate-400'} shadow-inner ring-2 ring-white/80 dark:ring-white/30"></span>`;
             case 'frames': return `<span class="relative flex ${big ? 'h-14 w-14 text-[2rem]' : 'h-7 w-7 text-[1.15rem]'} items-center justify-center rounded-full bg-white dark:bg-slate-200${h.frameClass ? h.frameClass(entry.id) : ''}"><img src="icons/logo.webp" alt="" class="h-[80%] w-[80%] object-contain"></span>`;
@@ -289,7 +294,7 @@
             const badge = Core && Core.BADGE_BY_ID ? Core.BADGE_BY_ID[milestone.id] : null;
             return badge && h.medal ? `<span title="${esc(`${milestone.title}: ${milestone.goal}${NB}%`)}">${h.medal(badge, Boolean(badges[milestone.id]), 'h-6 w-6', 'h-3 w-3')}</span>` : '';
         }).join('');
-        return `<button type="button" data-album-rewards aria-label="${esc(`Album sbírky: ${album.percent}${NB}%. Odměny za sbírku`)}" class="btn-3d flex w-full items-center gap-2.5 rounded-2xl bg-gradient-to-br from-brand-700 to-brand-900 p-2.5 text-left text-white short:py-2">
+        return `<button type="button" data-album-rewards aria-label="${esc(`Album sbírky: ${album.percent}${NB}%. Odměny za sbírku`)}" class="btn-3d flex w-full shrink-0 items-center gap-2.5 rounded-2xl bg-gradient-to-br from-brand-700 to-brand-900 p-2.5 text-left text-white short:py-2">
             <img src="icons/topics/${ALBUM_ART}.webp" alt="" class="h-12 w-12 shrink-0 object-contain drop-shadow-md short:h-10 short:w-10">
             <span class="min-w-0 flex-1">
                 <span class="flex items-center justify-between gap-2"><span class="flex items-baseline gap-1.5"><span data-album-percent class="text-2xl font-black leading-none tabular-nums">${album.percent}&nbsp;%</span><span class="text-[12px] font-bold text-white/85">sbírky</span></span><span class="flex shrink-0 gap-0.5" aria-hidden="true">${medals}</span></span>
@@ -299,7 +304,7 @@
         </button>`;
     };
     // Záložky sekcí (4 × 2): krátký název, kolik mám z kolika a ukazatel
-    const tabsHtml = (album, current) => `<div role="tablist" aria-label="Sekce alba" class="grid grid-cols-4 gap-1">${album.sections.map(entry => {
+    const tabsHtml = (album, current) => `<div role="tablist" aria-label="Sekce alba" class="grid shrink-0 grid-cols-4 gap-1">${album.sections.map(entry => {
         const on = entry.id === current;
         return `<button type="button" role="tab" data-album-tab="${esc(entry.id)}" aria-selected="${on}" aria-label="${esc(`${entry.title}: ${entry.owned} z ${entry.total}`)}" class="flex min-h-[2.75rem] min-w-0 flex-col justify-center gap-0.5 rounded-xl px-1 py-1 text-left short:min-h-[2.5rem] ${on ? 'btn-3d bg-brand-700 text-white' : 'bg-white text-slate-800 shadow-sm dark:bg-slate-800 dark:text-slate-100'}">
             <span class="block truncate text-[11px] font-black leading-tight max-[380px]:text-[10px] max-[380px]:tracking-tight">${esc(entry.short)}</span>
@@ -330,25 +335,28 @@
     };
     // Sekce: název, počet, ukazatel, titul za celou sekci a mřížka věcí
     // Sekce s víc než DENSE věcmi (doplňky Mudrlanta) má na širším telefonu sedm sloupců (méně posouvání); od sad doplňků k tématům
-    // (68 doplňků) se posouvá na obou velikostech (jako Odznaky), dlaždice by jinak byly menší než 40 px
+    // (68 doplňků) by se nevešla ani na jedné velikosti (jako Odznaky), dlaždice by jinak byly menší než 40 px: mřížka (a pod ní Sady
+    // témat) se proto posouvá uvnitř sekce (data-scroll-list), okno ani stránka ne – nadpis okna, záložky a tlačítko zpět zůstanou vidět
     const sectionHtml = (entry, badges, h, worn, extra = '') => {
         const dense = entry.entries.length > DENSE;
         const reward = entry.reward;
         const earned = reward && badges[reward.id];
         const note = entry.ended ? `<p class="text-[10.5px] font-semibold leading-snug text-slate-500 dark:text-slate-400">Sezónní věci, které už nejde získat, se do procent nepočítají.</p>` : '';
-        return `<section data-album-section="${esc(entry.id)}" class="flex flex-col gap-1.5 rounded-2xl bg-white/60 p-2 ring-1 ring-slate-200/70 dark:bg-slate-800/50 dark:ring-slate-700/70" role="tabpanel" aria-label="${esc(entry.title)}">
+        return `<section data-album-section="${esc(entry.id)}" class="flex min-h-0 flex-1 flex-col gap-1.5 rounded-2xl bg-white/60 p-2 ring-1 ring-slate-200/70 dark:bg-slate-800/50 dark:ring-slate-700/70" role="tabpanel" aria-label="${esc(entry.title)}">
             <div class="flex items-baseline justify-between gap-2 px-0.5"><h3 class="min-w-0 truncate text-sm font-black text-slate-800 dark:text-slate-100">${esc(entry.title)}</h3><span data-album-count class="shrink-0 text-[12px] font-black tabular-nums ${entry.complete ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-300'}">${entry.owned} / ${entry.total}</span></div>
             <span class="px-0.5">${BAR(entry.percent, entry.complete ? 'bg-emerald-500' : 'bg-gold-500')}</span>
             ${reward ? `<p data-album-section-title class="flex items-center gap-1 px-0.5 text-[11px] font-bold leading-snug ${earned ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}"><i data-lucide="${earned ? 'circle-check' : 'award'}" class="h-3.5 w-3.5 shrink-0"></i><span class="min-w-0 truncate">${earned ? `Celá sekce: titul „${esc(reward.title)}“ je tvůj` : `Za celou sekci titul „${esc(reward.title)}“`}</span></p>` : ''}
-            <ul class="grid grid-cols-6 gap-1 pt-0.5 ${dense ? 'min-[385px]:grid-cols-7' : ''}" aria-label="${esc(entry.title)}">${entry.entries.map(item => tileHtml(item, h, worn)).join('')}</ul>
-            ${note}${extra}
+            <div data-album-scroll data-scroll-list class="-m-2 mt-0 flex min-h-0 flex-col gap-1.5 overflow-y-auto overscroll-y-contain p-2 pt-0.5">
+                <ul class="grid shrink-0 grid-cols-6 gap-1 ${dense ? 'min-[385px]:grid-cols-7' : ''}" aria-label="${esc(entry.title)}">${entry.entries.map(item => tileHtml(item, h, worn)).join('')}</ul>
+                ${note}${extra}
+            </div>
         </section>`;
     };
     // Celé okno alba (bez tlačítka zpět, to přidá app.js)
     // wornLook = téma looku, který Mudrlant právě nosí (Sady témat v sekci Doplňky), nebo null
     const albumHtml = (album, { section: current = 'avatars', badges = {}, worn = new Set(), wornLook = null } = {}, h = {}) => {
         const shown = section(album, current);
-        return `<div data-album data-album-current="${esc(shown.id)}" class="flex flex-col gap-2">
+        return `<div data-album data-album-current="${esc(shown.id)}" class="flex min-h-0 flex-1 flex-col gap-2">
             ${headHtml(album, badges, h)}
             ${tabsHtml(album, shown.id)}
             ${sectionHtml(shown, badges, h, worn, shown.id === 'accessories' ? looksHtml(album.looks, wornLook) : '')}

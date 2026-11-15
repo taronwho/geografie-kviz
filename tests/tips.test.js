@@ -67,7 +67,7 @@ test('funkci, kterou hráč už používá, tip nenabídne; tip se ukáže jen j
         state = Tips.markShown(state, tip.id, `2026-12-${String(day + 1).padStart(2, '0')}`, now);
         now += 86400000;
     }
-    assert.deepEqual(offered, ['reakce', 'pratele', 'dobyvani-hrad', 'dobyvani-blesk', 'dobyvani-bitvy', 'dobyvani-pomucky'], 'zkušený hráč dostane jen to, co ještě nezná (nová pravidla Dobývání zná málokdo)');
+    assert.deepEqual(offered, ['hlasovani', 'reakce', 'pratele', 'dobyvani-hrad', 'dobyvani-blesk', 'dobyvani-bitvy', 'dobyvani-pomucky', 'vikend', 'reakce-plus'], 'zkušený hráč dostane jen to, co ještě nezná (nová pravidla Dobývání a motivace zná málokdo)');
     assert.equal(new Set(offered).size, offered.length);
 });
 
@@ -219,4 +219,17 @@ test('tip Braň svůj hrad (Dobývání): jen přihlášenému, který Dobýván
     assert.match(tip.text, /upozorněními se o útoku dozvíš hned/);
     // Bez rodu hráče (žádné „přišel jsi“, „dozvěděl ses“)
     assert.doesNotMatch(tip.text, /\b(přišel|přišla|dozvěděl|dozvěděla|byl jsi|byla jsi)\b/);
+});
+
+test('tip Hlasuj o speciálním turnaji: jen přihlášenému s hlasováním v databázi; kdo hlasoval, nedostane; psaní za 1,5× jen pro jednoho hráče', () => {
+    const at = (ctx, state = Tips.EMPTY) => Tips.pick({ ...state, seen: Tips.TIPS.filter(tip => tip.id !== 'hlasovani').map(tip => tip.id) }, ctx);
+    assert.equal(at(base({ counters: { answered: 20 } })), null, 'host ne');
+    assert.equal(at(base({ counters: { answered: 20 }, signedIn: true, poll: false })), null, 'databáze bez hlasování');
+    const tip = at(base({ counters: { answered: 20 }, signedIn: true }));
+    assert.equal(tip.id, 'hlasovani');
+    assert.deepEqual(tip.action, { kind: 'multi', label: 'Hlasovat' });
+    assert.match(tip.text, /4 témat[\s\S]*Hlas můžeš měnit, dokud hlasování běží/);
+    assert.equal(at(base({ counters: { answered: 20 }, signedIn: true }), Tips.touch(Tips.EMPTY, 'poll')), null, 'už hlasoval(a)');
+    assert.doesNotMatch(tip.text, /\b(hlasoval|hlasovala|vybral|vybrala)\b/);
+    assert.match(Tips.BY_ID.get('psani').text, /1,5× víc bodů[\s\S]*jen ve hře pro jednoho hráče/);
 });

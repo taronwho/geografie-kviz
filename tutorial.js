@@ -20,7 +20,8 @@
     // target = prvek, který se zvýrazní; area 'parent' = zvýrazní se celý jeho rodič (řada dlaždic, mřížka odpovědí);
     // hit = na co se musí klepnout (výchozí target); mode 'tap' = klepnutí na prvek posune dál, 'info' = jen vysvětlení a tlačítko Dál;
     // soft = klepnutí je nepovinné, bublina má i tlačítko Dál; skippable = chybí-li prvek, ale některý z dalších je vidět, krok se
-    // vynechá (jinak se na prvek vždy čeká); phase 'tour' = prohlídka, 'try' = zkoušení; wait = text při čekání na prvek
+    // vynechá (jinak se na prvek vždy čeká); phase 'tour' = prohlídka, 'try' = zkoušení; wait = text při čekání na prvek;
+    // alt = náhradní prvek, když target na obrazovce není (karta Dobývání je jen na záložce Více hráčů po přihlášení: jinak záložka)
     const TOUR_WAIT = 'Vrať se na úvodní obrazovku, tam ti vše ukážu.';
     const QUESTION_LOST = 'Otázka se nenačetla. Zkus ji otevřít znovu z úvodní obrazovky, nebo tento krok přeskoč.';
     const STEPS = [
@@ -33,6 +34,7 @@
         { id: 'mystery', phase: 'tour', owl: 'sova-dalekohled', mode: 'info', skippable: true, target: '#mystery-card', title: 'Tajemná otázka dne', text: 'Každý den jedna záhada, stejná pro všechny. Během dne přibývají nápovědy. Máš 3 pokusy a čím dřív uhodneš, tím víc bodů získáš.', wait: 'Chvilku…', waitLong: TOUR_WAIT },
         { id: 'topics', phase: 'tour', owl: 'sova-vitej', mode: 'info', target: '[data-action="play-topic"]', area: 'parent', title: 'Témata a Mix', text: 'Každá dlaždice je jedno téma, klepni na to, které chceš hrát. Mix míchá otázky ze všech témat.', wait: 'Chvilku…', waitLong: TOUR_WAIT },
         { id: 'multi', phase: 'tour', owl: 'sova-vyzva', mode: 'info', target: '[data-action="home-tab"][data-tab="multi"]', title: 'Více hráčů', text: 'Na téhle záložce vyzveš kamaráda kódem nebo přezdívkou a dáš si odvetu. Z výher roste tvůj rating a liga, je tu i týdenní žebříček a turnaj. Chce to přihlášení přes Google.', wait: TOUR_WAIT, waitLong: TOUR_WAIT, skippable: true },
+        { id: 'conquest', phase: 'tour', owl: 'sova-dobyvatel', mode: 'info', target: '#conquest-card', alt: '[data-action="home-tab"][data-tab="multi"]', title: 'Dobývání', text: 'Na záložce Více hráčů najdeš i Dobývání: s přáteli soupeříte o mapu a každé území dobudeš správnou odpovědí.', wait: TOUR_WAIT, waitLong: TOUR_WAIT, skippable: true },
         { id: 'settings', phase: 'tour', owl: 'sova-vitej', mode: 'info', target: '#btn-settings', title: 'Nastavení', text: 'Tady oblékneš Mudrlanta a vybereš si profilový obrázek a rámeček. Taky se tu přihlásíš a pak můžeš hrát výzvy s kamarády.', wait: 'Chvilku…', waitLong: TOUR_WAIT },
         { id: 'try', phase: 'try', owl: 'sova-vitej', mode: 'tap', target: '[data-action="daily"]', area: 'parent', hit: '[data-action="daily"]', title: 'Teď si to zkusíme doopravdy', text: 'Klepni na libovolnou dnešní otázku. Je skutečná, získané XP se ti započítají.', wait: 'Chvilku…', waitLong: 'Vrať se na úvodní obrazovku a klepni na dnešní otázku, nebo tento krok přeskoč.' },
         { id: 'hint', phase: 'try', owl: 'sova-premysleni', mode: 'tap', soft: true, softLabel: 'Bez nápovědy', skippable: true, target: '[data-action="hint"]', title: 'Nápověda', text: 'Nevíš si rady? Klepni na nápovědu. Čím víc nápověd použiješ, tím méně bodů za správnou odpověď dostaneš.', wait: 'Načítám otázku…', waitLong: QUESTION_LOST },
@@ -127,9 +129,12 @@
         return box.width > 0 && box.height > 0;
     };
     const holeOf = (step) => {
-        const el = doc.querySelector(step.target);
-        const base = el && step.area === 'parent' ? el.parentElement : el;
-        return visible(base) ? base : null;
+        for (const selector of step.alt ? [step.target, step.alt] : [step.target]) {
+            const el = doc.querySelector(selector);
+            const base = el && step.area === 'parent' ? el.parentElement : el;
+            if (visible(base)) return base;
+        }
+        return null;
     };
     const present = (step) => Boolean(holeOf(step));
     const external = () => Boolean(doc.querySelector(EXTERNAL));
@@ -138,7 +143,12 @@
     const multiOn = () => {
         try { return Boolean(root.MudrlantAuth && root.MudrlantAuth.isConfigured() && root.MudrlantSocial); } catch (e) { return false; }
     };
-    const hidden = () => [...(state && state.noFact ? ['fact'] : []), ...(multiOn() || doc.querySelector('[data-action="home-tab"][data-tab="multi"]') ? [] : ['multi'])];
+    // Dobývání jen s hrou více hráčů a se skripty Dobývání (conquest.js, conquest-ui.js)
+    const hidden = () => {
+        const multi = multiOn() || Boolean(doc.querySelector('[data-action="home-tab"][data-tab="multi"]'));
+        const conquest = multi && Boolean(root.MudrlantConquest && root.MudrlantConquestUI);
+        return [...(state && state.noFact ? ['fact'] : []), ...(multi ? [] : ['multi']), ...(conquest ? [] : ['conquest'])];
+    };
 
     const build = () => {
         const el = doc.createElement('div');

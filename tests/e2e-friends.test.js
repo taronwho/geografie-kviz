@@ -323,7 +323,7 @@ test('přátelé, reakce, blokování a nahlášení', { skip: !chromium && 'Pla
         assert.equal(await tab.locator('[data-reactions] [data-emoji]').count(), 4);
         await shot(tab, 'reakce');
         await tab.click('[data-reactions] [data-emoji="🔥"]');
-        await tab.waitForFunction(() => /Poslal jsi/.test(document.querySelector('[data-reactions]').textContent));
+        await tab.waitForFunction(() => /Reakce odeslána/.test(document.querySelector('[data-reactions]').textContent)); // rodově neutrální text (blok 32)
         assert.deepEqual(db.reactions.map(r => [r.from_id, r.to_id, r.emoji, r.challenge_id]), [['u-1', 'u-2', '🔥', 'ABC234']]);
         assert.equal(await tab.getAttribute('[data-reactions] [data-emoji="🔥"]', 'aria-pressed'), 'true');
         assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });

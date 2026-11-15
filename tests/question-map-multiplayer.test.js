@@ -153,15 +153,15 @@ test('zapojení v aplikaci: výzva a turnaj podle semínka, Kvíz dne a dnešní
     assert.match(app, /questionHeaderTop\(\{ timed: Boolean\(mode === 'challenge' && challenge && challenge\.tournament\) \}\);\n\s+appContent\.innerHTML = MapQuestion\.questionScreen/);
 });
 
-test('body otázky na mapě projdou kontrolami databáze: nejvýš 4 u výběru z možností (turnaj), 8 u psaní, správně = aspoň bod', () => {
+test('body otázky na mapě projdou kontrolami databáze: nejvýš 4 u výběru z možností (turnaj), 8 u starší psané výzvy, správně = aspoň bod', () => {
     assert.equal(MapQuestion.maxPoints(false), 4);
-    assert.equal(MapQuestion.maxPoints(true), 8);
+    assert.equal(MapQuestion.maxPoints(2), 8);
     const schema = read('supabase/schema.sql');
     assert.match(schema, /tournament_answers_values check \(idx between 0 and 9 and points between 0 and 4 and correct = \(points > 0\)\)/);
     assert.match(schema, /points > \(case when c\.variant = 'choices' then 4 else 8 end\) or correct <> \(points > 0\)/);
     const item = zemepis.items.find(entry => entry.c === 'mesto' && entry.k === 1 && MapQuestion.multiplayerQuestion(entry, zemepisCtx, mapData));
     const question = MapQuestion.multiplayerQuestion(item, zemepisCtx, mapData);
-    for (const typed of [false, true]) {
+    for (const typed of [false, 2]) {
         for (const [dlat, dlon] of [[0, 0], [0.3, 0.3], [2, 2], [8, 8], [30, 60]]) {
             const result = MapQuestion.evaluate(question, { lat: Math.max(-80, Math.min(80, item.la + dlat)), lon: ((item.lo + dlon + 540) % 360) - 180 }, typed);
             assert.ok(Number.isInteger(result.points) && result.points >= 0 && result.points <= (typed ? 8 : 4), JSON.stringify(result));

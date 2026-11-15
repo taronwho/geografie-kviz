@@ -128,3 +128,26 @@ test('možnosti ve všech tématech jsou čtyři různé názvy a správná je p
         }
     }
 });
+
+// Absurdní sady z ukázky možností (scripts/sample-choices.mjs): k pravěké sošce pravěké sošky (ne pomník z 20. století jen proto,
+// že je z Česka), k myšlenkovému experimentu experimenty (druh je vidět u otázky), k bitvě z roku 1514 ne válka z roku 2023,
+// k mostu mosty (ne knihovna ze stejné země), ke Kameni mudrců Flogiston
+test('reálné příklady absurdních sad: Věstonická venuše, Schrödingerova kočka, bitva u Čaldiránu, most Akaši-Kaikjó, Kámen mudrců', () => {
+    const wrongOf = (topicId, name, seed) => {
+        const ctx = P.loadContext(topicId);
+        return choicesFor(ctx, ctx.items.find(item => item.n === name), seed);
+    };
+    const seeds = ['a', 'b', 'c', 'd', 'e', 'f'];
+    for (const seed of seeds) {
+        const venus = wrongOf('umeni', 'Věstonická venuše', seed);
+        assert.ok(venus.filter(other => /paleolit/iu.test((other.f || {}).mov || '') || ((other.f || {}).y ?? 0) < -100).length >= 2, venus.map(other => other.n).join(', '));
+        assert.ok(!venus.some(other => /Bělotín|obětem války|Mládí/u.test(other.n)), venus.map(other => other.n).join(', '));
+        const cat = wrongOf('fyzika', 'Schrödingerova kočka', seed);
+        assert.deepEqual(cat.filter(other => other.ty !== 'experiment').map(other => other.n), [], 'jen experimenty');
+        const battle = wrongOf('historie', 'Bitva na Čaldiránské rovině', seed);
+        assert.ok(battle.every(other => Math.abs(other.f.y - 1514) <= 400), battle.map(other => `${other.n} (${other.f.y})`).join(', '));
+        const bridge = wrongOf('architektura', 'Most Akaši-Kaikjó', seed);
+        assert.ok(bridge.every(other => other.ty === 'most'), bridge.map(other => `${other.n} (${other.ty})`).join(', '));
+    }
+    assert.ok(seeds.every(seed => wrongOf('chemie', 'Kámen mudrců', seed).some(other => other.n === 'Flogiston')));
+});

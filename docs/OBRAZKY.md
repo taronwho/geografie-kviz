@@ -2809,6 +2809,58 @@ Kam: pomůcka Půl na půl v Dobývání (pruh Pomůcky v rozcestníku, okno Pom
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 28 px icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. It must look like an item from an old parchment campaign map, matching the attached treasure chest icon and the attached parchment-order item in size and style, so the two items look like a pair. Subject: A round old brass navigator's compass-like medallion split exactly in half by a straight vertical line: the left half is polished warm gold, the right half is deep violet enamel; two small cracked grey stone tokens with a crossed-out look lie fallen beside it on the right, two shiny intact gold tokens stand on the left, suggesting that two wrong options were removed. Colors: warm gold, deep violet, cool grey stone, aged brass. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
+## 25. Motivace – prestiž, pozvánky kamarádů, tematické víkendy a vítězné efekty (č. 311–316)
+
+Do dodání aplikace používá to, co už má: prestiž, pozvánky a vítězné efekty kreslí CSS (rámečky `.frame-prestiz`, `.frame-pratelsky`, `.frame-parta`, efekty `.vfx-*`, štítek ★), pozvánka má kolečko s ikonou `user-plus`, pruh víkendu ikonu tématu. Po dodání se rámečky přepnou na obrázkové prsteny (`art: true` v look.js PERK_FRAMES, `scripts/frame-images.py`, `FRAME_ART` v sw.js) a ostatní obrázky na `uiArt`.
+
+#### 311. `sova-prestiz.png` – Sova v prestiži – čeká na dodání
+
+Kam: karta prestiže v okně Úrovně a tituly (místo kolečka ★), oslava „Prestiž ★N“, tip Prestiž po úrovni 100. Zobrazí se 48–96 px. Přiložit: `branding/sova-original.jpg` (vzor stylu a postavy)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px icon. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Subject: the same wise owl mascot in its wine-red graduation robe and square cap, standing proudly on a small round podium, holding up a large shining five-pointed golden star above its head with both wings; a deep violet ribbon with a golden star medal hangs around its neck; a few golden sparkle lines around the star. Colors: wine red robe, warm gold star, deep violet ribbon, cream highlights. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 312. `prestiz.png` – Rámeček Prestižní (obrázkový prsten) – čeká na dodání
+
+Kam: rámeček profilu Prestižní za první prestiž (look.js PERK_FRAMES `prestiz`), kolem obrázku hráče 32–96 px. Zpracuje se jako ostatní obrázkové rámečky (`scripts/frame-images.py`: průhledný střed). Přiložit: hotový `galaxie.png` (č. 112, vzor tvaru prstenu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached ring frame image: thick dark maroon outline, flat bold colors with simple cel shading. A perfectly circular ornamental ring frame, centered, the inner hole an empty perfect circle taking about 62 % of the image width, the ring itself even in thickness all around. The ring is deep violet enamel with a thin polished gold rim on both edges, decorated with eight small golden five-pointed stars spaced evenly around it and one larger shining golden star at the top center sitting slightly over the outer edge. Plain solid flat dark grey background, color #2d3034, inside the hole too, no gradient, no shadow, no floor. No text, no letters, no numbers, no logo, no watermark. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 313. `pratelsky.png` – Rámeček Přátelský (obrázkový prsten) – čeká na dodání
+
+Kam: rámeček profilu Přátelský za pozvání kamaráda i pro pozvaného hráče po první hře (look.js `pratelsky`), 32–96 px. Přiložit: hotový `galaxie.png` (č. 112, vzor tvaru prstenu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached ring frame image: thick dark maroon outline, flat bold colors with simple cel shading. A perfectly circular ring frame, centered, the inner hole an empty perfect circle taking about 62 % of the image width, even ring thickness all around. The ring is a braided friendship bracelet of two intertwined cords, one turquoise and one coral pink, with four small cream beads spaced evenly around it, and at the bottom center two small cartoon hands in a friendly handshake sitting slightly over the outer edge. Plain solid flat dark grey background, color #2d3034, inside the hole too, no gradient, no shadow, no floor. No text, no letters, no numbers, no logo, no watermark. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 314. `parta.png` – Rámeček Parta (obrázkový prsten) – čeká na dodání
+
+Kam: rámeček profilu Parta za 10 pozvaných kamarádů (look.js `parta`), 32–96 px. Přiložit: hotový `galaxie.png` (č. 112, vzor tvaru prstenu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached ring frame image: thick dark maroon outline, flat bold colors with simple cel shading. A perfectly circular ring frame, centered, the inner hole an empty perfect circle taking about 62 % of the image width, even ring thickness all around. The ring is made of a cheerful party garland: small triangular bunting flags in rainbow colors (red, orange, yellow, green, turquoise, blue, violet) alternating around the whole circle, with a few tiny confetti pieces and one small party popper with streamers at the top right sitting slightly over the outer edge. Plain solid flat dark grey background, color #2d3034, inside the hole too, no gradient, no shadow, no floor. No text, no letters, no numbers, no logo, no watermark. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 315. `sova-pozvanka.png` – Sova s pozvánkou – čeká na dodání
+
+Kam: okno Pozvi kamarády a karta na záložce Více hráčů (místo kolečka s ikonou), okno „Pozvánka od kamaráda“ po otevření odkazu, tip Pozvi kamarády. Zobrazí se 36–96 px. Přiložit: `branding/sova-original.jpg`
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 36 px icon. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Subject: the same wise owl mascot in its wine-red graduation robe and square cap, cheerfully handing over a big cream envelope with a turquoise heart-shaped wax seal held out in one wing, waving with the other wing; two small turquoise and coral pink confetti hearts float beside the envelope. Colors: wine red robe, cream envelope, turquoise and coral pink accents. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 316. `vikend.png` – Tematický víkend (sova s kalendářem) – čeká na dodání
+
+Kam: pruh tematického víkendu na úvodu vedle ikony tématu (na nízkém displeji čip), tip Tematické víkendy. Zobrazí se 24–64 px, proto jednoduchý tvar. Přiložit: `branding/sova-original.jpg`
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 24 px icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Subject: a small desk calendar with two pages clearly marked by a big golden star and a wine-red ribbon bookmark, a tiny owl head peeking over its top edge wearing the square graduation cap, and a round golden coin with two raised arrows pointing up beside it suggesting a double bonus. Colors: cream pages, wine red ribbon, warm gold star and coin, indigo calendar cover. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
 ## Co udělám po dodání
 
 1. Uložím soubory do `branding/ikony/`, vyříznu pozadí (`python3 scripts/topic-icons.py …`) a u sov vyrobím barvy obleku (`python3 scripts/owl-robes.py`).

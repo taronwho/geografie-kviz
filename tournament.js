@@ -47,6 +47,8 @@
     // Týden turnaje: „9. 11. – 15. 11.“
     const weekLabel = (weekStart) => `${formatDay(weekStart)} – ${formatDay(addDays(weekStart, 6))}`;
     // Týden v archivu i s rokem: „2.–8. 11. 2026“, přes konec měsíce „30. 11. – 6. 12. 2026“, přes konec roku „28. 12. 2026 – 3. 1. 2027“
+    // Den s rokem: „21. 11. 2026“ (speciální turnaj v archivu)
+    const dateLabel = (day) => { const date = parseDay(day); return date ? `${formatDay(day)} ${date.getUTCFullYear()}` : ''; };
     const archiveWeekLabel = (weekStart) => {
         const from = parseDay(weekStart);
         const to = parseDay(addDays(weekStart, 6));
@@ -56,6 +58,145 @@
         if (m1 !== m2) return `${d1}. ${m1}. – ${d2}. ${m2}. ${y2}`;
         return `${d1}.–${d2}. ${m2}. ${y2}`;
     };
+
+    // --- Speciální (nárazové) turnaje na téma (schéma 31) ---
+    // Téma turnaje: id a název jako v tabulce tournament_themes (supabase/schema.sql, blok 31; shodu hlídá tests/tournament-special.test.js),
+    // from = odkud se berou otázky: { téma: { c: [kategorie], g: [okruhy] } } (položka patří do tématu, když má jednu z kategorií nebo je
+    // v jednom z okruhů), level = nejtěžší otázky (1 jen známé, 2 i méně známé, 3 všechny) tak, aby na celý turnaj (kapacita → kola × 10 otázek)
+    // stačily položky bez opakování. Témata otázek turnaje (topic) jsou klíče from v tomto pořadí.
+    const THEMES = [
+        { id: 'hrady-zamky', title: 'Hrady a zámky', icon: 'castle', level: 1, capacity: 128, from: { zemepis: { g: ['hrady-zamky'] }, architektura: { g: ['hrady-zamky'] } } },
+        { id: 'opery', title: 'Opery', icon: 'drama', level: 1, capacity: 128, from: { hudba: { g: ['opera'] } } },
+        { id: 'olympijske-hry', title: 'Olympijské hry', icon: 'medal', level: 2, capacity: 128, from: { sport: { c: ['olympiady'], g: ['olympijske-legendy', 'cesti-olympijsti-vitezove'] } } },
+        { id: 'vlajky-afriky', title: 'Vlajky Afriky', icon: 'flag', level: 3, capacity: 64, from: { vlajky: { g: ['vlajky-afriky'] } } },
+        { id: 'vlajky-statu', title: 'Vlajky států', icon: 'flag', level: 2, capacity: 128, from: { vlajky: { c: ['vlajka'] } } },
+        { id: 'ceske-dejiny', title: 'České dějiny', icon: 'scroll', level: 1, capacity: 128, from: { historie: { g: ['ceske-dejiny'] } } },
+        { id: 'starovek', title: 'Starověk', icon: 'landmark', level: 1, capacity: 128, from: { historie: { g: ['starovek'] } } },
+        { id: 'svetove-valky', title: 'Světové války', icon: 'swords', level: 2, capacity: 128, from: { historie: { g: ['prvni-svetova', 'druha-svetova'] } } },
+        { id: 'panovnici', title: 'Králové a císaři', icon: 'crown', level: 2, capacity: 128, from: { historie: { g: ['cesti-panovnici', 'anglicti-panovnici', 'francouzsti-panovnici', 'rimsti-cisari', 'cisari-srr', 'rusti-panovnici'] } } },
+        { id: 'recke-baje', title: 'Řecké báje', icon: 'sparkles', level: 2, capacity: 128, from: { mytologie: { g: ['recti-bohove', 'recke-baje', 'protejsky'] } } },
+        { id: 'pravek', title: 'Pravěká zvířata', icon: 'paw-print', level: 2, capacity: 128, from: { biologie: { c: ['pravek'] } } },
+        { id: 'psi-plemena', title: 'Psí plemena', icon: 'paw-print', level: 1, capacity: 128, from: { biologie: { g: ['psi-plemena'] } } },
+        { id: 'nase-priroda', title: 'Naše příroda', icon: 'leaf', level: 1, capacity: 128, from: { biologie: { g: ['nase-priroda'] } } },
+        { id: 'vesmir', title: 'Vesmír', icon: 'telescope', level: 1, capacity: 128, from: { fyzika: { c: ['vesmir', 'mise'] } } },
+        { id: 'chemicke-prvky', title: 'Chemické prvky', icon: 'atom', level: 2, capacity: 128, from: { chemie: { c: ['prvky'] } } },
+        { id: 'rock', title: 'Rock a punk', icon: 'guitar', level: 1, capacity: 128, from: { hudba: { g: ['rock'] } } },
+        { id: 'cesky-film', title: 'Český film', icon: 'clapperboard', level: 1, capacity: 128, from: { film: { g: ['cesky-film'] } } },
+        { id: 'pohadky', title: 'Filmové pohádky', icon: 'wand-sparkles', level: 2, capacity: 128, from: { film: { g: ['pohadky'] } } },
+        { id: 'sci-fi', title: 'Sci-fi a fantasy', icon: 'rocket', level: 1, capacity: 128, from: { film: { g: ['sci-fi'] }, literatura: { g: ['sci-fi-fantasy'] } } },
+        { id: 'ceska-literatura', title: 'Česká literatura', icon: 'book-open', level: 1, capacity: 128, from: { literatura: { g: ['ceska-literatura'] } } },
+        { id: 'renesance', title: 'Renesance', icon: 'palette', level: 2, capacity: 128, from: { umeni: { g: ['renesance'] }, architektura: { g: ['renesance'] } } },
+        { id: 'fotbal', title: 'Fotbal', icon: 'goal', level: 1, capacity: 128, from: { sport: { g: ['fotbal', 'fotbalove-kluby'] } } },
+        { id: 'hokej', title: 'Lední hokej', icon: 'trophy', level: 2, capacity: 128, from: { sport: { g: ['hokej'] } } },
+        { id: 'hlavni-mesta', title: 'Hlavní města', icon: 'map-pin', level: 1, capacity: 128, from: { zemepis: { g: ['hlavni-mesta'] } } },
+        { id: 'ceska-mesta', title: 'Česká města', icon: 'building', level: 1, capacity: 128, from: { zemepis: { g: ['ceska-mesta'] } } },
+        { id: 'unesco', title: 'Světové dědictví UNESCO', icon: 'globe', level: 1, capacity: 128, from: { zemepis: { g: ['unesco'] }, architektura: { g: ['unesco'] } } },
+        { id: 'kostely', title: 'Kostely a kláštery', icon: 'church', level: 1, capacity: 128, from: { architektura: { g: ['chramy'] } } },
+        { id: 'nobelova-cena', title: 'Nobelova cena', icon: 'award', level: 1, capacity: 128, from: { chemie: { g: ['nobelova-cena-chemie'] }, fyzika: { g: ['nobelova-cena-fyzika'] }, literatura: { g: ['nobelova-cena'] } } }
+    ];
+    const THEME_BY_ID = new Map(THEMES.map(theme => [theme.id, theme]));
+    const themeOf = (id) => THEME_BY_ID.get(String(id || '')) || null;
+    const themeTopics = (theme) => Object.keys(theme.from).join(',');
+    // Patří položka tématu otázek topicId do tématu turnaje? (kategorie c nebo okruh g z výčtu u svého tématu); neznámé téma turnaje: null
+    const themeMatcher = (themeId) => {
+        const theme = themeOf(themeId);
+        if (!theme) return null;
+        return (topicId, item) => {
+            const rule = theme.from[topicId];
+            return Boolean(rule && item && ((rule.c || []).includes(item.c) || (item.g || []).some(key => (rule.g || []).includes(key))));
+        };
+    };
+    const isSpecial = (tournament) => Boolean(tournament && tournament.kind === 'special');
+    // Kolo speciálního turnaje: od starts_at + (kolo − 1) × délka kola do starts_at + kolo × délka (ms); jako tournament_round_phase v databázi
+    const MINUTE = 60000;
+    const startMs = (tournament) => { const value = Date.parse(tournament && tournament.starts_at); return Number.isFinite(value) ? value : NaN; };
+    const roundMinutes = (tournament) => Math.max(1, Math.floor(Number(tournament && tournament.round_minutes)) || 1440);
+    const roundStart = (tournament, round) => startMs(tournament) + (round - 1) * roundMinutes(tournament) * MINUTE;
+    const roundEnd = (tournament, round) => roundStart(tournament, round) + roundMinutes(tournament) * MINUTE;
+    // Čas v Praze: { day: 'RRRR-MM-DD', time: '18:05' } (hodina bez nuly na začátku jako v upozorněních ze serveru)
+    const pragueClock = (ms) => {
+        const date = new Date(ms);
+        if (!Number.isFinite(ms)) return { day: '', time: '' };
+        try {
+            const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Prague', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(date);
+            const get = (type) => (parts.find(part => part.type === type) || {}).value;
+            return { day: `${get('year')}-${get('month')}-${get('day')}`, time: `${Number(get('hour'))}:${get('minute')}` };
+        } catch (error) {
+            return { day: dayKey(date), time: `${date.getUTCHours()}:${String(date.getUTCMinutes()).padStart(2, '0')}` };
+        }
+    };
+    const WEEKDAYS_IN = ['v neděli', 'v pondělí', 'v úterý', 've středu', 've čtvrtek', 'v pátek', 'v sobotu'];
+    // Kdy (Praha): „dnes v 18:00“, „zítra v 9:30“, jinak „v sobotu 21. 11. v 18:00“
+    const whenText = (ms, now = Date.now()) => {
+        const at = pragueClock(ms);
+        if (!at.day) return '';
+        const gap = diffDays(at.day, pragueClock(now).day);
+        if (gap === 0) return `dnes v ${at.time}`;
+        if (gap === 1) return `zítra v ${at.time}`;
+        const date = parseDay(at.day);
+        return `${WEEKDAYS_IN[date.getUTCDay()]} ${formatDay(at.day)} v ${at.time}`;
+    };
+    // Krátce do záhlaví sloupce pavouku: „dnes 18:00“, „zítra 9:30“, „so 21. 11. 18:00“
+    const whenShort = (ms, now = Date.now()) => {
+        const at = pragueClock(ms);
+        if (!at.day) return '';
+        const gap = diffDays(at.day, pragueClock(now).day);
+        if (gap === 0) return `dnes ${at.time}`;
+        if (gap === 1) return `zítra ${at.time}`;
+        return `${DAY_SHORT[parseDay(at.day).getUTCDay()]} ${formatDay(at.day)} ${at.time}`;
+    };
+    // Konec kola: „v 19:00“, jiný den „zítra v 19:00“ / „v sobotu 21. 11. v 19:00“
+    const untilText = (ms, now = Date.now()) => { const text = whenText(ms, now); return text.startsWith('dnes ') ? text.slice(5) : text; };
+    // Délka kola slovy (do věty „Každé kolo trvá …“): „30 minut“, „1 hodinu“, „3 hodiny“, „24 hodin“, „1 h 30 min“
+    const durationText = (minutes) => {
+        const total = Math.max(1, Math.floor(Number(minutes) || 0));
+        if (total < 60) return `${total} ${total === 1 ? 'minutu' : total <= 4 ? 'minuty' : 'minut'}`;
+        if (total % 60) return `${Math.floor(total / 60)} h ${total % 60} min`;
+        const hours = total / 60;
+        return `${hours} ${hours === 1 ? 'hodinu' : hours <= 4 ? 'hodiny' : 'hodin'}`;
+    };
+    // Fáze kola: 'before' (ještě nezačalo), 'open' (hraje se), 'over' (skončilo); týdenní turnaj po pražských dnech, speciální po minutách
+    const roundPhase = (tournament, round, today, now = Date.now()) => {
+        if (isSpecial(tournament)) {
+            const from = roundStart(tournament, round);
+            if (!Number.isFinite(from)) return 'before';
+            return now < from ? 'before' : now < roundEnd(tournament, round) ? 'open' : 'over';
+        }
+        const gap = diffDays(roundDay(tournament, round), today);
+        return gap > 0 ? 'before' : gap === 0 ? 'open' : 'over';
+    };
+    // Kdy kolo začíná, krátce (záhlaví sloupce pavouku a seznamu kol): týdenní „dnes“ / „po 9. 11.“, speciální „dnes 18:00“
+    const roundWhen = (tournament, round, today, now = Date.now()) => isSpecial(tournament) ? whenShort(roundStart(tournament, round), now) : dayShort(roundDay(tournament, round), today);
+    // Název turnaje do karty a oken: „Speciální turnaj: Hrady a zámky“, jinak „Týdenní turnaj“
+    const titleOf = (tournament) => isSpecial(tournament) ? `Speciální turnaj: ${tournament.title || (themeOf(tournament.theme) || {}).title || 'téma'}` : 'Týdenní turnaj';
+    // Pravidla speciálního turnaje (okno „Jak turnaje fungují“ z jeho okna)
+    const specialRules = (tournament, now = Date.now()) => [
+        `Speciální turnaj na téma ${tournament.title || 'turnaje'}: všechny otázky jsou z tohoto tématu a ve dvojici pro oba stejné. Speciální turnaje jsou jen občas, mimo týdenní turnaj.`,
+        `Přihlášky se zavřou, když turnaj začne${Number.isFinite(startMs(tournament)) ? ` (${whenText(startMs(tournament), now)})` : ''}. Hraje nejvyšší mocnina dvou nejdřív přihlášených (nejméně ${MIN_PLAYERS}, nejvýš ${tournament.capacity || MAX_PLAYERS}).`,
+        `Pavouk je vyřazovací. Každé kolo trvá ${durationText(roundMinutes(tournament))}: dvojice mají ${QUESTIONS} stejných otázek a každý je odehraje kdykoli během kola, jen jednou.`,
+        'Ve dvojici rozhodují body (nápověda bod ubere), při shodě počet správných odpovědí, pak rychlost a nakonec dřívější přihláška.',
+        'Kdo kolo neodehraje, prohrává kontumačně a vypadává. Poražení semifinalisté hrají o 3. místo v posledním kole.',
+        `Za každý vyhraný zápas dostaneš XP jako v týdenním turnaji: ${WIN_XP} v 1. kole a s každým dalším kolem o ${WIN_XP_STEP} víc.`,
+        'Téma dalšího speciálního turnaje vybíráte v hlasování na záložce Více hráčů.'
+    ];
+
+    // --- Hlasování o tématu dalšího speciálního turnaje (schéma 31): stav ze serveru (tournament_poll_state) do karty ---
+    // Vrátí { id, options: [{ id, title, icon, votes, percent, mine, leader }], mine, total, voted, changesLeft } nebo null (nic k ukázání)
+    const pollView = (state) => {
+        if (!state || typeof state !== 'object' || state.closed || !Array.isArray(state.options) || !state.options.length) return null;
+        const mine = typeof state.mine === 'string' ? state.mine : null;
+        const total = Number.isFinite(Number(state.total)) && state.total !== null ? Math.max(0, Math.floor(Number(state.total))) : null;
+        const counted = total !== null;
+        const options = state.options.filter(option => option && typeof option.id === 'string').slice(0, 4).map(option => {
+            const theme = themeOf(option.id);
+            const votes = counted ? Math.max(0, Math.floor(Number(option.votes) || 0)) : null;
+            return { id: option.id, title: String(option.title || (theme && theme.title) || option.id), icon: theme ? theme.icon : 'trophy', votes, percent: counted && total ? Math.round(votes / total * 100) : 0, mine: option.id === mine };
+        });
+        const top = counted ? Math.max(0, ...options.map(option => option.votes)) : 0;
+        options.forEach(option => { option.leader = counted && top > 0 && option.votes === top; });
+        return { id: state.id, options, mine, total, voted: Boolean(mine), counted, changesLeft: Math.max(0, Math.floor(Number(state.changes_left) || 0)) };
+    };
+    const votesWord = (count) => plural(count, 'hlas', 'hlasy', 'hlasů');
 
     // --- Kola ---
     const NAMES = { 128: '1. kolo', 64: '2. kolo', 32: 'Šestnáctifinále', 16: 'Osmifinále', 8: 'Čtvrtfinále', 4: 'Semifinále', 2: 'Finále' };
@@ -94,16 +235,18 @@
 
     // --- Stav karty turnaje ---
     // tournament: řádek tournaments; entries: přihlášky (user_id, status, place); matches: zápasy s výsledky; today: den (Praha);
+    // now: okamžik v ms (kola speciálního turnaje běží po minutách od začátku, schéma 31);
     // savedMatch: id zápasu, který má toto zařízení rozehraný v uložené relaci (null = žádný)
-    // Vrací popis, ze kterého se karta vykreslí: { phase, ... }.
-    const cardState = ({ tournament, entries = [], matches = [], me, today, savedMatch = null }) => {
+    // Vrací popis, ze kterého se karta vykreslí: { phase, ... }; speciální turnaj má navíc special, startsAt, endsAt (konec kola mého zápasu), nextAt.
+    const cardState = ({ tournament, entries = [], matches = [], me, today, now = Date.now(), savedMatch = null }) => {
         const mine = entries.find(entry => entry.user_id === me) || null;
-        const base = { id: tournament.id, status: tournament.status, week: tournament.week_start };
+        const special = isSpecial(tournament);
+        const base = { id: tournament.id, status: tournament.status, week: tournament.week_start, special, startsAt: special ? startMs(tournament) : null };
         if (tournament.status === 'open') {
             const count = entries.length;
             const capacity = tournament.capacity || MAX_PLAYERS;
             const joined = Boolean(mine);
-            const closed = diffDays(tournament.week_start, today) <= 0;
+            const closed = special ? !(now < startMs(tournament)) : diffDays(tournament.week_start, today) <= 0;
             return { ...base, phase: 'open', count, capacity, joined, full: count >= capacity, closed, canJoin: !joined && !closed && count < capacity, canLeave: joined && !closed, start: tournament.week_start, percent: Math.min(100, Math.round(count / capacity * 100)), enough: count >= MIN_PLAYERS };
         }
         if (tournament.status === 'cancelled') return { ...base, phase: 'cancelled', count: entries.length };
@@ -119,18 +262,19 @@
         if (!match) return { ...state, role: 'player', step: 'none' };
         const day = roundDay(tournament, match.round);
         const own = resultOf(match, me);
-        const out = { ...state, role: 'player', match, matchId: match.id, round: match.round, third: Boolean(match.third), roundName: tournamentRoundName(tournament, match.round, match.third), day, opponent: opponentOf(match, me), correct: own && own.finished_at ? own.correct : null, points: own && own.finished_at ? own.points : null };
+        const out = { ...state, role: 'player', match, matchId: match.id, round: match.round, third: Boolean(match.third), roundName: tournamentRoundName(tournament, match.round, match.third), day, opponent: opponentOf(match, me), correct: own && own.finished_at ? own.correct : null, points: own && own.finished_at ? own.points : null,
+            ...(special ? { roundAt: roundStart(tournament, match.round), endsAt: roundEnd(tournament, match.round) } : {}) };
         if (decided(match)) {
             if (match.winner === me) {
                 const finalRound = match.round >= tournament.rounds;
-                return { ...out, step: 'won', how: match.decided_by, nextDay: finalRound ? null : roundDay(tournament, match.round + 1), final: finalRound };
+                return { ...out, step: 'won', how: match.decided_by, nextDay: finalRound ? null : roundDay(tournament, match.round + 1), nextAt: special && !finalRound ? roundStart(tournament, match.round + 1) : null, final: finalRound };
             }
             return { ...out, step: 'lost', how: match.decided_by, place: mine.place || null, label: mine.place ? eliminatedLabel(mine.place) : '' };
         }
-        const gap = diffDays(day, today);
-        if (gap > 0) return { ...out, step: 'later' };
-        // Den kola skončil: rozehraný a nedohraný zápas vypršel (expired), jinak se jen dopočítává
-        if (gap < 0) return { ...out, step: 'counting', expired: Boolean(own && !own.finished_at) };
+        const phase = roundPhase(tournament, match.round, today, now);
+        if (phase === 'before') return { ...out, step: 'later' };
+        // Kolo skončilo (den kola, u speciálního turnaje jeho čas): rozehraný a nedohraný zápas vypršel (expired), jinak se jen dopočítává
+        if (phase === 'over') return { ...out, step: 'counting', expired: Boolean(own && !own.finished_at) };
         if (own && own.finished_at) return { ...out, step: 'waiting' };
         // Rozehraný zápas: server zná začátek a toto zařízení má uloženou relaci, pokračuje se od další otázky (čas běží od začátku).
         // Bez uložené relace (jiné zařízení, smazaná data) se kolo počítá jako neodehrané.
@@ -139,12 +283,22 @@
         return { ...out, step: 'play', canPlay: true };
     };
 
-    // Věta pro kartu a okno turnaje podle stavu hráče
-    const statusText = (state, names = {}, today) => {
+    // Věta pro kartu a okno turnaje podle stavu hráče (now jen u speciálního turnaje: časy kol)
+    const statusText = (state, names = {}, today, now = Date.now()) => {
         const opponent = state.opponent ? names[state.opponent] || 'soupeř' : '';
         if (state.phase === 'open') {
             if (state.closed) return 'Přihlášky jsou zavřené.';
+            if (state.special) return `Začíná ${whenText(state.startsAt, now)}`;
             return `Začíná ${weekdayName(state.start)} ${formatDay(state.start)}`;
+        }
+        // Speciální turnaj: kola mají čas, ne den (texty bez rodu)
+        if (state.special && state.role === 'player') {
+            switch (state.step) {
+            case 'play': return `Hraj teď, soupeř: ${opponent}. Kolo končí ${untilText(state.endsAt, now)}.`;
+            case 'later': return `Další kolo začíná ${whenText(state.roundAt, now)}, soupeř: ${opponent}.`;
+            case 'won': if (!state.final) return `Postup do dalšího kola, začíná ${whenText(state.nextAt, now)}.`; break;
+            default: break;
+            }
         }
         if (state.phase === 'cancelled') return 'Turnaj se nehrál, přihlásilo se málo hráčů.';
         if (state.phase === 'finished') return state.playing && state.place ? `Skončil, ${placeLabel(state.place)}.` : 'Turnaj skončil.';
@@ -397,8 +551,9 @@
     };
 
     return {
+        THEMES, themeOf, themeTopics, themeMatcher, isSpecial, roundStart, roundEnd, roundPhase, roundWhen, pragueClock, whenText, whenShort, untilText, durationText, titleOf, specialRules, pollView, votesWord,
         QUESTIONS, MIN_PLAYERS, MAX_PLAYERS, WIN_XP, WIN_XP_STEP, winXp, RULES,
-        parseDay, addDays, totalsOf, formatDuration, diffDays, pragueToday, formatDay, weekdayName, dayWord, weekLabel, archiveWeekLabel,
+        parseDay, addDays, totalsOf, formatDuration, diffDays, pragueToday, formatDay, weekdayName, dayWord, weekLabel, archiveWeekLabel, dateLabel,
         roundName, playersInRound, tournamentRoundName, roundDay, plural, playersWord, placeLabel, eliminatedLabel,
         groupRounds, currentRound, decided, involves, opponentOf, myMatch, resultOf, winnerPlace,
         cardState, statusText, noticeText, podium, nameMap, xpMatches, xpRounds,

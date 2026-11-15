@@ -83,6 +83,9 @@
     const encodeOwl = (prefs) => {
         const parsed = parseOwl(prefs);
         const parts = [`robe=${parsed ? parsed.robe : 'vinova'}`];
+        // Vlastní barva obleku (robe 'vlastni', robe-color.js): 'robec=odstín.světlost' hned za oblekem; starší aplikace ji přeskočí
+        // a vlastní talár neznají, takže ukážou vínovou sovu
+        if (parsed && parsed.robe === Look.ROBE_CUSTOM) parts.push(`robec=${parsed.robeColor || Look.ROBE_COLOR_DEFAULT}`);
         if (parsed && parsed.pose) parts.push(`pose=${parsed.pose}`);
         // „Bez monoklu“ v obličeji je jen 'face=bez-monoklu' (bez barvy); starší aplikace ho nezná a ukáže sovu s monoklem
         if (parsed) for (const slot of ORDER) if (parsed.acc[slot]) parts.push(parsed.acc[slot].id === Look.NO_MONOCLE ? `${slot}=${Look.NO_MONOCLE}` : `${slot}=${parsed.acc[slot].id}.${parsed.acc[slot].color}${parsed.acc[slot].flag ? `.${parsed.acc[slot].flag}` : ''}`);
@@ -106,6 +109,7 @@
         let robe = 'vinova';
         const acc = {};
         let pose = null;
+        let robeColor = null;
         let known = false;
         const takeRobe = (id) => { if (Look.find('robes', id)) { robe = id; known = true; } };
         // Sova titulu: jen titul-1 … titul-11 (Look.POSES), první platná; jiná hodnota se zahodí
@@ -126,42 +130,50 @@
                 const key = part.slice(0, eq);
                 const value = part.slice(eq + 1);
                 if (key === 'robe') takeRobe(value);
+                else if (key === 'robec') robeColor = robeColor || Look.cleanRobeColor(value);
                 else if (key === 'pose') takePose(value);
                 else if (Look.SLOTS.some(slot => slot.id === key)) { const [id, color, flag] = value.split('.'); takeAcc(key, id, color === undefined ? 'original' : color, flag); }
             }
         } else if (input && typeof input === 'object') {
             takeRobe(input.robe);
+            robeColor = Look.cleanRobeColor(input.robeColor);
             takePose(input.pose);
             const source = input.acc && typeof input.acc === 'object' ? input.acc : {};
             for (const slot of Look.SLOTS) { const entry = source[slot.id]; if (entry && typeof entry === 'object') takeAcc(slot.id, entry.id, entry.color, entry.flag); }
             known = true;
         } else return null;
         if (!known) return null;
-        return pose ? { robe, acc, pose } : { robe, acc };
+        const result = pose ? { robe, acc, pose } : { robe, acc };
+        if (robe === Look.ROBE_CUSTOM) result.robeColor = robeColor || Look.ROBE_COLOR_DEFAULT;
+        return result;
     }
     // Sova titulu v kolečku obrázku hráče: ilustrace icons/topics/sova-titul-<n>[-<barva>].webp (barva obleku jako u loga, bez doplňků)
     // se do kolečka vejde celá i s čepicí a předmětem (knihy, lupa, brk…): zmenšená do vepsaného čtverce, mírně níž (čepice nahoře
     // je širší než spodek). Třídy jsou vypsané celé, ať je Tailwind najde. Obal je <span> (sova bývá uvnitř <button> nebo <p>).
     const FIT_IN_CIRCLE = 'w-[84%] left-[8%] top-[9%]';
     const POSE_CROP = Object.fromEntries(Array.from({ length: 11 }, (_, i) => [`titul-${i + 1}`, FIT_IN_CIRCLE]));
+    // Vlastní barva obleku nemá předpřipravený obrázek: vínová sova s data-robe-color, přebarví ji look-robes.js (robe-color.js)
+    const robeFile = (robe) => (Look && Look.find('robes', robe) && robe !== Look.ROBE_CUSTOM ? robe : 'vinova');
+    const robeColorAttr = (robe, color) => (Look && robe === Look.ROBE_CUSTOM ? ` data-robe-color="${escapeHtml(Look.cleanRobeColor(color) || Look.ROBE_COLOR_DEFAULT)}"` : '');
     const poseSrc = (pose, robe = 'vinova') => {
         const item = Look && Look.findPose ? Look.findPose(pose) : null;
         if (!item) return null;
-        const known = Look.find('robes', robe) ? robe : 'vinova';
+        const known = robeFile(robe);
         return `icons/topics/sova-${item.id}${known === 'vinova' ? '' : `-${known}`}.webp`;
     };
-    const poseHtml = (pose, robe) => {
+    const poseHtml = (pose, robe, robeColor = null) => {
         const src = poseSrc(pose, robe);
-        return src ? `<span class="relative block h-full w-full overflow-hidden rounded-full"><img data-keep data-owl-pose="${pose}" src="${src}" alt="" class="absolute max-w-none select-none ${POSE_CROP[pose]}"></span>` : '';
+        return src ? `<span class="relative block h-full w-full overflow-hidden rounded-full"><img data-keep data-owl-pose="${pose}"${robeColorAttr(robe, robeColor)} src="${src}" alt="" class="absolute max-w-none select-none ${POSE_CROP[pose]}"></span>` : '';
     };
     // Sova z dané konfigurace (ne z mých voleb): data-keep ji ochrání před přebarvením pozorovatelem z look-robes.js.
     // S pózou se kreslí sova titulu (vyplní celé kolečko, imgClass a wrapClass se neuplatní), jinak logo s doplňky.
     const owlAvatarHtml = (parsedOrText, imgClass = 'h-full w-auto', wrapClass = 'h-[88%]') => {
         const parsed = parseOwl(parsedOrText);
         if (!parsed) return '';
-        if (parsed.pose) return poseHtml(parsed.pose, parsed.robe);
-        const src = `${logoBase(parsed.acc)}${parsed.robe === 'vinova' ? '' : `-${parsed.robe}`}.webp`;
-        return `<span class="relative inline-flex shrink-0 ${wrapClass}${maskClass(parsed.acc)}"><img data-keep src="${src}" alt="" class="${imgClass}">${layersHtml(parsed.acc, 'data-keep')}</span>`;
+        if (parsed.pose) return poseHtml(parsed.pose, parsed.robe, parsed.robeColor);
+        const file = robeFile(parsed.robe);
+        const src = `${logoBase(parsed.acc)}${file === 'vinova' ? '' : `-${file}`}.webp`;
+        return `<span class="relative inline-flex shrink-0 ${wrapClass}${maskClass(parsed.acc)}"><img data-keep${robeColorAttr(parsed.robe, parsed.robeColor)} src="${src}" alt="" class="${imgClass}">${layersHtml(parsed.acc, 'data-keep')}</span>`;
     };
 
     // Celý look tématu na sově z textu profilu (nebo z { robe, acc }): { topic, title, topicTitle } nebo null. Sova titulu (póza) doplňky
@@ -197,9 +209,10 @@
             wrapper.classList.toggle('owl-nohat', hidesHat(acc));
             wrapper.classList.toggle('owl-nohand', hidesHand(acc));
             const logo = wrapper.querySelector('img');
-            const src = logo ? logo.getAttribute('src') || '' : '';
+            // Přebarvená sova (vlastní barva obleku) má adresu blob: a původní obrázek v data-owl-base
+            const src = logo ? logo.getAttribute('data-owl-base') || logo.getAttribute('src') || '' : '';
             const next = src.replace(/^icons\/logo(?:-bez-monoklu)?(?=[-.])/, logoBase(acc));
-            if (logo && next !== src) logo.setAttribute('src', next);
+            if (logo && next !== src) { logo.removeAttribute('data-owl-base'); logo.removeAttribute('data-owl-tint'); logo.setAttribute('src', next); }
         });
     };
 

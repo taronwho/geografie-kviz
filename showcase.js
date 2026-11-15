@@ -2,6 +2,8 @@
 // odznak (b:<id>, nejvyšší získaný stupeň skupiny, ten je v účtu), diplom za mistrovství tématu (d:<téma>) a skončenou ligovou sezónu
 // (l:<RRRR-MM>:<liga>). Databáze hlídá tvar a počet, odznak (musí být v profiles.badges) a sezónu (musí být skutečným vrcholem skončeného
 // měsíce); diplomy drží aplikace (rewards.js), u nich server kontroluje jen tvar. Neznámou položku (novější aplikace) vitrína přeskočí.
+// Od bloku 32 i titul ze Sezóny Mudrlanta (t:<titul>, Šampion sezóny) a věc ze Sezóny (s:<druh>:<id>: rámeček, postavička nebo doplněk
+// měsíce, look.js exclusive se source 'season'); server je přijme, jen když jsou mezi dárky v účtu (profiles.rewards → gifts).
 // Čistá logika a HTML bez DOMu; okno Vitrína, přepínače „Vystavit“ a načtení a uložení napojuje app.js.
 (function (root, factory) {
     const api = factory();
@@ -11,17 +13,23 @@
     'use strict';
     const MAX = 3;
     // Stejný tvar jako showcase_format_ok() v supabase/schema.sql
-    const ENTRY = /^(?:b:[a-z0-9-]{1,40}|d:[a-z0-9-]{1,24}|l:\d{4}-(?:0[1-9]|1[0-2]):(?:bronz|stribro|zlato|platina|diamant|mistr))$/;
+    const ENTRY = /^(?:b:[a-z0-9-]{1,40}|d:[a-z0-9-]{1,24}|l:\d{4}-(?:0[1-9]|1[0-2]):(?:bronz|stribro|zlato|platina|diamant|mistr)|t:[a-z0-9-]{1,40}|s:(?:frames|avatars|accessories):[a-z0-9-]{1,30})$/;
+    // Druhy sezónních věcí, které jdou vystavit (kategorie katalogu look.js)
+    const SEASON_KINDS = ['frames', 'avatars', 'accessories'];
     const isEntry = (value) => typeof value === 'string' && ENTRY.test(value);
     // Platné položky bez opakování, nejvýš MAX (cizí řádek z databáze, odpověď serveru)
     const clean = (list) => [...new Set((Array.isArray(list) ? list : []).filter(isEntry))].slice(0, MAX);
     const badge = (id) => `b:${id}`;
     const diploma = (topic) => `d:${topic}`;
     const season = (month, league) => `l:${month}:${league}`;
+    const title = (id) => `t:${id}`;
+    const seasonItem = (category, id) => `s:${category}:${id}`;
     const parse = (entry) => {
         if (!isEntry(entry)) return null;
         if (entry.startsWith('b:')) return { kind: 'badge', id: entry.slice(2) };
         if (entry.startsWith('d:')) return { kind: 'diploma', id: entry.slice(2) };
+        if (entry.startsWith('t:')) return { kind: 'title', id: entry.slice(2) };
+        if (entry.startsWith('s:')) { const [, category, id] = entry.split(':'); return { kind: 'seasonItem', category, id }; }
         const [, month, league] = entry.split(':');
         return { kind: 'season', month, league };
     };
@@ -37,7 +45,10 @@
     const esc = (text) => String(text).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
     // Popis položky přes pomocníky aplikace: { kind, title, caption, label, art } nebo null (neznámý odznak, téma nebo liga).
     // h = { badge(id) → odznak | null, medal(odznak, cls), topic(id) → téma | null, diplomaTitle(téma), diplomaArt(téma, cls),
-    //       leagueName(id) → název | '', emblem(liga, cls), monthLabel(RRRR-MM) }
+    //       leagueName(id) → název | '', emblem(liga, cls), monthLabel(RRRR-MM),
+    //       titleItem(id) → titul | null, titleArt(cls), seasonItem(druh, id) → věc | null, seasonArt(druh, věc, cls), monthName(1–12) }
+    // (pomocníci sezónních položek jsou nepovinní: bez nich se titul a sezónní věc přeskočí)
+    const KIND_WORD = { frames: 'Rámeček', avatars: 'Postavička', accessories: 'Doplněk' };
     const describe = (entry, h, artCls = 'h-10 w-10') => {
         const item = parse(entry);
         if (!item || !h) return null;
@@ -52,6 +63,16 @@
             if (!topic) return null;
             const title = h.diplomaTitle(topic);
             return { kind: 'diploma', title, caption: 'Diplom', label: `Diplom ${title}`, art: h.diplomaArt(topic, artCls) };
+        }
+        if (item.kind === 'title') {
+            const found = h.titleItem ? h.titleItem(item.id) : null;
+            return found ? { kind: 'title', title: found.title, caption: 'Titul sezóny', label: `Titul ${found.title}`, art: h.titleArt ? h.titleArt(artCls) : '' } : null;
+        }
+        if (item.kind === 'seasonItem') {
+            const found = h.seasonItem ? h.seasonItem(item.category, item.id) : null;
+            if (!found) return null;
+            const when = found.month && h.monthName ? h.monthName(found.month) : 'Sezóna';
+            return { kind: 'seasonItem', title: found.title, caption: when, label: `${KIND_WORD[item.category] || 'Věc'} ze Sezóny Mudrlanta: ${found.title}`, art: h.seasonArt ? h.seasonArt(item.category, found, artCls) : '' };
         }
         const name = h.leagueName(item.league);
         if (!name) return null;
@@ -94,5 +115,5 @@
             ? 'bg-gold-500 text-brand-950 shadow-sm'
             : 'bg-slate-100 text-brand-700 ring-1 ring-slate-200 dark:bg-slate-700 dark:text-cream dark:ring-slate-600'}"><i data-lucide="${on ? 'check' : 'gem'}" class="h-4 w-4 shrink-0"></i>${on ? 'Vystaveno' : 'Vystavit'}<span class="text-[11px] font-bold opacity-80">${on ? '' : `${count}/${MAX}`}</span></button>`;
 
-    return { MAX, ENTRY, isEntry, clean, badge, diploma, season, parse, toggle, describe, tilesHtml, miniHtml, toggleHtml };
+    return { MAX, ENTRY, SEASON_KINDS, isEntry, clean, badge, diploma, season, title, seasonItem, parse, toggle, describe, tilesHtml, miniHtml, toggleHtml };
 });

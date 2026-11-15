@@ -401,8 +401,9 @@
         const share = line ? 0.5 : 1;
         return { full: roundKm(frame.diagonalKm * FULL_SHARE * share + extra), zero: roundKm(frame.diagonalKm * ZERO_SHARE * share + extra) };
     };
-    // Nejvíc bodů: jako otázka bez nápovědy (při psaní dvojnásobek), aby otázka zapadla do bodů i XP ostatních otázek
-    const maxPoints = (typed) => pointsFor(1, Boolean(typed));
+    // Nejvíc bodů: jako otázka bez nápovědy (při psaní 1,5×, ve starší psané výzvě dvojnásobek), aby otázka zapadla do bodů i XP ostatních otázek;
+    // typed jako u pointsFor (false, true, nebo násobek)
+    const maxPoints = (typed) => pointsFor(1, typeof typed === 'number' ? typed : Boolean(typed));
     // Hranice bodů [{ points, km }] od plných po 1 bod: max do plného poloměru, pak rovnoměrně ubývá až po nulový poloměr;
     // každá hranice je kulatá vzdálenost (hráč je vidí v otázce). Body jsou celé číslo 0…max, správně = aspoň bod.
     const pointTiers = ({ full, zero }, max) => {

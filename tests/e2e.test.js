@@ -38,7 +38,8 @@ const startServer = () => new Promise(resolve => {
 });
 
 // options: variant (null = první spuštění), account (null = úvod s přihlášením ještě nebyl), settings, storage (další uložená data), fixedRandom (Math.random vrací 0.1 →
-// první položka a u zeměpisu otázka na stát, u historie na století, kde jde; číslo = vrací to číslo), wikiDown, wikiHangs, dataDown, fakeTimers, colorScheme, origin + serviceWorkers
+// první položka a u zeměpisu otázka na stát, u historie na století, kde jde; číslo = vrací to číslo), wikiDown, wikiHangs, dataDown, fakeTimers, colorScheme, origin + serviceWorkers,
+// fetchFails (fotky z Commons nejdou stáhnout přes fetch – CORS, starší CSP – a načtou se obyčejně)
 const setup = async (browser, options = {}) => {
     const origin = options.origin || ORIGIN;
     const flags = { ...options };
@@ -86,7 +87,11 @@ const setup = async (browser, options = {}) => {
         }
         if (url.hostname === 'upload.wikimedia.org') {
             log.photos.push(decodeURIComponent(url.pathname));
-            return url.pathname.includes('Chybejici') ? route.fulfill({ status: 404, body: '' }) : route.fulfill({ contentType: 'image/png', body: PNG });
+            // Jako skutečné Commons: Access-Control-Allow-Origin: * (fotky se stahují přes fetch a ukazují jako blob:). fetchFails = stažení
+            // přes fetch selže jako při CORS nebo CSP (podvržené odpovědi Playwrightu CORS nekontroluje), obyčejné načtení obrázku projde
+            if (flags.fetchFails && route.request().resourceType() === 'fetch') return route.abort('failed');
+            const cors = { 'access-control-allow-origin': '*' };
+            return url.pathname.includes('Chybejici') ? route.fulfill({ status: 404, headers: cors, body: '' }) : route.fulfill({ contentType: 'image/png', headers: cors, body: PNG });
         }
         if (url.hostname === 'gibs.earthdata.nasa.gov') { log.satellite.push(url.pathname); return route.fulfill({ contentType: 'image/jpeg', body: PNG }); }
         if (url.hostname === 'tile.openstreetmap.org') { log.tiles++; return route.fulfill({ contentType: 'image/png', body: PNG }); }
@@ -108,6 +113,26 @@ const readRound = (tab) => tab.evaluate(() => JSON.parse(localStorage.getItem('m
 const hintKeys = (data) => data.hints.map(hint => hint.key);
 const readStorage = (tab, key) => tab.evaluate(k => JSON.parse(localStorage.getItem(k)), key);
 const appText = (tab) => tab.textContent('#app-content');
+// Adresa obrázku v pozadí prvku (style.backgroundImage)
+const backgroundOf = (tab, selector) => tab.evaluate(sel => { const element = document.querySelector(sel); return element ? element.style.backgroundImage : null; }, selector);
+// Atributy (i styl) v obsahu stránky (body; CSP v hlavičce adresu Commons povoluje), ve kterých je některý z kousků – adresa
+// z Commons nebo název souboru fotky (často odpověď)
+const attributeLeaks = (tab, parts) => tab.evaluate((fragments) => {
+    const found = [];
+    for (const element of [document.body, ...document.body.querySelectorAll('*')]) {
+        for (const attribute of element.attributes) {
+            let decoded = attribute.value;
+            try { decoded = decodeURIComponent(attribute.value); } catch (e) { /* nic */ }
+            if (fragments.some(part => attribute.value.includes(part) || decoded.includes(part))) found.push(`${element.tagName.toLowerCase()}${element.id ? `#${element.id}` : ''}[${attribute.name}]`);
+        }
+    }
+    return found;
+}, parts);
+// Název souboru z adresy fotky (…/thumb/a/ab/Soubor.jpg/960px-Soubor.jpg) bez přípony, s podtržítky i mezerami
+const fileParts = (url) => {
+    const name = decodeURIComponent(url.split('/').slice(-2)[0]).replace(/\.[a-z]+$/i, '');
+    return ['upload.wikimedia.org', name, name.replace(/_/g, ' ')];
+};
 // Záložka panelu ve výsledku (fotka, mapa, z družice, obrazová nápověda)
 const openResultTab = (tab, step) => tab.click(`[data-action="result-tab"][data-step="${step}"]`);
 // Učení → téma → okruh (null = celé téma)
@@ -163,9 +188,15 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         // Tlačítko čísluje nápovědy stejně jako počítadlo (3 nápovědy: první je 1/3, ne 1/4)
         assert.match(await tab.textContent('[data-action="hint"]'), /Nápověda 1\/3/);
 
-        // 1. nápověda: skutečná fotka jako pozadí prvku (ne <img>)
+        // 1. nápověda: skutečná fotka jako pozadí prvku (ne <img>), stažená přes fetch a ukázaná jako blob: – adresa z Commons
+        // s názvem souboru (Bern_z_jihu.jpg = odpověď) není v žádném atributu, stylu, tlačítku zvětšení ani „i“
         await tab.click('[data-action="hint"]');
-        await tab.waitForFunction(() => document.getElementById('hint-photo').style.backgroundImage.includes('upload.wikimedia.org/wikipedia/commons/thumb/a/ab/'));
+        await tab.waitForFunction(() => /^url\("blob:/.test(document.getElementById('hint-photo').style.backgroundImage));
+        assert.ok(log.photos.some(file => file.startsWith('/wikipedia/commons/thumb/a/ab/')), 'fotka se stáhla z Commons');
+        assert.match(await backgroundOf(tab, '[data-photo-backdrop]'), /^url\("blob:/, 'i rozmazané pozadí je blob');
+        assert.deepEqual(await attributeLeaks(tab, fileParts(data.photoUrl)), [], 'název souboru fotky v atributech není');
+        assert.equal(await tab.locator('[data-photo-info]:not(.hidden)').count(), 1, '„i“ u fotky zůstává');
+        const hintPhoto = await backgroundOf(tab, '#hint-photo');
         assert.match(await appText(tab), /Nápovědy 1\/3/);
         // Odpověď se při nápovědě neposune – nápovědy jsou záložky panelu pevné výšky
         const answerTop = await tab.locator('[data-action="choice"]').first().boundingBox();
@@ -209,7 +240,10 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(await tab.getAttribute('a:has-text("Číst na Wikipedii")', 'href'), `https://cs.wikipedia.org/wiki/${encodeURIComponent(data.title.replace(/ /g, '_'))}`);
         // Výsledek: fotka, mapa a slepá mapa v záložkách; tlačítko Další je vidět bez posouvání
         assert.deepEqual(await tab.$$eval('[data-action="result-tab"]', tabs => tabs.map(button => button.dataset.step)), ['photo', 'map']);
-        await tab.waitForFunction(() => document.getElementById('result-photo').style.backgroundImage.includes('upload.wikimedia.org'));
+        // Ve výsledku stejná fotka: stejný blob, fotka se podruhé nestahuje
+        await tab.waitForFunction(() => /^url\("blob:/.test(document.getElementById('result-photo').style.backgroundImage));
+        assert.equal(await backgroundOf(tab, '#result-photo'), hintPhoto);
+        assert.equal(log.photos.filter(file => file === decodeURIComponent(new URL(data.photoUrl).pathname)).length, 1, 'jedno stažení fotky');
         const nextBox = await tab.locator('[data-action="next"]').boundingBox();
         assert.ok(nextBox.y + nextBox.height <= tab.viewportSize().height, 'Další je na obrazovce');
         await openResultTab(tab, 'map');
@@ -337,7 +371,64 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await context.close();
     });
 
-    await t.test('procvičení okruhu ve variantě psaní: u místa v Česku otázka na název, u dalšího města na stát; dvojnásobek bodů', async () => {
+    await t.test('fotka bez prozrazení: zvětšení i „i“ bez adresy z Commons, blob předchozí otázky se uvolní; když fetch nejde, fotka se ukáže obyčejně', async () => {
+        const { context, tab, log } = await setup(browser);
+        await tab.goto(`${ORIGIN}/`);
+        await waitForHome(tab);
+        await tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await waitForQuestion(tab);
+        const data = await readRound(tab);
+        await tab.click('[data-action="hint"]');
+        await tab.waitForFunction(() => /^url\("blob:/.test(document.getElementById('hint-photo').style.backgroundImage));
+        const src = (await backgroundOf(tab, '#hint-photo')).slice(5, -2);
+        // Zvětšení přes celou obrazovku (fotka 1×1 px v široké ploše ho nabídne): také blob, nic s názvem souboru
+        assert.equal(await tab.locator('#hint-tab-panel [data-photo-zoom]:not(.hidden)').count(), 1, 'zvětšení se nabízí');
+        await tab.click('#hint-tab-panel [data-photo-zoom]');
+        await tab.waitForSelector('#photo-zoom');
+        assert.equal(await backgroundOf(tab, '#photo-zoom [data-zoom-image]'), `url("${src}")`);
+        assert.deepEqual(await attributeLeaks(tab, fileParts(data.photoUrl)), []);
+        await tab.keyboard.press('Escape');
+        await tab.waitForSelector('#photo-zoom', { state: 'detached' });
+        // „i“ před odpovědí: okno zdroje se otevře, ale název souboru neukáže
+        await tab.click('#hint-tab-panel [data-photo-info]:not(.hidden)');
+        await tab.waitForSelector('#photo-source');
+        assert.doesNotMatch(await tab.textContent('#photo-source'), new RegExp(fileParts(data.photoUrl)[1]));
+        await tab.keyboard.press('Escape');
+        await tab.waitForSelector('#photo-source', { state: 'detached' });
+        const loads = (url) => tab.evaluate(value => new Promise(resolve => { const image = new Image(); image.onload = () => resolve(true); image.onerror = () => resolve(false); image.src = value; }), url);
+        assert.equal(await loads(src), true, 'blob ukázané fotky platí');
+        await tab.click('[data-action="give-up"]');
+        await waitForResult(tab);
+        await tab.click('[data-action="daily-home"]');
+        await waitForHome(tab);
+        // Další otázka: fotku předchozí otázky už nic neukazuje, její blob se uvolní
+        await tab.click('[data-action="daily"][data-topic="historie"]');
+        await waitForQuestion(tab);
+        let released = false;
+        for (let i = 0; i < 50 && !released; i += 1) {
+            released = !(await loads(src));
+            if (!released) await tab.waitForTimeout(200);
+        }
+        assert.equal(released, true, 'blob předchozí fotky je uvolněný');
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+
+        // Fetch nejde (server bez CORS, starší CSP v mezipaměti): fotka se načte obyčejně – raději fotka než žádná
+        const plain = await setup(browser, { fetchFails: true });
+        await plain.tab.goto(`${ORIGIN}/`);
+        await waitForHome(plain.tab);
+        await plain.tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await waitForQuestion(plain.tab);
+        await plain.tab.click('[data-action="hint"]');
+        await plain.tab.waitForFunction(() => document.getElementById('hint-photo').style.backgroundImage.includes('upload.wikimedia.org'));
+        assert.equal(await plain.tab.locator('#hint-tab-panel [data-photo-failed]:not(.hidden)').count(), 0);
+        assert.deepEqual(plain.log.errors, []);
+        assert.deepEqual(plain.log.csp, []);
+        await plain.context.close();
+    });
+
+    await t.test('procvičení okruhu ve variantě psaní: u místa v Česku otázka na název, u dalšího města na stát; 1,5× víc bodů', async () => {
         const { context, tab, log } = await setup(browser, { variant: 'typed', fixedRandom: true });
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
@@ -351,12 +442,12 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.doesNotMatch(description, /Testov/, description);
         assert.match(description, /na řece Svratce/);
         assert.equal(await tab.locator('[data-action="choice"]').count(), 0, 've variantě psaní nejsou možnosti');
-        assert.match(await appText(tab), /Za 8 bodů/);
+        assert.match(await appText(tab), /Za 6 bodů/);
 
         await tab.fill('#answer-input', 'Testov');
         await tab.press('#answer-input', 'Enter');
         await waitForResult(tab);
-        assert.match(await appText(tab), /Správně! \+8 bodů/);
+        assert.match(await appText(tab), /Správně! \+6 bodů/);
         assert.match(await appText(tab), /Napsaná odpověď/);
         assert.match(await appText(tab), /Česká stopa/);
 
@@ -412,7 +503,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.fill('#answer-input', 'svycarsko');
         await tab.press('#answer-input', 'Enter');
         await waitForResult(tab);
-        // Tři nápovědy (další věty, mapa, fakta) z 4 bodů ubraly 3, psaná odpověď dvojnásobek
+        // Tři nápovědy (další věty, mapa, fakta) z 4 bodů ubraly 3, psaná odpověď 1,5× (1,5 → 2 body)
         assert.match(await appText(tab), /Správně! \+2 body/);
         assert.match(await appText(tab), /Evropa/);
         assert.deepEqual(log.errors, []);
@@ -851,7 +942,10 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await second.tab.click('[data-action="hint"]');
         assert.match(await second.tab.textContent('[data-action="hint"]'), /mapa rozšíření/i);
         await second.tab.click('[data-action="hint"]');
-        await second.tab.waitForFunction(() => { const map = document.querySelector('#hint-visual div[class*="bg-contain"]'); return map && map.style.backgroundImage.includes('/thumb/1/12/Lion_range.svg/500px-Lion_range.svg.png'); });
+        // Mapa rozšíření („Lion range.svg“ prozradí lva) jako blob: stažená z Commons, název souboru v atributech není
+        await second.tab.waitForFunction(() => { const map = document.querySelector('#hint-visual div[class*="bg-contain"]'); return map && /^url\("blob:/.test(map.style.backgroundImage); });
+        assert.ok(second.log.photos.includes('/wikipedia/commons/thumb/1/12/Lion_range.svg/500px-Lion_range.svg.png'));
+        assert.deepEqual(await attributeLeaks(second.tab, ['upload.wikimedia.org', 'Lion_range', 'Lion range']), []);
         await second.tab.fill('#answer-input', 'panthera leo');
         await second.tab.press('#answer-input', 'Enter');
         await waitForResult(second.tab);
@@ -892,7 +986,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.fill('#answer-input', 'Na');
         await tab.press('#answer-input', 'Enter');
         await waitForResult(tab);
-        assert.match(await appText(tab), /Správně! \+6 bodů/, 'po jedné nápovědě 3 body, psaná odpověď dvojnásobek');
+        assert.match(await appText(tab), /Správně! \+5 bodů/, 'po jedné nápovědě 3 body, psaná odpověď 1,5× (4,5 → 5)');
         assert.match(await appText(tab), /Latinsky\s*Natrium/, 'nápověda je i mezi fakty výsledku');
         await context.close();
 
@@ -1628,7 +1722,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await one.tab.click('[data-tut-skip]');
         await one.tab.click('[data-action="home-tab"][data-tab="multi"]');
 
-        // Nastavení výzvy: Vlajky, jen okruh vlajek států, i těžší otázky, psaní odpovědí – hraje se přesně podle něj
+        // Nastavení výzvy: Vlajky, jen okruh vlajek států, i těžší otázky – hraje se přesně podle něj; psaní ve výzvě není (jen hra pro jednoho hráče)
         await one.tab.click('#challenges-section [data-action="new-challenge"]');
         await one.tab.click('[data-ch-who="anyone"]');
         await one.tab.click('[data-ch-open="topics"]');
@@ -1645,16 +1739,17 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         // Tři úrovně obtížnosti: Základní, Mudrlant, Mudrlant Expert
         assert.equal(await one.tab.locator('[data-ch-level]').count(), 3);
         await one.tab.click('[data-ch-level="3"]');
-        await one.tab.click('[data-ch-variant="typed"]');
-        assert.match(await one.tab.textContent('[data-ch-open="settings"]'), /Mudrlant Expert · Psaní/);
+        assert.equal(await one.tab.locator('[data-ch-variant]').count(), 0, 'volba psaní ve výzvě není');
+        assert.match(await one.tab.textContent('[data-ch-answering]'), /Psaní odpovědí je jen ve hře pro jednoho hráče/);
+        assert.match(await one.tab.textContent('[data-ch-open="settings"]'), /Mudrlant Expert · Možnosti/);
         await one.tab.click('[data-ch-count="5"]');
         await one.tab.click('[data-ch-create]');
         await waitForQuestion(one.tab);
         const custom = Object.values(db.challenges).find(c => c.topic === 'vlajky');
-        assert.deepEqual([custom.categories, custom.include_hard, custom.level, custom.variant, custom.invited_id], [['vlajka'], true, 3, 'typed', null]);
+        assert.deepEqual([custom.categories, custom.include_hard, custom.level, custom.variant, custom.invited_id], [['vlajka'], true, 3, 'choices', null]);
         const customRound = await one.tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.session')));
         assert.equal(customRound.data.category, 'vlajka', 'jen vybraný okruh');
-        assert.equal(customRound.round.variant, 'typed', 'pevný způsob odpovídání výzvy');
+        assert.equal(customRound.round.variant, 'choices', 'pevný způsob odpovídání výzvy: výběr z možností');
         await one.tab.click('#btn-home');
         await waitForHome(one.tab);
 
@@ -1824,7 +1919,9 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.waitForSelector('#hint-visual svg path');
         // Karta Vlajka: vlastní prvek s obrázkem vlajky, ne mapa
         await tab.click('[data-action="hint-tab"][data-step="visual-2"]');
-        await tab.waitForFunction(() => { const picture = document.querySelector('#hint-visual-2 > div'); return picture && picture.style.backgroundImage.includes('Flag_of_Albania'); });
+        await tab.waitForFunction(() => { const picture = document.querySelector('#hint-visual-2 > div'); return picture && /^url\("blob:/.test(picture.style.backgroundImage); });
+        assert.ok(log.photos.some(file => file.includes('Flag_of_Albania')), 'vlajka se stáhla');
+        assert.deepEqual(await attributeLeaks(tab, ['upload.wikimedia.org', 'Flag_of_Albania', 'Flag of Albania']), [], 'vlajka neprozradí stát názvem souboru');
         assert.equal(await tab.locator('#hint-visual-2 svg').count(), 0, 've vlajce není mapa');
         assert.deepEqual(log.errors, []);
         await context.close();
@@ -1922,15 +2019,16 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click('#status-badge');
         await tab.waitForSelector('#dialog-overlay [data-open-levels]');
         assert.equal(await tab.getAttribute('[data-open-levels] [data-title-owl] img', 'src'), 'icons/topics/sova-titul-11-zlata.webp');
-        assert.match(await tab.textContent('[data-open-levels]'), /Mudrlant[\s\S]*Nejvyšší úroveň/);
+        // Na úrovni 100 karta nabídne prestiž (prestige.js, blok 32) místo „Nejvyšší úroveň“
+        assert.match(await tab.textContent('[data-open-levels]'), /Mudrlant[\s\S]*Můžeš do prestiže ★/);
         assert.match(await tab.textContent('[data-open-levels] [data-title-owl]'), /úr\.\s*100/);
         await tab.click('[data-open-levels]');
         await tab.waitForSelector('#dialog-overlay [data-title-row="100"][data-here]');
         assert.equal(await tab.getAttribute('[data-title-row="100"] img', 'src'), 'icons/topics/sova-titul-11-zlata.webp');
         assert.equal(await tab.getAttribute('[data-title-row="96"] img', 'src'), 'icons/topics/sova-titul-10-zlata.webp');
         assert.equal(await tab.locator('#dialog-overlay [data-title-row] img.grayscale').count(), 0, 'všechny tituly dosažené');
-        // Řádek Mudrlant je vidět (okno se na aktuální titul posune)
-        assert.ok(await tab.evaluate(() => { const row = document.querySelector('[data-title-row="100"]').getBoundingClientRect(); return row.top >= 0 && row.bottom <= innerHeight; }));
+        // Nahoře okna nabídka prestiže (s vysvětlením); okno se proto na řádek Mudrlant neposune
+        assert.ok(await tab.evaluate(() => { const panel = document.querySelector('[data-prestige-panel] [data-prestige-go]').getBoundingClientRect(); return panel.top >= 0 && panel.bottom <= innerHeight; }));
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();

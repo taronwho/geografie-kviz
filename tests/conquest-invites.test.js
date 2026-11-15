@@ -119,12 +119,16 @@ test('Moje hry: pozvánky od přátel nahoře (kdo zve, mapa, délka, obsazenost
 test('karta na Více hráčů: pozvánka od přítele s Přidat se; s rozehranou hrou proužek pod ní; víc pozvánek +N', () => {
     const one = C.homeCardHtml({ games: [], invites: [invite()], maps, avatar });
     clean(one, 'karta s pozvánkou');
-    assert.match(text(one), /Dobývání Pozvánka od Jana Nováková Evropa · 3 dny Přidat se$/);
+    assert.match(text(one), /Dobývání 1 Pozvánka od Jana Nováková Evropa · 3 dny Přidat se$/);
+    // Odznak s počtem pozvánek u názvu karty
+    assert.match(one, /data-cq-invite-badge aria-label="Pozvánka do hry"/);
+    assert.match(C.homeCardHtml({ games: [], invites: [invite(), invite({ id: 'g-3' })], maps, avatar }), /data-cq-invite-badge aria-label="Pozvánky do her: 2"/);
+    assert.doesNotMatch(C.homeCardHtml({ games: [], maps }), /data-cq-invite-badge/);
     assert.match(one, /data-action="conquest-invite" data-game="g-2"/);
     assert.match(one, /data-avatar-of="u-1"/, 'obrázek toho, kdo zve');
     assert.match(text(C.homeCardHtml({ games: [], invites: [invite(), invite({ id: 'g-3' })], maps, avatar })), /Evropa · 3 dny · \+1 Přidat se$/);
     // Bez toho, kdo zve (smazaný účet): „Pozvánka do hry“, ne „Pozvánka od Kamarád“; v Mých hrách „Kamarád tě zve do hry“
-    assert.match(text(C.homeCardHtml({ games: [], invites: [invite({ invited_by: null })], maps })), /Dobývání Pozvánka do hry Evropa/);
+    assert.match(text(C.homeCardHtml({ games: [], invites: [invite({ invited_by: null })], maps })), /Dobývání 1 Pozvánka do hry Evropa/);
     assert.match(text(C.inviteCardHtml(invite({ invited_by: null }))), /Kamarád tě zve do hry/);
     const running = { ...lobbyGame(), status: 'running', ends_at: '2026-11-14T10:00:00Z', budget: { left: 4, total: 5 }, players: [{ ...lobbyGame().players[0] }] };
     const both = C.homeCardHtml({ games: [running], invites: [invite()], maps, avatar, now: Date.parse('2026-11-11T10:00:00Z') });
@@ -134,6 +138,21 @@ test('karta na Více hráčů: pozvánka od přítele s Přidat se; s rozehranou
     // Bez pozvánky beze změny
     assert.doesNotMatch(C.homeCardHtml({ games: [running], maps }), /conquest-invite/);
     assert.match(C.homeCardHtml({ games: [], maps }), /Najdi hru nebo založ vlastní/);
+});
+
+test('okno s pozvánkou po otevření aplikace: kdo zve, mapa a druh hry, Přijmout / Odmítnout / Později; bez rodu a bez inline stylů', () => {
+    assert.equal(C.inviteLine(invite({ preset: 'evropa-3d' })), 'Evropa · Rychlá hra');
+    assert.equal(C.inviteLine(invite({ preset: 'blesk-20m' })), 'Evropa · Blesk');
+    assert.equal(C.inviteLine(invite({ preset: null, map: 'asie', hours: 24 })), 'Asie · 1 den');
+    const html = C.invitePromptHtml(invite({ preset: 'evropa-3d' }), { maps, avatar });
+    clean(html, 'okno s pozvánkou');
+    assert.match(text(html), /^🦊 Jana Nováková tě zve do Dobývání: Evropa · Rychlá hra S přáteli soupeříte o mapu a každé území dobudeš správnou odpovědí\. 1\/4 hráčů, soukromá hra\. Přijmout Odmítnout Později$/);
+    assert.match(html, /data-cq-invite-prompt="g-2"/);
+    assert.deepEqual([...html.matchAll(/data-cq-prompt="(\w+)"/g)].map(match => match[1]), ['accept', 'decline', 'later']);
+    assert.doesNotMatch(text(html), /\b(pozval|pozvala|přijal|přijala|mohl|mohla)\b/, 'bez rodu');
+    // Smazaný účet: „Kamarád“; jméno se escapuje
+    assert.match(text(C.invitePromptHtml(invite({ invited_by: null }), { maps })), /Kamarád tě zve do Dobývání: Evropa · 3 dny/);
+    assert.doesNotMatch(C.invitePromptHtml(invite({ invited_by: person('u-4', '<b>Zlý</b>') }), { maps }), /<b>Zlý/);
 });
 
 test('tip Pozvi přátele do Dobývání: jen kdo Dobývání otevřel a má přátele; kdo už pozval, ho nedostane', () => {
