@@ -236,7 +236,7 @@ test('napojení: rewards.js v index.html, service workeru, nasazení a Tailwindu
     // Truhla (zavřená i otevřená s věcí nebo XP) a štít se kreslí bez inline stylů (CSP)
     const robe = { category: 'robes', item: Look.find('robes', 'zelena') };
     const opened = Rewards.chestHtml({ opened: { gift: robe, xp: 0, freeze: true } }, {}) + Rewards.chestHtml({ opened: { gift: null, xp: Rewards.CHEST_XP, freeze: false } }, {});
-    assert.doesNotMatch(Rewards.chestHtml({}, {}) + opened + Rewards.chestStripHtml() + Rewards.freezeChip(2), /style=/);
+    assert.doesNotMatch(Rewards.chestHtml({}, {}) + opened + Rewards.freezeChip(2), /style=/);
     // Zavřená truhla je tlačítko s nápovědou a obě podoby truhly jsou v okně (otevřená se načte dopředu)
     assert.match(Rewards.chestHtml({}, {}), /data-chest-go aria-label="Otevřít truhlu"[^>]*class="chest-box/);
     for (const html of [Rewards.chestHtml({}, {}), opened]) assert.match(html, /truhla\.webp[\s\S]*truhla-otevrena\.webp/);

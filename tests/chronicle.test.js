@@ -238,7 +238,7 @@ test('HTML okna a pruhu: všechny stránky, bez inline stylů a skriptů, data e
     assert.match(topic, /&lt;b&gt;Zlá&lt;\/b&gt; &quot;věc&quot;/);
     assert.doesNotMatch(topic, /<b>Zlá/);
     const strip = K.stripHtml(sum, view.verdict, h);
-    assert.match(strip, /id="weekly-goals"/);
+    assert.match(strip, /id="chronicle-strip"/);
     assert.match(strip, /data-action="chronicle-open"/);
     assert.match(strip, /data-action="chronicle-dismiss"/);
     assert.match(strip, /Tvůj týden v kostce je hotový/);

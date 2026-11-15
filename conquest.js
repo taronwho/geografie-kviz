@@ -2531,7 +2531,7 @@
         let list;
         if (loading) list = '<p class="px-1 py-5 text-center text-[13px] font-semibold text-amber-900/75 dark:text-gold-200/80">Načítám přátele…</p>';
         else if (!friends) list = `<div class="flex items-center gap-3 px-1">${art('sova-ceka', 'h-12 w-12')}<p class="min-w-0 text-[13px] font-semibold leading-snug text-slate-700 dark:text-slate-200">Přátele se nepodařilo načíst. Zkontroluj připojení a zkus to znovu.</p></div>`;
-        else if (!any) list = `<div data-cq-no-friends class="flex items-center gap-3 px-1">${art('sova-dalekohled', 'h-12 w-12')}<p class="min-w-0 text-[13px] font-semibold leading-snug text-slate-700 dark:text-slate-200">Zatím nemáš přátele. Přidáš je v profilu hráče na záložce Více hráčů.</p></div>`;
+        else if (!any) list = `<div data-cq-no-friends class="flex items-center gap-3 px-1">${art('sova-dalekohled', 'h-12 w-12')}<p class="min-w-0 text-[13px] font-semibold leading-snug text-slate-700 dark:text-slate-200">Zatím nemáš přátele. Najdeš je na záložce Soupeři: u Přátel klepni na plus.</p></div>`;
         else list = `<ul data-cq-friend-list role="group" aria-label="Přátelé" class="-mx-1 flex max-h-[min(19rem,46dvh)] flex-col gap-1 overflow-y-auto px-1 py-0.5">${friends.map(friend => {
             const status = joined.includes(friend.id) ? 'Už hraje' : invited.includes(friend.id) ? 'Pozváno' : '';
             const on = chosen.has(friend.id) && !status;

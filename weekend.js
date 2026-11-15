@@ -105,7 +105,7 @@
 
     // Když se pruh na záložku Dnes nevejde, ukáže se místo něj malý čip v řadě příležitostných čipů (app.js fitHome): ikona tématu a 2×
     const chipHtml = (weekend, h = {}) => !weekend ? '' : `
-            <button type="button" id="weekend-chip" data-action="weekend-play" data-topic="${esc(weekend.topic)}" data-weekend-state="${weekend.state}" aria-label="${esc(bannerLabel(weekend, h))}" title="${esc(bannerLabel(weekend, h))}" class="weekend-strip flex min-h-[2.25rem] shrink-0 items-center gap-1 rounded-full px-2 text-white shadow-md ring-2 ring-gold-400/70 active:scale-[0.97]">
+            <button type="button" id="weekend-chip" data-action="weekend-play" data-topic="${esc(weekend.topic)}" data-weekend-state="${weekend.state}" aria-label="${esc(bannerLabel(weekend, h))}" title="${esc(bannerLabel(weekend, h))}" class="weekend-strip flex min-h-[2.5rem] shrink-0 items-center gap-1 rounded-full px-2.5 text-white shadow-md ring-2 ring-gold-400/70 active:scale-[0.97]">
                 <span class="flex h-6 w-6 items-center justify-center rounded-lg bg-white/90">${h.topicIcon ? h.topicIcon(weekend.topic, 'h-5 w-5') : ''}</span>
                 <span class="weekend-x2 rounded-md bg-gold-400 px-1 text-[10px] font-black leading-tight text-brand-950">2× XP</span>
             </button>`;

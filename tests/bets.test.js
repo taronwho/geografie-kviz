@@ -241,7 +241,7 @@ test('napojení: modul v index.html před app.js, v mezipaměti, v nasazení, v 
     assert.ok(require('../sound.js').SOUNDS.coins, 'zvuk cinkajících mincí');
     const Tips = require('../tips.js');
     const tip = Tips.BY_ID.get('sazky');
-    assert.ok(tip && tip.action.kind === 'multi');
+    assert.ok(tip && tip.action.kind === 'challenges');
     assert.match(tip.text, /Vyzvat.*Sázka/s, 'přesné názvy tlačítka a řádku');
     const ctx = { counters: { answered: 100, challenges: 3 }, today: '2026-11-12', now: Date.now(), launches: 1, signedIn: true, multiAvailable: true };
     const only = { ...Tips.EMPTY, seen: Tips.TIPS.filter(item => item.id !== 'sazky').map(item => item.id) };

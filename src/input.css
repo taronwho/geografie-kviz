@@ -487,7 +487,7 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 .chest-orb > span { position: relative; }
 .chest-orb > span::after { content: ''; position: absolute; inset: 0; border-radius: 9999px; background: radial-gradient(circle at 32% 28%, rgb(255 255 255 / 0.6), rgb(255 255 255 / 0) 42%); }
 @media (prefers-reduced-motion: no-preference) {
-    .chest-strip .chest-mini { animation: chestWobble 2.4s ease-in-out infinite; transform-origin: 50% 90%; }
+    #chest-row .chest-mini { animation: chestWobble 2.4s ease-in-out infinite; transform-origin: 50% 90%; }
     .chest-waiting .chest-body { animation: chestIdle 2.6s ease-in-out infinite; }
     .chest-waiting .chest-halo { animation: chestHalo 2.6s ease-in-out infinite; }
     .chest-waiting .chest-ring { animation: chestRipple 2.6s ease-out 0.4s infinite; }

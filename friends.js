@@ -170,7 +170,7 @@
         const head = `Přátelé <span class="font-bold normal-case tracking-normal">· ${list.length}</span>`;
         return `
             <div id="friends-section" class="flex shrink-0 flex-col gap-1.5 short:gap-1">
-                ${add ? `<button type="button" data-action="friends-open" class="-my-1 flex min-h-[2rem] w-fit items-center gap-0.5 rounded-lg ${LABEL}">${head}<i data-lucide="chevron-right" class="h-3.5 w-3.5"></i></button>` : `<p class="${LABEL}">${head}</p>`}
+                ${add ? `<button type="button" data-action="friends-open" class="-my-2 flex min-h-[2.5rem] w-fit items-center gap-0.5 rounded-lg ${LABEL}">${head}<i data-lucide="chevron-right" class="h-3.5 w-3.5"></i></button>` : `<p class="${LABEL}">${head}</p>`}
                 <div class="flex items-center gap-2.5">
                     ${list.length ? `<div id="friends-strip" class="flex min-w-0 items-center gap-2.5" aria-label="Přátelé">${items}</div>` : ''}${more}${plus}
                     ${list.length ? '' : '<span class="min-w-0 flex-1 text-[12.5px] font-semibold leading-snug text-slate-500 dark:text-slate-400">Najdi hráče podle přezdívky nebo pozvi kamarády</span>'}

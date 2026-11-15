@@ -36,7 +36,7 @@ test('okno Pozvat přátele: načítání, chyba, bez přátel rada, seznam s ob
     assert.match(text(C.friendsPickerHtml({ loading: true })), /Načítám přátele…/);
     assert.match(text(C.friendsPickerHtml({ friends: null })), /Přátele se nepodařilo načíst/);
     const none = C.friendsPickerHtml({ friends: [], limit: 3, create: true });
-    assert.match(text(none), /^Zatím nemáš přátele\. Přidáš je v profilu hráče na záložce Více hráčů\.$/);
+    assert.match(text(none), /^Zatím nemáš přátele\. Najdeš je na záložce Soupeři: u Přátel klepni na plus\.$/);
     assert.doesNotMatch(none, /data-cq="invite-done"/, 'bez přátel není co potvrdit');
     // Formulář Založit hru: 3 volná místa, nic nevybráno → Hotovo (jde i bez výběru), rada, kdy pozvánky odejdou
     const create = C.friendsPickerHtml({ friends, limit: 3, create: true, avatar });

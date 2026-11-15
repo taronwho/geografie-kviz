@@ -234,7 +234,7 @@
         return { state, enable, disable, getPrefs, savePrefs, configured, supported, vapidKey, diagnose, testLocal, requestServerTest, serverPushStatus };
     };
     // Obsah zkušebního upozornění (stejný tvar jako od odesílače: title, body, url, kind); text na serveru je v push_due
-    const TEST_PAYLOAD = { title: 'Zkušební upozornění Mudrlanta', body: 'Funguje to! Klepni sem a otevře se záložka Soupeři.', url: './?tab=multi', kind: 'test' };
+    const TEST_PAYLOAD = { title: 'Zkušební upozornění Mudrlanta', body: 'Funguje to! Klepni sem a otevře se záložka Více hráčů.', url: './?tab=multi', kind: 'test' };
 
     const sameBytes = (a, b) => a.length === b.length && a.every((value, index) => value === b[index]);
 

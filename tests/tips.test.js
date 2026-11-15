@@ -6,7 +6,7 @@ const path = require('node:path');
 const Tips = require('../tips.js');
 
 const NOW = Date.parse('2026-11-09T10:00:00Z');
-const ACTIONS = ['settings', 'learn', 'progress', 'multi', 'single', 'quiz', 'mystery', 'modes', 'goals', 'chronicle', 'leagueSeasons', 'groups', 'gold', 'boss', 'conquest', 'chain'];
+const ACTIONS = ['settings', 'learn', 'progress', 'multi', 'single', 'play', 'challenges', 'tournaments', 'friends', 'quiz', 'mystery', 'modes', 'goals', 'chronicle', 'leagueSeasons', 'groups', 'gold', 'boss', 'conquest', 'chain'];
 const base = (over = {}) => ({ counters: { answered: 0 }, today: '2026-11-09', now: NOW, launches: 1, signedIn: false, multiAvailable: true, reviewOn: true, ...over });
 
 test('každý tip má id, titulek, text a ikonu, která existuje v icons.js; akce míří na známé místo', () => {
@@ -119,7 +119,7 @@ test('tipy na Kvíz dne, Bleskovku a Přežití, Seřaď a Odhadni, mapu, sdíle
     assert.equal(at('kviz-poradi', base({ counters: { answered: 40 }, signedIn: true })), null, 'ještě nehrál');
     // Bleskovka a Přežití: kde je najít (okno po klepnutí na dlaždici tématu nebo Mix), kdo hrál, nedostane
     assert.match(Tips.BY_ID.get('rezimy').text, /dlaždici tématu nebo na Mix/);
-    assert.equal(at('rezimy', base({ counters: { answered: 10 } })).action.kind, 'modes');
+    assert.equal(at('rezimy', base({ counters: { answered: 10 } })).action.kind, 'play');
     assert.equal(at('rezimy', base({ counters: { answered: 10, survivalGames: 1 } })), null);
     // Seřaď, Odhadni a mapa: až po první takové otázce, body za přesnost
     assert.equal(at('ciselne', base({ counters: { answered: 30 } })), null);
@@ -209,7 +209,7 @@ test('tip Braň svůj hrad (Dobývání): jen přihlášenému, který Dobýván
     const visited = Tips.touch(Tips.EMPTY, 'conquest');
     assert.equal(at(base({ counters: { answered: 50 }, signedIn: true })), null, 'kdo Dobývání neotevřel, nejdřív dostane tip Dobývání');
     assert.equal(at(base({ counters: { answered: 50 } }), visited), null, 'host ne');
-    assert.equal(at(base({ counters: { answered: 50 }, signedIn: true, multiAvailable: false }), visited), null, 'bez Více hráčů ne');
+    assert.equal(at(base({ counters: { answered: 50 }, signedIn: true, multiAvailable: false }), visited), null, 'bez záložky Soupeři ne');
     const tip = at(base({ counters: { answered: 50 }, signedIn: true }), visited);
     assert.equal(tip.id, 'dobyvani-hrad');
     assert.deepEqual(tip.action, { kind: 'conquest', label: 'Otevřít Dobývání' });
@@ -227,7 +227,7 @@ test('tip Hlasuj o speciálním turnaji: jen přihlášenému s hlasováním v d
     assert.equal(at(base({ counters: { answered: 20 }, signedIn: true, poll: false })), null, 'databáze bez hlasování');
     const tip = at(base({ counters: { answered: 20 }, signedIn: true }));
     assert.equal(tip.id, 'hlasovani');
-    assert.deepEqual(tip.action, { kind: 'multi', label: 'Hlasovat' });
+    assert.deepEqual(tip.action, { kind: 'tournaments', label: 'Hlasovat' });
     assert.match(tip.text, /4 témat[\s\S]*Hlas můžeš měnit, dokud hlasování běží/);
     assert.equal(at(base({ counters: { answered: 20 }, signedIn: true }), Tips.touch(Tips.EMPTY, 'poll')), null, 'už hlasoval(a)');
     assert.doesNotMatch(tip.text, /\b(hlasoval|hlasovala|vybral|vybrala)\b/);

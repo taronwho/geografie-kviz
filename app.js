@@ -2829,8 +2829,9 @@
         const streak = dayStreakNow();
         const freezes = Rewards ? loadRewards().freezes : 0;
         if (!streak && !freezes) return '';
-        const label = `Série: ${daysWord(streak)} v řadě${freezes ? `, ochrana série: ${freezes}` : ''}`;
-        return `<button type="button" id="streak-chip" data-header-chip="streak" data-streak="${streak}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" class="flex h-9 shrink-0 items-center gap-1 rounded-full bg-gold-100 pl-2 pr-2.5 text-[12.5px] font-black text-gold-900 ring-1 ring-gold-300 active:scale-95 dark:bg-gold-900/30 dark:text-gold-200 dark:ring-gold-700/70"><i data-lucide="flame" class="h-4 w-4"></i><span class="whitespace-nowrap">${daysWord(streak)}</span>${freezes && Rewards ? Rewards.freezeChip(freezes) : ''}</button>`;
+        // Bez běžící série zůstane jen štítek ochrany série (kolik jich hráč má)
+        const label = streak ? `Série: ${daysWord(streak)} v řadě${freezes ? `, ochrana série: ${freezes}` : ''}` : `Ochrana série: ${freezes}`;
+        return `<button type="button" id="streak-chip" data-header-chip="streak" data-streak="${streak}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" class="flex h-10 shrink-0 items-center gap-1 rounded-full bg-gold-100 pl-2.5 pr-3 text-[13px] font-black text-gold-900 ring-1 ring-gold-300 active:scale-95 dark:bg-gold-900/30 dark:text-gold-200 dark:ring-gold-700/70">${streak ? `<i data-lucide="flame" class="h-4 w-4"></i><span class="whitespace-nowrap">${daysWord(streak)}</span>` : ''}${freezes && Rewards ? Rewards.freezeChip(freezes) : ''}</button>`;
     };
     let chipsSeen = null;
     const renderHeaderChips = () => {
@@ -3014,7 +3015,7 @@
             </button>` : '');
     // Příležitostné pruhy na záložce Dnes: včerejší Tajemná otázka, odměna Sezóny, Kronika týdne, Zlatá truhla a tematický víkend.
     // Každý má i malý čip; fitHome ukáže celé pruhy, jen když se vejdou, jinak řadu čipů (nikdy kvůli nim obrazovka neposouvá).
-    const HOME_CHIP = 'flex min-h-[2.25rem] min-w-0 shrink-0 items-center gap-1.5 rounded-full bg-white px-3 text-[12px] font-black text-slate-800 shadow-sm ring-1 ring-slate-200/80 active:scale-95 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700/70';
+    const HOME_CHIP = 'flex min-h-[2.5rem] min-w-0 shrink-0 items-center gap-1.5 rounded-full bg-white px-3 text-[12px] font-black text-slate-800 shadow-sm ring-1 ring-slate-200/80 active:scale-95 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700/70';
     const dnesExtrasHtml = () => {
         const items = [];
         const reveal = mysteryRevealCard();
@@ -3025,7 +3026,7 @@
         if (chronicle) items.push({ strip: chronicle, chip: `<button type="button" data-action="chronicle-open" class="${HOME_CHIP}">${uiArt('sova-kronika', 'h-6 w-6 -my-1 -ml-1')}<span class="truncate">Kronika týdne</span></button>` });
         if (Gold && Rewards && loadGold().ready > 0) {
             items.push({
-                strip: `<button type="button" id="gold-chest-row" data-action="gold-chest" data-hot class="${HOME_ROW} ${HOME_ROW_HOT} min-h-[3.25rem] short:min-h-[2.9rem] short:py-1.5">${uiArt('zlata-truhla', 'h-9 w-9')}<span class="min-w-0 flex-1"><span class="${ROW_TITLE}">Zlatá truhla čeká</span><span class="${ROW_SUB}">Za pět zlatých střípků</span></span>${ctaHtml('Otevřít', CTA_GOLD, '')}</button>`,
+                strip: `<button type="button" id="gold-chest-row" data-action="gold-chest" class="${HOME_ROW} min-h-[3.25rem] short:min-h-[2.9rem] short:py-1.5">${uiArt('zlata-truhla', 'h-9 w-9')}<span class="min-w-0 flex-1"><span class="${ROW_TITLE}">Zlatá truhla čeká</span><span class="${ROW_SUB}">Za pět zlatých střípků</span></span>${ctaHtml('Otevřít', CTA_GOLD, '')}</button>`,
                 chip: `<button type="button" data-action="gold-chest" class="${HOME_CHIP} ring-2 ring-gold-400 dark:ring-gold-500">${uiArt('zlata-truhla', 'h-6 w-6 -my-1 -ml-1')}<span class="truncate">Zlatá truhla</span></button>`
             });
         }
@@ -7774,8 +7775,8 @@
                 <button type="button" data-action="join-challenge" class="${QUICK_TILE} ${QUICK_LIGHT}">${uiArt('kod', QUICK_ART)}Zadat kód</button>
             </div>
             <div class="flex max-w-full items-center justify-center gap-1.5">
-                <button type="button" data-action="open-accept" title="Změnit, z jakých témat přijímám výzvy" class="flex min-h-[2rem] min-w-0 max-w-full items-center gap-1.5 rounded-full bg-slate-200/60 px-3 py-1 text-[11.5px] font-bold text-slate-600 active:scale-95 dark:bg-slate-800/80 dark:text-slate-300"><i data-lucide="shield-check" class="h-3.5 w-3.5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 truncate">Přijímám výzvy z: <b class="text-slate-800 dark:text-slate-100">${escapeHtml(acceptSummary())}</b></span><i data-lucide="pencil" class="h-3 w-3 shrink-0 text-brand-700 dark:text-cream"></i></button>
-                ${Bets && betsReady() ? '<button type="button" data-action="bets-help" title="Kamarádské sázky: pravidla a moje bilance" class="flex min-h-[2rem] shrink-0 items-center gap-1 rounded-full bg-gold-50 px-3 py-1 text-[11.5px] font-black text-brand-950 ring-1 ring-gold-300/70 active:scale-95 dark:bg-gold-900/20 dark:text-gold-200 dark:ring-gold-700/60"><img src="icons/topics/mince.webp" alt="" class="-my-1 -ml-1 h-5 w-5 object-contain">Sázky</button>' : ''}
+                <button type="button" data-action="open-accept" title="Změnit, z jakých témat přijímám výzvy" class="flex min-h-[2.5rem] min-w-0 max-w-full items-center gap-1.5 rounded-full bg-slate-200/60 px-3 py-1 text-[11.5px] font-bold text-slate-600 active:scale-95 dark:bg-slate-800/80 dark:text-slate-300"><i data-lucide="shield-check" class="h-3.5 w-3.5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 truncate">Přijímám výzvy z: <b class="text-slate-800 dark:text-slate-100">${escapeHtml(acceptSummary())}</b></span><i data-lucide="pencil" class="h-3 w-3 shrink-0 text-brand-700 dark:text-cream"></i></button>
+                ${Bets && betsReady() ? '<button type="button" data-action="bets-help" title="Kamarádské sázky: pravidla a moje bilance" class="flex min-h-[2.5rem] shrink-0 items-center gap-1 rounded-full bg-gold-50 px-3 py-1 text-[11.5px] font-black text-brand-950 ring-1 ring-gold-300/70 active:scale-95 dark:bg-gold-900/20 dark:text-gold-200 dark:ring-gold-700/60"><img src="icons/topics/mince.webp" alt="" class="-my-1 -ml-1 h-5 w-5 object-contain">Sázky</button>' : ''}
             </div>
         </div>`;
     // Poslední výzvy: jen tři nejnovější, Zobrazit vše rozbalí zbytek
@@ -7868,7 +7869,7 @@
             <section id="waiting-section" aria-label="Čeká na tebe" data-waiting="${rows.length}" class="flex shrink-0 flex-col gap-2 short:gap-1.5">
                 <div class="flex items-center justify-between gap-2">
                     <h2 class="flex items-center gap-1.5 ${SEC_LABEL}"><span class="h-2 w-2 rounded-full bg-gold-500"></span>Čeká na tebe</h2>
-                    ${rows.length > 1 ? `<button type="button" data-action="waiting-all" class="-my-2 flex min-h-[2.25rem] items-center gap-0.5 rounded-lg px-1.5 text-[12px] font-black text-brand-700 active:scale-95 dark:text-cream">+${rows.length - 1} ${rows.length - 1 >= 5 ? 'dalších' : 'další'}<i data-lucide="chevron-right" class="h-3.5 w-3.5"></i></button>` : ''}
+                    ${rows.length > 1 ? `<button type="button" data-action="waiting-all" class="-my-2.5 flex min-h-[2.5rem] items-center gap-0.5 rounded-lg px-1.5 text-[12px] font-black text-brand-700 active:scale-95 dark:text-cream">+${rows.length - 1} ${rows.length - 1 >= 5 ? 'dalších' : 'další'}<i data-lucide="chevron-right" class="h-3.5 w-3.5"></i></button>` : ''}
                 </div>
                 ${rows[0]}
             </section>`;
@@ -9120,7 +9121,7 @@
                 ${profile ? avatarHtml(profile, 'h-16 w-16 text-4xl short:h-14 short:w-14 short:text-3xl') : owlLogo('shrink-0', 'h-16 w-auto drop-shadow-md short:h-14')}
                 <div class="min-w-0 flex-1">
                     <p data-ja-name class="truncate text-xl font-black leading-tight text-slate-800 short:text-lg dark:text-slate-100">${user ? escapeHtml(playerName(profile)) : 'Hraješ bez účtu'}</p>
-                    <button type="button" data-ja="progress" class="mt-0.5 flex max-w-full items-center gap-1 text-left text-[12px] font-black text-brand-700 dark:text-cream"><span class="truncate">${escapeHtml(ownTitleText(level.level))}</span><i data-lucide="chevron-right" class="h-3.5 w-3.5 shrink-0"></i></button>
+                    <button type="button" data-ja="progress" class="-my-2.5 flex min-h-[2.5rem] max-w-full items-center gap-1 text-left text-[12.5px] font-black text-brand-700 dark:text-cream"><span class="truncate">${escapeHtml(ownTitleText(level.level))}</span><i data-lucide="chevron-right" class="h-3.5 w-3.5 shrink-0"></i></button>
                     ${league ? `<p data-ja-league class="mt-1 flex items-center gap-1.5 text-[12px] font-bold text-slate-600 dark:text-slate-300">${leagueEmblem(league, 'h-5 w-5')}<span class="truncate">Liga ${escapeHtml(league.name)} · ${myRating.rating}</span></p>` : user ? `<p class="mt-1 truncate text-[12px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(user.email || user.name || '')}</p>` : '<p class="mt-1 text-[12px] font-semibold leading-snug text-slate-500 dark:text-slate-400">Postup se ukládá jen v tomhle zařízení</p>'}
                 </div>
             </div>`;
@@ -9144,9 +9145,9 @@
             ${login}
             <section id="ja-rows" aria-label="Nastavení" class="flex shrink-0 flex-col gap-2 short:gap-1.5">${rows.join('')}</section>
             <div class="mt-auto flex shrink-0 flex-wrap items-center justify-center gap-x-0.5 pt-1 text-xs text-slate-500 dark:text-slate-400">
-                <button type="button" data-ja="tutorial" class="-my-1 inline-flex min-h-[2.25rem] items-center rounded-lg px-1.5 font-bold underline underline-offset-2">Tutoriál</button>
-                <a href="soukromi.html" class="-my-1 inline-flex min-h-[2.25rem] items-center rounded-lg px-1.5 font-bold underline underline-offset-2">Osobní údaje</a>
-                <a href="licence.html" class="-my-1 inline-flex min-h-[2.25rem] items-center rounded-lg px-1.5 font-bold underline underline-offset-2">Zdroje a licence</a>
+                <button type="button" data-ja="tutorial" class="-my-1 inline-flex min-h-[2.5rem] items-center rounded-lg px-1.5 font-bold underline underline-offset-2">Tutoriál</button>
+                <a href="soukromi.html" class="-my-1 inline-flex min-h-[2.5rem] items-center rounded-lg px-1.5 font-bold underline underline-offset-2">Osobní údaje</a>
+                <a href="licence.html" class="-my-1 inline-flex min-h-[2.5rem] items-center rounded-lg px-1.5 font-bold underline underline-offset-2">Zdroje a licence</a>
             </div>`;
     };
     // Okno Účet (ze záložky Já): přijímané výzvy, zablokovaní hráči, moje data a odhlášení; okna otevřená odsud se vrací sem
