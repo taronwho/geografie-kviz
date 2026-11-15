@@ -20,7 +20,7 @@ Kvízová aplikace s tématy **Zeměpis**, **Historie**, **Biologie**, **Chemie*
 - **Zdroj obrázku** – u každého obrázku z Wikimedia Commons (fotka, vlajka, obraz, mapa rozšíření; v otázce, ve výsledku, v okně s popisem i v atlasu) je vlevo dole malé „i“. Okno ukáže licenci, po odpovědi i autora, datum, popis, název souboru a odkaz na Commons – před odpovědí nic, co by prozradilo odpověď. Údaje se stáhnou z API Commons až po klepnutí, bez sítě zůstane soubor a odkaz (`photo-source.js`).
 - **Učení** – bez bodů a systematicky: v každém tématu jsou celé kategorie a **okruhy** (Česko, Přemyslovci, Angličtí panovníci, Šelmy, Naše příroda, Vyhynulé druhy, Halogeny, Vitamíny, Základní jednotky SI…). Okruh jde procházet popořadě jako atlas, nebo procvičovat jen jeho otázky; postup se ukládá. K tomu **Moje chyby** – co hráč neuhodl, jde si prohlédnout a procvičit znovu.
 
-Při prvním spuštění si hráč zvolí variantu hry – výběr ze čtyř možností, nebo psaní odpovědi za dvojnásobek bodů.
+Při prvním spuštění si hráč zvolí variantu hry – výběr ze čtyř možností, nebo psaní odpovědi za 1,5× víc bodů (zaokrouhleno na celé body: bez nápovědy 6, pak 5, 3 a 2). Psaní platí jen ve hře pro jednoho hráče: výzvy (i výzvy skupině, odvety a sázky), turnaje, Kvíz dne a Dobývání se hrají vždy s výběrem z možností a databáze psanou výzvu nezaloží (schéma 31). Výzvy založené s psaním dřív se dohrají s psaním za dvojnásobek, jako je hrál soupeř.
 
 ## Otázky a nápovědy
 
@@ -55,18 +55,18 @@ jeskyně, skály a národní parky (ne řeky, pohoří, souostroví ani moře), 
 oblast, ať nic neprozradí: kontinent (Evropa od Islandu po Ural, Afrika, Asie, Severní Amerika bez Havaje, Jižní Amerika, Austrálie
 a Oceánie), u míst v Česku celé Česko s kraji a hlavními řekami. Místo mimo výřez, ostrov, který na mapě není, stejné jméno
 na dvou místech a stavba ve velkém českém městě („kde je Praha“) se nekladou. **Body** podle vzdálenosti po zemském povrchu:
-plný počet (4, při psaní 8) do 3 % úhlopříčky výřezu (Česko asi 18 km, Evropa asi 210 km; u ostrovů, jezer a parků navíc
+plný počet (4, při psaní 6) do 3 % úhlopříčky výřezu (Česko asi 18 km, Evropa asi 210 km; u ostrovů, jezer a parků navíc
 poloměr podle rozlohy), pak ubývají až k nule na 20 % úhlopříčky; správně = aspoň bod. Výsledek ukáže tip, správné místo, čáru
 mezi nimi, kruh plných bodů a „Vedle o 37 km“. Otázka přijde v tréninku asi u každé osmé vhodné otázky (po 6 až 10 vhodných
 otázkách, počítadlo `mudrlant.mapGap` v zařízení) a nemá nápovědy. **Ve výzvě** (i výzvě skupině a odvetě) **a v zápase turnaje** je na mapě
 asi desetina otázek: rozhoduje semínko otázky (vlastní řada čísel `<semínko otázky>:mapa`, ne počítadlo), takže ji oba hráči dostanou stejnou,
 a jen u položky, která na mapu jde (jinak zůstane obyčejná). Mají ji jen hry, které to nesou: výzva se semínkem končícím `.mapa` (zakládá ji
 tahle verze aplikace) a turnaj od týdne 16. 11. 2026; výzvy a turnaje starších verzí zůstanou bez mapy. Starší aplikaci srovná uložená otázka
-na serveru (zamrzlé otázky): otázka na mapě má proto i jednu (správnou) možnost, aby ji přijala. Body nejvýš 4 (při psaní 8), v rozpisu otázek
+na serveru (zamrzlé otázky): otázka na mapě má proto i jednu (správnou) možnost, aby ji přijala. Body nejvýš 4 (ve starší psané výzvě 8), v rozpisu otázek
 „Ukaž na mapě“, místo a „Vedle o 312 km“ s body. Dnešní otázky a Kvíz dne ji nemají, chyby a opakování karet také ne.
 
 **Číselné otázky** (`numeric-questions.js`) se v hraní tématu, v Mixu, ve výzvách a v turnajích přimíchají asi do každé osmé otázky, jen kde téma
-má spolehlivá čísla z dat (biologie a mytologie je nemají; dnešní otázky a učení nikdy). Bez nápověd, body za přesnost (ve variantě psaní dvojnásobek):
+má spolehlivá čísla z dat (biologie a mytologie je nemají; dnešní otázky a učení nikdy). Bez nápověd, body za přesnost (ve variantě psaní 1,5×):
 
 - **Seřaď** – čtyři položky ze stejné kategorie (výška hor, délka řek, rozloha a obyvatelé států, česká města, stavby, roky bitev, filmů, děl a založení
   klubů, rok narození osobností, protonové číslo, tvrdost podle Mohse, stáří geologických období, průměr a oběh planet…), hodnoty vždy dost daleko od sebe.
@@ -224,7 +224,7 @@ Hotovo: přihlášení účtem Google přes Supabase, profil hráče (jméno, em
 hráčů: kód nebo odkaz `?vyzva=KÓD`, žebříček výzvy; `social.js`, tabulky `challenges` a `challenge_results`). Výzvu lze
 poslat komukoli s kódem, konkrétnímu hráči podle jedinečné přezdívky, nebo náhodnému hráči (`random_opponent()`);
 vyzvaný ji uvidí na úvodní stránce. Výzvu lze nastavit: téma nebo mix, okruh tématu (třeba jen vlajky států), obtížnost
-(známé / i těžší), pevný způsob odpovídání (možnosti / psaní) a počet otázek. Schéma databáze je napsané tak, aby šlo pouštět opakovaně; po jeho změně ho
+(známé / i těžší) a počet otázek; odpovídá se vždy výběrem z možností (psaní jen ve hře pro jednoho hráče). Schéma databáze je napsané tak, aby šlo pouštět opakovaně; po jeho změně ho
 v Supabase spusť znovu celé.
 **Rozpis otázek** (schéma 10): když výzvu (nebo zápas turnaje) dohrají oba hráči, výsledek i okno výzvy nabídnou rozpis po otázkách: zadání a správná
 odpověď, u obou hráčů vedle sebe co odpověděli, správně/špatně, nápovědy, body a čas; klepnutí na otázku otevře popis položky. Při hře výzvy, zápasu
@@ -235,6 +235,18 @@ uložené otázky. Než hráč výzvu sám dohraje, vidí u soupeřů jen „doh
 **Týdenní turnaje** (vyřazovací pavouk v Mixu, kolo = jeden den): klient je v `tournament.js` (čistá logika: názvy kol, dny, stav karty, texty zpráv),
 volání databáze v `social.js` a okno turnaje, hra zápasu a karta na záložce Více hráčů v `app.js`; pravidla a posun kol dělá databáze
 (`tournament_tick()` a další funkce v `supabase/schema.sql`). Starší databáze bez turnajů kartu prostě neukáže.
+**Speciální turnaje na téma a hlasování** (schéma 31): nárazové turnaje mimo týdenní Mix, třeba Hrady a zámky, Opery, Olympijské hry nebo Vlajky Afriky.
+Nabídka 28 témat je v `tournament.js` (`THEMES`: okruhy a kategorie témat, obtížnost a kapacita tak, aby otázky stačily na celý pavouk bez opakování)
+a stejná v tabulce `tournament_themes`. Na záložce Více hráčů je v kartě **Turnaje** hlasování „Hlasování: jaké téma příště?“ se 4 tématy:
+každý přihlášený hráč má jeden hlas, může ho měnit, dokud hlasování běží (nejvýš 10krát), a po hlasování vidí procenta. Turnaj sám se nikdy
+nezaloží: spustí ho správce ve vývojářských nástrojích (`?vyvojar`, Nastavení → Speciální turnaj a hlasování → Založit speciální turnaj…) s tématem
+(předvybrané je vítězné téma hlasování), začátkem a délkou kola (15 minut až 24 hodin). Přihlášky jsou otevřené do začátku, kolo n se hraje
+od začátku + (n − 1) × délka kola; otázky, kontumace, XP a odznaky jako v týdenním turnaji, jen z položek tématu. Založení na téma z hlasování
+(nebo Uzavřít hlasování) hlasování uzavře a otevře nové se 4 jinými tématy (bez témat dvou posledních hlasování a šesti posledních turnajů).
+Hráčům s upozorněními na turnaje přijde „Začíná speciální turnaj: …“. Najednou běží nejvýš jeden speciální turnaj; v archivu je mezi týdenními.
+**Rozpis kontumovaného zápasu** (schéma 31): zápas turnaje, který hráč nedohrál (vzdal, nebo mu skončilo kolo), má po rozhodnutí v rozpisu jeho
+uložené odpovědi, zadání všech otázek a u výsledku „nedohráno · 7 b · 2/10“; výzva, kterou soupeř nedohrál, má rozpis s mými odpověďmi
+(u výzvy starší 7 dní i s jeho nedohranými).
 **Skupiny** (třída, rodina, kamarádi; schéma 8): čip Skupiny na záložce Více hráčů otevře seznam skupin s dnešním vedoucím Kvízu dne; detail skupiny
 má pořadí **Dnes** (Kvíz dne) a **Týden** (součet bodů Kvízu dne nebo XP získané od pondělí), kód s pozvánkou (odkaz `?skupina=KÓD`, po přihlášení
 se okno otevře samo) a **Vyzvat skupinu** (jedna výzva pro všechny členy, do ratingu se nepočítá). Nejvýš 10 skupin na hráče a 50 členů ve skupině;

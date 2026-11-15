@@ -10,7 +10,7 @@
 })(typeof self !== 'undefined' ? self : this, (core, root) => {
     'use strict';
 
-    const { escapeHtml, shuffle, pickRandom, plural, formatPoints, normalizeAnswer, getCountryNames, commonsPhotoUrl, isRealPhoto } = core;
+    const { escapeHtml, shuffle, pickRandom, plural, formatPoints, normalizeAnswer, getCountryNames, commonsPhotoUrl, isRealPhoto, typedFactor } = core;
 
     // Asi každá osmá otázka hry tématu, mixu a výzvy (jen kde téma má vhodná čísla). Testy: api.rate a api.force, nebo
     // window.MUDRLANT_NUMERIC_RATE nastavené před načtením skriptu (0 = testy, které počítají jen s obyčejnými otázkami)
@@ -321,9 +321,10 @@
 
     // --- Body ---
 
-    // Body bez nápověd: plné 4 (ve variantě psaní dvojnásobek jako u ostatních otázek), částečné podle přesnosti; 0 = špatně
+    // Body bez nápověd: plné 4 (ve variantě psaní 1,5× jako u ostatních otázek, zaokrouhleno), částečné podle přesnosti; 0 = špatně.
+    // variant: 'typed' = psaní (1,5×), číslo = vlastní násobek (starší psaná výzva: dvojnásobek), jinak výběr z možností
     const MAX_BASE = 4;
-    const pointsFor = (base, variant) => Math.max(0, Math.min(MAX_BASE, base | 0)) * (variant === 'typed' ? 2 : 1);
+    const pointsFor = (base, variant) => Math.round(Math.max(0, Math.min(MAX_BASE, base | 0)) * typedFactor(variant === 'typed' ? true : variant));
 
     // Seřaď: všechno správně 4 body, jen jedna prohozená sousední dvojice 2 body, jinak nic
     // (náhodné klepání dá v průměru méně než půl bodu, stejně jako u výběru ze čtyř možností jde o štěstí málo)

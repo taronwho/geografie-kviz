@@ -1868,9 +1868,14 @@
 
     // Nápovědy v pořadí: popis (hned) → fotka → obrazová nápověda tématu (mapa, časová osa…) → fakta; chybějící krok se vynechá
     // Body: bez nápovědy vždy 4 (i když otázka nápověd tolik nemá), každá použitá nápověda o bod méně, aspoň 1;
-    // level = 1 + počet použitých nápověd; psaná odpověď dvojnásobek
+    // level = 1 + počet použitých nápověd. Psaná odpověď (jen ve hře pro jednoho hráče) 1,5× víc, zaokrouhleno na celé body (6, 5, 3, 2).
+    // typed: false = výběr z možností, true = psaní (1,5×), číslo = vlastní násobek (výzva založená s psaním dřív, než se psaní ve výzvách
+    // zrušilo, má dál dvojnásobek: LEGACY_TYPED_FACTOR, ať oba hráči hrají za stejné body).
     const MAX_POINTS = 4;
-    const pointsFor = (level, typed) => Math.max(MAX_POINTS - level + 1, 1) * (typed ? 2 : 1);
+    const TYPED_FACTOR = 1.5;
+    const LEGACY_TYPED_FACTOR = 2;
+    const typedFactor = (typed) => typed === true ? TYPED_FACTOR : typeof typed === 'number' && typed > 0 ? typed : 1;
+    const pointsFor = (level, typed) => Math.round(Math.max(MAX_POINTS - level + 1, 1) * typedFactor(typed));
 
     // Fakt, který hráč už vidí v zadání nebo popisu („Místo: Sudoměř“ u „bitvy u Sudoměře“), nápovědu nepřidá.
     // Slovo se hledá podle kmene (začátku), ať se najde i v jiném pádě; čísla a krátká slova se neporovnávají.
@@ -2434,7 +2439,7 @@
     const titleOwlTier = (level) => Math.max(1, TITLE_OWL_FROM.filter(from => level >= from).length);
     // Další titul (kdy a jaký), null na konci
     const nextTitle = (level) => LEVEL_TITLES.find(entry => entry.from > level) || null;
-    // Za odpověď: správná 10 XP a 5 za každý bod (nejvýš 4 body, psaním dvojnásobek), špatná 2 XP za pokus, vzdání nic;
+    // Za odpověď: správná 10 XP a 5 za každý bod (nejvýš 4 body, psaním 6), špatná 2 XP za pokus, vzdání nic;
     // za otázku v opakování karet (review) polovina
     const answerXp = ({ correct, points = 0, gaveUp = false, review = false }) => {
         const xp = correct ? 10 + 5 * points : gaveUp ? 0 : 2;
@@ -2874,7 +2879,7 @@
         inCollection, filterItems, levelOf, tierLevel, pickItem, sortItems, getCountryNames, getContinent, continentAt, getCountryAliases,
         distanceKm, nearness, STATE_STEPS, sharesGroup, eraNearness, personSimilarity, rankBySimilarity, takeDistinct, isNamePart, nameStems, sameNameStem,
         buildItemChoices, buildCountryChoices, sameArticle, namedIn, choiceConflict, replaceConflicts, findAnswerItem, findAnswerCountry, updateMistakes, nameAnswers, countryAnswers,
-        pointsFor, dropKnownFacts, scaleKnown, timelineKnown, dropChoiceNames, sharesWordRoot, chooseDescription, censoredShare, MAX_CENSORED_SHARE, isFactVisible, formatNumber, formatPopulation, formatYear, formatFacts, getMapSpan, buildBlindMap, blindMapSpan, visibleOutline,
+        pointsFor, TYPED_FACTOR, LEGACY_TYPED_FACTOR, typedFactor, dropKnownFacts, scaleKnown, timelineKnown, dropChoiceNames, sharesWordRoot, chooseDescription, censoredShare, MAX_CENSORED_SHARE, isFactVisible, formatNumber, formatPopulation, formatYear, formatFacts, getMapSpan, buildBlindMap, blindMapSpan, visibleOutline,
         mercatorY, inverseMercatorY, ringLons, regionalView, buildRegionalMap, mapExtent, REGIONAL_WINDOW, REGIONAL_DIGITS, decodeNumbers,
         buildTimeline, centuryOf, centuryLabel, computeStreak, buildShareText, getTileLayout
     };

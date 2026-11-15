@@ -265,21 +265,21 @@ test('otázka „Ukaž na mapě“', { skip: !chromium && 'Playwright není nain
         await context.close();
     });
 
-    await t.test('psaní: stejná mapa za dvojnásobek bodů (8)', async () => {
+    await t.test('psaní: stejná mapa za 1,5× víc bodů (6)', async () => {
         const { context, tab, problems } = await open({ variant: 'typed' });
         await startZemepis(tab);
         await waitForMap(tab);
         assert.equal(await tab.$('#answer-form'), null, 'na mapě se nepíše');
         const { data } = await session(tab);
-        assert.match(await tab.textContent('#app-content'), /Plné 8 bodů/);
+        assert.match(await tab.textContent('#app-content'), /Plné 6 bodů/);
         const target = await screenPoint(tab, data.question.map.lat, data.question.map.lon);
         await tab.mouse.click(target.x, target.y);
         await tab.click('[data-action="map-confirm"]');
         await waitForMap(tab, '#map-guess');
         const { round } = await session(tab);
-        assert.equal(round.points, 8);
+        assert.equal(round.points, 6);
         assert.equal(round.typed, false, 'odznaky za psaní se nepočítají');
-        assert.match(await tab.textContent('[data-verdict]'), /Trefa! \+8 bodů/);
+        assert.match(await tab.textContent('[data-verdict]'), /Trefa! \+6 bodů/);
         assert.deepEqual(problems, []);
         await context.close();
     });

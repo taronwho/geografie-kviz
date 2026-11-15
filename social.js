@@ -180,12 +180,13 @@
     // Konec semínka nové výzvy: výzva smí mít otázky „Ukaž na mapě“ (question-map.js MULTIPLAYER_SEED_MARK); výzvy starších verzí aplikace
     // ho nemají a zůstanou bez mapy na všech zařízeních
     const CHALLENGE_SEED_MARK = '.mapa';
-    const createChallenge = async (userId, { topic, count, invitedId = null, includeHard = false, level = null, categories = [], variant = null }) => {
+    // Odpovídání ve výzvě je vždy výběr z možností (psaní jen ve hře pro jednoho hráče; psanou výzvu databáze od schématu 31 odmítne)
+    const createChallenge = async (userId, { topic, count, invitedId = null, includeHard = false, level = null, categories = [] }) => {
         if (!COUNTS.includes(count)) throw new SocialError('Neplatný počet otázek.', 400);
         const wanted = [1, 2, 3].includes(level) ? level : includeHard ? 2 : 1;
         for (let attempt = 0; attempt < 4; attempt++) {
             const id = newCode();
-            const body = { id, creator_id: userId, topic, seed: `vyzva-${id}-${Date.now().toString(36)}${CHALLENGE_SEED_MARK}`, count, invited_id: invitedId, include_hard: wanted >= 2, categories: (categories || []).slice(0, 20), variant: variant === 'typed' || variant === 'choices' ? variant : null };
+            const body = { id, creator_id: userId, topic, seed: `vyzva-${id}-${Date.now().toString(36)}${CHALLENGE_SEED_MARK}`, count, invited_id: invitedId, include_hard: wanted >= 2, categories: (categories || []).slice(0, 20), variant: 'choices' };
             try {
                 const rows = await request('POST', 'challenges', { body: wanted === 3 && !levelMissing ? { ...body, level: 3 } : body, prefer: 'return=representation' });
                 return rows[0];
@@ -299,18 +300,59 @@
         }
     };
     const wholeOrNull = (value) => { const number = Math.floor(Number(value)); return Number.isFinite(number) ? number : null; };
-    const cleanTournament = (row) => ({
-        id: String(row.id), topic: String(row.topic || 'mix'), week_start: String(row.week_start || '').slice(0, 10), started_on: row.started_on ? String(row.started_on).slice(0, 10) : null,
-        capacity: wholeOrNull(row.capacity) || 128, status: ['open', 'running', 'finished', 'cancelled'].includes(row.status) ? row.status : 'finished',
-        size: wholeOrNull(row.size), rounds: wholeOrNull(row.rounds), seed: String(row.seed || '')
-    });
+    // Speciální turnaj na téma (schéma 31): kind 'special', id tématu, název, začátek (ISO) a délka kola v minutách; týdenní Mix je má prázdné
+    const cleanTournament = (row) => {
+        const special = row.kind === 'special' && Number.isFinite(Date.parse(row.starts_at)) && wholeOrNull(row.round_minutes) > 0;
+        return {
+            id: String(row.id), topic: String(row.topic || 'mix'), week_start: String(row.week_start || '').slice(0, 10), started_on: row.started_on ? String(row.started_on).slice(0, 10) : null,
+            capacity: wholeOrNull(row.capacity) || 128, status: ['open', 'running', 'finished', 'cancelled'].includes(row.status) ? row.status : 'finished',
+            size: wholeOrNull(row.size), rounds: wholeOrNull(row.rounds), seed: String(row.seed || ''),
+            kind: special ? 'special' : 'weekly',
+            ...(special ? { theme: /^[a-z0-9-]{1,40}$/.test(String(row.theme || '')) ? String(row.theme) : '', title: String(row.title || '').replace(/[<>]/g, '').trim().slice(0, 60),
+                starts_at: new Date(Date.parse(row.starts_at)).toISOString(), round_minutes: Math.min(1440, Math.max(10, wholeOrNull(row.round_minutes))) } : {})
+        };
+    };
+    // Sloupce turnaje; se schématem bez speciálních turnajů (starší než 31, odpověď 400) se ptá jen na ty dřívější a dál o ně nežádá
+    const TOURNAMENT_FIELDS = 'id,topic,week_start,started_on,capacity,status,size,rounds,seed';
+    let specialMissing = false;
+    const withSpecial = async (run) => {
+        if (specialMissing) return run(TOURNAMENT_FIELDS);
+        try { return await run(`${TOURNAMENT_FIELDS},kind,theme,title,starts_at,round_minutes`); } catch (error) {
+            if (error.status !== 400) throw error;
+            specialMissing = true;
+            return run(TOURNAMENT_FIELDS);
+        }
+    };
     // Posune turnaje (přihlášky na příští týden, start v pondělí, další kolo); true, když turnaje v databázi jsou, jinak null
     const tournamentTick = () => guardTournaments(async () => { await request('POST', 'rpc/tournament_tick', { body: {} }); return true; }, null);
     // Otevřené, běžící a poslední skončené turnaje, nejnovější první; null = databáze turnaje nemá
     const getTournaments = () => guardTournaments(async () => {
-        const rows = await request('GET', 'tournaments?status=in.(open,running,finished)&order=week_start.desc&limit=6&select=id,topic,week_start,started_on,capacity,status,size,rounds,seed') || [];
+        const rows = await withSpecial(fields => request('GET', `tournaments?status=in.(open,running,finished)&order=week_start.desc&limit=6&select=${fields}`)) || [];
         return rows.map(cleanTournament);
     }, null);
+    // Hlasování o tématu dalšího speciálního turnaje (schéma 31): stav (otevřené hlasování se 4 tématy, můj hlas a po hlasování počty) a hlas.
+    // null = databáze hlasování nemá (starší schéma); hlášky serveru jsou česky.
+    let pollMissing = false;
+    const cleanPoll = (row) => {
+        if (!row || typeof row !== 'object' || !Array.isArray(row.options)) return null;
+        const counted = row.total !== null && row.total !== undefined;
+        return {
+            id: wholeOrNull(row.id), closed: row.closed === true, mine: typeof row.mine === 'string' && /^[a-z0-9-]{1,40}$/.test(row.mine) ? row.mine : null,
+            total: counted ? wholeNumber(row.total, 10000000) : null, changes_left: wholeNumber(row.changes_left, 10),
+            options: row.options.filter(option => option && /^[a-z0-9-]{1,40}$/.test(String(option.id))).slice(0, 4).map(option => ({
+                id: String(option.id), title: String(option.title || option.id).replace(/[<>]/g, '').slice(0, 60), votes: counted ? wholeNumber(option.votes, 10000000) : null }))
+        };
+    };
+    const pollCall = async (name, body) => {
+        if (pollMissing) return null;
+        try { return cleanPoll(await request('POST', `rpc/${name}`, { body })); } catch (error) {
+            if (error.status === 404) { pollMissing = true; return null; }
+            if (error instanceof SocialError && error.status < 500 && CZECH_MESSAGE.test(error.message)) throw error;
+            throw new SocialError(name === 'tournament_vote' ? 'Hlas se nepodařilo uložit. Zkontroluj připojení a zkus to znovu.' : 'Hlasování se nepodařilo načíst.', error && error.status);
+        }
+    };
+    const tournamentPoll = () => pollCall('tournament_poll_state', {});
+    const voteTournamentTheme = (poll, theme) => pollCall('tournament_vote', { poll: wholeNumber(poll, Number.MAX_SAFE_INTEGER), theme: String(theme || '').slice(0, 40) });
     // Archiv turnajů: skončené turnaje od nejnovějšího po stránkách (offset, limit nejvýš 20; zrušené se nehrály, v archivu nejsou). Ke každému
     // vítěz (přihláška s 1. místem; kde místa chybí, vítěz finále) a moje přihláška (místo, stav). Jen čtení přes pravidla řádků, bez funkce
     // v databázi: [{ tournament, winner: { user_id, player } | null, mine: { place, status } | null }]; null = databáze turnaje nemá
@@ -318,7 +360,7 @@
     const tournamentArchive = (userId, offset = 0, limit = ARCHIVE_PAGE) => guardTournaments(async () => {
         const count = Math.max(1, Math.min(20, wholeOrNull(limit) || ARCHIVE_PAGE));
         const from = Math.max(0, wholeOrNull(offset) || 0);
-        const rows = await request('GET', `tournaments?status=eq.finished&order=week_start.desc,id.desc&limit=${count}&offset=${from}&select=id,topic,week_start,started_on,capacity,status,size,rounds,seed`) || [];
+        const rows = await withSpecial(fields => request('GET', `tournaments?status=eq.finished&order=week_start.desc,id.desc&limit=${count}&offset=${from}&select=${fields}`)) || [];
         const list = rows.filter(row => row && isTournamentId(row.id)).map(cleanTournament);
         if (!list.length) return [];
         const ids = list.map(item => item.id).join(',');
@@ -503,8 +545,10 @@
         }
     };
     // Vývojářské nástroje turnajů (boti): jen pro účet zapsaný v dev_admins; chyba serveru se předá tak, jak je
+    // Speciální turnaje a hlasování (schéma 31): založit turnaj (téma, začátek, délka kola), smazat nezačatý, uzavřít hlasování
     const devTournament = async (name, body = {}) => {
-        const allowed = ['dev_tournament_add_bots', 'dev_tournament_start_now', 'dev_tournament_next_round', 'dev_tournament_bots_play', 'dev_tournament_clear_bots', 'dev_tournament_reset'];
+        const allowed = ['dev_tournament_add_bots', 'dev_tournament_start_now', 'dev_tournament_next_round', 'dev_tournament_bots_play', 'dev_tournament_clear_bots', 'dev_tournament_reset',
+            'dev_special_tournament_create', 'dev_special_tournament_delete', 'dev_tournament_poll_close'];
         if (!allowed.includes(name)) throw new SocialError('Neznámý nástroj.', 400);
         try { return await request('POST', `rpc/${name}`, { body }); } catch (error) {
             if (error.status === 404) throw new SocialError('Vývojářské nástroje turnajů v databázi chybí: spusť znovu supabase/schema.sql.', 404);
@@ -1296,7 +1340,7 @@
     const conquestItemsMissing = () => partMissing.items;
 
     return { AVATARS, allAvatars, cleanAvatar, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
-        tournamentTick, getTournaments, tournamentArchive, ARCHIVE_PAGE, inTournament, devTournament, devClientErrors, isDevAdmin, schemaVersion, reportQuestion, getQuestionReports, deleteQuestionReport, exportMyData, deleteMyAccount, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen,
+        tournamentTick, getTournaments, tournamentArchive, tournamentPoll, voteTournamentTheme, ARCHIVE_PAGE, inTournament, devTournament, devClientErrors, isDevAdmin, schemaVersion, reportQuestion, getQuestionReports, deleteQuestionReport, exportMyData, deleteMyAccount, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen,
         challengeProgress, saveChallengeProgress, tournamentAnswers, saveTournamentAnswer, claimTournamentXp, cleanAnswerLabel,
         // Rozpis otázek (schéma 10)
         challengeDetails, tournamentDetails,
