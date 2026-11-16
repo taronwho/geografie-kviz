@@ -91,8 +91,8 @@ export const assignLevels = (items, { knownShare = () => 0, expertShare, pvWeigh
     return promoted;
 };
 
-// Odborné položky, které spodní hranice okruhu (assignLevels) povýšila mezi známé, ačkoli do základní úrovně nepatří (geologické věky,
-// jmenné reakce organické chemie, vlajky krajů a regionů vzdálených států): po assignLevels se vrátí mezi méně známé (k: 0; expert: true
+// Odborné položky, které spodní hranice okruhu (assignLevels) povýšila mezi známé, ačkoli do základní úrovně nepatří (zatím geologické věky,
+// build-geologie.mjs): po assignLevels se vrátí mezi méně známé (k: 0; expert: true
 // = jen pro experty, x: 1). Kdo byl do té doby známý, dostane ku = until („známá do“), kdo byl v úrovni Mudrlant a teď je pro experty,
 // xs = until („pro experty od“): denní módy (Kvíz dne, Dnešní otázky, Řetězovka,
 // Boss týdne, Tajemná otázka) berou položky do toho dne jako dřív (quiz-core.js itemsAsOf), ať se den, který už někdo hrál, nezmění.

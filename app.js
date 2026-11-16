@@ -546,10 +546,11 @@
     // Témata s otázkami na mapě (question-map.js KINDS); režim Ukaž na mapě dává jen je a otázku na mapě pokaždé
     const MAP_TOPICS = MapQuestion ? MapQuestion.MAP_TOPICS : [];
     // options.mode = hra, pro kterou se otázka chystá (příprava dopředu na pozadí nesmí vzít mód právě hrané hry)
-    const mapQuestionFor = (item, ctx, options = {}, forMode = options.mode || mode) => !MapQuestion ? null
-        : forMode === 'challenge' ? (options.map ? loadMapData().then(map => MapQuestion.multiplayerQuestion(item, ctx, map)).catch(() => null) : null)
-        : forMode === 'practice' && pool.kind === 'map' ? loadMapData().then(map => MapQuestion.buildQuestion(item, ctx, map)).catch(() => null)
-        : forMode !== 'practice' || pool.kind === 'mistakes' || pool.kind === 'review' ? null
+    const playMode = () => mode;
+    const mapQuestionFor = (item, ctx, options = {}, mode = options.mode || playMode()) => !MapQuestion ? null
+        : mode === 'challenge' ? (options.map ? loadMapData().then(map => MapQuestion.multiplayerQuestion(item, ctx, map)).catch(() => null) : null)
+        : mode === 'practice' && pool.kind === 'map' ? loadMapData().then(map => MapQuestion.buildQuestion(item, ctx, map)).catch(() => null)
+        : mode !== 'practice' || pool.kind === 'mistakes' || pool.kind === 'review' ? null
         : MapQuestion.nextQuestion(item, ctx, { storage: { read: () => readJson(MapQuestion.GAP_KEY), write: (value) => writeJson(MapQuestion.GAP_KEY, value) }, loadMap: loadMapData });
     // options.map = výzva (zápas turnaje) určila podle semínka, že otázka má být na mapě (když na ni položka jde)
     // options.wrong = nesprávné možnosti, které vybral volající (Dobývání: tři položky ze stejného území a tématu); popis pak zakryje

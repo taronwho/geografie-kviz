@@ -89,7 +89,7 @@ test('stejnost: Dnešní otázky nezávisí na pořadí položek a změna dat je
     assert.equal(changedByRemoval, 0, 'odebraná jiná položka nemění dnešní otázku');
 });
 
-test('stejnost: změna úrovní známosti (geologické věky, vlajky regionů) platí až od 17. 11. 2026, den předtím zůstane', () => {
+test('stejnost: změna úrovní známosti (geologické věky) platí až od 17. 11. 2026, den předtím zůstane', () => {
     const data = playerData();
     const geology = data.geologie;
     const before = core.itemsAsOf(geology, '2026-11-16');
@@ -106,8 +106,6 @@ test('stejnost: změna úrovní známosti (geologické věky, vlajky regionů) p
     for (const day of ['2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20', '2026-11-21', '2026-11-22', '2026-11-23']) {
         assert.ok(plan(day).every(slot => !ageIds.has(slot.q)), `${day}: Kvíz dne bez geologických věků`);
     }
-    const flags = core.itemsAsOf(data.vlajky, '2026-11-16');
-    assert.ok(flags.filter(item => item.ku === undefined && item.k === 1).length > data.vlajky.filter(item => item.k === 1).length);
 });
 
 test('stejnost: Řetězovka dne je pro dva hráče s vlastními kopiemi dat stejná (i den před změnou úrovní)', () => {

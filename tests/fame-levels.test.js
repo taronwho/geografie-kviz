@@ -8,7 +8,7 @@ const load = (topic) => require(path.join(__dirname, '..', 'data', `${topic}.jso
 const floorOf = (size) => size < 8 ? 0 : Math.min(size, Math.max(3, Math.ceil(size * 0.25)));
 // Okruhy bez základní úrovně (scripts/lib/fame-levels.mjs demoteKnown): odborná látka, hrají se jen celé z učení; geologické věky jen pro experty
 const EXPERT_ONLY = { geologie: ['veky'] };
-const NO_BASIC = { geologie: ['veky'], vlajky: ['andske-zeme', 'madarsko-rumunsko', 'japonsko-korea'] };
+const NO_BASIC = { geologie: ['veky'] };
 
 test('fame-levels: pořadí známosti, známé, spodní hranice okruhu, experti a horní hranice expertů', async () => {
     const { assignLevels, fameRanks, levelGroups } = await import('../scripts/lib/fame-levels.mjs');
