@@ -155,7 +155,7 @@ test('Vzorek her a témat: po úpravě odpověď určí to, co hráč vidí bez 
                 total += 1;
                 if (!old.ok) before += 1;
                 if (round.ambiguous) { skipped += 1; continue; }
-                if (!now.ok) failures.push(`${topicId}/${item.n}: ${now.open.join(', ')}`);
+                if (!now.ok && !now.definition) failures.push(`${topicId}/${item.n}: ${now.open.join(', ')}`);
                 for (const fact of round.plan.clue || []) {
                     assert.equal(core.answerWordsLeft(fact.value, round.question.choices).length, 0, `${item.n}: ${fact.value}`);
                     assert.ok(!core.factRevealsAnswer(fact, core.answerNamesFor(round.question, item, ctx)), `${item.n}: ${fact.value}`);

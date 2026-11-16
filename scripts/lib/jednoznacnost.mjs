@@ -76,7 +76,8 @@ export const assemble = ({ item, ctx, question, special = false, fetched, after 
 const relationClash = (question, item, ctx) => {
     if (question.match) return null;
     const correct = (question.choices || []).find(choice => choice.correct);
-    if (!correct) return null;
+    // Čísla a značky (tvrdost 2 a 3, desetiletí) se ve faktech najdou náhodou (hustota 2,3 g/cm³): porovnávají se jen jména
+    if (!correct || !/\p{L}{3}/u.test(correct.label)) return null;
     // Celé jméno jako souvislý úsek hodnoty (metr za sekundu není v „kilogram metr čtvereční za sekundu“)
     const phrase = (value, label) => ` ${core.normalizeAnswer(value)} `.includes(` ${core.normalizeAnswer(label)} `);
     const facts = ctx.topic.facts(item, ctx, 'result').map(fact => String(fact.value));
@@ -114,5 +115,7 @@ export const evaluate = (round, ctx, { text = null, facts = null } = {}) => {
     const strict = check.shown.some(fact => wrong.every(other => core.contradicts(fact, other, ctx)));
     const fromText = core.identifyAnswer({ item, ctx, question, text: visible, facts: [] });
     const via = !check.ok ? 'nic' : fromText.ok ? 'popis' : (round.plan.clue || []).length ? 'rozlišující údaj' : 'fakta';
-    return { kind: example ? 'ukázka' : 'popis', ok: check.ok, strict, open: check.open.map(other => other.n), via };
+    // Odpověď určí jen plný úvod článku (definice pojmu, údaj, který data nemají; planRound/composeRound: definitionOnly): data ho neověří
+    const definition = !check.ok && text === null && Boolean(round.plan.definitionOnly);
+    return { kind: example ? 'ukázka' : 'popis', ok: check.ok, strict, open: check.open.map(other => other.n), via: definition ? 'jen popis' : via, definition };
 };

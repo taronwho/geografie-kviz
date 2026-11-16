@@ -1,0 +1,3427 @@
+{
+ "generated": "2026-11-16T10:40:05.112Z",
+ "options": {
+  "topics": [
+   "architektura",
+   "biologie",
+   "chemie",
+   "film",
+   "fyzika",
+   "geologie",
+   "historie",
+   "hudba",
+   "literatura",
+   "mytologie",
+   "sport",
+   "umeni",
+   "vlajky",
+   "zemepis"
+  ],
+  "perLevel": 60,
+  "days": 40,
+  "challenges": 12,
+  "conquest": 24,
+  "from": "2026-11-17",
+  "wiki": "jedno-uvody.json"
+ },
+ "summary": {
+  "questions": 5412,
+  "judged": 4615,
+  "before": 2279,
+  "after": 186,
+  "byTopic": {
+   "architektura": {
+    "questions": 194,
+    "before": 52,
+    "after": 0
+   },
+   "biologie": {
+    "questions": 368,
+    "before": 219,
+    "after": 32
+   },
+   "chemie": {
+    "questions": 327,
+    "before": 218,
+    "after": 90
+   },
+   "film": {
+    "questions": 428,
+    "before": 100,
+    "after": 0
+   },
+   "fyzika": {
+    "questions": 305,
+    "before": 214,
+    "after": 40
+   },
+   "geologie": {
+    "questions": 332,
+    "before": 241,
+    "after": 0
+   },
+   "historie": {
+    "questions": 438,
+    "before": 154,
+    "after": 0
+   },
+   "hudba": {
+    "questions": 349,
+    "before": 155,
+    "after": 0
+   },
+   "literatura": {
+    "questions": 501,
+    "before": 178,
+    "after": 0
+   },
+   "mytologie": {
+    "questions": 295,
+    "before": 230,
+    "after": 22
+   },
+   "sport": {
+    "questions": 341,
+    "before": 145,
+    "after": 0
+   },
+   "umeni": {
+    "questions": 219,
+    "before": 137,
+    "after": 0
+   },
+   "vlajky": {
+    "questions": 0,
+    "before": 0,
+    "after": 0
+   },
+   "zemepis": {
+    "questions": 518,
+    "before": 236,
+    "after": 2
+   }
+  }
+ },
+ "remaining": [
+  {
+   "generator": "hra",
+   "topic": "biologie",
+   "level": 1,
+   "q": "Q9384",
+   "name": "Varle",
+   "type": "name",
+   "title": "Která část těla to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": false,
+   "converted": false,
+   "ambiguous": true,
+   "day": null,
+   "before": {
+    "choices": [
+     "Varle ✓",
+     "Děloha",
+     "Vaječník",
+     "Játra"
+    ],
+    "text": "[***] je samčí pohlavní žláza obratlovců, tedy i muže. Ve [***] dochází k vývoji mužské pohlavní buňky – spermie. [***] jsou také důležitá endokrinní žláza, která produkuje pohlavní hormony.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Děloha",
+     "Vaječník",
+     "Játra"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Varle ✓",
+     "Děloha",
+     "Vaječník",
+     "Játra"
+    ],
+    "text": "[***] je samčí pohlavní žláza obratlovců, tedy i muže. Ve [***] dochází k vývoji mužské pohlavní buňky – spermie. [***] jsou také důležitá endokrinní žláza, která produkuje pohlavní hormony.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Děloha",
+     "Vaječník",
+     "Játra"
+    ],
+    "via": "nic",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "biologie",
+   "level": 2,
+   "q": "Q212743",
+   "name": "Pokožka",
+   "type": "name",
+   "title": "Která část těla to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": false,
+   "converted": false,
+   "ambiguous": true,
+   "day": null,
+   "before": {
+    "choices": [
+     "Nehet",
+     "Kůže",
+     "Škára",
+     "Pokožka ✓"
+    ],
+    "text": "[***] je nejsvrchnější vrstva [***]. Tvoří vodotěsný ochranný obal kolem povrchu těla a je tvořena jednak tenkým vrstevnatým epitelem z dlaždicovitých buněk a jednak pod nimi je bazální membrána.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Nehet",
+     "Kůže",
+     "Škára"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Nehet",
+     "Kůže",
+     "Škára",
+     "Pokožka ✓"
+    ],
+    "text": "[***] je nejsvrchnější vrstva [***]. Tvoří vodotěsný ochranný obal kolem povrchu těla a je tvořena jednak tenkým vrstevnatým epitelem z dlaždicovitých buněk a jednak pod nimi je bazální membrána.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Nehet",
+     "Kůže",
+     "Škára"
+    ],
+    "via": "nic",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "biologie",
+   "level": 2,
+   "q": "Q790949",
+   "name": "Bartholiniho žláza",
+   "type": "name",
+   "title": "Která část těla to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": false,
+   "converted": false,
+   "ambiguous": true,
+   "day": null,
+   "before": {
+    "choices": [
+     "Mléčná žláza",
+     "Cowperova žláza",
+     "Předstojná žláza",
+     "Bartholiniho žláza ✓"
+    ],
+    "text": "[***] je párová žláza velikosti hrášku nacházející se v oblasti ženských zevních pohlavních orgánů.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Mléčná žláza",
+     "Cowperova žláza",
+     "Předstojná žláza"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Mléčná žláza",
+     "Cowperova žláza",
+     "Předstojná žláza",
+     "Bartholiniho žláza ✓"
+    ],
+    "text": "[***] je párová žláza velikosti hrášku nacházející se v oblasti ženských zevních pohlavních orgánů.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Mléčná žláza",
+     "Cowperova žláza",
+     "Předstojná žláza"
+    ],
+    "via": "nic",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "biologie",
+   "level": 3,
+   "q": "Q29280",
+   "name": "Brazilská krátkosrstá kočka",
+   "type": "name",
+   "title": "Co je to za plemeno?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": false,
+   "converted": false,
+   "ambiguous": true,
+   "day": null,
+   "before": {
+    "choices": [
+     "Brazilská krátkosrstá kočka ✓",
+     "Evropská krátkosrstá kočka",
+     "Americký curl",
+     "Kartouzská kočka"
+    ],
+    "text": "[***] je kočičí plemeno původem z [***]. Je to první uznané kočičí plemeno z [***].",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Evropská krátkosrstá kočka",
+     "Americký curl",
+     "Kartouzská kočka"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Brazilská krátkosrstá kočka ✓",
+     "Evropská krátkosrstá kočka",
+     "Americký curl",
+     "Kartouzská kočka"
+    ],
+    "text": "[***] je kočičí plemeno původem z [***]. Je to první uznané kočičí plemeno z [***].",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Evropská krátkosrstá kočka",
+     "Americký curl",
+     "Kartouzská kočka"
+    ],
+    "via": "nic",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "biologie",
+   "level": 3,
+   "q": "Q551808",
+   "name": "Mozková hemisféra",
+   "type": "name",
+   "title": "Která část těla to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": false,
+   "converted": false,
+   "ambiguous": true,
+   "day": null,
+   "before": {
+    "choices": [
+     "Prodloužená mícha",
+     "Kalózní těleso",
+     "Mozková hemisféra ✓",
+     "Mozková kůra"
+    ],
+    "text": "[***] je párová struktura koncového [***] obratlovců. U některých nižších obratlovců jsou [***] tvořeny především jádry šedé hmoty, u jiných obratlovců se objevuje na povrchu [***] kůra.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Prodloužená mícha",
+     "Kalózní těleso",
+     "Mozková kůra"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Prodloužená mícha",
+     "Kalózní těleso",
+     "Mozková hemisféra ✓",
+     "Mozková kůra"
+    ],
+    "text": "[***] je párová struktura koncového [***] obratlovců. U některých nižších obratlovců jsou [***] tvořeny především jádry šedé hmoty, u jiných obratlovců se objevuje na povrchu [***] kůra.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Prodloužená mícha",
+     "Kalózní těleso",
+     "Mozková kůra"
+    ],
+    "via": "nic",
+    "definition": false
+   }
+  },
+  {
+   "generator": "výzva",
+   "topic": "biologie",
+   "level": 1,
+   "q": "Q156871",
+   "name": "Hypofýza",
+   "type": "name",
+   "title": "Která část těla to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": false,
+   "converted": false,
+   "ambiguous": true,
+   "day": null,
+   "before": {
+    "choices": [
+     "Nadledvina",
+     "Štítná žláza",
+     "Šišinka",
+     "Hypofýza ✓"
+    ],
+    "text": "[***] je centrální endokrinní žláza, do velké míry nadřazená všem ostatním žlázám s vnitřní sekrecí v těle.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Nadledvina",
+     "Štítná žláza",
+     "Šišinka"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Nadledvina",
+     "Štítná žláza",
+     "Šišinka",
+     "Hypofýza ✓"
+    ],
+    "text": "[***] je centrální endokrinní žláza, do velké míry nadřazená všem ostatním žlázám s vnitřní sekrecí v těle.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Nadledvina",
+     "Štítná žláza",
+     "Šišinka"
+    ],
+    "via": "nic",
+    "definition": false
+   }
+  },
+  {
+   "generator": "výzva",
+   "topic": "biologie",
+   "level": 1,
+   "q": "Q164386",
+   "name": "Hypothalamus",
+   "type": "name",
+   "title": "Která část těla to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": false,
+   "converted": false,
+   "ambiguous": true,
+   "day": null,
+   "before": {
+    "choices": [
+     "Amygdala",
+     "Hypothalamus ✓",
+     "Lidský mozek",
+     "Mozek"
+    ],
+    "text": "[***] je částí mezimozku. Jeho činnost spočívá hlavně ve slaďování jednotlivých vnitřních orgánů do komplexní odpovědi.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Amygdala",
+     "Lidský mozek",
+     "Mozek"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Amygdala",
+     "Hypothalamus ✓",
+     "Lidský mozek",
+     "Mozek"
+    ],
+    "text": "[***] je částí mezimozku. Jeho činnost spočívá hlavně ve slaďování jednotlivých vnitřních orgánů do komplexní odpovědi.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Amygdala",
+     "Lidský mozek",
+     "Mozek"
+    ],
+    "via": "nic",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "chemie",
+   "level": 1,
+   "q": "Q275411",
+   "name": "Rutherfordův model atomu",
+   "type": "name",
+   "title": "Jaký pojem nebo metoda to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": false,
+   "converted": false,
+   "ambiguous": true,
+   "day": null,
+   "before": {
+    "choices": [
+     "Boyleův-Mariottův zákon",
+     "Lambertův–Beerův zákon",
+     "Bohrův model atomu",
+     "Rutherfordův model atomu ✓"
+    ],
+    "text": "[***] je [***], který navrhl Ernest [***] v roce 1911 na základě analýzy experimentů Geigera a Marsdena.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Boyleův-Mariottův zákon",
+     "Lambertův–Beerův zákon",
+     "Bohrův model atomu"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Boyleův-Mariottův zákon",
+     "Lambertův–Beerův zákon",
+     "Bohrův model atomu",
+     "Rutherfordův model atomu ✓"
+    ],
+    "text": "[***] je [***], který navrhl Ernest [***] v roce 1911 na základě analýzy experimentů Geigera a Marsdena.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Boyleův-Mariottův zákon",
+     "Lambertův–Beerův zákon",
+     "Bohrův model atomu"
+    ],
+    "via": "nic",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "chemie",
+   "level": 2,
+   "q": "Q202151",
+   "name": "Gay-Lussacův zákon",
+   "type": "name",
+   "title": "Jaký pojem nebo metoda to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": false,
+   "converted": false,
+   "ambiguous": true,
+   "day": null,
+   "before": {
+    "choices": [
+     "Raoultův zákon",
+     "Periodický zákon",
+     "Gay-Lussacův zákon ✓",
+     "Charlesův zákon"
+    ],
+    "text": "[***] je termodynamický vztah pro izobarický děj probíhající v ideálním plynu.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Raoultův zákon",
+     "Periodický zákon",
+     "Charlesův zákon"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Raoultův zákon",
+     "Periodický zákon",
+     "Gay-Lussacův zákon ✓",
+     "Charlesův zákon"
+    ],
+    "text": "[***] je termodynamický vztah pro izobarický děj probíhající v ideálním plynu.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Raoultův zákon",
+     "Periodický zákon",
+     "Charlesův zákon"
+    ],
+    "via": "nic",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "chemie",
+   "level": 2,
+   "q": "Q84483575",
+   "name": "Ftaláty",
+   "type": "name",
+   "title": "Jaký pojem nebo metoda to je?",
+   "kind": "popis",
+   "wiki": false,
+   "swapped": false,
+   "converted": false,
+   "ambiguous": true,
+   "day": null,
+   "before": {
+    "choices": [
+     "Sulfoxidy",
+     "Ftaláty ✓",
+     "Chlorid",
+     "Aniont"
+    ],
+    "text": "Estery kyseliny ftalové.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Sulfoxidy",
+     "Chlorid",
+     "Aniont"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Sulfoxidy",
+     "Ftaláty ✓",
+     "Chlorid",
+     "Aniont"
+    ],
+    "text": "Estery kyseliny ftalové.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Sulfoxidy",
+     "Chlorid",
+     "Aniont"
+    ],
+    "via": "nic",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "fyzika",
+   "level": 2,
+   "q": "Q172137",
+   "name": "Lorentzova síla",
+   "type": "name",
+   "title": "Který zákon, jev nebo pojem to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": false,
+   "converted": false,
+   "ambiguous": true,
+   "day": null,
+   "before": {
+    "choices": [
+     "Elektrický proud v plynech",
+     "Lorentzova síla ✓",
+     "Magnetická levitace",
+     "Termoelektrický jev"
+    ],
+    "text": "[***] je [***] působící na [***] náboj pohybující se v elektromagnetickém poli, pojmenována po [***] Antoonovi [***].",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Elektrický proud v plynech",
+     "Magnetická levitace",
+     "Termoelektrický jev"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Elektrický proud v plynech",
+     "Lorentzova síla ✓",
+     "Magnetická levitace",
+     "Termoelektrický jev"
+    ],
+    "text": "[***] je [***] působící na [***] náboj pohybující se v elektromagnetickém poli, pojmenována po [***] Antoonovi [***].",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Elektrický proud v plynech",
+     "Magnetická levitace",
+     "Termoelektrický jev"
+    ],
+    "via": "nic",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "fyzika",
+   "level": 2,
+   "q": "Q274116",
+   "name": "Thomsonův model atomu",
+   "type": "name",
+   "title": "Který zákon, jev nebo pojem to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": false,
+   "converted": false,
+   "ambiguous": true,
+   "day": null,
+   "before": {
+    "choices": [
+     "Teorie ustáleného stavu",
+     "Kodaňská interpretace",
+     "Thomsonův model atomu ✓",
+     "Rutherfordův model atomu"
+    ],
+    "text": "[***] zvaný [***] navrhl objevitel elektronu [***] v roce 1904 ještě před objevem [***] jádra.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Teorie ustáleného stavu",
+     "Kodaňská interpretace",
+     "Rutherfordův model atomu"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Teorie ustáleného stavu",
+     "Kodaňská interpretace",
+     "Thomsonův model atomu ✓",
+     "Rutherfordův model atomu"
+    ],
+    "text": "[***] zvaný [***] navrhl objevitel elektronu [***] v roce 1904 ještě před objevem [***] jádra.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Teorie ustáleného stavu",
+     "Kodaňská interpretace",
+     "Rutherfordův model atomu"
+    ],
+    "via": "nic",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "fyzika",
+   "level": 3,
+   "q": "Q202151",
+   "name": "Gay-Lussacův zákon",
+   "type": "name",
+   "title": "Který zákon, jev nebo pojem to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": false,
+   "converted": false,
+   "ambiguous": true,
+   "day": null,
+   "before": {
+    "choices": [
+     "Gay-Lussacův zákon ✓",
+     "Boyleův-Mariottův zákon",
+     "Wienův posunovací zákon",
+     "Avogadrův zákon"
+    ],
+    "text": "[***] je termodynamický vztah pro izobarický děj probíhající v ideálním plynu.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Boyleův-Mariottův zákon",
+     "Wienův posunovací zákon",
+     "Avogadrův zákon"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Gay-Lussacův zákon ✓",
+     "Boyleův-Mariottův zákon",
+     "Wienův posunovací zákon",
+     "Avogadrův zákon"
+    ],
+    "text": "[***] je termodynamický vztah pro izobarický děj probíhající v ideálním plynu.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Boyleův-Mariottův zákon",
+     "Wienův posunovací zákon",
+     "Avogadrův zákon"
+    ],
+    "via": "nic",
+    "definition": false
+   }
+  },
+  {
+   "generator": "výzva",
+   "topic": "mytologie",
+   "level": 2,
+   "q": "Q2620491",
+   "name": "Weret Hekau",
+   "type": "name",
+   "title": "Kdo je to?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": false,
+   "converted": false,
+   "ambiguous": true,
+   "day": null,
+   "before": {
+    "choices": [
+     "Bat",
+     "Mehetveret",
+     "Vadžet",
+     "Weret Hekau ✓"
+    ],
+    "text": "[***] byla staroegyptská bohyně. Byla zosobněním nadpřirozených sil.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Bat",
+     "Mehetveret",
+     "Vadžet"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Bat",
+     "Mehetveret",
+     "Vadžet",
+     "Weret Hekau ✓"
+    ],
+    "text": "[***] byla staroegyptská bohyně. Byla zosobněním nadpřirozených sil.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Bat",
+     "Mehetveret",
+     "Vadžet"
+    ],
+    "via": "nic",
+    "definition": false
+   }
+  },
+  {
+   "generator": "kvíz dne",
+   "topic": "chemie",
+   "level": 1,
+   "q": "Q188777",
+   "name": "Amidy",
+   "type": "name",
+   "title": "Jaký pojem nebo metoda to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": false,
+   "converted": false,
+   "ambiguous": true,
+   "day": "2026-12-02",
+   "before": {
+    "choices": [
+     "Monosacharidy",
+     "Amidy ✓",
+     "Hydroxidy",
+     "Polysacharidy"
+    ],
+    "text": "[***] jsou skupina organických i anorganických sloučenin.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Monosacharidy",
+     "Hydroxidy",
+     "Polysacharidy"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Monosacharidy",
+     "Amidy ✓",
+     "Hydroxidy",
+     "Polysacharidy"
+    ],
+    "text": "[***] jsou skupina organických i anorganických sloučenin.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Monosacharidy",
+     "Hydroxidy",
+     "Polysacharidy"
+    ],
+    "via": "nic",
+    "definition": false
+   }
+  },
+  {
+   "generator": "kvíz dne",
+   "topic": "chemie",
+   "level": 1,
+   "q": "Q1160121",
+   "name": "Řetězová reakce",
+   "type": "name",
+   "title": "Jaká reakce nebo proces to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": false,
+   "converted": false,
+   "ambiguous": true,
+   "day": "2026-12-11",
+   "before": {
+    "choices": [
+     "Substituční reakce",
+     "Exotermní reakce",
+     "Endotermické reakce",
+     "Řetězová reakce ✓"
+    ],
+    "text": "[***] je série reakcí, při kterých reaktivní produkt nebo meziprodukt vyvolá další reakci.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Substituční reakce",
+     "Exotermní reakce",
+     "Endotermické reakce"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Substituční reakce",
+     "Exotermní reakce",
+     "Endotermické reakce",
+     "Řetězová reakce ✓"
+    ],
+    "text": "[***] je série reakcí, při kterých reaktivní produkt nebo meziprodukt vyvolá další reakci.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Substituční reakce",
+     "Exotermní reakce",
+     "Endotermické reakce"
+    ],
+    "via": "nic",
+    "definition": false
+   }
+  },
+  {
+   "generator": "kvíz dne",
+   "topic": "biologie",
+   "level": 1,
+   "q": "Q37612",
+   "name": "Americký pitbulteriér",
+   "type": "name",
+   "title": "Co je to za plemeno?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": false,
+   "converted": false,
+   "ambiguous": true,
+   "day": "2026-12-22",
+   "before": {
+    "choices": [
+     "Australský ovčák",
+     "Americký pitbulteriér ✓",
+     "Americký stafordširský teriér",
+     "Black and tan coonhound"
+    ],
+    "text": "[***] je plemeno psa ze skupiny teriérů pocházející ze Spojených států amerických.",
+    "facts": [
+     "Výška: až 50 cm",
+     "Dožívá se: až 13 let"
+    ],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Australský ovčák",
+     "Americký stafordširský teriér",
+     "Black and tan coonhound"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Australský ovčák",
+     "Americký pitbulteriér ✓",
+     "Americký stafordširský teriér",
+     "Black and tan coonhound"
+    ],
+    "text": "[***] je plemeno psa ze skupiny teriérů pocházející ze Spojených států amerických.",
+    "facts": [
+     "Výška: až 50 cm",
+     "Dožívá se: až 13 let"
+    ],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Australský ovčák",
+     "Americký stafordširský teriér",
+     "Black and tan coonhound"
+    ],
+    "via": "nic",
+    "definition": false
+   }
+  }
+ ],
+ "definitions": [
+  {
+   "topic": "biologie",
+   "name": "Lilek vejcoplodý",
+   "title": "Co je to za rostlinu?",
+   "generator": "hra"
+  },
+  {
+   "topic": "biologie",
+   "name": "Tyrannosaurus rex",
+   "title": "Co je to za pravěkého tvora?",
+   "generator": "hra"
+  },
+  {
+   "topic": "biologie",
+   "name": "Český teriér",
+   "title": "Co je to za plemeno?",
+   "generator": "hra"
+  },
+  {
+   "topic": "biologie",
+   "name": "Mozeček",
+   "title": "Která část těla to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "biologie",
+   "name": "Ježek ušatý",
+   "title": "Co je to za zvíře?",
+   "generator": "hra"
+  },
+  {
+   "topic": "biologie",
+   "name": "Kakost krvavý",
+   "title": "Co je to za rostlinu?",
+   "generator": "hra"
+  },
+  {
+   "topic": "biologie",
+   "name": "Cryolophosaurus ellioti",
+   "title": "Co je to za pravěkého tvora?",
+   "generator": "hra"
+  },
+  {
+   "topic": "biologie",
+   "name": "Sinosauropteryx",
+   "title": "Co je to za pravěkého tvora?",
+   "generator": "hra"
+  },
+  {
+   "topic": "biologie",
+   "name": "Titanosaurus",
+   "title": "Co je to za pravěkého tvora?",
+   "generator": "hra"
+  },
+  {
+   "topic": "biologie",
+   "name": "Skákavka pavoukožravá",
+   "title": "Co je to za zvíře?",
+   "generator": "hra"
+  },
+  {
+   "topic": "biologie",
+   "name": "Lenochod krátkokrký",
+   "title": "Co je to za zvíře?",
+   "generator": "hra"
+  },
+  {
+   "topic": "biologie",
+   "name": "Dilong",
+   "title": "Co je to za pravěkého tvora?",
+   "generator": "hra"
+  },
+  {
+   "topic": "biologie",
+   "name": "Papoušek běloskvrnný",
+   "title": "Co je to za ptáka?",
+   "generator": "hra"
+  },
+  {
+   "topic": "biologie",
+   "name": "Portugalský ovčák",
+   "title": "Co je to za plemeno?",
+   "generator": "hra"
+  },
+  {
+   "topic": "biologie",
+   "name": "Velociraptor",
+   "title": "Co je to za pravěkého tvora?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "biologie",
+   "name": "Elasmosaurus",
+   "title": "Co je to za pravěkého tvora?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "biologie",
+   "name": "Portugalský vodní pes",
+   "title": "Co je to za plemeno?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "biologie",
+   "name": "Sinosauropteryx",
+   "title": "Co je to za pravěkého tvora?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "biologie",
+   "name": "Archaeopteryx",
+   "title": "Co je to za pravěkého tvora?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "biologie",
+   "name": "Alioramus",
+   "title": "Co je to za pravěkého tvora?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "biologie",
+   "name": "Turecká angora",
+   "title": "Co je to za plemeno?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "chemie",
+   "name": "Vitamín B6",
+   "title": "Co je to za látku?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Chemický prvek",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Sacharidy",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Beton",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Uhlovodík",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Kyselina chlorovodíková",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Oxidační číslo",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Sublimace",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Nukleonové číslo",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Elektronová konfigurace",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Titrace",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Polystyren",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Parafín",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Elektroforéza",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Ivermektin",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Vakuové vymrazování",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Dielsova–Alderova reakce",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Siemensova-Martinova pec",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Mannichova reakce",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Wolffova-Kižněrova redukce",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Trijodamin",
+   "title": "Co je to za látku?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Rozpustnost",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Lignin",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Pentóza",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Saponin",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Odměrný válec",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Jodid",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Brønsted-Lowryho teorie kyselin a zásad",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Plamenová zkouška",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Tombak",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Blancova chlormethylace",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Ozonolýza",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Clausův proces",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Amadoriho přesmyk",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Robinsonova anelace",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Enol",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Karbokation",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Borany",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Sfingolipidy",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Nukleoprotein",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Keteny",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Aminosacharidy",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Baňka s kulatým dnem",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Šedá litina",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Teorie krystalového pole",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Manganometrie",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Pfitznerova–Moffattova oxidace",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Oppenauerova oxidace",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Passeriniova reakce",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Herzova reakce",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Anelace",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Řízená ortho-metalace",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Syntéza acetacetátových esterů",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Stripování",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "chemie",
+   "name": "Vakuové vymrazování",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "chemie",
+   "name": "Wittigova reakce",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "chemie",
+   "name": "Hofmannův přesmyk",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "chemie",
+   "name": "Chelatace",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "chemie",
+   "name": "Alken",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "chemie",
+   "name": "Atomové číslo",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "chemie",
+   "name": "Ocel",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "chemie",
+   "name": "Alken",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "chemie",
+   "name": "Ritterova reakce",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "chemie",
+   "name": "Reformatského reakce",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "chemie",
+   "name": "Cement",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "chemie",
+   "name": "Leuckartova reakce",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "chemie",
+   "name": "Karben",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "chemie",
+   "name": "Aromatizace",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "chemie",
+   "name": "Isokyanát",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "chemie",
+   "name": "Hydroxylace",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "chemie",
+   "name": "Wohlova–Zieglerova reakce",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "chemie",
+   "name": "Étardova reakce",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Betlémská hvězda",
+   "title": "Co je to za těleso?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Střelec",
+   "title": "Co je to za těleso?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Kentaur",
+   "title": "Co je to za těleso?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Malý pes",
+   "title": "Co je to za těleso?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Heliosféra",
+   "title": "Co je to za těleso?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Atom",
+   "title": "Která částice to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Blesk",
+   "title": "Který zákon, jev nebo pojem to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Radioaktivita",
+   "title": "Který zákon, jev nebo pojem to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Maxwellovy rovnice",
+   "title": "Který zákon, jev nebo pojem to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Gravitační konstanta",
+   "title": "Který zákon, jev nebo pojem to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Střídavý proud",
+   "title": "Který zákon, jev nebo pojem to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Vlnění",
+   "title": "Který zákon, jev nebo pojem to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Tepelné čerpadlo",
+   "title": "Co je to za sondu nebo přístroj?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Wolf 359",
+   "title": "Co je to za těleso?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Antičástice",
+   "title": "Která částice to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Ampérův zákon",
+   "title": "Který zákon, jev nebo pojem to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Elektromagnetické spektrum",
+   "title": "Který zákon, jev nebo pojem to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Kvantová superpozice",
+   "title": "Který zákon, jev nebo pojem to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Deformace",
+   "title": "Který zákon, jev nebo pojem to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Galvanometr",
+   "title": "Co je to za sondu nebo přístroj?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Refraktor",
+   "title": "Co je to za sondu nebo přístroj?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Řádkovací tunelový mikroskop",
+   "title": "Co je to za sondu nebo přístroj?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Zákon setrvačnosti",
+   "title": "Který zákon, jev nebo pojem to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "První Fickův zákon",
+   "title": "Který zákon, jev nebo pojem to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Termodynamická rovnováha",
+   "title": "Který zákon, jev nebo pojem to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Planckova hmotnost",
+   "title": "Který zákon, jev nebo pojem to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Kodaňská interpretace",
+   "title": "Který zákon, jev nebo pojem to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Holografický princip",
+   "title": "Který zákon, jev nebo pojem to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Molekula",
+   "title": "Která částice to je?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Rychlost světla",
+   "title": "Který zákon, jev nebo pojem to je?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Slunce",
+   "title": "Co je to za těleso?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Mezon",
+   "title": "Která částice to je?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Nuklid",
+   "title": "Která částice to je?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Galvanometr",
+   "title": "Co je to za sondu nebo přístroj?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Drak",
+   "title": "Co je to za bytost?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Mořská panna",
+   "title": "Co je to za bytost?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Fénix",
+   "title": "Co je to za bytost?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Jama",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Skřet",
+   "title": "Co je to za bytost?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Kuk",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Harpokratés",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Nótt",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Sopdu",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Fulla",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Menhit",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Kobold",
+   "title": "Co je to za bytost?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Skuld",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Dakša",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Urvaší",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Lofn",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Hu",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Sjöfn",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Sága",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Hreidmar",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "zemepis",
+   "name": "Tasmanovo moře",
+   "title": "Co je to za místo?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "zemepis",
+   "name": "Disko",
+   "title": "Co je to za místo?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "chemie",
+   "name": "Chemická syntéza",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "kvíz dne"
+  },
+  {
+   "topic": "chemie",
+   "name": "Vulkanizace",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "kvíz dne"
+  },
+  {
+   "topic": "biologie",
+   "name": "Oko",
+   "title": "Která část těla to je?",
+   "generator": "kvíz dne"
+  },
+  {
+   "topic": "chemie",
+   "name": "Gabrielova syntéza",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "kvíz dne"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Regulus",
+   "title": "Co je to za těleso?",
+   "generator": "kvíz dne"
+  },
+  {
+   "topic": "chemie",
+   "name": "Ionizace",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "kvíz dne"
+  },
+  {
+   "topic": "chemie",
+   "name": "Substituční reakce",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "kvíz dne"
+  },
+  {
+   "topic": "fyzika",
+   "name": "C/2020 F3 (NEOWISE)",
+   "title": "Co je to za těleso?",
+   "generator": "kvíz dne"
+  },
+  {
+   "topic": "chemie",
+   "name": "Ethery",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "kvíz dne"
+  },
+  {
+   "topic": "chemie",
+   "name": "Kaučuk",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "kvíz dne"
+  },
+  {
+   "topic": "chemie",
+   "name": "Fotosyntéza",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "kvíz dne"
+  },
+  {
+   "topic": "biologie",
+   "name": "Diplodocus",
+   "title": "Co je to za pravěkého tvora?",
+   "generator": "kvíz dne"
+  },
+  {
+   "topic": "chemie",
+   "name": "Hoření",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "kvíz dne"
+  },
+  {
+   "topic": "chemie",
+   "name": "Alkyny",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "kvíz dne"
+  },
+  {
+   "topic": "chemie",
+   "name": "Flotace",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "kvíz dne"
+  },
+  {
+   "topic": "biologie",
+   "name": "Močová trubice",
+   "title": "Která část těla to je?",
+   "generator": "kvíz dne"
+  },
+  {
+   "topic": "chemie",
+   "name": "Suzukiova reakce",
+   "title": "Jaká reakce nebo proces to je?",
+   "generator": "kvíz dne"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Jama",
+   "title": "Kdo je to?",
+   "generator": "kvíz dne"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Boltzmannova konstanta",
+   "title": "Který zákon, jev nebo pojem to je?",
+   "generator": "kvíz dne"
+  },
+  {
+   "topic": "chemie",
+   "name": "Asfalt",
+   "title": "Jaký pojem nebo metoda to je?",
+   "generator": "kvíz dne"
+  }
+ ],
+ "examples": [
+  {
+   "generator": "hra",
+   "topic": "architektura",
+   "level": 2,
+   "q": "Q333585",
+   "name": "Tojoo Itó",
+   "type": "name",
+   "title": "Kdo to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": true,
+   "converted": false,
+   "ambiguous": false,
+   "day": null,
+   "before": {
+    "choices": [
+     "Tojoo Itó ✓",
+     "Riken Jamamoto",
+     "Šigeru Ban",
+     "Fumihiko Maki"
+    ],
+    "text": "[***] je japonský architekt, známý svou mimořádně tvořivou koncepční architekturou, v níž usiluje o propojení fyzického světa se světem virtuálním.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Riken Jamamoto",
+     "Šigeru Ban",
+     "Fumihiko Maki"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Tojoo Itó ✓",
+     "Kengo Kuma",
+     "Šigeru Ban",
+     "Fumihiko Maki"
+    ],
+    "text": "[***] je japonský architekt, známý svou mimořádně tvořivou koncepční architekturou, v níž usiluje o propojení fyzického světa se světem virtuálním.",
+    "facts": [],
+    "clue": [
+     "Narození: 1941"
+    ],
+    "ok": true,
+    "strict": true,
+    "open": [],
+    "via": "rozlišující údaj",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "architektura",
+   "level": 2,
+   "q": "Q380282",
+   "name": "Alexej Viktorovič Ščusev",
+   "type": "name",
+   "title": "Kdo to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": true,
+   "converted": false,
+   "ambiguous": false,
+   "day": null,
+   "before": {
+    "choices": [
+     "Lev Vladimirovič Rudněv",
+     "Boris Michajlovič Iofan",
+     "Alexej Viktorovič Ščusev ✓",
+     "Alexandr Tamanjan"
+    ],
+    "text": "[***] byl ruský architekt narozený na území dnešního Moldavska. Jeho starší stavby byly navrženy v historizujícím, takzvaně neoruském stylu, později čerpal i ze secese, neoklasicismu, konstruktivismu, aby se nakonec stal klíčovým představitelem architektury s…",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Lev Vladimirovič Rudněv",
+     "Boris Michajlovič Iofan",
+     "Alexandr Tamanjan"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Lev Vladimirovič Rudněv",
+     "Boris Michajlovič Iofan",
+     "Alexej Viktorovič Ščusev ✓",
+     "Konstantin Stěpanovič Melnikov"
+    ],
+    "text": "[***] byl ruský architekt narozený na území dnešního Moldavska. Jeho starší stavby byly navrženy v historizujícím, takzvaně neoruském stylu, později čerpal i ze secese, neoklasicismu, konstruktivismu, aby se nakonec stal klíčovým představitelem architektury s…",
+    "facts": [],
+    "clue": [
+     "Narození: 1873"
+    ],
+    "ok": true,
+    "strict": true,
+    "open": [],
+    "via": "rozlišující údaj",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "biologie",
+   "level": 1,
+   "q": "Q144",
+   "name": "Pes domácí",
+   "type": "name",
+   "title": "Co je to za zvíře?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": true,
+   "converted": false,
+   "ambiguous": false,
+   "day": null,
+   "before": {
+    "choices": [
+     "Pes domácí ✓",
+     "Pes hyenovitý",
+     "Pes bojovný",
+     "Pravlk obrovský"
+    ],
+    "text": "[***] je největší domestikovaná šelma a jedno z nejstarších domestikovaných zvířat vůbec. Provází člověka minimálně 14 tisíc let.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Pes hyenovitý",
+     "Pes bojovný",
+     "Pravlk obrovský"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Pes domácí ✓",
+     "Křeček zlatý",
+     "Sviňucha obecná",
+     "Ptakopysk podivný"
+    ],
+    "text": "[***] je největší domestikovaná šelma a jedno z nejstarších domestikovaných zvířat vůbec. Provází člověka minimálně 14 tisíc let.",
+    "facts": [],
+    "clue": [],
+    "ok": true,
+    "strict": true,
+    "open": [],
+    "via": "popis",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "biologie",
+   "level": 1,
+   "q": "Q37083",
+   "name": "Olivovník evropský",
+   "type": "name",
+   "title": "Co je to za rostlinu?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": true,
+   "converted": false,
+   "ambiguous": false,
+   "day": null,
+   "before": {
+    "choices": [
+     "Olivovník evropský ✓",
+     "Majoránka zahradní",
+     "Jasan ztepilý",
+     "Šalvěj rozmarýna"
+    ],
+    "text": "[***] je strom z čeledi [***]. Pochází z Asie a Afriky, avšak dnes se s ním běžně setkáme ve středozemních oblastech [***].",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Majoránka zahradní",
+     "Jasan ztepilý",
+     "Šalvěj rozmarýna"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Olivovník evropský ✓",
+     "Rohovník obecný",
+     "Čajovník čínský",
+     "Brukev zelná"
+    ],
+    "text": "[***] je strom z čeledi [***]. Pochází z Asie a Afriky, avšak dnes se s ním běžně setkáme ve středozemních oblastech [***].",
+    "facts": [],
+    "clue": [
+     "Řád: hluchavkotvaré"
+    ],
+    "ok": true,
+    "strict": true,
+    "open": [],
+    "via": "rozlišující údaj",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "chemie",
+   "level": 1,
+   "q": "Q1108",
+   "name": "Cesium",
+   "type": "name",
+   "title": "Který prvek to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": true,
+   "converted": false,
+   "ambiguous": false,
+   "day": null,
+   "before": {
+    "choices": [
+     "Lithium",
+     "Draslík",
+     "Cesium ✓",
+     "Rubidium"
+    ],
+    "text": "[***] je chemický prvek z řady alkalických kovů, vyznačuje se velkou reaktivitou a mimořádně nízkým redoxním potenciálem.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Lithium",
+     "Draslík",
+     "Rubidium"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Lithium",
+     "Draslík",
+     "Cesium ✓",
+     "Sodík"
+    ],
+    "text": "[***] je chemický prvek z řady alkalických kovů, vyznačuje se velkou reaktivitou a mimořádně nízkým redoxním potenciálem.",
+    "facts": [],
+    "clue": [
+     "Objevitel: Gustav Kirchhoff, Robert Wilhelm Bunsen"
+    ],
+    "ok": true,
+    "strict": true,
+    "open": [],
+    "via": "rozlišující údaj",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "chemie",
+   "level": 1,
+   "q": "Q708",
+   "name": "Olovo",
+   "type": "name",
+   "title": "Který prvek to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": true,
+   "converted": false,
+   "ambiguous": false,
+   "day": null,
+   "before": {
+    "choices": [
+     "Gallium",
+     "Olovo ✓",
+     "Cín",
+     "Hliník"
+    ],
+    "text": "[***] je těžký, jedovatý kov, který je znám lidstvu již od starověku. Má velmi nízkou teplotu tání a je dobře kujný i při pokojové teplotě a odolný vůči korozi.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Gallium",
+     "Cín",
+     "Hliník"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Zlato",
+     "Olovo ✓",
+     "Germanium",
+     "Uhlík"
+    ],
+    "text": "[***] je těžký, jedovatý kov, který je znám lidstvu již od starověku. Má velmi nízkou teplotu tání a je dobře kujný i při pokojové teplotě a odolný vůči korozi.",
+    "facts": [],
+    "clue": [
+     "Skupina prvků: nepřechodný kov"
+    ],
+    "ok": true,
+    "strict": true,
+    "open": [],
+    "via": "rozlišující údaj",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "film",
+   "level": 1,
+   "q": "Q155653",
+   "name": "Cesta do fantazie",
+   "type": "name",
+   "title": "Který animovaný film to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": true,
+   "converted": false,
+   "ambiguous": false,
+   "day": null,
+   "before": {
+    "choices": [
+     "Cesta do fantazie ✓",
+     "Království koček",
+     "Zámek v oblacích",
+     "Princezna Mononoke"
+    ],
+    "text": "[***] je jeden z nejznámějších japonských animovaných filmů vyrobených ve stylu anime. Film režíroval Hajao Mijazaki v produkci studia Ghibli a do kin byl uveden 27. července 2001.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Zámek v oblacích",
+     "Princezna Mononoke"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Cesta do fantazie ✓",
+     "Království koček",
+     "Gedo senki",
+     "Ponpoko"
+    ],
+    "text": "[***] je jeden z nejznámějších japonských animovaných filmů vyrobených ve stylu anime. Film režíroval Hajao Mijazaki v produkci studia Ghibli a do kin byl uveden 27. července 2001.",
+    "facts": [],
+    "clue": [],
+    "ok": true,
+    "strict": true,
+    "open": [],
+    "via": "popis",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "film",
+   "level": 1,
+   "q": "Q180338",
+   "name": "Christopher Lee",
+   "type": "name",
+   "title": "Kdo to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": true,
+   "converted": false,
+   "ambiguous": false,
+   "day": null,
+   "before": {
+    "choices": [
+     "Sean Connery",
+     "Christopher Lee ✓",
+     "Patrick Stewart",
+     "Ian McKellen"
+    ],
+    "text": "[***] byl britský herec a příležitostný zpěvák. Proslavil se v hororech studia Hammer, například jako „Mumie“ a zejména jako hrabě Drákula.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Sean Connery",
+     "Patrick Stewart",
+     "Ian McKellen"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Sean Connery",
+     "Christopher Lee ✓",
+     "Patrick Stewart",
+     "Richard Attenborough"
+    ],
+    "text": "[***] byl britský herec a příležitostný zpěvák. Proslavil se v hororech studia Hammer, například jako „Mumie“ a zejména jako hrabě Drákula.",
+    "facts": [],
+    "clue": [
+     "Film: Pán prstenů: Společenstvo Prstenu"
+    ],
+    "ok": true,
+    "strict": true,
+    "open": [],
+    "via": "rozlišující údaj",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "fyzika",
+   "level": 1,
+   "q": "Q11379",
+   "name": "Energie",
+   "type": "name",
+   "title": "Která veličina to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": true,
+   "converted": false,
+   "ambiguous": false,
+   "day": null,
+   "before": {
+    "choices": [
+     "Energie ✓",
+     "Teplo",
+     "Hmotnost",
+     "Práce"
+    ],
+    "text": "[***] je skalární fyzikální veličina, která popisuje schopnost hmoty konat [***]. [***] je slovo vytvořené fyziky v polovině devatenáctého století z řeckého ἐνέργεια.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Teplo",
+     "Hmotnost",
+     "Práce"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Energie ✓",
+     "Zrychlení",
+     "Hmotnost",
+     "Vlnová délka"
+    ],
+    "text": "[***] je skalární fyzikální veličina, která popisuje schopnost hmoty konat práci. [***] je slovo vytvořené fyziky v polovině devatenáctého století z řeckého ἐνέργεια.",
+    "facts": [],
+    "clue": [
+     "Jednotka SI: joule (J)"
+    ],
+    "ok": true,
+    "strict": true,
+    "open": [],
+    "via": "rozlišující údaj",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "fyzika",
+   "level": 1,
+   "q": "Q36253",
+   "name": "Délka",
+   "type": "name",
+   "title": "Která veličina to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": true,
+   "converted": false,
+   "ambiguous": false,
+   "day": null,
+   "before": {
+    "choices": [
+     "Délka ✓",
+     "Vzdálenost",
+     "Průměr",
+     "Hustota"
+    ],
+    "text": "[***] je jedna ze základních fyzikálních veličin. Pomocí [***] se vyjadřuje vzájemná poloha a rozprostraněnost objektů v prostoru.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Vzdálenost",
+     "Průměr",
+     "Hustota"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Délka ✓",
+     "Úhlová rychlost",
+     "Kinetická energie",
+     "Atmosférický tlak"
+    ],
+    "text": "[***] je jedna ze základních fyzikálních veličin. Pomocí [***] se vyjadřuje vzájemná poloha a rozprostraněnost objektů v prostoru.",
+    "facts": [],
+    "clue": [
+     "Jednotka SI: metr (m)"
+    ],
+    "ok": true,
+    "strict": true,
+    "open": [],
+    "via": "rozlišující údaj",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "geologie",
+   "level": 1,
+   "q": "Q43513",
+   "name": "Smaragd",
+   "type": "name",
+   "title": "Co je to za drahý kámen?",
+   "kind": "ukázka",
+   "wiki": true,
+   "swapped": true,
+   "converted": false,
+   "ambiguous": false,
+   "day": null,
+   "before": {
+    "choices": [
+     "Nefrit",
+     "Smaragd ✓",
+     "Chryzopras",
+     "Vltavín"
+    ],
+    "text": "",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Nefrit",
+     "Chryzopras",
+     "Vltavín"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Nefrit",
+     "Smaragd ✓",
+     "Chryzopras",
+     "Alexandrit"
+    ],
+    "text": "",
+    "facts": [],
+    "clue": [
+     "Krystalová soustava: šesterečná"
+    ],
+    "ok": true,
+    "strict": true,
+    "open": [],
+    "via": "rozlišující údaj",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "geologie",
+   "level": 1,
+   "q": "Q334719",
+   "name": "Citrín",
+   "type": "name",
+   "title": "Co je to za drahý kámen?",
+   "kind": "ukázka",
+   "wiki": true,
+   "swapped": true,
+   "converted": false,
+   "ambiguous": false,
+   "day": null,
+   "before": {
+    "choices": [
+     "Ametyst",
+     "Záhněda",
+     "Citrín ✓",
+     "Jantar"
+    ],
+    "text": "",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Ametyst",
+     "Záhněda",
+     "Jantar"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Ametyst",
+     "Záhněda",
+     "Citrín ✓",
+     "Tygří oko"
+    ],
+    "text": "",
+    "facts": [],
+    "clue": [
+     "Barva: žlutý až oranžový"
+    ],
+    "ok": true,
+    "strict": true,
+    "open": [],
+    "via": "rozlišující údaj",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "historie",
+   "level": 1,
+   "q": "Q7226",
+   "name": "Jana z Arku",
+   "type": "name",
+   "title": "Kdo to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": true,
+   "converted": false,
+   "ambiguous": false,
+   "day": null,
+   "before": {
+    "choices": [
+     "Jana z Arku ✓",
+     "Markéta z Valois",
+     "Isabela Bourbonská",
+     "Markéta Skotská"
+    ],
+    "text": "[***] byla francouzská hrdinka, která stanula v čele francouzských vojsk za stoleté války v boji proti Angličanům a posléze byla upálena za kacířství.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Isabela Bourbonská",
+     "Markéta Skotská"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Jana z Arku ✓",
+     "Markéta z Valois",
+     "Anna Francouzská",
+     "Marie Burgundská"
+    ],
+    "text": "[***] byla [***] hrdinka, která stanula v čele [***] vojsk za stoleté války v boji proti Angličanům a posléze byla upálena za kacířství.",
+    "facts": [],
+    "clue": [
+     "Narození: 1412"
+    ],
+    "ok": true,
+    "strict": true,
+    "open": [],
+    "via": "rozlišující údaj",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "historie",
+   "level": 1,
+   "q": "Q7328",
+   "name": "Vasco da Gama",
+   "type": "name",
+   "title": "Kdo to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": true,
+   "converted": false,
+   "ambiguous": false,
+   "day": null,
+   "before": {
+    "choices": [
+     "Fernão de Magalhães",
+     "Afonso de Albuquerque",
+     "Vasco da Gama ✓",
+     "Bartolomeo Diaz"
+    ],
+    "text": "[***] byl jeden z nejvýznamnějších portugalských mořeplavců a objevitelů, od roku 1519 hrabě z Vidigueiry. Byl prvním Evropanem, který se dostal do Indie po moři.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Fernão de Magalhães",
+     "Afonso de Albuquerque",
+     "Bartolomeo Diaz"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Jindřich Mořeplavec",
+     "Nuno Álvares Pereira",
+     "Vasco da Gama ✓",
+     "Bartolomeo Diaz"
+    ],
+    "text": "[***] byl jeden z nejvýznamnějších portugalských mořeplavců a objevitelů, od roku 1519 hrabě z Vidigueiry. Byl prvním Evropanem, který se dostal do Indie po moři.",
+    "facts": [],
+    "clue": [
+     "Úmrtí: 1525"
+    ],
+    "ok": true,
+    "strict": true,
+    "open": [],
+    "via": "rozlišující údaj",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "hudba",
+   "level": 1,
+   "q": "Q154770",
+   "name": "Arnold Schoenberg",
+   "type": "name",
+   "title": "Kdo to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": true,
+   "converted": false,
+   "ambiguous": false,
+   "day": null,
+   "before": {
+    "choices": [
+     "Franz Lehár",
+     "Arnold Schoenberg ✓",
+     "Anton Bruckner",
+     "Fritz Kreisler"
+    ],
+    "text": "[***] byl rakouský modernistický hudební skladatel, hudební teoretik a příležitostný malíř.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Franz Lehár",
+     "Anton Bruckner",
+     "Fritz Kreisler"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Max Steiner",
+     "Arnold Schoenberg ✓",
+     "Anton Bruckner",
+     "Fritz Kreisler"
+    ],
+    "text": "[***] byl rakouský modernistický hudební skladatel, hudební teoretik a příležitostný malíř. Většinu svých hudebních skladeb vytvořil mimo tradiční tonální systém – v takzvaně atonalitě. Vymyslel také metodu hudební skladby dodekafonii používající 12 zrovnoprá…",
+    "facts": [],
+    "clue": [
+     "Život: 1874–1951"
+    ],
+    "ok": true,
+    "strict": true,
+    "open": [],
+    "via": "rozlišující údaj",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "hudba",
+   "level": 1,
+   "q": "Q5928",
+   "name": "Jimi Hendrix",
+   "type": "name",
+   "title": "Kdo to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": true,
+   "converted": false,
+   "ambiguous": false,
+   "day": null,
+   "before": {
+    "choices": [
+     "Jim Morrison",
+     "Jimi Hendrix ✓",
+     "Lou Reed",
+     "Buddy Holly"
+    ],
+    "text": "[***] byl americký kytarista, zpěvák a skladatel. Je považován za jednoho z nejvýznamnějších a nejvlivnějších kytaristů v historii rockové hudby.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Jim Morrison",
+     "Lou Reed",
+     "Buddy Holly"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Steve Morse",
+     "Jimi Hendrix ✓",
+     "Lou Reed",
+     "Buddy Holly"
+    ],
+    "text": "[***] byl americký kytarista, zpěvák a skladatel. Je považován za jednoho z nejvýznamnějších a nejvlivnějších kytaristů v historii rockové hudby. Po uvedení do Rock and Rollové síně slávy v roce 1992 jako člen skupiny [***] o něm instituce prohlásila, že je „…",
+    "facts": [],
+    "clue": [
+     "Život: 1942–1970"
+    ],
+    "ok": true,
+    "strict": true,
+    "open": [],
+    "via": "rozlišující údaj",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "literatura",
+   "level": 1,
+   "q": "Q234819",
+   "name": "Alice Munroová",
+   "type": "name",
+   "title": "Kdo to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": true,
+   "converted": false,
+   "ambiguous": false,
+   "day": null,
+   "before": {
+    "choices": [
+     "Alice Munroová ✓",
+     "Lucy Maud Montgomery",
+     "Margaret Atwoodová",
+     "Nadine Gordimerová"
+    ],
+    "text": "[***] byla kanadská spisovatelka proslulá především svými povídkami. Třikrát získala nejprestižnější kanadské literární ocenění Governor General's Award a roku 2009 i Mezinárodní Man Bookerovou cenou.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Lucy Maud Montgomery",
+     "Margaret Atwoodová"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Alice Munroová ✓",
+     "Lucy Maud Montgomery",
+     "Agatha Christie",
+     "Nadine Gordimerová"
+    ],
+    "text": "[***] byla kanadská spisovatelka proslulá především svými povídkami. Třikrát získala nejprestižnější kanadské literární ocenění Governor General's Award a roku 2009 i Mezinárodní Man Bookerovou cenou.",
+    "facts": [],
+    "clue": [
+     "Život: 1931–2024"
+    ],
+    "ok": true,
+    "strict": true,
+    "open": [],
+    "via": "rozlišující údaj",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "literatura",
+   "level": 1,
+   "q": "Q18391",
+   "name": "Elie Wiesel",
+   "type": "name",
+   "title": "Kdo to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": true,
+   "converted": false,
+   "ambiguous": false,
+   "day": null,
+   "before": {
+    "choices": [
+     "Ray Bradbury",
+     "Francis Fukuyama",
+     "Gore Vidal",
+     "Elie Wiesel ✓"
+    ],
+    "text": "[***] byl židovský prozaik, esejista, dramatik, filozof, humanista, politický aktivista, náboženský myslitel a nositel Nobelovy ceny za mír.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Ray Bradbury",
+     "Francis Fukuyama",
+     "Gore Vidal"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Theodore Dreiser",
+     "Francis Fukuyama",
+     "Jack Kerouac",
+     "Elie Wiesel ✓"
+    ],
+    "text": "[***] byl židovský prozaik, esejista, dramatik, filozof, humanista, politický aktivista, náboženský myslitel a nositel Nobelovy ceny za mír.",
+    "facts": [],
+    "clue": [
+     "Život: 1928–2016"
+    ],
+    "ok": true,
+    "strict": true,
+    "open": [],
+    "via": "rozlišující údaj",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "mytologie",
+   "level": 1,
+   "q": "Q130832",
+   "name": "Perseus",
+   "type": "name",
+   "title": "Kdo je to?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": true,
+   "converted": false,
+   "ambiguous": false,
+   "day": null,
+   "before": {
+    "choices": [
+     "Oidipus",
+     "Perseus ✓",
+     "Iásón",
+     "Hektór"
+    ],
+    "text": "[***], syn Dia a Danaé, je bájná postava a jeden z nejznámějších hrdinů řecké mytologie a zakladatel Mykén. Je taky pradědem nejslavnějšího řeckého hrdiny Hérakla.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Iásón"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Oidipus",
+     "Perseus ✓",
+     "Agamemnón",
+     "Hektór"
+    ],
+    "text": "[***], syn Dia a Danaé, je bájná postava a jeden z nejznámějších hrdinů řecké mytologie a zakladatel Mykén. Je taky pradědem nejslavnějšího řeckého hrdiny Hérakla.",
+    "facts": [],
+    "clue": [],
+    "ok": true,
+    "strict": true,
+    "open": [],
+    "via": "popis",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "mytologie",
+   "level": 1,
+   "q": "Q129866",
+   "name": "Mínótauros",
+   "type": "name",
+   "title": "Co je to za bytost?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": true,
+   "converted": false,
+   "ambiguous": false,
+   "day": null,
+   "before": {
+    "choices": [
+     "Nemejský lev",
+     "Mínótauros ✓",
+     "Hydra",
+     "Siréna"
+    ],
+    "text": "[***] je v řecké mytologii bestie s lidským tělem a býčí hlavou. Narodil se ze spojení bílého býka a krétské královny Pásifaé, její manžel, král [***], jej nechal zavřít do krétského labyrintu, který k tomu účelu postavil Daidalos a Ikaros.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Siréna"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Nemejský lev",
+     "Mínótauros ✓",
+     "Hydra",
+     "Pegas"
+    ],
+    "text": "[***] je v řecké mytologii bestie s lidským tělem a býčí hlavou. Narodil se ze spojení bílého býka a krétské královny Pásifaé, její manžel, král [***], jej nechal zavřít do krétského labyrintu, který k tomu účelu postavil Daidalos a Ikaros.",
+    "facts": [],
+    "clue": [],
+    "ok": true,
+    "strict": true,
+    "open": [],
+    "via": "popis",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "sport",
+   "level": 1,
+   "q": "Q173633",
+   "name": "Monika Selešová",
+   "type": "name",
+   "title": "Kdo to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": true,
+   "converted": false,
+   "ambiguous": false,
+   "day": null,
+   "before": {
+    "choices": [
+     "Serena Williamsová",
+     "Billie Jean Kingová",
+     "Ana Ivanovićová",
+     "Monika Selešová ✓"
+    ],
+    "text": "[***] je bývalá jugoslávská a později americká profesionální tenistka, která se narodila maďarským rodičům v Jugoslávii.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Serena Williamsová",
+     "Billie Jean Kingová",
+     "Ana Ivanovićová"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Coco Gauffová",
+     "Billie Jean Kingová",
+     "Ana Ivanovićová",
+     "Monika Selešová ✓"
+    ],
+    "text": "[***] je bývalá jugoslávská a později americká profesionální tenistka, která se narodila maďarským rodičům v Jugoslávii.",
+    "facts": [],
+    "clue": [
+     "Život: * 1973"
+    ],
+    "ok": true,
+    "strict": true,
+    "open": [],
+    "via": "rozlišující údaj",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "sport",
+   "level": 1,
+   "q": "Q190782",
+   "name": "Ronnie O'Sullivan",
+   "type": "name",
+   "title": "Kdo to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": true,
+   "converted": false,
+   "ambiguous": false,
+   "day": null,
+   "before": {
+    "choices": [
+     "Mark Selby",
+     "Steve Davis",
+     "Judd Trump",
+     "Ronnie O'Sullivan ✓"
+    ],
+    "text": "[***] je profesionální hráč a sedminásobný mistr světa ve snookeru. Jeho sportovní přezdívka je Raketa.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Mark Selby",
+     "Steve Davis",
+     "Judd Trump"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Wayne Rooney",
+     "Steve Davis",
+     "Judd Trump",
+     "Ronnie O'Sullivan ✓"
+    ],
+    "text": "[***] je profesionální hráč a sedminásobný mistr světa ve snookeru. Jeho sportovní přezdívka je Raketa.",
+    "facts": [],
+    "clue": [
+     "Život: * 1975"
+    ],
+    "ok": true,
+    "strict": true,
+    "open": [],
+    "via": "rozlišující údaj",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "umeni",
+   "level": 1,
+   "q": "Q5603",
+   "name": "Andy Warhol",
+   "type": "name",
+   "title": "Kdo to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": true,
+   "converted": false,
+   "ambiguous": false,
+   "day": null,
+   "before": {
+    "choices": [
+     "Robert Indiana",
+     "Andy Warhol ✓",
+     "Jeff Koons",
+     "Roy Lichtenstein"
+    ],
+    "text": "[***] byl americký malíř, grafik, filmový tvůrce a vůdčí osobnost amerického hnutí pop-artu. Svou kariéru zahájil jako ilustrátor reklamních předmětů.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Robert Indiana",
+     "Jeff Koons",
+     "Roy Lichtenstein"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Robert Indiana",
+     "Andy Warhol ✓",
+     "James Rosenquist",
+     "Roy Lichtenstein"
+    ],
+    "text": "[***] byl americký malíř, grafik, filmový tvůrce a vůdčí osobnost amerického hnutí pop-artu. Svou kariéru zahájil jako ilustrátor reklamních předmětů. Později se stal známý po celém světě jako malíř, režisér avantgardních filmů a manažer rockové skupiny The V…",
+    "facts": [],
+    "clue": [
+     "Úmrtí: 1987"
+    ],
+    "ok": true,
+    "strict": true,
+    "open": [],
+    "via": "rozlišující údaj",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "umeni",
+   "level": 1,
+   "q": "Q190116",
+   "name": "Benvenuto Cellini",
+   "type": "name",
+   "title": "Kdo to je?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": true,
+   "converted": false,
+   "ambiguous": false,
+   "day": null,
+   "before": {
+    "choices": [
+     "Agnolo Bronzino",
+     "Giuseppe Arcimboldo",
+     "Francesco Primaticcio",
+     "Benvenuto Cellini ✓"
+    ],
+    "text": "[***] byl italský zlatník, sochař a spisovatel, který se stal známý svými manýristickými kovovými sochami na přechodu renesance a baroka, šperky a mincemi i knihou Vlastní životopis.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Agnolo Bronzino",
+     "Giuseppe Arcimboldo",
+     "Francesco Primaticcio"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Paolo Veronese",
+     "Giuseppe Arcimboldo",
+     "Giacomo della Porta",
+     "Benvenuto Cellini ✓"
+    ],
+    "text": "[***] byl italský zlatník, sochař a spisovatel, který se stal známý svými manýristickými kovovými sochami na přechodu renesance a baroka, šperky a mincemi i knihou Vlastní životopis.",
+    "facts": [],
+    "clue": [
+     "Narození: 1500"
+    ],
+    "ok": true,
+    "strict": true,
+    "open": [],
+    "via": "rozlišující údaj",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "zemepis",
+   "level": 1,
+   "q": "Q801",
+   "name": "Izrael",
+   "type": "name",
+   "title": "Co je to za místo?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": true,
+   "converted": false,
+   "ambiguous": false,
+   "day": null,
+   "before": {
+    "choices": [
+     "Stát Palestina",
+     "Libanon",
+     "Jordánsko",
+     "Izrael ✓"
+    ],
+    "text": "[***] je stát v jihozápadní Asii. Leží v jižní Levantě na Blízkém východě a sousedí s [***] a Sýrií na severu, [***] na východě, Egyptem na jihozápadě a Středozemním mořem na západě.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Stát Palestina",
+     "Libanon",
+     "Jordánsko"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Irák",
+     "Libanon",
+     "Jordánsko",
+     "Izrael ✓"
+    ],
+    "text": "[***] je stát v jihozápadní Asii. Leží v jižní Levantě na Blízkém východě a sousedí s [***] a Sýrií na severu, [***] na východě, Egyptem na jihozápadě a Středozemním mořem na západě.",
+    "facts": [],
+    "clue": [
+     "Hlavní město: Jeruzalém"
+    ],
+    "ok": true,
+    "strict": true,
+    "open": [],
+    "via": "rozlišující údaj",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "zemepis",
+   "level": 1,
+   "q": "Q817",
+   "name": "Kuvajt",
+   "type": "name",
+   "title": "Co je to za místo?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": true,
+   "converted": false,
+   "ambiguous": false,
+   "day": null,
+   "before": {
+    "choices": [
+     "Irák",
+     "Saúdská Arábie",
+     "Írán",
+     "Kuvajt ✓"
+    ],
+    "text": "[***] je stát v jihozápadní Asii na Blízkém východě. Nachází se na severním okraji [***] poloostrova v cípu Perského zálivu, na severu sousedí s [***] a na jihu se [***].",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Irák",
+     "Saúdská Arábie",
+     "Írán"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Kypr",
+     "Egypt",
+     "Gruzie",
+     "Kuvajt ✓"
+    ],
+    "text": "[***] je stát v jihozápadní Asii na Blízkém východě. Nachází se na severním okraji Arabského poloostrova v cípu Perského zálivu, na severu sousedí s Irákem a na jihu se Saúdskou Arábií.",
+    "facts": [],
+    "clue": [],
+    "ok": true,
+    "strict": true,
+    "open": [],
+    "via": "popis",
+    "definition": false
+   }
+  }
+ ]
+}

@@ -3292,14 +3292,20 @@
         }
         // Rozlišující údaj: když to, co hráč vidí bez nápovědy (zadání, štítek, popis, fakta u chudého popisu), mezi možnostmi odpověď
         // neurčí, ukáže se hned i údaj z dat, který ostatní možnosti vyvrací. Nápověda, která ho jen opakuje, ho už neukáže znovu
-        const { clue, open } = unique && !special ? clueFor({ item, ctx, question, shown, facts: leadFacts, pair: cluePair,
+        const found = unique && !special ? clueFor({ item, ctx, question, shown, facts: leadFacts, pair: cluePair,
             text: shown ? [question.title, typeLabel].filter(Boolean).join(' · ') : visibleText }) : { clue: [], open: [] };
+        const { clue } = found;
+        // Pojem bez údajů v datech (Chemický prvek, Fotosyntéza, Ohmův zákon): rozlišit ho může jen definice. Plný úvod článku
+        // (aspoň MIN_DESCRIPTION_WORDS slov) ho určí, ale data to ověřit neumějí – otázka se nevymění ani nevynechá (definitionOnly)
+        const definitionOnly = found.open.length > 0 && !shown && origin === 'article' && countRealWords(questionText) >= MIN_DESCRIPTION_WORDS
+            && !clueCandidates(item, ctx, question).length;
+        const open = definitionOnly ? [] : found.open;
         if (clue.length) {
             const lead = `${visibleText} · ${known} · ${[...leadFacts, ...clue].map(fact => fact.value).join(' · ')}`;
             hints = hints.map(hint => hint.kind === 'facts' ? { ...hint, facts: dropKnownFacts(hint.facts, lead) } : hint)
                 .filter(hint => !(hint.kind === 'facts' && !hint.facts.length));
         }
-        return { hints, leadFacts, thin, visibleText, known, visual, clue, unresolved: open.map(other => other.q) };
+        return { hints, leadFacts, thin, visibleText, known, visual, clue, unresolved: open.map(other => other.q), definitionOnly };
     };
 
     // --- Sestavení otázky z textu: jedna cesta pro hru (app.js createRoundData) i audity (scripts/lib/jednoznacnost.mjs) ---
@@ -3361,7 +3367,14 @@
                     break;
                 }
             }
-            if (plan.unresolved.length) { plan = planOf(true); ambiguous = true; }
+            if (plan.unresolved.length) {
+                plan = planOf(true);
+                // Plný úvod článku s konkrétním údajem (místo, rok, jméno), který data ověřit neumějí (dinosaurus z Antarktidy, objevený
+                // 1991; část těla), odpověď určí popisem: otázka se položí (definitionOnly), jen ji audit počítá zvlášť
+                const article = !shown && texts.origin === 'article' && countRealWords(texts.questionText) >= MIN_DESCRIPTION_WORDS && isSpecificText(texts.questionText);
+                if (plan.unresolved.length && article) plan = { ...plan, definitionOnly: true };
+                else ambiguous = plan.unresolved.length > 0;
+            }
         } else if (unique && plan.unresolved.length) plan = planOf(true);
         return { question, special: isSpecial, texts, plan, typeLabel: typeLabelOf(), conflict, ambiguous, swapped, converted };
     };

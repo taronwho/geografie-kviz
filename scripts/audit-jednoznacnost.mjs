@@ -205,7 +205,8 @@ for (const job of jobs) {
         text: clip(state.content ? state.content.content.text : state.round.shown ? '' : state.round.texts.questionText),
         facts: state.content ? (state.content.content.facts || []).map(fact => `${fact.label}: ${fact.value}`) : (state.round.plan.leadFacts || []).map(fact => `${fact.label}: ${fact.value}`),
         clue: (state.content ? state.content.content.clue || [] : state.round.plan.clue || []).map(fact => `${fact.label}: ${fact.value}`),
-        ok: state.evaluation.ok, strict: state.evaluation.strict, open: state.evaluation.open, via: state.evaluation.via || state.evaluation.kind
+        ok: state.evaluation.ok, strict: state.evaluation.strict, open: state.evaluation.open, via: state.evaluation.via || state.evaluation.kind,
+        definition: Boolean(state.evaluation.definition)
     });
     const entry = {
         generator: job.generator, topic: job.topic, level: job.level, q: job.item.q, name: job.item.n, type: after.round.question.type, title: after.round.question.title,
@@ -222,14 +223,24 @@ const judged = results.filter(entry => ['popis', 'ukázka', 'jméno'].includes(e
 const share = (list, test) => (list.length ? `${(100 * list.filter(test).length / list.length).toFixed(1)} %` : '–');
 const count = (list, test) => list.filter(test).length;
 const groupBy = (list, keyOf) => list.reduce((map, entry) => { const key = keyOf(entry); if (!map.has(key)) map.set(key, []); map.get(key).push(entry); return map; }, new Map());
-const row = (label, list) => `| ${label} | ${list.length} | ${count(list, entry => !entry.before.ok)} | ${share(list, entry => !entry.before.ok)} | ${count(list, entry => !entry.after.ok)} | ${share(list, entry => !entry.after.ok)} | ${count(list, entry => entry.after.ok && !entry.after.strict)} | ${count(list, entry => entry.after.clue.length)} | ${count(list, entry => entry.swapped)} |`;
-const header = ['| | Otázek | Před: nejednoznačné | Před | Po: nejednoznačné | Po | Po: jen dvěma údaji | S rozlišujícím údajem | Vyměněné možnosti |', '|---|---:|---:|---:|---:|---:|---:|---:|---:|'];
+// Po úpravě nejednoznačná = nic z toho, co hráč vidí, nevyvrací některou nesprávnou možnost, a odpověď neurčí ani plný úvod článku,
+// který data ověřit neumějí (definice pojmu, dinosaurus „z Antarktidy, objevený 1991“)
+const stillOpen = (entry) => !entry.after.ok && !entry.after.definition;
+const row = (label, list) => `| ${label} | ${list.length} | ${count(list, entry => !entry.before.ok)} | ${share(list, entry => !entry.before.ok)} | ${count(list, stillOpen)} | ${share(list, stillOpen)} | ${count(list, entry => entry.after.definition)} | ${count(list, entry => entry.after.ok && !entry.after.strict)} | ${count(list, entry => entry.after.clue.length)} | ${count(list, entry => entry.swapped)} | ${count(list, entry => entry.converted)} |`;
+const header = ['| | Otázek | Před: nejednoznačné | Před | Po: nejednoznačné | Po | Po: jen popis | Po: dvěma údaji | S rozlišujícím údajem | Vyměněné možnosti | Otázka se jménem |', '|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|'];
 const lines = ['# Jednoznačnost otázek', ''];
 const wikiCount = results.filter(entry => entry.wiki).length;
 lines.push(`Vygenerováno ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC skriptem \`npm run audit:jednoznacnost\` (${results.length} otázek, ${Math.round((Date.now() - started) / 1000)} s). Úplný výpis je v \`${path.relative(ROOT, jsonOut)}\`.`);
-lines.push('', `Popis otázky: úvod článku z Wikipedie u ${wikiCount} otázek (tests/wiki-intros.json${wikiFile ? ` a ${path.basename(wikiFile)}` : ''}), u ostatních krátký popis z Wikidat, jako když se Wikipedie nenačte.`);
+lines.push('', `Popis otázky: úvod článku z Wikipedie u ${wikiCount} otázek (tests/wiki-intros.json${wikiFile ? ` a ${path.basename(wikiFile)}, stažené z cs.wikipedia.org volbou --fetch stejným dotazem jako aplikace` : ''}), u ostatních krátký popis z Wikidat, jako když se Wikipedie nenačte.`);
 lines.push('', '## Pravidlo', '', 'Před první nápovědou musí otázka ukázat aspoň jeden údaj, který platí pro správnou odpověď a pro žádnou ze tří nesprávných. Posuzuje se, co hráč vidí bez nápovědy: zadání a štítek, zakrytý popis, fakta ukázaná hned u chudého popisu, rozlišující údaj a obrázek otázky. Nesprávná možnost je vyvrácená, když má v datech některý ukázaný údaj jasně jinak (rok o 10 a víc let u novověku, u starších dob víc; funkční období a doba trvání bez překryvu; číslo aspoň 1,5×; jiný stát nebo třída; dílo, které v jejích datech není a v jehož datech není ona). Z volného textu se počítá jen údaj z dat správné odpovědi, který text zmiňuje (rok, číslo, název díla, místo, národnost). Otázka je nejednoznačná, když některou nesprávnou možnost nevyvrací nic.');
 lines.push('', 'Druhy otázek: **popis** = otázka na název bez obrázku (posuzuje se strukturovaně), **ukázka** = obrázek jen ukazuje druh (nerost, hornina, sloh), posuzuje se jako popis; **jméno** = zvláštní otázka se jménem položky (Kdo film režíroval?, Ve kterém století?): odpověď určí jméno, nejednoznačná je, jen když ji v datech splňuje i nesprávná možnost (spolurežisér). Otázky s obrázkem věci samé (obraz, vlajka, stavba), mapové a místní otázky Dobývání se nepočítají.');
+lines.push('', '## Úprava (stav „po“)', '', [
+    '1. **Prodloužení popisu:** obecný popis (jen povolání či druh, bez roku, čísla, jména a názvu díla) převezme další věty úvodu, dokud v něm konkrétní údaj nebude; převzaté věty v nápovědě Další věty už nejsou.',
+    '2. **Rozlišující údaj:** když popis a fakta ukázaná hned odpověď neurčí, ukáže se hned pod záložkami údaj z dat, který všechny nevyvrácené možnosti vyvrací: dílo či role („Film: Císařův pekař – Pekařův císař“), roky (jen jasně jiné), místo, ocenění, autor, sloh, velikost, země. Nikdy jméno ani nic, co odpověď obsahuje (stejné kontroly jako fakta: factRevealsAnswer, answerWordsLeft). Nápověda Fakta ho už neopakuje.',
+    '3. **Výměna nesprávných možností:** když takový údaj není, nesprávné možnosti, které nevyvrací nic, se vymění za co nejpodobnější položky stejné kategorie, které nejlepší údaj vyvrací (stejné skóre podobnosti jako výběr možností, bez náhody). Možnosti vyvrácené popisem zůstanou.',
+    '4. **Otázka se jménem:** když nejde ani výměna, položka se zeptá jinou otázkou tématu se svým jménem (Ze které mytologie je?), a když ani ta není, otázka je nejednoznačná: trénink vezme jinou položku, jinde rozliší aspoň dva údaje spolu.',
+    '5. **Denní módy** (Dnešní otázky, Kvíz dne, Tajemná otázka, Boss) mění možnosti až od 17. 11. 2026, ať se dnešní sada nezmění; rozlišující údaj a prodloužený popis ukážou hned. Dobývání má pevné možnosti: chybí-li údaj, který je vyvrátí, dá místo otázky Mudrlanta místní otázku.'
+].join('\n'));
 lines.push('', '## Souhrn', '', ...header);
 lines.push(row('**Celkem**', judged));
 for (const [generator, list] of groupBy(judged, entry => entry.generator)) lines.push(row(generator, list));
@@ -239,7 +250,7 @@ lines.push(row('s úvodem z Wikipedie', judged.filter(entry => entry.wiki)));
 lines.push('', '## Podle témat', '', ...header);
 for (const topicId of topics) lines.push(row(topicId, judged.filter(entry => entry.topic === topicId)));
 lines.push('', '## Podle témat a druhů otázek', '', '| Téma | Druh otázky | Otázek | Před | Po |', '|---|---|---:|---:|---:|');
-for (const [key, list] of [...groupBy(judged, entry => `${entry.topic} | ${entry.type}`)].sort()) lines.push(`| ${key} | ${list.length} | ${share(list, entry => !entry.before.ok)} | ${share(list, entry => !entry.after.ok)} |`);
+for (const [key, list] of [...groupBy(judged, entry => `${entry.topic} | ${entry.title}`)].sort()) lines.push(`| ${key} | ${list.length} | ${share(list, entry => !entry.before.ok)} | ${share(list, stillOpen)} |`);
 const excluded = results.filter(entry => !judged.includes(entry));
 lines.push('', `Nepočítané otázky (odpověď určí obrázek věci samé, mapa nebo místní otázka Dobývání): ${[...groupBy(excluded, entry => entry.kind)].map(([kind, list]) => `${kind} ${list.length}`).join(', ') || 'žádné'}.`);
 
@@ -253,7 +264,7 @@ const describe = (entry) => {
         `  - ${b.ok ? 'jednoznačná' : `nevyvrácené: ${esc(b.open.join(', '))}`}`,
         `- **Po:** ${a.text ? `„${esc(a.text)}“` : '(bez popisu)'}${a.clue.length ? ` · **rozlišující údaj: ${esc(a.clue.join('; '))}**` : ''}${a.facts.length ? ` · fakta: ${esc(a.facts.join('; '))}` : ''}`,
         `  - možnosti: ${esc(a.choices.join(', '))}${entry.swapped ? ' (vyměněné)' : ''}`,
-        `  - ${a.ok ? `jednoznačná (${a.via})` : `stále nevyvrácené: ${esc(a.open.join(', '))}`}`, ''];
+        `  - ${a.ok ? `jednoznačná (${a.via})` : a.definition ? `určí ji jen popis z článku (data ho ověřit neumějí): ${esc(a.open.join(', '))}` : `stále nevyvrácené: ${esc(a.open.join(', '))}`}`, ''];
 };
 // Příklady: z každého tématu ty s úvodem z Wikipedie, které byly nejednoznačné a teď nejsou (různé generátory a druhy úprav)
 const fixed = judged.filter(entry => !entry.before.ok && entry.after.ok && entry.kind !== 'jméno');
@@ -262,9 +273,27 @@ for (const topicId of topics) {
     const own = fixed.filter(entry => entry.topic === topicId).sort((a, b) => Number(b.wiki) - Number(a.wiki) || Number(b.swapped) - Number(a.swapped));
     picked.push(...own.slice(0, 2));
 }
+// Případ, kvůli kterému audit vznikl: Jan Werich mezi Karlem Högerem, Ladislavem Peškem a Jaroslavem Marvanem s obecným popisem
+const werichCase = () => {
+    const ctx = contextOf('film');
+    const find = (name) => ctx.items.find(item => item.n === name);
+    const werich = find('Jan Werich');
+    const others = ['Karel Höger', 'Ladislav Pešek', 'Jaroslav Marvan'].map(find);
+    if (!werich || others.some(other => !other)) return null;
+    const question = { type: 'name', title: 'Kdo to je?', showName: false, accepted: [werich.n], answerLabel: werich.n, placeholder: '',
+        choices: [werich, ...others].map(other => ({ id: other.q, label: other.n, correct: other === werich })) };
+    const fetched = { ...core.processWikiText('Jan Werich byl český filmový a divadelní herec, komik, dramatik a filmový scénárista, písňový textař a spisovatel.'), fallback: false };
+    const state = (after) => { const round = assemble({ item: werich, ctx, question, fetched, after, rng: core.createSeededRandom('werich') }); return { round, evaluation: evaluate(round, ctx) }; };
+    const view = ({ round, evaluation }) => ({ choices: labelsOf(round.question), text: clip(round.texts.questionText), facts: (round.plan.leadFacts || []).map(fact => `${fact.label}: ${fact.value}`),
+        clue: (round.plan.clue || []).map(fact => `${fact.label}: ${fact.value}`), ok: evaluation.ok, strict: evaluation.strict, open: evaluation.open, via: evaluation.via || evaluation.kind });
+    return { generator: 'zadání', topic: 'film', name: werich.n, title: question.title, swapped: false, before: view(state(false)), after: view(state(true)) };
+};
+const werich = werichCase();
 lines.push('', '## Příklady před a po', '');
+if (werich) lines.push(...describe(werich));
 for (const entry of picked) lines.push(...describe(entry));
-const remaining = judged.filter(entry => !entry.after.ok);
+const remaining = judged.filter(stillOpen);
+const definitions = judged.filter(entry => entry.after.definition);
 lines.push('', `## Zbývající nejednoznačné otázky (${remaining.length})`, '');
 if (!remaining.length) lines.push('Žádné.');
 else {
@@ -272,13 +301,16 @@ else {
     for (const entry of remaining.slice(0, 40)) lines.push(...describe(entry));
     if (remaining.length > 40) lines.push(`… a dalších ${remaining.length - 40} v JSON.`);
 }
+lines.push('', `## Otázky, které určí jen popis (${definitions.length})`, '');
+lines.push('Pojmy, procesy, zákony a jevy (Chemický prvek, Fotosyntéza, Ohmův zákon) nemají v datech údaje, které by šly porovnat, a u některých druhů, dinosaurů nebo částí těla údaje z dat podobné možnosti nerozliší: odpověď určí definice či konkrétní údaj z úvodu článku (místo nálezu, rok, orgán, ke kterému část patří), který ale data neobsahují. Audit to strukturovaně ověřit neumí, proto je počítá zvlášť a nepovažuje je za vyřešené ani za nejednoznačné. Hra takovou otázku položí jen s plným úvodem článku (aspoň 14 slov, u položky s údaji navíc s konkrétním údajem); bez Wikipedie (krátký popis z Wikidat) je otázka nejednoznačná a trénink vezme jinou položku.', '');
+for (const [key, list] of [...groupBy(definitions, entry => `${entry.topic} – ${entry.title}`)].sort((a, b) => b[1].length - a[1].length)) lines.push(`- ${key}: ${list.length} (např. ${list.slice(0, 3).map(entry => entry.name).join(', ')})`);
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, `${lines.join('\n')}\n`);
 fs.writeFileSync(jsonOut, `${JSON.stringify({
     generated: new Date().toISOString(), options: { topics, perLevel: PER_LEVEL, days: DAYS, challenges: CHALLENGES, conquest: CONQUEST, from: FIRST_DAY, wiki: wikiFile ? path.basename(wikiFile) : null },
     summary: { questions: results.length, judged: judged.length, before: count(judged, entry => !entry.before.ok), after: count(judged, entry => !entry.after.ok),
         byTopic: Object.fromEntries(topics.map(topicId => { const list = judged.filter(entry => entry.topic === topicId); return [topicId, { questions: list.length, before: count(list, entry => !entry.before.ok), after: count(list, entry => !entry.after.ok) }]; })) },
-    remaining, examples: picked
+    remaining, definitions: definitions.map(entry => ({ topic: entry.topic, name: entry.name, title: entry.title, generator: entry.generator })), examples: picked
 }, null, 1)}\n`);
 log(`Hotovo: ${judged.length} posouzených otázek, nejednoznačných před ${count(judged, entry => !entry.before.ok)}, po ${remaining.length}; zpráva ${path.relative(ROOT, out)}`);
 process.exitCode = remaining.some(entry => !entry.ambiguous && entry.generator !== 'Dobývání') ? 1 : 0;
