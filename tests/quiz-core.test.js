@@ -786,3 +786,15 @@ test('psaná odpověď: obecné slovo na začátku názvu jde vynechat, jiný p�
     assert.equal(core.checkAnswer('druhá světová válka', { accepted: ['První světová válka'] }), false);
     assert.equal(core.checkAnswer('první světové války', { accepted: ['První světová válka'] }), true);
 });
+
+test('psaná odpověď: název jiného státu se neuzná ani jako překlep (Slovinsko × Slovensko, Irák × Irán)', () => {
+    core.setCountries({ SK: { name: 'Slovensko' }, SI: { name: 'Slovinsko' }, IR: { name: 'Irán' }, IQ: { name: 'Irák' } });
+    assert.equal(core.checkAnswer('Slovinsko', { accepted: ['Slovensko'] }), false);
+    assert.equal(core.checkAnswer('Slovensko', { accepted: ['Slovinsko'] }), false);
+    assert.equal(core.checkAnswer('Irák', { accepted: ['Irán'] }), false);
+    // Překlep, který žádným státem není, a jiný pád dál projdou
+    assert.equal(core.checkAnswer('Slovemsko', { accepted: ['Slovensko'] }), true);
+    assert.equal(core.checkAnswer('na Slovensku', { accepted: ['Slovensko'] }), false);
+    assert.equal(core.checkAnswer('Slovensku', { accepted: ['Slovensko'] }), true);
+    assert.equal(core.checkAnswer('slovensko', { accepted: ['Slovensko'] }), true);
+});
