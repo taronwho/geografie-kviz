@@ -772,3 +772,17 @@ test('náhledy z Commons jen ve standardních šířkách (480 a 320 Wikimedia o
     assert.deepEqual([480, 320, 500, 960, 100, 5000].map(width), [500, 330, 500, 960, 120, 1920]);
     assert.equal(width(), 960);
 });
+
+test('psaná odpověď: obecné slovo na začátku názvu jde vynechat, jiný pád se toleruje', () => {
+    const battle = { accepted: ['Bitva na Bílé hoře'] };
+    for (const text of ['Bitva na Bílé hoře', 'na bílé hoře', 'Bílé hoře', 'bílá hora', 'bitva na bile hore']) assert.equal(core.checkAnswer(text, battle), true, text);
+    for (const text of ['hora', 'na', 'bitva', 'Bitva u Lipan', 'bílý hrad']) assert.equal(core.checkAnswer(text, battle), false, text);
+    assert.equal(core.checkAnswer('Lipany', { accepted: ['Bitva u Lipan'] }), true);
+    assert.equal(core.checkAnswer('u Lipan', { accepted: ['Bitva u Lipan'] }), true);
+    assert.equal(core.checkAnswer('Karlštejn', { accepted: ['Hrad Karlštejn'] }), true);
+    assert.equal(core.checkAnswer('Falklandy', { accepted: ['Válka o Falklandy'] }), true);
+    // Čísla a římské číslice dál přesně
+    assert.equal(core.checkAnswer('Karel V', { accepted: ['Karel IV.'] }), false);
+    assert.equal(core.checkAnswer('druhá světová válka', { accepted: ['První světová válka'] }), false);
+    assert.equal(core.checkAnswer('první světové války', { accepted: ['První světová válka'] }), true);
+});
