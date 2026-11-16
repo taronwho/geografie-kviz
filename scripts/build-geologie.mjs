@@ -9,7 +9,7 @@
 import { createRequire } from 'node:module';
 import { qlever, sparql, id, values, imageFields, compact, cached, inBatches, writeTopic } from './lib/wikidata.mjs';
 import { cachedByKey } from './lib/zemepis-levels.mjs';
-import { topicPageviews, assignLevels, levelGroups, levelSummary } from './lib/fame-levels.mjs';
+import { topicPageviews, assignLevels, levelGroups, levelSummary, demoteKnown } from './lib/fame-levels.mjs';
 import { FORMS, FORM_GROUPS, KNOWN_FORMS, FOSSILS, KNOWN_FOSSILS, MORE_ROCKS, MORE_ROCK_QIDS, MORE_PERIODS, MORE_CONFLICTS, NAMED_SITES, CZECH_SITES, FAMOUS_DIAMONDS, PHOTO_OVERRIDES, FORM_DESCRIPTIONS } from './lib/geologie-sources.mjs';
 
 // Vzorec se ověří stejně, jako ho pak porovná aplikace
@@ -694,6 +694,9 @@ const promoted = assignLevels(items, {
 });
 console.log(`Povýšeno kvůli spodní hranici okruhu: ${promoted.map(([group, name]) => `${name} (${group})`).join(', ')}`);
 for (const item of items) delete item._;
+// Geologické věky (valangin, barrem, cenoman…) jsou odborná látka: jen pro experty, i když je spodní hranice okruhu Věky druhohor výš
+// povýšila mezi známé. Okruh se tak hraje jen celý (okruhy z učení berou všechny úrovně), v úrovních Základní a Mudrlant věky nepřijdou.
+console.log(`Věky jen pro experty: ${demoteKnown(items, item => item.c === 'obdobi' && item.f.lvl === 'věk', { expert: true }).join(', ')}`);
 
 // Pořadí: známé napřed, pak podle kategorie
 const order = { kameny: 0, nerosty: 1, horniny: 2, obdobi: 3, utvary: 4, zkameneliny: 5 };

@@ -8,7 +8,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { qlever, sparql, id, values, parsePoint, fileName, thumbHash, compact, cached, inBatches, readCountries, writeTopic, sleep, CZECHIA } from './lib/wikidata.mjs';
 import { REGION_COUNTRIES, REGION_ONLY, REGION_NO_MAP, NOT_A_REGION, CITY_MIN_POPULATION, MAX_CITIES, HISTORICAL_TITLES, KNOWN_HISTORICAL, HISTORICAL_SKIP_FILE, HISTORICAL_FILES, HISTORICAL_MIN_SITELINKS, HISTORICAL_MIN_END_YEAR, HISTORICAL_SKIP_NAMES, TERRITORY_TITLES, ORGANIZATION_TITLES } from './lib/vlajky-extra.mjs';
 import { cachedByKey } from './lib/zemepis-levels.mjs';
-import { topicPageviews, assignLevels, levelGroups, levelSummary } from './lib/fame-levels.mjs';
+import { topicPageviews, assignLevels, levelGroups, levelSummary, demoteKnown } from './lib/fame-levels.mjs';
 
 // QLever, a když je přetížený, query.wikidata.org (dotazy jsou malé, zvládne je i ten); WIKIDATA_ENDPOINT=wdqs rovnou query.wikidata.org
 const run = process.env.WIKIDATA_ENDPOINT === 'wdqs' ? (query) => sparql(query) : (query) => qlever(query, 2).catch(() => sparql(query));
@@ -1210,6 +1210,10 @@ for (const collection of collections) console.log(levelSummary(`okruh ${collecti
 console.log(levelSummary('celkem', unique));
 // Pomocné údaje pro okruhy a úrovně už v datech nejsou potřeba
 for (const item of unique) { delete item.shows; delete item.src; delete item.sl; delete item._; }
+// Vlajky krajů a regionů And, Maďarska s Rumunskem a Japonska s Koreou nezná běžný hráč: ze základní úrovně ven, i když je povýšila
+// spodní hranice okruhu (okruhy se hrají celé z učení)
+const FAR_REGIONS = ['andske-zeme', 'madarsko-rumunsko', 'japonsko-korea'];
+console.log(`Vzdálené regiony mimo základní úroveň: ${demoteKnown(unique, item => item.c === 'regiony' && (item.g || []).some(group => FAR_REGIONS.includes(group))).length}`);
 for (const item of unique) if (NO_QUESTION.has(item.q)) item.nq = 1;
 
 for (const category of ['vlajka', 'znak', 'cesko', 'uzemi', 'regiony', 'mesta', 'historie']) {
