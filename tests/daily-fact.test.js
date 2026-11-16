@@ -132,3 +132,17 @@ test('denní zajímavost: při 429 prvního modelu se zkusí další (každý m�
     assert.equal(fact.title, GOOD.title);
     assert.ok(tried.includes('gemini-3.5-flash-lite') && tried.some(model => model !== 'gemini-3.5-flash-lite'), `zkoušené modely: ${tried}`);
 });
+
+test('denní zajímavost: hlavní stránka je ta, o které věta je (Buran, ne Sovětský svaz)', async () => {
+    const { mainPage } = await load();
+    const buran = { text: 'The Soviet space shuttle Buran is launched on its first and only orbital flight, conducted uncrewed.', year: 1988, pages: [
+        { type: 'standard', title: 'Soviet_Union', description: 'Country in Eurasia (1922–1991)' },
+        { type: 'standard', title: 'Buran_(spacecraft)', description: 'Soviet reusable spacecraft' }
+    ] };
+    assert.equal(mainPage(buran).title, 'Buran_(spacecraft)');
+    // Jediná stránka zůstane, i když je obecná; stránka s názvem ve větě vyhraje nad prvním výskytem
+    assert.equal(mainPage({ text: 'Něco v Praze', pages: [{ type: 'standard', title: 'Prague', description: 'Capital of the Czech Republic' }] }).title, 'Prague');
+    assert.equal(mainPage({ text: 'Howard Carter finds the tomb of Tutankhamun.', pages: [{ type: 'standard', title: 'Howard_Carter' }, { type: 'standard', title: 'Tutankhamun' }] }).title, 'Howard_Carter');
+    assert.equal(mainPage({ text: 'Intel releases the Intel 4004, the first commercial microprocessor.', pages: [{ type: 'standard', title: 'Intel' }, { type: 'standard', title: 'Intel_4004' }] }).title, 'Intel_4004', 'konkrétnější stránka');
+    assert.equal(mainPage({ text: 'x', pages: [] }), null);
+});
