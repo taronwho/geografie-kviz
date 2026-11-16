@@ -528,6 +528,8 @@ const missionKind = (detail) => {
     const types = (detail.type || []).map(en).join(' | ').toLowerCase();
     const name = capitalize(detail.n || '');
     if (/tokamak|^iter$/iu.test(name)) return 'přístroj';
+    // Program letů (Space Shuttle), ne jedna loď
+    if (/space program|spaceflight program/.test(types) || /^program\b/iu.test(detail.d || '')) return 'kosmický program';
     if (/space station|space laboratory/.test(types)) return 'kosmická stanice';
     if (/human spaceflight|crewed spacecraft/.test(types)) return 'pilotovaný let';
     if (/telescope/.test(types) || /dalekohled|teleskop|refraktor|reflektor/iu.test(name)) return 'dalekohled';
@@ -625,7 +627,7 @@ const COLLECTIONS = [
     { id: 'konstanty', label: 'Fyzikální konstanty', text: 'Planckova konstanta, rychlost světla…', test: item => item.c === 'pojmy' && item.ty === 'konstanta' },
     { id: 'castice', label: 'Částice', text: 'Elektron, proton, kvark, foton, Higgsův boson…', test: item => item.c === 'castice' },
     { id: 'kosmicke-mise', label: 'Kosmické sondy a lodě', text: 'Voyager, Apollo, Hubble, vesmírné stanice',
-        test: item => item.c === 'mise' && ['kosmická sonda', 'družice', 'kosmická loď', 'kosmická stanice', 'raketa', 'dalekohled', 'pilotovaný let'].includes(item.ty) },
+        test: item => item.c === 'mise' && ['kosmická sonda', 'družice', 'kosmická loď', 'kosmický program', 'kosmická stanice', 'raketa', 'dalekohled', 'pilotovaný let'].includes(item.ty) },
     { id: 'pristroje', label: 'Přístroje a urychlovače', text: 'Urychlovače, mikroskopy, detektory, dalekohledy', test: item => item.c === 'mise' && ['přístroj', 'urychlovač částic', 'observatoř'].includes(item.ty) },
     { id: 'astronomove', label: 'Astronomové', sort: { by: 'y' }, test: item => item.c === 'astronomove' && ['astronom', 'astronomka'].includes(item.ty) },
     { id: 'kosmonauti', label: 'Kosmonauti a astronauti', sort: { by: 'y' }, test: item => item.c === 'astronomove' && ['kosmonaut', 'kosmonautka'].includes(item.ty) },

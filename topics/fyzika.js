@@ -339,6 +339,13 @@
         ids: ['Q71022', 'Q247486', 'Q60204']
     });
 
+    // Otázka podle druhu (štítek nad otázkou ukazuje druh, otázka mu musí odpovídat): program letů není „sonda nebo přístroj“
+    const MISSION_QUESTIONS = {
+        'kosmická sonda': 'Co je to za sondu?', 'družice': 'Co je to za družici?', 'pilotovaný let': 'Co je to za let?',
+        'kosmická stanice': 'Co je to za vesmírnou stanici?', 'kosmická loď': 'Co je to za kosmickou loď?', 'kosmický program': 'Co je to za vesmírný program?',
+        'raketa': 'Co je to za raketu?', 'dalekohled': 'Co je to za dalekohled?', 'observatoř': 'Co je to za observatoř?',
+        'urychlovač částic': 'Co je to za urychlovač?', 'přístroj': 'Co je to za přístroj?'
+    };
     return {
         id: 'fyzika',
         title: 'Fyzika',
@@ -363,6 +370,7 @@
         culture: (item) => item.c === 'vynalezy' ? [] : undefined,
         // Nesprávné možnosti: veličiny se stejnou jednotkou nebo z téhož oboru (energie – práce – teplo), jednotky téže
         // veličiny (metr – stopa – palec), tělesa téhož druhu kolem téhož tělesa (měsíce Jupiteru), fyzici stejného pohlaví a doby
+        questionTitle: (item) => (item.c === 'mise' && MISSION_QUESTIONS[item.ty]) || null,
         similarity: (item, other, ctx) => {
             const f = item.f || {};
             const g = other.f || {};

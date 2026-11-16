@@ -97,7 +97,9 @@
     // na serveru (se starší databází se pozvánky a vítězný efekt nenabídnou, prestiž a reakce navíc platí jen v zařízení).
     // 33 = Zamrzlé denní módy: Dnešní otázky, Řetězovka, Tajemná otázka a Boss týdne se ukládají jako Kvíz dne a hosté je čtou přes
     // daily_snapshots_get (se starší databází se hraje jako dřív, každý ze svých dat).
-    const REQUIRED_SCHEMA = 33;
+    // 34 = Hlasování o speciálním turnaji hráči vidí, jen když ho správce zveřejní (témata vybírá sám ve vývojářských nástrojích,
+    // dev_tournament_poll_set; se starší databází se hlasování neukáže vůbec).
+    const REQUIRED_SCHEMA = 34;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -892,7 +894,7 @@
             if (kind === 'sp-poll') {
                 await Social.devTournament('dev_tournament_poll_close', {});
                 tournamentPollAt = 0;
-                message = 'Hlasování je uzavřené, otevřelo se nové se 4 dalšími tématy';
+                message = 'Hlasování je uzavřené. Nové je skryté, témata mu nastavíš v Hlasování…';
             } else if (kind === 'sp-delete') {
                 if (!open) throw new Error('Žádný speciální turnaj, který ještě nezačal, není.');
                 await Social.devTournament('dev_special_tournament_delete', { tid: open.id });
@@ -955,7 +957,7 @@
         if (!Social || !signedUser() || !Tournament) { showToast('Nejdřív se přihlas.'); return; }
         const title = 'Nový speciální turnaj';
         showDialog(title, '<p class="py-4 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">Načítám hlasování…</p>');
-        const poll = Tournament.pollView(await Social.tournamentPoll().catch(() => null));
+        const poll = Tournament.pollView(await Social.tournamentPoll().catch(() => null), { all: true });
         if (!dialogTitled(title)) return;
         const voted = poll ? poll.options : [];
         const best = voted.filter(option => option.votes).sort((a, b) => b.votes - a.votes)[0] || voted[0] || null;
@@ -985,7 +987,7 @@
                     </select>
                 </label>
                 <p id="sp-summary" class="text-xs font-semibold leading-snug text-slate-600 dark:text-slate-300">${escapeHtml(summary())}</p>
-                <p class="text-[11px] leading-snug text-slate-500 dark:text-slate-400">Přihlášky se otevřou hned a hráčům s upozorněními přijde „Začíná speciální turnaj“. Téma z hlasování hlasování uzavře a otevře nové.</p>
+                <p class="text-[11px] leading-snug text-slate-500 dark:text-slate-400">Přihlášky se otevřou hned a hráčům s upozorněními přijde „Začíná speciální turnaj“. Téma z hlasování hlasování uzavře a otevře nové, skryté (zveřejníš ho v Hlasování…).</p>
                 <button type="submit" class="${PRIMARY_BUTTON}" ${form.busy ? 'disabled' : ''}>${form.busy ? 'Zakládám…' : 'Založit turnaj'}</button>
                 ${form.note ? DIALOG_NOTE(form.note) : ''}
             </form>`, {
@@ -1016,6 +1018,76 @@
                 }
             }
         });
+        draw();
+    };
+    // Hlasování o tématu speciálního turnaje (schéma 34, jen dev_admins): 2–4 témata z nabídky v pořadí, v jakém je správce vybere,
+    // a jestli ho hráči vidí. Stejná témata jako teď = jen se zapne či vypne (hlasy zůstanou); jiná = staré se uzavře a otevře se nové.
+    const POLL_MAX = 4;
+    const openPollSetup = async () => {
+        if (!Social || !signedUser() || !Tournament) { showToast('Nejdřív se přihlas.'); return; }
+        const title = 'Hlasování o turnaji';
+        showDialog(title, '<p class="py-4 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">Načítám hlasování…</p>');
+        const current = Tournament.pollView(await Social.tournamentPoll().catch(() => null), { all: true });
+        if (!dialogTitled(title)) return;
+        const form = { themes: current ? current.options.map(option => option.id).filter(id => Tournament.themeOf(id)) : [], show: Boolean(current && current.visible), busy: false, note: '' };
+        const votesOf = (id) => {
+            const option = current && current.options.find(entry => entry.id === id);
+            return option && current.counted ? ` · ${Tournament.votesWord(option.votes || 0)}` : '';
+        };
+        const draw = () => {
+            const full = form.themes.length >= POLL_MAX;
+            const ready = form.themes.length >= 2;
+            const same = current && current.options.length === form.themes.length && current.options.every((option, index) => option.id === form.themes[index]);
+            const state = !current ? 'Hlasování zatím není.' : `Teď: ${current.visible ? 'hráči ho vidí' : 'skryté'} · ${current.options.map(option => option.title).join(', ')}${current.counted ? ` · celkem ${Tournament.votesWord(current.total || 0)}` : ''}`;
+            showDialog(title, `
+                <form id="poll-setup" class="flex flex-col gap-3" autocomplete="off">
+                    <p data-poll-now class="text-xs font-semibold leading-snug text-slate-600 dark:text-slate-300">${escapeHtml(state)}</p>
+                    <p class="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Témata (${form.themes.length}/${POLL_MAX}, nejméně 2)</p>
+                    <div id="poll-themes" class="flex flex-wrap gap-1.5">${Tournament.THEMES.map(theme => {
+                        const at = form.themes.indexOf(theme.id);
+                        const on = at >= 0;
+                        return `<button type="button" data-poll-theme="${escapeHtml(theme.id)}" aria-pressed="${on}" ${!on && full ? 'disabled' : ''}
+                            class="flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-[12.5px] font-bold active:scale-95 disabled:opacity-40 ${on ? 'btn-3d bg-brand-700 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-600'}">${on ? `<span class="flex h-4 w-4 items-center justify-center rounded-full bg-white text-[10px] font-black text-brand-800">${at + 1}</span>` : ''}${escapeHtml(theme.title)}${escapeHtml(votesOf(theme.id))}</button>`;
+                    }).join('')}</div>
+                    <label class="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2.5 text-sm font-bold text-slate-800 ring-1 ring-slate-300 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-600">
+                        Ukázat hráčům
+                        <button type="button" data-poll-show role="switch" aria-checked="${form.show}" class="shrink-0">${switchMark(form.show)}</button>
+                    </label>
+                    <p class="text-[11px] leading-snug text-slate-500 dark:text-slate-400">${same ? 'Stejná témata jako teď: hlasy zůstanou, změní se jen zobrazení.' : current ? 'Jiná témata: dosavadní hlasování se uzavře (vítěz podle hlasů) a otevře se nové.' : 'Otevře se nové hlasování.'} Hráči hlasují v okně Turnaje na záložce Soupeři.</p>
+                    <button type="submit" class="${PRIMARY_BUTTON}" ${form.busy || !ready ? 'disabled' : ''}>${form.busy ? 'Ukládám…' : 'Uložit hlasování'}</button>
+                    ${form.note ? DIALOG_NOTE(form.note) : ''}
+                </form>`, {
+                onClick: (event) => {
+                    const chip = event.target.closest('[data-poll-theme]');
+                    if (chip) {
+                        const id = chip.dataset.pollTheme;
+                        form.themes = form.themes.includes(id) ? form.themes.filter(other => other !== id) : form.themes.length < POLL_MAX ? [...form.themes, id] : form.themes;
+                        form.note = '';
+                        draw();
+                        return;
+                    }
+                    if (event.target.closest('[data-poll-show]')) { form.show = !form.show; draw(); }
+                },
+                onSubmit: async () => {
+                    if (form.busy || form.themes.length < 2) return;
+                    form.busy = true;
+                    form.note = '';
+                    draw();
+                    try {
+                        await Social.devTournament('dev_tournament_poll_set', { themes: form.themes, show: form.show });
+                        closeDialog();
+                        showToast(form.show ? 'Hlasování je nastavené a hráči ho vidí.' : 'Hlasování je nastavené a skryté.');
+                        tournamentPollState = null;
+                        tournamentPollAt = 0;
+                        refreshTournaments({ force: true });
+                    } catch (error) {
+                        form.busy = false;
+                        form.note = error && error.message ? error.message : 'Hlasování se nepodařilo uložit.';
+                        if (dialogTitled(title)) draw();
+                    }
+                }
+            });
+        };
         draw();
     };
     // Chyby z provozu (monitor.js → client_errors): posledních 50 seskupených podle otisku, jen pro účet v dev_admins
@@ -1096,7 +1168,7 @@
             ${Social ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Turnaj (boti)</p>
             <div class="flex flex-wrap gap-1">${[['tour-bots', '+31 botů'], ['tour-start', 'Spustit hned'], ['tour-play', 'Boti odehrají kolo'], ['tour-next', 'Další kolo'], ['tour-reset', 'Smazat odehraný turnaj'], ['tour-clear', 'Smazat boty']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-900 active:scale-95 dark:bg-emerald-900/50 dark:text-emerald-100">${label}</button>`).join('')}</div>
             <p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Speciální turnaj a hlasování</p>
-            <div id="dev-special" class="flex flex-wrap gap-1">${[['sp-create', 'Založit speciální turnaj…'], ['sp-poll', 'Uzavřít hlasování'], ['sp-bots', '+31 botů'], ['sp-start', 'Spustit hned'], ['sp-play', 'Boti odehrají kolo'], ['sp-next', 'Další kolo'], ['sp-delete', 'Smazat nezačatý']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-gold-100 px-2 py-1 text-[11px] font-bold text-gold-900 active:scale-95 dark:bg-gold-900/50 dark:text-gold-100">${label}</button>`).join('')}</div>
+            <div id="dev-special" class="flex flex-wrap gap-1">${[['sp-create', 'Založit speciální turnaj…'], ['sp-poll-set', 'Hlasování…'], ['sp-poll', 'Uzavřít hlasování'], ['sp-bots', '+31 botů'], ['sp-start', 'Spustit hned'], ['sp-play', 'Boti odehrají kolo'], ['sp-next', 'Další kolo'], ['sp-delete', 'Smazat nezačatý']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-gold-100 px-2 py-1 text-[11px] font-bold text-gold-900 active:scale-95 dark:bg-gold-900/50 dark:text-gold-100">${label}</button>`).join('')}</div>
             <p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Provoz</p>
             <div class="flex flex-wrap gap-1"><button type="button" data-dev="errors" class="rounded-lg bg-rose-100 px-2 py-1 text-[11px] font-bold text-rose-900 active:scale-95 dark:bg-rose-900/50 dark:text-rose-100">Chyby z provozu</button></div>` : ''}
             ${Push ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Upozornění</p>
@@ -2216,6 +2288,7 @@
             const devButton = event.target.closest('[data-dev]');
             if (devButton && devButton.dataset.dev.startsWith('tour-')) { devTournamentAction(devButton.dataset.dev); return; }
             if (devButton && devButton.dataset.dev === 'sp-create') { closeSettings(); openSpecialTournamentCreate(); return; }
+            if (devButton && devButton.dataset.dev === 'sp-poll-set') { closeSettings(); openPollSetup(); return; }
             if (devButton && devButton.dataset.dev.startsWith('sp-')) { devTournamentAction(devButton.dataset.dev); return; }
             if (devButton && devButton.dataset.dev === 'errors') { closeSettings(); openClientErrors(); return; }
             if (devButton && devButton.dataset.dev === 'push-diag') { openPushDiagnostics(); return; }
@@ -13049,8 +13122,8 @@
             // Počet přátel (tip Přátelé se pak nenabízí tomu, kdo přátele má; tip na pozvání přátel do Dobývání naopak jen jemu)
             friends: friendRows ? friendRows.filter(row => row.status === 'accepted').length : 0,
             chain: Boolean(chainCtl),
-            // Hlasování o speciálním turnaji: jen když ho databáze má (schéma 31) a hráč ho viděl načtené
-            poll: Boolean(tournamentPollState)
+            // Hlasování o speciálním turnaji: jen když ho správce zveřejnil (schéma 34) a hráč ho viděl načtené
+            poll: Boolean(Tournament && Tournament.pollView(tournamentPollState))
         });
     };
     // Záložka Nastavení, kterou otevře tlačítko tipu (tip „Obleč si Mudrlanta“ → Mudrlant); bez ní poslední otevřená
@@ -13695,7 +13768,7 @@
     const openTournamentHelp = (back = false) => {
         // Z okna speciálního turnaje jeho pravidla (téma, začátek, délka kola), jinak pravidla týdenního turnaje
         const view = back ? findTournament(tournamentDialogId) || archiveViews.get(tournamentDialogId) : null;
-        const rules = view && Tournament.isSpecial(view.tournament) ? Tournament.specialRules(view.tournament) : Tournament.RULES;
+        const rules = view && Tournament.isSpecial(view.tournament) ? Tournament.specialRules(view.tournament, Date.now(), Boolean(Tournament.pollView(tournamentPollState))) : Tournament.RULES;
         showDialog('Jak turnaje fungují', `
             <div class="flex flex-col gap-3 short:gap-2">
                 <ul id="tournament-rules" class="flex flex-col gap-2 short:gap-1.5">${rules.map(rule => `<li class="flex gap-2 text-sm leading-snug text-slate-700 short:text-[13px] short:leading-tight dark:text-slate-200"><i data-lucide="check" class="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400"></i><span>${escapeHtml(rule)}</span></li>`).join('')}</ul>

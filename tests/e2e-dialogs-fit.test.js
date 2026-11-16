@@ -92,7 +92,7 @@ const newDb = ({ quizDone = true } = {}) => {
         friendships: [{ user_id: ME, friend_id: PETR, status: 'accepted' }, { user_id: uid(4), friend_id: ME, status: 'accepted' }, { user_id: ME, friend_id: TOMAS, status: 'pending' }, { user_id: EVA, friend_id: ME, status: 'pending' }],
         challenges: {}, results: [], progress: [], blocks: [uid(14), uid(15)], reactions: [],
         quiz: {}, groups: [], tournaments: [], entries: [], matches: [], tResults: [], notices: [],
-        poll: { id: 7, closed: false, mine: null, changes_left: 10, options: [{ id: 'hrady-zamky', title: 'Hrady a zámky', votes: 12 }, { id: 'opery', title: 'Opery', votes: 4 }, { id: 'olympijske-hry', title: 'Olympijské hry', votes: 9 }, { id: 'ceske-dejiny', title: 'České dějiny', votes: 7 }] },
+        poll: { id: 7, closed: false, visible: true, mine: null, changes_left: 10, options: [{ id: 'hrady-zamky', title: 'Hrady a zámky', votes: 12 }, { id: 'opery', title: 'Opery', votes: 4 }, { id: 'olympijske-hry', title: 'Olympijské hry', votes: 9 }, { id: 'ceske-dejiny', title: 'České dějiny', votes: 7 }] },
         conquest: { open: [], mine: [] }
     };
     for (let i = 0; i < 16; i++) db.profiles[uid(10 + i)] = player(10 + i, NAMES[i], ['🐸', '🦁', '🐨', '🐙', '🦄', '🐝'][i % 6], { xp: 500 * i, rating: 1100 + 25 * i });

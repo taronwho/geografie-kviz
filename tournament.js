@@ -169,21 +169,24 @@
     const roundWhen = (tournament, round, today, now = Date.now()) => isSpecial(tournament) ? whenShort(roundStart(tournament, round), now) : dayShort(roundDay(tournament, round), today);
     // Název turnaje do karty a oken: „Speciální turnaj: Hrady a zámky“, jinak „Týdenní turnaj“
     const titleOf = (tournament) => isSpecial(tournament) ? `Speciální turnaj: ${tournament.title || (themeOf(tournament.theme) || {}).title || 'téma'}` : 'Týdenní turnaj';
-    // Pravidla speciálního turnaje (okno „Jak turnaje fungují“ z jeho okna)
-    const specialRules = (tournament, now = Date.now()) => [
+    // Pravidla speciálního turnaje (okno „Jak turnaje fungují“ z jeho okna); poll = běží hlasování o dalším tématu (věta o něm jen tehdy)
+    const specialRules = (tournament, now = Date.now(), poll = false) => [
         `Speciální turnaj na téma ${tournament.title || 'turnaje'}: všechny otázky jsou z tohoto tématu a ve dvojici pro oba stejné. Speciální turnaje jsou jen občas, mimo týdenní turnaj.`,
         `Přihlášky se zavřou, když turnaj začne${Number.isFinite(startMs(tournament)) ? ` (${whenText(startMs(tournament), now)})` : ''}. Hraje nejvyšší mocnina dvou nejdřív přihlášených (nejméně ${MIN_PLAYERS}, nejvýš ${tournament.capacity || MAX_PLAYERS}).`,
         `Pavouk je vyřazovací. Každé kolo trvá ${durationText(roundMinutes(tournament))}: dvojice mají ${QUESTIONS} stejných otázek a každý je odehraje kdykoli během kola, jen jednou.`,
         'Ve dvojici rozhodují body (nápověda bod ubere), při shodě počet správných odpovědí, pak rychlost a nakonec dřívější přihláška.',
         'Kdo kolo neodehraje, prohrává kontumačně a vypadává. Poražení semifinalisté hrají o 3. místo v posledním kole.',
         `Za každý vyhraný zápas dostaneš XP jako v týdenním turnaji: ${WIN_XP} v 1. kole a s každým dalším kolem o ${WIN_XP_STEP} víc.`,
-        'Téma dalšího speciálního turnaje vybíráte v hlasování v okně Turnaje na záložce Soupeři.'
+        ...(poll ? ['Téma dalšího speciálního turnaje vybíráte v hlasování v okně Turnaje na záložce Soupeři.'] : [])
     ];
 
     // --- Hlasování o tématu dalšího speciálního turnaje (schéma 31): stav ze serveru (tournament_poll_state) do karty ---
-    // Vrátí { id, options: [{ id, title, icon, votes, percent, mine, leader }], mine, total, voted, changesLeft } nebo null (nic k ukázání)
-    const pollView = (state) => {
+    // Vrátí { id, options: [{ id, title, icon, votes, percent, mine, leader }], mine, total, voted, changesLeft, visible } nebo null (nic k ukázání).
+    // Hráčům jen hlasování, které správce zveřejnil (schéma 34: visible; starší databáze ho neposílá, hlasování se tedy neukáže);
+    // all = i skryté (vývojářské nástroje)
+    const pollView = (state, { all = false } = {}) => {
         if (!state || typeof state !== 'object' || state.closed || !Array.isArray(state.options) || !state.options.length) return null;
+        if (!all && state.visible !== true) return null;
         const mine = typeof state.mine === 'string' ? state.mine : null;
         const total = Number.isFinite(Number(state.total)) && state.total !== null ? Math.max(0, Math.floor(Number(state.total))) : null;
         const counted = total !== null;
@@ -194,7 +197,7 @@
         });
         const top = counted ? Math.max(0, ...options.map(option => option.votes)) : 0;
         options.forEach(option => { option.leader = counted && top > 0 && option.votes === top; });
-        return { id: state.id, options, mine, total, voted: Boolean(mine), counted, changesLeft: Math.max(0, Math.floor(Number(state.changes_left) || 0)) };
+        return { id: state.id, options, mine, total, voted: Boolean(mine), counted, changesLeft: Math.max(0, Math.floor(Number(state.changes_left) || 0)), visible: state.visible === true };
     };
     const votesWord = (count) => plural(count, 'hlas', 'hlasy', 'hlasů');
 

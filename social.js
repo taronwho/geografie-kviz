@@ -331,13 +331,13 @@
         return rows.map(cleanTournament);
     }, null);
     // Hlasování o tématu dalšího speciálního turnaje (schéma 31): stav (otevřené hlasování se 4 tématy, můj hlas a po hlasování počty) a hlas.
-    // null = databáze hlasování nemá (starší schéma); hlášky serveru jsou česky.
+    // null = databáze hlasování nemá (starší schéma), nebo ho správce nezveřejnil (schéma 34: visible); hlášky serveru jsou česky.
     let pollMissing = false;
     const cleanPoll = (row) => {
         if (!row || typeof row !== 'object' || !Array.isArray(row.options)) return null;
         const counted = row.total !== null && row.total !== undefined;
         return {
-            id: wholeOrNull(row.id), closed: row.closed === true, mine: typeof row.mine === 'string' && /^[a-z0-9-]{1,40}$/.test(row.mine) ? row.mine : null,
+            id: wholeOrNull(row.id), closed: row.closed === true, visible: row.visible === true, mine: typeof row.mine === 'string' && /^[a-z0-9-]{1,40}$/.test(row.mine) ? row.mine : null,
             total: counted ? wholeNumber(row.total, 10000000) : null, changes_left: wholeNumber(row.changes_left, 10),
             options: row.options.filter(option => option && /^[a-z0-9-]{1,40}$/.test(String(option.id))).slice(0, 4).map(option => ({
                 id: String(option.id), title: String(option.title || option.id).replace(/[<>]/g, '').slice(0, 60), votes: counted ? wholeNumber(option.votes, 10000000) : null }))
@@ -566,10 +566,11 @@
         }
     };
     // Vývojářské nástroje turnajů (boti): jen pro účet zapsaný v dev_admins; chyba serveru se předá tak, jak je
-    // Speciální turnaje a hlasování (schéma 31): založit turnaj (téma, začátek, délka kola), smazat nezačatý, uzavřít hlasování
+    // Speciální turnaje a hlasování (schéma 31): založit turnaj (téma, začátek, délka kola), smazat nezačatý, uzavřít hlasování;
+    // schéma 34: témata hlasování a jeho zobrazení hráčům (dev_tournament_poll_set)
     const devTournament = async (name, body = {}) => {
         const allowed = ['dev_tournament_add_bots', 'dev_tournament_start_now', 'dev_tournament_next_round', 'dev_tournament_bots_play', 'dev_tournament_clear_bots', 'dev_tournament_reset',
-            'dev_special_tournament_create', 'dev_special_tournament_delete', 'dev_tournament_poll_close'];
+            'dev_special_tournament_create', 'dev_special_tournament_delete', 'dev_tournament_poll_close', 'dev_tournament_poll_set'];
         if (!allowed.includes(name)) throw new SocialError('Neznámý nástroj.', 400);
         try { return await request('POST', `rpc/${name}`, { body }); } catch (error) {
             if (error.status === 404) throw new SocialError('Vývojářské nástroje turnajů v databázi chybí: spusť znovu supabase/schema.sql.', 404);
