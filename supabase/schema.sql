@@ -1230,7 +1230,7 @@ begin
         where not n.seen and n.created_at > now() - interval '7 days' and n.kind in ('excluded_full', 'cancelled', 'eliminated_noplay', 'result')
         union all
         -- (d) zkušební upozornění z vývojářského režimu (dev_push_test): bez předvoleb a bez hodinového limitu, každá žádost jednou
-        select pt.user_id, 'test', 'Zkušební upozornění Mudrlanta', 'Funguje to! Klepni sem a otevře se záložka Více hráčů.', './?tab=multi',
+        select pt.user_id, 'test', 'Zkušební upozornění Mudrlanta', 'Funguje to! Klepni sem a otevře se záložka Soupeři.', './?tab=multi',
             public.push_test_key(pt.user_id, pt.requested_at), pt.requested_at::text
         from public.push_tests pt
         where pt.requested_at > now() - interval '1 day'
@@ -7391,7 +7391,7 @@ $$;
 create or replace function public.tournament_special_push_items() returns table (user_id uuid, kind text, title text, body text, url text, dedupe_key text, sort_at text)
 language sql stable set search_path = public as $$
     select pr.id, 'tournament_special'::text, 'Začíná speciální turnaj: ' || t.title,
-        'Přihlášky jsou otevřené, začíná ' || public.tournament_special_when(t.starts_at) || '. Přihlas se na záložce Více hráčů.',
+        'Přihlášky jsou otevřené, začíná ' || public.tournament_special_when(t.starts_at) || '. Přihlas se na záložce Soupeři v okně Turnaje.',
         './?tab=multi'::text, 'tsp:' || t.id || ':' || pr.id, t.created_at::text
     from public.tournaments t
     join public.profiles pr on pr.push_tournament

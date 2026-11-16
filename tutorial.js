@@ -21,26 +21,25 @@
     // hit = na co se musí klepnout (výchozí target); mode 'tap' = klepnutí na prvek posune dál, 'info' = jen vysvětlení a tlačítko Dál;
     // soft = klepnutí je nepovinné, bublina má i tlačítko Dál; skippable = chybí-li prvek, ale některý z dalších je vidět, krok se
     // vynechá (jinak se na prvek vždy čeká); phase 'tour' = prohlídka, 'try' = zkoušení; wait = text při čekání na prvek;
-    // alt = náhradní prvek, když target na obrazovce není (karta Dobývání je jen na záložce Více hráčů po přihlášení: jinak záložka)
-    const TOUR_WAIT = 'Vrať se na úvodní obrazovku, tam ti vše ukážu.';
-    const QUESTION_LOST = 'Otázka se nenačetla. Zkus ji otevřít znovu z úvodní obrazovky, nebo tento krok přeskoč.';
+    // alt = náhradní prvek, když target na obrazovce není
+    // Prohlídka běží na záložce Dnes: ukáže hlavičku, dnešní výzvy a otázky a pak spodní lištu (Hrát, Soupeři, Postup, Já)
+    const TOUR_WAIT = 'Vrať se na záložku Dnes, tam ti vše ukážu.';
+    const QUESTION_LOST = 'Otázka se nenačetla. Zkus ji otevřít znovu ze záložky Dnes, nebo tento krok přeskoč.';
     const STEPS = [
         { id: 'fact', phase: 'tour', owl: 'sova-vitej', mode: 'tap', soft: true, softLabel: 'Dál', skippable: true, target: '#fact-hint:not(.hidden)', hit: '#fact-hint', title: 'Ahoj, jsem Mudrlant!', text: 'Žárovka u mého loga ukazuje, co se tento den stalo v dějinách. Můžeš na ni klepnout, nebo pokračovat tlačítkem Dál.', wait: 'Hledám žárovku…', waitLong: TOUR_WAIT },
-        { id: 'badge', phase: 'tour', owl: 'sova-vitej', mode: 'info', target: '#status-badge', title: 'Úroveň a XP', text: 'Za správné odpovědi sbíráš XP, rosteš v úrovních a za výkony dostaneš odznaky. Klepnutí na sovu otevře událost dne, klepnutí na text tvůj postup.', intro: 'Ahoj, jsem Mudrlant! Za správné odpovědi sbíráš XP, rosteš v úrovních a za výkony dostaneš odznaky. Klepnutí na sovu otevře událost dne, klepnutí na text tvůj postup.',
-            // I na úzkém displeji (360 px) je vedle sovy úroveň s pruhem (bez názvu a titulu), takže text platí všude
+        { id: 'badge', phase: 'tour', owl: 'sova-vitej', mode: 'info', target: '#status-badge', title: 'Úroveň a XP', text: 'Za správné odpovědi sbíráš XP a rosteš v úrovních. Klepnutí na sovu otevře událost dne.', intro: 'Ahoj, jsem Mudrlant! Za správné odpovědi sbíráš XP a rosteš v úrovních. Klepnutí na sovu otevře událost dne.',
             wait: 'Chvilku…', waitLong: TOUR_WAIT },
-        { id: 'daily', phase: 'tour', owl: 'sova-vitej', mode: 'info', target: '[data-action="daily"]', area: 'parent', title: 'Dnešní otázky', text: 'Každý den tu najdeš jednu otázku z každého tématu. Zodpovězené se označí a nové přibudou zítra.', intro: 'Ahoj, jsem Mudrlant! Každý den tu najdeš otázku z každého tématu. Splněné se označí, další čekají do zítřka.', wait: 'Chvilku…', waitLong: TOUR_WAIT },
-        { id: 'quiz', phase: 'tour', owl: 'sova-vitej', mode: 'info', skippable: true, target: '#home-specials', title: 'Výzvy dne', text: 'V řadě Výzvy najdeš hry, které jsou stejné pro všechny hráče: Kvíz dne s 10 otázkami, Řetězovku, kde je odpověď začátkem další otázky, a Bosse týdne, kterého porazíš správnými odpověďmi.', wait: 'Chvilku…', waitLong: TOUR_WAIT },
-        { id: 'mystery', phase: 'tour', owl: 'sova-dalekohled', mode: 'info', skippable: true, target: '#mystery-card', title: 'Tajemná otázka dne', text: 'Každý den jedna záhada, stejná pro všechny. Během dne přibývají nápovědy. Máš 3 pokusy a čím dřív uhodneš, tím víc bodů získáš.', wait: 'Chvilku…', waitLong: TOUR_WAIT },
-        { id: 'topics', phase: 'tour', owl: 'sova-vitej', mode: 'info', target: '[data-action="play-topic"]', area: 'parent', title: 'Témata a Mix', text: 'Každá dlaždice je jedno téma, klepni na to, které chceš hrát. Mix míchá otázky ze všech témat.', wait: 'Chvilku…', waitLong: TOUR_WAIT },
-        { id: 'multi', phase: 'tour', owl: 'sova-vyzva', mode: 'info', target: '[data-action="home-tab"][data-tab="multi"]', title: 'Více hráčů', text: 'Na téhle záložce vyzveš kamaráda kódem nebo přezdívkou a dáš si odvetu. Z výher roste tvůj rating a liga, je tu i týdenní žebříček a turnaj. Chce to přihlášení přes Google.', wait: TOUR_WAIT, waitLong: TOUR_WAIT, skippable: true },
-        { id: 'conquest', phase: 'tour', owl: 'sova-dobyvatel', mode: 'info', target: '#conquest-card', alt: '[data-action="home-tab"][data-tab="multi"]', title: 'Dobývání', text: 'Na záložce Více hráčů najdeš i Dobývání: s přáteli soupeříte o mapu a každé území dobudeš správnou odpovědí.', wait: TOUR_WAIT, waitLong: TOUR_WAIT, skippable: true },
-        { id: 'settings', phase: 'tour', owl: 'sova-vitej', mode: 'info', target: '#btn-settings', title: 'Nastavení', text: 'Tady oblékneš Mudrlanta a vybereš si profilový obrázek a rámeček. Taky se tu přihlásíš a pak můžeš hrát výzvy s kamarády.', wait: 'Chvilku…', waitLong: TOUR_WAIT },
-        { id: 'try', phase: 'try', owl: 'sova-vitej', mode: 'tap', target: '[data-action="daily"]', area: 'parent', hit: '[data-action="daily"]', title: 'Teď si to zkusíme doopravdy', text: 'Klepni na libovolnou dnešní otázku. Je skutečná, získané XP se ti započítají.', wait: 'Chvilku…', waitLong: 'Vrať se na úvodní obrazovku a klepni na dnešní otázku, nebo tento krok přeskoč.' },
+        { id: 'quiz', phase: 'tour', owl: 'sova-vitej', mode: 'info', skippable: true, target: '#home-specials', title: 'Dnešní výzvy', text: 'Hry stejné pro všechny hráče: Kvíz dne, Řetězovka, Tajemná otázka a Boss týdne. Zlaté tlačítko ukazuje, co je na řadě.', wait: 'Chvilku…', waitLong: TOUR_WAIT },
+        { id: 'daily', phase: 'tour', owl: 'sova-vitej', mode: 'info', target: '#daily-card', title: 'Dnešní otázky', text: 'Každý den jedna otázka z každého tématu. Hrát vše je bere postupně, klepnutím na kartu si vybereš téma.', intro: 'Ahoj, jsem Mudrlant! Každý den tu najdeš otázku z každého tématu. Hrát vše je bere postupně.', wait: 'Chvilku…', waitLong: TOUR_WAIT },
+        { id: 'play', phase: 'tour', owl: 'sova-vitej', mode: 'info', target: '[data-nav="hrat"]', title: 'Hrát', text: 'Volná hra podle chuti: Mix, 14 témat, Bleskovka, Přežití a Učení.', wait: 'Chvilku…', waitLong: TOUR_WAIT },
+        { id: 'multi', phase: 'tour', owl: 'sova-vyzva', mode: 'info', target: '[data-nav="souperi"]', title: 'Soupeři', text: 'Výzvy s kamarády, turnaje, Dobývání a skupiny. Chce to přihlášení přes Google.', wait: TOUR_WAIT, waitLong: TOUR_WAIT, skippable: true },
+        { id: 'progress', phase: 'tour', owl: 'sova-vitej', mode: 'info', target: '[data-nav="postup"]', title: 'Postup', text: 'Tvoje úroveň, odznaky, sezóna a cíle týdne.', wait: 'Chvilku…', waitLong: TOUR_WAIT },
+        { id: 'settings', phase: 'tour', owl: 'sova-vitej', mode: 'info', target: '[data-nav="ja"]', title: 'Já', text: 'Tady oblékneš Mudrlanta, nastavíš hru a přihlásíš se.', wait: 'Chvilku…', waitLong: TOUR_WAIT },
+        { id: 'try', phase: 'try', owl: 'sova-vitej', mode: 'tap', target: '#daily-card', hit: '#daily-card button', title: 'Teď si to zkusíme doopravdy', text: 'Klepni na Hrát vše. Otázka je skutečná, získané XP se ti započítají.', wait: 'Chvilku…', waitLong: 'Vrať se na záložku Dnes a klepni na Hrát vše, nebo tento krok přeskoč.' },
         { id: 'hint', phase: 'try', owl: 'sova-premysleni', mode: 'tap', soft: true, softLabel: 'Bez nápovědy', skippable: true, target: '[data-action="hint"]', title: 'Nápověda', text: 'Nevíš si rady? Klepni na nápovědu. Čím víc nápověd použiješ, tím méně bodů za správnou odpověď dostaneš.', wait: 'Načítám otázku…', waitLong: QUESTION_LOST },
         { id: 'choice', phase: 'try', owl: 'sova-premysleni', mode: 'tap', skippable: true, target: '[data-action="choice"], #answer-form', area: 'parent', hit: '[data-action="choice"], #answer-form button[type="submit"]', title: 'Tvoje odpověď', text: 'Vyber jednu z možností, nebo odpověď napiš. Je to skutečná otázka, získané XP se ti započítají.', wait: 'Načítám otázku…', waitLong: QUESTION_LOST },
-        { id: 'result', phase: 'try', owl: 'sova-radost', mode: 'info', target: '[data-verdict]', title: 'Výsledek', text: 'Tady vidíš, jak to dopadlo a kolik XP ti to přineslo. Z XP roste tvoje úroveň (ukazuje ji hlavička na úvodu) a za výkony dostaneš odznaky.', wait: 'Chvilku…', waitLong: 'Výsledek se neukázal. Odpověz na otázku, nebo tento krok přeskoč.' },
-        { id: 'menu', phase: 'try', owl: 'sova-vitej', mode: 'tap', target: '[data-action="daily-home"], [data-action="next"]', area: 'parent', hit: '[data-action="daily-home"], [data-action="next"]', title: 'Dál', text: 'Tlačítko Menu tě vrátí na úvodní obrazovku, tlačítko vedle něj otevře další dnešní otázku. Klepnutím na kterékoli z nich tutoriál skončí.', wait: 'Chvilku…', waitLong: 'Tlačítko se neukázalo. Vrať se na úvod, nebo tento krok přeskoč.' }
+        { id: 'result', phase: 'try', owl: 'sova-radost', mode: 'info', target: '[data-verdict]', title: 'Výsledek', text: 'Tady vidíš, jak to dopadlo a kolik XP ti to přineslo. Z XP roste tvoje úroveň a za výkony dostaneš odznaky.', wait: 'Chvilku…', waitLong: 'Výsledek se neukázal. Odpověz na otázku, nebo tento krok přeskoč.' },
+        { id: 'menu', phase: 'try', owl: 'sova-vitej', mode: 'tap', target: '[data-action="daily-home"], [data-action="next"]', area: 'parent', hit: '[data-action="daily-home"], [data-action="next"]', title: 'Dál', text: 'Tlačítko Menu tě vrátí na záložku Dnes, tlačítko vedle něj otevře další dnešní otázku. Klepnutím na kterékoli z nich tutoriál skončí.', wait: 'Chvilku…', waitLong: 'Tlačítko se neukázalo. Vrať se na záložku Dnes, nebo tento krok přeskoč.' }
     ];
     const TRY_INDEX = STEPS.findIndex(step => step.id === 'try');
 
@@ -138,16 +137,14 @@
     };
     const present = (step) => Boolean(holeOf(step));
     const external = () => Boolean(doc.querySelector(EXTERNAL));
-    // Krok Více hráčů se nepočítá, když záložka není (hra bez Supabase). Rozhoduje nastavení hry, ne to, jestli je záložka
-    // právě vidět: mimo úvod (otázka, výsledek) by jinak počítadlo skočilo z „Krok 7 z 11“ na „Krok 7 z 10“
+    // Krok Soupeři se nepočítá, když záložka není (hra bez Supabase). Rozhoduje nastavení hry, ne to, jestli je lišta
+    // právě vidět: mimo hlavní obrazovky (otázka, výsledek) by jinak počítadlo skočilo z „Krok 7 z 12“ na „Krok 7 z 11“
     const multiOn = () => {
         try { return Boolean(root.MudrlantAuth && root.MudrlantAuth.isConfigured() && root.MudrlantSocial); } catch (e) { return false; }
     };
-    // Dobývání jen s hrou více hráčů a se skripty Dobývání (conquest.js, conquest-ui.js)
     const hidden = () => {
-        const multi = multiOn() || Boolean(doc.querySelector('[data-action="home-tab"][data-tab="multi"]'));
-        const conquest = multi && Boolean(root.MudrlantConquest && root.MudrlantConquestUI);
-        return [...(state && state.noFact ? ['fact'] : []), ...(multi ? [] : ['multi']), ...(conquest ? [] : ['conquest'])];
+        const multi = multiOn() || Boolean(doc.querySelector('[data-nav="souperi"]'));
+        return [...(state && state.noFact ? ['fact'] : []), ...(multi ? [] : ['multi'])];
     };
 
     const build = () => {
@@ -261,7 +258,7 @@
         if (external()) { ui.root.classList.add('hidden'); return; }
         let result = plan(STEPS, state.index, present);
         if (result.state === 'finished') { finish('done'); return; }
-        // Uprostřed zkoušení jsme zase na úvodu (Zpět, nová otázka se nenačetla): vrátí se na výběr dnešní otázky
+        // Uprostřed zkoušení jsme zase na záložce Dnes (Zpět, nová otázka se nenačetla, zavřený výběr tématu): vrátí se na kartu Dnešní otázky
         if (result.state === 'wait' && result.index > TRY_INDEX && state.graceUntil <= Date.now() && present(STEPS[TRY_INDEX])) {
             result = { state: 'show', index: TRY_INDEX };
         }
@@ -373,7 +370,7 @@
         const run = () => {
             if (state || !shouldStart(root.localStorage)) return;
             if (isRunning(root.localStorage)) begin(resumeStep(root.localStorage));
-            else if (doc.querySelector('[data-action="daily"]')) begin(0);
+            else if (doc.querySelector('#daily-card')) begin(0);
         };
         if (options.ready && options.ready.then) options.ready.then(run, run); else run();
     };

@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const fixtures = require('./fixtures.js');
+const nav = require('./nav.js');
 
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
@@ -56,7 +57,7 @@ test('denní zajímavost', { skip: !chromium && 'Playwright není nainstalovaný
         tab.on('pageerror', error => problems.push(error.message));
         tab.on('console', message => { if (/Content Security Policy/i.test(message.text())) problems.push(message.text()); });
         await tab.goto(`${origin}/`);
-        await tab.waitForSelector('[data-action="play-topic"]');
+        await nav.waitForHome(tab);
         return { context, tab, problems };
     };
 
@@ -90,17 +91,17 @@ test('denní zajímavost', { skip: !chromium && 'Playwright není nainstalovaný
         await tab.waitForSelector('#fact-overlay', { state: 'detached' });
         assert.equal(await tab.isVisible('#fact-hint'), false, 'po přečtení žárovka zmizí');
         await tab.reload();
-        await tab.waitForSelector('[data-action="play-topic"]');
+        await nav.waitForHome(tab);
         await tab.waitForTimeout(500);
         assert.equal(await tab.isVisible('#fact-hint'), false, 'přečtení se pamatuje');
-        // Zajímavost jde otevřít i po přečtení klepnutím na sovu; klepnutí na text vedle sovy otevře postup
+        // Zajímavost jde otevřít i po přečtení klepnutím na sovu; klepnutí na text vedle sovy otevře záložku Postup
         await tab.click('#status-icon-slot');
         await tab.waitForSelector('#fact-overlay [data-fact-link]');
         await tab.click('[data-fact-close]');
         await tab.waitForSelector('#fact-overlay', { state: 'detached' });
         await tab.click('#status-text');
-        await tab.waitForSelector('#dialog-overlay');
-        assert.doesNotMatch(await tab.textContent('#dialog-overlay'), /Howard Carter/, 'text vedle sovy otevře postup, ne zajímavost');
+        await tab.waitForSelector('#tab-postup');
+        assert.equal(await tab.locator('#fact-overlay').count(), 0, 'text vedle sovy otevře záložku Postup, ne zajímavost');
         assert.deepEqual(problems, []);
         await context.close();
     });
@@ -116,7 +117,7 @@ test('denní zajímavost', { skip: !chromium && 'Playwright není nainstalovaný
         await tab.click('[data-fact-close]');
         await tab.waitForSelector('#fact-overlay', { state: 'detached' });
         assert.equal(await tab.isVisible('#fact-hint'), false, 'po přečtení žárovka zmizí');
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-dev="bulb"]');
         await tab.waitForSelector('#settings-overlay');
         await tab.click('[data-close]');

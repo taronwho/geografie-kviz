@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const fixtures = require('./fixtures.js');
+const nav = require('./nav.js');
 const Look = require('../look.js');
 
 let chromium = null;
@@ -45,7 +46,7 @@ test('barevná témata v Nastavení → Hra', { skip: !chromium && 'Playwright n
         await context.addInitScript(entries => {
             if (sessionStorage.getItem('seeded')) return;
             sessionStorage.setItem('seeded', '1');
-            Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
+            Object.entries(entries).forEach(([key, value]) => (key.startsWith('session:') ? sessionStorage.setItem(key.slice(8), value) : localStorage.setItem(key, value)));
         }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.account': JSON.stringify('host'), 'mudrlant.variant': 'choices', ...(options.progress === false ? {} : { 'mudrlant.progress': PROGRESS }), ...(options.storage || {}) });
         const tab = await context.newPage();
         const problems = [];
@@ -56,7 +57,7 @@ test('barevná témata v Nastavení → Hra', { skip: !chromium && 'Playwright n
         return { context, tab, problems };
     };
     const openLook = async (tab) => {
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="game"]');
         await tab.waitForSelector('[data-theme-pick]');
     };

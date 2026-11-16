@@ -295,20 +295,14 @@
     const freezeWord = (count) => (count === 1 ? 'ochrana' : count >= 2 && count <= 4 ? 'ochrany' : 'ochran');
     // Štít s počtem ochran u série (jen když nějakou má)
     const freezeChip = (count, attrs = '') => (count > 0 ? `<span ${attrs} data-freeze-chip class="inline-flex shrink-0 items-center gap-0.5 rounded-md bg-sky-100 py-px pl-0.5 pr-1 text-[10px] font-black leading-tight text-sky-800 ring-1 ring-sky-200 dark:bg-sky-900/50 dark:text-sky-200 dark:ring-sky-800" title="Ochrana série: ${count} z ${MAX_FREEZES}" aria-label="Ochrana série: ${count} z ${MAX_FREEZES}"><img src="icons/topics/ochrana-serie.webp" alt="" class="h-4 w-4 shrink-0 object-contain">${count}</span>` : '');
-    // Malá truhla (pruh na úvodu, Můj postup, vysvětlení): obrázek icons/topics/truhla.webp; v pruhu se pohupuje (src/input.css, .chest-mini)
+    // Malá truhla (vysvětlení, okno truhly): obrázek icons/topics/truhla.webp. Řádek „Truhla Mudrlanta čeká“ na záložce Dnes kreslí app.js
+    // (chestRowHtml), truhla se v něm pohupuje (src/input.css, .chest-mini)
     const chestSvg = (cls = 'h-40 w-40') => `
         <span class="${cls} chest-svg relative inline-flex items-center justify-center" aria-hidden="true">
             <img src="icons/topics/truhla.webp" alt="" class="relative h-full w-full object-contain drop-shadow-md">
         </span>`;
     // Ochrana série: obrázek štítu s plamenem (icons/topics/ochrana-serie.webp)
     const freezeArt = (cls = 'h-7 w-7') => `<img src="icons/topics/ochrana-serie.webp" alt="" class="${cls} shrink-0 object-contain drop-shadow-sm">`;
-    // Pruh na úvodu místo cílů, když truhla čeká
-    const chestStripHtml = () => `
-        <button type="button" id="weekly-goals" data-action="chest-open" data-chest-ready class="chest-strip flex min-h-[2.5rem] w-full items-center gap-2 rounded-2xl bg-gradient-to-r from-gold-400 to-gold-500 px-2.5 py-1.5 text-left text-brand-950 shadow-md ring-2 ring-gold-300 transition-all active:scale-[0.98] dark:ring-gold-600">
-            ${chestSvg('h-8 w-8 -my-1.5 -ml-1 shrink-0 chest-mini')}
-            <span class="min-w-0 flex-1 truncate text-[12px] font-black leading-tight" title="Všechny cíle týdne jsou splněné. Otevři ji!">Truhla Mudrlanta čeká</span>
-            <span class="shrink-0 rounded-lg bg-brand-900 px-2 py-1 text-[11px] font-black text-gold-200">Otevřít</span>
-        </button>`;
     // Ukázka věci (obrázek doplňku, sova v taláru, kulička tématu, barva, rámeček)
     const COLOR_DOT = {
         cervena: 'bg-red-600', oranzova: 'bg-orange-500', zluta: 'bg-yellow-400', zelena: 'bg-green-600', modra: 'bg-blue-600', fialova: 'bg-purple-600',
@@ -490,6 +484,6 @@
         isDay, addDays, formatDay, isoWeek, empty, parse, gifts, owns, pendingChest, addChest, candidates, RARE_CHANCE, rareCandidates, pickGift, openChest, chestReward,
         earnFreeze, streakEndingAt, bridgedStreak, checkFreeze, streakFreeze, diplomaTitle, noteDiplomas, setName, payload, merge, samePayload, isEmpty,
         nextStreakReward, streakRewardText, streakRewardHtml,
-        freezeWord, freezeChip, freezeArt, chestSvg, chestStripHtml, previewHtml, chestHtml, progressHtml, freezeHelpHtml, chestHelpHtml, diplomasHtml, diplomaDialogHtml
+        freezeWord, freezeChip, freezeArt, chestSvg, previewHtml, chestHtml, progressHtml, freezeHelpHtml, chestHelpHtml, diplomasHtml, diplomaDialogHtml
     };
 });

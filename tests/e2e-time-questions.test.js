@@ -3,6 +3,7 @@
 // Bez posouvání na 360×640 a 390×780 ve světlém i tmavém režimu, bez chyb CSP; do chyb ani opakování otázka nejde. SCREENSHOT_DIR=složka uloží snímky.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const nav = require('./nav.js');
 const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
@@ -80,7 +81,7 @@ test('Časové souvislosti v prohlížeči', { skip: !chromium && 'Playwright ne
         await tab.goto(`${origin}/`);
         await tab.waitForFunction(() => Boolean(window.MudrlantTime));
         await tab.evaluate((kind) => { window.MudrlantTime.force = kind; }, force);
-        await tab.click(`[data-action="play-topic"][data-topic="${topic}"]`);
+        await nav.topic(tab, topic);
         await tab.waitForSelector('[data-time-lead]', { timeout: 30000 });
         return { context, tab, problems };
     };

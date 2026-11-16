@@ -1,7 +1,7 @@
 // Skupiny: soukromé skupiny (třída, rodina, kamarádi) s vlastním pořadím Kvízu dne (dnes, týden) a týdenních XP.
 // Data drží databáze (supabase/schema.sql, blok „Skupiny (schéma 8)“) přes social.js. Tady je čistá logika (název, kód, odkaz, pořadí)
 // a okna Skupiny, Nová skupina, Přidat se ke skupině, detail skupiny a Správa skupiny. app.js předá pomocné funkce (createUI) a napojí
-// čip na záložce Více hráčů, odkaz …?skupina=KÓD a Vyzvat skupinu (výzva pro všechny členy přes stávající výzvy).
+// dlaždice na záložce Soupeři (kreslí ji app.js), odkaz …?skupina=KÓD a Vyzvat skupinu (výzva pro všechny členy přes stávající výzvy).
 (function (root, factory) {
     const api = factory(root);
     if (typeof module === 'object' && module.exports) module.exports = api;
@@ -102,10 +102,6 @@
     // Nikdo další ve skupině (správa): sova s dalekohledem vyhlíží členy
     const nobodyHtml = () => `<div class="flex items-center gap-3 px-1">${art('sova-dalekohled', 'h-14 w-14')}<p class="min-w-0 text-[13px] leading-snug text-slate-500 dark:text-slate-400">Zatím tu nikdo další není. Pošli ostatním kód skupiny.</p></div>`;
     const errorNote = (text) => (text ? `<p class="min-h-[1.25rem] text-sm font-semibold text-rose-700 dark:text-rose-400" role="status">${esc(text)}</p>` : '');
-
-    // Čip na záložce Více hráčů (vedle „Přijímám výzvy z“): otevře okno Skupiny; count = počet mých skupin (null = ještě nenačteno)
-    const chipHtml = (count) => `
-        <button type="button" id="groups-chip" data-action="groups-open" title="Skupiny: soukromé pořadí pro třídu, rodinu nebo kamarády" class="flex min-h-[2rem] shrink-0 items-center gap-1.5 rounded-full bg-gold-50 px-3 py-1 text-[11.5px] font-black text-brand-950 ring-1 ring-gold-300/70 active:scale-95 dark:bg-gold-900/20 dark:text-gold-200 dark:ring-gold-700/60">${art('skupiny', '-my-1 -ml-1.5 h-6 w-6')}Skupiny${count ? `<span class="rounded-full bg-brand-700 px-1.5 py-px text-[10px] leading-none text-white">${count}</span>` : ''}</button>`;
 
     const groupRowHtml = (group) => `
         <li><button type="button" data-group-open="${esc(group.id)}" class="flex w-full items-center gap-2.5 ${CARD} p-2 text-left active:scale-[0.99]">
@@ -280,14 +276,8 @@
         const overlayTitle = () => { const overlay = root.document && root.document.getElementById('dialog-overlay'); return overlay ? overlay.dataset.title : null; };
         const errorText = (error, fallback) => (error && error.message ? error.message : fallback);
         const store = () => { try { return root.localStorage; } catch (e) { return null; } };
-        const paintChip = () => {
-            const chip = root.document && root.document.getElementById('groups-chip');
-            if (!chip) return;
-            if (groups === null) { chip.remove(); return; }
-            chip.outerHTML = chipHtml(Array.isArray(groups) ? groups.length : 0);
-            const fresh = root.document.getElementById('groups-chip');
-            if (fresh && deps.renderIcons) deps.renderIcons(fresh);
-        };
+        // Dlaždici Skupiny na záložce Soupeři (počet skupin) překreslí app.js se záložkou
+        const paintTile = () => { if (deps.paintHome) deps.paintHome(); };
         const refresh = async (force = false) => {
             if (!deps.signedUser() || !Social) return groups;
             if (loading) return loading;
@@ -300,14 +290,13 @@
                 } catch (error) {
                     if (!Array.isArray(groups)) groups = false;
                 } finally { loading = null; }
-                paintChip();
+                paintTile();
                 if (overlayTitle() === 'Skupiny') renderList();
                 return groups;
             })();
             return loading;
         };
         const reset = () => { groups = undefined; loading = null; loadedAt = 0; };
-        const chip = () => (groups === null ? '' : chipHtml(Array.isArray(groups) ? groups.length : 0));
 
         // Okno Skupiny se otevře hned (s posledním známým seznamem) a seznam se načte znovu
         const openList = () => {
@@ -342,7 +331,7 @@
                     try {
                         const group = await Social.groupCreate(cleanName(draft.name), draft.icon);
                         groups = [...(Array.isArray(groups) ? groups : []), group];
-                        paintChip();
+                        paintTile();
                         deps.showToast('Skupina je založená. Pošli ostatním kód.');
                         openDetail(group.id);
                     } catch (error) {
@@ -378,7 +367,7 @@
                         const group = await Social.groupJoin(state.preview.code);
                         if (!group) throw new Error('Skupina s tímhle kódem už neexistuje. Popros o nový kód.');
                         groups = Array.isArray(groups) ? [...groups.filter(item => item.id !== group.id), group] : groups;
-                        paintChip();
+                        paintTile();
                         deps.showToast(`Jsi ve skupině ${group.name}.`);
                         openDetail(group.id);
                     } catch (error) {
@@ -451,7 +440,7 @@
                     view.error = '';
                 } catch (error) {
                     view.error = errorText(error, 'Skupinu se nepodařilo načíst.');
-                    if (error && (error.status === 403 || error.status === 401)) { groups = Array.isArray(groups) ? groups.filter(item => item.id !== groupId) : groups; paintChip(); }
+                    if (error && (error.status === 403 || error.status === 401)) { groups = Array.isArray(groups) ? groups.filter(item => item.id !== groupId) : groups; paintTile(); }
                 }
                 if (stillOpen()) render();
             };
@@ -476,7 +465,7 @@
                     try {
                         await Social.groupLeave(detail.id);
                         groups = Array.isArray(groups) ? groups.filter(item => item.id !== detail.id) : groups;
-                        paintChip();
+                        paintTile();
                         deps.showToast(`Opustil jsi skupinu ${detail.name}.`);
                         openList();
                     } catch (error) {
@@ -546,7 +535,7 @@
                     try {
                         await Social.groupDelete(detail.id);
                         groups = Array.isArray(groups) ? groups.filter(item => item.id !== detail.id) : groups;
-                        paintChip();
+                        paintTile();
                         deps.showToast(`Skupina ${detail.name} je smazaná.`);
                         openList();
                     } catch (error) { fail(error, 'Skupinu se nepodařilo smazat.'); }
@@ -554,12 +543,12 @@
             };
             render();
         };
-        return { chip, refresh, reset, openList, openCreate, openJoin, openDetail, afterLogin, takeLink, groups: () => groups };
+        return { refresh, reset, openList, openCreate, openJoin, openDetail, afterLogin, takeLink, groups: () => groups };
     };
 
     return {
         ICONS, NAME_MIN, NAME_MAX, MAX_GROUPS, MAX_MEMBERS, LINK_PARAM, PENDING_KEY,
         cleanName, nameError, cleanIcon, parseCode, linkFor, rankToday, rankWeek, leaderText, membersWord, formatTime,
-        chipHtml, listHtml, formHtml, joinHtml, detailHtml, manageHtml, createUI
+        listHtml, formHtml, joinHtml, detailHtml, manageHtml, createUI
     };
 });

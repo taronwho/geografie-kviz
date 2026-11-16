@@ -189,12 +189,10 @@ test('sdílení: text a obrázek bez odpovědi (🔍 nápovědy, ❌ špatný ti
     assert.deepEqual([card.headline, card.detail, card.grid, card.pose], ['Vyřešeno!', '3. nápověda · 7 bodů', [false, true], 'radost']);
 });
 
-test('karta na úvodu: nápověda a další čas, vyřešeno, nevyšlo, včerejší odpověď; obrazovka bez inline stylů', () => {
+test('text řádku na záložce Dnes: nápověda a další čas, vyřešeno, nevyšlo, včerejší odpověď; obrazovka bez inline stylů', () => {
     const now = iso('2026-11-12T12:00:00Z');
     const base = { kind: 'today', shown: M.cluesAt(now), next: M.nextClue(now) };
     assert.equal(M.homeText({ ...base, status: 'new', entry: null }), 'Nápověda 5/8 · další v 15:00');
-    assert.match(M.homeCardHtml({ ...base, status: 'new', entry: null }), /data-mystery-new/, 'nová nápověda');
-    assert.doesNotMatch(M.homeCardHtml({ ...base, status: 'open', entry: { ...M.newEntry({}), seen: 5 } }), /data-mystery-new/);
     assert.equal(M.homeText({ ...base, next: null, shown: 8, status: 'open', entry: M.addTip(M.newEntry({}), { text: 'x', correct: false, clues: 8, at: 1 }) }), 'Nápověda 8/8 · zbývají 2 tipy');
     let solved = M.addTip(M.newEntry({}), { text: 'x', correct: true, clues: 2, at: iso('2026-11-12T08:41:00Z') });
     assert.equal(M.homeText({ ...base, status: 'solved', entry: solved, solvedAt: '9:41' }), 'Vyřešeno v 9:41 s 2 nápovědami');
@@ -202,8 +200,7 @@ test('karta na úvodu: nápověda a další čas, vyřešeno, nevyšlo, včerej�
     assert.equal(M.homeText({ ...base, status: 'solved', entry: solved, solvedAt: '0:12' }), 'Vyřešeno v 0:12 s 1 nápovědou');
     assert.equal(M.homeText({ ...base, status: 'failed', entry: null }), 'Tentokrát ne · odpověď zítra');
     assert.equal(M.homeText({ kind: 'reveal', name: 'Matterhorn', stats: { players: 50, solved_pct: 34 } }), 'Odpověď: Matterhorn · uhodlo 34 %');
-    const reveal = M.homeCardHtml({ kind: 'reveal', name: 'Matterhorn', stats: null });
-    assert.match(reveal, /data-action="mystery-reveal"[\s\S]*Včerejší tajemná otázka[\s\S]*data-action="mystery-dismiss"/);
+    assert.equal(M.homeText({ kind: 'reveal', name: 'Matterhorn', stats: null }), 'Odpověď: Matterhorn');
     const h = { photoFrame: (attrs) => `<div ${attrs}></div>`, visualFrame: (spec, id) => `<div id="${id}"></div>`, avatarHtml: () => '<span></span>', xpLine: () => '' };
     const clues = M.buildClues(roundData(), { topicTitle: 'Zeměpis' });
     const screen = M.screenHtml({ day: '2026-11-12', shown: 5, next: { n: 6, label: '15:00' }, clues, entry: M.newEntry({}), name: 'Matterhorn', canGuess: true, pointsNow: 6 }, h);
@@ -227,7 +224,7 @@ test('karta na úvodu: nápověda a další čas, vyřešeno, nevyšlo, včerej�
     assert.match(stats, /Mezi přáteli 2\. z 3/);
     assert.match(M.statsHtml({ stats: { players: 4, solved: 3, solved_pct: 75, fastest: '1:05', avg_clues: 3.4 } }, h), /průměrně s 3,4 nápovědami/);
     assert.match(M.statsHtml({ guest: true, canLogin: true }, h), /data-action="mystery-login"/);
-    for (const html of [screen, last, stats, reveal]) assert.doesNotMatch(html, /style=|on[a-z]+=/i, 'CSP: bez inline stylů a skriptů');
+    for (const html of [screen, last, stats]) assert.doesNotMatch(html, /style=|on[a-z]+=/i, 'CSP: bez inline stylů a skriptů');
 });
 
 test('napojení: modul v index.html, service workeru, nasazení a Tailwindu; schéma 20, odznaky Detektiv, tip a karta na úvodu', () => {
@@ -246,8 +243,10 @@ test('napojení: modul v index.html, service workeru, nasazení a Tailwindu; sch
     assert.equal(core.EMPTY_COUNTERS.mysterySolved, 0);
     const Tips = require('../tips.js');
     assert.equal(Tips.BY_ID.get('tajemna').action.kind, 'mystery');
-    // Karta na úvodu je jedna vložená funkce (ostatní pruhy úvodu se jí nedotknou)
-    assert.equal((read('app.js').match(/\$\{mysteryHomeCard\(\)\}/g) || []).length, 1);
+    // Řádek mezi dnešními výzvami na záložce Dnes (třetí, mezi Řetězovkou a Bossem); včerejší odpověď je zvlášť mezi příležitostnými pruhy
+    assert.match(read('app.js'), /\[quizHomeCard\(\), chainHomeTile\(\), mysteryHomeCard\(\), bossHomeTile\(\)\]/);
+    assert.match(read('app.js'), /const reveal = Mystery \? mysteryRevealView\(\) : null;/);
+    assert.match(read('app.js'), /id: 'mystery-reveal'[\s\S]{0,400}Mystery\.homeText\(reveal\)/, 'řádek Včerejší záhada na záložce Dnes');
     assert.match(read('docs/SUPABASE.md'), /## Tajemná otázka dne \(schéma 19\)/);
 });
 

@@ -49,7 +49,7 @@ test('slepá mapa regionu', { skip: !chromium && 'Playwright není nainstalovan�
         await context.addInitScript((entries) => {
             if (sessionStorage.getItem('seeded')) return;
             sessionStorage.setItem('seeded', '1');
-            Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
+            Object.entries(entries).forEach(([key, value]) => (key.startsWith('session:') ? sessionStorage.setItem(key.slice(8), value) : localStorage.setItem(key, value)));
         }, { 'mudrlant.account': JSON.stringify('host'), 'mudrlant.variant': 'choices', 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.tips': JSON.stringify({ off: true }), 'mudrlant.session': JSON.stringify(session) });
         const requests = [];
         await context.route('**/*', route => {

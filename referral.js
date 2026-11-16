@@ -92,7 +92,7 @@
     const plural = (count, one, few, many) => `${count} ${count === 1 ? one : count >= 2 && count <= 4 ? few : many}`;
     const friendsWord = (count) => plural(count, 'kamarád', 'kamarádi', 'kamarádů');
     const gamesText = (games) => plural(games, 'hra', 'hry', 'her');
-    // Karta na záložce Více hráčů: pozvi kamarády, kolik se jich počítá, odměna, která čeká
+    // Karta dole v okně Přátelé (záložka Soupeři): pozvi kamarády, kolik se jich počítá, odměna, která čeká
     const cardHtml = (status, h = {}) => {
         const ready = status ? status.ready.length : 0;
         const next = nextTier(status);

@@ -299,7 +299,7 @@
     const SECONDARY = 'flex min-w-0 items-center justify-center gap-1.5 rounded-2xl btn-3d-light bg-white px-2 py-2.5 text-sm font-bold text-slate-800 dark:bg-slate-800 dark:text-slate-100';
     const LABEL = 'text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
 
-    // Karta na úvodní stránce (Jeden hráč): stav dne a jedno tlačítko; zlatá tečka = dnes ještě nehráno
+    // Řádek mezi dnešními výzvami na záložce Dnes: stav dne a jedno tlačítko; zlatá tečka = dnes ještě nehráno
     // Dlaždice Kvízu dne v řadě Výzvy na úvodu (vykreslí app.js specialTile): krátký stav pod názvem, celý v popisku pro čtečku
     const homeTile = ({ status = 'new', answered = 0, summary = null, rank = null }) => {
         const done = status === 'done' && summary;
@@ -360,7 +360,7 @@
         if (tab === 'friends') {
             if (friends === null || friends === undefined) body = note('Načítám přátele…');
             else if (friends === false) body = note('Přátele se teď nepodařilo načíst.');
-            else if (!friends.friends) body = note('Zatím nemáš přátele. Přidáš je v profilu hráče na záložce Více hráčů.');
+            else if (!friends.friends) body = note('Zatím nemáš přátele. Najdeš je na záložce Soupeři: u Přátel klepni na plus.');
             else if (!friends.rows.some(row => !row.me)) body = `${friends.rows.length ? `<ol class="flex flex-col gap-1.5">${friends.rows.map(row => rowHtml(row, h)).join('')}</ol>` : ''}${note('Z přátel dnes ještě nikdo nehrál.')}`;
             else body = `<ol class="flex flex-col gap-1.5">${friends.rows.map(row => rowHtml(row, h)).join('')}</ol>`;
         } else if (board === null || board === undefined) body = note('Načítám pořadí…');

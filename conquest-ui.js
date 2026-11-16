@@ -1,4 +1,4 @@
-// Dobývání v prohlížeči (pravidla a vykreslení jsou v conquest.js): karta na záložce Více hráčů, rozcestník (Moje hry s pozvánkami
+// Dobývání v prohlížeči (pravidla a vykreslení jsou v conquest.js): dlaždice a řádek Čeká na tebe na záložce Soupeři, rozcestník (Moje hry s pozvánkami
 // od přátel, Lobby, Založit hru s výběrem přátel k pozvání), detail otevřené hry (Chci hrát, Odejít, Pozvat přátele, sdílení odkazu,
 // Barva a znak, pozvaní „Pozváno“), obrazovka hry s mapou (posun a přiblížení prsty,
 // kolečkem i dvojitým klepnutím), spodní list území, otázka tahu (připraví se už při otevření listu; otázka Mudrlanta s popisem,
@@ -136,17 +136,20 @@
             lobby.open = lobby.open.filter(item => item.id !== game.id);
         };
 
-        // Karta na záložce Více hráčů
-        const cardHtml = () => (deps.signedUser() && !missing ? C.homeCardHtml({ games: lobby ? lobby.mine : null, invites: lobby ? lobby.invites : [], maps, loading: Boolean(lobbyLoading), avatar: deps.avatarHtml }) : '');
-        const paintCard = () => {
-            const card = doc.getElementById('conquest-card');
-            if (!card) return;
-            const html = cardHtml();
-            if (!html) { card.remove(); return; }
-            card.outerHTML = html;
-            const fresh = doc.getElementById('conquest-card');
-            if (fresh) deps.renderIcons(fresh);
+        // Záložka Soupeři: dlaždice Dobývání (stav a odznak) a karta mezi tím, co čeká (běžící hra s tlačítkem Hrát, pozvánka s Přidat se).
+        // Karta čeká jen s pozvánkou nebo s běžící hrou, ve které má hráč ještě tahy; jinak stačí dlaždice.
+        const homeInput = () => ({ games: lobby ? lobby.mine : null, invites: lobby ? lobby.invites : [], maps, loading: Boolean(lobbyLoading), avatar: deps.avatarHtml });
+        const tile = () => (deps.signedUser() && !missing ? C.homeTile(homeInput()) : null);
+        const cardHtml = () => (deps.signedUser() && !missing ? C.homeCardHtml(homeInput()) : '');
+        const waitRows = () => {
+            const info = tile();
+            if (!info || !info.waits) return [];
+            // Běžící hra bez tahů se do karty nedává: karta ukazuje první běžící hru, tak ať je to ta, ve které se dá hrát
+            const input = homeInput();
+            const playable = (input.games || []).filter(game => game.status !== 'running' || (game.budget || { left: 0 }).left > 0);
+            return [C.homeCardHtml({ ...input, games: playable }).replace('id="conquest-card"', 'id="conquest-wait"')];
         };
+        const paintCard = () => { if (deps.paintHome) deps.paintHome(); };
         const refresh = async (force = false) => {
             if (!deps.signedUser() || missing) return;
             if (!force && lobby && Date.now() - lobbyAt < 60000) { paintCard(); promptInvites(); return; }
@@ -312,7 +315,7 @@
             if (!active() || ui.kind !== 'hub') { stopGame(); ui.kind = 'hub'; ui.tab = 'mine'; ui.error = ''; if (!active()) deps.enter(); renderHub(); schedule(); }
             joinGame({ id });
         };
-        // Z karty na záložce Více hráčů
+        // Z dlaždice a z řádku Čeká na tebe na záložce Soupeři
         const openInvite = (id) => {
             if (!deps.signedUser()) { deps.login(); return; }
             if (findInvite(id)) { acceptInvite(id); return; }
@@ -1999,7 +2002,7 @@
         // Probíhá tah (oslavy z app.js počkají)
         const busy = () => Boolean(game && game.move);
 
-        return { cardHtml, paintCard, refresh, reset, openHub, openGame, openCode, openInvite, afterLogin, takeLink, back, busy, parseCode, checkInvites, promptInvites, inviteCount };
+        return { cardHtml, tile, waitRows, paintCard, refresh, reset, openHub, openGame, openCode, openInvite, afterLogin, takeLink, back, busy, parseCode, checkInvites, promptInvites, inviteCount };
     };
 
     return { createUI, STORE, LINK_PARAM, PENDING_KEY, SEEN_INVITES_KEY, INVITE_CHECK_MS, parseCode };

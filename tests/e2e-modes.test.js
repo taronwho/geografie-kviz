@@ -8,6 +8,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const fixtures = require('./fixtures.js');
+const nav = require('./nav.js');
 
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
@@ -89,7 +90,7 @@ test('Bleskovka, Přežití, zvuky a vibrace', { skip: !chromium && 'Playwright 
         tab.on('pageerror', error => problems.push(error.message));
         tab.on('console', message => { if (/Content Security Policy/i.test(message.text())) problems.push(message.text()); });
         await tab.goto(`${origin}/`);
-        await tab.waitForSelector('[data-action="play-topic"]');
+        await nav.waitForHome(tab);
         return { context, tab, problems };
     };
     const shot = async (tab, name) => { if (SHOTS) await tab.screenshot({ path: path.join(SHOTS, `${name}.png`) }); };
@@ -103,7 +104,7 @@ test('Bleskovka, Přežití, zvuky a vibrace', { skip: !chromium && 'Playwright 
     // Okno Co hrát pro Zeměpis (při prvním klepnutí na dlaždici) a režim z něj
     const openMode = async (tab, kind) => {
         // Dlaždice tématu otevře okno jen poprvé; jinak se hraje rovnou a okno se otevře klepnutím na téma v hlavičce
-        await tab.click('[data-action="play-topic"][data-topic="zemepis"]');
+        await nav.topic(tab, 'zemepis', { play: false });
         const opened = await tab.waitForSelector('#chooser-title:has-text("Zeměpis")', { timeout: 2000 }).then(() => true, () => false);
         if (!opened) {
             await tab.waitForSelector('[data-action="give-up"]');
@@ -143,7 +144,7 @@ test('Bleskovka, Přežití, zvuky a vibrace', { skip: !chromium && 'Playwright 
 
     await t.test('okno Co hrát nabízí nahoře Hrát a pod ním Bleskovku a Přežití; úvod ukáže pravidla a rekordy; úvod se nemění', async () => {
         const { context, tab, problems } = await open();
-        await tab.click('[data-action="play-mix"]');
+        await nav.mix(tab, { play: false });
         await tab.waitForSelector('#play-chooser [data-chooser-mode="blitz"]');
         const buttons = await tab.evaluate(() => [...document.querySelectorAll('#play-chooser [data-chooser-mode]')].map(el => ({ text: el.textContent.trim(), title: el.querySelector('.font-black').textContent.trim(), label: el.getAttribute('aria-label'), h: el.getBoundingClientRect().height, w: el.getBoundingClientRect().width })));
         assert.deepEqual(buttons.map(button => button.title), ['Bleskovka', 'Přežití']);
@@ -175,13 +176,15 @@ test('Bleskovka, Přežití, zvuky a vibrace', { skip: !chromium && 'Playwright 
         assert.deepEqual(await fits(tab), { scroll: 0, wide: 0 });
         // Zpět na úvod
         await tab.click('[data-action="mode-home"]');
-        await tab.waitForSelector('[data-action="play-topic"]');
-        // Tlačítko Zpět (telefon) během hry: domů, hra se zahodí
+        await nav.waitForHome(tab);
+        // Tlačítko Zpět (telefon) během hry: zeptá se, Ukončit vrátí na záložku a hra se zahodí
         await openMode(tab, 'survival');
         await tab.click('[data-action="mode-start"]');
         await waitQuestion(tab, 1);
         await tab.goBack();
-        await tab.waitForSelector('[data-action="play-topic"]');
+        await tab.waitForSelector('#leave-mode');
+        await tab.click('[data-leave-mode="go"]');
+        await nav.waitForHome(tab);
         assert.equal(await storage(tab, 'mudrlant.modes'), null, 'nedohraná hra se nezapíše');
         assert.deepEqual(problems, []);
         await context.close();
@@ -283,11 +286,18 @@ test('Bleskovka, Přežití, zvuky a vibrace', { skip: !chromium && 'Playwright 
         assert.ok((await tab.evaluate(() => window.__tones)).includes(1046.5), 'fanfára rekordu');
         assert.equal((await storage(tab, 'mudrlant.modes')).blitz.best.zemepis, 2);
         await shot(tab, 'bleskovka-rekord-390-tmavy');
-        // Rozehraná hra a odchod Domů: nic se nezapíše
+        // Rozehraná hra a odchod šipkou zpět: nejdřív se zeptá (Hrát dál vrátí do hry), Ukončit nic nezapíše
         await tab.click('[data-action="mode-again"]');
         await waitQuestion(tab, 1);
         await tab.click('#btn-home');
-        await tab.waitForSelector('[data-action="play-topic"]');
+        await tab.waitForSelector('#leave-mode');
+        assert.equal(await tab.textContent('#dialog-title'), 'Ukončit hru?');
+        await tab.click('[data-leave-mode="stay"]');
+        await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
+        assert.ok(await tab.$('[data-mode-question]'), 'Hrát dál: hra pokračuje');
+        await tab.click('#btn-home');
+        await tab.click('[data-leave-mode="go"]');
+        await nav.waitForHome(tab);
         await tab.waitForTimeout(300);
         assert.equal((await storage(tab, 'mudrlant.modes')).blitz.games, 2, 'odehraná je jen dokončená hra');
         assert.equal(await tab.evaluate(() => Boolean(document.querySelector('[data-mode-question]'))), false);
@@ -401,7 +411,7 @@ test('Bleskovka, Přežití, zvuky a vibrace', { skip: !chromium && 'Playwright 
     await t.test('Nastavení → Hra: Zvuky a Vibrace (výchozí zapnuté), volba se pamatuje, vypnuté zvuky mlčí; karta se vejde', async () => {
         for (const [viewport, colorScheme, limit] of [[{ width: 390, height: 780 }, 'light', 0], [{ width: 360, height: 640 }, 'dark', 0]]) {
             const { context, tab, problems } = await open({ viewport, colorScheme });
-            await tab.click('#btn-settings');
+            await nav.settings(tab);
             await tab.waitForSelector('[data-sound-toggle]');
             assert.equal(await tab.getAttribute('[data-sound-toggle]', 'aria-checked'), 'true');
             assert.equal(await tab.getAttribute('[data-vibration-toggle]', 'aria-checked'), 'true');
@@ -424,7 +434,7 @@ test('Bleskovka, Přežití, zvuky a vibrace', { skip: !chromium && 'Playwright 
             await tab.click('#settings-overlay [data-close]');
             // Po obnovení stránky platí uložená volba a hra mlčí
             await tab.reload();
-            await tab.waitForSelector('[data-action="play-topic"]');
+            await nav.waitForHome(tab);
             await openMode(tab, 'survival');
             await tab.click('[data-action="mode-start"]');
             await waitQuestion(tab, 1);
@@ -432,7 +442,7 @@ test('Bleskovka, Přežití, zvuky a vibrace', { skip: !chromium && 'Playwright 
             await tab.click(`[data-action="mode-choice"][data-index="${wrong}"]`);
             await tab.waitForSelector('[data-mode-lives="2"]');
             assert.deepEqual(await tab.evaluate(() => [window.__tones.length, window.__vibrations.length]), [0, 0], 'vypnuté zvuky i vibrace');
-            await tab.click('#btn-settings');
+            await nav.settings(tab);
             assert.equal(await tab.getAttribute('[data-sound-toggle]', 'aria-checked'), 'false');
             assert.deepEqual(problems, []);
             await context.close();

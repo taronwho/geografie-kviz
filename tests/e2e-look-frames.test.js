@@ -2,6 +2,7 @@
 // Potřebuje Playwright (viz tests/e2e.test.js), jinak se přeskočí.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const nav = require('./nav.js');
 const fs = require('node:fs');
 const path = require('node:path');
 const core = require('../quiz-core.js');
@@ -80,7 +81,7 @@ const setup = async (browser, storage) => {
     await context.addInitScript(entries => {
         if (sessionStorage.getItem('test-storage-set')) return;
         sessionStorage.setItem('test-storage-set', '1');
-        Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
+        Object.entries(entries).forEach(([key, value]) => (key.startsWith('session:') ? sessionStorage.setItem(key.slice(8), value) : localStorage.setItem(key, value)));
     }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), ...storage });
     const tab = await context.newPage();
     const log = { errors: [], csp: [] };
@@ -97,13 +98,13 @@ const setup = async (browser, storage) => {
     await tab.clock.setFixedTime(new Date('2026-10-16T10:00:00'));
     return { context, tab, log };
 };
-const waitForHome = (tab) => tab.waitForFunction(() => { const content = document.getElementById('app-content'); return Boolean(content && (content.textContent.includes('Dnešní otázky') || content.querySelector('#home-tabs'))); }, null, { timeout: 30000 });
+const waitForHome = (tab) => nav.waitForHome(tab);
 const until = async (check, message) => {
     for (let i = 0; i < 60; i++) { if (await check()) return; await new Promise(resolve => setTimeout(resolve, 100)); }
     assert.fail(message);
 };
 const openLook = async (tab) => {
-    await tab.click('#btn-settings');
+    await nav.settings(tab);
     await tab.click('[data-me-tab="profile"]');
     await tab.waitForSelector('[data-frame="bronz"]');
 };
@@ -245,7 +246,7 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
 
         // Cizí hráč s obrázkovým rámečkem (pozvánka do výzvy ve Více hráčích) a můj obrázek v záhlaví
         await tab.click('#settings-overlay [data-close]');
-        await tab.click('[data-action="home-tab"][data-tab="multi"]');
+        await nav.challenges(tab);
         await tab.waitForSelector('#challenges-section [data-player-id="u-2"]');
         assert.match(await tab.getAttribute('#challenges-section [data-player-id="u-2"]', 'class'), /frame-art frame-galaxie/);
         assert.match(await tab.getAttribute('#btn-settings span', 'class'), /frame-art frame-ruze/);
@@ -293,7 +294,7 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         if (process.env.SCREENSHOT_DIR) await tab.screenshot({ path: path.join(process.env.SCREENSHOT_DIR, 'ramecky-sezona.png') });
         // Cizí hráč se zdobnějším rámečkem listopadu (ze Sezónní truhly)
         await tab.click('#settings-overlay [data-close]');
-        await tab.click('[data-action="home-tab"][data-tab="multi"]');
+        await nav.challenges(tab);
         await tab.waitForSelector('#challenges-section [data-player-id="u-2"]');
         assert.match(await tab.getAttribute('#challenges-section [data-player-id="u-2"]', 'class'), /frame-art frame-sezona-11(?!-)/);
         assert.match(await tab.getAttribute('#btn-settings span', 'class'), /frame-art frame-sezona-11-b/);
@@ -346,7 +347,7 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         await tab.click('#settings-overlay [data-close]');
 
         // Pozvánka od Petra: jeho obrázek má zlatý rámeček a v profilu má místo úrovně titul Vítěz
-        await tab.click('[data-action="home-tab"][data-tab="multi"]');
+        await nav.challenges(tab);
         await tab.waitForSelector('#challenges-section [data-player-id="u-2"]');
         assert.match(await tab.getAttribute('#challenges-section [data-player-id="u-2"]', 'class'), /frame-zlato/);
         await tab.click('#challenges-section [data-player-id="u-2"]');
@@ -389,7 +390,7 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         await backend(context, db);
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="profile"]');
         await tab.waitForSelector('#profile-name');
         // Otevřená je skupina s vybraným obrázkem (liška = Zvířátka, 20 základních emoji zdarma)
@@ -399,7 +400,13 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         await tab.click('[data-pic-group="postavicky"]');
         await tab.waitForSelector('[data-pic-group="postavicky"][aria-selected="true"]');
         // Úroveň 20: Knihomol (3), Axolotl (8), Kaktus (13) a Drak čajník (20) jsou odemčené, Mamut DJ (28) ne; za odznaky (turnaje) zamčené s medailí
-        assert.equal(await tab.locator('[data-pick-avatar], [data-locked-avatar]').count(), 21, '21 postaviček za úrovně a odznaky (legendární mají vlastní skupinu)');
+        // 21 postaviček za úrovně a odznaky (legendární mají vlastní skupinu); navíc je vidět zamčená postavička právě běžící Sezóny
+        // (podle dnešního měsíce, od schématu 32), ostatní sezónní jen když je hráč má
+        const seasonal = new Set(require('../look.js').AVATARS.filter(item => item.exclusive).map(item => item.id));
+        const shown = await tab.$$eval('[data-pick-avatar], [data-locked-avatar]', nodes => nodes.map(node => node.dataset.pickAvatar || node.dataset.lockedAvatar));
+        assert.equal(shown.filter(id => !seasonal.has(id)).length, 21, `21 postaviček za úrovně a odznaky: ${shown.join(', ')}`);
+        assert.ok(shown.filter(id => seasonal.has(id)).length <= 1, `nejvýš jedna sezónní (běžící Sezóna): ${shown.join(', ')}`);
+        for (const id of shown.filter(id => seasonal.has(id))) assert.equal(await tab.locator(`[data-locked-avatar="${id}"]`).count(), 1, 'sezónní postavička běžící Sezóny je zamčená');
         assert.equal(await tab.locator('[data-avatar-strip] [data-locked-avatar="albatr"], [data-avatar-strip] [data-pick-avatar="albatr"]').count(), 0);
         assert.deepEqual(await tab.$$eval('[data-pick-avatar]', nodes => nodes.map(node => node.dataset.pickAvatar)), ['cervik', 'axolot', 'kaktus', 'drak']);
         assert.equal(await tab.getAttribute('[data-locked-avatar="mamut"]', 'aria-label'), 'Mamut DJ (zamčeno): Úroveň 28');
@@ -452,7 +459,7 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         assert.equal(await tab.evaluate(() => document.getElementById('btn-settings').textContent.trim()), '', 'v tlačítku je obrázek, ne text');
         await tab.waitForFunction(() => [...document.querySelectorAll('#btn-settings img')].every(img => img.complete && img.naturalWidth > 0));
         // Po novém otevření je Profil zase ve skupině Postavičky s vybraným drakem
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.waitForSelector('[data-pic-group="postavicky"][aria-selected="true"]');
         assert.equal(await tab.getAttribute('[data-pick-avatar="drak"]', 'aria-pressed'), 'true');
         assert.deepEqual(log.errors, []);
@@ -470,10 +477,10 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         await waitForHome(tab);
         await tab.waitForSelector('#btn-settings [data-avatar-art="drak"]');
         // Cizí hráč se starým lvem (úroveň, kterou já nemám) se ukáže jako Galaktický lev
-        await tab.click('[data-action="home-tab"][data-tab="multi"]');
+        await nav.challenges(tab);
         await tab.waitForSelector('#challenges-section [data-player-id="u-2"] [data-avatar-art="lev"] img[src="icons/avatars/lev.webp"]');
         assert.doesNotMatch(await tab.textContent('#challenges-section [data-player-id="u-2"]'), /🦁/);
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="profile"]');
         await tab.waitForSelector('[data-pic-group="postavicky"][aria-selected="true"]');
         assert.equal(await tab.getAttribute('[data-pick-avatar="drak"]', 'aria-pressed'), 'true');
@@ -491,14 +498,14 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         await backend(context, db);
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        await tab.click('[data-action="home-tab"][data-tab="multi"]');
+        await nav.challenges(tab);
         await tab.waitForSelector('#challenges-section [data-player-id="u-2"] [data-avatar-art="caj"] img[src="icons/avatars/caj-17.webp"]');
         assert.equal(await tab.locator('#challenges-section [data-player-id="u-2"] [data-avatar-art="caj"] img[src="icons/avatars/caj.webp"]').count(), 1);
         await tab.click('#challenges-section [data-player-id="u-2"]');
         await tab.waitForSelector('#dialog-overlay [data-avatar-art="caj"] img[src="icons/avatars/caj-17.webp"]');
         await tab.click('#dialog-overlay [data-close]');
         // Výběr: 21 postaviček za úrovně a odznaky a jen vlastněná sezónní (cizí Hrnek čaje ani jiné měsíce tu nejsou, ani zamčené)
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="profile"]');
         await tab.click('[data-pic-group="postavicky"]');
         await tab.waitForSelector('[data-pick-avatar="drakpa"]');
@@ -525,7 +532,7 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         await tab.evaluate(() => localStorage.setItem('mudrlant.rewards', JSON.stringify({})));
         await tab.reload();
         await waitForHome(tab);
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="profile"]');
         await tab.waitForSelector('[data-pic-group="postavicky"][aria-selected="true"]');
         assert.equal(await tab.getAttribute('[data-pick-avatar="drakpa"]', 'aria-pressed'), 'true');
@@ -542,7 +549,7 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
         await tab.waitForSelector('#btn-settings [data-avatar-art="pernik"] img[src="icons/avatars/pernik-12.webp"]');
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="profile"]');
         await tab.waitForSelector('[data-pic-group="postavicky"][aria-selected="true"]');
         assert.equal(await tab.locator('[data-pick-avatar], [data-locked-avatar]').count(), 33);
@@ -582,7 +589,7 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         await backend(context, db);
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="profile"]');
         await tab.waitForSelector('#profile-name');
         await tab.click('[data-pic-group="legendy"]');
@@ -610,7 +617,7 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         assert.equal(db.profiles['u-1'].avatar, 'albatr04');
         // Po novém otevření je Profil ve skupině Legendy
         await tab.click('#settings-overlay [data-close]');
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.waitForSelector('[data-pic-group="legendy"][aria-selected="true"]');
         assert.equal(await tab.getAttribute('[data-pick-avatar="albatr"]', 'aria-pressed'), 'true');
         assert.deepEqual(log.errors, []);
@@ -624,7 +631,7 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
         const before = await tab.evaluate(() => localStorage.getItem('mudrlant.progress'));
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-dev="all"]');
         await tab.waitForFunction(() => /Hotovo: Odemknout úplně vše/.test(document.getElementById('settings-overlay').textContent));
         await tab.click('[data-me-tab="profile"]');
@@ -641,7 +648,7 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         await waitForHome(tab);
         assert.equal(await tab.evaluate(() => window.MudrlantLook.devUnlockAll()), true);
         // Vrátit můj postup: postup i zámky jako dřív
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="game"]');
         await tab.click('[data-dev="restore"]');
         await tab.waitForFunction(() => !window.MudrlantLook.devUnlockAll());
@@ -661,14 +668,14 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
         const before = await tab.evaluate(() => localStorage.getItem('mudrlant.rewards'));
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-dev="chest"]');
         await tab.waitForSelector('#chest-overlay [data-chest-go]');
         await tab.click('#chest-overlay [data-chest-go]');
         await tab.waitForSelector('#chest-overlay [data-chest-reveal]');
         await tab.click('#chest-overlay [data-chest-close]');
         // Sezóna: okno s cestou, všechny stupně čekají na vyzvednutí
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-dev="season"]');
         await tab.waitForSelector('#dialog-overlay [data-season-tier="20"][data-state="ready"]');
         assert.equal(await tab.locator('#dialog-overlay [data-season-tier][data-state="ready"]').count(), 20);
@@ -681,7 +688,7 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         await tab.keyboard.press('Escape');
         assert.equal(db.profiles['u-1'].rewards, undefined, 'zkušební odměny se do účtu nezapíšou');
         // Vrátit můj postup: odměny jako předtím
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-dev="restore"]');
         await tab.waitForFunction((value) => localStorage.getItem('mudrlant.rewards') === value, before);
         assert.equal(await tab.evaluate(() => localStorage.getItem('mudrlant.dev.seasonXp')), null);
@@ -696,7 +703,7 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         await backend(context, db, { noExtras: true, calls });
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        await tab.click('[data-action="home-tab"][data-tab="multi"]');
+        await nav.challenges(tab);
         // Pozvánka se načte i bez sloupců (zopakuje se bez nich)
         await tab.waitForSelector('#challenges-section [data-player-id="u-2"]');
         assert.equal(await tab.getAttribute('#challenges-section [data-player-id="u-2"]', 'class').then(value => /frame-/.test(value)), false);
@@ -706,7 +713,7 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         assert.ok(calls.some(call => /challenges\?select=[^ ]*creator:profiles!creator_id\(id,display_name,avatar,color\)/.test(call)), 'další požadavky už rovnou bez nich');
         assert.ok(!calls.some(call => call.includes('/challenges') && /frame/.test(call)));
         // Volba rámečku se uloží aspoň na zařízení, účet se nezmění a nic neselže
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="profile"]');
         await tab.click('[data-frame="bronz"]');
         await tab.waitForFunction(() => document.querySelector('[data-frame="bronz"]').getAttribute('aria-pressed') === 'true');

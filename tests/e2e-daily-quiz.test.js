@@ -8,6 +8,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const fixtures = require('./fixtures.js');
+const nav = require('./nav.js');
 
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
@@ -326,7 +327,7 @@ test('Kvíz dne v prohlížeči', { skip: !chromium && 'Playwright není nainsta
         await tab.waitForSelector('[data-action="choice"]', { timeout: 60000 });
         assert.equal(await tab.locator('#quiz-intro').count(), 0, 'bez úvodu rovnou první otázka');
         // Nastavení → Hra: řádek Úvod Kvízu dne (jen když je vypnutý) ho zase zapne
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.waitForSelector('[data-quiz-intro-toggle]');
         await tab.click('[data-quiz-intro-toggle]');
         await tab.waitForFunction(() => localStorage.getItem('mudrlant.quizSkipIntro') === null);
@@ -492,7 +493,7 @@ test('Kvíz dne v prohlížeči', { skip: !chromium && 'Playwright není nainsta
             navigator.canShare = (data) => Boolean(data && data.files && data.files.length);
             navigator.share = async (data) => { window.__shared = { files: (data.files || []).map(file => ({ name: file.name, type: file.type, size: file.size })), text: data.text || '' }; };
         });
-        await tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await nav.daily(tab, 'zemepis');
         await tab.waitForSelector('[data-action="choice"]', { timeout: 60000 });
         await tab.click('[data-action="choice"] >> nth=0');
         await tab.waitForSelector('[data-action="share-image"]');

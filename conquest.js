@@ -2223,8 +2223,11 @@
     const fromLine = (invite, cls) => (invite && invite.invited_by && invite.invited_by.display_name ? nameLine(invite, { before: 'Pozvánka od ', cls })
         : `<span class="truncate ${cls}">Pozvánka do hry</span>`);
 
-    // Karta na záložce Více hráčů: moje rozehraná hra (náhled, zbývá, tahy) nebo pozvánka do lobby; pozvánka od přítele (invites) jako
+    // Řádek Dobývání v části Čeká na tebe (záložka Soupeři): moje rozehraná hra (náhled, zbývá, tahy) nebo pozvánka do lobby; pozvánka od přítele (invites) jako
     // hlavní obsah karty, nebo s rozehranou hrou jako proužek pod ní, vždy s tlačítkem Přidat se (barva a znak, pak do hry)
+    // Tlačítko akce v řádku na záložce Soupeři: stejná šířka, výška a rozložení jako ostatní tlačítka řádků (app.js CTA_BRAND)
+    const HOME_CTA = 'btn-3d flex h-10 w-[6rem] shrink-0 items-center gap-1 whitespace-nowrap rounded-xl bg-brand-700 pl-2.5 pr-1.5 text-[13px] font-black leading-none text-white short:h-9';
+    const HOME_CARD = 'rounded-[1.15rem] bg-white shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-800/80 dark:ring-slate-700/70';
     const homeCardHtml = ({ games = null, invites = [], maps = {}, now = Date.now(), loading = false, avatar = null }) => {
         const running = (games || []).filter(game => game.status === 'running');
         const waiting = (games || []).filter(game => game.status === 'lobby');
@@ -2247,34 +2250,56 @@
                     ${head}<span class="truncate text-[11.5px] font-bold text-slate-600 dark:text-slate-300">${esc(mapTitle(first.map))} · zbývá ${esc(timeLeft((parseTime(first.ends_at) || now) - now))}${esc(more)}</span>
                     <span class="flex items-center gap-1 text-[11.5px] font-black text-brand-800 dark:text-gold-200" data-conquest-moves>${meSeat !== undefined ? pennantSvg(first.players.find(p => p.me).flag_color, first.players.find(p => p.me).emblem, 'h-3.5 w-4') : ''}Tahy ${budget.left}/${budget.total}</span></span>
                 </button>
-                <button type="button" data-action="conquest-play" data-game="${esc(first.id)}" class="${GOLD_BUTTON} shrink-0 px-3.5"><i data-lucide="play" class="h-4 w-4"></i> Hrát</button>`;
-            if (!invite) return `<div id="conquest-card" class="flex items-center gap-2.5 ${CARD} cq-card-paper p-1.5 pr-2">${row}</div>`;
-            return `<div id="conquest-card" class="flex flex-col gap-1.5 ${CARD} cq-card-paper p-1.5 pr-2">
+                <button type="button" data-action="conquest-play" data-game="${esc(first.id)}" data-cta class="${HOME_CTA}"><i data-lucide="play" class="h-4 w-4 shrink-0"></i><span data-cta-label class="min-w-0 flex-1 text-center">Hrát</span></button>`;
+            if (!invite) return `<div id="conquest-card" class="flex items-center gap-2.5 ${HOME_CARD} cq-card-paper p-2 pr-3 max-[379px]:pr-2.5">${row}</div>`;
+            return `<div id="conquest-card" class="flex flex-col gap-1.5 ${HOME_CARD} cq-card-paper p-2 pr-3 max-[379px]:pr-2.5">
                 <div class="flex items-center gap-2.5">${row}</div>
                 <div data-cq-card-invite="${esc(invite.id)}" class="flex items-center gap-2 border-t border-amber-900/15 pt-1.5 dark:border-gold-200/15">
                     ${draw(invite.invited_by || {}, 'h-8 w-8 text-base')}
                     <span class="flex min-w-0 flex-1 flex-col leading-tight">${fromLine(invite, 'text-[12px] font-bold text-slate-700 dark:text-slate-200')}<span class="truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${esc(mapTitle(invite.map))} · ${esc(minutesLabel(gameMinutes(invite)))}${esc(moreInvites)}</span></span>
-                    <button type="button" data-action="conquest-invite" data-game="${esc(invite.id)}" class="${BRAND_BUTTON} min-h-[2.25rem] shrink-0"><i data-lucide="user-plus" class="h-4 w-4"></i> Přidat se</button>
+                    <button type="button" data-action="conquest-invite" data-game="${esc(invite.id)}" data-cta class="${HOME_CTA}"><i data-lucide="user-plus" class="h-4 w-4 shrink-0"></i><span data-cta-label class="min-w-0 flex-1 text-center">Přidat se</span></button>
                 </div>
             </div>`;
         }
         if (invite) {
-            return `<div id="conquest-card" class="flex items-center gap-2.5 ${CARD} cq-card-paper p-1.5 pr-2">
+            return `<div id="conquest-card" class="flex items-center gap-2.5 ${HOME_CARD} cq-card-paper p-2 pr-3 max-[379px]:pr-2.5">
                 <button type="button" data-action="conquest-open" class="flex min-w-0 flex-1 items-center gap-2.5 text-left" aria-label="Otevřít Dobývání">
                     <span class="relative shrink-0">${art(ART.card, 'h-11 w-11 -my-1')}<span class="absolute -bottom-1.5 -right-1.5 rounded-full ring-2 ring-white dark:ring-slate-800">${draw(invite.invited_by || {}, 'h-6 w-6 text-xs')}</span></span>
                     ${head}${fromLine(invite, 'text-[12px] font-bold text-slate-600 dark:text-slate-300')}
                     <span class="truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${esc(mapTitle(invite.map))} · ${esc(minutesLabel(gameMinutes(invite)))}${esc(moreInvites)}</span></span>
                 </button>
-                <button type="button" data-action="conquest-invite" data-game="${esc(invite.id)}" class="${GOLD_BUTTON} shrink-0"><i data-lucide="user-plus" class="h-4 w-4"></i> Přidat se</button>
+                <button type="button" data-action="conquest-invite" data-game="${esc(invite.id)}" data-cta class="${HOME_CTA}"><i data-lucide="user-plus" class="h-4 w-4 shrink-0"></i><span data-cta-label class="min-w-0 flex-1 text-center">Přidat se</span></button>
             </div>`;
         }
         const text = loading && !games ? 'Načítám hry…' : waiting.length ? (waiting.length === 1 ? 'Tvoje hra čeká na další hráče' : `Tvoje hry čekají na další hráče (${waiting.length})`) : 'Najdi hru nebo založ vlastní';
-        return `<div id="conquest-card" class="flex items-center gap-2.5 ${CARD} cq-card-paper p-1.5 pr-2">
+        return `<div id="conquest-card" class="flex items-center gap-2.5 ${HOME_CARD} cq-card-paper p-2 pr-3 max-[379px]:pr-2.5">
             <button type="button" data-action="conquest-open" class="flex min-w-0 flex-1 items-center gap-2.5 text-left">
                 ${art(ART.card, 'h-11 w-11 -my-1')}${head}<span class="truncate text-[12px] font-bold text-slate-600 dark:text-slate-300">${esc(text)}</span></span>
             </button>
             <button type="button" data-action="conquest-open" class="${BRAND_BUTTON} shrink-0"><i data-lucide="swords" class="h-4 w-4"></i> Otevřít</button>
         </div>`;
+    };
+
+    // Dlaždice Dobývání na záložce Soupeři: krátký stav (běžící hra a zbývající tahy, pozvánka, hra čekající na hráče) a počet věcí,
+    // které čekají na hráče (pozvánky a běžící hry, ve kterých má ještě tahy). html = stav bezpečně pro vložení do stránky.
+    const homeTile = ({ games = null, invites = [], now = Date.now(), loading = false } = {}) => {
+        const running = (games || []).filter(game => game.status === 'running');
+        const waiting = (games || []).filter(game => game.status === 'lobby');
+        const count = (invites || []).length;
+        const movable = running.filter(game => (game.budget || { left: 0 }).left > 0).length;
+        const first = running.find(game => (game.budget || { left: 0 }).left > 0) || running[0];
+        let html;
+        if (first) {
+            const budget = first.budget || { left: 0, total: first.actions };
+            const more = running.length > 1 ? ` · +${running.length - 1}` : '';
+            html = `${esc(mapTitle(first.map))} · <span data-conquest-moves class="font-black text-brand-800 dark:text-gold-200">Tahy ${budget.left}/${budget.total}</span> · zbývá ${esc(timeLeft((parseTime(first.ends_at) || now) - now))}${esc(more)}`;
+        } else if (count) {
+            const from = invites[0] && invites[0].invited_by && invites[0].invited_by.display_name;
+            html = esc(count === 1 ? (from ? `Zve tě ${from}` : 'Máš pozvánku do hry') : `Pozvánky do her: ${count}`);
+        } else {
+            html = esc(loading && !games ? 'Načítám hry…' : waiting.length ? (waiting.length === 1 ? 'Tvoje hra čeká na další hráče' : `Tvoje hry čekají na další hráče (${waiting.length})`) : 'Najdi hru nebo založ vlastní');
+        }
+        return { html, badge: count + movable, waits: count > 0 || movable > 0 };
     };
 
     // Rozcestník Dobývání: záložky Moje hry / Lobby / Založit hru
@@ -2509,7 +2534,7 @@
         let list;
         if (loading) list = '<p class="px-1 py-5 text-center text-[13px] font-semibold text-amber-900/75 dark:text-gold-200/80">Načítám přátele…</p>';
         else if (!friends) list = `<div class="flex items-center gap-3 px-1">${art('sova-ceka', 'h-12 w-12')}<p class="min-w-0 text-[13px] font-semibold leading-snug text-slate-700 dark:text-slate-200">Přátele se nepodařilo načíst. Zkontroluj připojení a zkus to znovu.</p></div>`;
-        else if (!any) list = `<div data-cq-no-friends class="flex items-center gap-3 px-1">${art('sova-dalekohled', 'h-12 w-12')}<p class="min-w-0 text-[13px] font-semibold leading-snug text-slate-700 dark:text-slate-200">Zatím nemáš přátele. Přidáš je v profilu hráče na záložce Více hráčů.</p></div>`;
+        else if (!any) list = `<div data-cq-no-friends class="flex items-center gap-3 px-1">${art('sova-dalekohled', 'h-12 w-12')}<p class="min-w-0 text-[13px] font-semibold leading-snug text-slate-700 dark:text-slate-200">Zatím nemáš přátele. Najdeš je na záložce Soupeři: u Přátel klepni na plus.</p></div>`;
         else list = `<ul data-cq-friend-list role="group" aria-label="Přátelé" class="-mx-1 flex max-h-[min(19rem,46dvh)] flex-col gap-1 overflow-y-auto px-1 py-0.5">${friends.map(friend => {
             const status = joined.includes(friend.id) ? 'Už hraje' : invited.includes(friend.id) ? 'Pozváno' : '';
             const on = chosen.has(friend.id) && !status;
@@ -3105,7 +3130,7 @@
         extraChipHtml, fiftyButtonHtml, halfBadge,
         buildQuestion, prepareQuestion, completeQuestion, isFullQuestion, moveTitle, accusativeOf, ROUND_TIMEOUT, formPlan, FORM_IDS, GROUPS, RELATIONAL_CAP, MUDRLANT_IDS, nearDuplicate,
         answerKey, familyPlan, kindsFor, placesOf, poolsOf, formsOf, FAMILY_IDS, FAMILY_DOMAIN, DOMAINS, FAMILY_CAP, flagUrl, flagFallback, THUMB, feedItems, replaySteps, capturedWord, hatchPattern, levelIcon, iconMarkup,
-        pennantSvg, pennantGroup, emblemSvg, sealSvg, mapSvg, thumbSvg, marksFor, clockText, localTime, roundHtml, roundChipHtml, ROUND_COUNTDOWN, fastPeriod, battleWaitHtml, battleResultHtml, joinedHtml, fightersHtml, siegeChipsHtml, RISK_TEXT, homeCardHtml, hubHtml, mineHtml, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,
+        pennantSvg, pennantGroup, emblemSvg, sealSvg, mapSvg, thumbSvg, marksFor, clockText, localTime, roundHtml, roundChipHtml, ROUND_COUNTDOWN, fastPeriod, battleWaitHtml, battleResultHtml, joinedHtml, fightersHtml, siegeChipsHtml, RISK_TEXT, homeCardHtml, homeTile, hubHtml, mineHtml, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,
         gameScreenHtml, playersStripHtml, recentHtml, sheetHtml, devBarHtml, questionHtml, feedHtml, resultHtml, helpHtml, HELP_TABS, mapTitle, paramChips,
         // Pozvánky přátel (blok 24)
         friendsPickerHtml, inviteCardHtml, inviteLine, invitePromptHtml

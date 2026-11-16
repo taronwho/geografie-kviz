@@ -8,6 +8,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const fixtures = require('./fixtures.js');
+const nav = require('./nav.js');
 const Core = require('../quiz-core.js');
 const Season = require('../season.js');
 const Look = require('../look.js');
@@ -85,7 +86,7 @@ test('album sbírky: sekce, podrobnosti, Nasadit a oslava milníku', { skip: !ch
         tab.on('pageerror', error => problems.push(error.message));
         tab.on('console', message => { if (/Content Security Policy/i.test(message.text())) problems.push(message.text()); });
         await tab.goto(`${origin}/`);
-        await tab.waitForSelector('[data-action="play-topic"]');
+        await nav.waitForHome(tab);
         return { context, tab, problems };
     };
     const storage = (tab, key) => tab.evaluate((name) => JSON.parse(localStorage.getItem(name)), key);
@@ -115,7 +116,7 @@ test('album sbírky: sekce, podrobnosti, Nasadit a oslava milníku', { skip: !ch
         await clearCelebrations(tab);
         // Další spuštění už milník neslaví
         await tab.reload();
-        await tab.waitForSelector('[data-action="play-topic"]');
+        await nav.waitForHome(tab);
         await tab.waitForTimeout(1500);
         const texts = await tab.evaluate(() => [...document.querySelectorAll('#celebration, #celebration-mini')].map(el => el.textContent).join(' '));
         assert.doesNotMatch(texts, /Album sbírky/);
@@ -127,21 +128,21 @@ test('album sbírky: sekce, podrobnosti, Nasadit a oslava milníku', { skip: !ch
 
     for (const [viewport, colorScheme] of [[{ width: 390, height: 780 }, 'light'], [{ width: 390, height: 780 }, 'dark'], [{ width: 360, height: 640 }, 'light'], [{ width: 360, height: 640 }, 'dark']]) {
         const tag = `${viewport.width}-${colorScheme}`;
-        await t.test(`okno alba z Mého postupu: sekce bez posouvání, počty a procenta (${tag})`, async () => {
+        await t.test(`okno alba ze záložky Postup: sekce bez posouvání, počty a procenta (${tag})`, async () => {
             const { context, tab, problems } = await open({ viewport, colorScheme });
             await clearCelebrations(tab);
             await tab.evaluate(() => document.getElementById('status-badge').click());
-            await tab.waitForSelector('[data-progress-dialog] [data-rewards-info="album"]');
+            await tab.waitForSelector('#tab-postup [data-rewards-info="album"]');
             const tile = (await tab.textContent('[data-rewards-info="album"]')).replace(/\s+/g, ' ');
-            assert.match(tile, /Album sbírky\s*\d+ % sbírky/);
-            const scroll = await overflow(tab);
+            assert.match(tile, /Album\s*\d+ %/);
+            await tab.waitForTimeout(300);
+            const scroll = await tab.evaluate(() => { const content = document.getElementById('app-content'); return { y: content.firstElementChild.scrollHeight - content.clientHeight, x: document.documentElement.scrollWidth - document.documentElement.clientWidth }; });
             assert.equal(scroll.x, 0);
-            if (viewport.height >= 780) assert.equal(scroll.y, 0, `Můj postup s dlaždicí alba bez posouvání (${scroll.y} px)`);
-            else assert.ok(scroll.y <= 24, `Můj postup na 360×640 nejvýš trochu (${scroll.y} px)`);
+            assert.equal(scroll.y, 0, `záložka Postup s dlaždicí alba bez posouvání (${scroll.y} px)`);
             await shot(tab, `muj-postup-album-${tag}`);
             await tab.click('[data-rewards-info="album"]');
             await tab.waitForSelector('[data-album]');
-            const percent = Number((await tab.textContent('[data-album-percent]')).replace(/\D+/g, ''));
+            const percent = Number((await tab.textContent('#dialog-overlay [data-album-percent]')).replace(/\D+/g, ''));
             assert.ok(percent >= 25 && percent < 100, `procenta ${percent}`);
             assert.equal(Number(tile.match(/(\d+) %/)[1]), percent, 'dlaždice ukazuje stejná procenta');
             assert.deepEqual(await tab.$$eval('[data-album-tab]', nodes => nodes.map(node => node.dataset.albumTab)), SECTIONS);
@@ -159,13 +160,13 @@ test('album sbírky: sekce, podrobnosti, Nasadit a oslava milníku', { skip: !ch
                 const box = await overflow(tab);
                 assert.equal(box.x, 0, `${section}: bez vodorovného posouvání`);
                 // Okno ani stránka se neposouvají; doplňků Mudrlanta je přes 60 (se sadami k tématům), odznaků přes 50 a postaviček s legendárními
-                // 35: dlouhá mřížka se posouvá uvnitř sekce (dlaždice aspoň 40 px), nadpis okna, záložky a tlačítko zpět zůstanou vidět
+                // 35: dlouhá mřížka se posouvá uvnitř sekce (dlaždice aspoň 40 px), nadpis okna, záložky a křížek zůstanou vidět
                 assert.equal(box.y, 0, `${section}: okno bez posouvání (${box.y} px)`);
                 const grid = await tab.evaluate(() => { const list = document.querySelector('[data-album-scroll]'); return { over: list.scrollHeight - list.clientHeight }; });
                 if (section === 'badges' || section === 'accessories') {
                     assert.ok(grid.over > 0, `${section}: mřížka se posouvá uvnitř`);
                     await tab.evaluate(() => { const list = document.querySelector('[data-album-scroll]'); list.scrollTop = list.scrollHeight / 2; });
-                    for (const selector of ['[data-dialog-back]', '[data-album-tab="avatars"]', '#dialog-title']) {
+                    for (const selector of ['#dialog-overlay [data-close]', '[data-album-tab="avatars"]', '#dialog-title']) {
                         const seen = await tab.locator(selector).boundingBox();
                         assert.ok(seen && seen.y >= 0 && seen.y + seen.height <= viewport.height, `${section}: ${selector} na obrazovce`);
                     }
@@ -184,9 +185,11 @@ test('album sbírky: sekce, podrobnosti, Nasadit a oslava milníku', { skip: !ch
             await shot(tab, `album-odmeny-${tag}`);
             await tab.click('[data-album-back]');
             await tab.waitForSelector('[data-album]');
-            // Zpět na Můj postup
-            await tab.click('[data-dialog-back]');
-            await tab.waitForSelector('[data-progress-dialog]');
+            // Křížek album zavře a jsme zpět na záložce Postup
+            assert.equal(await tab.locator('#dialog-overlay [data-dialog-back]').count(), 0);
+            await tab.click('#dialog-overlay [data-close]');
+            await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
+            assert.equal(await nav.currentTab(tab), 'postup');
             assert.deepEqual(problems, []);
             await context.close();
         });
@@ -292,7 +295,7 @@ test('album sbírky: sekce, podrobnosti, Nasadit a oslava milníku', { skip: !ch
         const progress = await storage(tab, 'mudrlant.progress');
         for (const badge of Core.BADGES.filter(entry => Core.isAlbumBadge(entry.id))) assert.ok(progress.badges[badge.id], badge.id);
         await openAlbum(tab);
-        assert.equal(await tab.textContent('[data-album-percent]'), '100 %');
+        assert.equal(await tab.textContent('#dialog-overlay [data-album-percent]'), '100 %');
         await tab.click('[data-album-tab="frames"]');
         await tab.click('[data-album-item="frames:sberatel"]');
         assert.equal(await tab.getAttribute('[data-album-status]', 'data-album-status'), 'owned');

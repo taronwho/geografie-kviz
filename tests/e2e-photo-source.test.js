@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const fixtures = require('./fixtures.js');
+const nav = require('./nav.js');
 const Source = require('../photo-source.js');
 
 let chromium = null;
@@ -81,8 +82,8 @@ test('zdroj obrázku: „i“ u vlajky před odpovědí a po ní', { skip: !chro
             if (message.type() === 'error' && !/\/(data\/fakt|version)\.json$/.test(message.location().url || '')) log.console.push(message.text());
         });
         await tab.goto(`${origin}/`);
-        await tab.waitForSelector('#btn-learn', { timeout: 30000 });
-        await tab.click('#btn-learn');
+        await nav.waitForHome(tab);
+        await nav.learn(tab);
         if (atlas) {
             // Atlas učení (zeměpis, velkoměsta popořadě): karta s fotkou, žádná otázka
             await tab.click('[data-action="learn-topic"][data-topic="zemepis"]');

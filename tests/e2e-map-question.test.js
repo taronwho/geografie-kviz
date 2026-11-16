@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const fixtures = require('./fixtures.js');
+const nav = require('./nav.js');
 
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
@@ -47,7 +48,7 @@ test('otázka „Ukaž na mapě“', { skip: !chromium && 'Playwright není nain
         await context.addInitScript((entries) => {
             if (sessionStorage.getItem('seeded')) return;
             sessionStorage.setItem('seeded', '1');
-            Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
+            Object.entries(entries).forEach(([key, value]) => (key.startsWith('session:') ? sessionStorage.setItem(key.slice(8), value) : localStorage.setItem(key, value)));
         }, {
             'mudrlant.account': JSON.stringify('host'), 'mudrlant.variant': variant, 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.tips': JSON.stringify({ off: true }),
             'mudrlant.settings': JSON.stringify({ tier: 'known', seen: ['zemepis'], categories: { zemepis: categories } }), 'mudrlant.mapGap': String(gap), ...storage
@@ -66,11 +67,11 @@ test('otázka „Ukaž na mapě“', { skip: !chromium && 'Playwright není nain
         tab.on('pageerror', error => problems.push(error.message));
         tab.on('console', message => { if (/Content Security Policy/i.test(message.text())) problems.push(message.text()); });
         await tab.goto(`${origin}/`);
-        await tab.waitForSelector('[data-action="play-topic"][data-topic="zemepis"]');
+        await nav.waitForHome(tab);
         return { context, tab, problems };
     };
     const startZemepis = async (tab) => {
-        await tab.click('[data-action="play-topic"][data-topic="zemepis"]');
+        await nav.topic(tab, 'zemepis');
         await tab.waitForSelector('[data-action="map-confirm"], [data-action="choice"], #answer-form', { timeout: 30000 });
     };
     const waitForMap = (tab, selector = '[data-map-question]') => tab.waitForSelector(`${selector} svg path`, { timeout: 30000 });
@@ -287,7 +288,7 @@ test('otázka „Ukaž na mapě“', { skip: !chromium && 'Playwright není nain
     await t.test('režim Ukaž na mapě (zkušební): z výběru tématu jen otázky na mapě, jedna za druhou', async () => {
         // gap 0 = v běžném procvičování by otázka na mapě teď nepřišla; režim ji dá vždy
         const { context, tab, problems } = await open({ gap: 0, storage: { 'mudrlant.settings': JSON.stringify({ tier: 'known', seen: [], categories: { zemepis: ['mesto'] } }) } });
-        await tab.click('[data-action="play-topic"][data-topic="zemepis"]');
+        await nav.topic(tab, 'zemepis', { play: false });
         await tab.waitForSelector('#play-chooser [data-chooser-map]');
         await tab.click('#play-chooser [data-chooser-map]');
         for (let i = 0; i < 3; i++) {
@@ -305,11 +306,11 @@ test('otázka „Ukaž na mapě“', { skip: !chromium && 'Playwright není nain
 
     await t.test('dnešní otázky a procvičování chyb otázku na mapě nemají, počítadlo se nemění', async () => {
         const { context, tab, problems } = await open({ storage: { 'mudrlant.mistakes': JSON.stringify(['zemepis:Q5000', 'zemepis:Q64']) } });
-        await tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await nav.daily(tab, 'zemepis');
         await tab.waitForSelector('[data-action="choice"]', { timeout: 30000 });
         assert.equal(await tab.$('[data-action="map-confirm"]'), null);
         assert.equal(await stored(tab, 'mudrlant.mapGap'), 10);
-        await tab.click('#btn-learn');
+        await nav.learn(tab);
         await tab.click('[data-action="learn-mistakes"]');
         await tab.click('[data-action="practice-mistakes"]');
         await tab.waitForSelector('[data-action="choice"]', { timeout: 30000 });

@@ -1,4 +1,4 @@
-// Dobývání v prohlížeči s falešným Supabase v paměti (jako tests/e2e-groups.test.js): karta na záložce Více hráčů, rozcestník (Moje hry,
+// Dobývání v prohlížeči s falešným Supabase v paměti (jako tests/e2e-groups.test.js): dlaždice na záložce Soupeři, rozcestník (Moje hry,
 // Lobby s Rychlými hrami, Založit hru), okno Barva a znak (obsazená barva nejde), založení soukromé hry, detail lobby (kód, Chci hrát,
 // začátek hry), obrazovka hry (mapa se vejde na 360×640 bez posouvání, klepnutí na území, spodní list, otázka, dobytí, opevnění,
 // odražený útok, přiblížení, kronika tažení), konec hry (stupně vítězů, odměna jen jednou, přehrání), pomůcky (zásoba v rozcestníku,
@@ -7,6 +7,7 @@
 // SCREENSHOT_DIR=/cesta uloží snímky (dobyvani-*.png). Potřebuje Playwright (viz tests/e2e.test.js), jinak se přeskočí.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const nav = require('./nav.js');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -353,8 +354,8 @@ const setup = async (browser, { viewport = { width: 360, height: 640 }, colorSch
     await context.addInitScript(entries => {
         if (sessionStorage.getItem('test-storage-set')) return;
         sessionStorage.setItem('test-storage-set', '1');
-        Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
-    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), 'mudrlant.homeTab': JSON.stringify('multi'), 'mudrlant.tips': JSON.stringify({ off: true }), ...login('tok-u1'), ...storage });
+        Object.entries(entries).forEach(([key, value]) => (key.startsWith('session:') ? sessionStorage.setItem(key.slice(8), value) : localStorage.setItem(key, value)));
+    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), 'session:mudrlant.nav': 'souperi', 'mudrlant.tips': JSON.stringify({ off: true }), ...login('tok-u1'), ...storage });
     const tab = await context.newPage();
     const log = { errors: [], csp: [] };
     tab.on('pageerror', error => log.errors.push(error.message));
@@ -445,25 +446,17 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         return page;
     };
 
-    await t.test('karta na Více hráčů, rozcestník, Lobby s Rychlými hrami, založení soukromé hry, Barva a znak, Chci hrát a začátek hry', async () => {
+    await t.test('dlaždice na záložce Soupeři, rozcestník, Lobby s Rychlými hrami, založení soukromé hry, Barva a znak, Chci hrát a začátek hry', async () => {
         const db = newDb();
         db.autoJoin = true;
         const { context, tab, log } = await start(db);
         await tab.waitForFunction(() => /Najdi hru nebo založ vlastní/.test(document.getElementById('conquest-card').textContent));
-        const order = await tab.evaluate(() => [document.getElementById('conquest-card'), document.querySelector('[data-action="new-challenge"]')].map(el => el.getBoundingClientRect().top));
-        assert.ok(order[0] < order[1], 'karta je nahoře');
+        // Dlaždice Dobývání je jedna ze čtyř dlaždic záložky Soupeři (Výzvy, Dobývání, Turnaje, Skupiny); bez hry a pozvánky nic nečeká
+        assert.deepEqual(await tab.$$eval('#souperi-tiles > *', tiles => tiles.map(tile => tile.id)), ['challenges-tile', 'conquest-card', 'tournaments-tile', 'groups-tile']);
+        assert.equal(await tab.locator('#conquest-wait').count(), 0, 'bez hry na tahu není řádek v Čeká na tebe');
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 }, 'záložka Soupeři se vejde na 360×640');
         await shot(tab, 'karta-360');
-        // Karta zůstane nahoře i po doběhnutí náběhové animace; fitMulti ji přesune na začátek panelu seznamů jen tehdy, když se záložka
-        // nevejde ani s panelem v nejmenší výšce (tady velmi nízké okno), a po zvětšení okna ji vrátí nahoru. Stránka se neposouvá.
-        const inPanel = () => tab.evaluate(() => Boolean(document.getElementById('conquest-card').closest('[data-multi-more]')));
-        await tab.waitForTimeout(700);
-        assert.equal(await inPanel(), false, 'karta není v panelu seznamů');
-        await tab.setViewportSize({ width: 360, height: 340 });
-        await tab.waitForFunction(() => Boolean(document.getElementById('conquest-card').closest('[data-multi-more]')));
-        assert.ok(await tab.evaluate(() => { const c = document.getElementById('app-content'); return c.firstElementChild.scrollHeight <= c.clientHeight + 1; }), 'po přesunu karty se záložka vejde');
-        await tab.setViewportSize({ width: 360, height: 640 });
-        await tab.waitForFunction(() => !document.getElementById('conquest-card').closest('[data-multi-more]'));
-        await tab.click('#conquest-card [data-action="conquest-open"]');
+        await tab.click('#conquest-card');
         await tab.waitForSelector('#conquest-hub');
         assert.match(await tab.textContent('#status-text'), /Dobývání/);
         await tab.waitForSelector('#conquest-hub [data-cq-tab="mine"][aria-selected="true"]');
@@ -536,7 +529,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
     await t.test('vývojář: boti do lobby (+1 bot, Doplnit boty), plná hra začne; ve hře Boti odehrají tahy a Další období; bez vývojářského režimu lišta není', async () => {
         const db = newDb();
         const { context, tab, log } = await start(db, { storage: { 'mudrlant.dev': '1' } });
-        await tab.click('#conquest-card [data-action="conquest-open"]');
+        await tab.click('#conquest-card');
         await tab.waitForSelector('#conquest-hub');
         await tab.click('[role="tab"][data-cq-tab="create"]');
         await tab.click('[data-cq-set="map"][data-value="evropa"]');
@@ -611,7 +604,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         const plain = newDb();
         plain.autoJoin = true;
         const second = await start(plain);
-        await second.tab.click('#conquest-card [data-action="conquest-open"]');
+        await second.tab.click('#conquest-card');
         await second.tab.waitForSelector('#conquest-hub');
         await second.tab.click('[role="tab"][data-cq-tab="create"]');
         await second.tab.click('[data-cq-form] button[type="submit"]');
@@ -639,7 +632,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             const db = running();
             const { context, tab, log } = await start(db, { viewport: { width, height }, colorScheme });
             await tab.waitForFunction(() => /Tahy 5\/5/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
-            await tab.click('#conquest-card [data-action="conquest-play"]');
+            await tab.click('#conquest-wait [data-action="conquest-play"]');
             await tab.waitForSelector('#conquest-game [data-cq-map] svg');
             await tab.waitForTimeout(200);
             assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 }, 'obrazovka hry se vejde bez posouvání');
@@ -800,7 +793,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         const g = db.games[0];
         const { context, tab, log } = await start(db);
         await tab.waitForFunction(() => /Tahy 5\/5/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
-        await tab.click('#conquest-card [data-action="conquest-play"]');
+        await tab.click('#conquest-wait [data-action="conquest-play"]');
         await tab.waitForSelector('#conquest-game [data-cq-map] svg');
         await tapTerritory(tab, 'Q40');
         await tab.waitForSelector('[data-cq-sheet] [data-cq="attack"]');
@@ -856,7 +849,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         g.siegeRev = 1;
         const { context, tab, log } = await start(db, { viewport: { width: 390, height: 780 }, colorScheme: 'dark', storage: login('tok-u2') });
         await tab.waitForFunction(() => /Tahy 5\/5/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
-        await tab.click('#conquest-card [data-action="conquest-play"]');
+        await tab.click('#conquest-wait [data-action="conquest-play"]');
         await tab.waitForSelector('#conquest-game [data-cq-map] svg');
         assert.equal(await tab.locator('[data-siege-zone="Q40"]').count(), 1, 'obléhané území má rudý lem');
         assert.equal(await tab.locator('[data-mark="Q40"] .cq-siege-badge').count(), 1, 'pečeť se zkříženými meči');
@@ -908,7 +901,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         const db = running();
         const page = await start(db, options);
         await page.tab.waitForFunction(() => /Tahy 5\/5/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
-        await page.tab.click('#conquest-card [data-action="conquest-play"]');
+        await page.tab.click('#conquest-wait [data-action="conquest-play"]');
         await page.tab.waitForSelector('#conquest-game [data-cq-map] svg');
         return { db, ...page };
     };
@@ -1025,7 +1018,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         g.round = { period: 0, started_at: NOW, ends_at: '2026-11-11T10:03:00Z', done: false, ready: [], next_at: null, can_ready: false };
         const { context, tab, log } = await start(db);
         await tab.waitForFunction(() => /Tahy 5\/5/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
-        await tab.click('#conquest-card [data-action="conquest-play"]');
+        await tab.click('#conquest-wait [data-action="conquest-play"]');
         await tab.waitForSelector('#conquest-game [data-cq-map] svg');
         assert.equal(await tab.textContent('[data-cq-next]'), 'Další kolo za 3:00', 'rychlá kola po sekundách');
         assert.ok(await tab.locator('[data-cq-round]').evaluate(el => el.classList.contains('hidden')), 'dokud všichni nedohrají, okno není');
@@ -1089,7 +1082,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         const { context, tab, log } = await start(db, { only: 'capital' });
         await tab.waitForFunction(() => /Tahy 2\/2/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
         // Rozcestník: pruh se zásobou, klepnutím okno Pomůcky (co dělají a jak je získat)
-        await tab.click('#conquest-card [data-action="conquest-open"]');
+        await tab.click('#conquest-card');
         await tab.waitForSelector('#conquest-hub [data-cq-items]');
         assert.match(await bodyText(tab, '[data-cq-items]'), /Pomůcky\s*\+1\s*Tah navíc\s*1\/1\s*½\s*Půl na půl\s*2\/2/);
         assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
@@ -1186,7 +1179,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         const g = db.games[0];
         const { context, tab, log } = await start(db, { only: 'capital', viewport: { width, height }, colorScheme });
         await tab.waitForFunction(() => /Tahy 5\/5/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
-        await tab.click('#conquest-card [data-action="conquest-play"]');
+        await tab.click('#conquest-wait [data-action="conquest-play"]');
         await tab.waitForSelector('#conquest-game [data-cq-map] svg');
         await tapTerritory(tab, 'Q40');
         await tab.waitForSelector('[data-cq-sheet] [data-cq="attack"]');
@@ -1231,7 +1224,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             db.items = { 'u-1': { fifty: 2 } };
             const { context, tab, log } = await start(db, { viewport: { width, height }, colorScheme, only: 'text', wiki: 'article' });
             await tab.waitForFunction(() => /Tahy 5\/5/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
-            await tab.click('#conquest-card [data-action="conquest-play"]');
+            await tab.click('#conquest-wait [data-action="conquest-play"]');
             await tab.waitForSelector('#conquest-game [data-cq-map] svg');
             await attackWith(tab, db, 'Q40');
             await tab.waitForSelector('[data-cq-full] [data-cq="fifty"]', { timeout: 30000 });
@@ -1260,7 +1253,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         g.round = { period: 0, started_at: NOW, ends_at: '2026-11-11T10:03:00Z', done: true, ready: ['u-2'], next_at: null, can_ready: true, last: false };
         const { context, tab, log } = await start(db);
         await tab.waitForFunction(() => /Tahy 5\/5/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
-        await tab.click('#conquest-card [data-action="conquest-play"]');
+        await tab.click('#conquest-wait [data-action="conquest-play"]');
         await tab.waitForSelector('[data-cq-round] [data-cq="extra-use"]', { timeout: 10000 });
         assert.match(await bodyText(tab, '[data-cq-round]'), /Kolo 1 dohráno[\s\S]*Chci další kolo\s*\+1\s*Použít Tah navíc\s*\+1 tah v tomto kole · máš 1 z 1/);
         assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
@@ -1289,8 +1282,8 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         // Sezóna od 24 300 XP, hráč má 26 000 → 1 700 XP sezóny = stupeň 5; stupně 1–4 už vyzvednuté
         const progress = { xp: 26000, counters: { bestStreak: 5 }, badges: { tyden: '2026-10-01', 'serie-3': '2026-10-01', 'uroven-5': '2026-10-01', 'uroven-10': '2026-10-01', 'uroven-20': '2026-10-01' } };
         const rewards = { season: { id: '2026-11', startXp: 24300, claimed: { 1: 'robes:fialova', 2: 'freeze', 3: 'freeze', 4: 'themes:les' } }, freezes: 2 };
-        // Úvod na záložce Jeden hráč (pruh sezóny je místo cílů týdne)
-        const { context, tab, log } = await setup(browser, { storage: { 'mudrlant.homeTab': JSON.stringify('single'), 'mudrlant.progress': JSON.stringify(progress), 'mudrlant.rewards': JSON.stringify(rewards) } });
+        // Záložka Dnes (pruh sezóny mezi příležitostnými pruhy)
+        const { context, tab, log } = await setup(browser, { storage: { 'session:mudrlant.nav': 'dnes', 'mudrlant.progress': JSON.stringify(progress), 'mudrlant.rewards': JSON.stringify(rewards) } });
         await backend(context, db);
         await tab.goto(`${ORIGIN}/`);
         const strip = tab.locator('[data-season-ready]');
@@ -1341,7 +1334,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         g.moves = [];
         const { context, tab, log } = await start(db);
         await tab.waitForFunction(() => /Tahy 3\/3/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
-        await tab.click('#conquest-card [data-action="conquest-play"]');
+        await tab.click('#conquest-wait [data-action="conquest-play"]');
         await tab.waitForSelector('#conquest-game [data-cq-map] svg');
         assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
         assert.equal(await tab.locator('.cq-abroad').count(), 1, 'kolem Česka cizina, ne moře');
@@ -1368,7 +1361,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         const { context, tab, log } = await start(db, { reducedMotion: 'reduce' });
         // Odměna se vyzvedne už po načtení her (jednou)
         await tab.waitForFunction(() => { const p = JSON.parse(localStorage.getItem('mudrlant.progress') || '{}'); return p.xp >= 150 && p.counters && p.counters.conquestWins === 1; }, null, { timeout: 15000 });
-        await tab.click('#conquest-card [data-action="conquest-open"]');
+        await tab.click('#conquest-card');
         await tab.waitForSelector(`[data-cq-play="${uuid(1)}"]`);
         assert.match(await tab.textContent(`[data-cq-game="${uuid(1)}"]`), /Konec · 1\. místo/);
         await tab.click(`[data-cq-play="${uuid(1)}"]`);
@@ -1393,7 +1386,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         g.players.find(p => p.user === 'u-1').place = 1;
         g.players.find(p => p.user === 'u-2').place = 2;
         const { context, tab, log } = await start(db, { viewport: { width: 390, height: 780 }, colorScheme: 'dark' });
-        await tab.click('#conquest-card [data-action="conquest-open"]');
+        await tab.click('#conquest-card');
         await tab.click(`[data-cq-play="${uuid(1)}"]`);
         await tab.waitForSelector('.cq-finale-banner');
         assert.ok(await tab.locator('.cq-win-glow').count() > 0, 'území vítěze září');
@@ -1424,7 +1417,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         db.invites = [{ game: uuid(3), user: 'u-2', by: 'u-3', declined: false }];
         const host = await start(db);
         let { tab, log } = host;
-        await tab.click('#conquest-card [data-action="conquest-open"]');
+        await tab.click('#conquest-card');
         await tab.waitForSelector('#conquest-hub');
         // Založit hru: Evropa, 4 hráči, soukromá; Pozvat přátele vedle Barvy a znaku
         await tab.click('[role="tab"][data-cq-tab="create"]');
@@ -1474,13 +1467,15 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         db.invites.sort((a, b) => (a.by === 'u-1' ? -1 : b.by === 'u-1' ? 1 : 0));
         const guest = await start(db, { viewport: { width: 390, height: 780 }, colorScheme: 'dark', storage: { ...login('tok-u2'), 'mudrlant.conquestInvitesSeen': JSON.stringify({ [created.id]: 1, [uuid(3)]: 1 }) } });
         ({ tab, log } = guest);
-        await tab.waitForSelector('#conquest-card [data-action="conquest-invite"]', { timeout: 15000 });
-        assert.match((await tab.textContent('#conquest-card')).replace(/\s+/g, ' '), /Dobývání\s*2\s*Pozvánka od Jana Nováková Evropa · 3 dny · \+1 Přidat se/);
-        assert.equal(await tab.getAttribute('#conquest-card [data-cq-invite-badge]', 'aria-label'), 'Pozvánky do her: 2');
+        await tab.waitForSelector('#conquest-wait [data-action="conquest-invite"]', { timeout: 15000 });
+        assert.match((await tab.textContent('#conquest-wait')).replace(/\s+/g, ' '), /Dobývání\s*2\s*Pozvánka od Jana Nováková Evropa · 3 dny · \+1 Přidat se/);
+        assert.ok(await tab.$('#waiting-section #conquest-wait'), 'pozvánka je v části Čeká na tebe');
+        assert.match((await tab.textContent('#conquest-card')).replace(/\s+/g, ' '), /Dobývání.*Pozvánky do her: 2/);
+        assert.equal(await tab.getAttribute('#conquest-wait [data-cq-invite-badge]', 'aria-label'), 'Pozvánky do her: 2');
         assert.equal(await tab.locator('#dialog-overlay').count(), 0, 'viděné pozvánky se oknem znovu neukážou');
         await shot(tab, 'karta-pozvanka-390-dark');
         // Přidat se z karty: otevře se rozcestník (pozvánky v Mých hrách) a nad ním Barva a znak; zatím zavřít
-        await tab.click('#conquest-card [data-action="conquest-invite"]');
+        await tab.click('#conquest-wait [data-action="conquest-invite"]');
         await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Tvoje barva a znak');
         await tab.waitForSelector(`#conquest-hub [data-cq-invite="${created.id}"]`);
         await tab.keyboard.press('Escape');
@@ -1522,7 +1517,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         await guest.context.close();
     });
     // Pozvánka po otevření aplikace (i bez upozornění): okno „Eva Mistr tě zve do Dobývání: Evropa · Rychlá hra“ s Přijmout /
-    // Odmítnout / Později, jednou za pozvánku; odznak na kartě Dobývání a na záložce Více hráčů; nová pozvánka po návratu do aplikace
+    // Odmítnout / Později, jednou za pozvánku; odznak na řádku Dobývání a na záložce Soupeři ve spodní liště; nová pozvánka po návratu do aplikace
     await t.test('pozvánka po otevření aplikace na 360×640: okno jednou za pozvánku (Později), odznak na kartě i záložce, nová po návratu do aplikace (Odmítnout), Přijmout', async () => {
         const db = newDb();
         db.invites = [{ game: uuid(1), user: 'u-2', by: 'u-3', declined: false }];
@@ -1536,23 +1531,24 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         assert.equal(await tab.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
         await tab.waitForTimeout(300);
         await shot(tab, 'pozvanka-okno-360');
-        // Později: okno zmizí, pozvánka zůstane na kartě s odznakem a v odznaku záložky Více hráčů
+        // Později: okno zmizí, pozvánka zůstane v řádku Čeká na tebe s odznakem a v odznaku záložky Soupeři
         await tab.click('#dialog-overlay [data-cq-prompt="later"]');
         await tab.waitForFunction(() => !document.getElementById('dialog-overlay'));
-        await tab.waitForSelector('#conquest-card [data-cq-invite-badge]');
-        assert.equal(await tab.getAttribute('#conquest-card [data-cq-invite-badge]', 'aria-label'), 'Pozvánka do hry');
-        assert.match(await tab.textContent('[data-action="home-tab"][data-tab="multi"]'), /Více hráčů\s*1/);
+        await tab.waitForSelector('#conquest-wait [data-cq-invite-badge]');
+        assert.equal(await tab.getAttribute('#conquest-wait [data-cq-invite-badge]', 'aria-label'), 'Pozvánka do hry');
+        await tab.waitForFunction(() => { const badge = document.querySelector('#app-nav [data-nav="souperi"] [data-nav-badge]'); return Boolean(badge) && !badge.classList.contains('hidden') && badge.textContent.trim() === '1'; });
         assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
         await shot(tab, 'pozvanka-karta-odznak-360');
         assert.equal(db.calls.filter(call => call.name === 'conquest_decline_invite').length, 0, 'Později pozvánku neodmítne');
-        // Po obnovení stránky (i na záložce Jeden hráč) se stejná pozvánka znovu nenabízí, odznak záložky zůstává
-        await tab.evaluate(() => localStorage.setItem('mudrlant.homeTab', JSON.stringify('single')));
+        // Po obnovení stránky (i na záložce Dnes) se stejná pozvánka znovu nenabízí, odznak záložky Soupeři zůstává
+        await tab.evaluate(() => sessionStorage.setItem('mudrlant.nav', 'dnes'));
         await tab.reload();
-        await tab.waitForSelector('[data-action="home-tab"][data-tab="multi"]');
-        await tab.waitForFunction(() => /Více hráčů\s*1/.test(document.querySelector('[data-action="home-tab"][data-tab="multi"]').textContent), null, { timeout: 15000 });
+        await nav.waitForHome(tab);
+        assert.equal(await nav.currentTab(tab), 'dnes');
+        await tab.waitForFunction(() => { const badge = document.querySelector('#app-nav [data-nav="souperi"] [data-nav-badge]'); return Boolean(badge) && !badge.classList.contains('hidden') && badge.textContent.trim() === '1'; }, null, { timeout: 15000 });
         await tab.waitForTimeout(800);
         assert.equal(await tab.locator('#dialog-overlay').count(), 0, 'viděná pozvánka nenaléhá');
-        // Nová pozvánka (Jana do Česka): po návratu do aplikace (ověření nejvýš jednou za 5 minut) okno i na záložce Jeden hráč
+        // Nová pozvánka (Jana do Česka): po návratu do aplikace (ověření nejvýš jednou za 5 minut) okno i na záložce Dnes
         db.invites.push({ game: uuid(2), user: 'u-2', by: 'u-1', declined: false });
         await tab.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
         await tab.waitForTimeout(800);
@@ -1566,7 +1562,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         await tab.click('#dialog-overlay [data-cq-prompt="decline"]');
         await toast(tab, /^Pozvánka odmítnuta\.$/);
         assert.ok(db.invites.find(i => i.game === uuid(2)).declined);
-        await tab.waitForFunction(() => /Více hráčů\s*1/.test(document.querySelector('[data-action="home-tab"][data-tab="multi"]').textContent));
+        await tab.waitForFunction(() => { const badge = document.querySelector('#app-nav [data-nav="souperi"] [data-nav-badge]'); return Boolean(badge) && !badge.classList.contains('hidden') && badge.textContent.trim() === '1'; });
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();

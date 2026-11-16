@@ -5,6 +5,7 @@
 // Potřebuje Playwright (viz tests/e2e.test.js), jinak se přeskočí.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const nav = require('./nav.js');
 const fs = require('node:fs');
 const path = require('node:path');
 // Rozpis otázek se po dohrání otevře sám (za 0,7 s): před odchodem z výsledku se zavře
@@ -154,8 +155,8 @@ const setup = async (browser, storage, { viewport = { width: 390, height: 780 },
     await context.addInitScript(entries => {
         if (sessionStorage.getItem('test-storage-set')) return;
         sessionStorage.setItem('test-storage-set', '1');
-        Object.entries(entries).forEach(([k, v]) => localStorage.setItem(k, v));
-    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.tips': JSON.stringify({ off: true }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), 'mudrlant.homeTab': JSON.stringify('multi'), ...storage });
+        Object.entries(entries).forEach(([k, v]) => (k.startsWith('session:') ? sessionStorage.setItem(k.slice(8), v) : localStorage.setItem(k, v)));
+    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.tips': JSON.stringify({ off: true }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), 'session:mudrlant.nav': 'souperi:vyzvy', ...storage });
     const tab = await context.newPage();
     const log = { errors: [], csp: [] };
     tab.on('pageerror', error => log.errors.push(error.message));
@@ -171,13 +172,21 @@ const setup = async (browser, storage, { viewport = { width: 390, height: 780 },
     await tab.clock.setFixedTime(new Date('2026-11-04T10:00:00'));
     return { context, tab, log };
 };
-const waitForHome = (tab) => tab.waitForFunction(() => { const content = document.getElementById('app-content'); return Boolean(content && content.querySelector('#home-tabs')); }, null, { timeout: 30000 });
+const waitForHome = (tab) => nav.waitForHome(tab);
 const compact = async (tab, selector) => ((await tab.textContent(selector)) || '').replace(/\s+/g, ' ').trim();
 const sessionItem = (tab) => tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.session')).data.id);
 // Odpověď na otázku (první možnost nebo Nevím) a případně Další
+// Otázka s možnostmi je na obrazovce; když se nedočká, chyba řekne, co na obrazovce je (místo holého „Timeout“)
+const waitChoice = async (tab) => {
+    // Ve výzvě ze Zeměpisu může přijít i otázka na mapě (místo možností mapa a Potvrdit)
+    try { await tab.waitForSelector('[data-action="choice"], [data-action="map-confirm"]', { timeout: 30000 }); } catch (error) {
+        const seen = await tab.evaluate(() => ({ status: (document.getElementById('status-text') || {}).textContent, actions: [...new Set([...document.querySelectorAll('#app-content [data-action]')].map(el => el.dataset.action))].join(' '), dialog: (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title || '', text: document.getElementById('app-content').textContent.replace(/\s+/g, ' ').slice(0, 300) })).catch(() => null);
+        throw new Error(`otázka s možnostmi se neukázala: ${JSON.stringify(seen)}`);
+    }
+};
 const answer = async (tab, { next = true, giveUp = false } = {}) => {
-    await tab.waitForSelector('[data-action="choice"]', { timeout: 30000 });
-    await tab.click(giveUp ? '[data-action="give-up"]' : '[data-action="choice"] >> nth=0');
+    await waitChoice(tab);
+    await tab.click(giveUp || !(await tab.locator('[data-action="choice"]').count()) ? '[data-action="give-up"]' : '[data-action="choice"] >> nth=0');
     await tab.waitForSelector('[data-action="next"]');
     if (next) await tab.click('[data-action="next"]');
 };
@@ -265,7 +274,7 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         await tab.click('[data-ch-count="5"]');
         await tab.click('[data-ch-create]');
         await answer(tab);
-        await tab.waitForSelector('[data-action="choice"]');
+        await waitChoice(tab);
         const second = await sessionItem(tab);
         // Druhá otázka zodpovězená, aplikace se zavře před „Další“
         await answer(tab, { next: false, giveUp: true });
@@ -281,7 +290,7 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         await tab.waitForSelector('[data-ch-play]');
         assert.match(await compact(tab, '[data-ch-play]'), /Pokračovat ve výzvě \(3\/5\)/);
         await tab.click('[data-ch-play]');
-        await tab.waitForSelector('[data-action="choice"]');
+        await waitChoice(tab);
         assert.notEqual(await sessionItem(tab), second, 'zodpovězená otázka se nehraje znovu');
         assert.equal(await tab.textContent('#status-text'), 'Výzva · 3/5');
         await answer(tab);
@@ -327,7 +336,7 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         const { context, tab, log } = await start(db);
         await tab.waitForSelector('[data-action="challenge-open"][data-code="PPPPPP"]');
         assert.equal(await tab.locator('[data-action="challenge-open"][data-code="BBBBBB"]').count(), 0, 'pozvánka od zablokovaného hráče se nezobrazí');
-        assert.match(await compact(tab, '[data-action="home-tab"][data-tab="multi"]'), /Více hráčů ?1$/);
+        assert.equal(await compact(tab, '#app-nav [data-nav="souperi"] [data-nav-badge]:not(.hidden)'), '1', 'odznak záložky Soupeři počítá jen viditelnou pozvánku');
         // Detail výzvy: okno se zavře dřív, než výzva dorazí
         db.delay['GET /rest/v1/challenges'] = 700;
         await tab.click('[data-action="challenge-open"][data-code="PPPPPP"]');
@@ -392,7 +401,7 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         assert.doesNotMatch(await compact(tab, '#dialog-overlay'), /Zkontroluj připojení/);
         delete db.fail['POST /rest/v1/challenges'];
         await tab.click('[data-rematch]');
-        await tab.waitForSelector('[data-action="choice"]', { timeout: 30000 });
+        await waitChoice(tab);
         const rematch = Object.values(db.challenges).find(c => c.creator_id === 'u-1');
         assert.deepEqual([rematch.invited_id, rematch.topic, rematch.count], ['u-2', 'zemepis', 10]);
         assert.deepEqual(log.errors, []);
@@ -412,27 +421,35 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         });
         db.challenges.JJJJJJ = { id: 'JJJJJJ', creator_id: 'u-2', invited_id: 'u-1', topic: 'zemepis', count: 5, seed: 'i', include_hard: false, categories: [], variant: 'choices', created_at: '2026-11-03T10:00:00Z' };
         const { context, tab, log } = await start(db);
-        await tab.waitForSelector('[data-action="tournament-play"]');
-        await tab.click('[data-action="tournament-play"]');
+        // Záložka Soupeři: nejnaléhavější je dnešní zápas turnaje (Čeká na tebe), výzva od Petra je pod „+1 další“ a v okně Výzvy
+        await nav.go(tab, 'souperi');
+        await tab.waitForSelector('#waiting-section [data-action="tournament-play"]');
+        assert.equal(await tab.getAttribute('#waiting-section', 'data-waiting'), '2');
+        await tab.click('#waiting-section [data-action="tournament-play"]');
         // Soupeř zápasu vpravo nahoře, čas zápasu vlevo vedle bodů
         await tab.waitForSelector('[data-opponent-chip]', { timeout: 30000 });
         assert.deepEqual(await opponentHeader(tab).then(h => [h.kind, h.name, h.avatar, h.timer, h.topRight, h.clear]), ['player', 'Petr Svoboda', '🐼', true, true, true]);
         for (let i = 0; i < 3; i++) await answer(tab);
-        await tab.waitForSelector('[data-action="choice"]');
+        await waitChoice(tab);
         // Domů, výzva od Petra, dvě otázky, zavření aplikace
         await tab.click('#btn-home');
         await waitForHome(tab);
-        await tab.click('[data-action="challenge-open"][data-code="JJJJJJ"]');
+        await nav.challenges(tab);
+        await tab.click('#challenges-section [data-action="challenge-open"][data-code="JJJJJJ"]');
         await tab.click('[data-ch-play]');
         await tab.waitForSelector('[data-opponent-chip]', { timeout: 30000 });
         assert.deepEqual(await opponentHeader(tab).then(h => [h.kind, h.name, h.timer]), ['player', 'Petr Svoboda', false], 'vyzvaný hraje proti zakladateli, výzva bez času');
         for (let i = 0; i < 2; i++) await answer(tab);
-        await tab.waitForSelector('[data-action="choice"]');
+        await waitChoice(tab);
         await tab.reload();
         await waitForHome(tab);
-        await tab.waitForSelector('[data-action="tournament-resume"]');
-        assert.match(await compact(tab, '[data-action="challenge-resume"]'), /Pokračovat ve výzvě \(3\/5\)/);
-        await tab.click('[data-action="tournament-resume"]');
+        // Obě rozehrané hry čekají v části Čeká na tebe: zápas turnaje nahoře, výzva v okně „+N další“ (a v okně Výzvy)
+        await nav.go(tab, 'souperi');
+        await tab.waitForSelector('#waiting-section [data-action="tournament-resume"]');
+        await tab.click('#waiting-section [data-action="waiting-all"]');
+        await tab.waitForSelector('#waiting-list [data-action="challenge-resume"]');
+        assert.match(await compact(tab, '#waiting-list [data-action="challenge-resume"]'), /Pokračovat ve výzvě \(3\/5\)/);
+        await tab.click('#waiting-list [data-action="tournament-resume"]');
         await tab.waitForSelector('[data-tour-timer]');
         assert.equal(await tab.textContent('#status-text'), 'Turnaj · 4/10');
         assert.deepEqual(await opponentHeader(tab).then(h => [h.name, h.timer]), ['Petr Svoboda', true], 'soupeř i po obnovení zápasu');
@@ -441,15 +458,19 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         assert.ok(db.tresults.find(r => r.user_id === 'u-1').finished_at, 'zápas je odehraný');
         await closeAutoBreakdown(tab); await tab.click('[data-action="challenge-home"]');
         await waitForHome(tab);
-        await tab.waitForSelector('[data-action="challenge-resume"]');
-        await tab.click('[data-action="challenge-resume"]');
-        await tab.waitForSelector('[data-action="choice"]');
+        // Po zápase jsme v okně Turnaje; rozehraná výzva je v okně Výzvy
+        assert.equal(await nav.currentTab(tab), 'souperi:turnaje');
+        await nav.challenges(tab);
+        await tab.waitForSelector('#challenges-section [data-action="challenge-resume"]');
+        await tab.click('#challenges-section [data-action="challenge-resume"]');
+        await waitChoice(tab);
         assert.equal(await tab.textContent('#status-text'), 'Výzva · 3/5');
         for (let i = 0; i < 3; i++) await answer(tab);
         await tab.waitForSelector('[data-challenge-outcome]');
         assert.equal(db.results.filter(r => r.challenge_id === 'JJJJJJ' && r.user_id === 'u-1').length, 1);
         await closeAutoBreakdown(tab); await tab.click('[data-action="challenge-home"]');
         await waitForHome(tab);
+        assert.equal(await nav.currentTab(tab), 'souperi:vyzvy');
         await tab.waitForSelector('[data-action="challenge-open"][data-code="JJJJJJ"]');
         assert.equal(await tab.locator('[data-action="challenge-resume"]').count(), 0);
         assert.deepEqual(log.errors, []);
@@ -460,7 +481,7 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
     const progressOf = (db, code, user = 'u-1') => db.progress.filter(r => r.challenge_id === code && r.user_id === user).map(r => r.idx);
     // Smazání dat aplikace v zařízení: zůstane jen přihlášení a úvodní nastavení testu (rozehrané výzvy, relace i postup zmizí)
     const clearDeviceData = (tab) => tab.evaluate(() => {
-        const keep = ['mudrlant.auth', 'mudrlant.tutorial', 'mudrlant.tips', 'mudrlant.variant', 'mudrlant.account', 'mudrlant.homeTab'].map(key => [key, localStorage.getItem(key)]);
+        const keep = ['mudrlant.auth', 'mudrlant.tutorial', 'mudrlant.tips', 'mudrlant.variant', 'mudrlant.account'].map(key => [key, localStorage.getItem(key)]);
         localStorage.clear();
         keep.forEach(([key, value]) => { if (value !== null) localStorage.setItem(key, value); });
     });
@@ -501,7 +522,9 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
             await jana.tab.waitForSelector('[data-opponent-chip]', { timeout: 30000 });
             assert.deepEqual(await opponentHeader(jana.tab).then(h => [h.kind, h.name, h.topRight, h.clear]), ['open', 'Otevřená výzva', true, true]);
             // Trénink: body ano, soupeř ne
-            await jana.tab.click('#btn-practice');
+            await jana.tab.click('#btn-home');
+            await waitForHome(jana.tab);
+            await nav.mix(jana.tab);
             await jana.tab.waitForSelector('[data-score-chip]', { timeout: 30000 });
             assert.equal(await jana.tab.locator('[data-opponent-chip], [data-match-bar]').count(), 0, 'trénink je bez soupeře');
             assert.deepEqual(jana.log.errors, []);
@@ -518,7 +541,7 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         await tab.click('[data-ch-play]');
         await answer(tab);
         await answer(tab, { giveUp: true });
-        await tab.waitForSelector('[data-action="choice"]');
+        await waitChoice(tab);
         await until(() => progressOf(db, 'SSSSSS').length === 2, 'dvě odpovědi na serveru');
         const firstTwo = db.progress.map(r => ({ ...r }));
         // Smazaná data: zařízení o rozehrané výzvě neví, server ano
@@ -531,7 +554,7 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         await tab.waitForSelector('[data-ch-play]');
         assert.match(await compact(tab, '[data-ch-play]'), /Pokračovat ve výzvě \(3\/5\)/, 'nehraje se znovu od první otázky');
         await tab.click('[data-ch-play]');
-        await tab.waitForSelector('[data-action="choice"]');
+        await waitChoice(tab);
         assert.equal(await tab.textContent('#status-text'), 'Výzva · 3/5');
         for (let i = 0; i < 3; i++) await answer(tab, { giveUp: true });
         await tab.waitForSelector('[data-challenge-outcome]');
@@ -599,7 +622,7 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         const play = async (tab, beforeAnswer = async () => {}) => {
             const seen = [];
             for (let i = 0; i < 3; i++) {
-                await tab.waitForSelector('[data-action="choice"]', { timeout: 30000 });
+                await waitChoice(tab);
                 const data = await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.session')).data);
                 const shown = { id: data.id, answer: data.question.answerLabel, title: await compact(tab, '#app-content h2'), choices: await tab.$$eval('[data-action="choice"]', list => list.map(button => button.textContent.trim())) };
                 await beforeAnswer(i);
@@ -688,7 +711,7 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         const { context, tab, log } = await start(db);
         await tab.click('[data-action="challenge-open"][data-code="PMXRTZ"]');
         await tab.click('[data-ch-play]');
-        await tab.waitForSelector('[data-action="choice"]', { timeout: 30000 });
+        await waitChoice(tab);
         assert.notEqual(await compact(tab, '#app-content h2'), 'Zamrzlá otázka výzvy', 'nejdřív místní otázka (server neodpověděl)');
         assert.deepEqual(await tab.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('mudrlant.pendingSnapshots') || '{}'))), [`${seed}:0`]);
         // Pozdní odpověď: platná otázka (Petrova) nahradí místní
@@ -734,7 +757,7 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         const { context, tab, log } = await start(db);
         await tab.click('[data-action="challenge-open"][data-code="GGGGGG"]');
         await tab.click('[data-ch-play]');
-        await tab.waitForSelector('[data-action="choice"]', { timeout: 30000 });
+        await waitChoice(tab);
         assert.equal(await tab.locator('#hint-tab-panel.gold-card').count(), 1, 'první otázka výzvy je zlatá');
         assert.match(await compact(tab, '[data-gold-ribbon]'), /Zlatá otázka · 3× XP/);
         assert.ok(await opponentHeader(tab), 'soupeř v záhlaví zůstává');
@@ -750,7 +773,7 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         const gold = await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.gold')));
         assert.deepEqual([gold.since, gold.total, gold.correct, gold.shards, gold.intro], [0, 1, 1, 1, false], 'výzva místní počítadlo nezvyšuje');
         await tab.click('[data-action="next"]');
-        await tab.waitForSelector('[data-action="choice"]', { timeout: 30000 });
+        await waitChoice(tab);
         assert.equal(await tab.locator('.gold-card, [data-gold-ribbon]').count(), 0, 'další otázka výzvy zlatá není');
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);

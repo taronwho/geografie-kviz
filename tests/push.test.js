@@ -380,7 +380,7 @@ test('send-push: runOnce pošle, zapíše jen doručené klíče a rozliší zru
 
 test('send-push: zkušební upozornění (druh test) se pošle a označí jako ostatní; v nočním klidu ruční běh pošle jen zkoušky', async () => {
     const { runOnce, planRun, payloadFor } = await import('../scripts/send-push.mjs');
-    const testRow = { user_id: 'u9', endpoint: 'https://p.example/9', p256dh: P256DH, auth: AUTH, kind: 'test', title: 'Zkušební upozornění Mudrlanta', body: 'Funguje to! Klepni sem a otevře se záložka Více hráčů.', url: './?tab=multi', dedupe_key: 'test:1762500000000:u9' };
+    const testRow = { user_id: 'u9', endpoint: 'https://p.example/9', p256dh: P256DH, auth: AUTH, kind: 'test', title: 'Zkušební upozornění Mudrlanta', body: 'Funguje to! Klepni sem a otevře se záložka Soupeři.', url: './?tab=multi', dedupe_key: 'test:1762500000000:u9' };
     const other = { ...testRow, endpoint: 'https://p.example/1', kind: 'tournament', title: 'Turnaj', dedupe_key: 'tour:m:u1:2026-11-09:rano' };
     // stejný obsah jako skutečné upozornění: service worker ho zobrazí stejnou funkcí
     assert.deepEqual(JSON.parse(payloadFor(testRow)), { ...Push.TEST_PAYLOAD });

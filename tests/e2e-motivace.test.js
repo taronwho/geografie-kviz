@@ -5,6 +5,7 @@
 // bez posouvání stránky a bez chyb CSP. SCREENSHOT_DIR=adresář uloží snímky. Potřebuje Playwright, jinak se přeskočí.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const nav = require('./nav.js');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -78,7 +79,7 @@ const setup = async (browser, storage, { viewport = { width: 390, height: 780 },
     await context.addInitScript(entries => {
         if (sessionStorage.getItem('test-storage-set')) return;
         sessionStorage.setItem('test-storage-set', '1');
-        Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
+        Object.entries(entries).forEach(([key, value]) => (key.startsWith('session:') ? sessionStorage.setItem(key.slice(8), value) : localStorage.setItem(key, value)));
     }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), 'mudrlant.tips': JSON.stringify({ off: true }), ...storage });
     const tab = await context.newPage();
     const log = { errors: [], csp: [] };
@@ -97,7 +98,7 @@ const setup = async (browser, storage, { viewport = { width: 390, height: 780 },
     return { context, tab, log };
 };
 const progress = (xp, badges = {}) => ({ 'mudrlant.progress': JSON.stringify({ xp, counters: {}, badges }) });
-const waitForHome = (tab) => tab.waitForFunction(() => { const content = document.getElementById('app-content'); return Boolean(content && (content.textContent.includes('Dnešní otázky') || content.querySelector('#home-tabs'))); }, null, { timeout: 30000 });
+const waitForHome = (tab) => nav.waitForHome(tab);
 const shot = async (tab, name) => { if (SHOTS) await tab.screenshot({ path: path.join(SHOTS, `${name}.png`) }); };
 // Stránka se neposouvá (ani do strany); obsah úvodu se vejde do plochy
 const fits = (tab) => tab.evaluate(() => ({
@@ -111,19 +112,27 @@ test('motivace: tematický víkend, prestiž, pozvi kamarády, reakce a efekty, 
     const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
     t.after(() => browser.close());
 
-    await t.test('úvod o tematickém víkendu: pruh na 390×780, čip vedle cílů na 360×640, štítek 2× XP; bez posouvání', async () => {
+    await t.test('tematický víkend: pruh (nebo čip, když se nevejde) na záložce Dnes, štítek 2× XP na záložce Hrát; bez posouvání', async () => {
         for (const [viewport, colorScheme, name] of [[{ width: 390, height: 780 }, 'light', 'vikend-390'], [{ width: 360, height: 640 }, 'light', 'vikend-360'], [{ width: 360, height: 640 }, 'dark', 'vikend-360-tmavy']]) {
             const { context, tab, log } = await setup(browser, progress(3000), { viewport, colorScheme, now: WEEKEND });
             await tab.goto(`${ORIGIN}/`);
             await waitForHome(tab);
             await tab.waitForTimeout(400);
-            assert.equal(await tab.locator('[data-weekend-tile]').count(), 1, 'štítek na dlaždici Filmu');
-            const label = await tab.getAttribute(viewport.height > 700 ? '#weekend-banner' : '#weekend-chip', 'aria-label');
+            // Záložka Dnes: víkend je mezi příležitostnými pruhy, a to právě jednou: jako pruh, když se vejde (390×780 vždy), jinak jako čip
+            assert.equal(await tab.locator('#dnes-extras [data-action="weekend-play"]').count(), 1, 'víkend je na záložce Dnes právě jednou');
+            if (viewport.height > 700) assert.equal(await visible(tab, '#weekend-banner'), true, 'na 390×780 jako pruh');
+            const label = await tab.getAttribute('#dnes-extras #weekend-banner, #dnes-extras #weekend-chip', 'aria-label');
             assert.match(label, /Víkend filmu: do neděle 24:00 dvojnásobek XP za otázky z tématu Film/);
-            if (viewport.height < 700) { assert.equal(await visible(tab, '#weekend-chip'), true); assert.equal(await visible(tab, '#weekend-banner'), false); }
-            const size = await fits(tab);
-            assert.ok(size.page <= 0 && size.wide <= 0 && size.content <= 1, `${name}: ${JSON.stringify(size)}`);
+            let size = await fits(tab);
+            assert.ok(size.page <= 0 && size.wide <= 0 && size.content <= 0, `${name}: ${JSON.stringify(size)}`);
             await shot(tab, name);
+            // Záložka Hrát: štítek 2× XP na dlaždici Filmu
+            await nav.go(tab, 'hrat');
+            assert.equal(await tab.locator('[data-action="play-topic"][data-topic="film"] [data-weekend-tile]').count(), 1, 'štítek na dlaždici Filmu');
+            assert.equal(await tab.locator('[data-weekend-tile]').count(), 1);
+            size = await fits(tab);
+            assert.ok(size.page <= 0 && size.wide <= 0 && size.content <= 0, `${name} (Hrát): ${JSON.stringify(size)}`);
+            await shot(tab, `${name}-hrat`);
             assert.deepEqual(log.errors, []);
             assert.deepEqual(log.csp, []);
             await context.close();
@@ -133,6 +142,8 @@ test('motivace: tematický víkend, prestiž, pozvi kamarády, reakce a efekty, 
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
         assert.equal(await tab.locator('#weekend-banner, #weekend-chip, [data-weekend-tile]').count(), 0);
+        await nav.go(tab, 'hrat');
+        assert.equal(await tab.locator('[data-weekend-tile]').count(), 0);
         await context.close();
     });
 
@@ -179,13 +190,24 @@ test('motivace: tematický víkend, prestiž, pozvi kamarády, reakce a efekty, 
         await context.close();
     });
 
-    await t.test('pozvi kamarády: karta na Více hráčů, okno s kódem a odměnami, vyzvednutí (rámeček a XP)', async () => {
+    await t.test('pozvi kamarády: karta v okně Přátelé a řádek na záložce Já, okno s kódem a odměnami, vyzvednutí (rámeček a XP)', async () => {
         const db = newDb();
-        const { context, tab, log } = await setup(browser, { ...login(), ...progress(30000), 'mudrlant.homeTab': JSON.stringify('multi') }, { db, viewport: { width: 360, height: 640 } });
+        const { context, tab, log } = await setup(browser, { ...login(), ...progress(30000), }, { db, viewport: { width: 360, height: 640 } });
         await tab.goto(`${ORIGIN}/`);
-        await tab.waitForSelector('#referral-card', { timeout: 30000 });
+        // Karta Pozvi kamarády je dole v okně Přátelé (záložka Soupeři, tlačítko + v pásu přátel) …
+        await nav.waitForHome(tab);
+        await nav.go(tab, 'souperi');
+        await tab.click('[data-friends-add]');
+        await tab.waitForSelector('#friends-dialog #referral-card', { timeout: 30000 });
         assert.match(await tab.textContent('#referral-card'), /Pozvi kamarády[\s\S]*Čeká 1 odměna/);
-        await tab.click('#referral-card');
+        assert.equal(await tab.evaluate(() => { const panel = document.querySelector('#dialog-overlay > div'); return panel.scrollWidth <= panel.clientWidth && panel.getBoundingClientRect().bottom <= window.innerHeight; }), true, 'okno Přátelé se vejde');
+        await shot(tab, 'pozvi-pratele');
+        await tab.keyboard.press('Escape');
+        await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
+        // … a jako řádek na záložce Já
+        await nav.go(tab, 'ja');
+        assert.match(await tab.textContent('[data-ja="referral"]'), /Pozvi kamarády[\s\S]*Čeká odměna za pozvání/);
+        await tab.click('[data-ja="referral"]');
         await tab.waitForSelector('[data-referral-dialog]');
         assert.match(await tab.textContent('[data-referral-code]'), /ABCD-2345/);
         await shot(tab, 'pozvi-okno');
@@ -241,7 +263,7 @@ test('motivace: tematický víkend, prestiž, pozvi kamarády, reakce a efekty, 
         const { context, tab, log } = await setup(browser, { ...login(), ...progress(30000), 'mudrlant.rewards': JSON.stringify(rewards) }, { db });
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="profile"]');
         await tab.waitForSelector('[data-open-showcase]', { timeout: 15000 });
         await tab.click('[data-open-showcase]');
@@ -261,7 +283,7 @@ test('motivace: tematický víkend, prestiž, pozvi kamarády, reakce a efekty, 
         const { context, tab, log } = await setup(browser, { ...login(), ...progress(30000) }, { db: newDb(), viewport: { width: 360, height: 640 } });
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="profile"]');
         await tab.click('[data-pic-group="postavicky"]');
         await tab.waitForSelector('[data-locked-avatar="caj"]', { state: 'attached' });
@@ -279,7 +301,7 @@ test('motivace: tematický víkend, prestiž, pozvi kamarády, reakce a efekty, 
         const locked = await setup(browser, progress(9000), { viewport: { width: 360, height: 640 } });
         await locked.tab.goto(`${ORIGIN}/`);
         await waitForHome(locked.tab);
-        await locked.tab.click('#btn-settings');
+        await nav.settings(locked.tab);
         await locked.tab.click('[data-me-tab="owl"]');
         await locked.tab.waitForSelector('[data-robe-custom][data-locked]');
         assert.match(await locked.tab.textContent('[data-robe-custom]'), /Od 20\. úrovně/);
@@ -291,7 +313,7 @@ test('motivace: tematický víkend, prestiž, pozvi kamarády, reakce a efekty, 
         const { context, tab, log } = await setup(browser, { ...login(), ...progress(30000), 'mudrlant.owl-avatar': 'true' }, { db, viewport: { width: 360, height: 640 } });
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="owl"]');
         await tab.waitForSelector('[data-robe-hue]');
         await tab.evaluate(() => { const range = document.querySelector('[data-robe-hue]'); range.value = '210'; range.dispatchEvent(new Event('input', { bubbles: true })); range.dispatchEvent(new Event('change', { bubbles: true })); });

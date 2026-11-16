@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const fixtures = require('./fixtures.js');
+const nav = require('./nav.js');
 
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
@@ -47,7 +48,7 @@ test('tipy od Mudrlanta', { skip: !chromium && 'Playwright není nainstalovaný'
         tab.on('pageerror', error => problems.push(error.message));
         tab.on('console', message => { if (/Content Security Policy/i.test(message.text())) problems.push(message.text()); });
         await tab.goto(`${origin}/`);
-        await tab.waitForSelector('[data-action="play-topic"]');
+        await nav.waitForHome(tab);
         return { context, tab, problems };
     };
     const bulbVisible = (tab) => tab.evaluate(() => { const el = document.getElementById('fact-hint'); return Boolean(el) && !el.classList.contains('hidden'); });
@@ -75,14 +76,14 @@ test('tipy od Mudrlanta', { skip: !chromium && 'Playwright není nainstalovaný'
     await t.test('Nastavení: vypnutí tipů skryje žárovku, dev tlačítko je vrátí', async () => {
         const { context, tab } = await open({ dev: true });
         await tab.waitForFunction(() => { const el = document.getElementById('fact-hint'); return el && !el.classList.contains('hidden'); });
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.waitForSelector('[data-tips-toggle]');
         assert.equal(await tab.getAttribute('[data-tips-toggle]', 'aria-checked'), 'true');
         await tab.click('[data-tips-toggle]');
         await tab.waitForFunction(() => document.querySelector('[data-tips-toggle]').getAttribute('aria-checked') === 'false');
         await tab.click('[data-close]');
         assert.equal(await bulbVisible(tab), false);
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-tips-toggle]');
         await tab.waitForFunction(() => document.querySelector('[data-tips-toggle]').getAttribute('aria-checked') === 'true');
         await tab.click('[data-dev="tips"]');
@@ -96,7 +97,7 @@ test('tipy od Mudrlanta', { skip: !chromium && 'Playwright není nainstalovaný'
         await tab.evaluate(() => localStorage.setItem('mudrlant.tips', JSON.stringify({ seen: ['dnesni', 'napoveda'], day: '2000-01-01', n: 0, lastAt: 0, off: false, visited: {} })));
         await tab.evaluate(() => { const p = JSON.parse(localStorage.getItem('mudrlant.progress') || '{}'); p.counters = { ...(p.counters || {}), answered: 10 }; localStorage.setItem('mudrlant.progress', JSON.stringify(p)); });
         await tab.reload();
-        await tab.waitForSelector('[data-action="play-topic"]');
+        await nav.waitForHome(tab);
         await tab.waitForFunction(() => { const el = document.getElementById('fact-hint'); return el && !el.classList.contains('hidden'); });
         await tab.click('#fact-hint');
         await tab.waitForSelector('#tip-dialog');

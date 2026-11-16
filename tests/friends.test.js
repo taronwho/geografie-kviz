@@ -62,7 +62,7 @@ test('vykreslení: jména a texty se escapují, nic se nerozbije', () => {
     assert.equal(F.quickFriends([], helpers), '');
     assert.match(F.friendsStrip([row('a'), row('b')], helpers, NOW), /Přátelé <span[^>]*>· 2<\/span>[\s\S]*data-player-id="a"[\s\S]*data-player-id="b"/);
     assert.equal((F.requestRows(new Array(9).fill(0).map((_, i) => row(`r${i}`, { status: 'pending', direction: 'in' })), helpers).match(/data-friend-request/g) || []).length, 5, 'žádostí se ukáže nejvýš pět');
-    assert.match(F.requestRows([evil], helpers), /data-action="friend-accept"[\s\S]*data-action="friend-decline"/);
+    assert.match(F.requestRows([evil], helpers), /data-action="friend-decline"[\s\S]*data-action="friend-accept"/);
     assert.match(F.quickFriends([row('a')], helpers), /data-pick-opp="a"/);
     assert.match(F.blockedList(null, helpers), /není k dispozici/);
     assert.match(F.blockedList([], helpers), /Nikoho zablokovaného/);

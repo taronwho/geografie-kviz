@@ -55,6 +55,26 @@
 @media (prefers-reduced-motion: no-preference) {
     .fade-in { animation: fadeIn 0.5s ease-out; }
 }
+/* Spodní okraj aplikace nesmí zajet pod systémovou lištu telefonu: na hlavních obrazovkách ho drží spodní lišta (její pozadí sahá
+   až dolů), při hře (lišta skrytá, třída nav-on chybí) obal aplikace */
+#app-shell { padding-bottom: env(safe-area-inset-bottom); }
+#app-shell.nav-on { padding-bottom: 0; }
+#app-nav { padding-bottom: max(0.45rem, env(safe-area-inset-bottom)); }
+/* Záložka spodní lišty: vybraná má ikonu v plastické pilulce barvy tématu (tmavší spodní hrana jako .btn-3d, při stisku se zmáčkne), ostatní jsou tlumené */
+.nav-pill { transition: background-color 0.18s ease, color 0.18s ease, transform 0.18s ease; }
+[data-nav][aria-current="page"] .nav-pill { background-image: linear-gradient(180deg, rgb(var(--brand-500)), rgb(var(--brand-700)) 60%); color: #fff; box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.3), 0 4px 0 rgb(var(--brand-950)), 0 8px 12px -8px rgb(0 0 0 / 0.6); transform: translateY(-2px); }
+[data-nav]:active .nav-pill { transform: translateY(1px); box-shadow: 0 1px 0 rgb(var(--brand-950)); }
+/* Čip série v hlavičce: od obrázku hráče ho dělí 12 px (mezera skupiny + mr-1.5 v index.html). Obrázkový rámeček (.frame-art: mraky,
+   slunce…) přesahuje obrys obrázku (kresba obvykle o 4–6 px, nejvýš 13 px na každou stranu), proto čip s rámečkem ustoupí o 6 px dál:
+   od kresby rámečku ho pak dělí zhruba stejných 12 px a nedotknou se ani u nejširšího rámečku */
+#app-header:has(#btn-settings .frame-art) #header-chips { margin-right: 0.75rem; }
+/* Hlavní obrazovky (záložky spodní lišty): obsah jen prolne, bez posunu fade-in (posun dolů by na okamžik přidal stránce posuvník
+   a zmátl měření, jestli se záložka vejde); přepnutí záložky krátce (tab-in), první vykreslení déle (tab-first) */
+@media (prefers-reduced-motion: no-preference) {
+    .tab-in { animation: tabIn 0.22s ease-out; }
+    .tab-first { animation: tabIn 0.45s ease-out; }
+}
+@keyframes tabIn { from { opacity: 0; } to { opacity: 1; } }
 /* Okna zarovnaná ke spodku: tlačítka nesmí zajet pod systémovou lištu telefonu (iPhone, gesta Androidu) */
 #settings-overlay, #play-chooser, #place-info, #dialog-overlay { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
 /* Otevřená klávesnice (app.js nastaví --kb a třídu kb-open): okno se zvedne nad ni a zkrátí se, obsah se pak posouvá uvnitř okna */
@@ -366,7 +386,7 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 @media (prefers-reduced-motion: no-preference) {
     .offer-panel { animation: offerPulse 1.7s ease-in-out infinite; }
 }
-/* Karta turnaje na záložce Více hráčů, když jsou přihlášky otevřené a hráč se nepřihlásil: stejné zelené svícení, jen jemnější (při omezeném pohybu bez pulzu) */
+/* Karta turnaje v okně Turnaje (záložka Soupeři), když jsou přihlášky otevřené a hráč se nepřihlásil: stejné zelené svícení, jen jemnější (při omezeném pohybu bez pulzu) */
 .tour-glow { box-shadow: 0 0 0 2px rgb(52 211 153 / 0.8), 0 0 18px rgb(52 211 153 / 0.4); }
 @media (prefers-reduced-motion: no-preference) {
     .tour-glow { animation: tourGlow 3.4s ease-in-out infinite; }
@@ -473,7 +493,7 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 .chest-orb > span { position: relative; }
 .chest-orb > span::after { content: ''; position: absolute; inset: 0; border-radius: 9999px; background: radial-gradient(circle at 32% 28%, rgb(255 255 255 / 0.6), rgb(255 255 255 / 0) 42%); }
 @media (prefers-reduced-motion: no-preference) {
-    .chest-strip .chest-mini { animation: chestWobble 2.4s ease-in-out infinite; transform-origin: 50% 90%; }
+    #chest-row .chest-mini { animation: chestWobble 2.4s ease-in-out infinite; transform-origin: 50% 90%; }
     .chest-waiting .chest-body { animation: chestIdle 2.6s ease-in-out infinite; }
     .chest-waiting .chest-halo { animation: chestHalo 2.6s ease-in-out infinite; }
     .chest-waiting .chest-ring { animation: chestRipple 2.6s ease-out 0.4s infinite; }
@@ -534,6 +554,8 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 
 /* Měření úvodu (app.js fitHome) bez přechodů: třída fit-short se přepne a výška změří hned v konečné podobě */
 .fit-measure, .fit-measure * { transition: none !important; }
+/* Okno zhuštěné jen samo pro sebe (app.js fitOverlay): okraj kolem okna jako na nízkém displeji (short:p-1.5 platí jen pro potomky třídy) */
+#settings-overlay.fit-short, #play-chooser.fit-short { padding-left: 0.375rem; padding-right: 0.375rem; padding-top: 0.375rem; }
 
 /* Zlatá otázka (gold.js, app.js oddíl „Zlatá otázka“). Obrazovka má nahoře teplou zlatou záři (.gold-screen), karta otázky zlatý rámeček
    s jemnou texturou zlaté fólie (.gold-card; do dodání obrázku č. 210 z přechodů) a jednou za pár sekund ji přejede třpyt (::after);

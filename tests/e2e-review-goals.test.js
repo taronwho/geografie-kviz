@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const fixtures = require('./fixtures.js');
+const nav = require('./nav.js');
 
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
@@ -48,14 +49,15 @@ test('opakování s rozestupy a týdenní cíle', { skip: !chromium && 'Playwrig
         tab.on('pageerror', error => problems.push(error.message));
         tab.on('console', message => { if (/Content Security Policy/i.test(message.text())) problems.push(message.text()); });
         await tab.goto(`${origin}/`);
-        await tab.waitForSelector('[data-action="play-topic"]');
+        await nav.waitForHome(tab);
         return { context, tab, problems };
     };
     const noScroll = (tab) => tab.evaluate(() => { const box = document.getElementById('app-content'); return box.scrollHeight <= box.clientHeight + 1; });
 
     for (const [name, viewport, colorScheme] of [['390×780', { width: 390, height: 780 }, 'light'], ['360×640 tmavý režim', { width: 360, height: 640 }, 'dark']]) {
-        await t.test(`úvod: cíle týdne se vejdou bez posouvání (${name})`, async () => {
+        await t.test(`záložka Postup: cíle týdne se vejdou bez posouvání (${name})`, async () => {
             const { context, tab, problems } = await open({ viewport, colorScheme });
+            await nav.go(tab, 'postup');
             const goals = tab.locator("#weekly-goals");
             await goals.waitFor();
             assert.equal(await goals.locator('[data-goal]').count(), 3);
@@ -77,8 +79,8 @@ test('opakování s rozestupy a týdenní cíle', { skip: !chromium && 'Playwrig
             await tab.keyboard.press('Escape');
             await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
             await tab.waitForTimeout(400);
-            // I na 360×640 (kompaktní úvod pro nízký displej) se úvod s pruhem cílů vejde bez posouvání
-            assert.equal(await noScroll(tab), true, 'úvod bez posouvání');
+            // I na 360×640 se záložka Postup s řádkem cílů vejde bez posouvání
+            assert.equal(await noScroll(tab), true, 'záložka Postup bez posouvání');
             const box = await goals.boundingBox();
             assert.ok(box.x >= 0 && box.x + box.width <= viewport.width, 'karta cílů nepřetéká');
             assert.equal(await tab.locator('[data-review-due]').count(), 0, 'bez karet žádný čip');
@@ -87,10 +89,10 @@ test('opakování s rozestupy a týdenní cíle', { skip: !chromium && 'Playwrig
             await tab.click('#dialog-overlay [data-goal-detail]');
             await tab.waitForSelector('#dialog-overlay [data-goal-play]');
             await tab.click('#dialog-overlay [data-goal-play]');
-            await tab.waitForFunction(() => document.querySelector('[data-action="choice"], #answer-form, [data-action="mode-start"], #quiz-intro, #chooser-overlay, #challenge-overlay, [data-action="give-up"]')
+            await tab.waitForFunction(() => document.querySelector('[data-action="choice"], #answer-form, [data-action="mode-start"], #quiz-intro, #play-chooser, #challenge-overlay, [data-action="give-up"]')
                 || (document.getElementById('dialog-overlay') && !document.querySelector('#dialog-overlay [data-goal-info]'))
-                // Cíl výzev nebo turnaje u hosta: záložka Více hráčů s pozvánkou k přihlášení
-                || Boolean(document.querySelector('[data-action="home-tab"][data-tab="multi"][aria-selected="true"]')), null, { timeout: 30000 });
+                // Cíl výzev nebo turnaje u hosta: záložka Soupeři s pozvánkou k přihlášení
+                || Boolean(document.querySelector('#app-nav [data-nav="souperi"][aria-current="page"]')), null, { timeout: 30000 });
             assert.deepEqual(problems, []);
             await context.close();
         });
@@ -98,9 +100,11 @@ test('opakování s rozestupy a týdenní cíle', { skip: !chromium && 'Playwrig
 
     await t.test('chyby se stanou kartami, Učení ukáže počet a opakování je dohraje', async () => {
         const { context, tab, problems } = await open({ mistakes: ['zemepis:Q4242', 'zemepis:Q39'] });
-        await tab.waitForSelector('[data-review-due]');
+        // Počet karet k procvičení ukazuje dlaždice Učení na záložce Hrát
+        await nav.go(tab, 'hrat');
+        await tab.waitForSelector('[data-action="open-learn"] [data-review-due]');
         assert.equal((await tab.textContent('[data-review-due]')).replace(/\D/g, ''), '2');
-        await tab.click('#btn-learn');
+        await nav.learn(tab);
         await tab.waitForSelector('[data-review-section]');
         assert.match(await tab.textContent('[data-review-section]'), /K procvičení dnes \(2\)/);
         assert.equal(await tab.locator('[data-review-section] img[src="icons/topics/procvicovani.webp"]').count(), 1, 'ilustrace opakování');
@@ -127,8 +131,9 @@ test('opakování s rozestupy a týdenní cíle', { skip: !chromium && 'Playwrig
 
     await t.test('opakování jde v Nastavení vypnout: zmizí čip i dlaždice a nezakládají se karty; zapnout jde zpět', async () => {
         const { context, tab, problems } = await open({ mistakes: ['zemepis:Q4242', 'zemepis:Q39'] });
+        await nav.go(tab, 'hrat');
         await tab.waitForSelector('[data-review-due]');
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.waitForSelector('[data-review-toggle]');
         assert.equal(await tab.getAttribute('[data-review-toggle]', 'aria-checked'), 'true', 've výchozím stavu zapnuto');
         await tab.click('[data-review-toggle]');
@@ -136,15 +141,17 @@ test('opakování s rozestupy a týdenní cíle', { skip: !chromium && 'Playwrig
         assert.equal(await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.reviewOn'))), false);
         assert.equal(await tab.locator('[data-review-due]').count(), 0, 'čip zmizel');
         await tab.click('[data-close]');
-        await tab.click('#btn-learn');
+        await nav.learn(tab);
         await tab.waitForSelector('[data-action="learn-topic"], #app-content');
         await tab.waitForTimeout(300);
         assert.equal(await tab.locator('[data-review-section]').count(), 0, 'dlaždice opakování zmizela');
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-review-toggle]');
         await tab.waitForFunction(() => document.querySelector('[data-review-toggle]').getAttribute('aria-checked') === 'true');
         await tab.click('[data-close]');
-        await tab.waitForSelector('[data-review-due]');
+        // Z Učení spodní lištou na záložku Hrát: čip s počtem karet je zpět na dlaždici Učení
+        await nav.go(tab, 'hrat');
+        await tab.waitForSelector('#mode-tiles [data-review-due]');
         assert.deepEqual(problems, []);
         await context.close();
     });

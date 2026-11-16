@@ -1,9 +1,11 @@
-// Záložka Více hráčů na úvodní stránce (kompaktní rozvržení): s typickým obsahem (jedna příchozí výzva, přihlášený turnaj, tři poslední výzvy,
-// liga) se vejde na 390×780 s přesahem nejvýš 40 px, nikde se neposouvá vodorovně, rychlé akce fungují, Zobrazit vše rozbalí starší výzvy.
+// Záložka Soupeři a její okna Výzvy a Turnaje (spodní lišta): s typickým obsahem (jedna příchozí výzva, přihlášený turnaj, tři poslední
+// výzvy, liga) i s hodně obsahem se všechno vejde na 390×780 i 360×640 bez posouvání stránky; dlouhé seznamy (poslední výzvy) se posouvají
+// jen uvnitř okna Výzvy a jde dojet až na konec. Rychlé akce fungují, Zobrazit vše rozbalí starší výzvy.
 // Falešný Supabase v paměti jako v tests/e2e-tournament.test.js. Potřebuje Playwright (viz tests/e2e.test.js), jinak se přeskočí.
-// SCREENSHOT_DIR=/cesta uloží snímky záložky (a nezkoumá přesah, jen ho vypíše: SOFT=1).
+// SCREENSHOT_DIR=/cesta uloží snímky (a s SOFT=1 se přesah jen vypíše).
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const nav = require('./nav.js');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -18,7 +20,6 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 const CONFIG = 'window.MUDRLANT_CONFIG = { supabaseUrl: "https://proj.supabase.co", supabaseAnonKey: "anon-key" };';
 const SHOTS = process.env.SCREENSHOT_DIR || '';
 const SOFT = Boolean(process.env.SOFT);
-const MAX_OVERFLOW = 40;
 
 const serveFile = (pathname) => {
     const file = path.join(ROOT, pathname === '/' ? 'index.html' : decodeURIComponent(pathname));
@@ -169,8 +170,8 @@ const setup = async (browser, { viewport, colorScheme = 'light', now }) => {
     await context.addInitScript(entries => {
         if (sessionStorage.getItem('test-storage-set')) return;
         sessionStorage.setItem('test-storage-set', '1');
-        Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
-    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), 'mudrlant.homeTab': JSON.stringify('multi'), ...login('tok-u1') });
+        Object.entries(entries).forEach(([key, value]) => (key.startsWith('session:') ? sessionStorage.setItem(key.slice(8), value) : localStorage.setItem(key, value)));
+    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), 'session:mudrlant.nav': 'souperi:vyzvy', ...login('tok-u1') });
     const tab = await context.newPage();
     const log = { errors: [], csp: [] };
     tab.on('pageerror', error => log.errors.push(error.message));
@@ -193,7 +194,7 @@ const measure = (tab) => tab.evaluate(() => {
     return { overflow: content.scrollHeight - content.clientHeight, page: document.documentElement.scrollWidth - document.documentElement.clientWidth, content: content.scrollWidth - content.clientWidth };
 });
 
-test('záložka Více hráčů je kompaktní', { skip: !chromium && 'Playwright není nainstalovaný' }, async (t) => {
+test('záložka Soupeři a okna Výzvy a Turnaje se vejdou bez posouvání', { skip: !chromium && 'Playwright není nainstalovaný' }, async (t) => {
     const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
     t.after(() => browser.close());
     const start = async (fill, { viewport, colorScheme, now, keyboard = false }) => {
@@ -220,26 +221,53 @@ test('záložka Více hráčů je kompaktní', { skip: !chromium && 'Playwright 
         return { ...page, db };
     };
 
+    // Okno Výzvy má vlastní posuvný panel (příchozí výzvy, liga, poslední výzvy); stránka ani obsah se neposouvají
+    const panel = (tab) => tab.evaluate(() => { const list = document.querySelector('#challenges-section [data-scroll-list]'); return { over: list.scrollHeight - list.clientHeight, top: list.scrollTop }; });
+    const fitsAll = async (tab, what) => {
+        const size = await measure(tab);
+        console.log(`# ${what}: přesah ${size.overflow} px`);
+        assert.equal(size.page, 0, `${what}: stránka se neposouvá vodorovně`);
+        assert.equal(size.content, 0, `${what}: obsah se neposouvá vodorovně`);
+        if (!SOFT) assert.equal(size.overflow, 0, `${what}: obsah se neposouvá svisle`);
+        assert.equal(await tab.evaluate(() => document.documentElement.scrollHeight - window.innerHeight), 0, `${what}: stránka se neposouvá svisle`);
+        assert.equal(await tab.locator('#app-nav:not(.hidden)').count(), 1, `${what}: spodní lišta je vidět`);
+    };
+
     for (const [width, height] of [[390, 780], [360, 640]]) {
         for (const colorScheme of ['light', 'dark']) {
-            await t.test(`typický obsah ${width}×${height}, ${colorScheme === 'dark' ? 'tmavý' : 'světlý'} režim: ${width === 390 ? `přesah nejvýš ${MAX_OVERFLOW} px, ` : ''}bez vodorovného posouvání`, async () => {
+            await t.test(`typický obsah ${width}×${height}, ${colorScheme === 'dark' ? 'tmavý' : 'světlý'} režim: okno Výzvy, záložka Soupeři a okno Turnaje bez posouvání`, async () => {
                 const { context, tab, log } = await start(typical, { viewport: { width, height }, colorScheme, now: '2026-11-11T10:00:00Z' });
-                await tab.waitForSelector('#tournament-card');
-                const size = await measure(tab);
-                console.log(`# ${width}x${height} ${colorScheme}: přesah ${size.overflow} px`);
-                await shot(tab, `multi-typicky-${width}-${colorScheme}`);
-                assert.equal(size.page, 0, 'stránka se neposouvá vodorovně');
-                assert.equal(size.content, 0, 'obsah se neposouvá vodorovně');
-                if (width === 390 && !SOFT) assert.ok(size.overflow <= MAX_OVERFLOW, `svislý přesah ${size.overflow} px`);
+                await fitsAll(tab, `Výzvy ${width}x${height} ${colorScheme}`);
+                await shot(tab, `vyzvy-typicky-${width}-${colorScheme}`);
                 // Nic nepřetéká přes okraj
                 const outside = await tab.evaluate((w) => [...document.querySelectorAll('#challenges-section *')].filter(node => { const rect = node.getBoundingClientRect(); return rect.width > 0 && (rect.right > w + 0.5 || rect.left < -0.5); }).map(node => node.tagName + '.' + String(node.className).slice(0, 40)), width);
                 assert.deepEqual(outside, []);
                 if (SOFT) { await context.close(); return; }
-                // Pořadí podle důležitosti: čekající výzva, turnaj, rychlé akce, liga, poslední výzvy
-                const order = await tab.evaluate(() => ['[data-action="challenge-open"][data-code="INC001"]', '#tournament-card', '[data-action="new-challenge"]', '#league-card', '[data-action="challenge-open"][data-code="REC001"]'].map(selector => document.querySelector(selector).getBoundingClientRect().top));
+                // Pořadí podle důležitosti: rychlé akce, čekající výzva, liga, poslední výzvy
+                const order = await tab.evaluate(() => ['[data-action="new-challenge"]', '#challenges-section [data-action="challenge-open"][data-code="INC001"]', '#league-card', '[data-action="challenge-open"][data-code="REC001"]'].map(selector => document.querySelector(selector).getBoundingClientRect().top));
                 assert.deepEqual([...order].sort((a, b) => a - b), order, 'pořadí sekcí');
-                // Poslední tři výzvy jsou vidět
+                // Poslední tři výzvy jsou v seznamu a jde k nim dojet (seznam se posouvá jen uvnitř okna)
                 assert.equal(await tab.locator('[data-action="challenge-open"][data-code^="REC"]').count(), 3);
+                await tab.evaluate(() => { const list = document.querySelector('#challenges-section [data-scroll-list]'); list.scrollTop = list.scrollHeight; });
+                const last = await tab.evaluate(() => { const row = document.querySelector('[data-action="challenge-open"][data-code="REC003"]').getBoundingClientRect(); const bar = document.getElementById('app-nav').getBoundingClientRect(); return { bottom: row.bottom, bar: bar.top }; });
+                assert.ok(last.bottom <= last.bar + 0.5, `poslední výzva je celá nad spodní lištou: ${JSON.stringify(last)}`);
+                // Zpět na záložku Soupeři: nejnaléhavější věc (příchozí výzva) a čtyři dlaždice
+                await tab.click('[data-action="souperi-back"]');
+                await tab.waitForSelector('#souperi-tiles');
+                assert.equal(await nav.currentTab(tab), 'souperi');
+                assert.equal(await tab.getAttribute('#waiting-section', 'data-waiting'), '1');
+                assert.ok(await tab.$('#waiting-section [data-action="challenge-open"][data-code="INC001"]'), 'čekající výzva je v části Čeká na tebe');
+                assert.equal((await tab.textContent('#challenges-tile [data-tile-badge]')).trim(), '1');
+                assert.equal((await tab.textContent('#app-nav [data-nav="souperi"] [data-nav-badge]')).trim(), '1');
+                await fitsAll(tab, `Soupeři ${width}x${height} ${colorScheme}`);
+                await shot(tab, `souperi-typicky-${width}-${colorScheme}`);
+                // Okno Turnaje: karta turnaje s přihláškou, dole Archiv a Jak to funguje
+                await nav.tournaments(tab);
+                await tab.waitForSelector('#tournament-card');
+                assert.match(await tab.textContent('#tournament-card'), /Přihláška hotová/);
+                assert.equal(await tab.locator('#tournaments-section [data-action="tournament-archive"], #tournaments-section [data-action="tournament-help"]').count(), 2);
+                await fitsAll(tab, `Turnaje ${width}x${height} ${colorScheme}`);
+                await shot(tab, `turnaje-typicky-${width}-${colorScheme}`);
                 assert.deepEqual(log.errors, []);
                 assert.deepEqual(log.csp, []);
                 await context.close();
@@ -247,14 +275,17 @@ test('záložka Více hráčů je kompaktní', { skip: !chromium && 'Playwright 
         }
     }
 
-    await t.test('Poslední výzvy: rozbalení ukáže všechny načtené, posouvání dolů načte starší až do konce', async () => {
+    await t.test('Poslední výzvy: rozbalení ukáže všechny načtené, posouvání seznamu dolů načte starší až do konce; stránka se neposouvá', async () => {
         const { context, tab, log } = await start(many, { viewport: { width: 390, height: 780 }, now: `${MON}T10:00:00Z` });
         const rows = () => tab.locator('#challenges-section [data-action="challenge-open"][data-code^="OLD"]').count();
         await tab.waitForFunction(() => document.querySelectorAll('#challenges-section [data-action="challenge-open"]').length === 3);
         await tab.click('[data-action="recent-more"]');
-        // prvních 8 + hned další stránka (hlídka na konci je vidět), pak posouvání dolů načte zbytek
-        await tab.waitForFunction(() => document.querySelectorAll('#challenges-section [data-action="challenge-open"]').length >= 23, null, { timeout: 20000 });
-        await tab.evaluate(() => { const box = document.getElementById('app-content'); box.scrollTo(0, box.scrollHeight); });
+        // prvních 8 + hned další stránka (hlídka na konci je vidět), pak posouvání seznamu dolů načte zbytek
+        await tab.waitForFunction(() => document.querySelectorAll('#challenges-section [data-action="challenge-open"]').length >= 16, null, { timeout: 20000 });
+        for (let i = 0; i < 6 && !(await tab.$('#challenges-section [data-recent-end]')); i++) {
+            await tab.evaluate(() => { const list = document.querySelector('#challenges-section [data-scroll-list]'); list.scrollTo(0, list.scrollHeight); });
+            await tab.waitForTimeout(700);
+        }
         await tab.waitForSelector('#challenges-section [data-recent-end]', { timeout: 20000 });
         assert.equal(await rows(), 24, 'všech 25 výzev (24 starších + nejnovější REC001)');
         assert.match(await tab.textContent('[data-recent-end]'), /To jsou všechny tvoje výzvy/);
@@ -262,39 +293,63 @@ test('záložka Více hráčů je kompaktní', { skip: !chromium && 'Playwright 
         assert.equal(new Set(codes).size, codes.length, 'bez duplicit');
         assert.equal(codes[0], 'REC001', 'nejnovější nahoře');
         assert.deepEqual(codes.slice(1), [...codes.slice(1)].sort().reverse(), 'starší od nejnovější');
+        // Dlouhý seznam se posouvá jen uvnitř okna a jde dojet až na konec (poslední řádek celý nad spodní lištou)
+        await tab.evaluate(() => { const list = document.querySelector('#challenges-section [data-scroll-list]'); list.scrollTo(0, list.scrollHeight); });
+        assert.ok((await panel(tab)).over > 0, 'seznam se posouvá uvnitř okna');
+        const end = await tab.evaluate(() => { const mark = document.querySelector('[data-recent-end]').getBoundingClientRect(); return { bottom: mark.bottom, bar: document.getElementById('app-nav').getBoundingClientRect().top }; });
+        assert.ok(end.bottom <= end.bar + 0.5, `konec seznamu je nad spodní lištou: ${JSON.stringify(end)}`);
+        await fitsAll(tab, 'rozbalené Poslední výzvy');
         assert.deepEqual(log.errors, []);
         await context.close();
     });
 
-    for (const [width, height, colorScheme] of [[390, 780, 'light'], [360, 640, 'dark']]) await t.test(`hodně obsahu ${width}×${height}, ${colorScheme === 'dark' ? 'tmavý' : 'světlý'} režim: běžící turnaj, dvě pozvánky, šest výzev; Zobrazit vše rozbalí starší`, async () => {
+    for (const [width, height, colorScheme] of [[390, 780, 'light'], [360, 640, 'dark']]) await t.test(`hodně obsahu ${width}×${height}, ${colorScheme === 'dark' ? 'tmavý' : 'světlý'} režim: běžící turnaj, dvě pozvánky, šest výzev; Zobrazit vše rozbalí starší; Čeká na tebe ukáže zápas a +2 další`, async () => {
         const { context, tab, log } = await start(busy, { viewport: { width, height }, colorScheme, now: `${MON}T10:00:00Z` });
-        await tab.waitForSelector('#tournament-card [data-action="tournament-play"]');
-        const size = await measure(tab);
-        console.log(`# hodně obsahu: přesah ${size.overflow} px`);
-        assert.equal(size.page, 0);
-        assert.equal(size.content, 0);
-        await shot(tab, `multi-hodne-${width}-${colorScheme}`);
+        await tab.waitForSelector('#challenges-section [data-action="challenge-open"][data-code="INC002"]');
+        await fitsAll(tab, `Výzvy s hodně obsahem ${width}x${height}`);
+        await shot(tab, `vyzvy-hodne-${width}-${colorScheme}`);
         if (SOFT) { await context.close(); return; }
         assert.equal(await tab.locator('#challenges-section [data-action="challenge-open"][data-code^="REC"]').count(), 3, 'jen poslední tři');
         await tab.click('[data-action="recent-more"]');
         await tab.waitForFunction(() => document.querySelectorAll('#challenges-section [data-action="challenge-open"][data-code^="REC"]').length === 6);
         assert.equal(await tab.locator('[data-action="recent-more"]').getAttribute('aria-expanded'), 'true');
-        const after = await measure(tab);
-        assert.deepEqual({ page: after.page, content: after.content }, { page: 0, content: 0 });
-        await shot(tab, `multi-hodne-rozbaleno-${width}-${colorScheme}`);
+        await fitsAll(tab, `rozbalené výzvy ${width}x${height}`);
+        await shot(tab, `vyzvy-hodne-rozbaleno-${width}-${colorScheme}`);
         await tab.click('[data-action="recent-more"]');
         await tab.waitForFunction(() => document.querySelectorAll('#challenges-section [data-action="challenge-open"][data-code^="REC"]').length === 3);
+        // Záložka Soupeři: nejnaléhavější je dnešní zápas turnaje, obě pozvánky jsou pod „+2 další“
+        await tab.click('[data-action="souperi-back"]');
+        await tab.waitForSelector('#waiting-section [data-wait="tournament"][data-action="tournament-play"]');
+        assert.equal(await tab.getAttribute('#waiting-section', 'data-waiting'), '3');
+        assert.equal((await tab.textContent('#waiting-section [data-action="waiting-all"]')).replace(/\s+/g, ' ').trim(), '+2 další');
+        assert.equal((await tab.textContent('#app-nav [data-nav="souperi"] [data-nav-badge]')).trim(), '3');
+        await fitsAll(tab, `Soupeři s hodně obsahem ${width}x${height}`);
+        await shot(tab, `souperi-hodne-${width}-${colorScheme}`);
+        await tab.click('#waiting-section [data-action="waiting-all"]');
+        await tab.waitForSelector('#waiting-list');
+        assert.equal(await tab.locator('#waiting-list [data-action="challenge-open"][data-code^="INC"]').count(), 2);
+        assert.equal(await tab.locator('#waiting-list [data-action="tournament-play"]').count(), 1);
+        assert.ok(await tab.evaluate(() => document.querySelector('#dialog-overlay > div').getBoundingClientRect().bottom <= window.innerHeight), 'okno Čeká na tebe se vejde');
+        await shot(tab, `ceka-na-tebe-${width}-${colorScheme}`);
+        await tab.keyboard.press('Escape');
+        await tab.waitForFunction(() => !document.getElementById('dialog-overlay'));
+        // Okno Turnaje: běžící turnaj se zápasem k odehrání
+        await nav.tournaments(tab);
+        await tab.waitForSelector('#tournament-card [data-action="tournament-play"]');
+        await fitsAll(tab, `Turnaje s hodně obsahem ${width}x${height}`);
+        await shot(tab, `turnaje-hodne-${width}-${colorScheme}`);
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();
     });
 
-    await t.test('turnaj s otevřenými přihláškami a nepřihlášený hráč: karta zeleně svítí, přihlášený ne', async () => {
+    await t.test('turnaj s otevřenými přihláškami a nepřihlášený hráč: karta v okně Turnaje zeleně svítí, přihlášený ne', async () => {
         const { context, tab, log } = await start((db) => { typical(db); db.entries = db.entries.filter(entry => entry.user_id !== 'u-1'); }, { viewport: { width: 390, height: 780 }, colorScheme: 'light', now: '2026-11-11T10:00:00Z' });
+        await nav.tournaments(tab);
         await tab.waitForSelector('#tournament-card [data-action="tournament-join"]');
         assert.equal(await tab.locator('#tournament-card.tour-glow').count(), 1);
         assert.match(await tab.evaluate(() => getComputedStyle(document.getElementById('tournament-card')).boxShadow), /52, 211, 153/);
-        await shot(tab, 'multi-turnaj-svit-390-light');
+        await shot(tab, 'turnaj-svit-390-light');
         await tab.click('[data-action="tournament-join"]');
         await tab.waitForSelector('#tournament-card [data-action="tournament-leave"]');
         assert.equal(await tab.locator('#tournament-card.tour-glow').count(), 0, 'po přihlášení karta nesvítí');
@@ -306,8 +361,8 @@ test('záložka Více hráčů je kompaktní', { skip: !chromium && 'Playwright 
     await t.test('rychlé akce: Vyzvat, Náhodný soupeř, Zadat kód a Přijímám výzvy z', { skip: SOFT }, async () => {
         const { context, tab, log } = await start(typical, { viewport: { width: 390, height: 780 }, colorScheme: 'light', now: '2026-11-11T10:00:00Z' });
         assert.match((await tab.textContent('#challenges-section')).replace(/\s+/g, ' '), /Přijímám výzvy z: všechna témata/);
-        // Dlaždice a karta turnaje mají vlastní ilustrace a skutečně se načtou
-        for (const [selector, name] of [['[data-action="random-challenge"]', 'nahodny'], ['[data-action="join-challenge"]', 'kod'], ['#tournament-card', 'turnaj']]) {
+        // Dlaždice rychlých akcí mají vlastní ilustrace a skutečně se načtou
+        for (const [selector, name] of [['[data-action="new-challenge"]', 'vyzva'], ['[data-action="random-challenge"]', 'nahodny'], ['[data-action="join-challenge"]', 'kod']]) {
             await tab.waitForFunction(([s, n]) => { const img = document.querySelector(`#challenges-section ${s} img[src="icons/topics/${n}.webp"]`); return img && img.complete && img.naturalWidth > 0; }, [selector, name]);
         }
         await tab.click('#challenges-section [data-action="new-challenge"]');

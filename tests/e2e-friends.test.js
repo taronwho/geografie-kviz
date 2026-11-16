@@ -3,6 +3,7 @@
 // CSP bez chyb, 360×640 a 390×780 bez vodorovného posouvání, tmavý režim. Potřebuje Playwright (viz tests/e2e.test.js), jinak se přeskočí.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const nav = require('./nav.js');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -69,7 +70,11 @@ const backend = async (context, db) => {
                 return { ...profile(other), last_seen: '2026-11-04T08:00:00Z', status: f.status, direction: f.user_id === 'u-1' ? 'out' : 'in', since: '2026-11-01T10:00:00Z', wins: other === 'u-2' ? 3 : 0, losses: other === 'u-2' ? 1 : 0, draws: 0 };
             }));
         }
-        if (rpc && rpc[1] === 'search_players') return json([]);
+        if (rpc && rpc[1] === 'search_players') {
+            const term = String((request.postDataJSON() || {}).term || '').toLocaleLowerCase('cs');
+            db.calls.push({ name: 'search_players', term });
+            return json(Object.values(db.profiles).filter(row => row.id !== 'u-1' && row.display_name.toLocaleLowerCase('cs').includes(term)).map(row => ({ id: row.id, display_name: row.display_name, avatar: row.avatar, color: row.color })));
+        }
         if (rpc && rpc[1] === 'dev_report_resolve') return route.fulfill({ status: 204, body: '' });
         if (rpc && rpc[1] === 'dev_player_reports') {
             if (!db.devAdmin) return json({ code: '42501', message: 'Vývojářské nástroje turnajů nejsou pro tento účet zapnuté (viz docs/SUPABASE.md, dev_admins).' }, 403);
@@ -118,8 +123,8 @@ const setup = async (browser, storage, { viewport = { width: 390, height: 780 },
     await context.addInitScript(entries => {
         if (sessionStorage.getItem('test-storage-set')) return;
         sessionStorage.setItem('test-storage-set', '1');
-        Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
-    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), 'mudrlant.homeTab': JSON.stringify('multi'), ...storage });
+        Object.entries(entries).forEach(([key, value]) => (key.startsWith('session:') ? sessionStorage.setItem(key.slice(8), value) : localStorage.setItem(key, value)));
+    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), 'session:mudrlant.nav': 'souperi', ...storage });
     const tab = await context.newPage();
     const log = { errors: [], csp: [] };
     tab.on('pageerror', error => log.errors.push(error.message));
@@ -135,7 +140,7 @@ const setup = async (browser, storage, { viewport = { width: 390, height: 780 },
     await tab.clock.setFixedTime(new Date('2026-11-04T10:00:00'));
     return { context, tab, log };
 };
-const waitForHome = (tab) => tab.waitForFunction(() => { const content = document.getElementById('app-content'); return Boolean(content && (content.textContent.includes('Dnešní otázky') || content.querySelector('#home-tabs'))); }, null, { timeout: 30000 });
+const waitForHome = (tab) => nav.waitForHome(tab);
 const shot = async (tab, name) => { if (SHOTS) await tab.screenshot({ path: path.join(SHOTS, `${name}.png`) }); };
 const noHorizontalScroll = (tab) => tab.evaluate(() => {
     const content = document.getElementById('app-content');
@@ -156,6 +161,15 @@ test('přátelé, reakce, blokování a nahlášení', { skip: !chromium && 'Pla
         return page;
     };
 
+    // Žádost o přátelství je v části Čeká na tebe: buď jako nejnaléhavější řádek přímo na záložce Soupeři, nebo v okně „+N další“
+    const request = async (tab) => {
+        await tab.waitForSelector('#waiting-section');
+        if (!(await tab.$('#waiting-section [data-friend-request="u-3"]'))) {
+            await tab.click('#waiting-section [data-action="waiting-all"]');
+            await tab.waitForSelector('#waiting-list [data-friend-request="u-3"]');
+        }
+    };
+
     await t.test('pás přátel a žádost: přijetí, odmítnutí, kompaktní rozvržení bez posouvání', async () => {
         for (const [viewport, colorScheme] of [[{ width: 390, height: 780 }, 'light'], [{ width: 360, height: 640 }, 'dark']]) {
             const db = newDb();
@@ -163,6 +177,8 @@ test('přátelé, reakce, blokování a nahlášení', { skip: !chromium && 'Pla
             await tab.waitForSelector('#friends-strip');
             assert.equal(await tab.locator('#friends-strip [data-player-id]').count(), 1);
             assert.match(await compact(tab, '#friends-section'), /Přátelé · 1/);
+            assert.ok(await tab.$('#friends-section [data-friends-add]'), 'tlačítko + pro hledání a pozvání přátel');
+            await request(tab);
             assert.match(await compact(tab, '[data-friend-request="u-3"]'), /Eva Mistr ?tě chce mít v přátelích/);
             assert.ok(db.seenCalls >= 1, 'poslední aktivita se zapíše');
             assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
@@ -171,19 +187,66 @@ test('přátelé, reakce, blokování a nahlášení', { skip: !chromium && 'Pla
             await tab.waitForFunction(() => document.querySelectorAll('#friends-strip [data-player-id]').length === 2);
             assert.equal(db.friendships.find(f => f.user_id === 'u-3').status, 'accepted');
             assert.equal(await tab.locator('[data-friend-request]').count(), 0);
+            if (await tab.$('#dialog-overlay')) await closeDialog(tab);
             assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
+            assert.deepEqual(await tab.evaluate(() => { const main = document.getElementById('app-content'); return [main.scrollHeight - main.clientHeight, document.documentElement.scrollHeight - window.innerHeight]; }), [0, 0], 'záložka Soupeři se neposouvá');
             assert.deepEqual(log.errors, []);
             assert.deepEqual(log.csp, []);
             await context.close();
         }
         const db = newDb();
         const { context, tab } = await start(db);
-        await tab.waitForSelector('[data-friend-request="u-3"]');
+        await request(tab);
         await tab.click('[data-action="friend-decline"][data-id="u-3"]');
         await tab.waitForFunction(() => !document.querySelector('[data-friend-request]'));
         assert.equal(db.friendships.some(f => f.user_id === 'u-3'), false, 'odmítnutí žádost smaže');
         assert.equal(await tab.locator('#friends-strip [data-player-id]').count(), 1);
         await context.close();
+    });
+
+    await t.test('okno Přátelé (tlačítko + v pásu): hledání podle přezdívky, profil nalezeného hráče a žádost, zpět do okna, seznam přátel', async () => {
+        for (const [viewport, colorScheme] of [[{ width: 390, height: 780 }, 'dark'], [{ width: 360, height: 640 }, 'light']]) {
+            const db = newDb();
+            const { context, tab, log } = await start(db, { viewport, colorScheme });
+            await tab.waitForSelector('#friends-strip');
+            await tab.click('#friends-section [data-friends-add]');
+            await tab.waitForSelector('#friends-dialog');
+            assert.equal(await compact(tab, '#dialog-title'), 'Přátelé');
+            assert.equal(await tab.locator('#friends-list [data-friend-open]').count(), 1);
+            assert.match(await compact(tab, '#friends-list'), /Petr Svoboda.*bilance 3:1/);
+            assert.match(await compact(tab, '#friends-dialog'), /Žádosti o přátelství.*Eva Mistr ?tě chce mít v přátelích/);
+            // Krátký dotaz se neposílá
+            await tab.fill('#friends-query', 'L');
+            await tab.click('#friends-search button[type="submit"]');
+            await tab.waitForFunction(() => /aspoň dvě písmena/.test(document.getElementById('friends-dialog').textContent));
+            assert.equal(db.calls.filter(call => call.name === 'search_players').length, 0);
+            await tab.fill('#friends-query', 'lenk');
+            await tab.press('#friends-query', 'Enter');
+            await tab.waitForSelector('[data-friends-results] [data-friend-open="u-4"]');
+            assert.deepEqual(db.calls.filter(call => call.name === 'search_players').map(call => call.term), ['lenk']);
+            assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
+            assert.ok(await tab.evaluate(() => document.querySelector('#dialog-overlay > div').getBoundingClientRect().bottom <= window.innerHeight), 'okno se vejde na výšku');
+            await shot(tab, `pratele-okno-${viewport.width}-${colorScheme}`);
+            // Profil nalezeného hráče: Přidat do přátel, pak zpět do okna Přátelé (hledání zůstane)
+            await tab.click('[data-friends-results] [data-friend-open="u-4"]');
+            await tab.waitForSelector('[data-friend="add"]');
+            await tab.click('[data-friend="add"]');
+            await tab.waitForSelector('[data-friend="cancel"]');
+            assert.deepEqual(db.friendships.find(f => f.friend_id === 'u-4'), { user_id: 'u-1', friend_id: 'u-4', status: 'pending' });
+            // Křížek profilu vrací do okna Přátelé (profil hráče nemá vlastní tlačítko zpět)
+            await tab.click('#dialog-overlay [data-close]');
+            await tab.waitForSelector('#friends-dialog');
+            assert.equal(await tab.inputValue('#friends-query'), 'lenk');
+            assert.match(await compact(tab, '#friends-dialog'), /Odeslané žádosti: Lenka Dvořáková/);
+            // Nikdo takový: srozumitelná hláška
+            await tab.fill('#friends-query', 'zzzz');
+            await tab.press('#friends-query', 'Enter');
+            await tab.waitForFunction(() => /Nikoho takového/.test((document.querySelector('[data-friends-results]') || { textContent: '' }).textContent));
+            await closeDialog(tab);
+            assert.deepEqual(log.errors, []);
+            assert.deepEqual(log.csp, []);
+            await context.close();
+        }
     });
 
     await t.test('profil hráče: přidat do přátel, odebrat, bilance a aktivita přítele', async () => {
@@ -244,7 +307,7 @@ test('přátelé, reakce, blokování a nahlášení', { skip: !chromium && 'Pla
         await closeDialog(tab);
         assert.equal(await tab.locator('#friends-strip').count(), 0, 'blokovaný zmizel z přátel');
         // Nastavení → Zablokovaní hráči → Odblokovat
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="game"]');
         await tab.click('[data-open-blocked]');
         await tab.waitForSelector('#blocked-list');
@@ -289,12 +352,12 @@ test('přátelé, reakce, blokování a nahlášení', { skip: !chromium && 'Pla
         await page.tab.goto(`${ORIGIN}/`);
         await waitForHome(page.tab);
         const { tab, log, context } = page;
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-dev="player-reports"]');
         await tab.waitForFunction(() => /dev_admins/.test(document.getElementById('dialog-overlay').textContent));
         await closeDialog(tab);
         db.devAdmin = true;
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-dev="player-reports"]');
         await tab.waitForSelector('#dev-reports');
         assert.match(await compact(tab, '#dev-reports'), /Lenka Dvořáková · Podvádění ?od Jana Nováková.*Podezřelé časy/);

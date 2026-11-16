@@ -206,10 +206,10 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
 
     await t.test('host (360×640): dlaždice, úvod v aréně, souboj se zásahy, chybou, psanou odpovědí a stupni bosse, výhra s emblémem a XP', async () => {
         const { context, tab, log } = await open(browser, {});
-        assert.equal(await compact(tab, '#boss-card'), 'Boss týdne 3 pokusy');
+        assert.equal(await compact(tab, '#boss-card'), 'Boss týdne 3 pokusy Souboj');
         assert.equal(await tab.getAttribute('#boss-card', 'data-boss-status'), 'new');
         assert.ok(await tab.$('#boss-card [data-boss-new]'), 'zlatá tečka: tento týden ještě nehráno');
-        assert.ok(await tab.$('#home-specials #quiz-card + #boss-card, #home-specials #boss-card'), 'v řadě Výzvy');
+        assert.ok(await tab.$('#home-specials #boss-card'), 'mezi dnešními výzvami');
         await fitsScreen(tab, 'úvod s dlaždicí bosse (360×640)');
         await audit(tab, 'úvod s dlaždicí bosse (360×640)');
         await shot(tab, 'uvod-360x640');
@@ -380,7 +380,7 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         assert.equal((await progress(tab)).counters.bossFights, 1);
         await tab.click('[data-action="boss-home"]');
         await tab.waitForSelector('#boss-card[data-boss-status="played"]');
-        assert.equal(await compact(tab, '#boss-card'), `Boss týdne ❤ ${status.percent} %`);
+        assert.equal(await compact(tab, '#boss-card'), `Boss týdne ❤ ${status.percent} % Souboj`);
         await tab.click('[data-action="boss-open"]');
         await tab.waitForSelector('#boss-intro');
         assert.equal(await compact(tab, '[data-action="boss-start"]'), 'Do souboje · 2. pokus');
@@ -476,7 +476,7 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         await wait(tab, 5000);
         await tab.reload();
         await tab.waitForSelector('#boss-card[data-boss-status="open"]');
-        assert.equal(await compact(tab, '#boss-card'), 'Boss týdne Souboj běží');
+        assert.equal(await compact(tab, '#boss-card'), 'Boss týdne Souboj běží Hrát dál');
         await tab.click('[data-action="boss-open"]');
         await tab.waitForSelector('#boss-intro');
         assert.match(await compact(tab, '[data-action="boss-start"]'), /Pokračovat v souboji · otázka 2\/10/);
@@ -552,7 +552,8 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         assert.match(await compact(tab, '#boss-intro [data-boss-status]'), /Nejlepší pokus: 300 poškození/);
         await tab.click('[data-action="boss-home"]');
         await tab.waitForSelector('#boss-card[data-boss-status="out"]');
-        assert.equal(await compact(tab, '#boss-card'), 'Boss týdne ❤ 58 %');
+        assert.equal(await compact(tab, '#boss-card'), 'Boss týdne ❤ 58 % · pokusy došly');
+        assert.equal(await tab.getAttribute('#boss-card', 'data-done'), '1', 'bez pokusů je řádek hotový (ztlumený, bez tlačítka)');
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();

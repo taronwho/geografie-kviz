@@ -410,12 +410,15 @@ test('napojení a HTML: season.js v index.html, service workeru, nasazení a Tai
     const view = Season.info(state, { today: '2026-11-03', xp: 6000 });
     const opened = Season.claim(state, { tier: 20, ctx: ctx(), xp: 30000, today: '2026-11-03' });
     const html = [
-        Season.cardHtml(view), Season.stripHtml({ id: NOV, count: 3 }), Season.stripHtml({ id: '2026-10', count: 2, past: true, until: '2026-11-07' }), Season.pathHtml(view, { h }),
+        Season.cardHtml(view), Season.pathHtml(view, { h }),
         Season.revealHtml({ id: NOV, tier: 4, h }), Season.revealHtml({ id: NOV, tier: 10, h }), Season.revealHtml({ id: NOV, tier: 20, h }),
         Season.revealHtml({ id: NOV, tier: 20, opened, h }), Season.revealHtml({ id: NOV, tier: 3, opened: { parts: [{ freeze: true }] }, next: 2, h })
     ].join('\n');
     assert.doesNotMatch(html, /style=/);
-    assert.match(Season.stripHtml({ id: '2026-10', count: 2, past: true, until: '2026-11-07' }), /Sezóna Říjen: 2 odměny jen do 7\. 11\./);
+    // Řádek na záložce Dnes (kreslí app.js): název a podtitulek
+    assert.deepEqual(Season.stripText({ id: '2026-10', count: 2, past: true, until: '2026-11-07' }), { title: 'Sezóna Říjen', text: '2 odměny jen do 7. 11.' });
+    assert.deepEqual(Season.stripText({ id: NOV, count: 1 }), { title: 'Sezóna Listopad', text: 'čeká odměna' });
+    assert.deepEqual(Season.stripText({ id: NOV, count: 3 }), { title: 'Sezóna Listopad', text: 'čekají 3 odměny' });
     assert.match(Season.cardHtml(view), /data-season-claim[\s\S]*data-season-count>\d+</);
     assert.equal((Season.pathHtml(view, { h }).match(/data-season-tier="/g) || []).length, 20);
     assert.match(Season.revealHtml({ id: NOV, tier: 20, opened, h }), /Sezóna Listopad 2026[\s\S]*Sezónní truhla[\s\S]*Listopadový rámeček · postavička Hrnek čaje · titul Šampion sezóny/);

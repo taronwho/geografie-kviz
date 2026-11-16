@@ -154,7 +154,7 @@ test('SQL: speciální turnaje na téma a hlasování', { skip: !available && 'P
         const [user, title, body, key] = rows[0].split('|');
         assert.equal(user, C);
         assert.equal(title, `Začíná speciální turnaj: ${q(`select title from tournaments where id = '${tid}'`)}`);
-        assert.match(body, /^Přihlášky jsou otevřené, začíná (v|ve) \S+ \d+\. \d+\. v \d+:\d\d\. Přihlas se na záložce Více hráčů\.$/);
+        assert.match(body, /^Přihlášky jsou otevřené, začíná (v|ve) \S+ \d+\. \d+\. v \d+:\d\d\. Přihlas se na záložce Soupeři v okně Turnaje\.$/);
         assert.equal(key, `tsp:${tid}:${C}`);
         ok(as(C, `select tournament_join('${tid}');`));
         assert.equal(q(`set mudrlant.test_now = '${NOW}'; select count(*) from push_pending() where kind = 'tournament_special'`), '0', 'přihlášenému už ne');

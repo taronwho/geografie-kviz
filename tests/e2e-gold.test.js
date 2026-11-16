@@ -1,7 +1,7 @@
 // Zlatá otázka (gold.js, app.js) v prohlížeči: zlatá karta se štítkem „Zlatá otázka · 3× XP“ a třpytem, bublina s vysvětlením při první
 // zlaté otázce, trojnásobek XP, střípek za správnou odpověď bez nápovědy (s nápovědou jen XP), počítadlo mudrlant.gold, pátý střípek otevře
 // Zlatou truhlu (stejné okno jako Truhla Mudrlanta) se vzácnou věcí, odznak Zlatokop I, dnešní otázka zůstane zlatá i po návratu, další
-// otázka zlatá není, Bleskovka (čas stojí pod bublinou, střípek přiletí do okénka nad hrou, XP navíc ve výsledku), Můj postup → Zlaté
+// otázka zlatá není, Bleskovka (čas stojí pod bublinou, střípek přiletí do okénka nad hrou, XP navíc ve výsledku), záložka Postup → Zlaté
 // střípky a okno Zlatá otázka se statistikami. Vše bez posouvání na 360×640 i 390×780, ve světlém i tmavém režimu, CSP bez chyb.
 // Potřebuje Playwright (viz tests/e2e.test.js), jinak se přeskočí. SHOTS_DIR=<složka> uloží snímky obrazovek.
 const test = require('node:test');
@@ -10,6 +10,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const fixtures = require('./fixtures.js');
+const nav = require('./nav.js');
 
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
@@ -88,7 +89,7 @@ test('Zlatá otázka', { skip: !chromium && 'Playwright není nainstalovaný' },
         tab.on('pageerror', error => problems.push(error.message));
         tab.on('console', message => { if (/Content Security Policy/i.test(message.text())) problems.push(message.text()); });
         await tab.goto(`${origin}/`);
-        await tab.waitForSelector('[data-action="play-topic"]');
+        await nav.waitForHome(tab);
         return { context, tab, problems };
     };
     const shot = async (tab, name) => { if (SHOTS) await tab.screenshot({ path: path.join(SHOTS, `${name}.png`) }); };
@@ -101,7 +102,7 @@ test('Zlatá otázka', { skip: !chromium && 'Playwright není nainstalovaný' },
     });
     // Trénink Zeměpisu (okno Co hrát jen poprvé) a první otázka
     const practice = async (tab) => {
-        await tab.click('[data-action="play-topic"][data-topic="zemepis"]');
+        await nav.topic(tab, 'zemepis', { play: false });
         if (await tab.waitForSelector('#chooser-title', { timeout: 2500 }).then(() => true, () => false)) await tab.click('[data-chooser-play]');
         await tab.waitForSelector('[data-action="choice"]', { timeout: 30000 });
     };
@@ -240,12 +241,12 @@ test('Zlatá otázka', { skip: !chromium && 'Playwright není nainstalovaný' },
 
     await t.test('dnešní otázka zůstane zlatá i po návratu (počítadlo se nezvýší dvakrát)', async () => {
         const { context, tab, problems } = await open({ seed: { 'mudrlant.gold': { since: 79, intro: true } } });
-        await tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await nav.daily(tab, 'zemepis');
         await tab.waitForSelector('[data-action="choice"]', { timeout: 30000 });
         await tab.waitForSelector('.gold-card');
         await tab.click('#btn-home');
-        await tab.waitForSelector('[data-action="daily"][data-topic="zemepis"]');
-        await tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await nav.waitForHome(tab);
+        await nav.daily(tab, 'zemepis');
         await tab.waitForSelector('.gold-card');
         assert.equal((await storage(tab, 'mudrlant.gold')).since, 0);
         assert.deepEqual(problems, []);
@@ -265,7 +266,7 @@ test('Zlatá otázka', { skip: !chromium && 'Playwright není nainstalovaný' },
         };
         for (const [viewport, colorScheme] of [[{ width: 360, height: 640 }, 'light'], [{ width: 390, height: 780 }, 'dark']]) {
             const { context, tab, problems } = await open({ viewport, colorScheme, motion: true, clock: true, seed: { 'mudrlant.gold': { since: 79 } } });
-            await tab.click('[data-action="play-topic"][data-topic="zemepis"]');
+            await nav.topic(tab, 'zemepis', { play: false });
             await tab.waitForSelector('#chooser-title');
             await tab.click('[data-chooser-mode="blitz"]');
             await tab.click('[data-action="mode-start"]');
@@ -315,18 +316,18 @@ test('Zlatá otázka', { skip: !chromium && 'Playwright není nainstalovaný' },
         }
     });
 
-    await t.test('Můj postup: dlaždice Zlaté střípky otevře okno Zlatá otázka se statistikami; vejde se bez posouvání', async () => {
+    await t.test('záložka Postup: dlaždice Zlaté střípky otevře okno Zlatá otázka se statistikami; vejde se bez posouvání', async () => {
         for (const [viewport, colorScheme] of [[{ width: 360, height: 640 }, 'light'], [{ width: 390, height: 780 }, 'dark'], [{ width: 360, height: 640 }, 'dark'], [{ width: 390, height: 780 }, 'light']]) {
             const seed = { 'mudrlant.gold': { total: 14, correct: 11, found: 9, shards: 3, chests: 1, intro: true, last: 'frames:ruze' }, 'mudrlant.tips': { off: true } };
             const { context, tab, problems } = await open({ viewport, colorScheme, seed });
-            await tab.click('#btn-settings');
-            await tab.click('[data-open-progress]');
-            await tab.waitForSelector('[data-progress-dialog]');
+            await nav.go(tab, 'postup');
+            await tab.waitForSelector('#tab-postup [data-rewards-info="gold"]');
             const tile = (await tab.textContent('[data-rewards-info="gold"]')).replace(/\s+/g, ' ');
             assert.match(tile, /Střípky|Zlaté střípky/);
             assert.match(tile, /3 z 5/);
             const panelFits = () => tab.evaluate(() => { const panel = document.getElementById('dialog-overlay').firstElementChild; return panel.scrollHeight - panel.clientHeight; });
-            assert.equal(await panelFits(), 0, 'Můj postup s dlaždicí se vejde');
+            await tab.waitForTimeout(300);
+            assert.equal(await tab.evaluate(() => { const content = document.getElementById('app-content'); return content.firstElementChild.scrollHeight - content.clientHeight; }), 0, 'záložka Postup s dlaždicí se vejde');
             await tab.click('[data-rewards-info="gold"]');
             await tab.waitForSelector('[data-gold-info]');
             assert.equal(await tab.getAttribute('#dialog-overlay', 'data-title'), 'Zlatá otázka');
@@ -336,7 +337,7 @@ test('Zlatá otázka', { skip: !chromium && 'Playwright není nainstalovaný' },
             assert.match(info, /3 z 5 střípků/);
             assert.match(info, /Minule ve Zlaté truhle: Růže a trny/);
             assert.equal(await panelFits(), 0, 'okno Zlatá otázka se vejde');
-            assert.ok(await tab.locator('#dialog-overlay [data-dialog-back]').count(), 'zpět na Můj postup');
+            assert.equal(await tab.locator('#dialog-overlay [data-dialog-back]').count(), 0, 'okno ze záložky nemá rodičovské okno (zavřením jsme zpět na záložce Postup)');
             assert.equal((await storage(tab, 'mudrlant.tips')).visited.gold, true, 'tip o Zlaté otázce už není potřeba');
             await shot(tab, `zlata-okno-${viewport.width}-${colorScheme}`);
             assert.deepEqual(problems, []);
@@ -344,9 +345,9 @@ test('Zlatá otázka', { skip: !chromium && 'Playwright není nainstalovaný' },
         }
         // Čekající Zlatá truhla: dlaždice svítí a okno nabídne Otevřít Zlatou truhlu
         const { context, tab } = await open({ seed: { 'mudrlant.gold': { ready: 1, intro: true } } });
-        await tab.click('#btn-settings');
-        await tab.click('[data-open-progress]');
-        await tab.waitForSelector('[data-progress-dialog]');
+        // Na záložce Dnes je řádek Zlatá truhla čeká (otevře ji rovnou); na záložce Postup dlaždice svítí
+        await tab.waitForSelector('#gold-chest-row[data-action="gold-chest"]');
+        await nav.go(tab, 'postup');
         assert.match((await tab.textContent('[data-rewards-info="gold"]')).replace(/\s+/g, ' '), /Čeká!/);
         await tab.click('[data-rewards-info="gold"]');
         await tab.click('[data-gold-open]');

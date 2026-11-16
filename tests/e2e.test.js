@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const fixtures = require('./fixtures.js');
+const nav = require('./nav.js');
 
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
@@ -55,7 +56,7 @@ const setup = async (browser, options = {}) => {
     await context.addInitScript(entries => {
         if (sessionStorage.getItem('test-storage-set')) return;
         sessionStorage.setItem('test-storage-set', '1');
-        Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
+        Object.entries(entries).forEach(([key, value]) => (key.startsWith('session:') ? sessionStorage.setItem(key.slice(8), value) : localStorage.setItem(key, value)));
     }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.tips': JSON.stringify({ off: true }), ...storage });
     if (options.fixedRandom) await context.addInitScript(value => { Math.random = () => value; }, options.fixedRandom === true ? 0.1 : options.fixedRandom);
     const tab = await context.newPage();
@@ -104,8 +105,10 @@ const setup = async (browser, options = {}) => {
     return { context, tab, log, flags };
 };
 
-// Úvodní stránka: dnešní otázky (Jeden hráč), nebo přepínač (i při záložce Více hráčů)
-const waitForHome = (tab) => tab.waitForFunction(() => { const content = document.getElementById('app-content'); return Boolean(content && (content.textContent.includes('Dnešní otázky') || content.querySelector('#home-tabs'))); }, null, { timeout: 30000 });
+// Hlavní obrazovka: kterákoli záložka spodní lišty (po spuštění Dnes)
+const waitForHome = (tab) => nav.waitForHome(tab);
+// Zavře všechna otevřená okna (Escape udělá nejdřív krok zpět uvnitř okna, pak okno zavře)
+const closeDialogs = async (tab) => { for (let i = 0; i < 6 && await tab.locator('#dialog-overlay').count(); i++) { await tab.keyboard.press('Escape'); await tab.waitForTimeout(50); } };
 const waitForQuestion = (tab) => tab.waitForSelector('[data-action="give-up"]', { timeout: 30000 });
 const waitForResult = (tab) => tab.waitForSelector('h1', { timeout: 30000 });
 // Rozehraná otázka z uloženého stavu – podle ní test ví, co je správná odpověď
@@ -137,7 +140,7 @@ const fileParts = (url) => {
 const openResultTab = (tab, step) => tab.click(`[data-action="result-tab"][data-step="${step}"]`);
 // Učení → téma → okruh (null = celé téma)
 const openCollection = async (tab, topic, collection) => {
-    await tab.click('#btn-learn');
+    await nav.learn(tab);
     await tab.click(`[data-action="learn-topic"][data-topic="${topic}"]`);
     await tab.click(`[data-action="learn-collection"][data-collection="${collection || ''}"]`);
     await tab.waitForSelector('[data-action="learn-practice"]');
@@ -156,15 +159,19 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const { context, tab, log } = await setup(browser);
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        assert.match(await tab.textContent('[data-action="daily"][data-topic="zemepis"]'), /čeká/);
-        assert.match(await tab.textContent('[data-action="play-daily"]'), /Hrát vše\s*· zbývá 14/);
-        // Úvod: sova z loga, název a datum
+        // Záložka Dnes: karta Dnešní otázky s počtem hotových témat a Hrát vše; jednotlivá témata jsou v okně po klepnutí na kartu
+        assert.equal(await nav.currentTab(tab), 'dnes');
+        assert.match(await tab.textContent('#daily-card'), /0\/14 témat[\s\S]*Hrát vše/);
+        await nav.dailySheet(tab);
+        assert.match(await tab.textContent('#daily-sheet [data-action="daily"][data-topic="zemepis"]'), /čeká/);
+        assert.match(await tab.textContent('#daily-sheet [data-action="play-daily"]'), /Hrát vše\s*· zbývá 14/);
+        // Hlavička: sova z loga, název a úroveň
         assert.equal(await tab.textContent('#status-text'), 'MudrlantÚr. 1 · Zvědavec');
         assert.equal(await tab.getAttribute('#status-badge', 'aria-label'), 'Mudrlant · 16. 10. – můj postup');
         assert.equal(await tab.locator('#status-icon-slot img[src="icons/logo.webp"]').count(), 1);
         assert.ok(await tab.evaluate(() => document.querySelector('#status-icon-slot img').naturalWidth > 0), 'logo se načte');
 
-        await tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await nav.daily(tab, 'zemepis');
         await waitForQuestion(tab);
         const data = await readRound(tab);
         assert.equal(data.known, true, 'dnešní otázka je ze známých');
@@ -261,16 +268,22 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.match(await tab.textContent('[data-action="next"]'), /Další dnešní: (?!Zeměpis)\S/, 'další dnešní téma je jiné než odehrané');
         await tab.click('[data-action="daily-home"]');
         await waitForHome(tab);
-        // Zeměpis je odehraný a série běží; tlačítko nahoře pokračuje ve zbývajících dnešních otázkách
-        assert.match(await tab.textContent('[data-action="daily"][data-topic="zemepis"]'), /1 bod\s*1/);
-        assert.match(await tab.textContent('[data-action="play-daily"]'), /Pokračovat\s*· zbývá 13/);
+        // Zeměpis je odehraný a série běží (čip v hlavičce); karta pokračuje ve zbývajících dnešních otázkách
+        assert.match(await tab.textContent('#daily-card'), /1\/14 témat[\s\S]*Hrát dál/);
+        // Čip série v hlavičce: plamen s počtem dní (zlatý při běžící sérii) a štít s počtem ochran série
+        assert.equal(await tab.getAttribute('#streak-chip', 'data-streak'), '1');
+        assert.equal((await tab.textContent('#streak-chip [data-streak-part]')).trim(), '1');
+        assert.match(await tab.getAttribute('#streak-chip', 'aria-label'), /^Série: 1 den v řadě/);
+        await nav.dailySheet(tab);
+        assert.match(await tab.textContent('#daily-sheet [data-action="daily"][data-topic="zemepis"]'), /1 bod\s*1/);
+        assert.match(await tab.textContent('#daily-sheet [data-action="play-daily"]'), /Hrát dál\s*· zbývá 13/);
 
         // Odehraná dnešní otázka zůstane uložená i po obnovení stránky
         const requestsBefore = log.wiki.length;
-        await tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await nav.daily(tab, 'zemepis');
         await waitForResult(tab);
         assert.equal(log.wiki.length, requestsBefore, 'dnešní otázka z mezipaměti');
-        // Zkušenosti: odpověď a bonus za dnešní otázku se zapíšou, na úvodu je úroveň a okno Můj postup
+        // Zkušenosti: odpověď a bonus za dnešní otázku se zapíšou, v hlavičce je úroveň a postup má vlastní záložku
         const gained = await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.progress')).xp);
         assert.ok(gained >= 15, `XP za dnešní otázku (${gained})`);
         assert.match(await tab.textContent('[data-verdict]'), new RegExp(`\\+${gained} XP`));
@@ -280,12 +293,13 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.reload();
         await waitForHome(tab);
         assert.equal(await tab.locator('h1').count(), 0);
+        // Klepnutí na úroveň v hlavičce otevře záložku Postup (dřív okno Můj postup)
         await tab.click('#status-badge');
-        await tab.waitForSelector('#dialog-overlay');
-        assert.match(await tab.textContent('#dialog-overlay'), /Můj postup/);
-        assert.match(await tab.textContent('#dialog-overlay'), /Zvědavec/);
-        assert.match(await tab.textContent('#dialog-overlay'), /XP\s*do úr\. 2/);
-        // Celkové XP malým písmem vedle titulu (stejné číslo, jaké je uložené v postupu)
+        await tab.waitForSelector('#tab-postup');
+        assert.equal(await tab.locator('#app-nav [data-nav="postup"][aria-current="page"]').count(), 1);
+        assert.match(await tab.textContent('#tab-postup'), /Zvědavec/);
+        assert.match(await tab.textContent('#tab-postup'), /XP\s*do úr\. 2/);
+        // Celkové XP malým písmem u titulu (stejné číslo, jaké je uložené v postupu)
         const totalXp = await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.progress')).xp);
         assert.equal((await tab.textContent('[data-total-xp]')).replace(/\s/g, ''), `celkem${totalXp}XP`);
         // Klepnutí na úroveň otevře tabulku všech úrovní (čtyři sloupce, 100 úrovní)
@@ -300,20 +314,20 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.doesNotMatch(await tab.textContent('#dialog-overlay'), /otázek/);
         assert.match(await tab.textContent('#dialog-overlay [data-title-row="1"]'), /od 0 XP/);
         assert.ok(await tab.locator('#dialog-overlay [data-title-row] img.grayscale').count() > 20, 'nedosažené tituly zešedlé');
-        // Escape (jako křížek a Zpět na mobilu) vrátí do okna, odkud tabulka vedla, další Escape okno zavře
-        await tab.keyboard.press('Escape');
-        await tab.waitForSelector('#dialog-overlay [data-progress-dialog]');
+        // Escape (jako křížek a Zpět na mobilu) tabulku zavře a jsme zpět na záložce Postup
         await tab.keyboard.press('Escape');
         await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
-        await tab.click('#status-badge');
-        await tab.waitForSelector('#dialog-overlay');
-        assert.equal(await tab.locator('#dialog-overlay li').count(), 14 + 2, 'mistrovství všech témat a dva nejbližší odznaky');
-        assert.match(await tab.textContent('#dialog-overlay'), /Všechny\s*1 \/ \d{3}/);
+        assert.equal(await nav.currentTab(tab), 'postup');
+        assert.equal(await tab.locator('#tab-postup [data-optional] li').count(), 2, 'dva nejbližší odznaky');
+        assert.match(await tab.textContent('#tab-postup [data-open-badges]'), /Odznaky\s*1 \/ \d{3}/);
         // Nejbližší odznaky říkají, co za ně hráč dostane
         // (jen ty, které něco dávají; odznak jen pro slávu řádek s odměnou nemá)
-        for (const text of await tab.locator('#dialog-overlay [data-badge-reward]').allTextContents()) assert.match(text, /^Odměna: /);
-        assert.doesNotMatch(await tab.textContent('#dialog-overlay'), /sláva/);
-        // Mistrovství tématu: klepnutí na téma vysvětlí hvězdičky a vrátí se zpět
+        for (const text of await tab.locator('#tab-postup [data-badge-reward]').allTextContents()) assert.match(text, /^Odměna: /);
+        assert.doesNotMatch(await tab.textContent('#tab-postup'), /sláva/);
+        // Mistrovství: dlaždice otevře mřížku všech 14 témat, klepnutí na téma vysvětlí hvězdičky a vrátí se zpět
+        await tab.click('#tab-postup [data-open-mastery-all]');
+        await tab.waitForSelector('#dialog-overlay [data-mastery-dialog]');
+        assert.equal(await tab.locator('#dialog-overlay [data-mastery]').count(), 14, 'mistrovství všech témat');
         await tab.click('[data-mastery="zemepis"]');
         await tab.waitForSelector('#dialog-overlay [data-mastery-info]');
         const mastery = await tab.textContent('#dialog-overlay');
@@ -329,9 +343,10 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.match(mastery, /Cestovatelský klobouk\s*300 správných \(odznak Objevitel\)/);
         assert.match(mastery, /Globus\s*1000 správných \(odznak Pán zeměkoule\)/);
         await tab.click('[data-dialog-back]');
-        await tab.waitForSelector('[data-open-badges]');
+        await tab.waitForSelector('#dialog-overlay [data-mastery-dialog]');
+        await closeDialogs(tab);
         // Okno se všemi odznaky: skupiny se stupni, klepnutím na medaili podrobnosti
-        await tab.click('[data-open-badges]');
+        await tab.click('#tab-postup [data-open-badges]');
         await tab.waitForSelector('[data-badge="prvni-krok"]');
         assert.ok(await tab.locator('[data-badge]').count() >= 120, 'všechny odznaky');
         // Zamčený odznak ukazuje svou zašedlou ikonu a přes ni zámek; získaný je barevný bez zámku
@@ -348,18 +363,15 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click('[data-badge="vitez"]');
         assert.match(await tab.textContent('#dialog-overlay [data-badge-reward]'), /Vavřínový \(rámeček\), Vavřínový věnec \(doplněk Mudrlanta\)/);
         await tab.click('[data-badge="stovka"]');
-        // Z odznaků i z tabulky úrovní vede cesta zpět na Můj postup (jako z mistrovství)
-        await tab.click('#dialog-overlay [data-dialog-back]');
-        await tab.waitForSelector('#dialog-overlay [data-open-levels]');
-        await tab.click('[data-open-levels]');
-        await tab.waitForSelector('#dialog-overlay [data-title-row]');
-        await tab.click('#dialog-overlay [data-dialog-back]');
-        await tab.waitForSelector('#dialog-overlay [data-open-badges]');
-        await tab.keyboard.press('Escape');
-        // Výsledek u dnešní otázky je vidět celý (ne zkrácený na „4 bod…“)
-        const cut = await tab.evaluate(() => [...document.querySelectorAll('[data-action="daily"] span.truncate')].filter(span => span.scrollWidth > span.clientWidth).map(span => span.textContent));
+        // Okna otevřená ze záložky Postup nemají rodičovské okno: zavřením jsme zpět na záložce
+        assert.equal(await tab.locator('#dialog-overlay [data-dialog-back]').count(), 0);
+        await closeDialogs(tab);
+        assert.equal(await nav.currentTab(tab), 'postup');
+        // Výsledek u dnešní otázky je v okně Dnešní otázky vidět celý (ne zkrácený na „4 bod…“)
+        await nav.dailySheet(tab);
+        const cut = await tab.evaluate(() => [...document.querySelectorAll('#daily-sheet [data-action="daily"] span.truncate')].filter(span => span.scrollWidth > span.clientWidth).map(span => span.textContent));
         assert.deepEqual(cut, []);
-        await tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await nav.daily(tab, 'zemepis');
         await waitForResult(tab);
         assert.equal(await tab.textContent('h1'), data.name);
         assert.equal(log.wiki.length, requestsBefore);
@@ -375,7 +387,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const { context, tab, log } = await setup(browser);
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        await tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await nav.daily(tab, 'zemepis');
         await waitForQuestion(tab);
         const data = await readRound(tab);
         await tab.click('[data-action="hint"]');
@@ -402,7 +414,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click('[data-action="daily-home"]');
         await waitForHome(tab);
         // Další otázka: fotku předchozí otázky už nic neukazuje, její blob se uvolní
-        await tab.click('[data-action="daily"][data-topic="historie"]');
+        await nav.daily(tab, 'historie');
         await waitForQuestion(tab);
         let released = false;
         for (let i = 0; i < 50 && !released; i += 1) {
@@ -418,7 +430,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const plain = await setup(browser, { fetchFails: true });
         await plain.tab.goto(`${ORIGIN}/`);
         await waitForHome(plain.tab);
-        await plain.tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await nav.daily(plain.tab, 'zemepis');
         await waitForQuestion(plain.tab);
         await plain.tab.click('[data-action="hint"]');
         await plain.tab.waitForFunction(() => document.getElementById('hint-photo').style.backgroundImage.includes('upload.wikimedia.org'));
@@ -594,7 +606,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await waitForHome(tab);
 
         // Téma: okruhy a kategorie s počty
-        await tab.click('#btn-learn');
+        await nav.learn(tab);
         assert.equal(await tab.textContent('#status-text'), 'Učení');
         await tab.click('[data-action="learn-topic"][data-topic="zemepis"]');
         await tab.waitForSelector('[data-action="learn-collection"][data-collection="cesko"]');
@@ -631,12 +643,12 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
 
         // Chyba z dnešní otázky se objeví v seznamu chyb
         await tab.click('#btn-home');
-        await tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await nav.daily(tab, 'zemepis');
         await waitForQuestion(tab);
         const daily = await readRound(tab);
         await tab.click('[data-action="give-up"]');
         await waitForResult(tab);
-        await tab.click('#btn-learn');
+        await nav.learn(tab);
         await tab.click('[data-action="learn-mistakes"]');
         await tab.waitForSelector('[data-action="practice-mistakes"]');
         assert.match(await appText(tab), /Procvičit chyby \(1\)/);
@@ -663,14 +675,16 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await context.close();
     });
 
-    await t.test('dlaždice tématu: poprvé výběr kategorií, pak rovnou hra; barva a změna tématu nahoře', async () => {
+    await t.test('dlaždice tématu na záložce Hrát: vždy okno Co hrát s výběrem kategorií; barva a změna tématu nahoře', async () => {
         const { context, tab, log } = await setup(browser);
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        assert.equal((await tab.textContent('[data-action="play-topic"][data-topic="zemepis"]')).trim(), 'Zeměpis', 'bez omezení kategorií jen název');
+        await nav.go(tab, 'hrat');
+        assert.equal(await tab.locator('#topic-grid [data-action="play-topic"]').count(), 14, '14 dlaždic témat');
+        assert.equal((await tab.textContent('[data-action="play-topic"][data-topic="zemepis"]')).trim(), 'Zeměpis', 'na dlaždici jen název');
 
-        // Poprvé okno s výběrem: výchozí všechny kategorie, poslední vypnout nejde
-        await tab.click('[data-action="play-topic"][data-topic="zemepis"]');
+        // Okno s výběrem: výchozí všechny kategorie, poslední vypnout nejde
+        await nav.topic(tab, 'zemepis', { play: false });
         await tab.waitForSelector('#play-chooser');
         const toggles = tab.locator('#play-chooser [data-chooser-category]');
         assert.ok(await toggles.count() >= 3);
@@ -687,16 +701,18 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(await tab.textContent('#status-text'), 'Zeměpis · Hory a sopky');
         assert.match(await tab.getAttribute('#app-header', 'class'), /border-emerald-500/, 'barva tématu v hlavičce');
 
-        // Další otázka zase z vybrané kategorie; tlačítko Hrát dál vrátí rozehranou otázku
+        // Další otázka zase z vybrané kategorie; rozehranou otázku jde dohrát ze záložky Hrát
         await tab.click('[data-action="give-up"]');
         await waitForResult(tab);
         await tab.click('[data-action="next"]');
         await waitForQuestion(tab);
         const second = await readRound(tab);
         assert.equal(second.category, 'hora');
-        await tab.click('#btn-learn');
+        await nav.learn(tab);
         await tab.waitForSelector('[data-action="learn-topic"]');
-        await tab.click('#btn-practice');
+        // V Učení je spodní lišta: záložka Hrát nabízí vedle Mixu dohrání rozehrané otázky
+        await nav.go(tab, 'hrat');
+        await tab.click('[data-action="resume-practice"]');
         await waitForQuestion(tab);
         assert.equal((await readRound(tab)).id, second.id, 'rozehraná otázka zůstala');
 
@@ -716,7 +732,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click('#play-chooser [data-close]');
         await tab.click('#btn-home');
         await waitForHome(tab);
-        await tab.click('[data-action="play-topic"][data-topic="historie"]');
+        await nav.topic(tab, 'historie', { play: false });
         await tab.waitForSelector('#play-chooser');
         assert.equal(await tab.textContent('#chooser-title'), 'Historie');
         await tab.click('#play-chooser [data-chooser-play]');
@@ -725,11 +741,15 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(await tab.textContent('#status-text'), 'Historie');
         assert.match(await tab.getAttribute('#app-header', 'class'), /border-amber-500/);
 
-        // Podruhé už dlaždice hraje rovnou s uloženým výběrem
+        // Domů vrátí na záložku Hrát (ze které se hrálo); dlaždice i podruhé otevře okno Co hrát, s uloženým výběrem
         await tab.click('#btn-home');
         await waitForHome(tab);
+        assert.equal(await nav.currentTab(tab), 'hrat');
         assert.equal((await tab.textContent('[data-action="play-topic"][data-topic="zemepis"]')).trim(), 'Zeměpis');
-        await tab.click('[data-action="play-topic"][data-topic="zemepis"]');
+        assert.equal(await tab.getAttribute('[data-action="play-topic"][data-topic="zemepis"]', 'title'), 'Zeměpis');
+        await nav.topic(tab, 'zemepis', { play: false });
+        assert.equal(await tab.locator('#play-chooser [data-chooser-category][aria-pressed="false"]').count(), 0, 'uložený výběr: všechny kategorie');
+        await tab.click('#play-chooser [data-chooser-play]');
         await waitForQuestion(tab);
         assert.equal(await tab.locator('#play-chooser').count(), 0);
         assert.deepEqual((await readStorage(tab, 'mudrlant.settings')).seen, ['zemepis', 'historie']);
@@ -742,7 +762,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const { context, tab, log } = await setup(browser);
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        await tab.click('[data-action="play-mix"]');
+        await nav.mix(tab, { play: false });
         await tab.waitForSelector('#play-chooser');
         const allTopics = await tab.$$eval('#play-chooser [data-chooser-topic]', buttons => buttons.map(button => button.dataset.chooserTopic));
         assert.ok(allTopics.length >= 5);
@@ -753,10 +773,10 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.keyboard.press('Escape');
         assert.equal(await tab.locator('#play-chooser').count(), 0, 'Escape okno zavře');
         assert.deepEqual((await readStorage(tab, 'mudrlant.settings')).topics, ['zemepis']);
-        assert.equal((await tab.textContent('[data-action="play-mix"]')).trim(), 'Mix', 'v dlaždici jen název');
+        assert.match((await tab.textContent('[data-action="play-mix"]')).trim(), /^Mix\s*1 z \d+ témat$/, 'v dlaždici název a zúžený výběr témat');
         assert.match(await tab.getAttribute('[data-action="play-mix"]', 'title'), /1 z \d+ témat/, 'výběr témat jako nápověda');
 
-        await tab.click('[data-action="play-mix"]');
+        await nav.mix(tab, { play: false });
         await tab.click('#play-chooser [data-chooser-play]');
         await waitForQuestion(tab);
         assert.equal((await readRound(tab)).topic, 'zemepis');
@@ -778,11 +798,11 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const { context, tab, log } = await setup(browser);
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        await tab.click('#btn-practice');
+        await nav.mix(tab);
         await waitForQuestion(tab);
         assert.match(await tab.textContent('#status-text'), /^Mix · /);
 
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('#settings-overlay [data-variant="typed"]');
         assert.match(await tab.textContent('#settings-note'), /od další otázky/);
         assert.equal(await tab.getAttribute('#settings-overlay [data-tier="known"]', 'aria-pressed'), 'true');
@@ -792,7 +812,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal((await readStorage(tab, 'mudrlant.settings')).tier, 'expert');
         await tab.click('#settings-overlay [data-tier="all"]');
         const saved = await readStorage(tab, 'mudrlant.settings');
-        assert.deepEqual({ ...saved, topics: undefined, known: undefined }, { tier: 'all', topics: undefined, known: undefined, categories: {}, seen: [] });
+        assert.deepEqual({ ...saved, topics: undefined, known: undefined }, { tier: 'all', topics: undefined, known: undefined, categories: {}, seen: ['mix'] });
         assert.deepEqual(saved.topics, saved.known, 'v mixu všechna témata, nová si nastavení pamatuje');
         assert.ok(['zemepis', 'historie', 'biologie', 'chemie', 'fyzika'].every(id => saved.topics.includes(id)));
         await tab.click('#settings-overlay [data-close]');
@@ -806,7 +826,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(await tab.locator('#answer-input').count(), 1, 'další otázka už je na psaní');
 
         // Zpět na možnosti jde hned (je to snazší)
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('#settings-overlay [data-variant="choices"]');
         assert.match(await tab.textContent('#settings-note'), /hned/);
         await tab.keyboard.press('Escape');
@@ -828,7 +848,9 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const { context, tab, log } = await setup(browser, { variant: 'typed', fixedRandom: 0.5 });
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        assert.match(await tab.textContent('[data-action="daily"][data-topic="historie"]'), /čeká/);
+        await nav.dailySheet(tab);
+        assert.match(await tab.textContent('#daily-sheet [data-action="daily"][data-topic="historie"]'), /čeká/);
+        await closeDialogs(tab);
 
         // Kdo to je? Časová osa s životem a vládou, popis bez jména
         await practiceCollection(tab, 'historie', 'anglicti-panovnici');
@@ -900,7 +922,9 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const { context, tab, log } = await setup(browser, { fixedRandom: true });
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        assert.match(await tab.textContent('[data-action="daily"][data-topic="biologie"]'), /čeká/);
+        await nav.dailySheet(tab);
+        assert.match(await tab.textContent('#daily-sheet [data-action="daily"][data-topic="biologie"]'), /čeká/);
+        await tab.keyboard.press('Escape');
 
         // Do kterého řádu patří? Název je vidět, řád z popisu i faktů zmizí
         await practiceCollection(tab, 'biologie', 'selmy');
@@ -1039,7 +1063,9 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const { context, tab, log } = await setup(browser, { variant: 'typed', fixedRandom: true });
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        assert.match(await tab.textContent('[data-action="daily"][data-topic="fyzika"]'), /čeká/);
+        await nav.dailySheet(tab);
+        assert.match(await tab.textContent('#daily-sheet [data-action="daily"][data-topic="fyzika"]'), /čeká/);
+        await tab.keyboard.press('Escape');
 
         // Jaká je jednotka SI této veličiny? Značka N platí, odpověď ukáže název i značku
         await practiceCollection(tab, 'fyzika', 'c:veliciny');
@@ -1085,7 +1111,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click('#variant-welcome [data-variant="typed"]');
         await waitForHome(tab);
         assert.equal(await tab.evaluate(() => localStorage.getItem('mudrlant.variant')), 'typed');
-        await tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await nav.daily(tab, 'zemepis');
         await waitForQuestion(tab);
         assert.equal(await tab.locator('#answer-input').count(), 1);
         assert.deepEqual(log.errors, []);
@@ -1109,7 +1135,9 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         });
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        assert.match(await tab.textContent('[data-action="daily"][data-topic="zemepis"]'), /3 body\s*2/);
+        await nav.dailySheet(tab);
+        assert.match(await tab.textContent('#daily-sheet [data-action="daily"][data-topic="zemepis"]'), /3 body\s*2/);
+        await tab.keyboard.press('Escape');
         assert.equal(await tab.evaluate(() => localStorage.getItem('mudrlant.variant')), 'typed');
         assert.deepEqual(await readStorage(tab, 'mudrlant.mistakes'), ['zemepis:Q4242']);
         assert.equal((await readStorage(tab, 'mudrlant.settings')).tier, 'all');
@@ -1123,7 +1151,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const { context, tab, log } = await setup(browser, { wikiDown: true });
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        await tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await nav.daily(tab, 'zemepis');
         await waitForQuestion(tab);
         assert.equal(log.wiki.length, 2, 'dva pokusy o popis');
         assert.match(await tab.textContent('p.italic'), /v testovacím světě\./);
@@ -1133,7 +1161,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         // Další otázka se na nedostupnou Wikipedii znovu neptá (ani náhradní otázky za chudý popis): načte se hned
         await tab.click('#btn-home');
         await waitForHome(tab);
-        await tab.click('[data-action="daily"][data-topic="historie"]');
+        await nav.daily(tab, 'historie');
         await waitForQuestion(tab);
         assert.equal(log.wiki.length, 2, 'po výpadku se Wikipedie chvíli nezkouší');
         assert.deepEqual(log.errors, []);
@@ -1144,7 +1172,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const { context, tab, log, flags } = await setup(browser, { wikiThinFirst: true });
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        await tab.click('[data-action="daily"][data-topic="historie"]');
+        await nav.daily(tab, 'historie');
         await waitForQuestion(tab);
         const data = await readRound(tab);
         assert.ok(flags.thinServed, 'stub se opravdu vrátil');
@@ -1159,7 +1187,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const { context, tab, log, flags } = await setup(browser, { dataDown: true });
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        await tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await nav.daily(tab, 'zemepis');
         await tab.waitForSelector('text=Chyba spojení', { timeout: 30000 });
         assert.equal(log.data, 3);
         flags.dataDown = false;
@@ -1173,7 +1201,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         // Falešné hodiny zastaví i requestAnimationFrame, proto žádné waitFor…, jen posouvání času
         await tab.goto(`${ORIGIN}/`);
         for (let i = 0; i < 10 && !(await tab.isVisible('[data-action="daily"]')); i++) await tab.clock.runFor(1000);
-        await tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await nav.daily(tab, 'zemepis');
         for (let i = 0; i < 10 && !(await tab.isVisible('[data-action="give-up"]')); i++) {
             await tab.clock.runFor(10000);
             await tab.waitForTimeout(100);
@@ -1190,7 +1218,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const { context, tab, log } = await setup(browser, { origin, serviceWorkers: 'allow' });
         await tab.goto(`${origin}/`);
         await waitForHome(tab);
-        await tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await nav.daily(tab, 'zemepis');
         await waitForQuestion(tab);
         await tab.evaluate(() => navigator.serviceWorker.ready);
 
@@ -1204,8 +1232,8 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(await tab.evaluate(() => getComputedStyle(document.getElementById('app-content')).display), 'flex', 'styly z mezipaměti');
         assert.equal(await tab.evaluate(() => Boolean(navigator.serviceWorker.controller)), true);
 
-        // Nová otázka v tréninku: data témat i obrysy států z mezipaměti
-        await tab.click('#btn-practice');
+        // Nová otázka v tréninku (Mix ze záložky Hrát): data témat i obrysy států z mezipaměti
+        await nav.mix(tab);
         await waitForQuestion(tab);
         const data = await readRound(tab);
         for (let i = 0; i < hintKeys(data).indexOf('visual') + 1; i++) await tab.click('[data-action="hint"]');
@@ -1237,7 +1265,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
         assert.equal(await tab.evaluate(() => window.__build), 'aaaaaaa');
         const versionShown = async () => {
-            await tab.click('#btn-settings');
+            await nav.settings(tab);
             await tab.waitForFunction(() => /·/.test(document.getElementById('app-version').textContent));
             return tab.textContent('#app-version');
         };
@@ -1275,7 +1303,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(await guarded(), false, 'na úvodní obrazovce žádný krok navíc – Zpět aplikaci zavře');
 
         // Z otázky zpět domů
-        await tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await nav.daily(tab, 'zemepis');
         await waitForQuestion(tab);
         assert.equal(await guarded(), true);
         await tab.goBack();
@@ -1283,14 +1311,14 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(await guarded(), false);
 
         // Otevřené okno (nastavení) se zavře, obrazovka zůstane
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.waitForSelector('#settings-overlay');
         await tab.goBack();
         await tab.waitForSelector('#settings-overlay', { state: 'detached' });
         await waitForHome(tab);
 
         // Učení: o úroveň výš, pak domů
-        await tab.click('#btn-learn');
+        await nav.learn(tab);
         await tab.waitForSelector('[data-action="learn-topic"][data-topic="zemepis"]');
         await tab.click('[data-action="learn-topic"][data-topic="zemepis"]');
         await tab.waitForSelector('[data-action="learn-collection"]');
@@ -1298,6 +1326,11 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.waitForSelector('[data-action="learn-topic"][data-topic="zemepis"]');
         await tab.goBack();
         await waitForHome(tab);
+        // Z jiné záložky (Učení se otevírá z Hrát) vede Zpět nejdřív na Dnes, začátek aplikace; teprve odtud ji opustí
+        assert.equal(await nav.currentTab(tab), 'hrat');
+        assert.equal(await guarded(), true);
+        await tab.goBack();
+        await tab.waitForSelector('#app-content > [data-tab-root="dnes"]');
         await tab.waitForFunction(() => !(history.state && history.state.mudrlantBack));
         assert.deepEqual(log.errors, []);
         await context.close();
@@ -1308,7 +1341,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const first = await setup(browser);
         await first.tab.goto(`${ORIGIN}/`);
         await waitForHome(first.tab);
-        await first.tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await nav.daily(first.tab, 'zemepis');
         await waitForQuestion(first.tab);
         const daily = await readRound(first.tab);
         assert.ok(hintKeys(daily).includes('photo'));
@@ -1318,7 +1351,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await context.route('**/data/photo-text.json', route => route.fulfill({ json: { zemepis: [daily.id] } }));
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        await tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await nav.daily(tab, 'zemepis');
         await waitForQuestion(tab);
         const data = await readRound(tab);
         assert.equal(data.id, daily.id);
@@ -1336,7 +1369,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await masked.context.route('**/data/photo-masks.json', route => route.fulfill({ json: { [file]: [[0.1, 0.4, 0.5, 0.15]] } }));
         await masked.tab.reload();
         await waitForHome(masked.tab);
-        await masked.tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await nav.daily(masked.tab, 'zemepis');
         await waitForQuestion(masked.tab);
         const round = await readRound(masked.tab);
         assert.ok(hintKeys(round).includes('photo'), hintKeys(round).join(', '));
@@ -1418,7 +1451,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await plain.context.route('**/config.js', route => route.fulfill({ contentType: 'text/javascript', body: 'window.MUDRLANT_CONFIG = { supabaseUrl: "", supabaseAnonKey: "" };' }));
         await plain.tab.goto(`${ORIGIN}/`);
         await waitForHome(plain.tab);
-        await plain.tab.click('#btn-settings');
+        await nav.settings(plain.tab);
         await plain.tab.waitForSelector('#settings-overlay');
         assert.equal(await plain.tab.locator('[data-auth-login], [data-auth-logout]').count(), 0);
         await plain.context.close();
@@ -1442,7 +1475,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await configure(first.context);
         await first.tab.goto(`${ORIGIN}/`);
         await waitForHome(first.tab);
-        await first.tab.click('#btn-settings');
+        await nav.settings(first.tab);
         await first.tab.waitForSelector('[data-auth-login]');
         assert.equal(await first.tab.locator('[data-auth-logout]').count(), 0);
         await Promise.all([first.tab.waitForURL(/proj\.supabase\.co\/auth\/v1\/authorize/), first.tab.click('[data-auth-login]')]);
@@ -1457,7 +1490,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await back.tab.goto(`${ORIGIN}/#access_token=tok-1&refresh_token=ref-1&expires_in=3600&token_type=bearer`);
         await waitForHome(back.tab);
         await back.tab.waitForFunction(() => !location.hash);
-        await back.tab.click('#btn-settings');
+        await nav.settings(back.tab);
         await back.tab.waitForSelector('[data-me-tab="profile"]');
         // Odhlášení je s ostatním o účtu v záložce Hra (Profil je o tom, jak mě vidí ostatní)
         await back.tab.waitForSelector('[data-me-tab="game"][aria-selected="true"]');
@@ -1471,14 +1504,14 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         // Po obnovení stránky zůstane přihlášený
         await back.tab.reload();
         await waitForHome(back.tab);
-        await back.tab.click('#btn-settings');
+        await nav.settings(back.tab);
         await back.tab.click('[data-me-tab="game"]');
         await back.tab.waitForSelector('[data-auth-logout]');
         assert.equal(await back.tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.auth')).user.id), 'u-1');
         // Odhlášení smaže uložený účet a zavolá Supabase
         await back.tab.click('[data-auth-logout]');
         await back.tab.waitForSelector('#settings-overlay', { state: 'detached' });
-        await back.tab.click('#btn-settings');
+        await nav.settings(back.tab);
         await back.tab.waitForSelector('[data-auth-login]');
         assert.equal(await back.tab.evaluate(() => localStorage.getItem('mudrlant.auth')), null);
         assert.ok(calls.some(call => call.startsWith('POST /auth/v1/logout')));
@@ -1490,7 +1523,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await configure(failed.context);
         await failed.tab.goto(`${ORIGIN}/#error=access_denied&error_description=Přihlášení+zrušeno`);
         await waitForHome(failed.tab);
-        await failed.tab.click('#btn-settings');
+        await nav.settings(failed.tab);
         await failed.tab.waitForSelector('[data-auth-login]');
         assert.match(await failed.tab.textContent('#settings-overlay'), /Přihlášení zrušeno/);
         assert.equal(await failed.tab.evaluate(() => localStorage.getItem('mudrlant.auth')), null);
@@ -1594,17 +1627,25 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await backend(one.context);
         await one.tab.goto(`${ORIGIN}/`);
         await waitForHome(one.tab);
-        // Úvodní stránka má přepínač Jeden hráč / Více hráčů; výzvy jsou ve Více hráčů a volba se pamatuje
-        assert.equal(await one.tab.locator('[data-action="home-tab"][aria-selected="true"]').getAttribute('data-tab'), 'single');
-        assert.equal(await one.tab.locator('#challenges-section').count(), 0, 'výzvy jsou až v druhé záložce');
-        await one.tab.click('[data-action="home-tab"][data-tab="multi"]');
+        // Spodní lišta: aplikace začíná na záložce Dnes; výzvy jsou na záložce Soupeři v okně Výzvy a záložka se po dobu relace pamatuje
+        assert.equal(await one.tab.locator('#app-nav [data-nav][aria-current="page"]').getAttribute('data-nav'), 'dnes');
+        assert.deepEqual(await one.tab.$$eval('#app-nav [data-nav]', nodes => nodes.map(node => node.dataset.nav)), ['dnes', 'hrat', 'souperi', 'postup', 'ja']);
+        assert.equal(await one.tab.locator('#challenges-section').count(), 0, 'výzvy jsou až na záložce Soupeři');
+        await nav.go(one.tab, 'souperi');
+        // Čtvery dveře: Výzvy, Dobývání, Turnaje a Skupiny (Dobývání a Skupiny jen s databází, která je má)
+        assert.equal(await one.tab.locator('#souperi-tiles #challenges-tile, #souperi-tiles #tournaments-tile').count(), 2);
+        assert.equal(await one.tab.locator('#daily-card').count(), 0, 'dnešní otázky jsou na záložce Dnes');
+        await nav.challenges(one.tab);
         await one.tab.waitForSelector('#challenges-section [data-action="new-challenge"]');
-        assert.equal(await one.tab.locator('[data-action="daily"]').count(), 0, 'dnešní otázky jsou v záložce Jeden hráč');
+        assert.equal(await nav.currentTab(one.tab), 'souperi:vyzvy');
         await one.tab.waitForSelector('#btn-settings span');
         assert.match(await one.tab.getAttribute('#btn-settings', 'aria-label'), /Jana Nováková/);
         assert.equal(await one.tab.locator('#btn-profile').count(), 0, 'nastavení a profil jsou jedno tlačítko');
-        await one.tab.click('#btn-settings');
-        await one.tab.click('[data-me-tab="profile"]');
+        // Obrázek hráče v hlavičce vede na záložku Já; řádek Profil otevře Nastavení na záložce Profil
+        await nav.settingsFromJa(one.tab, 'profile');
+        assert.equal(await nav.currentTab(one.tab), 'ja');
+        assert.match(await one.tab.textContent('#ja-card'), /Jana Nováková/);
+        await one.tab.waitForSelector('#settings-overlay [data-me-tab="profile"][aria-selected="true"]');
         await one.tab.waitForSelector('#profile-name');
         // Okno se vejde bez posouvání
         assert.equal(await one.tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return box.scrollHeight <= box.clientHeight; }), true, 'okno bez posouvání');
@@ -1624,7 +1665,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await one.tab.click('#settings-overlay [data-close]');
         await one.tab.waitForFunction(() => document.getElementById('btn-settings').textContent.includes('🐼'));
 
-        // Přijímané výzvy: z profilu i ze záložky Více hráčů; vypnuté téma se uloží, Zapnout vše je vrátí.
+        // Přijímané výzvy: z profilu i z okna Výzvy na záložce Soupeři; vypnuté téma se uloží, Zapnout vše je vrátí.
         // Okno klepnutí ignoruje, dokud se uložené nastavení nenačte (souhrn „nastavit“), proto se čeká na načtený souhrn. Uložení
         // se pozná podle nového stavu přepínače spolu s „Uloženo.“ – starý stav s hláškou z minulého klepnutí podmínku nesplní.
         const acceptSaved = (selector, checked) => one.tab.waitForFunction(({ selector, checked }) => {
@@ -1632,7 +1673,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
             const element = document.querySelector(selector);
             return Boolean(overlay && element) && element.getAttribute('aria-checked') === checked && /Uloženo/.test(overlay.textContent);
         }, { selector, checked });
-        await one.tab.click('#btn-settings');
+        await nav.settings(one.tab);
         await one.tab.click('[data-me-tab="game"]');
         await one.tab.click('[data-open-accept]');
         await one.tab.waitForFunction(() => /Přijímáš: všechna témata/.test((document.getElementById('dialog-overlay') || {}).textContent || ''));
@@ -1658,6 +1699,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await one.tab.click('#dialog-overlay [data-close]');
         await one.tab.waitForSelector('#settings-overlay');
         await one.tab.keyboard.press('Escape');
+        await nav.challenges(one.tab);
         await one.tab.waitForFunction(() => /Přijímám výzvy z:\s*všechna témata/.test((document.getElementById('challenges-section') || {}).textContent || ''));
 
         // Výzva konkrétnímu hráči: hledání podle přezdívky (Petr), téma zeměpis, 5 otázek
@@ -1711,16 +1753,15 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await one.tab.waitForFunction(() => document.querySelector('#challenges-section'));
         assert.equal(await one.tab.locator('[data-action="challenge-resume"]').count(), 0, 'ani po obnovení stránky');
         assert.ok((await one.tab.evaluate(() => localStorage.getItem('mudrlant.finishedChallenges')) || '').includes(code), 'kód dohrané výzvy je zapamatovaný');
-        // „Projít znovu tutoriál“ z jiné záložky úvodu (Více hráčů): vrátí se na Jeden hráč a tutoriál začne od začátku, ne posledním krokem
-        await one.tab.click('[data-action="home-tab"][data-tab="multi"]');
-        await one.tab.click('#btn-settings');
+        // „Tutoriál“ z Nastavení (i z jiné záložky): vrátí se na Dnes a tutoriál začne od začátku, ne posledním krokem
+        await nav.settings(one.tab);
         await one.tab.click('[data-tutorial-restart]');
         await one.tab.waitForFunction(() => /Krok \d+ z \d+/.test((document.querySelector('[data-tut-count]') || {}).textContent || ''));
         const stepText = await one.tab.textContent('[data-tut-count]');
         assert.ok(/Krok [12] z \d+/.test(stepText), `tutoriál začíná od začátku (${stepText})`);
-        assert.equal(await one.tab.locator('[data-action="home-tab"][aria-selected="true"]').getAttribute('data-tab'), 'single');
+        assert.equal(await nav.currentTab(one.tab), 'dnes');
         await one.tab.click('[data-tut-skip]');
-        await one.tab.click('[data-action="home-tab"][data-tab="multi"]');
+        await nav.challenges(one.tab);
 
         // Nastavení výzvy: Vlajky, jen okruh vlajek států, i těžší otázky – hraje se přesně podle něj; psaní ve výzvě není (jen hra pro jednoho hráče)
         await one.tab.click('#challenges-section [data-action="new-challenge"]');
@@ -1836,9 +1877,19 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await backend(two.context);
         await two.tab.goto(`${ORIGIN}/`);
         await waitForHome(two.tab);
-        // Čekající výzva je vidět už na záložce Více hráčů jako číslo
-        await two.tab.waitForFunction(() => /Více hráčů\s*2/.test(document.getElementById('home-tabs').textContent));
-        await two.tab.click('[data-action="home-tab"][data-tab="multi"]');
+        // Čekající výzvy jsou vidět už na spodní liště jako číslo u Soupeřů; záložka ukáže tu nejnaléhavější a „+1 další“
+        await two.tab.waitForFunction(() => { const badge = document.querySelector('#app-nav [data-nav="souperi"] [data-nav-badge]'); return Boolean(badge) && badge.textContent.trim() === '2'; });
+        await nav.go(two.tab, 'souperi');
+        await two.tab.waitForSelector('#waiting-section [data-action="challenge-open"]');
+        assert.equal(await two.tab.locator('#waiting-section [data-action="challenge-open"]').count(), 1, 'na záložce jen jeden řádek');
+        assert.match(await two.tab.textContent('#waiting-section'), /Čeká na tebe\s*\+1 další[\s\S]*Janička tě vyzývá/);
+        assert.equal((await two.tab.textContent('#challenges-tile [data-tile-badge]')).trim(), '2');
+        // „+1 další“ otevře okno se vším, co čeká
+        await two.tab.click('[data-action="waiting-all"]');
+        await two.tab.waitForSelector('#waiting-list');
+        assert.equal(await two.tab.locator('#waiting-list [data-action="challenge-open"]').count(), 2);
+        await two.tab.keyboard.press('Escape');
+        await nav.challenges(two.tab);
         await two.tab.waitForSelector(`#challenges-section [data-action="challenge-open"][data-code="${code}"]`);
         assert.match(await two.tab.textContent('#challenges-section'), /Janička tě vyzývá/);
         assert.match(await two.tab.textContent('#challenges-section'), /Čekají na tebe/);
@@ -1857,7 +1908,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         db.results.push({ challenge_id: code, user_id: 'u-2', correct: 3, points: 7, finished_at: '2026-11-03T11:00:00Z' });
         await two.tab.click('#btn-home');
         await waitForHome(two.tab);
-        await two.tab.click('[data-action="home-tab"][data-tab="multi"]');
+        await nav.challenges(two.tab);
         await two.tab.click(`#challenges-section [data-action="challenge-open"][data-code="${code}"]`);
         await two.tab.waitForSelector('#dialog-overlay [data-player-id="u-1"]');
         await two.tab.click('#dialog-overlay [data-player-id="u-1"]');
@@ -1932,7 +1983,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.goto(`${ORIGIN}/?vyvojar`);
         await waitForHome(tab);
         assert.equal(new URL(tab.url()).search, '', 'parametr zmizí z adresy');
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.waitForSelector('[data-dev="max"]');
         await tab.click('[data-dev="max"]');
         await tab.waitForSelector('[data-dev="restore"]');
@@ -1941,7 +1992,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.ok(Object.keys(progress.badges).length >= 120, 'všechny odznaky');
         await tab.keyboard.press('Escape');
         assert.match(await tab.textContent('#status-text'), /Úr\. 100 · Mudrlant/);
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-dev="restore"]');
         await tab.waitForFunction(() => !document.querySelector('[data-dev="restore"]'));
         assert.equal(await tab.evaluate(() => localStorage.getItem('mudrlant.progress')), null, 'původní (prázdný) postup je zpět');
@@ -1949,7 +2000,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await context.close();
     });
 
-    await t.test('sovy titulů: Můj postup, okno Úrovně a tituly a oslava nového titulu ukazují sovu stupně titulu v barvě obleku', async () => {
+    await t.test('sovy titulů: záložka Postup, okno Úrovně a tituly a oslava nového titulu ukazují sovu stupně titulu v barvě obleku', async () => {
         const core = require('../quiz-core.js');
         // Kousek pod úrovní 7 (Učeň): první správná odpověď přinese nový titul a s ním sovu druhého stupně; zelený talár (úroveň 6)
         const { context, tab, log } = await setup(browser, { storage: {
@@ -1959,7 +2010,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
         await tab.click('#status-badge');
-        await tab.waitForSelector('#dialog-overlay [data-open-levels]');
+        await tab.waitForSelector('#tab-postup [data-open-levels]');
         // Karta s úrovní: sova titulu Zvědavec–Posluchač (stupeň 1) v zeleném taláru, bez doplňků, a štítek úrovně
         assert.equal(await tab.getAttribute('[data-open-levels] [data-title-owl] img', 'src'), 'icons/topics/sova-titul-1-zelena.webp');
         assert.equal(await tab.locator('[data-open-levels] img[src*="doplnky"]').count(), 0, 'sova titulu je bez doplňků');
@@ -1978,11 +2029,11 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.deepEqual(rows.filter(row => row[1].includes('sova-titul-11')).map(row => row[0]), [100], 'vlastní sovu má jen Mudrlant (úroveň 100)');
         await tab.waitForFunction(() => [...document.querySelectorAll('#dialog-overlay [data-title-row] img')].every(img => img.complete && img.naturalWidth > 0), null, { timeout: 10000 });
         await tab.keyboard.press('Escape');
-        await tab.waitForSelector('#dialog-overlay [data-progress-dialog]');
-        await tab.keyboard.press('Escape');
+        await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
+        assert.equal(await nav.currentTab(tab), 'postup');
 
         // Správná odpověď → úroveň 7 → oslava „Nový titul: Učeň“ se sovou druhého stupně v zeleném taláru
-        await tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await nav.daily(tab, 'zemepis');
         await waitForQuestion(tab);
         const data = await readRound(tab);
         await tab.click(`[data-action="choice"]:has-text("${data.question.answerLabel}")`);
@@ -1995,7 +2046,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await context.close();
     });
 
-    await t.test('sova Mudrlanta: úroveň 100 slaví nejvyšší titul vlastní sovou (titul-11), ukáže ji Můj postup i řádek Mudrlant', async () => {
+    await t.test('sova Mudrlanta: úroveň 100 slaví nejvyšší titul vlastní sovou (titul-11), ukáže ji záložka Postup i řádek Mudrlant', async () => {
         const core = require('../quiz-core.js');
         // Kousek pod úrovní 100: první správná odpověď přinese titul Mudrlant a s ním jedenáctou sovu; zlatý talár (úroveň 65)
         const { context, tab, log } = await setup(browser, { storage: {
@@ -2004,20 +2055,27 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         } });
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        await tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await nav.daily(tab, 'zemepis');
         await waitForQuestion(tab);
         const data = await readRound(tab);
         await tab.click(`[data-action="choice"]:has-text("${data.question.answerLabel}")`);
         await waitForResult(tab);
-        await tab.waitForFunction(() => { const card = document.getElementById('celebration'); return card && /Nový titul/.test(card.textContent); }, null, { timeout: 10000 });
+        // Úroveň 100 odemkne i řadu věcí (oslava milníku alba může přijít dřív): ostatní oslavy se odklepnou
+        for (let i = 0; i < 8; i++) {
+            await tab.waitForSelector('#celebration', { timeout: 10000 });
+            if (/Nový titul\s*Mudrlant \(úroveň 100\)/.test(await tab.textContent('#celebration'))) break;
+            await tab.locator('#celebration').click({ timeout: 2000 }).catch(() => {});
+            await tab.waitForTimeout(400);
+        }
         assert.match(await tab.textContent('#celebration'), /Nový titul\s*Mudrlant \(úroveň 100\)/);
         assert.equal(await tab.getAttribute('#celebration img', 'src'), 'icons/topics/sova-titul-11-zlata.webp');
         await tab.waitForFunction(() => { const img = document.querySelector('#celebration img'); return img.complete && img.naturalWidth === 320; });
-        // Po novém načtení (postup je uložený) karta Můj postup a okno Úrovně a tituly
+        // Po novém načtení (postup je uložený) karta úrovně na záložce Postup a okno Úrovně a tituly
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        await tab.click('#status-badge');
-        await tab.waitForSelector('#dialog-overlay [data-open-levels]');
+        await nav.go(tab, 'postup');
+        await tab.waitForSelector('#tab-postup [data-open-levels]');
+        assert.equal((await tab.textContent('#app-nav [data-nav="postup"] [data-nav-badge]')).trim(), '1', 'prestiž čeká: odznak u záložky Postup');
         assert.equal(await tab.getAttribute('[data-open-levels] [data-title-owl] img', 'src'), 'icons/topics/sova-titul-11-zlata.webp');
         // Na úrovni 100 karta nabídne prestiž (prestige.js, blok 32) místo „Nejvyšší úroveň“
         assert.match(await tab.textContent('[data-open-levels]'), /Mudrlant[\s\S]*Můžeš do prestiže ★/);

@@ -9,6 +9,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const fixtures = require('./fixtures.js');
+const nav = require('./nav.js');
 
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
@@ -63,7 +64,7 @@ test('sezóna: pruh, odhalení odměn, cesta, Sezónní truhla, dovybrání a od
         tab.on('console', message => { if (/Content Security Policy/i.test(message.text())) problems.push(message.text()); });
         await tab.clock.setFixedTime(new Date(now));
         await tab.goto(`${origin}/`);
-        await tab.waitForSelector('[data-action="play-topic"]');
+        await nav.waitForHome(tab);
         return { context, tab, problems };
     };
     const storage = (tab, key) => tab.evaluate((name) => JSON.parse(localStorage.getItem(name)), key);
@@ -81,7 +82,7 @@ test('sezóna: pruh, odhalení odměn, cesta, Sezónní truhla, dovybrání a od
     const dialogOverflow = (tab) => tab.evaluate(() => { const box = document.getElementById('dialog-overlay').firstElementChild; return box.scrollHeight - box.clientHeight; });
 
     for (const [name, viewport, colorScheme] of [['390×780', { width: 390, height: 780 }, 'light'], ['360×640 tmavý', { width: 360, height: 640 }, 'dark']]) {
-        await t.test(`pruh na úvodu, pečeť, další odměna, karta v Mém postupu a cesta (${name})`, async () => {
+        await t.test(`pruh na záložce Dnes, pečeť, další odměna, karta na záložce Postup a cesta (${name})`, async () => {
             // Sezóna od 21 000 XP, hráč má 26 000 → 5 000 XP sezóny = stupeň 10; stupně 1 a 2 už vyzvednuté
             const seed = { 'mudrlant.progress': { xp: 26000, counters: { bestStreak: 5 }, badges: BADGES }, 'mudrlant.rewards': { season: { id: NOV, startXp: 21000, claimed: { 1: 'robes:fialova', 2: 'freeze' } }, freezes: 1 } };
             const { context, tab, problems } = await open({ viewport, colorScheme, seed });
@@ -89,8 +90,9 @@ test('sezóna: pruh, odhalení odměn, cesta, Sezónní truhla, dovybrání a od
             const strip = tab.locator('[data-season-ready]');
             await strip.waitFor();
             assert.match(await strip.textContent(), /Sezóna Listopad: čekají 8 odměn/);
-            assert.equal(await tab.locator('#weekly-goals').count(), 1, 'pruh je místo cílů týdne (jeden řádek)');
-            assert.ok(await noScroll(tab), 'úvod bez posouvání');
+            assert.equal(await tab.locator('#dnes-extras #season-strip').count(), 1, 'pruh mezi příležitostnými pruhy záložky Dnes (jeden řádek)');
+            assert.equal((await tab.textContent('#app-nav [data-nav="postup"] [data-nav-badge]')).trim(), '1', 'odměna čeká: odznak u záložky Postup');
+            assert.ok(await noScroll(tab), 'záložka Dnes bez posouvání');
             assert.equal(await tab.locator('[data-season-ready] .frame-art.frame-sezona-11').count(), 1, 'znak sezóny: logo v obrázkovém rámečku měsíce');
             // Zablýsknutí znaku drží zmenšení obrázkového rámečku (0,8, při zablýsknutí o 8 % víc), prsten nepřeteče pruh
             const scale = Number(await tab.evaluate(() => getComputedStyle(document.querySelector('[data-season-ready] .season-mini')).scale));
@@ -135,12 +137,11 @@ test('sezóna: pruh, odhalení odměn, cesta, Sezónní truhla, dovybrání a od
             await tab.click('#season-overlay [data-season-close]');
             assert.equal(await tab.locator('#season-overlay').count(), 0);
             await clearCelebrations(tab);
-            // Můj postup: karta sezóny se stupněm, dny do konce a počtem čekajících odměn
-            await tab.click('#btn-settings');
-            await tab.click('[data-open-progress]');
-            await tab.waitForSelector('[data-season-card]');
+            // Záložka Postup: karta sezóny se stupněm, dny do konce a počtem čekajících odměn
+            await nav.go(tab, 'postup');
+            await tab.waitForSelector('#tab-postup [data-season-card]');
             assert.match(await tab.textContent('[data-season-card]'), /Sezóna Listopad[\s\S]*10\/20[\s\S]*zbývá 20 dní[\s\S]*Vzít\s*6/);
-            assert.ok(await dialogOverflow(tab) <= (viewport.height < 700 ? 24 : 0), 'Můj postup se vejde');
+            assert.ok(await noScroll(tab), 'záložka Postup se vejde');
             await shot(tab, `sezona-muj-postup-${tag}`);
             // Okno s cestou: 20 stupňů (vyzvednuté, čekající, zamčené), popis zvoleného stupně
             await tab.click('[data-season-open]');
@@ -226,14 +227,14 @@ test('sezóna: pruh, odhalení odměn, cesta, Sezónní truhla, dovybrání a od
         assert.equal(look.title, 'sampion-sezony', 'titul nasazený');
         // Po novém načtení zůstane (dárek ze sezóny = odemčeno), titul je u jména v Nastavení
         await tab.reload();
-        await tab.waitForSelector('[data-action="play-topic"]');
+        await nav.waitForHome(tab);
         await clearCelebrations(tab);
         look = await storage(tab, 'mudrlant.look');
         assert.equal(look.frame, 'sezona-11');
         assert.equal(await tab.evaluate(() => window.MudrlantLook.prefs({ level: 37, badges: {} }).frame), 'sezona-11');
         // Lampion na sově v hlavičce (nová ruka: výchozí ruka se skryje maskou)
         assert.equal(await tab.locator('#status-icon-slot [data-owl][class*="owl-nohand"] [data-owl-layer][src="icons/doplnky/lampion.webp"]').count(), 1, 'lampion na logu v hlavičce');
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.waitForSelector('#settings-overlay [data-open-progress]');
         assert.match(await tab.textContent('#settings-overlay [data-open-progress]'), /Šampion sezóny/);
         // Ve výběru doplňků je z sezónních jen ten vlastněný (Lampion), s barvami
@@ -282,7 +283,7 @@ test('sezóna: pruh, odhalení odměn, cesta, Sezónní truhla, dovybrání a od
         await tab.click('#season-overlay [data-season-close]');
         // V okně prosincové sezóny je odkaz na zbytek listopadu
         await clearCelebrations(tab);
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-open-progress]');
         await tab.click('[data-season-open]');
         await tab.waitForSelector('[data-season-claim-past]');
@@ -291,10 +292,12 @@ test('sezóna: pruh, odhalení odměn, cesta, Sezónní truhla, dovybrání a od
         await shot(tab, 'sezona-minula-okno');
         assert.deepEqual(problems, []);
         await context.close();
-        // 8. prosince už propadly: na úvodu zase cíle týdne
+        // 8. prosince už propadly: pruh na záložce Dnes není a u záložky Postup nic nečeká
         ({ context, tab, problems } = await open({ seed, now: '2026-12-08T10:00:00Z' }));
-        await tab.waitForSelector('#weekly-goals');
+        await nav.waitForHome(tab);
+        await tab.waitForTimeout(300);
         assert.equal(await tab.locator('[data-season-ready]').count(), 0);
+        assert.equal((await tab.textContent('#app-nav [data-nav="postup"] [data-nav-badge]')).trim(), '');
         assert.deepEqual(problems, []);
         await context.close();
     });
@@ -308,19 +311,23 @@ test('sezóna: pruh, odhalení odměn, cesta, Sezónní truhla, dovybrání a od
         await context.close();
     });
 
-    await t.test('odměny za sérii: štítek série na úvodu, okno ochrany série a výsledek dnešní otázky', async () => {
+    await t.test('odměny za sérii: čip série v hlavičce, štítek série u tématu, okno ochrany série a výsledek dnešní otázky', async () => {
         const seed = { 'mudrlant.progress': { xp: 3000, counters: { bestStreak: 6 }, badges: { 'serie-3': '2026-11-01' } }, 'mudrlant.stats': { daily: { zemepis: streakDays(6) }, practice: {} }, 'mudrlant.rewards': { freezes: 1 } };
         const { context, tab, problems } = await open({ seed });
         await clearCelebrations(tab);
-        assert.match(await tab.getAttribute('[data-action="daily"][data-topic="zemepis"] [title^="Série"]', 'title'), /Série 6 dní · Další odměna za sérii: Jiskra za 7 dní \(zbývá 1\)/);
-        await tab.click('[data-action="freeze-info"]');
+        // Hlavička: série 6 dní se štítem ochrany; v okně Dnešní otázky má téma štítek série s další odměnou
+        assert.deepEqual([await tab.getAttribute('#streak-chip', 'data-streak'), await tab.getAttribute('#streak-chip', 'data-freezes')], ['6', '1']);
+        assert.match(await tab.getAttribute('#streak-chip', 'aria-label'), /Série: 6 dní v řadě, ochrana série: 1 z 2/);
+        await nav.dailySheet(tab);
+        assert.match(await tab.getAttribute('#daily-sheet [data-action="daily"][data-topic="zemepis"] [title^="Série"]', 'title'), /Série 6 dní · Další odměna za sérii: Jiskra za 7 dní \(zbývá 1\)/);
+        await tab.click('#daily-sheet [data-action="freeze-info"]');
         await tab.waitForSelector('#dialog-overlay [data-streak-reward]');
         assert.match(await tab.textContent('#dialog-overlay [data-streak-reward]'), /Další odměna za sérii: Jiskra za 7 dní \(zbývá 1\)/);
         assert.equal(await tab.locator('#dialog-overlay [data-streak-reward] .frame-jiskra').count(), 1, 'ukázka rámečku');
         await shot(tab, 'serie-ochrana');
         await tab.keyboard.press('Escape');
         // Výsledek dnešní otázky (vzdáno: série padne na 0)
-        await tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await nav.daily(tab, 'zemepis');
         await tab.waitForSelector('[data-action="give-up"]', { timeout: 30000 });
         await tab.click('[data-action="give-up"]');
         await tab.waitForSelector('[data-streak-reward]');

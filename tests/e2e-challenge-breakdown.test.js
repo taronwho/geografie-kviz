@@ -5,6 +5,7 @@
 // poznámku. Trénink má čip také. CSP bez chyb; snímky (SCREENSHOT_DIR) 360×640 i 390×780, světlý i tmavý vzhled. Bez Playwrightu se přeskočí.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const nav = require('./nav.js');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -130,8 +131,8 @@ const setup = async (browser, storage, { viewport = { width: 390, height: 780 },
     await context.addInitScript(entries => {
         if (sessionStorage.getItem('test-storage-set')) return;
         sessionStorage.setItem('test-storage-set', '1');
-        Object.entries(entries).forEach(([k, v]) => localStorage.setItem(k, v));
-    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.tips': JSON.stringify({ off: true }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), 'mudrlant.homeTab': JSON.stringify('multi'), ...storage });
+        Object.entries(entries).forEach(([k, v]) => (k.startsWith('session:') ? sessionStorage.setItem(k.slice(8), v) : localStorage.setItem(k, v)));
+    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.tips': JSON.stringify({ off: true }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), 'session:mudrlant.nav': 'souperi:vyzvy', ...storage });
     const tab = await context.newPage();
     const log = { errors: [], csp: [] };
     tab.on('pageerror', error => log.errors.push(error.message));
@@ -147,7 +148,7 @@ const setup = async (browser, storage, { viewport = { width: 390, height: 780 },
     await tab.clock.setFixedTime(new Date('2026-11-04T10:00:00'));
     return { context, tab, log };
 };
-const waitForHome = (tab) => tab.waitForFunction(() => { const content = document.getElementById('app-content'); return Boolean(content && content.querySelector('#home-tabs')); }, null, { timeout: 30000 });
+const waitForHome = (tab) => nav.waitForHome(tab);
 const compact = async (tab, selector) => ((await tab.textContent(selector)) || '').replace(/\s+/g, ' ').trim();
 // Snímek bez oslavy odznaku přes obrazovku (ta po chvíli zmizí sama)
 const shot = async (tab, name) => {
@@ -346,7 +347,7 @@ test('Rozpis otázek po výzvě a průběžné body', { skip: !chromium && 'Play
         for (const [viewport, colorScheme] of [[{ width: 360, height: 640 }, 'light'], [{ width: 360, height: 640 }, 'dark']]) {
             const db = newDb();
             const { context, tab, log } = await start(db, 'tok-u1', { viewport, colorScheme });
-            await tab.click('#btn-practice');
+            await nav.mix(tab);
             await tab.waitForSelector('[data-score-chip]', { timeout: 30000 });
             assert.equal(await chipPoints(tab), 0);
             assert.deepEqual(await headerFits(tab), { overlap: false, wrapped: false, chipWrapped: false });

@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const fixtures = require('./fixtures.js');
+const nav = require('./nav.js');
 
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
@@ -40,7 +41,7 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         await context.addInitScript(entries => {
             if (sessionStorage.getItem('seeded')) return;
             sessionStorage.setItem('seeded', '1');
-            Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
+            Object.entries(entries).forEach(([key, value]) => (key.startsWith('session:') ? sessionStorage.setItem(key.slice(8), value) : localStorage.setItem(key, value)));
         }, { 'mudrlant.account': JSON.stringify('host'), 'mudrlant.variant': 'choices', 'mudrlant.progress': progress, 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), ...extra });
         const tab = await context.newPage();
         const problems = [];
@@ -57,7 +58,7 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
     await t.test('výběr doplňku a barvy se projeví na logu v hlavičce a zůstane po načtení', async () => {
         const { context, tab, problems } = await open();
         assert.deepEqual(await layers(tab), [], 'na začátku bez doplňků');
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="owl"]');
         await tab.waitForSelector('[data-owl-pick]');
         // Čtyři místa kolem sovy; otevřené (hlava) ukazuje své doplňky, dohromady 3 × „bez doplňku“, Monokl a Bez monoklu + 68 doplňků
@@ -104,7 +105,7 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         await tab.waitForSelector('#status-icon-slot [data-owl-layer]');
         assert.deepEqual(await layers(tab), ['icons/doplnky/sala-modra.webp', 'icons/doplnky/slunecni-bryle.webp'], 'volba přežije načtení');
         // „Bez doplňku“ ho sundá
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="owl"]');
         await pickAcc(tab, 'neck:none');
         await tab.waitForSelector('[data-owl-pick="neck:none"][aria-pressed="true"]');
@@ -115,7 +116,7 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
 
     await t.test('doplňky jdou přidávat v libovolném pořadí: nejdřív spodní místo, pak horní', async () => {
         const { context, tab, problems } = await open(JSON.stringify({ xp: 82000, counters: {}, badges: {} }));
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="owl"]');
         await tab.waitForSelector('[data-owl-pick]');
         await pickAcc(tab, 'hand:lupa');
@@ -133,7 +134,7 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
 
     await t.test('nejlepší odměna: vlastní barva z palety přebarví doplněk z původního obrázku', async () => {
         const { context, tab, problems } = await open(JSON.stringify({ xp: 238000, counters: {}, badges: {} }));
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="owl"]');
         await tab.waitForSelector('[data-owl-pick]');
         await pickAcc(tab, 'head:koruna');
@@ -160,7 +161,7 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
     await t.test('doplňky za zběhlost v tématech: zamčené bez odznaku, s odznaky jdou zkombinovat (přilba + laboratorní brýle + síťka)', async () => {
         const badges = Object.fromEntries(['biologie', 'geologie', 'chemie'].map(topic => [`zbehly-${topic}`, '2026-11-01']));
         const { context, tab, problems } = await open(JSON.stringify({ xp: 11000, counters: {}, badges }));
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="owl"]');
         await tab.waitForSelector('[data-owl-pick]');
         // Bez odznaku (Mytologie) je helma zamčená a říká, co pro ni udělat
@@ -196,7 +197,7 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         const badges = Object.fromEntries(['zbehly-zemepis', 'tema-zemepis-300', 'tema-zemepis-1000', 'zbehly-historie', 'tema-historie-1000', 'zbehly-vlajky'].map(id => [id, '2026-11-01']));
         const progress = JSON.stringify({ xp: 11000, counters: { topics: { zemepis: 1200, historie: 1000 } }, badges });
         const { context, tab, problems } = await open(progress);
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="owl"]');
         await tab.waitForSelector('[data-owl-pick]');
         await pickAcc(tab, 'neck:kompas');
@@ -222,7 +223,7 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         assert.deepEqual(await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.looks'))), ['zemepis']);
         // Znovu oblečený look se už neslaví
         await tab.waitForSelector('#celebration-mini', { state: 'detached' });
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="owl"]');
         await pickAcc(tab, 'hand:none');
         await tab.waitForFunction(() => !document.querySelector('[data-owl-look-line]'));
@@ -236,6 +237,7 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
 
         // Mistrovství tématu: řádek looku pod sadou; Vlajky bez dvou kusů, Historie celá s tlačítkem Obléknout celou sadu
         await tab.evaluate(() => document.getElementById('status-badge').click());
+        await tab.click('[data-open-mastery-all]');
         await tab.waitForSelector('[data-mastery="vlajky"]');
         await tab.click('[data-mastery="vlajky"]');
         await tab.waitForSelector('[data-mastery-look="missing"]');
@@ -264,8 +266,11 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
 
         // Album sbírky → Doplňky: Sady témat (14 looků), Historie nošená, Zeměpis celý; klepnutí vede do Mistrovství a zpět do alba
         await tab.click('[data-dialog-back]');
-        await tab.waitForSelector('[data-rewards-info="album"]');
-        await tab.click('[data-rewards-info="album"]');
+        // Zpět v okně Mistrovství témat; křížek vrátí na záložku Postup, kde je dlaždice Album
+        await tab.waitForSelector('[data-mastery-dialog]');
+        await tab.keyboard.press('Escape');
+        await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
+        await tab.click('#app-content [data-rewards-info="album"]');
         await tab.click('[data-album-tab="accessories"]');
         await tab.waitForSelector('[data-album-looks]');
         assert.equal(await tab.locator('[data-album-look]').count(), 14);
@@ -290,7 +295,7 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         // Malý telefon 360×640 se staženým lookem: Nastavení → Mudrlant i Mistrovství se vejdou bez posouvání
         const look = JSON.stringify({ acc: { neck: { id: 'kompas', color: 'modra' }, head: { id: 'cestovatelsky-klobouk', color: 'original' }, hand: { id: 'globus', color: 'original' } } });
         const small = await open(progress, { viewport: { width: 360, height: 640 }, extra: { 'mudrlant.look': look } });
-        await small.tab.click('#btn-settings');
+        await nav.settings(small.tab);
         await small.tab.click('[data-me-tab="owl"]');
         await small.tab.waitForSelector('[data-owl-look-line] [data-owl-look="zemepis"]');
         await small.tab.click('[data-owl-slot="hand"]');
@@ -299,6 +304,7 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         await shot(small.tab, 'look-nastaveni-360.png');
         await small.tab.click('#settings-overlay [data-close]');
         await small.tab.evaluate(() => document.getElementById('status-badge').click());
+        await small.tab.click('[data-open-mastery-all]');
         await small.tab.click('[data-mastery="historie"]');
         await small.tab.waitForSelector('[data-wear-set="historie"]');
         const over = await small.tab.evaluate(() => { const box = document.querySelector('#dialog-overlay > div'); return box.scrollHeight - box.clientHeight; });
@@ -319,7 +325,7 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
             return !img || img.getAttribute('src') === wanted;
         }), src);
         assert.equal(await logo(), 'icons/logo.webp', 'výchozí sova má monokl');
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="owl"]');
         await tab.waitForSelector('[data-owl-pick]');
         await tab.click('[data-owl-slot="face"]');
@@ -361,7 +367,7 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         await logoIs('icons/logo-bez-monoklu-zelena.webp');
         await tab.waitForFunction(() => { const img = document.querySelector('#status-icon-slot [data-owl] > img'); return img.complete && img.naturalWidth > 0; });
         // Cylindr (úroveň 62) a meč (odznak 15 vyhraných zápasů v turnajích): skryje se čepice i zvednutá ruka jednou maskou
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="owl"]');
         await tab.waitForSelector('[data-owl-pick]');
         await pickAcc(tab, 'head:cylindr');
@@ -378,7 +384,7 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
 
     await t.test('všechny obrázky doplňků se načtou (žádný rozbitý odkaz)', async () => {
         const { context, tab } = await open();
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="owl"]');
         await tab.waitForSelector('[data-owl-pick]');
         const broken = [];
@@ -399,7 +405,7 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         await context.addInitScript(entries => {
             if (sessionStorage.getItem('seeded')) return;
             sessionStorage.setItem('seeded', '1');
-            Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
+            Object.entries(entries).forEach(([key, value]) => (key.startsWith('session:') ? sessionStorage.setItem(key.slice(8), value) : localStorage.setItem(key, value)));
         }, { 'mudrlant.account': JSON.stringify('host'), 'mudrlant.variant': 'choices', 'mudrlant.progress': PROGRESS, 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.rewards': JSON.stringify({ v: 1, gifts: { accessories: owned } }) });
         const tab = await context.newPage();
         const problems = [];
@@ -407,7 +413,7 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         tab.on('console', message => { if (/Content Security Policy/i.test(message.text())) problems.push(message.text()); });
         await tab.goto(`${origin}/`);
         await tab.waitForSelector('#btn-settings');
-        await tab.click('#btn-settings');
+        await nav.settings(tab);
         await tab.click('[data-me-tab="owl"]');
         await tab.waitForSelector('[data-owl-pick]');
         // Ve výběru jsou jen vlastněné sezónní doplňky (ostatní se nedají získat jinak než v sezóně svého měsíce, zamčené by jen překážely)

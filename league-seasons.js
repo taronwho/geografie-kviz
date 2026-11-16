@@ -130,7 +130,7 @@
 
     // --- HTML (pomocníci h od app.js: esc, emblem(liga, cls), frameAvatar(rámeček, cls)) ---
     const HEADING = 'text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
-    // Pruh pod kartou ligy (Více hráčů): sezóna, kolik dní zbývá a co je další odměna; klepnutí otevře okno Ligové sezóny
+    // Pruh pod kartou ligy (okno Výzvy na záložce Soupeři): sezóna, kolik dní zbývá a co je další odměna; klepnutí otevře okno Ligové sezóny
     const stripHtml = ({ data, best, rating, now = new Date() }, h) => {
         const g = goal(data, best, rating);
         const top = g.secured[g.secured.length - 1] || g.next;

@@ -1,13 +1,14 @@
 // Upozornění v prohlížeči (Nastavení → Hra): nabídka se bez klíče VAPID neukáže, zapnutí (souhlas, předplatné, uložení do falešné databáze),
 // viditelný výsledek přímo u přepínače („Zapínám…“, konkrétní příčina a rada: zamítnuto, zavřený dotaz, nespuštěný service worker, chyba push
 // služby, 404 serveru), návod pro zablokovaná upozornění a dokončení po povolení, volby turnaje a výzev, vypnutí a odhlášení mažou odběr,
-// klepnutí na upozornění (?tab=multi) otevře Více hráčů, vývojářský režim (diagnostika, zkouška v zařízení, zkouška přes server s okamžitým
+// klepnutí na upozornění (?tab=multi) otevře záložku Soupeři, vývojářský režim (diagnostika, zkouška v zařízení, zkouška přes server s okamžitým
 // odesíláním i bez něj a se starší databází), CSP bez chyb,
 // bez vodorovného posouvání. Push API v prohlížeči je nahrazené atrapou (skutečné předplatné vyžaduje push server), service worker také
 // (zkouška v zařízení: atrapa přijme zprávu push-test a odpoví; klepnutí na upozornění se napodobí zprávou push-open).
 // Potřebuje Playwright (viz tests/e2e.test.js), jinak se přeskočí.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const nav = require('./nav.js');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -131,8 +132,8 @@ const setup = async (browser, { key = VAPID, permission = 'default', answer = 'g
     await context.addInitScript(entries => {
         if (sessionStorage.getItem('test-storage-set')) return;
         sessionStorage.setItem('test-storage-set', '1');
-        Object.entries(entries).forEach(([name, value]) => localStorage.setItem(name, value));
-    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), 'mudrlant.homeTab': JSON.stringify('single'), 'mudrlant.tips': JSON.stringify({ off: true }), ...login, ...storage });
+        Object.entries(entries).forEach(([name, value]) => (name.startsWith('session:') ? sessionStorage.setItem(name.slice(8), value) : localStorage.setItem(name, value)));
+    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), 'mudrlant.tips': JSON.stringify({ off: true }), ...login, ...storage });
     await context.addInitScript(pushStub, { permission, answer, realNotification, delay, subscribeError, readyNever, noPush });
     const tab = await context.newPage();
     const log = { errors: [], csp: [] };
@@ -150,8 +151,8 @@ const setup = async (browser, { key = VAPID, permission = 'default', answer = 'g
     await backend(context, db, key);
     return { context, tab, log, db };
 };
-const waitForHome = (tab) => tab.waitForFunction(() => { const content = document.getElementById('app-content'); return Boolean(content && (content.textContent.includes('Dnešní otázky') || content.querySelector('#home-tabs'))); }, null, { timeout: 30000 });
-const openSettings = async (tab) => { await tab.click('#btn-settings'); await tab.waitForSelector('#settings-overlay'); };
+const waitForHome = (tab) => nav.waitForHome(tab);
+const openSettings = async (tab) => { await nav.settings(tab); await tab.waitForSelector('#settings-overlay'); };
 const overflow = (tab, selector = '#settings-overlay > div') => tab.evaluate((selector) => { const box = document.querySelector(selector); return { page: document.documentElement.scrollWidth - document.documentElement.clientWidth, box: box.scrollWidth - box.clientWidth }; }, selector);
 // Text u přepínače (podtitulek řádku) a rada pod ním
 const status = (tab) => tab.textContent('[data-push-status]');
@@ -395,10 +396,11 @@ test('upozornění (push) v Nastavení', { skip: !chromium && 'Playwright není 
         await context.close();
     });
 
-    await t.test('?tab=multi z upozornění otevře Více hráčů a adresa se vyčistí', async () => {
+    await t.test('?tab=multi z upozornění otevře záložku Soupeři a adresa se vyčistí', async () => {
         const { context, tab } = await start({ query: '?tab=multi' });
-        await tab.waitForSelector('#home-tabs');
-        assert.equal(await tab.getAttribute('#home-tabs [data-tab="multi"]', 'aria-selected'), 'true');
+        await nav.waitForHome(tab);
+        assert.equal(await nav.currentTab(tab), 'souperi');
+        assert.equal(await tab.getAttribute('#app-nav [data-nav="souperi"]', 'aria-current'), 'page');
         assert.equal(new URL(tab.url()).search, '');
         await context.close();
     });
@@ -425,18 +427,19 @@ test('upozornění (push) v Nastavení', { skip: !chromium && 'Playwright není 
         await context.close();
     });
 
-    await t.test('vývojářský režim: zkouška v zařízení přes service worker (bez serveru) a klepnutí otevře Více hráčů', async () => {
+    await t.test('vývojářský režim: zkouška v zařízení přes service worker (bez serveru) a klepnutí otevře záložku Soupeři', async () => {
         const { context, tab, log } = await start({ query: '?vyvojar', permission: 'granted' });
         await openSettings(tab);
         await tab.click('[data-dev="push-local"]');
         await tab.waitForSelector('[data-push-test-result="ok"]');
         assert.match(await tab.textContent('#push-test'), /Upozornění se zobrazilo/);
         assert.match(await tab.textContent('#push-test'), /Klepni na něj/);
-        assert.deepEqual(await tab.evaluate(() => window.__push.swMessages), [{ type: 'push-test', payload: { title: 'Zkušební upozornění Mudrlanta', body: 'Funguje to! Klepni sem a otevře se záložka Více hráčů.', url: './?tab=multi', kind: 'test' } }]);
+        assert.deepEqual(await tab.evaluate(() => window.__push.swMessages), [{ type: 'push-test', payload: { title: 'Zkušební upozornění Mudrlanta', body: 'Funguje to! Klepni sem a otevře se záložka Soupeři.', url: './?tab=multi', kind: 'test' } }]);
         // klepnutí na upozornění: service worker pošle push-open s druhem test
         await tab.evaluate(() => window.__swEmit({ type: 'push-open', tab: 'multi', kind: 'test' }));
         await tab.waitForFunction(() => !document.getElementById('dialog-overlay'));
-        assert.equal(await tab.getAttribute('#home-tabs [data-tab="multi"]', 'aria-selected'), 'true');
+        assert.equal(await nav.currentTab(tab), 'souperi');
+        assert.equal(await tab.getAttribute('#app-nav [data-nav="souperi"]', 'aria-current'), 'page');
         assert.match(await tab.textContent('#toast'), /Klepnutí na upozornění funguje/);
         assert.deepEqual(log.errors, []);
         await context.close();
@@ -558,7 +561,8 @@ test('upozornění (push) v Nastavení', { skip: !chromium && 'Playwright není 
     };
     // Nabídka se neukáže: počká se déle, než je její zpoždění, a okno nesmí být
     const noOffer = async (tab, wait = 4500) => { await tab.waitForTimeout(wait); assert.equal(await tab.locator('#push-offer, #push-offer-ios').count(), 0, 'nabídka se nemá ukázat'); };
-    const multi = { 'mudrlant.homeTab': JSON.stringify('multi') };
+    // Okno Turnaje na záložce Soupeři (tam je karta turnaje s přihlášením)
+    const multi = { 'session:mudrlant.nav': 'souperi:turnaje' };
     // Znovu načtená aplikace s odhlášeným hráčem z turnaje (ať jde přihlásit znovu)
     // (pozvánka do turnaje vyskakuje při každém druhém spuštění: počítadlo spuštění se vrátí, ať tu nepřekáží)
     const reloadOut = async (tab, db) => { db.entries = []; await tab.evaluate(() => localStorage.setItem('mudrlant.tourPromo', JSON.stringify({ launches: 0 }))); await tab.reload(); await waitForHome(tab); };
@@ -670,10 +674,10 @@ test('upozornění (push) v Nastavení', { skip: !chromium && 'Playwright není 
         await noKey.context.close();
     });
 
-    await t.test('jinak nejdřív při 3. otevření záložky Více hráčů; ne během tutoriálu a ne přes jiné okno', async () => {
+    await t.test('jinak nejdřív při 3. otevření záložky Soupeři; ne během tutoriálu a ne přes jiné okno', async () => {
         const { context, tab } = await start();
-        const toMulti = async () => { await tab.click('#home-tabs [data-tab="multi"]'); await tab.waitForFunction(() => document.querySelector('#home-tabs [data-tab="multi"]').getAttribute('aria-selected') === 'true'); };
-        const toSingle = () => tab.click('#home-tabs [data-tab="single"]');
+        const toMulti = () => nav.go(tab, 'souperi');
+        const toSingle = () => nav.go(tab, 'dnes');
         await toMulti();
         await noOffer(tab, 4000);
         await toSingle();
@@ -686,10 +690,10 @@ test('upozornění (push) v Nastavení', { skip: !chromium && 'Playwright není 
         assert.equal(await tab.getAttribute('#push-offer', 'data-context'), 'multi');
         await context.close();
 
-        // tutoriál běží: nabídka počká a ze záložky Více hráčů se tentokrát vzdá
+        // tutoriál běží: nabídka počká a ze záložky Soupeři se tentokrát vzdá
         const tutorial = await start({ storage: { 'mudrlant.pushOffer': JSON.stringify({ 'u-1': { shown: 0, last: 0, opens: 2, done: false } }) } });
         await tutorial.tab.evaluate(() => localStorage.setItem('mudrlant.tutorial', JSON.stringify({ how: 'running', step: 2 })));
-        await tutorial.tab.click('#home-tabs [data-tab="multi"]');
+        await tutorial.tab.click('#app-nav [data-nav="souperi"]');
         await noOffer(tutorial.tab, 8000);
         assert.equal((await offerRecord(tutorial.tab)).shown, 0, 'během tutoriálu se nepočítá ani neukáže');
         await tutorial.context.close();
