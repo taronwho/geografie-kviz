@@ -12,6 +12,9 @@ const AVATAR_ART = ['cervik', 'axolot', 'kaktus', 'drak', 'mamut', 'meduza', 'le
     'hodiny', 'chamel', 'gepard', 'zelvus', 'tucnak', 'zabak', 'myval',
     // Legendární postavičky za diplomy témat
     'albatr', 'gryf', 'slon', 'sfinga', 'jelen', 'golem', 'liska', 'chobot', 'pav', 'bobr', 'vlk', 'kndrak', 'panda', 'klokan',
+    // Další postavičky (look.js NEW_AVATARS, docs/OBRAZKY.md č. 317–340)
+    'vacice', 'spisov', 'pstros', 'koala', 'toust', 'krokod', 'brokol', 'netopy', 'plamak', 'vajko', 'pizza', 'jezek', 'zirafa', 'vydra', 'hroch', 'lama',
+    'pavouk', 'krava', 'velbl', 'kapyba', 'zmrzl', 'kosatk', 'avokad',
     // Sezónní postavičky ze Sezónní truhly (look.js SEASON_AVATARS)
     'ramp', 'kobliz', 'snezen', 'kapka', 'pampel', 'vysved', 'meloun', 'hvezda', 'aktovk', 'drakpa', 'caj', 'pernik'];
 // Obrázkové rámečky profilu (icons/frames/<id>.webp); stejný seznam má look.js (FRAMES s art: true), hlídá tests/look-frames.test.js

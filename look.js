@@ -134,6 +134,40 @@
         { id: 'panda', title: 'Panda režisér', diploma: 'film', parts: ['Šála', 'Záře'], colors: [[3, 4, 5, 6, 7, 8, 9], [3, 4, 5, 6, 7, 8, 9]] },
         { id: 'klokan', title: 'Klokan šampion', diploma: 'sport', parts: ['Dres a čelenka', 'Záře'], colors: [[1, 2, 3, 4, 5, 6, 7, 8], [1, 4, 5, 6, 7, 8, 9]] }
     ];
+    // Další postavičky (docs/OBRAZKY.md oddíl 26, č. 317–340): odměny rozdělené do všech částí hry, ať je co získávat odevšad. Jen podmínky,
+    // které už katalog umí (a server ověří, schema.sql blok 35): úroveň, odznak (Kvíz dne, Bleskovka, Přežití, Tajemná otázka, Boss týdne,
+    // turnaje, výzvy, sázky, Dobývání, týdenní cíle, odznaky témat, album sbírky…), chest (jen z Truhly Mudrlanta a stupňů Sezóny, číslo
+    // = úroveň, podle které se v truhle řadí), rare (vzácný dárek z Truhly Mudrlanta a ze Zlaté truhly), referral a prestige (jako rámečky
+    // PERK_FRAMES níž; bonus = album je ukáže, jen když je hráč má), album: true = odměna za Album sbírky samo (jako rámeček Sběratelský,
+    // do procent alba se nepočítá, jinak by se točila v kruhu). První tři jsou snadné (do úrovně 20 nebo snadný odznak).
+    // V pořadí, jak je ukáže výběr obrázku (zhruba od nejsnazší); další postavičky (č. 339, 341–357) se přidají na konec seznamu.
+    // colors podle python3 scripts/avatar-icons.py --colors (u Kapybary bez černé vody).
+    const NEW_AVATARS = [
+        { id: 'vacice', title: 'Vačice gothička', level: 10, parts: ['Obojek', 'Uši'], colors: [[1, 2, 3, 4, 5, 6, 7, 8], [3, 4, 5, 6, 7, 8, 9]] },
+        { id: 'spisov', title: 'Mýval spisovatel', level: 17, parts: ['Šála', 'Sako'], colors: [ALL, ALL] },
+        { id: 'pstros', title: 'Pštros fotbalista', badge: 'tema-sport-25', parts: ['Dres', 'Peří'], colors: [[1, 2, 3, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8]] },
+        { id: 'koala', title: 'Koala ninja', badge: 'bleskovka-12', parts: ['Čelenka a lístek', 'Kukla'], colors: [[1, 2, 3, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8]] },
+        { id: 'toust', title: 'Toust surfař', badge: 'dnes-50', parts: ['Prkno', 'Brýle'], colors: [[1, 2, 3, 4, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8]] },
+        { id: 'krokod', title: 'Krokodýl zubař', badge: 'chyby-50', parts: ['Halena', 'Kartáček'], colors: [[1, 2, 3, 4, 6, 7, 8, 9], [1, 2, 3, 4, 6, 7, 8, 9]] },
+        { id: 'brokol', title: 'Brokolice kulturistka', badge: 'tydenni-cile-5', parts: ['Čelenka', 'Růžice'], colors: [[2, 3, 4, 5, 6, 7, 9], [1, 2, 3, 5, 6, 7, 8, 9]] },
+        { id: 'netopy', title: 'Netopýr jeskyňář', badge: 'detektiv-7', parts: ['Helma', 'Netopýr'], colors: [[1, 4, 5, 6, 7, 8, 9], [2, 3, 4, 5, 6, 7, 8, 9]] },
+        { id: 'plamak', title: 'Plameňák tanečník', badge: 'kviz-perfekt-5', parts: ['Peří', 'Sukýnka'], colors: [[2, 3, 4, 5, 6, 7, 9], ALL] },
+        { id: 'vajko', title: 'Vajíčko kaskadér', badge: 'sazkar', parts: ['Helma', 'Tělo'], colors: [[3, 4, 5, 6, 7, 8, 9], ALL] },
+        { id: 'pizza', title: 'Pizza superhrdina', badge: 'vyhry-5', parts: ['Plášť', 'Maska'], colors: [[2, 3, 4, 5, 6, 7, 9], [1, 2, 3, 4, 5, 6, 7, 8]] },
+        { id: 'jezek', title: 'Ježek krejčí', badge: 'sberatel-50', album: true, parts: ['Vesta', 'Metr'], colors: [ALL, [1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'zirafa', title: 'Žirafa v šále', level: 31, parts: ['Šála', 'Skvrny'], colors: [[3, 4, 5, 6, 7, 8, 9], [2, 3, 4, 5, 6, 7, 8, 9]] },
+        { id: 'vydra', title: 'Vydra plavkyně', badge: 'preziti-35', parts: ['Čepice', 'Voda'], colors: [[1, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 7, 8, 9]] },
+        { id: 'hroch', title: 'Hroch potápěč', badge: 'tezke-50', parts: ['Hroch', 'Šnorchl'], colors: [[1, 2, 3, 4, 5, 6, 8, 9], [4, 5, 6, 7, 8, 9]] },
+        { id: 'lama', title: 'Lama rocker', badge: 'tema-hudba-100', parts: ['Kytara', 'Bunda'], colors: [[2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8]] },
+        { id: 'pavouk', title: 'Pavouk pletař', badge: 'turnaj-postupy-5', parts: ['Pavouk', 'Šála'], colors: [[2, 3, 4, 5, 6, 7, 8, 9], ALL] },
+        { id: 'krava', title: 'Kráva kovbojka', badge: 'dobyvatel-3', parts: ['Klobouk', 'Šátek'], colors: [ALL, [3, 4, 5, 6, 7, 8, 9]] },
+        { id: 'velbl', title: 'Velbloud cestovatel', badge: 'boss-kapitan', parts: ['Klobouk', 'Batoh'], colors: [ALL, ALL] },
+        { id: 'kapyba', title: 'Kapybara v lázních', chest: 15, parts: ['Voda a pára', 'Ručník'], colors: [[1, 2, 3, 4, 7, 8], ALL] },
+        { id: 'zmrzl', title: 'Zmrzlinový kornout', rare: true, parts: ['Jahodový kopeček', 'Pistáciový kopeček'], colors: [[2, 3, 4, 5, 6, 7, 9], ALL] },
+        { id: 'kosatk', title: 'Kosatka komorník', referral: ['pritel-3'], bonus: true, parts: ['Motýlek'], colors: [[2, 3, 4, 5, 6, 7, 9]] },
+        { id: 'avokad', title: 'Avokádo jogín', prestige: 1, bonus: true, parts: ['Lotos', 'Slupka'], colors: [[2, 3, 4, 5, 6, 7, 9], [1, 2, 3, 4, 5, 6, 7, 8]] }
+    ];
+    AVATARS.push(...NEW_AVATARS);
     // Témata diplomů legendárních postaviček (název pro „Diplom: Zeměpis“; app.js a rewards.js mají vlastní seznam témat)
     const DIPLOMA_TOPICS = {
         zemepis: 'Zeměpis', vlajky: 'Vlajky a znaky', historie: 'Historie', mytologie: 'Mytologie', biologie: 'Biologie', geologie: 'Geologie', chemie: 'Chemie',
@@ -468,7 +502,8 @@
         return Boolean(ctx) && ctx.level >= (item.level || 1);
     };
     const unlockText = (item, badgeTitle = null) => item.exclusive ? (item.month ? `Sezóna Mudrlanta (${SEASON_MONTHS[item.month - 1].toLocaleLowerCase('cs')}, ${item.seasonTier === 10 ? 'Truhla v půli sezóny na 10. stupni' : 'Sezónní truhla na 20. stupni'})` : 'Sezóna Mudrlanta (celá cesta sezóny)')
-        : item.referral ? (item.referral.includes('pritel-10') ? 'Pozvi 10 kamarádů (Soupeři → Přátelé → Pozvi kamarády)' : 'Pozvi kamaráda, nebo přijď na jeho pozvánku (Soupeři → Přátelé → Pozvi kamarády)')
+        : item.referral ? (item.referral.includes('pritel-10') ? 'Pozvi 10 kamarádů (Soupeři → Přátelé → Pozvi kamarády)' : item.referral.includes('pritel-3') ? 'Pozvi 3 kamarády (Soupeři → Přátelé → Pozvi kamarády)'
+            : 'Pozvi kamaráda, nebo přijď na jeho pozvánku (Soupeři → Přátelé → Pozvi kamarády)')
         : item.prestige ? 'Prestiž po úrovni 100 (Postup → Úrovně a tituly)'
         : item.rare ? 'Vzácný dárek z Truhly Mudrlanta' : item.chest ? 'Z Truhly Mudrlanta' : item.diploma ? `Diplom: ${DIPLOMA_TOPICS[item.diploma] || item.diploma}`
             : item.league ? `Ligová sezóna: vrchol ${item.leagueName}` : item.badge ? `Odznak: ${badgeTitle || item.badge}` : `Úroveň ${item.level}`;
@@ -623,6 +658,8 @@
         migrateAvatar, parseAvatar, formatAvatar, avatarCode, avatarPicture, avatarItem, partColors,
         // Legendární postavičky za diplom tématu
         DIPLOMA_TOPICS, isLegendary, rewardsForDiploma,
+        // Další postavičky (č. 317–340)
+        NEW_AVATARS,
         // Sezóna a série dní
         SEASON_MONTHS, SEASON_ADJECTIVES, SEASON_FRAMES, SEASON_MID_FRAMES, SEASON_AVATARS, STREAK_FRAMES, TITLES, SEASON_BUNDLES, seasonBundle, seasonMidFrame, titleItem,
         // Rámečky ligových sezón (schéma 18)

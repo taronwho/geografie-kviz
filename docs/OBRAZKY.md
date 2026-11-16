@@ -2863,9 +2863,43 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 
 ## 26. Další postavičky na profilové obrázky (č. 317–357)
 
-Další postavičky do skupiny Postavičky (Nastavení → Profil → Profilový obrázek), stejný styl jako č. 58–78. Každá má vlastní hlavní barvy, ať se v malém kolečku nepletou. Jak se odemknou (úrovně, odznaky, Truhla Mudrlanta), doplním po dodání podle toho, kde jich je nejmíň. Soubory pojmenuj podle názvu u promptu, zbytek (vyříznutí, katalog, odemykání) udělám já.
+Další postavičky do skupiny Postavičky (Nastavení → Profil → Profilový obrázek), stejný styl jako č. 58–78. Každá má vlastní hlavní barvy, ať se v malém kolečku nepletou. Soubory pojmenuj podle názvu u promptu, zbytek (vyříznutí, katalog, odemykání) udělám já.
 
-#### 317. `avatar-vacice-goth.png` – Vačice gothička – čeká na dodání
+**Stav: 23 dodáno a zapojeno (č. 317–338 a 340).** Vyříznuté jako celé samolepky a s přebarvitelnými částmi (`python3 scripts/avatar-icons.py <id>`,
+`NEW_CHARACTERS`), v katalogu `look.js` (`NEW_AVATARS`), v `sw.js` (`AVATAR_ART`), v kontrole odemčení na serveru (blok 35 ve `schema.sql`,
+`unlock_catalog_more`) a v Albu sbírky. Odměny jsou rozdělené do různých částí hry; první tři jsou snadné (do úrovně 20 nebo snadný odznak).
+Ve výběru obrázku jsou v tomto pořadí (zhruba od nejsnazší), zamčené ukazují, jak se odemknou. Čekají: č. 339 a 341–357.
+
+| Č. | Postavička | id | Jak se odemkne | Přebarvitelné části |
+| --- | --- | --- | --- | --- |
+| 317 | Vačice gothička | `vacice` | úroveň 10 | Obojek, Uši |
+| 318 | Mýval spisovatel | `spisov` | úroveň 17 | Šála, Sako |
+| 319 | Pštros fotbalista | `pstros` | odznak Fanoušek (`tema-sport-25`, 25 správných odpovědí ve Sportu) | Dres, Peří |
+| 322 | Koala ninja | `koala` | odznak Rychlík (`bleskovka-12`, Bleskovka: 12 správných za 60 s) | Čelenka a lístek, Kukla |
+| 324 | Toust surfař | `toust` | odznak Padesát dnů (`dnes-50`, 50 správných dnešních otázek) | Prkno, Brýle |
+| 320 | Krokodýl zubař | `krokod` | odznak Pracant na sobě (`chyby-50`, 50 opravených chyb) | Halena, Kartáček |
+| 323 | Brokolice kulturistka | `brokol` | odznak Pět týdnů cílů (`tydenni-cile-5`, týdenní cíle) | Čelenka, Růžice |
+| 335 | Netopýr jeskyňář | `netopy` | odznak Bystrý detektiv (`detektiv-7`, 7 vyřešených Tajemných otázek) | Helma, Netopýr |
+| 328 | Plameňák tanečník | `plamak` | odznak Pět dokonalých kvízů (`kviz-perfekt-5`, Kvíz dne bez chyby) | Peří, Sukýnka |
+| 337 | Vajíčko kaskadér | `vajko` | odznak Sázkař (`sazkar`, 5 kamarádských sázek) | Helma, Tělo |
+| 338 | Pizza superhrdina | `pizza` | odznak Pětkrát nejlepší (`vyhry-5`, 5 vyhraných výzev) | Plášť, Maska |
+| 326 | Ježek krejčí | `jezek` | odznak Velká sbírka (`sberatel-50`, Album sbírky na 50 %; odměna za album, do procent se nepočítá) | Vesta, Metr |
+| 330 | Žirafa v šále | `zirafa` | úroveň 31 | Šála, Skvrny |
+| 321 | Vydra plavkyně | `vydra` | odznak Nezdolný (`preziti-35`, Přežití: 35 otázek) | Čepice, Voda |
+| 329 | Hroch potápěč | `hroch` | odznak Hlubinný průzkum (`tezke-50`, 50 správných těžších otázek) | Hroch, Šnorchl |
+| 325 | Lama rocker | `lama` | odznak Hudebník (`tema-hudba-100`, 100 správných odpovědí v Hudbě) | Kytara, Bunda |
+| 334 | Pavouk pletař | `pavouk` | odznak Pětkrát dál (`turnaj-postupy-5`, 5 vyhraných zápasů v turnajích) | Pavouk, Šála |
+| 333 | Kráva kovbojka | `krava` | odznak Vojevůdce (`dobyvatel-3`, 3 vyhrané hry Dobývání) | Klobouk, Šátek |
+| 340 | Velbloud cestovatel | `velbl` | emblém Přemožitel Kapitána (`boss-kapitan`, Boss týdne Kapitán Mudrlant) | Klobouk, Batoh |
+| 327 | Kapybara v lázních | `kapyba` | Truhla Mudrlanta (jen z truhly, řadí se jako úroveň 15), stupně Sezóny Mudrlanta a Zlatá truhla | Voda a pára, Ručník |
+| 332 | Zmrzlinový kornout | `zmrzl` | vzácný dárek z Truhly Mudrlanta a ze Zlaté truhly | Jahodový kopeček, Pistáciový kopeček |
+| 336 | Kosatka komorník | `kosatk` | Pozvi kamarády: 3 kamarádi (odměna `pritel-3`) | Motýlek |
+| 331 | Avokádo jogín | `avokad` | první prestiž po úrovni 100 | Lotos, Slupka |
+
+Řetězovka dne zatím žádné odznaky nemá, proto za ni postavička není (přibude s odznakem Řetězovky). Kosatka a Avokádo jsou bonus: Album
+sbírky je ukáže, až je hráč má, a do procent je nepočítá (jako rámečky Přátelský a Prestižní).
+
+#### 317. `avatar-vacice-goth.png` – Vačice gothička – ✅ dodáno, zapojeno (`vacice`, úroveň 10)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2873,7 +2907,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A tough gothic opossum with a pale white face, pink nose and pink ears, heavy black eyeliner and dark purple lipstick, an unimpressed half-lidded stare and a smug crooked smirk showing one tiny fang, a black spiked leather collar, a silver safety-pin earring and a black choker with a small silver bat charm. Colors: pale grey and white fur, black, deep purple, silver. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 318. `avatar-myval-spisovatel.png` – Mýval spisovatel – čeká na dodání
+#### 318. `avatar-myval-spisovatel.png` – Mýval spisovatel – ✅ dodáno, zapojeno (`spisov`, úroveň 17)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2881,7 +2915,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A dreamy raccoon writer with its black eye mask, a tweed jacket and a burgundy scarf, chewing thoughtfully on the end of a big feather quill, a few crumpled paper balls around its shoulders and an ink smudge on its nose. Colors: grey and black raccoon, tweed brown, burgundy, cream paper, ink blue. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 319. `avatar-pstros-fotbalista.png` – Pštros fotbalista – čeká na dodání
+#### 319. `avatar-pstros-fotbalista.png` – Pštros fotbalista – ✅ dodáno, zapojeno (`pstros`, odznak Fanoušek)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2889,7 +2923,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A cocky ostrich footballer with a long pink neck in a bright green-and-white striped football jersey, a sweatband on its head, juggling a black-and-white football on top of its head with a confident grin and one wing raised in celebration. Colors: black and white feathers, pink neck, grass green and white jersey, black-and-white ball. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 320. `avatar-krokodyl-zubar.png` – Krokodýl zubař – čeká na dodání
+#### 320. `avatar-krokodyl-zubar.png` – Krokodýl zubař – ✅ dodáno, zapojeno (`krokod`, odznak Pracant na sobě)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2897,7 +2931,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A cheerful green crocodile dentist with a round silver dentist head mirror on a band around its head and a white face mask pulled down under its chin, flashing a huge perfect smile full of sparkling white teeth and holding up a giant toothbrush. Colors: crocodile green, sparkling white, mint turquoise toothbrush. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 321. `avatar-vydra-plavkyne.png` – Vydra plavkyně – čeká na dodání
+#### 321. `avatar-vydra-plavkyne.png` – Vydra plavkyně – ✅ dodáno, zapojeno (`vydra`, odznak Nezdolný)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2905,7 +2939,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A happy brown sea otter floating on its back in a little ring of water, wearing a bright yellow swim cap and swimming goggles, holding a pink scallop shell on its belly like a trophy, whiskers dripping. Colors: chocolate brown, sunny yellow, sea blue, shell pink. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 322. `avatar-koala-ninja.png` – Koala ninja – čeká na dodání
+#### 322. `avatar-koala-ninja.png` – Koala ninja – ✅ dodáno, zapojeno (`koala`, odznak Rychlík)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2913,7 +2947,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A fluffy grey koala with big round ears and a big dark nose, wearing a black ninja hood with a green eucalyptus-leaf headband, squinting with comically serious eyes while holding a single eucalyptus leaf like a throwing star. Colors: soft grey, black, eucalyptus green. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 323. `avatar-brokolice-kulturistka.png` – Brokolice kulturistka – čeká na dodání
+#### 323. `avatar-brokolice-kulturistka.png` – Brokolice kulturistka – ✅ dodáno, zapojeno (`brokol`, odznak Pět týdnů cílů)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2921,7 +2955,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A muscular broccoli floret with a bushy green crown, flexing two big green arms with a sweatband on its head, a proud wink and a confident grin, a tiny bead of sweat on its forehead. Colors: broccoli green, light lime stalk, red sweatband. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 324. `avatar-toust-surfar.png` – Toust surfař – čeká na dodání
+#### 324. `avatar-toust-surfar.png` – Toust surfař – ✅ dodáno, zapojeno (`toust`, odznak Padesát dnů)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2929,7 +2963,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A golden slice of toast with a cool smile and dark sunglasses, a melting square of butter sliding off its head like a wave, holding a tiny surfboard under one arm, crumbs flying. Colors: toasted golden brown, butter yellow, turquoise surfboard. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 325. `avatar-lama-rocker.png` – Lama rocker – čeká na dodání
+#### 325. `avatar-lama-rocker.png` – Lama rocker – ✅ dodáno, zapojeno (`lama`, odznak Hudebník)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2937,7 +2971,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A white llama with a huge fluffy curly pompadour hairdo, half-closed cool eyes and a crooked smile, wearing a studded black leather jacket collar and holding the neck of a red electric guitar. Colors: cream white, black, cherry red. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 326. `avatar-jezek-krejci.png` – Ježek krejčí – čeká na dodání
+#### 326. `avatar-jezek-krejci.png` – Ježek krejčí – ✅ dodáno, zapojeno (`jezek`, odznak Velká sbírka)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2945,7 +2979,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A tidy hedgehog tailor with round spectacles on its nose, sewing pins and a few colorful buttons stuck in its brown spines like a pincushion, a yellow measuring tape draped around its neck, proudly holding up a tiny thread and needle. Colors: brown spines, cream face, yellow tape, colorful buttons. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 327. `avatar-kapybara-lazne.png` – Kapybara v lázních – čeká na dodání
+#### 327. `avatar-kapybara-lazne.png` – Kapybara v lázních – ✅ dodáno, zapojeno (`kapyba`, Truhla Mudrlanta)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2953,7 +2987,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A totally relaxed capybara sitting up to its chest in a steaming hot spring, eyes peacefully closed, a small orange mandarin balanced on its head and a little white towel folded on top. Colors: warm tan brown, steamy light blue water, mandarin orange, white. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 328. `avatar-plamenak-tanecnik.png` – Plameňák tanečník – čeká na dodání
+#### 328. `avatar-plamenak-tanecnik.png` – Plameňák tanečník – ✅ dodáno, zapojeno (`plamak`, odznak Pět dokonalých kvízů)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2961,7 +2995,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A bright pink flamingo ballet dancer in a fluffy white tutu, one thin leg raised elegantly behind it, wings arched gracefully above its head, eyes closed with a dreamy smile and a curved black-tipped beak. Colors: hot pink, white tutu, black beak tip. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 329. `avatar-hroch-potapec.png` – Hroch potápěč – čeká na dodání
+#### 329. `avatar-hroch-potapec.png` – Hroch potápěč – ✅ dodáno, zapojeno (`hroch`, odznak Hlubinný průzkum)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2969,7 +3003,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A round lilac hippo diver with a big snorkel mask squashing its cheeks and a bendy orange snorkel, a few bubbles rising, a goofy grin with two square teeth, a tiny yellow fish peeking out of its ear. Colors: lilac purple, orange snorkel, aqua bubbles, yellow fish. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 330. `avatar-zirafa-sala.png` – Žirafa v šále – čeká na dodání
+#### 330. `avatar-zirafa-sala.png` – Žirafa v šále – ✅ dodáno, zapojeno (`zirafa`, úroveň 31)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2977,7 +3011,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A tall giraffe with a long neck wrapped again and again in an absurdly long red-and-white striped knitted scarf, the scarf end trailing out of the picture, a cozy smile and rosy cheeks, two little horns with a snowflake on one. Colors: giraffe yellow with brown patches, red and white stripes. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 331. `avatar-avokado-jogin.png` – Avokádo jogín – čeká na dodání
+#### 331. `avatar-avokado-jogin.png` – Avokádo jogín – ✅ dodáno, zapojeno (`avokad`, první prestiž po úrovni 100)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2985,7 +3019,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A calm avocado half meditating with eyes closed and a peaceful smile, its round brown pit shown as a big belly, tiny arms making yoga hand gestures, a little lotus flower floating above its head. Colors: avocado green, pale yellow-green flesh, chestnut brown pit, pink lotus. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 332. `avatar-zmrzlina.png` – Zmrzlinový kornout – čeká na dodání
+#### 332. `avatar-zmrzlina.png` – Zmrzlinový kornout – ✅ dodáno, zapojeno (`zmrzl`, vzácný dárek z Truhly Mudrlanta a ze Zlaté truhly)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2993,7 +3027,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A wobbly ice cream cone character with three scoops stacked as a tall hairdo (strawberry, pistachio, chocolate), cool sunglasses, a cherry on top and one drop melting down its waffle cheek while it grins nervously. Colors: waffle tan, strawberry pink, pistachio green, chocolate brown, cherry red. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 333. `avatar-krava-kovbojka.png` – Kráva kovbojka – čeká na dodání
+#### 333. `avatar-krava-kovbojka.png` – Kráva kovbojka – ✅ dodáno, zapojeno (`krava`, odznak Vojevůdce)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -3001,7 +3035,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A black-and-white spotted cow wearing a big brown cowboy hat and a red bandana around its neck, a brass cowbell, swinging a rope lasso above its head, chewing a blade of grass with a cheeky grin. Colors: black and white spots, saddle brown, bandana red, brass. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 334. `avatar-pavouk-pletar.png` – Pavouk pletař – čeká na dodání
+#### 334. `avatar-pavouk-pletar.png` – Pavouk pletař – ✅ dodáno, zapojeno (`pavouk`, odznak Pětkrát dál)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -3009,7 +3043,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A fuzzy purple spider with eight legs and big friendly eyes busily knitting with four pairs of knitting needles at once, a long stripy rainbow scarf growing beneath it and a ball of yarn hanging from one leg. Colors: plum purple, rainbow yarn, wooden needles. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 335. `avatar-netopyr-jeskynar.png` – Netopýr jeskyňář – čeká na dodání
+#### 335. `avatar-netopyr-jeskynar.png` – Netopýr jeskyňář – ✅ dodáno, zapojeno (`netopy`, odznak Bystrý detektiv)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -3017,7 +3051,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A small brown bat hanging upside down, wearing a yellow caving helmet with a bright headlamp beam, its big ears poking through holes in the helmet, wings wrapped around a rope coil, a delighted upside-down smile. Colors: cocoa brown, helmet yellow, warm lamp light, rope beige. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 336. `avatar-kosatka-komornik.png` – Kosatka komorník – čeká na dodání
+#### 336. `avatar-kosatka-komornik.png` – Kosatka komorník – ✅ dodáno, zapojeno (`kosatk`, Pozvi kamarády: 3 kamarádi)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -3025,7 +3059,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A dignified orca whale butler whose natural black-and-white markings look like a tuxedo, a red bow tie, one eyebrow raised, balancing a silver serving tray with a single tiny fish on it on one flipper. Colors: black, white, red bow tie, silver. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 337. `avatar-vajicko-kaskader.png` – Vajíčko kaskadér – čeká na dodání
+#### 337. `avatar-vajicko-kaskader.png` – Vajíčko kaskadér – ✅ dodáno, zapojeno (`vajko`, odznak Sázkař)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -3033,7 +3067,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A brave white egg stunt performer with a crack across its shell patched with a big crossed band-aid, wearing a red racing helmet with a lightning stripe and a confident thumbs-up, a tiny bit of yolk-yellow peeking through the crack. Colors: eggshell white, racing red, band-aid beige, yolk yellow. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 338. `avatar-pizza-hrdina.png` – Pizza superhrdina – čeká na dodání
+#### 338. `avatar-pizza-hrdina.png` – Pizza superhrdina – ✅ dodáno, zapojeno (`pizza`, odznak Pětkrát nejlepší)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -3049,7 +3083,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A bright orange crab hairdresser with a wild blow-dried pompadour on top of its shell, using its own claws as snipping scissors, a black comb tucked behind one eye stalk and a few snipped hair curls flying. Colors: coral orange, black comb, chestnut brown hair. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 340. `avatar-velbloud-cestovatel.png` – Velbloud cestovatel – čeká na dodání
+#### 340. `avatar-velbloud-cestovatel.png` – Velbloud cestovatel – ✅ dodáno, zapojeno (`velbl`, emblém Přemožitel Kapitána)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 

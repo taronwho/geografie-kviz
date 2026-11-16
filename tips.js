@@ -81,6 +81,9 @@
             action: { kind: 'chronicle', label: 'Otevřít kroniku' }, ready: (u) => u.chronicle && num(u.counters.days) >= 2, used: (u) => Boolean(u.visited.chronicle) },
         { id: 'ligove-sezony', icon: 'calendar-days', art: 'ligova-sezona', multi: true, account: true, after: 40, title: 'Ligové sezóny', text: 'Každý kalendářní měsíc je jedna ligová sezóna. Po jejím skončení dostaneš rámeček profilu podle nejvyšší ligy, které v ní dosáhneš, od Stříbra až po Mistra. Rámeček ti zůstane navždy. Výsledky sezón si můžeš vystavit ve vitríně.',
             action: { kind: 'leagueSeasons', label: 'Ligové sezóny' }, ready: (u) => u.leagueSeasons && num(u.counters.challenges) >= 2, used: (u) => Boolean(u.visited.leagueSeasons) },
+        // Postavičky (look.js AVATARS, i další z NEW_AVATARS): odměny z různých částí hry; kdo skupinu Postavičky otevřel, tip nepotřebuje
+        { id: 'postavicky', icon: 'sparkles', account: true, after: 20, title: 'Postavičky za odměny', text: 'Na profilový obrázek si můžeš dát postavičky. Odemkneš je úrovněmi, odznaky z různých částí hry, v truhle, za pozvané kamarády i za prestiž. Najdeš je na záložce Já v řádku Profil pod Postavičky, klepnutí na zamčenou řekne, jak ji získat.',
+            action: { kind: 'settings', tab: 'profile', label: 'Ukázat postavičky' }, used: (u) => Boolean(u.visited.characters) },
         { id: 'legendy', icon: 'graduation-cap', after: 55, title: 'Legendární postavičky', text: 'Když získáš diplom z tématu (všech 5 hvězdiček), odemkne se ti legendární postavička pro profilový obrázek. Každé téma má vlastní. Najdeš je na záložce Já v řádku Profil, v části Profilový obrázek pod Legendy.',
             action: { kind: 'settings', tab: 'profile', label: 'Ukázat Legendy' }, ready: (u) => num(u.maxStars) >= 3, used: (u) => Boolean(u.visited.legends) },
         { id: 'sady', icon: 'sparkles', after: 65, title: 'Celý look tématu', text: 'Každé téma má sadu tří doplňků pro Mudrlanta: za 3 hvězdičky v tématu, za 300 a za 1000 správných odpovědí. Když Mudrlanta oblékneš do celé sady, získá look tématu (třeba Cestovatel), který uvidí i ostatní. Sady najdeš na záložce Postup v Mistrovství u témat.',
@@ -122,7 +125,7 @@
         // (friends.js) a vlastní barva obleku od úrovně 20 (robe-color.js)
         { id: 'vikend', icon: 'calendar-days', after: 15, title: 'Tematické víkendy', text: 'Každý druhý víkend má jedno téma, třeba Víkend historie. Od pátku 18:00 do neděle 24:00 dávají otázky z něj dvojnásobek XP. Které téma to je, ukáže pruh na záložce Dnes.',
             action: { kind: 'single', label: 'Na záložku Dnes' }, ready: (u) => u.weekend, used: () => false },
-        { id: 'prestiz', icon: 'star', after: 100, title: 'Prestiž po úrovni 100', text: 'Na úrovni 100 můžeš na záložce Postup (Úrovně a tituly) přejít do prestiže. Úroveň se ti ukáže znovu od 1 s hvězdou ★ a získáš rámeček Prestižní. XP, odznaky ani nic odemčeného neztratíš.',
+        { id: 'prestiz', icon: 'star', after: 100, title: 'Prestiž po úrovni 100', text: 'Na úrovni 100 můžeš na záložce Postup (Úrovně a tituly) přejít do prestiže. Úroveň se ti ukáže znovu od 1 s hvězdou ★ a získáš rámeček Prestižní a postavičku Avokádo jogín. XP, odznaky ani nic odemčeného neztratíš.',
             action: { kind: 'progress', label: 'Postup' }, ready: (u) => num(u.level) >= 90, used: (u) => num(u.prestige) > 0 },
         { id: 'pozvi', icon: 'user-plus', multi: true, account: true, after: 25, title: 'Pozvi kamarády', text: 'Na záložce Soupeři klepni u Přátel na plus a zvol Pozvi kamarády. Pošli odkaz nebo kód přítele. Až si kamarád zahraje, oba dostanete rámeček Přátelský a XP navíc. Za 3 a 10 kamarádů jsou další odměny.',
             action: { kind: 'friends', label: 'Pozvat kamarády' }, ready: (u) => u.referral, used: (u) => Boolean(u.visited.referral) || num(u.invited) > 0 },
@@ -134,8 +137,8 @@
     const BY_ID = new Map(TIPS.map(tip => [tip.id, tip]));
 
     const EMPTY = { seen: [], day: '', n: 0, lastAt: 0, off: false, visited: {} };
-    // Navštívené části hry (tip o nich už není potřeba): Učení, Postup, Vzhled, Diplomy, Sezóna, Album, Vitrína, Kronika týdne
-    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle', 'gold', 'conquest', 'bets', 'conquestInvite', 'poll', 'referral', 'perks', 'robeColor'];
+    // Navštívené části hry (tip o nich už není potřeba): Učení, Postup, Vzhled, Diplomy, Sezóna, Album, Vitrína, Kronika týdne, skupina Postavičky…
+    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle', 'gold', 'conquest', 'bets', 'conquestInvite', 'poll', 'referral', 'perks', 'robeColor', 'characters'];
     const parse = (value) => {
         const v = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
         const visited = {};

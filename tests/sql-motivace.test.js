@@ -245,6 +245,31 @@ test('SQL: motivace (pozvánky, reakce, kontrola odemčení, prestiž, vitrína)
         assert.equal(last(asUser(D, `with u as (update profiles set victory_fx = 'konfety' where id = '${A}' returning 1) select count(*) from u`)), '0', 'cizí ne');
     });
 
+    await t.test('další postavičky (blok 35): úroveň, odznak i vyšší stupeň, dar z truhly, pozvaní kamarádi a prestiž', () => {
+        const before = { prestige: profile(D, 'prestige'), prestigeXp: profile(D, 'prestige_xp') };
+        q(`update profiles set xp = 0, badges = '{}', rewards = null, avatar = '🦊' where id = '${D}'`);
+        const tryAvatar = (uid, value) => { ok(asUser(uid, `update profiles set avatar = '${value}' where id = '${uid}'`)); return profile(uid, 'avatar'); };
+        assert.equal(tryAvatar(D, 'vacice'), '🦊', 'Vačice gothička až od úrovně 10');
+        q(`update profiles set xp = 3200 where id = '${D}'`);
+        assert.equal(tryAvatar(D, 'vacice3'), 'vacice3', 'úroveň 10');
+        assert.equal(tryAvatar(D, 'spisov'), 'vacice3', 'Mýval spisovatel až od úrovně 17');
+        assert.equal(tryAvatar(D, 'pstros1'), 'vacice3', 'Pštros fotbalista za odznak');
+        q(`update profiles set badges = array['tema-sport-100'] where id = '${D}'`);
+        assert.equal(tryAvatar(D, 'pstros1'), 'pstros1', 'vyšší stupeň odznaku stačí');
+        assert.equal(tryAvatar(D, 'kapyba'), 'pstros1', 'Kapybara jen z truhly');
+        assert.equal(tryAvatar(D, 'zmrzl12'), 'pstros1', 'Zmrzlinový kornout jen z truhly');
+        q(`update profiles set rewards = '{"gifts": {"avatars": ["kapyba", "zmrzl"]}}' where id = '${D}'`);
+        assert.equal(tryAvatar(D, 'kapyba2'), 'kapyba2', 'dar z truhly');
+        assert.equal(tryAvatar(D, 'zmrzl12'), 'zmrzl12');
+        assert.equal(tryAvatar(D, 'kosatk'), 'zmrzl12', 'Kosatka komorník až za 3 kamarády');
+        assert.equal(tryAvatar(A, 'kosatk3'), 'kosatk3', 'za 3 pozvané kamarády');
+        assert.equal(tryAvatar(D, 'avokad'), 'zmrzl12', 'Avokádo jogín až po prestiži');
+        q(`update profiles set prestige = 1 where id = '${D}'`);
+        assert.equal(tryAvatar(D, 'avokad'), 'avokad', 'první prestiž');
+        assert.equal(q("select count(*) from public.unlock_catalog() where cat = 'avatars' and item in ('vacice', 'velbl', 'avokad')"), '3', 'katalog má řádky bloku 35');
+        q(`update profiles set prestige = ${before.prestige === '-' ? 'null' : before.prestige}, prestige_xp = ${before.prestigeXp === '-' ? 'null' : before.prestigeXp}, avatar = '🦊', rewards = null, badges = '{}' where id = '${D}'`);
+    });
+
     await t.test('prestiž: jen přes prestige_up a s dostatkem XP v účtu; další o 49 500 XP později', () => {
         denied(asUser(D, `update profiles set prestige = 3 where id = '${D}'`));
         denied(asUser(D, `update profiles set prestige_xp = 1 where id = '${D}'`));

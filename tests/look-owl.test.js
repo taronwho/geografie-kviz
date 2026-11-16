@@ -369,8 +369,8 @@ test('sady doplňků k tématům: ke kusu za zběhlost kus za 300 a za 1000 spr�
             assert.equal(Look.isUnlocked(entry.item, { level: 1, badges: { [entry.badge]: '2026-11-11' } }), true, `${entry.item.id} odznakem`);
             assert.deepEqual(Look.newRewards(1, 1, [entry.badge]).map(reward => reward.item.id), [entry.item.id]);
         }
-        // nižší stupně odznaku tématu dál nic nedávají
-        for (const goal of [25, 100, 600]) assert.equal(Look.badgeRewardText(`tema-${topic}-${goal}`), '', `tema-${topic}-${goal}`);
+        // nižší stupně odznaku tématu nedávají doplněk (nanejvýš postavičku: Pštros fotbalista za Sport 25, Lama rocker za Hudbu 100)
+        for (const goal of [25, 100, 600]) assert.ok(Look.rewardsForBadge(`tema-${topic}-${goal}`).every(reward => reward.category === 'avatars'), `tema-${topic}-${goal}`);
     }
     assert.deepEqual(sets, {
         zemepis: ['kompas', 'cestovatelsky-klobouk', 'globus'], vlajky: ['vlajka', 'namornicka-cepice', 'praporky'],

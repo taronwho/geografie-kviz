@@ -184,19 +184,25 @@ test('vitrína: titul a věci ze Sezóny (tvar shodný s databází a social.js,
 });
 
 test('katalog odemčení v databázi odpovídá look.js a friends.js; úrovně a skupiny odznaků jako quiz-core.js', () => {
-    const rows = [...block.slice(block.indexOf('function public.unlock_catalog()'), block.indexOf('as t (cat, item, rule)')).matchAll(/\('([a-z]+)', '([^']+)', '([^']+)'\)/g)].map(m => `${m[1]}|${m[2]}|${m[3]}`);
+    // Řádky bloku 32 a za nimi řádky pozdějších bloků (blok 35: další postavičky v unlock_catalog_more)
+    const block35 = SQL.slice(SQL.indexOf('-- ===== 35: Další postavičky'), SQL.indexOf('-- ===== 35: Další postavičky (č. 317–340) — KONEC BLOKU'));
+    const rowsOf = (text, fn) => [...text.slice(text.indexOf(`function public.${fn}()`), text.indexOf('as t (cat, item, rule)', text.indexOf(`function public.${fn}()`))).matchAll(/\('([a-z]+)', '([^']+)', '([^']+)'\)/g)].map(m => `${m[1]}|${m[2]}|${m[3]}`);
+    assert.match(block, /as t \(cat, item, rule\)\n    union all select \* from public\.unlock_catalog_more\(\);/, 'unlock_catalog() přidá řádky pozdějších bloků');
+    assert.ok(block35.length > 0 && SQL.indexOf('-- ===== 35: Další postavičky') > SQL.indexOf('-- ===== 32: Motivace — KONEC BLOKU'), 'blok 35 je za blokem 32');
+    const rows = [...rowsOf(block, 'unlock_catalog'), ...rowsOf(block35, 'unlock_catalog_more')];
     const ruleOf = (item) => item.referral ? `referral:${[].concat(item.referral).join(',')}` : item.prestige ? `prestige:${item.prestige}` : item.source === 'season' ? 'season-gift'
         : item.exclusive || item.chest || item.rare ? 'gift' : item.diploma ? `diploma:${item.diploma}` : item.league ? `league:${item.league}` : item.badge ? `badge:${item.badge}`
             : item.season ? `season:${item.season}` : (item.level || 1) <= 1 ? 'free' : `level:${item.level}`;
     const expected = [];
     for (const [cat, items] of [['frames', Look.FRAMES], ['titles', Look.TITLES], ['robes', Look.ROBES], ['accessories', Look.ACCESSORIES], ['colors', Look.ACC_COLORS], ['poses', Look.POSES]]) for (const item of items) expected.push(`${cat}|${item.id}|${ruleOf(item)}`);
-    for (const item of Look.AVATARS) {
+    for (const item of Look.AVATARS.filter(entry => !Look.NEW_AVATARS.includes(entry))) {
         expected.push(`avatars|${item.id}|${ruleOf(item)}`);
         if (item.was) { expected.push(`avatars|${item.was}|${ruleOf(item)}`); if (item.was.replace(/️/g, '') !== item.was) expected.push(`avatars|${item.was.replace(/️/g, '')}|${ruleOf(item)}`); }
     }
     for (const emoji of Friends.REACTIONS) expected.push(`reactions|${emoji}|free`);
     for (const item of Friends.EXTRA_REACTIONS) expected.push(`reactions|${item.emoji}|${ruleOf(item)}`);
     for (const item of Friends.VICTORY_EFFECTS) expected.push(`fx|${item.id}|${ruleOf(item)}`);
+    for (const item of Look.NEW_AVATARS) expected.push(`avatars|${item.id}|${ruleOf(item)}`);
     assert.deepEqual(rows, expected, 'unlock_catalog() = katalog aplikace (přegenerovat podle look.js a friends.js)');
     const levels = /unnest\(array\[([0-9, ]+)\]\) t where coalesce\(xp, 0\) >= t/.exec(block)[1].split(',').map(Number);
     assert.deepEqual(levels, Core.LEVEL_XP);

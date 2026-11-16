@@ -3,7 +3,7 @@
 // Je to jen vrstva zobrazení nad XP: XP, odznaky, žebříčky, ligy ani nic odemčeného se nemění, odemykání dál počítá skutečnou
 // úroveň (100). Úrovně v prestiži jsou rovnoměrné: každá za LEVEL_XP XP (100 úrovní = 49 500 XP), na úrovni 100 jde do další prestiže.
 // Stav = { n: počet prestiží, at: XP v okamžiku poslední prestiže }; přihlášenému ho drží server (profiles.prestige a prestige_xp,
-// prestige_up() v bloku 32 ve schema.sql ověří XP z účtu), hostovi zařízení (mudrlant.prestige). Za první prestiž rámeček Prestižní (look.js).
+// prestige_up() v bloku 32 ve schema.sql ověří XP z účtu), hostovi zařízení (mudrlant.prestige). Za první prestiž rámeček Prestižní a postavička Avokádo jogín (look.js).
 // Strop XP v databázi (500 000) stačí na 4 prestiže hned po sobě (330 000, 379 500, 429 000, 478 500 XP).
 (function (root, factory) {
     const isNode = typeof module === 'object' && module.exports;
@@ -77,7 +77,7 @@
             <ul class="flex flex-col gap-1 text-[12px] font-semibold leading-snug text-white/90">
                 <li class="flex gap-1.5"><i data-lucide="star" class="mt-0.5 h-3.5 w-3.5 shrink-0 text-gold-300"></i><span>Úroveň se ti začne ukazovat znovu od 1, s hvězdou prestiže ★${next} u jména.</span></li>
                 <li class="flex gap-1.5"><i data-lucide="shield-check" class="mt-0.5 h-3.5 w-3.5 shrink-0 text-gold-300"></i><span>Nic neztratíš: XP, odznaky, odměny, žebříčky i všechno odemčené ti zůstane.</span></li>
-                <li class="flex gap-1.5"><i data-lucide="sparkles" class="mt-0.5 h-3.5 w-3.5 shrink-0 text-gold-300"></i><span>${v.prestige ? `Každá úroveň za ${formatXp(LEVEL_XP)} XP.` : `Získáš rámeček Prestižní. Každá další úroveň za ${formatXp(LEVEL_XP)} XP.`}</span></li>
+                <li class="flex gap-1.5"><i data-lucide="sparkles" class="mt-0.5 h-3.5 w-3.5 shrink-0 text-gold-300"></i><span>${v.prestige ? `Každá úroveň za ${formatXp(LEVEL_XP)} XP.` : `Získáš rámeček Prestižní a postavičku Avokádo jogín. Každá další úroveň za ${formatXp(LEVEL_XP)} XP.`}</span></li>
             </ul>
             <button type="button" data-prestige-go ${busy ? 'disabled' : ''} class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-gold-500 px-4 py-2.5 text-[15px] font-black text-brand-950 disabled:opacity-60"><i data-lucide="star" class="h-5 w-5"></i>${busy ? 'Chvilku…' : `Přejít do prestiže ${next}`}</button>
             ${signedIn ? '' : '<p class="text-center text-[11px] font-semibold text-white/75">Bez přihlášení se prestiž pamatuje jen v tomhle zařízení.</p>'}

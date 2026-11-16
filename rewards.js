@@ -1,7 +1,8 @@
 // Odměny, které lákají hrát dál (bez peněz, nic se nekupuje):
 // - Truhla Mudrlanta: za všechny tři cíle týdne (goals.js) jedna truhla. Vždy v ní je věc pro Mudrlanta, kterou hráč ještě nemá:
 //   doplněk, barva doplňků, rámeček, talár nebo barevné téma z look.js – z věcí, které by jinak odemkl až vyšší úrovní (nejbližších
-//   NEAREST takových). Občas (RARE_CHANCE) místo ní vzácná věc, která jde získat jen z truhly (look.js rare: true, obrázkové rámečky).
+//   NEAREST takových), nebo věc jen z truhly (look.js chest: doplňky a Kapybara v lázních). Občas (RARE_CHANCE) místo ní vzácná věc,
+//   která jde získat jen z truhly (look.js rare: true, obrázkové rámečky a Zmrzlinový kornout).
 //   Věci za odznaky (turnaje, zběhlost v tématu) truhla nedává, ty patří k úspěchu. K tomu ochrana série, dokud jich
 //   hráč nemá plný počet. Když už má všechno, dá CHEST_XP XP. Každá věc nejvýš jednou (žádné duplicity).
 // - Ochrana série: nejvýš MAX_FREEZES. Z truhly a za každých 7 dní v řadě dnešních otázek (některého tématu) nebo Kvízu dne (nejvýš
@@ -31,6 +32,10 @@
     const KIND_NAMES = { accessories: 'doplněk Mudrlanta', colors: 'barva doplňků', frames: 'rámeček profilu', robes: 'talár Mudrlanta', themes: 'barevné téma', avatars: 'postavička', titles: 'titul u jména' };
     // Věci, které hráč může mít jako dárek: z truhly (GIFT_CATEGORIES) a navíc ze Sezónní truhly (postavička a titul)
     const OWN_CATEGORIES = [...GIFT_CATEGORIES, 'avatars', 'titles'];
+    // Druhy, ze kterých truhla dává jen věci určené pro truhlu (look.js chest a rare), věci za úroveň ne: postavičky za úroveň
+    // patří k úrovni (Kapybara v lázních je jen z truhly, Zmrzlinový kornout vzácný dárek)
+    const CHEST_ONLY_CATEGORIES = ['avatars'];
+    const CHEST_CATEGORIES = [...GIFT_CATEGORIES, ...CHEST_ONLY_CATEGORIES];
     const LIMITS = { chests: 80, ready: 12, frozen: 90, earned: 40 };
 
     // --- Dny (RRRR-MM-DD) ---
@@ -138,12 +143,13 @@
     const candidates = (state, ctx) => {
         const s = parse(state);
         if (!Look) return [];
-        return GIFT_CATEGORIES.flatMap(category => (Look.CATALOG[category] || [])
+        return CHEST_CATEGORIES.flatMap(category => (Look.CATALOG[category] || [])
             // noGift: odměna jen za svůj cíl (Bílý talár až na úrovni 100), truhla ani sezóna ji nedají dřív;
-            // rare: vzácný dárek jen z truhly (rareCandidates), mezi běžné věci (ani do Sezóny) nepatří; diploma: legendární postavička jen za diplom
-            .filter(item => !item.badge && !item.diploma && !item.noGift && !item.league && !item.rare && (item.chest || (item.level || 1) > 1) && !s.gifts[category].includes(item.id) && !Look.isUnlocked(item, { ...ctx, gifts: null }))
+            // rare: vzácný dárek jen z truhly (rareCandidates), mezi běžné věci (ani do Sezóny) nepatří; diploma: legendární postavička jen za diplom;
+            // postavičky (CHEST_ONLY_CATEGORIES) jen ty z truhly (chest), ne za úroveň
+            .filter(item => !item.badge && !item.diploma && !item.noGift && !item.league && !item.rare && (item.chest || (!CHEST_ONLY_CATEGORIES.includes(category) && (item.level || 1) > 1)) && !s.gifts[category].includes(item.id) && !Look.isUnlocked(item, { ...ctx, gifts: null }))
             .map(item => ({ category, item })))
-            .sort((a, b) => giftRank(a.item) - giftRank(b.item) || GIFT_CATEGORIES.indexOf(a.category) - GIFT_CATEGORIES.indexOf(b.category));
+            .sort((a, b) => giftRank(a.item) - giftRank(b.item) || CHEST_CATEGORIES.indexOf(a.category) - CHEST_CATEGORIES.indexOf(b.category));
     };
     // Vzácné věci jen z truhly (look.js rare: true, např. obrázkové rámečky Duha s mráčky a Růže a trny), které hráč ještě nemá.
     // Truhla dá některou z nich s pravděpodobností RARE_CHANCE místo běžné věci, a když běžné věci došly, určitě (než začne dávat XP).
@@ -151,7 +157,7 @@
     const rareCandidates = (state) => {
         const s = parse(state);
         if (!Look) return [];
-        return GIFT_CATEGORIES.flatMap(category => (Look.CATALOG[category] || []).filter(item => item.rare && !s.gifts[category].includes(item.id)).map(item => ({ category, item })));
+        return CHEST_CATEGORIES.flatMap(category => (Look.CATALOG[category] || []).filter(item => item.rare && !s.gifts[category].includes(item.id)).map(item => ({ category, item })));
     };
     // Výběr věci: vzácná (viz výše), jinak los z NEAREST nejbližších, jiný druh než minulá truhla, když to jde.
     // Hod na vzácnou věc je vysoké číslo (rng() ≥ 1 − RARE_CHANCE), takže rng = () => 0 dá vždy běžnou věc jako dřív.
@@ -310,6 +316,7 @@
     };
     const previewHtml = ({ category, item }, h = {}, size = 'h-20 w-20') => {
         if (category === 'accessories') return `<img src="icons/doplnky/${esc(item.id)}-ikona.webp" alt="" class="${size} object-contain drop-shadow-lg">`;
+        if (category === 'avatars') return `<img src="icons/avatars/${esc(item.id)}.webp" alt="" class="${size} object-contain drop-shadow-lg">`;
         // Vlastní barva obleku (robe-color.js): vínová sova s ukázkovou barvou, přebarví ji look-robes.js
         if (category === 'robes' && item.custom) return `<img src="icons/topics/sova-vitej.webp" alt="" data-keep data-robe-color="185.0" class="${size} object-contain drop-shadow-lg">`;
         if (category === 'robes') return `<img src="icons/topics/sova-vitej${item.id === 'vinova' ? '' : `-${esc(item.id)}`}.webp" alt="" data-keep class="${size} object-contain drop-shadow-lg">`;
@@ -480,7 +487,7 @@
         </div>`;
 
     return {
-        KEY, MAX_FREEZES, MIN_PROTECTED, FREEZE_EVERY, CHEST_XP, NEAREST, GIFT_CATEGORIES, OWN_CATEGORIES, KIND_NAMES, DIPLOMA_NAMES, SEASON_TIERS, SEASON_REWARD, cleanSeason, mergeSeasons,
+        KEY, MAX_FREEZES, MIN_PROTECTED, FREEZE_EVERY, CHEST_XP, NEAREST, GIFT_CATEGORIES, CHEST_CATEGORIES, CHEST_ONLY_CATEGORIES, OWN_CATEGORIES, KIND_NAMES, DIPLOMA_NAMES, SEASON_TIERS, SEASON_REWARD, cleanSeason, mergeSeasons,
         isDay, addDays, formatDay, isoWeek, empty, parse, gifts, owns, pendingChest, addChest, candidates, RARE_CHANCE, rareCandidates, pickGift, openChest, chestReward,
         earnFreeze, streakEndingAt, bridgedStreak, checkFreeze, streakFreeze, diplomaTitle, noteDiplomas, setName, payload, merge, samePayload, isEmpty,
         nextStreakReward, streakRewardText, streakRewardHtml,
