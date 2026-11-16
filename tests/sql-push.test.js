@@ -322,7 +322,7 @@ test('SQL: web push (odběry, tajemství, push_due, push_mark)', { skip: !availa
         const rows = tests();
         assert.deepEqual(rows.map(row => row.endpoint).sort(), [endpointOf(90), endpointOf(91)]);
         assert.ok(rows.every(row => row.user === ADMIN && row.title === 'Zkušební upozornění Mudrlanta' && row.url === './?tab=multi'), JSON.stringify(rows));
-        assert.equal(rows[0].body, 'Funguje to! Klepni sem a otevře se záložka Více hráčů.');
+        assert.equal(rows[0].body, 'Funguje to! Klepni sem a otevře se záložka Soupeři.');
         assert.match(rows[0].key, new RegExp(`^test:\\d+:${ADMIN}$`));
         assert.equal(rows[0].key, rows[1].key);
         // druhá žádost před odesláním žádost jen obnoví (pořád jedna, nový klíč); starý klíč ji neuzavře

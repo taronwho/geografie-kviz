@@ -434,7 +434,7 @@ test('upozornění (push) v Nastavení', { skip: !chromium && 'Playwright není 
         await tab.waitForSelector('[data-push-test-result="ok"]');
         assert.match(await tab.textContent('#push-test'), /Upozornění se zobrazilo/);
         assert.match(await tab.textContent('#push-test'), /Klepni na něj/);
-        assert.deepEqual(await tab.evaluate(() => window.__push.swMessages), [{ type: 'push-test', payload: { title: 'Zkušební upozornění Mudrlanta', body: 'Funguje to! Klepni sem a otevře se záložka Více hráčů.', url: './?tab=multi', kind: 'test' } }]);
+        assert.deepEqual(await tab.evaluate(() => window.__push.swMessages), [{ type: 'push-test', payload: { title: 'Zkušební upozornění Mudrlanta', body: 'Funguje to! Klepni sem a otevře se záložka Soupeři.', url: './?tab=multi', kind: 'test' } }]);
         // klepnutí na upozornění: service worker pošle push-open s druhem test
         await tab.evaluate(() => window.__swEmit({ type: 'push-open', tab: 'multi', kind: 'test' }));
         await tab.waitForFunction(() => !document.getElementById('dialog-overlay'));
