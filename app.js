@@ -8559,15 +8559,14 @@
             const profile = myProfile || { display_name: user.name, avatar: '🦊', color: 'emerald' };
             button.className = 'shrink-0 rounded-full shadow-md ring-2 ring-white transition-all active:scale-95 dark:ring-slate-700';
             button.innerHTML = avatarHtml(profile, 'h-11 w-11 text-2xl');
-            button.setAttribute('aria-label', `Nastavení a profil: ${playerName(profile)}`);
-            button.title = `Nastavení a profil: ${playerName(profile)}`;
+            button.setAttribute('aria-label', `Nastavení: ${playerName(profile)}`);
+            button.title = `Nastavení: ${playerName(profile)}`;
         } else {
-            // Bez přihlášení: na hlavních obrazovkách postavička (záložka Já), při hře ozubené kolečko (Nastavení)
-            const main = mainShown();
+            // Bez přihlášení ozubené kolečko (otevře Nastavení)
             button.className = BUTTON_BACK;
-            button.innerHTML = `<i data-lucide="${main ? 'user-round' : 'settings-2'}" class="h-5 w-5"></i>`;
-            button.setAttribute('aria-label', main ? 'Já: profil a nastavení' : 'Nastavení');
-            button.title = main ? 'Já: profil a nastavení' : 'Nastavení';
+            button.innerHTML = '<i data-lucide="settings-2" class="h-5 w-5"></i>';
+            button.setAttribute('aria-label', 'Nastavení');
+            button.title = 'Nastavení';
             renderIcons(button);
         }
     };
@@ -14532,11 +14531,8 @@
 
     // Šipka zpět v hlavičce: totéž co Zpět v prohlížeči (o úroveň výš v Učení a v Dobývání, jinak na záložku, ze které hráč přišel)
     document.getElementById('btn-home').addEventListener('click', () => goBack());
-    // Obrázek hráče vpravo nahoře: na hlavních obrazovkách vede na záložku Já, při hře otevře Nastavení (hru neukončí)
-    document.getElementById('btn-settings').addEventListener('click', () => {
-        if (!mainShown()) openSettings();
-        else if (navTab !== 'ja') goTab('ja');
-    });
+    // Obrázek hráče vpravo nahoře: všude rovnou otevře Nastavení na kartě Hra (při hře ji neukončí); profil a ostatní jsou na záložce Já
+    document.getElementById('btn-settings').addEventListener('click', () => openSettings('', null, 'game'));
     document.getElementById('status-badge').addEventListener('click', (event) => switchFromBadge(event));
     // Žárovka: nejdřív zajímavost dne (když je nepřečtená), jinak pozvánka do turnaje
     document.getElementById('fact-hint').addEventListener('click', () => {

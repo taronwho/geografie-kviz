@@ -1650,7 +1650,13 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await one.tab.waitForSelector('#btn-settings span');
         assert.match(await one.tab.getAttribute('#btn-settings', 'aria-label'), /Jana Nováková/);
         assert.equal(await one.tab.locator('#btn-profile').count(), 0, 'nastavení a profil jsou jedno tlačítko');
-        // Obrázek hráče v hlavičce vede na záložku Já; řádek Profil otevře Nastavení na záložce Profil
+        // Obrázek hráče v hlavičce otevře rovnou Nastavení na kartě Hra (záložka pod oknem zůstane)
+        await one.tab.click('#btn-settings');
+        await one.tab.waitForSelector('#settings-overlay [data-me-tab="game"][aria-selected="true"]');
+        assert.equal(await nav.currentTab(one.tab), 'souperi:vyzvy');
+        await one.tab.keyboard.press('Escape');
+        await one.tab.waitForSelector('#settings-overlay', { state: 'detached' });
+        // Řádek Profil na záložce Já otevře Nastavení na záložce Profil
         await nav.settingsFromJa(one.tab, 'profile');
         assert.equal(await nav.currentTab(one.tab), 'ja');
         assert.match(await one.tab.textContent('#ja-card'), /Jana Nováková/);

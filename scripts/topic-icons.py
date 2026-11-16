@@ -101,9 +101,31 @@ def cut(path, name=''):
     im = Image.fromarray(np.dstack([rgb, alpha * 255]).round().astype(np.uint8), 'RGBA')
     return im.crop(im.getchannel('A').point(lambda v: 255 if v > 8 else 0).getbbox())
 
+# Zavřená Zlatá truhla: teplá záře kolem truhly má skoro barvu krémového okraje, takže by v ikoně zůstala jako šedý lem.
+# Předmět se proto vymezí tmavě vínovým obrysem kresby (výplň od okraje obrázku se přes něj nedostane) a k němu se přidá
+# krémový okraj těsně vně; záře a jiskry kolem zmizí, okraj se jen lehce změkčí.
+OUTLINE_CUT = {'zlata-truhla'}
+
+def outline_cut(path):
+    def fill_from(mask, seed):
+        im = Image.fromarray((mask * 255).astype(np.uint8)).copy(); ImageDraw.floodfill(im, seed, 128); return np.asarray(im) == 128
+    def grow(m, k): return np.asarray(Image.fromarray((m * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(k))) > 0
+    a = np.asarray(Image.open(path).convert('RGB')).astype(np.float32)
+    H, W, _ = a.shape
+    r, g, b = a[..., 0], a[..., 1], a[..., 2]
+    dark = (g < 60) & (r > 40) & (r - g > 25)
+    outside = fill_from(~grow(dark, 5), (3, 3))
+    subject = fill_from(~outside, (W // 2, H // 2))
+    cream = (r > 235) & (g > 200) & (b > 130) & (b < 215)
+    subject = subject | (grow(subject, 41) & cream)
+    subject = ~fill_from(~subject, (3, 3))
+    alpha = Image.fromarray((subject * 255).astype(np.uint8)).filter(ImageFilter.MinFilter(3)).filter(ImageFilter.GaussianBlur(1.5))
+    im = Image.fromarray(np.dstack([a, np.asarray(alpha)]).round().astype(np.uint8), 'RGBA')
+    return im.crop(im.getchannel('A').point(lambda v: 255 if v > 8 else 0).getbbox())
+
 def icon(path, name=''):
     # Vyříznutá ikona ve čtverci SIZE×SIZE (sova v pózách 320×320, zobrazuje se velká); používá i scripts/building-art.py
-    im = cut(path, name)
+    im = outline_cut(path) if name in OUTLINE_CUT else cut(path, name)
     size = 320 if name.startswith('sova-') else SIZE
     inner = size - 8
     scale = inner / max(im.size)
