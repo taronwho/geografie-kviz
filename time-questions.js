@@ -654,14 +654,10 @@
         return detail && !normalizeAnswer(label).includes(normalizeAnswer(detail)) ? detail : '';
     };
     // Popis možnosti u otázek bez osobnosti (Co bylo dřív, Kdo se narodil nejdřív, Kdo žil nejdéle): všechny možnosti jsou stejného
-    // druhu, takže místo druhu autor či režisér (u více autorů první), u osoby obor a země, když se vejdou (jinak jen obor)
+    // druhu, takže místo druhu autor či režisér (u více autorů první), u osoby jen obor (země do možnosti nepatří, jen zabírá místo)
     const LIST_DETAIL = 26;
     const listDetail = (entry, label) => {
-        if (isPerson(entry)) {
-            const kind = shortKind(entry.ty);
-            const full = [kind, entry.l].filter(Boolean).join(' · ');
-            return full.length <= LIST_DETAIL ? full : kind;
-        }
+        if (isPerson(entry)) return shortKind(entry.ty);
         const author = [entry.by, String(entry.by || '').split(/,\s*| a /u)[0]].find(text => text && text.length <= LIST_DETAIL);
         return author && !normalizeAnswer(label).includes(normalizeAnswer(author)) ? author : choiceDetail(entry, label);
     };
