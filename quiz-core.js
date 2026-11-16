@@ -2838,13 +2838,14 @@
     // stejná, i když se někomu nenačte Wikipedie), planRound pak k popisu, který odpověď neurčí, přidá rozlišující údaj (clue).
     const CLUE_TIERS = {};
     const setTier = (tier, labels) => labels.forEach(label => { CLUE_TIERS[label] = tier; });
-    // 1 = dílo, role a vazby na jiné osoby a díla; 2 = letopočty; 3 = místo, událost, ocenění; 4 = sloh, doba, velikost, země, třída
-    setTier(1, ['Filmy', 'Film', 'Slavné dílo', 'Slavná díla', 'Slavná stavba', 'Slavné stavby', 'Dílo', 'Postavy', 'Album', 'Píseň z alba', 'Kapela', 'Členové',
+    // Nejdřív údaj, který prozradí nejméně: 1 = letopočty; 3 = místo, událost, ocenění; 4 = sloh, doba, velikost, země, třída;
+    // 5 = dílo, role a vazby na jiné osoby a díla (slavný film nebo dílo odpověď skoro prozradí, proto až když nestačí nic jiného)
+    setTier(5, ['Filmy', 'Film', 'Slavné dílo', 'Slavná díla', 'Slavná stavba', 'Slavné stavby', 'Dílo', 'Postavy', 'Album', 'Píseň z alba', 'Kapela', 'Členové',
         'Hrají', 'Režie', 'Autor', 'Architekt', 'Architekti', 'Vynálezce', 'Objevitel', 'Tvůrce', 'Scénář', 'Libreto', 'Kluby', 'Klub', 'Domácí tým', 'Domácí týmy',
         'Domácí aréna', 'Olympijští vítězové', 'Představitelé', 'Rodiče', 'Otec', 'Matka', 'Partner', 'Partnerka', 'Partneři', 'Partnerky', 'Sourozenci', 'Sourozenec',
         'Protějšek v římské mytologii', 'Protějšek v řecké mytologii', 'Symboly', 'Oblast', 'Pojmenován po', 'Pojmenována po', 'Pojmenováno po', 'Typické příklady',
         'Zahájil', 'Oheň zapálil', 'Provozovatel', 'Rod', 'Součást', 'Olympijské zlato', 'Disciplína', 'Domácí tým']);
-    setTier(2, ['Narození', 'Úmrtí', 'Život', 'Vznik', 'Rok', 'Premiéra', 'Založena', 'Založen', 'Založení', 'Otevřeno', 'Objeven', 'Objeveno', 'V úřadu', 'Vláda',
+    setTier(1, ['Narození', 'Úmrtí', 'Život', 'Vznik', 'Rok', 'Premiéra', 'Založena', 'Založen', 'Založení', 'Otevřeno', 'Objeven', 'Objeveno', 'V úřadu', 'Vláda',
         'Doba trvání', 'Doba', 'Vysílání', 'Kariéra', 'Existoval', 'Vlajka přijata', 'Od roku', 'Na olympiádě od', 'Termín']);
     setTier(3, ['Město', 'Místo', 'Místo vzniku', 'Umístění', 'Stát', 'Státy', 'Kraj', 'Krajské město', 'Hlavní město', 'Správní centrum', 'Sídlo', 'Ústí do', 'Sbírka',
         'Pořadatel', 'Obíhá kolem', 'Souhvězdí', 'Soutěž', 'Země původu', 'Patří k', 'Naleziště v Česku', 'Kde to je', 'Kde je dnes', 'Vysílala', 'Studio', 'Nobelova cena',
@@ -2933,7 +2934,7 @@
         for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 16777619);
         return hash >>> 0;
     };
-    const yearSlack = (year) => (year >= 1800 ? 10 : year >= 1500 ? 20 : year >= 0 ? 40 : 150);
+    const yearSlack = (year) => (year >= 1900 ? 7 : year >= 1800 ? 10 : year >= 1500 ? 20 : year >= 0 ? 40 : 150);
     const clueWords = (text) => normalizeAnswer(text).split(' ').filter(word => word.length >= 4 && !/^\d+$/.test(word) && !CLUE_PLAIN_WORDS.has(word));
     const wordsRelated = (a, b) => {
         const common = (x, y) => { let i = 0; while (i < x.length && i < y.length && x[i] === y[i]) i++; return i; };

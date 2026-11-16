@@ -39,6 +39,17 @@ test('Jan Werich mezi Högerem, Peškem a Marvanem: obecný popis ani léta živ
     assert.ok(core.identifyAnswer({ item: werich, ctx, question, text: WERICH_TEXT, facts: clue }).ok);
 });
 
+test('Christopher Lee mezi Conneryho, McKellenem a Stewartem: stačí rok narození, slavný film (Pán prstenů) by odpověď skoro prozradil', () => {
+    const ctx = loadContext('film');
+    const lee = byName(ctx, 'Christopher Lee');
+    const others = ['Sean Connery', 'Ian McKellen', 'Patrick Stewart'].map(name => byName(ctx, name));
+    const question = questionOf(ctx, lee, others);
+    const { clue, open } = core.clueFor({ item: lee, ctx, question, text: '[***] byl britský herec a příležitostný zpěvák.' });
+    assert.equal(open.length, 0);
+    assert.equal(clue.length, 1, JSON.stringify(clue));
+    assert.match(clue[0].value, /1922/);
+});
+
 test('Rozlišení údajů: navazující funkční období rozliší, rok blízko ne, číslo až 1,5×, stát podle dnešního státu, dílo i s vazbou z druhé strany', () => {
     const history = loadContext('historie');
     const [harding, coolidge, taft, hoover] = ['Warren G. Harding', 'Calvin Coolidge', 'William Howard Taft', 'Herbert Hoover'].map(name => byName(history, name));
@@ -46,13 +57,17 @@ test('Rozlišení údajů: navazující funkční období rozliší, rok blízko
     assert.ok(office && office.term);
     for (const other of [coolidge, taft, hoover]) assert.ok(core.contradicts(office, other, history), other.n);
     const death = core.clueFactsOf(harding, history).facts.find(fact => fact.label === 'Úmrtí');
-    assert.equal(core.contradicts(death, taft, history), false, 'úmrtí 1923 × 1930 je moc blízko');
+    assert.equal(core.contradicts(death, taft, history), true, 'úmrtí 1923 × 1930: ve 20. století stačí 7 let');
     assert.equal(core.contradicts(death, hoover, history), true);
     // Čísla a texty
     const fact = (label, value) => core.parseClueFact({ f: {} }, label, value)[0];
     const fake = (facts) => ({ q: `Q${Math.random()}`, n: 'X', f: {}, facts });
     const ctx = { topic: { facts: (item) => item.facts }, items: [] };
     assert.equal(core.contradicts(fact('Výška', 'až 66 cm'), fake([{ label: 'Výška', value: 'až 1,5 m' }]), ctx), true);
+    // Rok narození: Christopher Lee 1922 proti Conneryho 1930 rozliší, 1927 je moc blízko; před rokem 1900 je potřeba víc
+    assert.equal(core.contradicts(fact('Narození', '1922'), fake([{ label: 'Narození', value: '1930' }]), ctx), true);
+    assert.equal(core.contradicts(fact('Narození', '1922'), fake([{ label: 'Narození', value: '1927' }]), ctx), false);
+    assert.equal(core.contradicts(fact('Narození', '1850'), fake([{ label: 'Narození', value: '1858' }]), ctx), false);
     assert.equal(core.contradicts(fact('Výška', 'až 66 cm'), fake([{ label: 'Výška', value: 'až 80 cm' }]), ctx), false);
     assert.equal(core.contradicts(fact('Země', 'Česko'), fake([{ label: 'Země', value: 'Československo' }]), ctx), false);
     assert.equal(core.contradicts(fact('Země', 'Česko'), fake([{ label: 'Země', value: 'Polsko' }]), ctx), true);
