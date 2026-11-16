@@ -245,6 +245,12 @@ turnaje, Kvízu dne i tréninku ukazuje záhlaví otázky čip s body ve hře (�
 **Zamrzlé otázky** (schéma 17): otázka výzvy, zápasu turnaje a Kvízu dne se při prvním sestavení uloží na server (`question_snapshots`) a všichni další
 hráči dostanou přesně ji (stejnou položku, zadání i možnosti v pořadí), i když mají po nasazení nových dat jinou verzi témat; Rozpis otázek ukazuje
 uložené otázky. Než hráč výzvu sám dohraje, vidí u soupeřů jen „dohráno“ (bez bodů, pořadí a rozpisu), ať výsledek neovlivní hru.
+**Zamrzlé denní módy** (schéma 33): stejně se ukládají i Dnešní otázky, Řetězovka dne, Tajemná otázka dne a otázky Bosse týdne; uložené otázky
+dne čte i nepřihlášený hráč (`daily_snapshots_get`). Aplikace je stáhne jedním dotazem hned po vykreslení úvodu, takže se po klepnutí ukážou
+bez čekání. Den všech denních módů je pražský (i dnešní otázky, série a cíle: `getDayKey`), výběr položek bere jen semínko dne a data tak,
+jak vypadala ve hraný den (změna úrovní známosti v datech má datum, od kterého platí: pole `ku` a `xs`, `core.itemsAsOf`), nikdy nastavení,
+úroveň, historii hráče ani to, jestli se mu načetla Wikipedie. Kontrola: `node scripts/audit-denni.mjs` (pět různých hráčů téhož dne),
+měření načítání: `node scripts/measure-denni.mjs` (Fast 3G a běžná síť).
 **Týdenní turnaje** (vyřazovací pavouk v Mixu, kolo = jeden den): klient je v `tournament.js` (čistá logika: názvy kol, dny, stav karty, texty zpráv),
 volání databáze v `social.js` a okno turnaje, hra zápasu a karta v okně Turnaje (záložka Soupeři) v `app.js`; pravidla a posun kol dělá databáze
 (`tournament_tick()` a další funkce v `supabase/schema.sql`). Starší databáze bez turnajů kartu prostě neukáže.
@@ -303,7 +309,7 @@ npm run build:clanky    # pole w: článek Wikipedie po přesměrování (Boson 
 
 Logo je sova v talároku (`branding/sova-original.jpg`). Z tmavého pozadí ji vyřízne `python3 scripts/logo-cutout.py branding/sova-original.jpg branding/sova.png` (Pillow, numpy) a ikony aplikace, favicon i průhledné logo `icons/logo.webp` z ní vykreslí `node scripts/render-app-icons.js` (Playwright). Barvy aplikace podle loga (vínová `brand`, zlatá `gold`, grafitová šedá místo `slate`) jsou v `tailwind.config.js`. Náhled sdíleného odkazu (Open Graph, 1200×630, `icons/og-mudrlant.png`, značky `og:` a `twitter:` v `index.html` i v přesměrování `pages-root/index.html`) vykreslí `python3 scripts/og-image.py` (Pillow) ze stejné sovy.
 
-Service worker (`sw.js`) načítá soubory aplikace přednostně ze sítě, takže se nová verze projeví hned po nasazení; uložené kopie (včetně dat všech témat) slouží bez internetu – hrát jde i offline, jen s krátkým popisem z Wikidat místo úvodu z Wikipedie.
+Service worker (`sw.js`) při instalaci stáhne celou aplikaci (`APP_SHELL`, včetně dat všech témat) a soubory z ní pak bere rovnou z mezipaměti své verze – kód i data jsou tak vždy ze stejného nasazení a nic se při spuštění znovu nestahuje; nová verze = nový service worker, který po instalaci stránku obnoví. Ostatní soubory (denní zajímavost) jdou přednostně ze sítě. Hrát jde i offline, jen s krátkým popisem z Wikidat místo úvodu z Wikipedie.
 
 ## Testy
 

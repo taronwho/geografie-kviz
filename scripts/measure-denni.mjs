@@ -32,6 +32,8 @@ const CSP = fs.readFileSync(path.join(ROOT, '_headers'), 'utf8').match(/Content-
 const CONFIG = 'window.MUDRLANT_CONFIG = { supabaseUrl: "https://proj.supabase.co", supabaseAnonKey: "anon-key" };';
 const PHOTO = fs.readFileSync(path.join(ROOT, 'icons', 'topics', 'sova-vitej.webp'));
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+// Teplý start: první návštěva (instalace service workeru, stažení celé aplikace) jde bez omezení sítě – měří se až další spuštění
+let warming = false;
 
 // --- Server s omezením sítě (jedna společná linka: požadavky se dělí o šířku pásma) ---
 const gzCache = new Map();
@@ -48,6 +50,7 @@ const fileBody = (file) => {
 const startServer = (profile) => {
     let lineFree = 0; // čas, kdy je linka volná (sdílená šířka pásma)
     const send = async (res, status, headers, body) => {
+        if (warming) { res.writeHead(status, headers); res.end(body); return; }
         await sleep(profile.rtt);
         res.writeHead(status, headers);
         if (!body || !body.length || !profile.bytesPerSecond) { res.end(body); return; }
@@ -93,7 +96,7 @@ const routeExternal = async (context, profile, log) => {
     await context.route(/^https:\/\/(cs\.wikipedia\.org|commons\.wikimedia\.org|upload\.wikimedia\.org|proj\.supabase\.co)\//, async route => {
         const url = new URL(route.request().url());
         const started = Date.now();
-        await sleep(profile.extRtt);
+        if (!warming) await sleep(profile.extRtt);
         if (url.hostname === 'cs.wikipedia.org') { log.push({ kind: 'wiki', ms: Date.now() - started }); return route.fulfill({ json: wikiReply(url.href) }); }
         if (url.hostname !== 'proj.supabase.co') return route.fulfill({ contentType: 'image/webp', body: PHOTO });
         if (url.pathname.startsWith('/auth/')) return route.fulfill({ json: {} });
@@ -139,6 +142,7 @@ const measure = async (browser, origin, profile, modeId, start) => {
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     if (start === 'warm') {
+        warming = true;
         // První návštěva: service worker se nainstaluje a stáhne celou aplikaci; pak se stránka načte znovu (jako další spuštění)
         await page.goto(`${origin}/`);
         await page.waitForSelector(steps.tap, { timeout: 180000 });
@@ -150,6 +154,7 @@ const measure = async (browser, origin, profile, modeId, start) => {
         // Jen data aplikace se smažou (dnešní otázky, Kvíz dne, řetěz…), mezipaměť service workeru zůstane
         await page.evaluate((entries) => { localStorage.clear(); Object.entries(entries).forEach(([k, v]) => localStorage.setItem(k, v)); localStorage.setItem('measure-set', '1'); }, storage);
         await sleep(500);
+        warming = false;
     }
     // Pomalejší procesor (telefon): --cpu=4 zpomalí stránku čtyřikrát (Emulation.setCPUThrottlingRate)
     if (Number(args.cpu) > 1) { const session = await context.newCDPSession(page); await session.send('Emulation.setCPUThrottlingRate', { rate: Number(args.cpu) }); }
@@ -186,7 +191,6 @@ const measure = async (browser, origin, profile, modeId, start) => {
     return { mode: modeId, start, ms, homeMs, resources, marks, external: [...log], errors };
 };
 
-const { server, origin } = { server: null, origin: null };
 const results = [];
 const browser = await chromium.launch();
 for (const net of NETS) {
@@ -194,13 +198,16 @@ for (const net of NETS) {
     const { server: srv, origin: base } = await startServer(profile);
     for (const start of STARTS) {
         for (const modeId of MODES) {
+            // --keep: uložené otázky zůstanou mezi běhy (1. běh = první hráč dne, který je uloží, další = hráč, který je dostane hotové)
+            if (args.keep === 'true') snapshots.clear();
             for (let run = 0; run < RUNS; run++) {
-                snapshots.clear();
+                if (args.keep !== 'true') snapshots.clear();
                 const result = await measure(browser, base, profile, modeId, start).catch(error => ({ mode: modeId, start, ms: null, error: error.message }));
                 result.net = net;
+                result.run = run;
                 results.push(result);
                 const slow = (result.resources || []).filter(entry => entry.ms > Number(args.minres || 150)).sort((a, b) => b.ms - a.ms).slice(0, 6).map(entry => `${entry.name.split('?')[0].slice(0, 60)} ${entry.ms} ms`);
-                console.error(`${net} ${start} ${modeId}: ${result.ms} ms${result.error ? ` (${result.error})` : ''} | ${slow.join(', ')} | ${(result.marks || []).map(m => `${m.name}=${m.ms}`).join(' ')} | ext ${(result.external || []).map(e => e.kind).join(',')}${result.errors && result.errors.length ? ` | chyby: ${result.errors.join('; ')}` : ''}`);
+                console.error(`${net} ${start} ${modeId}#${run}: ${result.ms} ms${result.error ? ` (${result.error})` : ''} | ${slow.join(', ')} | ${(result.marks || []).map(m => `${m.name}=${m.ms}`).join(' ')} | ext ${(result.external || []).map(e => e.kind).join(',')}${result.errors && result.errors.length ? ` | chyby: ${result.errors.join('; ')}` : ''}`);
             }
         }
     }
@@ -212,8 +219,10 @@ console.log(`| Mód | ${NETS.flatMap(net => STARTS.map(start => `${net} ${start}
 console.log(`|---|${NETS.flatMap(() => STARTS.map(() => '---:')).join('|')}|`);
 for (const modeId of MODES) {
     const cells = NETS.flatMap(net => STARTS.map(start => {
-        const values = results.filter(r => r.mode === modeId && r.net === net && r.start === start && Number.isFinite(r.ms)).map(r => r.ms);
-        const value = median(values);
+        const values = results.filter(r => r.mode === modeId && r.net === net && r.start === start && Number.isFinite(r.ms));
+        // --keep: první běh (ukládá) a poslední (dostane uložené) zvlášť
+        if (args.keep === 'true') return values.map(r => `${(r.ms / 1000).toFixed(1)} s`).join(' / ') || '–';
+        const value = median(values.map(r => r.ms));
         return value === null ? '–' : `${(value / 1000).toFixed(1)} s`;
     }));
     console.log(`| ${MODE_STEPS[modeId].label} | ${cells.join(' | ')} |`);

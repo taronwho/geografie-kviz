@@ -482,6 +482,8 @@
     const WIKI_PAUSE = 60000;
     let wikiFailedAt = 0;
     const wikiPaused = () => Date.now() - wikiFailedAt < WIKI_PAUSE;
+    // Krátký popis z Wikidat (bez Wikipedie): stejný pro všechny, je přímo v datech
+    const fallbackText = (item) => ({ description: item.d ? `${item.d.charAt(0).toUpperCase()}${item.d.slice(1)}.` : '', funFacts: [], more: '', fallback: true });
     const fetchItemText = async (item) => {
         if (itemTexts.has(item.t)) return itemTexts.get(item.t);
         if (!wikiPaused()) try {
@@ -497,8 +499,7 @@
             if (e instanceof NetworkError) wikiFailedAt = Date.now();
             console.error(e);
         }
-        const shortDescription = item.d ? `${item.d.charAt(0).toUpperCase()}${item.d.slice(1)}.` : '';
-        return { description: shortDescription, funFacts: [], more: '', fallback: true };
+        return fallbackText(item);
     };
 
     const loadImage = (url) => new Promise((resolve, reject) => {
@@ -578,9 +579,13 @@
         const shown = topic.questionImage ? topic.questionImage(item, ctx, question.type) : null;
         const shownUrl = shown ? await timed('obrazek-otazky', probePhoto(commonsPhotoUrl(shown.file, shown.hash, 960)).then(url => url || probePhoto(commonsFileUrl(shown.file, shown.hash)))) : null;
         const fetchedText = await timed('wikipedie', fetchItemText(item));
+        // options.stableChoices (denní módy): možnosti se vybírají jen podle dat – střet nesprávné možnosti s popisem se hledá v krátkém
+        // popisu z Wikidat, který mají všichni; jméno nesprávné možnosti v úvodu z Wikipedie se pak jen zakryje. Možnosti tak nezávisí
+        // na tom, jestli se hráči Wikipedie načetla (dřív se podle ní vyměnily a hráč bez Wikipedie měl jiné možnosti než ostatní).
+        const stableChoices = Boolean(options.stableChoices) && !options.wrong;
         // Popis i další věty úvodu bez odpovědi (společné zakrytí všech tvarů jména); popis, který je po zakrytí skoro samá mezera
         // („[***] práci konanou [***] silou“), nahradí další věty úvodu, a když nic nezbude, vypadne
-        let texts = buildQuestionTexts(item, ctx, question, fetchedText, { special: Boolean(special) });
+        let texts = buildQuestionTexts(item, ctx, question, stableChoices ? fallbackText(item) : fetchedText, { special: Boolean(special) });
         // Nesprávná možnost, na kterou sedí to, co hráč vidí (její jméno v popisu nezakryté, společný článek: Bosony W a Z u Bosonu Z),
         // se nahradí podobnou a popis se zakryje znovu; pevné možnosti Dobývání (options.wrong) nahradit nejde – otázka se označí
         // a Dobývání vezme jinou (conquestRound)
@@ -592,7 +597,16 @@
             const fixed = options.wrong || attempt === 3 ? null : replaceConflicts({ question, item, ctx, text: seen, rng });
             if (!fixed) break;
             question = fixed;
+            texts = buildQuestionTexts(item, ctx, question, stableChoices ? fallbackText(item) : fetchedText, { special: Boolean(special) });
+        }
+        if (stableChoices) {
             texts = buildQuestionTexts(item, ctx, question, fetchedText, { special: Boolean(special) });
+            const seen = () => [texts.questionText, texts.moreText].filter(Boolean).join(' ');
+            const named = (question.choices || []).filter(choice => !choice.correct && choiceConflict(choice, { question, item, ctx, text: seen() }));
+            if (named.length) {
+                const hide = (value) => (value ? named.reduce((result, choice) => censorName(result, choice.label), value) : value);
+                texts = { ...texts, questionText: hide(texts.questionText), moreText: hide(texts.moreText) };
+            }
         }
         const { text, questionText, moreText, origin } = texts;
         const settled = await timed('fotka', Promise.race([photoProbe.then(result => ({ result })), new Promise(resolve => setTimeout(() => resolve(null), PHOTO_WAIT))]));
@@ -6153,7 +6167,10 @@
             // Starší databáze (bez bloku 33): přihlášený aspoň Kvíz dne jako dřív
             if (!found && snapshotsReady()) { asked = seeds.filter(seed => seed.startsWith('mudrlant-kviz-dne-')); found = asked.length ? await Social.questionSnapshots(asked) : null; }
             if (found) asked.forEach(seed => rememberFrozen(seed, found[seed]));
-        } catch (error) { dailyPrefetchAt = 0; }
+        } catch (error) {
+            // Bez spojení se zkusí při dalším návratu na úvod; odmítnutí serverem (4xx) až po DAILY_FROZEN_FRESH
+            if (!(error && error.status >= 400 && error.status < 500)) dailyPrefetchAt = 0;
+        }
     };
     // Semínka dnešních módů, které hráč ještě nehrál: Kvíz dne (10 otázek), Dnešní otázky (každé téma), Tajemná otázka, Řetězovka
     // a Boss týdne (otázky dalšího pokusu)
@@ -6197,7 +6214,7 @@
     // Až se úvod vykreslí a prohlížeč má volno (jinak nejpozději za 2 s)
     let dailyPrefetchTimer = 0;
     const scheduleDailyPrefetch = () => {
-        if (dailyPrefetchTimer || Date.now() - dailyPrefetchAt < DAILY_FROZEN_FRESH) return;
+        if (dailyPrefetchTimer) return;
         dailyPrefetchTimer = setTimeout(() => {
             const run = () => { dailyPrefetchTimer = 0; prefetchDailySnapshots().finally(prepareFromHome); };
             if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 2000 }); else run();
@@ -6205,9 +6222,12 @@
     };
     // Otázka sestavená v zařízení se uloží na server a vrátí se ta, která platí (první uložená). late = odpověď serveru, která nestihla čekání.
     // quick = server otázku před chvílí neměl (předem stažené): nečeká se, otázka se ukáže hned a pozdní odpověď ji případně vymění.
+    // Otázka denního módu s náhradním popisem (hráči se nenačetla Wikipedie) se neukládá: platila by pak pro všechny v horší podobě.
+    // Uloží ji první hráč, kterému se popis načetl (položka i možnosti jsou ze semínka stejné, liší se jen popis a nápovědy z něj).
     const settleSnapshot = async (seed, local, { quick = false } = {}) => {
         const data = JSON.parse(JSON.stringify(local));
         if (!seed || !snapshotsReady()) return { data, late: null };
+        if (/^mudrlant-(?:dnes|tajemna|boss)-/.test(seed) && data.textOrigin === 'fallback') return { data, late: null };
         const claim = Social.claimQuestion(seed, data).then(stored => ({ stored }), error => ({ error }));
         if (DAILY_SEED.test(seed)) claim.then(outcome => { if (outcome && outcome.stored) rememberFrozen(seed, outcome.stored); });
         const settled = await within(claim, quick ? 0 : SNAPSHOT_WAIT);
@@ -6262,7 +6282,7 @@
                 if (!picked.item) throw new Error('Není z čeho vybírat');
                 // Číselná otázka, když ji výběr naplánoval (bez popisu z Wikipedie, takže chudý popis se jí netýká)
                 data = (picked.numeric && Numeric && Numeric.buildRound(picked.numeric, picked.ctx)) || (picked.time && TimeQ && TimeQ.buildRound(picked.time, picked.ctx))
-                    || await timed('sestaveni', createRoundData(picked.item, picked.ctx, picked.rng, { map: Boolean(picked.map) }));
+                    || await timed('sestaveni', createRoundData(picked.item, picked.ctx, picked.rng, { map: Boolean(picked.map), stableChoices: Boolean(picked.stable) }));
                 // Chudý popis: vybere se jiná otázka (u dnešní otázky další určená položka), nejvýš třikrát; pak se vezme, co je
                 // (výzva ne: všichni hráči musí dostat stejné otázky, i když se někomu Wikipedie nenačte)
                 // Dnešní otázky od DAILY_STABLE_FROM také ne (picked.stable): výměna by závisela na tom, jestli se hráči načetla Wikipedie
@@ -6391,7 +6411,7 @@
             const picked = await dailyPicker(topicId, today)(0);
             if (picked.frozen) return playableSnapshot(picked.frozen) ? upgradeRoundData(picked.frozen) : null;
             if (!picked.item) return null;
-            const built = await createRoundData(picked.item, picked.ctx, picked.rng, { mode: 'daily' });
+            const built = await createRoundData(picked.item, picked.ctx, picked.rng, { mode: 'daily', stableChoices: Boolean(picked.stable) });
             return (await settleSnapshot(picked.snapshotSeed, built)).data;
         })().catch(error => { console.error(error); return null; });
         dailyPrepared = { key, promise };
@@ -11076,7 +11096,7 @@
             const item = ctx ? ctx.byId.get(pick.q) : null;
             return { item, ctx, rng, time: await timed('souvislosti', quizTime(attempt.day, index, ctx, item).catch(quizTimeError)) };
         };
-        return { ...(await local()), snapshotSeed: seed };
+        return { ...(await local()), snapshotSeed: seed, stable: attempt.day >= DAILY_STABLE_FROM };
     };
     // Další otázka Kvízu dne se připraví dopředu, zatímco hráč odpovídá (a první po vykreslení úvodu): Wikipedie, fotka, zakrytí popisu
     // a uložení na server proběhnou na pozadí, po klepnutí na Další otázku je hned na obrazovce. Připravená otázka je táž, kterou by
@@ -11092,7 +11112,7 @@
             const picked = await quizPick(attempt, index);
             if (picked.frozen) return playableSnapshot(picked.frozen) ? upgradeRoundData(picked.frozen) : null;
             if (!picked.item) return null;
-            const built = (picked.time && TimeQ && TimeQ.buildRound(picked.time, picked.ctx)) || await createRoundData(picked.item, picked.ctx, picked.rng, { mode: 'quiz' });
+            const built = (picked.time && TimeQ && TimeQ.buildRound(picked.time, picked.ctx)) || await createRoundData(picked.item, picked.ctx, picked.rng, { mode: 'quiz', stableChoices: Boolean(picked.stable) });
             return (await settleSnapshot(picked.snapshotSeed, built)).data;
         })().catch(error => { console.error(error); return null; });
         quizPrepared = { key, promise };
@@ -11305,7 +11325,7 @@
         } else {
             ({ ctx, item } = await mysteryPick(day));
             if (!item) throw new Error('Tajemná otázka nemá položku');
-            const built = await createRoundData(item, ctx, createSeededRandom(Mystery.seedFor(day)), { plain: true, year: Number(day.slice(0, 4)) });
+            const built = await createRoundData(item, ctx, createSeededRandom(Mystery.seedFor(day)), { plain: true, year: Number(day.slice(0, 4)), stableChoices: day >= DAILY_STABLE_FROM });
             data = (await settleSnapshot(seed, built)).data;
             if (data.id !== item.q) item = ctx.byId.get(data.id) || { q: data.id, n: data.name };
         }
@@ -11957,7 +11977,7 @@
         const typed = Boss.isTyped(slot);
         let fallback = null;
         for (let tries = 0; tries < Math.min(6, ordered.length); tries++) {
-            const data = await createRoundData(ordered[tries], ctx, createSeededRandom(Boss.questionSeed(open.week, open.n, slot, tries)));
+            const data = await createRoundData(ordered[tries], ctx, createSeededRandom(Boss.questionSeed(open.week, open.n, slot, tries)), { stableChoices: stable });
             const choices = data && data.question && Array.isArray(data.question.choices) ? data.question.choices : [];
             const playable = choices.length >= 2 && choices.filter(choice => choice && choice.correct).length === 1;
             const typeable = !typed || Boolean(data.question.match) || (Array.isArray(data.question.accepted) && data.question.accepted.length > 0);

@@ -69,3 +69,27 @@ test('starší databáze bez zamrzlých otázek (404): null a dál se nevolá', 
     assert.equal(await Social.questionSnapshots(['vyzva-ABC234-x1:1']), null);
     assert.equal(calls.length, 1, 'po první 404 se databáze už neptá');
 });
+
+test('dailySnapshots (schéma 33): otázky dne i bez přihlášení (veřejný klíč), jen semínka denních módů, starší databáze null', async () => {
+    const stored = { ...question, id: 'Q213' };
+    const headers = [];
+    const { Social, calls } = setup((call) => ({ status: 200, body: (call.body.seeds || []).filter(seed => seed.startsWith('mudrlant-dnes-')).map(seed => ({ seed, data: stored })) }));
+    globalThis.MudrlantAuth = { accessToken: async () => 'tok', hasSession: () => false };
+    const fetchBefore = globalThis.fetch;
+    globalThis.fetch = (url, init) => { headers.push(init.headers.Authorization); return fetchBefore(url, init); };
+    const found = await Social.dailySnapshots(['mudrlant-dnes-2026-11-17:zemepis', 'mudrlant-retezovka-2026-11-17', 'vyzva-ABC234-x1:0', 'mudrlant-dnes-2026-11-17:zemepis', '__proto__']);
+    assert.deepEqual(calls.map(call => call.url), ['rpc/daily_snapshots_get']);
+    assert.deepEqual(calls[0].body.seeds, ['mudrlant-dnes-2026-11-17:zemepis', 'mudrlant-retezovka-2026-11-17'], 'jen semínka denních módů, bez opakování');
+    assert.deepEqual(headers, ['Bearer sb_publishable_test'], 'host se ptá veřejným klíčem');
+    assert.deepEqual(Object.keys(found), ['mudrlant-dnes-2026-11-17:zemepis']);
+    // Přihlášený se ptá se svým přihlášením
+    globalThis.MudrlantAuth = { accessToken: async () => 'tok', hasSession: () => true };
+    await Social.dailySnapshots(['mudrlant-tajemna-2026-11-17']);
+    assert.equal(headers[1], 'Bearer tok');
+    globalThis.fetch = fetchBefore;
+    // Starší databáze bez funkce: null a dál se neptá
+    const old = setup(() => ({ status: 404, body: { code: 'PGRST202' } }));
+    assert.equal(await old.Social.dailySnapshots(['mudrlant-dnes-2026-11-17:zemepis']), null);
+    assert.equal(await old.Social.dailySnapshots(['mudrlant-dnes-2026-11-17:zemepis']), null);
+    assert.equal(old.calls.length, 1);
+});

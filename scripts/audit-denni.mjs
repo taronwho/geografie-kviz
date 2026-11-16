@@ -139,7 +139,8 @@ const playAs = async (browser, origin, player) => {
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
-    await page.clock.setFixedTime(player.now);
+    await page.clock.install({ time: player.now });
+    await page.clock.resume();
     await page.goto(`${origin}/`);
     await page.waitForSelector('[data-action="quiz-open"]', { timeout: 60000 });
     await page.waitForTimeout(2500); // předem stažené zamrzlé otázky
@@ -153,7 +154,14 @@ const playAs = async (browser, origin, player) => {
         button.click();
         button.remove();
     }, [action, extra]);
-    const home = async () => { await tap('quiz-home'); await page.waitForSelector('[data-action="quiz-open"]', { timeout: 30000 }); };
+    const home = async () => {
+        await page.keyboard.press('Escape').catch(() => {});
+        if (await page.isVisible('#btn-home')) await page.click('#btn-home'); else await tap('quiz-home');
+        await page.waitForSelector('[data-action="quiz-open"]', { timeout: 30000 }).catch(async (error) => {
+            await page.screenshot({ path: `${process.env.AUDIT_SHOTS || '/tmp'}/audit-${player.id}.png` }).catch(() => {});
+            throw error;
+        });
+    };
     const out = { day: await page.evaluate(() => window.MudrlantCore ? window.MudrlantCore.getDayKey() : null), modes: {} };
     if (MODES.includes('quiz')) {
         const questions = [];
@@ -173,7 +181,10 @@ const playAs = async (browser, origin, player) => {
         const topics = DAILY_TOPICS || await page.evaluate(() => [...document.querySelectorAll('script[src^="topics/"]')].map(s => s.getAttribute('src').replace(/^topics\/|\.js$/g, '')));
         const asked = {};
         for (const topic of topics) {
-            await tap('daily', topic);
+            // Okno Dnešní otázky na úvodu a v něm téma (jako hráč)
+            await home();
+            await page.click('[data-action="daily-sheet"]');
+            await page.click(`#daily-sheet [data-action="daily"][data-topic="${topic}"]`);
             await page.waitForFunction((t) => { const s = JSON.parse(localStorage.getItem('mudrlant.session') || 'null'); return s && s.mode === 'daily' && s.data && s.data.topic === t && document.querySelector('[data-action="choice"], input'); }, topic, { timeout: 60000 });
             const data = (await session()).data;
             asked[topic] = describe(data);
@@ -202,14 +213,22 @@ const playAs = async (browser, origin, player) => {
         await page.click('[data-action="boss-start"]');
         const asked = [];
         for (let slot = 0; slot < BOSS_COUNT; slot++) {
-            await page.waitForFunction((n) => { const s = JSON.parse(localStorage.getItem('mudrlant.boss') || 'null'); return s && s.open && s.open.shown && s.open.shown.slot === n; }, slot, { timeout: 60000 });
+            await page.waitForFunction((n) => { const s = JSON.parse(localStorage.getItem('mudrlant.boss') || 'null'); return s && s.open && s.open.shown && s.open.shown.slot === n; }, slot, { timeout: 60000 })
+                .catch(async (error) => { await page.screenshot({ path: `${process.env.AUDIT_SHOTS || '/tmp'}/audit-boss-${player.id}.png` }).catch(() => {}); throw error; });
             const shown = await page.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.boss')).open.shown.data);
             asked.push(describe(shown));
             // Správná odpověď (ať souboj pokračuje); u psané otázky se napíše
             const correct = shown.question.choices.findIndex(choice => choice.correct);
             const typed = await page.$('[data-boss-answers] input');
             if (typed) { await typed.fill(shown.question.answerLabel); await page.keyboard.press('Enter'); } else await page.click(`[data-action="boss-choice"][data-index="${correct}"]`);
-            if (slot < BOSS_COUNT - 1) { await page.waitForSelector('[data-action="boss-next"]', { timeout: 30000 }); await page.click('[data-action="boss-next"]'); }
+            // Další otázka jde až 0,4 s po odpovědi (podle hodin stránky): klepe se, dokud se neukáže
+            if (slot < BOSS_COUNT - 1) {
+                await page.waitForSelector('[data-action="boss-next"]', { timeout: 30000 });
+                for (let i = 0; i < 40 && await page.isVisible('[data-action="boss-next"]'); i++) {
+                    await page.waitForTimeout(500);
+                    await page.click('[data-action="boss-next"]', { timeout: 2000 }).catch(() => {});
+                }
+            }
         }
         out.modes.boss = asked;
     }
@@ -238,9 +257,12 @@ for (const mode of MODES) {
         const mine = results[player.id].modes ? results[player.id].modes[mode] : undefined;
         const ref = results.A.modes ? results.A.modes[mode] : undefined;
         const equal = same(mine, ref) && mine !== undefined;
-        if (!equal && !player.mayDiffer) bad += 1;
-        rows.push(`| ${mode} | ${player.id} | ${equal ? 'stejné' : player.mayDiffer ? 'liší se (očekávané: stará databáze + nová data)' : '**LIŠÍ SE**'} |`);
-        if (!equal && !player.mayDiffer) console.error(`${mode} ${player.id}:\n  A: ${JSON.stringify(ref).slice(0, 600)}\n  ${player.id}: ${JSON.stringify(mine).slice(0, 600)}`);
+        // Boss týdne před 23. 11. 2026 ještě měnil možnosti podle Wikipedie (týden už se hrál): hráč bez serveru a bez Wikipedie se smí lišit
+        const legacyBoss = mode === 'boss' && DAY < '2026-11-23' && player.server === 'old' && !player.wiki;
+        const mayDiffer = player.mayDiffer || legacyBoss;
+        if (!equal && !mayDiffer) bad += 1;
+        rows.push(`| ${mode} | ${player.id} | ${equal ? 'stejné' : player.mayDiffer ? 'liší se (očekávané: stará databáze + nová data)' : legacyBoss ? 'liší se (očekávané: týden před 23. 11., stará databáze a bez Wikipedie)' : '**LIŠÍ SE**'} |`);
+        if (!equal && !mayDiffer) console.error(`${mode} ${player.id}:\n  A: ${String(JSON.stringify(ref)).slice(0, 600)}\n  ${player.id}: ${String(JSON.stringify(mine)).slice(0, 600)}`);
     }
 }
 console.log(`Den ${DAY}; den v aplikaci podle hráčů: ${PLAYERS.map(p => `${p.id} ${results[p.id].day}`).join(', ')}`);
