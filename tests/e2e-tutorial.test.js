@@ -131,9 +131,16 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
         assert.ok(centered(found), `rámeček je vystředěný a těsně kolem prvku: ${JSON.stringify(found)}`);
     };
     const finishTrial = async (tab, { typed = false } = {}) => {
-        await waitTitle(tab, 'Nápověda');
-        await tab.waitForTimeout(450);
-        await tab.click('[data-tut-next]');
+        // Krok Nápověda je nepovinný (skippable): otázka bez tlačítka nápovědy (po rozlišujícím údaji a bez Wikipedie nemusí žádnou mít)
+        // ho přeskočí rovnou na odpověď
+        await tab.waitForFunction(() => {
+            const el = document.querySelector('#tutorial:not(.hidden) [data-tut-title]');
+            return el && ['Nápověda', 'Tvoje odpověď'].includes(el.textContent) && !document.querySelector('#tutorial [data-tut-panels]').classList.contains('hidden');
+        }, null, { timeout: 30000 });
+        if (await title(tab) === 'Nápověda') {
+            await tab.waitForTimeout(450);
+            await tab.click('[data-tut-next]');
+        }
         await waitTitle(tab, 'Tvoje odpověď');
         if (typed) {
             await tab.fill('#answer-input', 'nevim');

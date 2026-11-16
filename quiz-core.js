@@ -743,12 +743,60 @@
         const beforeChrist = /(^|\s)(pr|pred|pnl|bc)(\s|$)/.test(text) || /^-/.test(String(input).trim());
         return number === Math.abs(century) && beforeChrist === (century < 0);
     };
-    // Odpověď podle druhu otázky: match = 'century' | 'symbol' | 'formula', jinak názvy s tolerancí překlepů a případně i přesné značky
+    // Psaná odpověď bez obecného slova na začátku názvu: „Bitva na Bílé hoře“ uzná i „na Bílé hoře“ a „Bílé hoře“, „Hrad Karlštejn“
+    // i „Karlštejn“, „Válka o Falklandy“ i „Falklandy“. Obecné slovo je jen první slovo názvu z HEAD_WORDS, předložka za ním smí
+    // zůstat i chybět; zbytek musí mít aspoň jedno slovo o třech písmenech.
+    const HEAD_WORDS = new Set(['bitva', 'valka', 'valky', 'revoluce', 'povstani', 'obleheni', 'bombardovani', 'invaze', 'masakr', 'tazeni', 'operace', 'krize',
+        'hrad', 'zamek', 'jezero', 'reka', 'ostrov', 'ostrovy', 'poloostrov', 'pohori', 'zaliv', 'vodopad', 'vodopady', 'katedrala', 'chram', 'kostel',
+        'bazilika', 'klaster', 'palac', 'most', 'muzeum', 'pevnost', 'narodni park']);
+    const HEAD_PREPOSITIONS = new Set(['u', 'na', 'pod', 'o', 'v', 've', 'pred', 'pri', 'za', 'nad', 'mezi', 'proti', 'k', 'ke', 'od', 'do', 'z', 'ze', 'pro']);
+    const headlessForms = (answer) => {
+        let words = normalizeAnswer(answer).split(' ').filter(Boolean);
+        const head = words.length > 2 && HEAD_WORDS.has(`${words[0]} ${words[1]}`) ? 2 : words.length > 1 && HEAD_WORDS.has(words[0]) ? 1 : 0;
+        if (!head) return [];
+        words = words.slice(head);
+        const forms = [];
+        if (words.length > 1 && HEAD_PREPOSITIONS.has(words[0])) { forms.push(words.join(' ')); words = words.slice(1); }
+        if (words.some(word => word.length >= 3 && !isExactToken(word))) forms.push(words.join(' '));
+        return forms.filter(form => form.replace(/ /g, '').length >= 3);
+    };
+    // Jiný pád nebo tvar stejných slov („Bílá hora“ × „Bílé hoře“, „Karel IV.“ × „Karla IV.“): slova ve stejném počtu se shodují
+    // v kmeni (choiceStem, aspoň 3 písmena), čísla a římské číslice přesně
+    const stemsMatch = (input, answers) => {
+        const given = withArabicNumbers(input).split(' ').filter(Boolean);
+        if (!given.length) return false;
+        return answers.some(answer => {
+            const words = withArabicNumbers(answer).split(' ').filter(Boolean);
+            if (words.length !== given.length) return false;
+            return words.every((word, i) => {
+                const other = given[i];
+                if (isExactToken(word) || word.length <= 2) return word === other;
+                if (isExactToken(other) || other.length < 3) return false;
+                // Krátké slovo: jiná jen koncová samohláska (hora × hoře), Irán × Irák ne
+                if (word.length <= 4 || other.length <= 4) return word.length === other.length && word.slice(0, -1) === other.slice(0, -1) && /[aeiouy]/.test(word.slice(-1)) && /[aeiouy]/.test(other.slice(-1));
+                return choiceStem(word) === choiceStem(other);
+            });
+        });
+    };
+    // Názvy států (setCountries): psaná odpověď, která je přesně názvem jiného státu, se neuzná, ani když se od správné liší jen
+    // překlepem nebo pádem (Slovinsko × Slovensko, Irák × Irán)
+    const rivalNames = new Set();
+    const registerNames = (names) => (names || []).forEach(name => { const key = normalizeAnswer(name); if (key.length >= 3) rivalNames.add(key); });
+    // Odpověď podle druhu otázky: match = 'century' | 'symbol' | 'formula', jinak názvy s tolerancí překlepů a jiného pádu
+    // (i bez obecného slova na začátku, headlessForms) a případně i přesné značky
     const checkAnswer = (input, question) => {
         if (question.match === 'century') return isCenturyMatch(input, question.century);
         if (question.match === 'formula') return isFormulaMatch(input, question.accepted);
         if (question.match === 'symbol') return isSymbolMatch(input, question.accepted, question.caseSensitive);
-        return isAnswerMatch(input, question.accepted) || isSymbolMatch(input, question.symbols || [], question.caseSensitive);
+        const accepted = question.accepted || [];
+        const answers = [...accepted, ...accepted.flatMap(headlessForms)];
+        if (isSymbolMatch(input, question.symbols || [], question.caseSensitive)) return true;
+        const given = normalizeAnswer(input);
+        if (!given) return false;
+        const arabic = withArabicNumbers(input);
+        if (answers.some(answer => normalizeAnswer(answer) === given || withArabicNumbers(answer) === arabic)) return true;
+        if (rivalNames.has(given)) return false;
+        return isAnswerMatch(input, answers) || stemsMatch(input, answers);
     };
 
     // Náhled fotky z Wikimedia Commons přímo z upload.wikimedia.org (bez přesměrování na plné rozlišení);
@@ -1598,6 +1646,7 @@
     let continentByLand = new Map();
     // Aplikace a testy předají seznam států (data/countries.json), odkud se vezme kontinent
     const setCountries = (countries) => {
+        registerNames(Object.values(countries || {}).filter(country => country && country.name).map(country => country.name));
         continentByLand = new Map(Object.values(countries || {}).filter(country => country && country.name).map(country => [country.name, country.continent]));
     };
     // Přídavná jména národností v popisu („český a rakouský dirigent“, „anglická rocková skupina“): když položka nemá zemi
@@ -3573,7 +3622,7 @@
         JOINING_WORDS, distinctiveTokens, structureLeaks, sealStructure, contentWords, newWords, addsInformation, commonChoiceText,
         choicePoints, choicesView, fitMapToChoices, FIT_SHARE, WORLD_MIN_SPAN, buildHints, planRound, MIN_DESCRIPTION_WORDS, MIN_EXCERPT_WORDS,
         composeRound, swapSimilar, clueFactsOf, contradicts, identifyAnswer, clueFor, pickClue, clueCandidates, uniqueChoices, uniqueInfo, needsUniqueness, wrongItemsOf, isSpecificText, parseClueFact,
-        setCountries, landOf, landsOf, landFromDescription, cultureDistance, CULTURE_GROUPS, cultureScore, cultureLandsFor, getWordStems, censorName, mergeCensored, swallowAliases, censorCountry, isKnownCountry, processWikiText, stripFactSentences, takeLeadFacts, normalizeAnswer, levenshtein, isAnswerMatch, isSymbolMatch, isCenturyMatch, isFormulaMatch, formulaCounts, checkAnswer,
+        setCountries, landOf, landsOf, landFromDescription, cultureDistance, CULTURE_GROUPS, cultureScore, cultureLandsFor, getWordStems, censorName, mergeCensored, swallowAliases, censorCountry, isKnownCountry, processWikiText, stripFactSentences, takeLeadFacts, normalizeAnswer, levenshtein, isAnswerMatch, registerNames, isSymbolMatch, isCenturyMatch, isFormulaMatch, formulaCounts, checkAnswer,
         inCollection, filterItems, levelOf, tierLevel, pickItem, sortItems, getCountryNames, getContinent, continentAt, getCountryAliases,
         distanceKm, nearness, STATE_STEPS, sharesGroup, eraNearness, personSimilarity, rankBySimilarity, takeDistinct, isNamePart, nameStems, sameNameStem,
         buildItemChoices, buildCountryChoices, sameArticle, namedIn, choiceConflict, replaceConflicts, findAnswerItem, findAnswerCountry, updateMistakes, nameAnswers, countryAnswers,

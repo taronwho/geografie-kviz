@@ -71,14 +71,36 @@ test('SQL: speciální turnaje na téma a hlasování', { skip: !available && 'P
     await t.test('hlasování: jedno otevřené se 4 tématy, počty až po vlastním hlasu, změna hlasu nejvýš 10krát', () => {
         denied(as(null, 'select tournament_poll_state();', 'anon'), /permission denied/, 'anon nesmí');
         denied(as(null, 'select tournament_poll_state();'), /Přihlas se/, 'bez přihlášení');
+        // Hlasování, které otevře server, je skryté (blok 34): hráč nedostane nic a hlasovat nemůže, správce ho vidí
+        assert.equal(last(ok(as(A, "select coalesce(tournament_poll_state()::text, 'žádné');"))), 'žádné', 'skryté hlasování hráč nevidí');
+        const hidden = json(as(ADMIN, 'select tournament_poll_state();'));
+        assert.equal(hidden.visible, false);
+        assert.equal(hidden.options.length, 4);
+        denied(as(A, `select tournament_vote(${hidden.id}, '${hidden.options[0].id}');`), /neběží/);
+        assert.equal(last(ok(as(A, 'select count(*) from tournament_polls;'))), '0', 'skryté hlasování ani v tabulce');
+        // Témata a zobrazení vybírá správce: 2–4 různá z nabídky
+        denied(as(A, `select dev_tournament_poll_set('{opery,rock}', true);`), /dev_admins/, 'hráč nesmí');
+        denied(as(ADMIN, `select dev_tournament_poll_set('{opery}', true);`), /2 až 4/);
+        denied(as(ADMIN, `select dev_tournament_poll_set('{opery,opery}', true);`), /2 až 4/, 'dvakrát totéž téma je jedno');
+        denied(as(ADMIN, `select dev_tournament_poll_set('{opery,rock,fotbal,hokej,vesmir}', true);`), /2 až 4/);
+        denied(as(ADMIN, `select dev_tournament_poll_set('{opery,neexistuje}', true);`), /v nabídce není/);
+        const pair = json(as(ADMIN, `select dev_tournament_poll_set('{opery,rock}', false);`));
+        assert.notEqual(pair.id, hidden.id, 'jiná témata = nové hlasování');
+        assert.deepEqual(pair.options.map(option => option.id), ['opery', 'rock']);
+        assert.equal(last(ok(as(A, "select coalesce(tournament_poll_state()::text, 'žádné');"))), 'žádné', 'pořád skryté');
+        const set = json(as(ADMIN, `select dev_tournament_poll_set('{hrady-zamky,opery,olympijske-hry,vesmir}', true);`));
+        assert.equal(set.visible, true);
         poll = json(as(A, 'select tournament_poll_state();'));
+        assert.equal(poll.id, set.id);
+        assert.deepEqual(poll.options.map(option => option.id), ['hrady-zamky', 'opery', 'olympijske-hry', 'vesmir'], 'témata v pořadí správce');
+        assert.equal(last(ok(as(A, 'select count(*) from tournament_polls;'))), '1', 'zveřejněné hlasování hráč v tabulce vidí');
         assert.equal(poll.options.length, 4);
         assert.equal(new Set(poll.options.map(option => option.id)).size, 4);
         assert.equal(poll.mine, null);
         assert.equal(poll.total, null, 'počty jen po hlasování');
         assert.ok(poll.options.every(option => option.votes === null && option.title));
         assert.equal(json(as(B, 'select tournament_poll_state();')).id, poll.id, 'pořád totéž hlasování');
-        assert.equal(q('select count(*) from tournament_polls'), '1');
+        assert.equal(q('select count(*) from tournament_polls where closed_at is null'), '1');
         const [first, second, third] = poll.options.map(option => option.id);
         const after = json(as(A, `select tournament_vote(${poll.id}, '${first}');`));
         assert.equal(after.mine, first);
@@ -129,7 +151,13 @@ test('SQL: speciální turnaje na téma a hlasování', { skip: !available && 'P
         assert.equal(q(`select kind || '|' || theme || '|' || title || '|' || status || '|' || round_minutes || '|' || (starts_at = '${at(0)}'::timestamptz) from tournaments where id = '${tid}'`),
             `special|${winner}|${q(`select title from tournament_themes where id = '${winner}'`)}|open|60|true`);
         assert.equal(q(`select winner || '|' || (tournament_id = '${tid}') from tournament_polls where id = ${poll.id}`), `${winner}|true`, 'vítěz = téma turnaje');
+        // Další hlasování otevře server skryté; správce ho zveřejní se stejnými tématy (hlasy i hlasování zůstanou)
+        assert.equal(last(ok(as(A, "select coalesce(tournament_poll_state()::text, 'žádné');"))), 'žádné', 'nové hlasování je skryté');
+        const auto = json(as(ADMIN, 'select tournament_poll_state();'));
+        const shown = json(as(ADMIN, `select dev_tournament_poll_set('{${auto.options.map(option => option.id).join(',')}}', true);`));
+        assert.equal(shown.id, auto.id, 'stejná témata = totéž hlasování');
         const next = json(as(A, 'select tournament_poll_state();'));
+        assert.equal(next.id, auto.id);
         assert.notEqual(next.id, poll.id);
         assert.equal(next.mine, null, 'v novém hlasování ještě nehlasoval');
         assert.ok(next.options.every(option => !poll.options.some(old => old.id === option.id)), 'nová čtveřice témat');
@@ -138,7 +166,7 @@ test('SQL: speciální turnaje na téma a hlasování', { skip: !available && 'P
         const third = json(as(ADMIN, 'select dev_tournament_poll_close();'));
         assert.notEqual(third.id, next.id);
         assert.equal(q(`select winner from tournament_polls where id = ${next.id}`), next.options[2].id);
-        denied(as(A, `select tournament_vote(${next.id}, '${next.options[0].id}');`), /skončilo/, 'v uzavřeném hlasování už ne');
+        denied(as(A, `select tournament_vote(${next.id}, '${next.options[0].id}');`), /neběží/, 'v uzavřeném hlasování už ne');
         // Týdenní tick speciální turnaj nezakládá ani nespouští před začátkem
         ok(as(A, 'select tournament_tick();'));
         assert.equal(q(`select count(*) from tournaments where kind = 'special'`), '1');

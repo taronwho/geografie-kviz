@@ -35,12 +35,18 @@ const action = (tab, name, data = {}) => tab.evaluate(([name, data]) => {
     button.remove();
 }, [name, data]);
 
-// Okno Nastavení tak, jak ho otevírá hráč: při hře obrázek hráče (ozubené kolečko) v hlavičce, na hlavních obrazovkách vede obrázek
-// na záložku Já a Nastavení otevře její řádek (which: game = Nastavení hry, profile = Profil, owl = Mudrlant). Test skončí na záložce Já.
+// Okno Nastavení tak, jak ho otevírá hráč ze záložky Já: řádek which (game = Nastavení hry, profile = Profil, owl = Mudrlant).
+// Test skončí na záložce Já. Při hře (bez spodní lišty) obrázek hráče v hlavičce a pak karta which.
 const settingsFromJa = async (tab, which = 'game') => {
     if (!(await tab.$('#settings-overlay'))) {
-        await tab.click('#btn-settings');
-        if (!(await tab.$('#settings-overlay'))) await tab.click(`#ja-rows [data-ja="${which}"]`);
+        if (await tab.$('#app-content > [data-tab-root]')) {
+            await go(tab, 'ja');
+            await tab.click(`#ja-rows [data-ja="${which}"]`);
+        } else {
+            await tab.click('#btn-settings');
+            await tab.waitForSelector('#settings-overlay');
+            if (which !== 'game') await tab.click(`#settings-overlay [data-me-tab="${which}"]`);
+        }
     }
     await tab.waitForSelector('#settings-overlay');
 };

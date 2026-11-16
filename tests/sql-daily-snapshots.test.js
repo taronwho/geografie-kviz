@@ -92,7 +92,7 @@ test('SQL: zamrzlé denní módy (schéma 33)', { skip: !available && 'PostgreSQ
         denied(as('', `select daily_snapshot_seed_ok('mudrlant-dnes-${TUE}:zemepis');`, TUE, 'anon'));
     });
 
-    await t.test('verze schématu 33', () => {
-        assert.equal(last(ok(as(A, 'select schema_version();'))), '33');
+    await t.test('verze schématu 33 nebo novější', () => {
+        assert.ok(Number(last(ok(as(A, 'select schema_version();')))) >= 33);
     });
 });

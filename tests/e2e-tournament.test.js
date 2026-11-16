@@ -220,7 +220,8 @@ const backend = async (context, db) => {
                 }
                 const mine = poll.votes[me.id] || null;
                 const counts = (theme) => Object.values(poll.votes).filter(value => value === theme).length;
-                return json({ id: poll.id, closed: false, mine, total: mine ? Object.keys(poll.votes).length : null, changes_left: 10,
+                if (poll.hidden && !db.admin) return json(null);
+                return json({ id: poll.id, closed: false, visible: !poll.hidden, mine, total: mine ? Object.keys(poll.votes).length : null, changes_left: 10,
                     options: poll.options.map(option => ({ id: option.id, title: option.title, topics: option.topics, votes: mine ? counts(option.id) : null })) });
             }
             if (rpc[1] === 'tournament_join') {
@@ -1712,6 +1713,55 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
             await context.close();
         });
     }
+
+    await t.test('vývojářský režim: Hlasování… nastaví témata v pořadí výběru a zobrazení hráčům (dev_tournament_poll_set)', async () => {
+        const db = newDb({ today: '2026-11-20' });
+        db.admin = true;
+        db.poll = { ...pollOf(), hidden: true };
+        const { context, tab, log } = await start(db, { now: '2026-11-20T10:00:00Z', viewport: { width: 360, height: 640 } }, { ...login('tok-u1'), 'mudrlant.dev': '1' });
+        await nav.settings(tab);
+        await tab.click('[data-dev="sp-poll-set"]');
+        await tab.waitForSelector('#poll-setup');
+        assert.match(await tab.textContent('[data-poll-now]'), /skryté · Opery, Olympijské hry, Vlajky Afriky, Pravěká zvířata/);
+        assert.equal(await tab.locator('#poll-themes [aria-pressed="true"]').count(), 4);
+        assert.equal(await tab.locator('#poll-themes [aria-pressed="false"]:not([disabled])').count(), 0, 'víc než 4 nejde');
+        // Odebrat Vlajky Afriky a Pravěká zvířata, přidat Fotbal: 3 témata, pak zapnout zobrazení
+        await tab.click('[data-poll-theme="vlajky-afriky"]');
+        await tab.click('[data-poll-theme="pravek"]');
+        await tab.click('[data-poll-theme="fotbal"]');
+        assert.equal(await tab.getAttribute('[data-poll-theme="fotbal"]', 'aria-pressed'), 'true');
+        await tab.click('[data-poll-show]');
+        assert.equal(await tab.getAttribute('[data-poll-show]', 'aria-checked'), 'true');
+        if (process.env.SCREENSHOT_DIR) await tab.screenshot({ path: require('path').join(process.env.SCREENSHOT_DIR, 'dev-hlasovani-360.png') });
+        await tab.click('#poll-setup button[type="submit"]');
+        await tab.waitForFunction(() => /hráči ho vidí/.test((document.getElementById('toast') || {}).textContent || ''));
+        assert.deepEqual(db.calls.find(call => call.name === 'dev_tournament_poll_set').body, { themes: ['opery', 'olympijske-hry', 'fotbal'], show: true });
+        // Méně než 2 témata uložit nejde
+        await nav.settings(tab);
+        await tab.click('[data-dev="sp-poll-set"]');
+        await tab.waitForSelector('#poll-setup');
+        for (const id of ['opery', 'olympijske-hry', 'vlajky-afriky', 'pravek']) if (await tab.getAttribute(`[data-poll-theme="${id}"]`, 'aria-pressed') === 'true') await tab.click(`[data-poll-theme="${id}"]`);
+        await tab.click('[data-poll-theme="rock"]');
+        assert.equal(await tab.locator('#poll-setup button[type="submit"][disabled]').count(), 1);
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    await t.test('skryté hlasování (schéma 34, správce ho nezveřejnil): hráč ho neuvidí, ohlášený turnaj ano', async () => {
+        const db = newDb({ today: '2026-11-20' });
+        runningEight(db);
+        specialTournament(db, { players: 5 });
+        db.poll = { ...pollOf(), hidden: true };
+        const { context, tab, log } = await start(db, { now: '2026-11-20T10:00:00Z', viewport: { width: 360, height: 640 } });
+        await tab.waitForSelector('#tournament-card [data-special]');
+        for (let i = 0; i < 50 && !db.calls.some(call => call.name === 'tournament_poll_state'); i++) await tab.waitForTimeout(100);
+        await tab.waitForTimeout(300);
+        assert.ok(db.calls.some(call => call.name === 'tournament_poll_state'), 'stav hlasování se načetl');
+        assert.equal(await tab.locator('#tournament-poll').count(), 0, 'skryté hlasování se neukáže');
+        assert.deepEqual(log.errors, []);
+        await context.close();
+    });
 
     await t.test('běžící speciální turnaj: kolo po minutách, Hrát dá otázky jen z tématu; starší databáze bez hlasování kartu neukáže', async () => {
         const db = newDb({ today: '2026-11-21' });

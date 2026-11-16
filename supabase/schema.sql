@@ -7198,7 +7198,8 @@ create table if not exists public.tournament_polls (
     tournament_id uuid references public.tournaments (id) on delete set null
 );
 alter table public.tournament_polls drop constraint if exists tournament_polls_options_count;
-alter table public.tournament_polls add constraint tournament_polls_options_count check (cardinality(options) = 4);
+-- (2–4 témata od bloku 34, kdy je vybírá správce; tady stejně, ať opakované spuštění neselže na hlasování se 2 nebo 3 tématy)
+alter table public.tournament_polls add constraint tournament_polls_options_count check (cardinality(options) between 2 and 4);
 -- otevřené je vždy nejvýš jedno
 create unique index if not exists tournament_polls_one_open on public.tournament_polls ((true)) where closed_at is null;
 
@@ -8132,6 +8133,100 @@ grant execute on function public.question_snapshot_claim(text, jsonb) to authent
 grant execute on function public.daily_snapshots_get(text[]) to anon, authenticated;
 -- ===== 33: Zamrzlé denní módy — KONEC BLOKU =====
 
+-- ===== 34: Hlasování o speciálním turnaji jen na pokyn správce — ZAČÁTEK BLOKU =====
+-- Hlasování hráči uvidí (a hlasovat v něm můžou), jen když ho správce (dev_admins) ve vývojářských nástrojích zapne (tournament_polls.visible).
+-- Témata do hlasování (2 až 4 z nabídky tournament_themes) vybere správce sám (dev_tournament_poll_set); hlasování, které otevře server
+-- sám (po založení turnaje na téma z hlasování nebo po uzavření), je skryté, dokud ho správce nenastaví a nezapne.
+alter table public.tournament_polls add column if not exists visible boolean not null default false;
+alter table public.tournament_polls drop constraint if exists tournament_polls_options_count;
+alter table public.tournament_polls add constraint tournament_polls_options_count check (cardinality(options) between 2 and 4);
+-- Tabulku hlasování přímo čte hráč jen zveřejněnou, správce celou
+drop policy if exists "turnaje: hlasování" on public.tournament_polls;
+create policy "turnaje: hlasování" on public.tournament_polls for select to authenticated
+    using (visible or public.is_dev_admin());
+
+-- Hlasování jako JSON (jako v bloku 31) a navíc visible
+create or replace function public.tournament_poll_json(p public.tournament_polls, uid uuid) returns jsonb
+language sql stable security definer set search_path = public as $$
+    with me as (select v.theme, v.changes from public.tournament_votes v where v.poll_id = p.id and v.user_id = uid),
+    shown as (select exists (select 1 from me) or exists (select 1 from public.dev_admins d where d.user_id = uid) as ok),
+    counts as (select v.theme, count(*)::integer as n from public.tournament_votes v where v.poll_id = p.id group by v.theme)
+    select jsonb_build_object(
+        'id', p.id, 'opened_at', p.opened_at, 'closed', p.closed_at is not null, 'visible', p.visible,
+        'options', coalesce((select jsonb_agg(jsonb_build_object('id', o.id, 'title', coalesce(th.title, o.id), 'topics', th.topics,
+                'votes', case when (select ok from shown) then coalesce((select c.n from counts c where c.theme = o.id), 0) end) order by o.ord)
+            from unnest(p.options) with ordinality as o(id, ord) left join public.tournament_themes th on th.id = o.id), '[]'::jsonb),
+        'mine', (select me.theme from me),
+        'total', case when (select ok from shown) then coalesce((select sum(c.n) from counts c), 0)::integer end,
+        'changes_left', 10 - coalesce((select me.changes from me), 0))
+$$;
+
+-- Hráč: stav hlasování; skryté hlasování vidí jen správce (ostatní dostanou null)
+create or replace function public.tournament_poll_state() returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); p public.tournament_polls;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    p := public.tournament_poll_current();
+    if not p.visible and not exists (select 1 from public.dev_admins d where d.user_id = uid) then return null; end if;
+    return public.tournament_poll_json(p, uid);
+end;
+$$;
+
+-- Hráč: hlas pro téma (jako v bloku 31), jen ve zveřejněném hlasování
+create or replace function public.tournament_vote(poll bigint, theme text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+#variable_conflict use_variable
+declare uid uuid := auth.uid(); p public.tournament_polls; prev public.tournament_votes;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    select * into p from public.tournament_polls tp where tp.id = poll for share;
+    if p.id is null or p.closed_at is not null or not p.visible then raise exception 'Hlasování teď neběží.' using errcode = '22023'; end if;
+    if theme is null or not (theme = any (p.options)) then raise exception 'Tohle téma v hlasování není.' using errcode = '22023'; end if;
+    perform pg_advisory_xact_lock(hashtext('tournament_vote:' || poll::text || ':' || uid::text));
+    select * into prev from public.tournament_votes v where v.poll_id = poll and v.user_id = uid;
+    if prev.poll_id is null then
+        insert into public.tournament_votes (poll_id, user_id, theme) values (poll, uid, theme);
+    elsif prev.theme <> theme then
+        if prev.changes >= 10 then raise exception 'Hlas jde změnit nejvýš 10krát, teď už platí ten poslední.' using errcode = '22023'; end if;
+        update public.tournament_votes v set theme = theme, voted_at = now(), changes = v.changes + 1 where v.poll_id = poll and v.user_id = uid;
+    end if;
+    return public.tournament_poll_json(p, uid);
+end;
+$$;
+
+-- Správce: témata hlasování (2–4 různá z nabídky, v tomto pořadí) a jestli ho hráči vidí. Stejná témata jako v otevřeném hlasování = jen se
+-- zapne či vypne (hlasy zůstanou); jiná témata = otevřené hlasování se uzavře (vítěz podle hlasů) a otevře se nové. Vrací stav hlasování.
+create or replace function public.dev_tournament_poll_set(themes text[], show boolean) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare p public.tournament_polls; list text[]; best text;
+begin
+    perform public.dev_check();
+    list := array(select t from unnest(coalesce(themes, '{}'::text[])) with ordinality as x(t, ord) group by t order by min(ord));
+    if cardinality(list) < 2 or cardinality(list) > 4 then raise exception 'Vyber 2 až 4 různá témata.' using errcode = '22023'; end if;
+    if exists (select 1 from unnest(list) as x(t) where not exists (select 1 from public.tournament_themes th where th.id = x.t and th.active)) then
+        raise exception 'Některé téma v nabídce není.' using errcode = '22023';
+    end if;
+    perform pg_advisory_xact_lock(74631);
+    select * into p from public.tournament_polls where closed_at is null for update;
+    if p.id is not null and p.options = list then
+        update public.tournament_polls set visible = coalesce(show, false) where id = p.id returning * into p;
+        return public.tournament_poll_json(p, auth.uid());
+    end if;
+    if p.id is not null then
+        select o.id into best from unnest(p.options) with ordinality as o(id, ord)
+            join (select v.theme, count(*) as n from public.tournament_votes v where v.poll_id = p.id group by v.theme) c on c.theme = o.id
+            order by c.n desc, o.ord limit 1;
+        update public.tournament_polls set closed_at = now(), winner = best where id = p.id;
+    end if;
+    insert into public.tournament_polls (options, visible) values (list, coalesce(show, false)) returning * into p;
+    return public.tournament_poll_json(p, auth.uid());
+end;
+$$;
+revoke all on function public.dev_tournament_poll_set(text[], boolean) from public, anon;
+grant execute on function public.dev_tournament_poll_set(text[], boolean) to authenticated;
+-- ===== 34: Hlasování o speciálním turnaji jen na pokyn správce — KONEC BLOKU =====
+
 -- ===== Verze schématu =====
 -- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.
 -- Aplikace ho po přihlášení porovná a správci (dev_admins nebo vývojářský režim) ukáže v Nastavení, že má schéma spustit znovu;
@@ -8212,7 +8307,9 @@ grant execute on function public.daily_snapshots_get(text[]) to anon, authentica
 --     a vitrína s titulem a věcmi ze Sezóny Mudrlanta (showcase_format_ok a check_showcase: t:<titul>, s:<druh>:<id>).
 -- 33: Zamrzlé denní módy – Dnešní otázky, Řetězovka dne, Tajemná otázka dne a Boss týdne ukládá question_snapshot_claim jako Kvíz dne (semínka
 --     mudrlant-dnes-, -retezovka-, -tajemna- a -boss-; daily_snapshot_seed_ok), daily_snapshots_get je vrací i nepřihlášeným (daily_snapshot_public).
+-- 34: Hlasování o speciálním turnaji jen na pokyn správce (tournament_polls.visible, 2–4 témata; tournament_poll_state vrací skryté jen správci,
+--     tournament_vote jen ve zveřejněném; dev_tournament_poll_set: témata a zobrazení vybere správce).
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 33 $$;
+language sql immutable as $$ select 34 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

@@ -115,28 +115,35 @@ test('délka kola a časy slovy', () => {
 });
 
 test('pravidla speciálního turnaje: téma, začátek, délka kola; bez rodu', () => {
-    const rules = T.specialRules({ title: 'Hrady a zámky', starts_at: '2026-11-21T17:00:00Z', round_minutes: 180, capacity: 64 }, Date.parse('2026-11-14T10:00:00Z')).join(' ');
+    const rules = T.specialRules({ title: 'Hrady a zámky', starts_at: '2026-11-21T17:00:00Z', round_minutes: 180, capacity: 64 }, Date.parse('2026-11-14T10:00:00Z'), true).join(' ');
     assert.match(rules, /Hrady a zámky/);
     assert.match(rules, /v sobotu 21\. 11\. v 18:00/);
     assert.match(rules, /Každé kolo trvá 3 hodiny/);
     assert.match(rules, /nejvýš 64/);
     assert.match(rules, /hlasování/);
+    // Bez zveřejněného hlasování o něm pravidla nemluví
+    assert.doesNotMatch(T.specialRules({ title: 'Opery', starts_at: '2026-11-21T17:00:00Z', round_minutes: 60 }, Date.parse('2026-11-14T10:00:00Z')).join(' '), /hlasování/);
     assert.doesNotMatch(rules, /\b(přihlásil|přihlásila|vyhrál|vyhrála|hrál|hrála|odehrál|postoupil)\b/);
 });
 
-test('hlasování do karty: bez hlasu bez počtů, po hlasu procenta a vedoucí téma; uzavřené nic', () => {
+test('hlasování do karty: jen zveřejněné; bez hlasu bez počtů, po hlasu procenta a vedoucí téma; uzavřené nic', () => {
     const options = [{ id: 'opery', title: 'Opery', votes: null }, { id: 'rock', title: 'Rock a punk', votes: null }, { id: 'fotbal', title: 'Fotbal', votes: null }, { id: 'pravek', title: 'Pravěká zvířata', votes: null }];
-    const fresh = T.pollView({ id: 5, options, mine: null, total: null, changes_left: 10 });
+    // Skryté hlasování (schéma 34) a starší databáze bez visible: hráči nic, vývojářské nástroje (all) ano; 2 témata stačí
+    assert.equal(T.pollView({ id: 5, options, mine: null, total: null, changes_left: 10, visible: false }), null);
+    assert.equal(T.pollView({ id: 5, options, mine: null, total: null, changes_left: 10 }), null);
+    assert.equal(T.pollView({ id: 5, options, mine: null, total: 0, visible: false }, { all: true }).visible, false);
+    assert.equal(T.pollView({ id: 5, options: options.slice(0, 2), visible: true }).options.length, 2);
+    const fresh = T.pollView({ id: 5, options, mine: null, total: null, changes_left: 10, visible: true });
     assert.equal(fresh.voted, false);
     assert.equal(fresh.counted, false);
     assert.ok(fresh.options.every(option => option.votes === null && !option.leader));
     assert.equal(fresh.options[0].icon, 'drama');
-    const voted = T.pollView({ id: 5, options: options.map((option, i) => ({ ...option, votes: [3, 1, 0, 0][i] })), mine: 'rock', total: 4, changes_left: 9 });
+    const voted = T.pollView({ id: 5, options: options.map((option, i) => ({ ...option, votes: [3, 1, 0, 0][i] })), mine: 'rock', total: 4, changes_left: 9, visible: true });
     assert.equal(voted.voted, true);
     assert.deepEqual(voted.options.map(option => option.percent), [75, 25, 0, 0]);
     assert.deepEqual(voted.options.map(option => option.leader), [true, false, false, false]);
     assert.equal(voted.options[1].mine, true);
-    assert.equal(T.pollView({ id: 5, options, closed: true }), null);
+    assert.equal(T.pollView({ id: 5, options, closed: true, visible: true }), null);
     assert.equal(T.pollView(null), null);
     assert.equal(T.votesWord(1), '1 hlas');
     assert.equal(T.votesWord(3), '3 hlasy');
