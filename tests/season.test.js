@@ -115,8 +115,8 @@ test('vyzvednutí: jen dosažený stupeň, každý jednou; ochrana série na sv�
     assert.equal(first.kind, 'item');
     assert.equal(first.parts.length, 1);
     const [{ category, item }] = first.parts;
-    assert.ok(Rewards.GIFT_CATEGORIES.includes(category));
-    assert.ok(!item.badge && !item.exclusive && item.level > 20, 'věc odemykaná až vyšší úrovní');
+    assert.ok(Rewards.CHEST_CATEGORIES.includes(category));
+    assert.ok(!item.badge && !item.exclusive && (item.chest || item.level > 20), 'věc odemykaná až vyšší úrovní (nebo jen z truhly)');
     state = first.state;
     assert.ok(Rewards.owns(state, category, item.id));
     assert.equal(state.season.claimed[1], `${category}:${item.id}`);
@@ -155,7 +155,7 @@ test('celá cesta: pestré věci bez duplicit, Truhla v půli sezóny druhý rá
     assert.ok(Rewards.owns(state, 'frames', 'sezona-11'));
     assert.ok(Rewards.owns(state, 'avatars', 'caj'), 'postavička měsíce mezi dárky');
     // Sezónní věci jen v Sezónní truhle; výjimka je druhý rámeček měsíce v Truhle v půli sezóny
-    assert.ok(results.filter(result => result.tier < 20).every(result => result.parts.every(part => part.category !== 'avatars' && !(part.item && part.item.exclusive && !(result.tier === 10 && part.item.seasonTier === 10)))), 'postavičky a sezónní věci jen v Sezónní truhle');
+    assert.ok(results.filter(result => result.tier < 20).every(result => result.parts.every(part => (part.category !== 'avatars' || part.item.chest) && !(part.item && part.item.exclusive && !(result.tier === 10 && part.item.seasonTier === 10)))), 'postavičky (kromě té z truhly) a sezónní věci jen v Sezónní truhle');
     assert.ok(Rewards.owns(state, 'accessories', 'lampion'), 'listopadový doplněk Lampion');
     assert.ok(Rewards.owns(state, 'titles', 'sampion-sezony'));
     // Za sousední stupně se druh věci střídá, když to jde

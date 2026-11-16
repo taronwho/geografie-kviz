@@ -31,9 +31,11 @@ const CHEST_ONLY = Look.ACCESSORIES.filter(item => item.chest).map(item => item.
 // Sezónní doplněk letošního listopadu (Lampion, jen ze Sezónní truhly): jde získat, takže k celému albu patří
 const NOVEMBER_ACC = Look.ACCESSORIES.filter(item => item.month === 11).map(item => item.id);
 const NOVEMBER_FRAMES = ['sezona-11', 'sezona-11-b'];
+// Postavičky jen z truhly (chest a rare v look.js: Kapybara v lázních, Zmrzlinový kornout) a listopadová ze Sezónní truhly
+const GIFT_AVATARS = ['caj', ...Look.AVATARS.filter(item => item.chest || item.rare).map(item => item.id)];
 const withEverything = (run, extra = {}) => {
     Look.setLeagueBest('mistr');
-    try { return run(input({ level: 100, badges: allBadges(), gifts: { frames: [...NOVEMBER_FRAMES, ...RARE_FRAMES], accessories: [...CHEST_ONLY, ...NOVEMBER_ACC], avatars: ['caj'] }, diplomas: ALL_DIPLOMAS, ...extra })); } finally { Look.setLeagueBest(null); }
+    try { return run(input({ level: 100, badges: allBadges(), gifts: { frames: [...NOVEMBER_FRAMES, ...RARE_FRAMES], accessories: [...CHEST_ONLY, ...NOVEMBER_ACC], avatars: GIFT_AVATARS }, diplomas: ALL_DIPLOMAS, ...extra })); } finally { Look.setLeagueBest(null); }
 };
 // Dočasně přidané položky katalogu (jako sezónní permanentka jiného modulu); po testu se vrátí
 const withItems = (category, items, run) => {
@@ -50,8 +52,13 @@ test('sekce v pořadí a počty z katalogu: věci od začátku se nepočítají,
     assert.equal(sectionOf(album, 'themes').total, Look.THEMES.length - 1);
     assert.equal(sectionOf(album, 'robes').total, Look.ROBES.length - 1);
     // Postavičky: bez sezónních z měsíců, které ještě nebyly (10. 11. 2026 jde získat jen listopadový Hrnek čaje)
-    assert.equal(sectionOf(album, 'avatars').total, Look.AVATARS.filter(item => Album.availability(item, 'avatars', TODAY) !== 'upcoming').length);
-    assert.equal(sectionOf(album, 'avatars').total, Look.AVATARS.length - 11, 'jedenáct sezónních postaviček je zatím skrytých');
+    // Bonusové postavičky (za pozvané kamarády a prestiž) jako bonusové rámečky: jen když je hráč má, do procent se nepočítají;
+    // Ježek krejčí za album na 50 % se ukáže, ale nepočítá (jako rámeček Sběratelský)
+    assert.equal(sectionOf(album, 'avatars').total, Look.AVATARS.filter(item => !item.bonus && !item.album && Album.availability(item, 'avatars', TODAY) !== 'upcoming').length);
+    assert.equal(sectionOf(album, 'avatars').total, Look.AVATARS.length - 11 - 2 - 1, 'jedenáct sezónních postaviček je zatím skrytých, dvě bonusové chybějící se neukazují, Ježek krejčí je odměna za album');
+    const jezek = sectionOf(album, 'avatars').entries.find(entry => entry.id === 'jezek');
+    assert.deepEqual([jezek.state, jezek.counted], ['reward', false]);
+    assert.equal(Album.howText(jezek), 'Odměna za album sbírky na 50\u00a0% spolu s titulem „Velká sbírka“.');
     // Doplňky: bez sezónních z měsíců, které ještě nebyly (10. 11. 2026 jde získat jen listopadový Lampion)
     assert.equal(sectionOf(album, 'accessories').total, Look.ACCESSORIES.length - 11, 'jedenáct sezónních doplňků je zatím skrytých');
     assert.deepEqual(NOVEMBER_ACC, ['lampion']);
@@ -120,7 +127,7 @@ test('100 % je opravdu všechno: celé album, každá sekce kompletní; odznaky 
     // Chybí jediný diplom: už ne 100 % (chybí diplom i legendární postavička za něj, Klokan šampion)
     const diplomas = { ...full.diplomas };
     delete diplomas.sport;
-    const avatars = Look.AVATARS.length;
+    const avatars = sectionOf(Album.build(full), 'avatars').total;
     assert.equal(Album.build({ ...full, diplomas }).percent, Math.floor((6 + (avatars - 1) / avatars + 13 / 14) / 8 * 100 + 1e-9), 'průměr sekcí: 6 × 100 %, postavičky bez jedné a 13/14 diplomů');
     assert.ok(!Album.build({ ...full, diplomas }).complete.includes('diplomas'));
     assert.ok(!Album.build({ ...full, diplomas }).complete.includes('avatars'));

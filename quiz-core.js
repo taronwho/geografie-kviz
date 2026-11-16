@@ -2709,7 +2709,7 @@
         [T(5, 'Rozcvička'), T(10, 'Střelec', 'strelec'), T(25, 'Neomylný', 'neomylny'), T(50, 'Bez chyby'), T(100, 'Stroj'), T(200, 'Nekonečná řada')]);
     addGroup('serie', 'Série dní', 'flame', (c) => c.bestStreak, (g) => `Série ${g} dní dnešních otázek.`,
         [T(3, 'Tři dny'), T(7, 'Týden s Mudrlantem', 'tyden'), T(14, 'Dva týdny'), T(30, 'Věrný měsíc', 'mesic'), T(60, 'Dva měsíce'), T(100, 'Stovka dní'), T(200, 'Dvě stě dní'), T(365, 'Celý rok')]);
-    addGroup('dny', 'Dny ve hře', 'calendar-check', (c) => c.days, (g) => `Hrál jsi ${g} různých dní.`,
+    addGroup('dny', 'Dny ve hře', 'calendar-check', (c) => c.days, (g) => `Hraj ${g} různých dní.`,
         [T(5, 'Stálý host'), T(15, 'Pravidelný'), T(30, 'Měsíc ve hře'), T(60, 'Ostřílený'), T(100, 'Sto her'), T(200, 'Veterán'), T(365, 'Rok s Mudrlantem')]);
     addGroup('dokonale', 'Dokonalé dny', 'sun', (c) => c.perfectDays, (g) => g === 1 ? 'Všechny dnešní otázky v jednom dni.' : `${g}× všechny dnešní otázky v jednom dni.`,
         [T(1, 'Dokonalý den', 'dokonaly-den'), T(3, 'Trojka dokonalých'), T(7, 'Týden dokonalosti'), T(14, 'Dva týdny dokonalosti'), T(30, 'Mistr dne'), T(60, 'Perfekcionista')]);
@@ -2721,7 +2721,7 @@
         [T(10, 'Písmák'), T(25, 'Pisatel', 'pisatel'), T(100, 'Mistr pera'), T(500, 'Kaligraf'), T(1000, 'Strojopisec'), T(2500, 'Mistr klávesnice')]);
     addGroup('tezke', 'Těžké otázky', 'pickaxe', (c) => c.hardCorrect, (g) => `${g} správných u těžších, méně známých otázek.`,
         [T(10, 'Do hloubky', 'do-hloubky'), T(50, 'Hlubinný průzkum'), T(200, 'Král hlubin'), T(500, 'Císař hlubin'), T(1000, 'Hlubinný velmistr')]);
-    addGroup('chyby', 'Opravené chyby', 'repeat', (c) => c.fixed, (g) => `Opravil jsi ${g} dřívějších chyb.`,
+    addGroup('chyby', 'Opravené chyby', 'repeat', (c) => c.fixed, (g) => `Oprav ${g} dřívějších chyb.`,
         [T(10, 'Poučený'), T(50, 'Pracant na sobě'), T(200, 'Z chyb se člověk učí'), T(500, 'Věčný student'), T(1000, 'Mistr nápravy')]);
     addGroup('vyzvy', 'Výzvy', 'swords', (c) => c.challenges, (g) => g === 1 ? 'Dohraj první výzvu.' : `Dohraj ${g} výzev.`,
         [T(1, 'Soupeř', 'soupere'), T(5, 'Pravidelný soupeř'), T(25, 'Zkušený bojovník'), T(100, 'Stovka výzev'), T(250, 'Matador výzev'), T(500, 'Legenda arény')]);
@@ -2735,7 +2735,7 @@
         [T(1, 'Bezchybný'), T(5, 'Pětkrát bezchybný'), T(25, 'Dokonalost sama'), T(50, 'Bezchybný mistr'), T(100, 'Stovka bez chyby')]);
     addGroup('uroven', 'Úrovně', 'graduation-cap', (c, x) => x.level, (g) => `Dosáhni úrovně ${g}.`,
         [T(5, 'Úroveň 5'), T(10, 'Úroveň 10', 'znalec'), T(20, 'Úroveň 20'), T(35, 'Úroveň 35', 'mudrc'), T(50, 'Úroveň 50'), T(65, 'Úroveň 65'), T(80, 'Úroveň 80'), T(100, 'Úroveň 100')]);
-    addGroup('poznane', 'Poznané položky', 'book-open', (c, x) => x.learned, (g) => `Poznal jsi ${g} různých položek.`,
+    addGroup('poznane', 'Poznané položky', 'book-open', (c, x) => x.learned, (g) => `Poznej ${g} různých položek.`,
         [T(100, 'Sto poznaných'), T(500, 'Pět set poznaných'), T(1000, 'Tisíc poznaných'), T(3000, 'Tři tisíce poznaných'), T(5000, 'Pět tisíc poznaných'), T(10000, 'Deset tisíc poznaných')]);
     // Všestrannost: v kolika různých tématech hráč už správně odpověděl; hvězdy mistrovství v nějakém tématu a ve všech tématech
     const starsText = (g) => `${g} ${g === 1 ? 'hvězdu' : g < 5 ? 'hvězdy' : 'hvězd'}`;

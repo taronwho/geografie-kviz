@@ -99,7 +99,8 @@
     // daily_snapshots_get (se starší databází se hraje jako dřív, každý ze svých dat).
     // 34 = Hlasování o speciálním turnaji hráči vidí, jen když ho správce zveřejní (témata vybírá sám ve vývojářských nástrojích,
     // dev_tournament_poll_set; se starší databází se hlasování neukáže vůbec).
-    const REQUIRED_SCHEMA = 34;
+    // 35 = Další postavičky (č. 317–340) v kontrole odemčení na serveru (unlock_catalog_more; se starší databází je server nezná a uloží je volně).
+    const REQUIRED_SCHEMA = 35;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -1278,7 +1279,9 @@
     // nebo už uložený v profilu – i jako staré emoji, které postavička nahradila)
     // Sezónní postavička (Sezónní truhla na 20. stupni): „Získáš v Sezóně Mudrlanta (20. stupeň)“
     const seasonAvatarText = (item) => `Získáš v Sezóně Mudrlanta (${item.seasonTier || (Season ? Season.BUNDLE_TIER : 20)}. stupeň)`;
-    const avatarUnlockText = (item) => item.source === 'season' ? seasonAvatarText(item) : (item.exclusive || item.diploma) && Look ? Look.unlockText(item) : item.badge ? `Odznak: ${(BADGE_BY_ID[item.badge] || {}).title || item.badge}` : `Úroveň ${item.level}`;
+    // Za odznak „Odznak: …“, za úroveň „Úroveň N“, jinak text katalogu (diplom, Truhla Mudrlanta, pozvaní kamarádi, prestiž)
+    const avatarUnlockText = (item) => item.source === 'season' ? seasonAvatarText(item) : item.badge ? `Odznak: ${(BADGE_BY_ID[item.badge] || {}).title || item.badge}`
+        : Number.isFinite(item.level) ? `Úroveň ${item.level}` : Look ? Look.unlockText(item) : '';
     const avatarLock = (value) => {
         const item = Look && Look.avatarItem ? Look.avatarItem(value) : null;
         if (!item || Social.AVATARS.includes(value) || (myProfile && Look.avatarItem(myProfile.avatar) === item) || Look.isUnlocked(item, lookContext())) return null;
@@ -1292,9 +1295,14 @@
     // Moje zvolená sova titulu omezená na dosaženou úroveň (null = sova s doplňky)
     const myPose = () => { const ctx = lookContext(); return Owl && Look ? Owl.allowedPose(ctx.prefs.pose, ctx.level) : null; };
     // Štítek na zamčené dlaždici obrázku: od které úrovně, nebo medaile (odemyká se odznakem; který, řekne popisek a klepnutí),
-    // u legendární postavičky čepice absolventa (odemyká ji diplom tématu)
+    // u legendární postavičky čepice absolventa (odemyká ji diplom tématu), jiskry u věci z truhly, pozvánka u odměny za kamarády
+    // a hvězda u prestiže
     const LOCK_PILL = 'absolute bottom-0 left-1/2 flex -translate-x-1/2 items-center whitespace-nowrap rounded-full bg-white px-1 text-[9px] font-black leading-[0.75rem] text-slate-700 dark:bg-slate-900 dark:text-slate-200';
-    const lockPill = (item) => `<span class="${LOCK_PILL}">${item.diploma ? '<i data-lucide="graduation-cap" class="my-px h-2.5 w-2.5"></i>' : item.badge ? '<i data-lucide="medal" class="my-px h-2.5 w-2.5"></i>' : item.source === 'season' ? `${item.seasonTier || 20}.&nbsp;st.` : `úr.&nbsp;${item.level}`}</span>`;
+    // Popis odznaku jako doplněk věty: „(v Bleskovce 12 správných odpovědí za 60 sekund)“
+    const badgeGoalText = (badge) => badge.text.charAt(0).toLocaleLowerCase('cs') + badge.text.slice(1).replace(/\.$/, '');
+    const pillIcon = (name) => `<i data-lucide="${name}" class="my-px h-2.5 w-2.5"></i>`;
+    const lockPill = (item) => `<span class="${LOCK_PILL}">${item.diploma ? pillIcon('graduation-cap') : item.badge ? pillIcon('medal') : item.source === 'season' ? `${item.seasonTier || 20}.&nbsp;st.`
+        : item.chest || item.rare ? pillIcon('sparkles') : item.referral ? pillIcon('user-plus') : item.prestige ? pillIcon('star') : `úr.&nbsp;${item.level}`}</span>`;
     // Dlaždice sov titulů v Profilu → Mudrlant (hned za „Moje sova“): sova v mé barvě obleku, oříznutá do kolečka jako v profilovce;
     // dosažené jdou vybrat, vyšší jsou zašedlé s úrovní, od které se odemknou, a klepnutí jen řekne, kdy to bude
     const poseTiles = () => {
@@ -2189,6 +2197,7 @@
             if (groupButton && meDraft) {
                 pictureGroup = groupButton.dataset.picGroup;
                 if (pictureGroup === 'legendy') touchTip('legends');
+                if (pictureGroup === 'postavicky') touchTip('characters');
                 openSettings(meNote, `[data-pic-group="${pictureGroup}"]`);
                 return;
             }
@@ -2328,7 +2337,8 @@
                 const topic = item && item.diploma ? TOPIC_BY_ID[item.diploma] : null;
                 if (item) openSettings(item.diploma ? (topic && Rewards ? `${item.title} se odemkne diplomem „${Rewards.diplomaTitle(topic)}“ (plné mistrovství tématu ${topic.title}).` : `${item.title}: ${Look.unlockText(item)}.`)
                     : item.source === 'season' ? `${item.title}: ${seasonAvatarText(item)}.`
-                    : item.badge ?`${item.title} se odemkne odznakem „${(BADGE_BY_ID[item.badge] || {}).title || item.badge}“.` : `${item.title} se odemkne na úrovni ${item.level}.`, `[data-locked-avatar="${locked.dataset.lockedAvatar}"]`);
+                    : item.badge ? `${item.title} se odemkne odznakem „${(BADGE_BY_ID[item.badge] || {}).title || item.badge}“${BADGE_BY_ID[item.badge] ? ` (${badgeGoalText(BADGE_BY_ID[item.badge])})` : ''}.`
+                    : Number.isFinite(item.level) ? `${item.title} se odemkne na úrovni ${item.level}.` : `${item.title}: ${avatarUnlockText(item)}.`, `[data-locked-avatar="${locked.dataset.lockedAvatar}"]`);
                 return;
             }
             if (event.target.closest('[data-owl-as-avatar]')) { useOwlAsAvatar(); return; }
@@ -5279,6 +5289,8 @@
         overlay.addEventListener('click', (event) => {
             if (event.target.closest('[data-chest-close]') || event.target === overlay) { closeChestOverlay(); return; }
             if (event.target.closest('[data-chest-wear]') && opened && opened.gift) {
+                // Postavička z truhly: výběr profilového obrázku s ní (profil je v účtu)
+                if (opened.gift.category === 'avatars') { closeChestOverlay(); wearAvatar(opened.gift.item.id); return; }
                 wearGift(opened.gift);
                 closeChestOverlay();
                 showToast(`${opened.gift.item.title}: hotovo. Změníš to v ${rewardPlace(opened.gift.category)}.`);
@@ -5654,6 +5666,9 @@
             if (event.target.closest('[data-season-close]') || event.target === overlay) { closeSeasonOverlay(); if (back) back(); return; }
             if (event.target.closest('[data-season-next]')) { closeSeasonOverlay(); openSeasonReveal(null, back); return; }
             if (event.target.closest('[data-season-wear]') && opened) {
+                // Stupeň s jedinou postavičkou (z výběru truhly, Kapybara v lázních): výběr profilového obrázku s ní
+                const only = opened.parts.filter(part => part.item && part.category !== 'colors');
+                if (only.length === 1 && only[0].category === 'avatars') { closeSeasonOverlay(); wearAvatar(only[0].item.id); return; }
                 wearSeasonParts(opened.parts);
                 const more = left();
                 closeSeasonOverlay();
@@ -9857,6 +9872,11 @@
         if (entry.category === 'colors') return `Barvu doplňku vybereš v ${rewardPlace('colors')}.`;
         return '';
     };
+    // Postavička jako profilový obrázek (z alba, truhly nebo Sezóny): otevře Profil s ní a uloží ji; bez přihlášení jen řekne, že je potřeba
+    const wearAvatar = (id) => {
+        if (!(signedUser() && Social)) { showToast('Postavičku si dáš jako profilový obrázek po přihlášení (záložka Já).'); return; }
+        wearAlbumAvatar(id);
+    };
     // Postavička jako profilový obrázek: stejně jako výběr v Nastavení → Profil (barvy částí, které hráč postavičce dal naposledy) a uložení
     const wearAlbumAvatar = (id) => {
         closeDialog();
@@ -12844,7 +12864,7 @@
             writeJson(PRESTIGE_SEEN, `${next.n}:1`);
             applyLook();
             updateControlsUI();
-            showCelebration('vitez', `Prestiž ★${next.n}`, next.n === 1 ? 'Úroveň znovu od 1 a rámeček Prestižní (Nastavení → Profil)' : 'Úroveň znovu od 1. Nic odemčeného se neztratilo.', 'title');
+            showCelebration('vitez', `Prestiž ★${next.n}`, next.n === 1 ? 'Úroveň znovu od 1, rámeček Prestižní a postavička Avokádo jogín (Nastavení → Profil)' : 'Úroveň znovu od 1. Nic odemčeného se neztratilo.', 'title');
         } else if (message) showToast(message);
         if (document.getElementById('dialog-overlay')) openLevels();
     };

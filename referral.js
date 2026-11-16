@@ -23,7 +23,8 @@
     const REWARDS = {
         novacek: { xp: 200, frame: 'pratelsky', title: 'Odměna za první hru', text: 'rámeček Přátelský a 200 XP' },
         'pritel-1': { xp: 300, frame: 'pratelsky', need: 1, title: 'První pozvaný kamarád', text: 'rámeček Přátelský a 300 XP' },
-        'pritel-3': { xp: 500, reaction: '🤗', effect: 'srdicka', need: 3, title: 'Tři pozvaní kamarádi', text: 'reakce 🤗 Vítej mezi námi, vítězný efekt Srdíčka přátel a 500 XP' },
+        // avatar = postavička, kterou odměna odemkne (look.js: položka s referral, tady jen pro text a obrázek)
+        'pritel-3': { xp: 500, reaction: '🤗', effect: 'srdicka', avatar: 'kosatk', need: 3, title: 'Tři pozvaní kamarádi', text: 'postavička Kosatka komorník, reakce 🤗 Vítej mezi námi, vítězný efekt Srdíčka přátel a 500 XP' },
         'pritel-10': { xp: 1000, frame: 'parta', need: 10, title: 'Deset pozvaných kamarádů', text: 'rámeček Parta a 1 000 XP' }
     };
     const REWARD_KEYS = Object.keys(REWARDS);
@@ -117,7 +118,7 @@
             return `<li data-referral-tier="${need}" class="flex items-center gap-2 rounded-xl px-2 py-1.5 ${done ? 'bg-emerald-50 dark:bg-emerald-900/30' : ready ? 'bg-gold-100 ring-2 ring-gold-400 dark:bg-gold-900/40' : 'bg-white shadow-sm dark:bg-slate-800'}">
                 <span class="flex h-8 min-w-[2rem] shrink-0 items-center justify-center rounded-full px-1 text-[13px] font-black ${done ? 'bg-emerald-600 text-white' : reached ? 'bg-gold-500 text-brand-950' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-200'}">${done ? '<i data-lucide="check" class="h-4 w-4"></i>' : need}</span>
                 <span class="min-w-0 flex-1 text-[12px] font-bold leading-snug text-slate-700 dark:text-slate-200"><b class="text-slate-800 dark:text-slate-100">${esc(friendsWord(need))}:</b> ${esc(reward.text)}</span>
-                ${h.frameClass && reward.frame ? `<span class="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[1.1rem]${h.frameClass(reward.frame)}"><img src="icons/logo.webp" alt="" class="h-[78%] w-[78%] object-contain"></span>` : reward.reaction ? `<span class="shrink-0 text-xl leading-none" aria-hidden="true">${reward.reaction}</span>` : ''}
+                ${h.frameClass && reward.frame ? `<span class="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[1.1rem]${h.frameClass(reward.frame)}"><img src="icons/logo.webp" alt="" class="h-[78%] w-[78%] object-contain"></span>` : reward.avatar ? `<img src="icons/avatars/${esc(reward.avatar)}.webp" alt="" class="h-8 w-8 shrink-0 object-contain">` : reward.reaction ? `<span class="shrink-0 text-xl leading-none" aria-hidden="true">${reward.reaction}</span>` : ''}
             </li>`;
         };
         const invitedRow = (row) => `<li class="flex items-center gap-2 rounded-xl bg-white px-2 py-1 shadow-sm dark:bg-slate-800">${h.avatarHtml ? h.avatarHtml(row, 'h-7 w-7 text-sm') : ''}<span class="min-w-0 flex-1 truncate text-[12px] font-black text-slate-800 dark:text-slate-100">${esc(row.display_name)}</span><span class="shrink-0 text-[11px] font-bold ${row.qualified ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400'}">${row.qualified ? 'počítá se' : `${Math.min(row.games, QUALIFY_GAMES)}/${QUALIFY_GAMES} ${QUALIFY_GAMES === 3 ? 'hry' : 'her'}`}</span></li>`;

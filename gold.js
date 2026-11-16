@@ -112,13 +112,13 @@
     const xpBonus = (base) => Math.max(0, Math.round(Number(base) || 0)) * (MULTIPLIER - 1);
     const markIntro = (input) => ({ ...parse(input), intro: true });
 
-    // --- Zlatá truhla: vzácné věci, které hráč ještě nemá (doplňky jen z truhly a vzácné obrázkové rámečky) ---
+    // --- Zlatá truhla: vzácné věci, které hráč ještě nemá (doplňky jen z truhly, vzácné obrázkové rámečky a postavičky z truhly) ---
     const giftsOf = (rewards) => (Rewards ? Rewards.parse(rewards).gifts : {});
     const chestCandidates = (rewards) => {
         if (!Look) return [];
         const owned = giftsOf(rewards);
         const has = (category, id) => Array.isArray(owned[category]) && owned[category].includes(id);
-        return [['accessories', (item) => Boolean(item.chest)], ['frames', (item) => Boolean(item.rare)]]
+        return [['accessories', (item) => Boolean(item.chest)], ['frames', (item) => Boolean(item.rare)], ['avatars', (item) => Boolean(item.chest || item.rare)]]
             .flatMap(([category, test]) => (Look.CATALOG[category] || []).filter(item => test(item) && !has(category, item.id)).map(item => ({ category, item })));
     };
     // Otevření jedné čekající Zlaté truhly: { opened, gold, rewards, gift: { category, item } | null, xp }. Věc se připíše k věcem z truhel

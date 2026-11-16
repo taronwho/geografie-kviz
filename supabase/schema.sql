@@ -7549,6 +7549,12 @@ language sql stable set search_path = public as $$
         where wanted = any (g.tiers) and array_position(g.tiers, b) > array_position(g.tiers, wanted));
 $$;
 
+-- Řádky katalogu z pozdějších bloků (blok 35: další postavičky). Tady prázdné, pozdější blok funkci nahradí (spouští se celý soubor,
+-- takže po bloku 32 vždy přijde i jeho náhrada); unlock_catalog() je přidá za řádky tohoto bloku.
+create or replace function public.unlock_catalog_more() returns table (cat text, item text, rule text)
+language sql immutable set search_path = public as $$
+    select null::text, null::text, null::text where false;
+$$;
 -- Katalog odemykání (look.js FRAMES, TITLES, ROBES, ACCESSORIES, ACC_COLORS, POSES, AVATARS i se starými emoji, friends.js reakce a efekty):
 -- cat = druh, item = id, rule = 'free' | 'level:N' | 'badge:<odznak>' | 'league:<liga>' | 'gift' (jen dar z truhly) | 'season-gift' (dar ze Sezóny)
 -- | 'diploma:<téma>' | 'season:10|20' (stupeň Sezóny podle darů) | 'referral:<klíče>' | 'prestige:N'
@@ -7620,7 +7626,8 @@ language sql immutable set search_path = public as $$
         ('reactions', '👑', 'season:20'), ('reactions', '🤗', 'referral:pritel-3'), ('fx', 'konfety', 'level:5'), ('fx', 'hvezdy', 'level:20'),
         ('fx', 'ohnostroj', 'level:40'), ('fx', 'koruna', 'badge:vyhry-25'), ('fx', 'blesky', 'badge:vyhry-v-rade-5'), ('fx', 'sezona', 'season:20'),
         ('fx', 'srdicka', 'referral:pritel-3')
-    ) as t (cat, item, rule);
+    ) as t (cat, item, rule)
+    union all select * from public.unlock_catalog_more();
 $$;
 
 -- Nejlepší liga skončené ligové sezóny hráče (pořadí 1 = bronz … 6 = mistr, 0 = žádná)
@@ -8015,7 +8022,7 @@ begin
 end;
 $$;
 
-revoke all on function public.level_of_xp(integer), public.badge_tiers(), public.badge_owned(text[], text), public.unlock_catalog(), public.league_best_rank(uuid),
+revoke all on function public.level_of_xp(integer), public.badge_tiers(), public.badge_owned(text[], text), public.unlock_catalog_more(), public.unlock_catalog(), public.league_best_rank(uuid),
     public.referral_code_for(uuid), public.referral_games(uuid), public.referral_qualified(uuid), public.referral_ready(uuid),
     public.unlock_gift(jsonb, text, text), public.unlock_ok(public.profiles, text, text), public.unlock_title_ok(public.profiles, text), public.unlock_avatar_ok(public.profiles, text),
     public.unlock_color_ok(public.profiles, text), public.unlock_owl(public.profiles, text), public.check_unlocks() from public, anon, authenticated;
@@ -8227,6 +8234,28 @@ revoke all on function public.dev_tournament_poll_set(text[], boolean) from publ
 grant execute on function public.dev_tournament_poll_set(text[], boolean) to authenticated;
 -- ===== 34: Hlasování o speciálním turnaji jen na pokyn správce — KONEC BLOKU =====
 
+-- ===== 35: Další postavičky (č. 317–340) — ZAČÁTEK BLOKU =====
+-- Postavičky z docs/OBRAZKY.md oddílu 26 (look.js NEW_AVATARS) jako řádky katalogu odemykání (blok 32): unlock_catalog() je přidá za
+-- své řádky přes unlock_catalog_more(), takže kontrola obrázku v profilu (unlock_avatar_ok, trigger profiles_unlock_check) je zná stejně
+-- jako starší postavičky. Bez tohoto bloku je server nezná a pustí je jako základní emoji (neznámý obrázek = volně).
+-- Pravidla jako v bloku 32: úroveň z XP v účtu, odznak v účtu (i vyšší stupeň téže skupiny), 'gift' = jen dar z truhly (Kapybara v lázních
+-- z Truhly Mudrlanta a stupňů Sezóny, Zmrzlinový kornout vzácně z Truhly Mudrlanta a ze Zlaté truhly), pozvaní kamarádi a prestiž.
+-- Další postavičky (č. 339, 341–357) se připíšou sem na konec seznamu (a číslo verze schématu se zvýší). Shodu s look.js hlídá
+-- tests/motivace.test.js.
+create or replace function public.unlock_catalog_more() returns table (cat text, item text, rule text)
+language sql immutable set search_path = public as $$
+    select * from (values
+        ('avatars', 'vacice', 'level:10'), ('avatars', 'spisov', 'level:17'), ('avatars', 'pstros', 'badge:tema-sport-25'), ('avatars', 'koala', 'badge:bleskovka-12'),
+        ('avatars', 'toust', 'badge:dnes-50'), ('avatars', 'krokod', 'badge:chyby-50'), ('avatars', 'brokol', 'badge:tydenni-cile-5'), ('avatars', 'netopy', 'badge:detektiv-7'),
+        ('avatars', 'plamak', 'badge:kviz-perfekt-5'), ('avatars', 'vajko', 'badge:sazkar'), ('avatars', 'pizza', 'badge:vyhry-5'), ('avatars', 'jezek', 'badge:sberatel-50'),
+        ('avatars', 'zirafa', 'level:31'), ('avatars', 'vydra', 'badge:preziti-35'), ('avatars', 'hroch', 'badge:tezke-50'), ('avatars', 'lama', 'badge:tema-hudba-100'),
+        ('avatars', 'pavouk', 'badge:turnaj-postupy-5'), ('avatars', 'krava', 'badge:dobyvatel-3'), ('avatars', 'velbl', 'badge:boss-kapitan'), ('avatars', 'kapyba', 'gift'),
+        ('avatars', 'zmrzl', 'gift'), ('avatars', 'kosatk', 'referral:pritel-3'), ('avatars', 'avokad', 'prestige:1')
+    ) as t (cat, item, rule);
+$$;
+revoke all on function public.unlock_catalog_more() from public, anon, authenticated;
+-- ===== 35: Další postavičky (č. 317–340) — KONEC BLOKU =====
+
 -- ===== Verze schématu =====
 -- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.
 -- Aplikace ho po přihlášení porovná a správci (dev_admins nebo vývojářský režim) ukáže v Nastavení, že má schéma spustit znovu;
@@ -8309,7 +8338,8 @@ grant execute on function public.dev_tournament_poll_set(text[], boolean) to aut
 --     mudrlant-dnes-, -retezovka-, -tajemna- a -boss-; daily_snapshot_seed_ok), daily_snapshots_get je vrací i nepřihlášeným (daily_snapshot_public).
 -- 34: Hlasování o speciálním turnaji jen na pokyn správce (tournament_polls.visible, 2–4 témata; tournament_poll_state vrací skryté jen správci,
 --     tournament_vote jen ve zveřejněném; dev_tournament_poll_set: témata a zobrazení vybere správce).
+-- 35: Další postavičky (č. 317–340) v katalogu odemykání: unlock_catalog_more() (v bloku 32 prázdná, unlock_catalog() ji přidá za své řádky).
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 34 $$;
+language sql immutable as $$ select 35 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

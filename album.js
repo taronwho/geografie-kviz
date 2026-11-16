@@ -4,7 +4,7 @@
 //
 // Jak se počítá:
 // - Do sbírky patří jen to, co se dá získat: věci, které má každý od začátku (vínové téma a talár, Bez rámečku), se nepočítají ani neukazují.
-// - Odměny za album samo (položka s album: true – rámeček Sběratelský; odznaky alba z quiz-core isAlbumBadge) se ukazují, ale nepočítají,
+// - Odměny za album samo (položka s album: true – rámeček Sběratelský, postavička Ježek krejčí; odznaky alba z quiz-core isAlbumBadge) se ukazují, ale nepočítají,
 //   jinak by 100 % nešlo nikdy získat.
 // - Rámečky ligových sezón (league) jdou získat každý měsíc: jsou to běžné věci (chybí, dokud je hráč nemá). Stejně Pochodeň vítěze (doplněk).
 // - Věci jen z Truhly Mudrlanta (chest v look.js: čepice s vrtulkou, páska, srdíčkové brýle, věnec, hrnek) jsou běžné věci s textem „Z Truhly Mudrlanta“.
@@ -219,7 +219,9 @@
         // Legendární postavička: diplom tématu (look.js diploma)
         const topic = item.diploma ? { id: item.diploma, title: (Look && Look.DIPLOMA_TOPICS && Look.DIPLOMA_TOPICS[item.diploma]) || item.diploma } : null;
         if (topic) return `Legendární postavička za diplom „${Rewards ? Rewards.diplomaTitle(topic) : topic.title}“: plné mistrovství tématu ${topic.title} (${MASTERY.length} hvězdiček). Úrovní ani truhlou se nezíská.`;
-        let text = item.album ?`Odměna za celé album sbírky (100${NB}%) spolu s titulem „${badgeTitle(item.badge)}“.`
+        // Odměna za album samo (rámeček Sběratelský za 100 %, Ježek krejčí za 50 %): procenta z milníku odznaku
+        const goal = item.album && badge && Number.isFinite(badge.goal) ? badge.goal : 100;
+        let text = item.album ? `Odměna za ${goal >= 100 ? `celé album sbírky (100${NB}%)` : `album sbírky na ${goal}${NB}%`} spolu s titulem „${badgeTitle(item.badge)}“.`
             : item.bonus && Look ? `${Look.unlockText(item)}. Bonus navíc, do sbírky se nepočítá.`
             : item.rare ? 'Vzácný dárek z Truhly Mudrlanta za splněné cíle týdne (občas místo běžné věci) a ze Zlaté truhly za pět zlatých střípků. Úrovní se neodemyká.'
             : item.chest ? 'Z Truhly Mudrlanta za splněné cíle týdne, ze stupně Sezóny Mudrlanta a ze Zlaté truhly za pět zlatých střípků. Úrovní se neodemyká.'
@@ -233,7 +235,7 @@
         owned: { text: 'Ve sbírce', icon: 'check', tone: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' },
         missing: { text: 'Chybí', icon: 'lock', tone: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200' },
         ended: { text: 'Sezónní – už nejde získat', icon: 'hourglass', tone: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200' },
-        reward: { text: 'Odměna za celé album', icon: 'sparkles', tone: 'bg-gold-100 text-gold-800 dark:bg-gold-900/40 dark:text-gold-200' }
+        reward: { text: 'Odměna za album', icon: 'sparkles', tone: 'bg-gold-100 text-gold-800 dark:bg-gold-900/40 dark:text-gold-200' }
     };
 
     // --- HTML (h = pomocné funkce z app.js: esc, medal(badge, earned, size, iconSize), avatar(id, cls), topicIcon, styleOf, frameClass) ---
