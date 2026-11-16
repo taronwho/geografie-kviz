@@ -9280,7 +9280,6 @@
 
     // ----- Záložka Já: karta hráče a řádky do oken (Mudrlant, Profil, Nastavení hry, Upozornění, Účet, Pozvi kamarády) -----
     const JA_ROW = `${HOME_ROW} min-h-[3.4rem] short:min-h-[3rem] short:py-1.5 tiny:min-h-[2.7rem] tiny:py-1`;
-    const JA_ART = 'h-10 w-10 short:h-9 short:w-9 tiny:h-8 tiny:w-8';
     const jaRow = ({ attrs, icon = '', art = '', title, text = '', tone = 'bg-brand-100 text-brand-700 dark:bg-brand-900/60 dark:text-brand-200', right = '<i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-400"></i>' }) => `
             <button type="button" ${attrs} class="${JA_ROW}">
                 ${art || `<span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl short:h-9 short:w-9 tiny:h-8 tiny:w-8 ${tone}"><i data-lucide="${icon}" class="h-5 w-5"></i></span>`}
@@ -9307,12 +9306,12 @@
                 </div>
             </div>`;
         const rows = [
-            ...(Owl ? [jaRow({ attrs: 'data-ja="owl"', art: uiArt('sova-radost', JA_ART), title: 'Mudrlant', text: 'Oblek, čepice a doplňky sovy' })] : []),
-            ...(user ? [jaRow({ attrs: 'data-ja="profile"', art: uiArt('vitrina', JA_ART), title: 'Profil', text: 'Přezdívka, obrázek, rámeček a titul' })] : []),
+            ...(Owl ? [jaRow({ attrs: 'data-ja="owl"', icon: 'sparkles', title: 'Mudrlant', text: 'Oblek, čepice a doplňky sovy' })] : []),
+            ...(user ? [jaRow({ attrs: 'data-ja="profile"', icon: 'user-round', title: 'Profil', text: 'Přezdívka, obrázek, rámeček a titul' })] : []),
             jaRow({ attrs: 'data-ja="game"', icon: 'settings-2', title: 'Nastavení hry', text: 'Varianta, obtížnost, barvy a zvuky' }),
-            ...(user && Push && Push.configured() && !(pushState && pushState.kind === 'hidden') ? [jaRow({ attrs: 'data-ja="push"', art: uiArt('sova-zvonek', `${JA_ART}${pushState && pushState.kind === 'on' ? '' : ' opacity-60 grayscale'}`), title: 'Upozornění', text: `<span data-ja-push>${escapeHtml(pushRowText())}</span>` })] : []),
-            ...(user ? [jaRow({ attrs: 'data-ja="account"', art: uiArt('pecet', JA_ART), title: 'Účet', text: 'Přijímané výzvy, zablokovaní, moje data, odhlášení' })] : []),
-            ...(user && Referral && referralState ? [jaRow({ attrs: 'data-ja="referral"', art: uiArt('sova-vitej', JA_ART), title: 'Pozvi kamarády', text: referralState.ready.length ? 'Čeká odměna za pozvání' : 'Odměna pro tebe i kamaráda' })] : [])
+            ...(user && Push && Push.configured() && !(pushState && pushState.kind === 'hidden') ? [jaRow({ attrs: 'data-ja="push"', icon: pushState && pushState.kind === 'on' ? 'bell' : 'bell-off', title: 'Upozornění', text: `<span data-ja-push>${escapeHtml(pushRowText())}</span>` })] : []),
+            ...(user ? [jaRow({ attrs: 'data-ja="account"', icon: 'shield-check', title: 'Účet', text: 'Přijímané výzvy, zablokovaní, moje data, odhlášení' })] : []),
+            ...(user && Referral && referralState ? [jaRow({ attrs: 'data-ja="referral"', icon: 'user-plus', title: 'Pozvi kamarády', text: referralState.ready.length ? 'Čeká odměna za pozvání' : 'Odměna pro tebe i kamaráda' })] : [])
         ];
         const login = state.configured && !user ? `
             <button type="button" data-ja="login" class="flex w-full shrink-0 items-center gap-3 rounded-[1.15rem] btn-3d bg-brand-700 px-4 py-2.5 text-left text-white">

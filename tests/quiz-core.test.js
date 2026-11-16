@@ -766,3 +766,9 @@ test('jiný název hned za zakrytou odpovědí patří do stejného bloku ([***]
     assert.equal(core.swallowAliases('Kladně nebo záporně nabitý [***] je částice.'), 'Kladně nebo záporně nabitý [***] je částice.');
     assert.equal(core.swallowAliases('[***] nebo kladně nabitý ion se liší.'), '[***] nebo kladně nabitý ion se liší.');
 });
+
+test('náhledy z Commons jen ve standardních šířkách (480 a 320 Wikimedia odmítne chybou 400)', () => {
+    const width = (w) => Number(core.commonsPhotoUrl('Heyrovsky Jaroslav.jpg', '82', w).match(/\/(\d+)px-/)[1]);
+    assert.deepEqual([480, 320, 500, 960, 100, 5000].map(width), [500, 330, 500, 960, 120, 1920]);
+    assert.equal(width(), 960);
+});
