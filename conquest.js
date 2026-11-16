@@ -1775,11 +1775,33 @@
     const maskShare = (text) => { const marks = (String(text || '').match(/\[\*\*\*\]/g) || []).length; const total = marks + realWords(text); return total ? marks / total : 1; };
     // Popis musí být z článku a dost dlouhý; jinak (krátký popis z Wikidat) aspoň se dvěma fakty. Fakta aspoň dvě, obrázek načtený.
     // Otázka na fakta, ke které jich je málo, se zeptá popisem (když předchozí otázka nebyla popis: last = forma předchozí otázky)
+    // Jednoznačnost: popis a fakta, která otázka ukáže, musí vyvrátit všechny tři nesprávné možnosti (data.unique z quiz-core.js
+    // uniqueInfo: které možnosti vyvrací popis, každý fakt a rozlišující údaje). Když nevyvrátí, přidá se rozlišující údaj (clue),
+    // který vyvrací zbylé (nebo dva spolu); když žádný není, otázka nejde (místní otázka). Bez data.unique (starší app.js) beze změny.
+    const uniqueClue = (content, data, facts) => {
+        const unique = data.unique;
+        if (!unique || !Array.isArray(unique.wrong) || !unique.wrong.length) return [];
+        const covered = new Set([...(content.text && Array.isArray(unique.text) ? unique.text : []),
+            ...(content.facts || []).flatMap(fact => (facts.find(entry => entry.label === fact.label) || {}).excludes || [])]);
+        const open = unique.wrong.filter(id => !covered.has(id));
+        if (!open.length) return [];
+        const clues = (Array.isArray(unique.clues) ? unique.clues : []).filter(clue => clue && clue.label && clue.value && Array.isArray(clue.excludes));
+        const single = clues.find(clue => open.every(id => clue.excludes.includes(id)));
+        if (single) return [{ label: String(single.label), value: String(single.value) }];
+        for (const first of clues) {
+            const rest = open.filter(id => !first.excludes.includes(id));
+            const second = clues.find(clue => clue !== first && rest.length && rest.every(id => clue.excludes.includes(id)));
+            if (second) return [first, second].map(clue => ({ label: String(clue.label), value: String(clue.value) }));
+        }
+        return null;
+    };
     const completeQuestion = (question, data, last = null) => {
         if (!question || !question.pending || !data) return null;
         const seen = new Set();
         const facts = (Array.isArray(data.facts) ? data.facts : []).filter(fact => fact && fact.label && (typeof fact.value === 'string' || typeof fact.value === 'number'))
-            .map(fact => ({ label: String(fact.label), value: String(fact.value) })).filter(fact => !seen.has(fact.label) && seen.add(fact.label));
+            .map(fact => ({ label: String(fact.label), value: String(fact.value), excludes: Array.isArray(fact.excludes) ? fact.excludes : [] }))
+            .filter(fact => !seen.has(fact.label) && seen.add(fact.label));
+        const shownFacts = (list) => list.map(({ label, value }) => ({ label, value }));
         // Poslední pojistka: slovo správné možnosti, které nesprávné nemají (Poznani u Městského stadionu v Poznani), v popisu
         // nezůstane (core.sealAnswerWords, stejně jako v hlavní hře); popis, který je pak z velké části zakrytý nebo ve kterém
         // nezávislá kontrola (core.answerWordsLeft) takové slovo přesto najde, se nepoužije: otázka dostane fakta, jinak místní otázku
@@ -1793,14 +1815,18 @@
         let content = null;
         if (question.form === 'text') {
             if (article) content = { text };
-            else if (readable && facts.length >= 2) content = { text, facts: facts.slice(0, 3) };
+            else if (readable && facts.length >= 2) content = { text, facts: shownFacts(facts.slice(0, 3)) };
             // Popis po zakrytí skoro samé [***] nebo žádný: otázka na fakta (když předchozí otázka nebyla na fakta), jinak místní otázka
             else if (last !== 'facts' && facts.length >= 2) return completeQuestion({ ...question, form: 'facts' }, { ...data, text: '' }, last);
         } else if (question.form === 'facts') {
-            if (facts.length >= 2) content = { facts: facts.slice(0, 4) };
+            if (facts.length >= 2) content = { facts: shownFacts(facts.slice(0, 4)) };
             else if (last !== 'text' && article) return completeQuestion({ ...question, form: 'text' }, { ...data, facts: [] });
         } else if (question.form === 'photo' && data.image) content = { image: String(data.image) };
         if (!content) return null;
+        // Rozlišující údaj (jen u popisu a faktů; obrázek otázky ukazuje věc samu)
+        const clue = content.image ? [] : uniqueClue(content, data, facts);
+        if (!clue) return null;
+        if (clue.length) content.clue = clue;
         const { pending, request, ...rest } = question;
         return { ...rest, content: { ...content, type: question.sameType ? String(data.typeLabel || '') : '' } };
     };
@@ -2992,14 +3018,16 @@
     const fullQuestionHtml = (question, { title, answered, kind, right = null, battle = null, view = null, fifty = null, gone = new Set(), fresh = false, photos = {} }) => {
         const content = question.content;
         const type = content.type ? `<span class="cq-qtype mb-1.5 inline-flex max-w-full items-center gap-1 rounded-lg px-2 py-0.5 text-[11.5px] font-black"><i data-lucide="tag" class="h-3.5 w-3.5 shrink-0"></i><span class="truncate">${esc(content.type)}</span></span>` : '';
-        const facts = (list) => `<dl class="flex flex-col gap-1" aria-label="Fakta">${list.map(fact => `<div class="cq-fact flex items-baseline gap-2 rounded-lg px-2 py-1"><dt class="w-[36%] shrink-0 text-[11px] font-black uppercase leading-tight tracking-wide text-amber-900/80 dark:text-gold-200/80">${esc(fact.label)}</dt><dd class="min-w-0 break-words text-[14px] font-bold leading-snug text-slate-900 dark:text-white">${esc(fact.value)}</dd></div>`).join('')}</dl>`;
+        // Rozlišující údaj (content.clue) je první fakt seznamu
+        const clueCount = (content.clue || []).length;
+        const facts = (list, marked = false) => `<dl class="flex flex-col gap-1" aria-label="Fakta">${list.map((fact, i) => `<div${marked && i < clueCount ? ' data-cq-clue' : ''} class="cq-fact flex items-baseline gap-2 rounded-lg px-2 py-1"><dt class="w-[36%] shrink-0 text-[11px] font-black uppercase leading-tight tracking-wide text-amber-900/80 dark:text-gold-200/80">${esc(fact.label)}</dt><dd class="min-w-0 break-words text-[14px] font-bold leading-snug text-slate-900 dark:text-white">${esc(fact.value)}</dd></div>`).join('')}</dl>`;
         let body;
         if (content.image) {
             body = `<div class="cq-qimg relative min-h-0 flex-1 overflow-hidden rounded-xl">${photoImg('content', (photos || {}).content, 'absolute inset-0 h-full w-full object-contain', 'Obrázek k otázce')}${content.type ? `<div class="absolute left-1.5 top-1.5 max-w-[80%]">${type}</div>` : ''}</div>`;
         } else if (content.text) {
-            body = `<div data-cq-qtext class="min-h-0 overflow-y-auto overscroll-contain px-3 py-2.5">${type ? `<div>${type}</div>` : ''}<p class="text-[15px] font-medium italic leading-snug text-slate-800 dark:text-slate-100">„${esc(content.text)}“</p>${content.facts ? `<div class="mt-2">${facts(content.facts)}</div>` : ''}</div>`;
+            body = `<div data-cq-qtext class="min-h-0 overflow-y-auto overscroll-contain px-3 py-2.5">${type ? `<div>${type}</div>` : ''}<p class="text-[15px] font-medium italic leading-snug text-slate-800 dark:text-slate-100">„${esc(content.text)}“</p>${content.facts || content.clue ? `<div class="mt-2">${facts([...(content.clue || []), ...(content.facts || [])], true)}</div>` : ''}</div>`;
         } else {
-            body = `<div class="flex min-h-0 flex-col overflow-y-auto overscroll-contain px-2.5 py-2">${type ? `<div>${type}</div>` : ''}${facts(content.facts || [])}</div>`;
+            body = `<div class="flex min-h-0 flex-col overflow-y-auto overscroll-contain px-2.5 py-2">${type ? `<div>${type}</div>` : ''}${facts([...(content.clue || []), ...(content.facts || [])], true)}</div>`;
         }
         const options = question.choices.map((choice, i) => `<button type="button" data-cq-answer="${i}" ${answered !== null || gone.has(i) ? 'disabled' : ''}${gone.has(i) ? ' data-cq-gone' : ''} class="cq-choice${choiceState(i, answered, right)}${goneState(i, gone, fresh)} flex min-h-[3rem] min-w-0 items-center justify-center break-words rounded-xl px-2 py-1 text-center text-[13.5px] font-bold leading-tight text-slate-800 short:min-h-[2.75rem] dark:text-slate-100">${esc(choice.label)}</button>`).join('');
         const solved = right !== null ? question.choices[right] : null;

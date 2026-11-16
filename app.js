@@ -15,6 +15,8 @@
         levelProgress, titleForLevel, nextTitle, answerXp, DAILY_XP, DAILY_ALL_XP, streakXp, MASTERY_STEPS, masteryStars, nextMastery,
         buildHints: CoreBuildHints, planRound
     } = window.MudrlantCore;
+    // Sestavení otázky z textu s jednoznačností (quiz-core.js composeRound): rozlišující údaj, výměna nesprávných možností
+    const { composeRound } = window.MudrlantCore;
     const Visuals = window.MudrlantVisuals;
     // Opakování karet (review.js) a týdenní cíle (goals.js); bez skriptu se jen nezobrazí
     const Review = window.MudrlantReview || null;
@@ -555,6 +557,11 @@
     // options.map = výzva (zápas turnaje) určila podle semínka, že otázka má být na mapě (když na ni položka jde)
     // options.wrong = nesprávné možnosti, které vybral volající (Dobývání: tři položky ze stejného území a tématu); popis pak zakryje
     // i jejich jména a fakta, která mají všechny čtyři, se nenabídnou
+    // Výměna nesprávných možností kvůli jednoznačnosti: trénink, výzvy a Dobývání hned; denní módy (Dnešní otázky, Kvíz dne, Tajemná
+    // otázka od DAILY_STABLE_FROM, Boss od týdne BOSS_STABLE_FROM) jen se stabilními možnostmi (options.stableChoices: jen podle dat),
+    // takže se dnešní sada uprostřed dne nezmění a všichni hráči mají stejné možnosti. options.mode = hra, pro kterou se otázka chystá
+    const uniqueSwapsNow = (options, forMode = options.mode || mode) => Boolean(options.wrong) || Boolean(options.stableChoices)
+        || (!options.plain && (forMode === 'practice' || forMode === 'challenge'));
     const createRoundData = async (item, ctx, rng, options = {}) => {
         const { topic, items } = ctx;
         // Pořadí volání rng je stálé, aby dnešní otázka vyšla všem stejně
@@ -580,43 +587,26 @@
         const shown = topic.questionImage ? topic.questionImage(item, ctx, question.type) : null;
         const shownUrl = shown ? await timed('obrazek-otazky', probePhoto(commonsPhotoUrl(shown.file, shown.hash, 960)).then(url => url || probePhoto(commonsFileUrl(shown.file, shown.hash)))) : null;
         const fetchedText = await timed('wikipedie', fetchItemText(item));
-        // options.stableChoices (denní módy): možnosti se vybírají jen podle dat – střet nesprávné možnosti s popisem se hledá v krátkém
-        // popisu z Wikidat, který mají všichni; jméno nesprávné možnosti v úvodu z Wikipedie se pak jen zakryje. Možnosti tak nezávisí
-        // na tom, jestli se hráči Wikipedie načetla (dřív se podle ní vyměnily a hráč bez Wikipedie měl jiné možnosti než ostatní).
+        // options.stableChoices (denní módy): možnosti se vybírají jen podle dat – střet nesprávné možnosti s popisem i výměna kvůli
+        // jednoznačnosti se hledají v krátkém popisu z Wikidat, který mají všichni; jméno nesprávné možnosti v úvodu z Wikipedie se pak
+        // jen zakryje (quiz-core.js composeRound). Možnosti tak nezávisí na tom, jestli se hráči Wikipedie načetla. Výzvy mění
+        // možnosti kvůli jednoznačnosti také jen podle krátkého popisu (stableSwaps)
         const stableChoices = Boolean(options.stableChoices) && !options.wrong;
-        // Popis i další věty úvodu bez odpovědi (společné zakrytí všech tvarů jména); popis, který je po zakrytí skoro samá mezera
-        // („[***] práci konanou [***] silou“), nahradí další věty úvodu, a když nic nezbude, vypadne
-        let texts = buildQuestionTexts(item, ctx, question, stableChoices ? fallbackText(item) : fetchedText, { special: Boolean(special) });
-        // Nesprávná možnost, na kterou sedí to, co hráč vidí (její jméno v popisu nezakryté, společný článek: Bosony W a Z u Bosonu Z),
-        // se nahradí podobnou a popis se zakryje znovu; pevné možnosti Dobývání (options.wrong) nahradit nejde – otázka se označí
-        // a Dobývání vezme jinou (conquestRound)
-        let conflict = false;
-        for (let attempt = 0; attempt <= 3; attempt++) {
-            const seen = [texts.questionText, texts.moreText].filter(Boolean).join(' ');
-            if (!(question.choices || []).some(choice => choiceConflict(choice, { question, item, ctx, text: seen }))) { conflict = false; break; }
-            conflict = true;
-            const fixed = options.wrong || attempt === 3 ? null : replaceConflicts({ question, item, ctx, text: seen, rng });
-            if (!fixed) break;
-            question = fixed;
-            texts = buildQuestionTexts(item, ctx, question, stableChoices ? fallbackText(item) : fetchedText, { special: Boolean(special) });
-        }
-        if (stableChoices) {
-            texts = buildQuestionTexts(item, ctx, question, fetchedText, { special: Boolean(special) });
-            const seen = () => [texts.questionText, texts.moreText].filter(Boolean).join(' ');
-            const named = (question.choices || []).filter(choice => !choice.correct && choiceConflict(choice, { question, item, ctx, text: seen() }));
-            if (named.length) {
-                const hide = (value) => (value ? named.reduce((result, choice) => censorName(result, choice.label), value) : value);
-                texts = { ...texts, questionText: hide(texts.questionText), moreText: hide(texts.moreText) };
-            }
-        }
-        const { text, questionText, moreText, origin } = texts;
         const settled = await timed('fotka', Promise.race([photoProbe.then(result => ({ result })), new Promise(resolve => setTimeout(() => resolve(null), PHOTO_WAIT))]));
         const photoUrl = settled ? settled.result : photoOf(item, 960);
-        // Typ položky („obec ve Španělsku“, „král“) nesmí prozradit odpověď
-        const typeLabel = item.ty && !hideAnswer(item.ty, question, { ...item, ty: '' }, ctx).includes('[***]') ? item.ty : category.one;
-        // Nápovědy, fakta ukázaná hned u chudého popisu a „thin“ (popis nestačí k odpovědi) – společně s auditem
-        const { hints, leadFacts, thin, visual } = planRound({ item, ctx, question, texts: { questionText, moreText, origin }, typeLabel, shown, special: Boolean(special),
-            photoUrl, describeVisual, photoMasks, textPhotos: ctx.textPhotos || new Set() });
+        // Popis i další věty úvodu bez odpovědi (společné zakrytí všech tvarů jména); popis, který je po zakrytí skoro samá mezera
+        // („[***] práci konanou [***] silou“), nahradí další věty úvodu, a když nic nezbude, vypadne. Nesprávná možnost, na kterou
+        // sedí to, co hráč vidí (její jméno v popisu nezakryté, společný článek: Bosony W a Z u Bosonu Z), se nahradí podobnou; pevné
+        // možnosti Dobývání (options.wrong) nahradit nejde – otázka se označí a Dobývání vezme jinou (conquestRound). Nápovědy, fakta
+        // ukázaná hned u chudého popisu, „thin“ (popis nestačí k odpovědi) a jednoznačnost (rozlišující údaj, výměna nesprávných
+        // možností, otázka se jménem; quiz-core.js composeRound) – společně s audity
+        const composed = composeRound({ item, ctx, question, special: Boolean(special), fetched: fetchedText, fallback: fallbackText(item), stableChoices,
+            stableSwaps: (options.mode || mode) === 'challenge', shown, rng, photoUrl, describeVisual, photoMasks, textPhotos: ctx.textPhotos || new Set(),
+            swaps: uniqueSwapsNow(options), fixed: Boolean(options.wrong), plain: Boolean(options.plain) });
+        question = composed.question;
+        const { conflict, ambiguous, typeLabel } = composed;
+        const { text, questionText, moreText, origin } = composed.texts;
+        const { hints, leadFacts, thin, visual, clue } = composed.plan;
         const resultFacts = topic.facts(item, ctx, 'result');
         // Tajemná otázka (options.plain): krátké nápovědy z dat položky – ano/ne, doba, indicie a související jméno (mystery.js riddleOf);
         // options.year = rok dne otázky (stáří a „žije ještě“)
@@ -634,6 +624,10 @@
             question,
             // Nesprávná možnost, na kterou sedí popis, a nešla nahradit (pevné možnosti Dobývání)
             ...(conflict ? { choiceConflict: true } : {}),
+            // Mezi možnostmi odpověď neurčí žádný údaj z dat a vyměnit je nešlo: hra vezme jinou položku
+            ...(ambiguous ? { ambiguous: true } : {}),
+            // Rozlišující údaj: ukáže se hned, když popis a fakta odpověď mezi možnostmi neurčí
+            ...(clue && clue.length ? { clue } : {}),
             questionText,
             // Odkud popis je: 'article' (úvod článku z Wikipedie), 'fallback' (krátký popis z Wikidat), 'withheld' (téma ho neukazuje)
             textOrigin: origin,
@@ -3537,7 +3531,8 @@
     const RESULT_PANEL_HEIGHT = 'h-[clamp(13rem,42dvh,24rem)]';
     // Vybraná záložka s názvem, ostatní jen ikonou (s popiskem pro čtečku) – vejdou se i na úzký displej;
     // jediná plocha záložky nepotřebuje, jen nadpis
-    const renderTabbedPanel = (panes, active, action, height) => {
+    // strip = řádek pod záložkami, vidět u každé záložky (rozlišující údaj otázky)
+    const renderTabbedPanel = (panes, active, action, height, strip = '') => {
         const style = styleOf(TOPIC_BY_ID[current.topic]);
         const pane = panes.find(candidate => candidate.key === active) || panes[0];
         const fill = height === 'fill' || height === TIME_PANEL_HEIGHT;
@@ -3555,6 +3550,7 @@
         return `
             <section id="${action}-panel" class="${CARD} ${fill ? 'flex max-h-[21rem] flex-1 flex-col' : 'shrink-0'} overflow-hidden">
                 ${tabs}
+                ${strip}
                 <div class="relative ${fill ? `${height === TIME_PANEL_HEIGHT ? 'min-h-[4rem]' : 'min-h-[7rem]'} flex-1` : height} overflow-hidden" role="tabpanel">${pane.html}</div>
             </section>`;
     };
@@ -3584,8 +3580,17 @@
         const free = isTime(data) ? [{ key: 'text', label: TimeQ.leadLabel(data), icon: TimeQ.ICON, html: TimeQ.leadHtml(data) }]
             : !textAsHint && !data.questionImage ? [{ key: 'text', label: 'Popis', icon: 'quote', html: textPane(data, style) }] : [];
         const panes = [...image, ...free, ...hintPanes(unlocked, data, style)];
-        return renderTabbedPanel(panes, round.tab || panes[0].key, 'hint-tab', isTime(data) ? TIME_PANEL_HEIGHT : QUESTION_PANEL_HEIGHT);
+        return renderTabbedPanel(panes, round.tab || panes[0].key, 'hint-tab', isTime(data) ? TIME_PANEL_HEIGHT : QUESTION_PANEL_HEIGHT, clueStrip(data, style));
     };
+    // Rozlišující údaj (quiz-core.js planRound: clue): údaj z dat, podle kterého jde odpověď mezi možnostmi poznat bez nápovědy,
+    // když ji popis neurčí. Je vidět hned a u všech záložek, stejně jako fakta u chudého popisu
+    const clueStrip = (data, style) => !Array.isArray(data.clue) || !data.clue.length ? '' : `
+        <div data-clue class="flex shrink-0 items-start gap-1.5 border-b border-slate-100 px-2.5 py-1.5 dark:border-slate-700">
+            <i data-lucide="target" class="mt-1 h-3.5 w-3.5 shrink-0 ${style.text}" aria-hidden="true"></i>
+            <dl class="flex min-w-0 flex-wrap gap-1.5" aria-label="Rozlišující údaj">
+                ${data.clue.map(fact => `<div class="min-w-0 rounded-lg bg-slate-100 px-2 py-1 text-xs dark:bg-slate-900/60"><dt class="inline font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">${escapeHtml(fact.label)}:</dt> <dd class="inline break-words font-bold text-slate-800 dark:text-slate-100">${escapeHtml(fact.value)}</dd></div>`).join('')}
+            </dl>
+        </div>`;
     // Tlačítko další nápovědy přes celou šířku pod popisem: co odemkne a za kolik pak bude odpověď.
     // Souboj s bossem (cost) má nápovědy stejné, jen místo bodů stojí čas: čas otázky běží dál a bonus za rychlost klesá
     const nextHintButton = (data, { action = 'hint', cost = null } = {}) => {
@@ -6288,6 +6293,15 @@
                 // (výzva ne: všichni hráči musí dostat stejné otázky, i když se někomu Wikipedie nenačte)
                 // Dnešní otázky od DAILY_STABLE_FROM také ne (picked.stable): výměna by závisela na tom, jestli se hráči načetla Wikipedie
                 for (let attempt = 1; data.thin && !picked.stable && mode !== 'challenge' && mode !== 'quiz' && !wikiPaused() && attempt <= MAX_THIN_RETRIES; attempt++) {
+                    const next = await pick(attempt);
+                    if (!next.item) break;
+                    const candidate = await createRoundData(next.item, next.ctx, next.rng);
+                    picked = next;
+                    data = candidate;
+                }
+                // Otázka, ve které odpověď mezi možnostmi neurčí nic, co hráč vidí, ani rozlišující údaj (createRoundData: ambiguous):
+                // trénink vezme jinou položku (chyby a opakování se ptají na danou položku, jinde rozliší aspoň dva údaje spolu)
+                for (let attempt = 1; data.ambiguous && mode === 'practice' && pool.kind !== 'mistakes' && pool.kind !== 'review' && attempt <= MAX_THIN_RETRIES; attempt++) {
                     const next = await pick(attempt);
                     if (!next.item) break;
                     const candidate = await createRoundData(next.item, next.ctx, next.rng);
@@ -14226,7 +14240,11 @@
         const excerpt = (data.hints.find(hint => hint.kind === 'excerpt') || {}).text || '';
         const words = (value) => String(value || '').replace(/\[\*\*\*\]/g, ' ').split(/\s+/).filter(word => /\p{L}{2,}/u.test(word)).length;
         const text = data.questionText && excerpt && data.textOrigin === 'article' && words(data.questionText) < (window.MudrlantCore.MIN_DESCRIPTION_WORDS || 14) ? `${data.questionText} ${excerpt}` : data.questionText || '';
-        return { text, origin: data.textOrigin, facts, typeLabel: data.typeLabel, image: image || null };
+        // Jednoznačnost (quiz-core.js uniqueInfo): které nesprávné možnosti vyvrací popis a které jednotlivá fakta; completeQuestion
+        // podle toho, co opravdu ukáže, přidá rozlišující údaj, nebo otázku vzdá (u otázky na obrázek rozhoduje obrázek)
+        const unique = form === 'photo' ? null : window.MudrlantCore.uniqueInfo({ item, ctx, question: data.question, text, facts });
+        return { text, origin: data.textOrigin, facts: unique ? facts.map((fact, i) => ({ ...fact, excludes: unique.facts[i] })) : facts,
+            typeLabel: data.typeLabel, image: image || null, ...(unique ? { unique: { wrong: unique.wrong, text: unique.text, clues: unique.clues } } : {}) };
     };
     if (window.MudrlantConquest && window.MudrlantConquestUI && Social) {
         ConquestUI = window.MudrlantConquestUI.createUI({

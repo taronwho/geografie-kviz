@@ -86,7 +86,8 @@ const biologie = {
         mammal('Q140', 'Lev pustinný', 'Panthera leo', 'šelmy', { t: 'Lev', g: ['selmy'], rm: 'Lion range.svg', rh: '12' }),
         mammal('Q8332', 'Liška obecná', 'Vulpes vulpes', 'šelmy', { g: ['selmy', 'nase-priroda'], cz: 1 }),
         mammal('Q18498', 'Vlk obecný', 'Canis lupus', 'šelmy', { g: ['selmy', 'nase-priroda'], cz: 1 }),
-        mammal('Q19939', 'Tygr', 'Panthera tigris', 'šelmy', { g: ['selmy'] }),
+        // Tygr je těžší než lev: lev a tygr (stejná čeleď v testovacích datech) jdou mezi možnostmi rozlišit hmotností
+        mammal('Q19939', 'Tygr', 'Panthera tigris', 'šelmy', { g: ['selmy'], f: { lat: 'Panthera tigris', cls: 'savci', ord: 'šelmy', fam: 'čeleď rodu Panthera', iucn: 'LC', mass: 300 } }),
         mammal('Q4388', 'Veverka obecná', 'Sciurus vulgaris', 'hlodavci', { g: ['nase-priroda'], cz: 1 }),
         mammal('Q36557', 'Šimpanz učenlivý', 'Pan troglodytes', 'primáti'),
         mammal('Q79794', 'Srnec obecný', 'Capreolus capreolus', 'sudokopytníci', { g: ['nase-priroda'], cz: 1 }),

@@ -127,11 +127,11 @@ export const assembleRound = (item, ctx, variant, text) => {
     const shown = topic.questionImage ? topic.questionImage(item, ctx, question.type) : null;
     const { text: chosen, questionText, moreText, origin } = core.buildQuestionTexts(item, ctx, question, text, { special: isSpecial });
     const typeLabel = item.ty && !core.hideAnswer(item.ty, question, { ...item, ty: '' }, ctx).includes('[***]') ? item.ty : category.one;
-    const { hints, leadFacts, thin, visibleText, known } = core.planRound({
+    const { hints, leadFacts, thin, visibleText, known, clue } = core.planRound({
         item, ctx, question, texts: { questionText, moreText, origin }, typeLabel, shown, special: isSpecial,
         photoUrl: photoOf(item), describeVisual: visualInfo, photoMasks: ctx.photoMasks || {}, textPhotos: ctx.textPhotos || new Set()
     });
-    return { question, questionText, moreText, origin, typeLabel, questionImage: shown, photoUrl: photoOf(item), hints, leadFacts, thin, visibleText, known, description: chosen.description, fallback: Boolean(chosen.fallback) };
+    return { question, questionText, moreText, origin, typeLabel, questionImage: shown, photoUrl: photoOf(item), hints, leadFacts, clue: clue || [], thin, visibleText, known, description: chosen.description, fallback: Boolean(chosen.fallback) };
 };
 
 // --- Hlídač prozrazení: přísnější než zakrytí ve hře (bez diakritiky, s odvozenými přídavnými jmény a čísly) ---
@@ -340,6 +340,7 @@ export const auditRound = (item, ctx, round) => {
     // Štítek druhu: obecný název kategorie („drahý kámen“ u lazurového kamene) odpověď neprozradí
     if (round.typeLabel && round.typeLabel !== categoryOf(ctx.topic, item.c).one) leakIn(round.typeLabel, 'štítek druhu');
     for (const fact of round.leadFacts) leakIn(`${fact.label}: ${fact.value}`, 'fakt v okně');
+    for (const fact of round.clue || []) leakIn(`${fact.label}: ${fact.value}`, 'rozlišující údaj');
     for (const hint of round.hints) {
         if (hint.kind === 'facts') for (const fact of hint.facts) leakIn(`${fact.label}: ${fact.value}`, `nápověda „${hint.label}“`);
         if (hint.kind === 'excerpt') leakIn(hint.text, 'nápověda „další věty“');
@@ -369,7 +370,7 @@ export const auditRound = (item, ctx, round) => {
     }
 
     // (1d) Každá nápověda přidá něco nového oproti otázce, štítku, společné části možností a všem dřívějším nápovědám
-    let before = [round.visibleText, round.known, ...round.leadFacts.map(fact => fact.value)].join(' · ');
+    let before = [round.visibleText, round.known, ...round.leadFacts.map(fact => fact.value), ...(round.clue || []).map(fact => fact.value)].join(' · ');
     // Hodnoty faktů, které mají všechny nabízené možnosti (Stát: USA u čtyř amerických států): mezi nimi nic nerozliší
     const wrongItems = question.type === 'name' ? (question.choices || []).filter(choice => !choice.correct).map(choice => ctx.byId.get(choice.id)).filter(Boolean) : [];
     const valuesOf = (other) => new Set(ctx.topic.facts(other, ctx, question.type).map(fact => String(fact.value)));
@@ -392,7 +393,7 @@ export const auditRound = (item, ctx, round) => {
 
     // (2) Nápověda opakující informaci z popisu nebo z dřívější nápovědy
     const seenFacts = new Map();
-    const inDescription = [round.visibleText, ...round.leadFacts.map(fact => fact.value)].join(' · ');
+    const inDescription = [round.visibleText, ...round.leadFacts.map(fact => fact.value), ...(round.clue || []).map(fact => fact.value)].join(' · ');
     let inHints = '';
     for (const fact of round.leadFacts) seenFacts.set(`${fact.label}\u0000${fact.value}`, 'okno');
     for (const hint of round.hints) {

@@ -423,6 +423,9 @@
             if (item.c === 'horniny' && roll < GROUP_SHARE && GROUPS[item.f.grp]) return groupQuestion(item, rng);
             return null;
         },
+        // Fotka ukazuje jen ukázku druhu (vzorek nerostu, horniny, zkamenělinu, útvar), ne jedinou věc: odpověď mezi podobnými
+        // možnostmi musí určit i rozlišující údaj z dat (quiz-core.js needsUniqueness)
+        exampleImage: () => true,
         // Fotka nerostu, kamene či horniny je vidět hned v otázce – bez ní by se nedalo poznávat
         questionImage: (item) => {
             if (!item.im || !item.ih) return null;
