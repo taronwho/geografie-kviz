@@ -1024,7 +1024,13 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const element = await readRound(second.tab);
         assert.equal(element.question.type, 'name');
         assert.equal(await second.tab.textContent('h2'), 'Který prvek to je?');
-        assert.deepEqual(hintKeys(element), ['excerpt', 'photo', 'visual', 'facts']);
+        // Rozlišující údaj (popis prvek mezi alkalickými kovy neurčí) je vidět hned; nápověda Fakta ho neopakuje, a když nic jiného
+        // nemá, není
+        assert.ok((element.clue || []).length, 'rozlišující údaj');
+        assert.match(await second.tab.textContent('[data-clue]'), new RegExp(element.clue[0].value));
+        assert.deepEqual(hintKeys(element).slice(0, 3), ['excerpt', 'photo', 'visual']);
+        const factsHint = element.hints.find(hint => hint.kind === 'facts');
+        assert.ok(!factsHint || !factsHint.facts.some(fact => fact.value === element.clue[0].value));
         await second.tab.click('[data-action="hint"]');
         await second.tab.click('[data-action="hint"]');
         assert.match(await second.tab.textContent('[data-action="hint"]'), /periodická tabulka/i);

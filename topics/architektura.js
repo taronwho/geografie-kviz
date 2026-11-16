@@ -410,6 +410,9 @@
         },
         offSubjectPhoto,
         questionTitle: (item) => (item.c === 'stavby' && PLACE_TYPE.test(item.d || '') ? 'Co je to za místo?' : null),
+        // Ukázka slohu je jen jedna stavba z mnoha (a mívá rysy i jiných slohů): odpověď mezi podobnými slohy musí určit i rozlišující
+        // údaj z dat (období, slavné stavby); prvek (vikýř, apsida) fotka ukazuje sám
+        exampleImage: (item) => item.c === 'slohy',
         // Obrázek, na který se otázka ptá: stavba, u slohu jeho ukázka
         questionImage: (item) => {
             if (!item.im || !item.ih) return null;

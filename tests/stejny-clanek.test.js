@@ -113,9 +113,12 @@ test('popis s nezakrytým jménem nesprávné možnosti: Boson W v „Bosony W a
 });
 
 test('aplikace: createRoundData nesprávnou možnost se jménem v popisu nahradí, Dobývání s pevnými možnostmi vezme jinou otázku', () => {
+    // Konflikty řeší sestavení otázky v jádře (quiz-core.js composeRound), které createRoundData volá s pevnými možnostmi Dobývání (fixed)
     const app = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
-    assert.match(app, /choiceConflict\(choice, \{ question, item, ctx, text: seen \}\)/);
-    assert.match(app, /options\.wrong \|\| attempt === 3 \? null : replaceConflicts\(\{ question, item, ctx, text: seen, rng \}\)/);
+    const coreSource = fs.readFileSync(path.join(ROOT, 'quiz-core.js'), 'utf8');
+    assert.match(coreSource, /choiceConflict\(choice, \{ question, item, ctx, text: seen \}\)/);
+    assert.match(coreSource, /fixed \|\| attempt === 3 \? null : replaceConflicts\(\{ question, item, ctx, text: seen, rng \}\)/);
+    assert.match(app, /composeRound\(\{[^}]*fixed: Boolean\(options\.wrong\)/);
     assert.match(app, /if \(data\.choiceConflict && form !== 'photo'\) return null;/);
 });
 
