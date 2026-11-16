@@ -9279,34 +9279,27 @@
     };
 
     // ----- Záložka Já: karta hráče a řádky do oken (Mudrlant, Profil, Nastavení hry, Upozornění, Účet, Pozvi kamarády) -----
-    const JA_ROW = `${HOME_ROW} min-h-[3.4rem] short:min-h-[3rem] short:py-1.5 tiny:min-h-[2.7rem] tiny:py-1`;
-    // Vlastní symboly záložky Já: dvoubarevné kresby (bílý obrys, průsvitná výplň, zlatý detail) na plastické dlaždici v barvě tématu
+    // Řádky záložky Já jsou plastická tlačítka jako jinde v aplikaci (spodní hrana, při stisku se zamáčknou)
+    const JA_ROW = `group relative flex w-full min-w-0 items-center gap-3 ${CARD_R} btn-3d-light bg-white px-3 py-2 text-left dark:bg-slate-800 max-[379px]:gap-2 max-[379px]:px-2.5 min-h-[3.4rem] short:min-h-[3rem] short:py-1.5 tiny:min-h-[2.7rem] tiny:py-1`;
+    // Vlastní symboly záložky Já: bílé kresby (obrys a průsvitná výplň) na plastické dlaždici v barvě tématu
     const JA_SYMBOL_PATHS = {
-        // Mudrlant: hlava sovy s doktorskou čepicí
-        owl: '<path class="fill-white/25" d="M5.5 11.5c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6v3.2c0 3.2-2.9 5.8-6.5 5.8s-6.5-2.6-6.5-5.8z"/>'
-            + '<path d="M5.5 11.5c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6v3.2c0 3.2-2.9 5.8-6.5 5.8s-6.5-2.6-6.5-5.8z"/>'
-            + '<path class="fill-gold-300" stroke="none" d="M12 1.6 4 4.6l8 3 8-3z"/><path d="M12 1.6 4 4.6l8 3 8-3zM19.5 4.8v3.4"/>'
-            + '<circle class="fill-white" cx="9.2" cy="12.6" r="2.1"/><circle class="fill-white" cx="14.8" cy="12.6" r="2.1"/>'
-            + '<circle class="fill-current" stroke="none" cx="9.4" cy="12.8" r=".9"/><circle class="fill-current" stroke="none" cx="15" cy="12.8" r=".9"/>'
-            + '<path class="fill-gold-300" d="m12 14.8-1.2 1.6h2.4z"/>',
+        // Mudrlant: jednoduchá sova (ouška, velké oči, zobáček, pařátky)
+        owl: '<path class="fill-white/25" d="M6.4 3.6 9 6.3a7.6 7.6 0 0 1 6 0l2.6-2.7.7 5.6c.9 1.3 1.4 2.8 1.4 4.4 0 4.4-3.4 7.4-7.7 7.4s-7.7-3-7.7-7.4c0-1.6.5-3.1 1.4-4.4z"/><path d="M6.4 3.6 9 6.3a7.6 7.6 0 0 1 6 0l2.6-2.7.7 5.6c.9 1.3 1.4 2.8 1.4 4.4 0 4.4-3.4 7.4-7.7 7.4s-7.7-3-7.7-7.4c0-1.6.5-3.1 1.4-4.4z"/><path d="M6.3 9.4 12 11.6l5.7-2.2"/>'
+            + '<circle class="fill-white" cx="9" cy="12.6" r="2.4"/><circle class="fill-white" cx="15" cy="12.6" r="2.4"/>'
+            + '<circle class="fill-brand-900" stroke="none" cx="9.2" cy="12.8" r="1.15"/><circle class="fill-brand-900" stroke="none" cx="15.2" cy="12.8" r="1.15"/>'
+            + '<path class="fill-white" stroke-width="1.2" d="m12 14.4-1.3 1.8 1.3 1.5 1.3-1.5z"/><path stroke-width="1.8" d="M9.6 21v1M14.4 21v1"/>',
         // Profil: průkaz s portrétem
         profile: '<rect class="fill-white/25" x="3" y="5" width="18" height="14" rx="3"/><rect x="3" y="5" width="18" height="14" rx="3"/>'
-            + '<circle class="fill-gold-300" cx="9" cy="11" r="2.4"/><path d="M5.6 16.2c.7-1.5 2-2.3 3.4-2.3s2.7.8 3.4 2.3M14.5 10h3.5M14.5 13.5h2.5"/>',
-        // Nastavení hry: ozubené kolo se zlatým středem
-        game: '<path class="fill-white/25" d="M10.3 3h3.4l.5 2.3 1.7.9 2.2-.8 1.7 3-1.8 1.5v1.9l1.8 1.5-1.7 3-2.2-.8-1.7.9-.5 2.6h-3.4l-.5-2.6-1.7-.9-2.2.8-1.7-3 1.8-1.5V9.9L3.9 8.4l1.7-3 2.2.8 1.7-.9z"/>'
-            + '<path d="M10.3 3h3.4l.5 2.3 1.7.9 2.2-.8 1.7 3-1.8 1.5v1.9l1.8 1.5-1.7 3-2.2-.8-1.7.9-.5 2.6h-3.4l-.5-2.6-1.7-.9-2.2.8-1.7-3 1.8-1.5V9.9L3.9 8.4l1.7-3 2.2.8 1.7-.9z"/>'
-            + '<circle class="fill-gold-300" cx="12" cy="11.8" r="2.6"/>',
-        // Upozornění: zvonek se zlatým srdcem (vypnuté: přeškrtnutý)
-        bell: '<path class="fill-white/25" d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15z"/><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15zM12 3v2"/>'
-            + '<path class="fill-gold-300" d="M10 18a2 2 0 0 0 4 0z"/>',
-        bellOff: '<path class="fill-white/15" d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15z"/><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15zM12 3v2M10 18a2 2 0 0 0 4 0"/>'
-            + '<path class="stroke-gold-300" stroke-width="2.2" d="m4 4 16 16"/>',
+            + '<circle class="fill-white" cx="9" cy="10.6" r="2.2"/><path d="M5.8 16c.7-1.5 1.9-2.2 3.2-2.2s2.5.7 3.2 2.2M14.6 10h3.4M14.6 13.6h2.4"/>',
+        // Nastavení hry: souměrné ozubené kolo (8 zubů) s otvorem uprostřed
+        game: '<path class="fill-white/25" d="M9.95 5.31 10.28 3.17h3.44l.33 2.14 1.24.51 1.74-1.28 2.43 2.43-1.28 1.74.51 1.24 2.14.33v3.44l-2.14.33-.51 1.24 1.28 1.74-2.43 2.43-1.74-1.28-1.24.51-.33 2.14h-3.44l-.33-2.14-1.24-.51-1.74 1.28-2.43-2.43 1.28-1.74-.51-1.24-2.14-.33v-3.44l2.14-.33.51-1.24-1.28-1.74 2.43-2.43 1.74 1.28z"/><path d="M9.95 5.31 10.28 3.17h3.44l.33 2.14 1.24.51 1.74-1.28 2.43 2.43-1.28 1.74.51 1.24 2.14.33v3.44l-2.14.33-.51 1.24 1.28 1.74-2.43 2.43-1.74-1.28-1.24.51-.33 2.14h-3.44l-.33-2.14-1.24-.51-1.74 1.28-2.43-2.43 1.28-1.74-.51-1.24-2.14-.33v-3.44l2.14-.33.51-1.24-1.28-1.74 2.43-2.43 1.74 1.28z"/><circle class="fill-white" cx="12" cy="12" r="2.8"/>',
+        // Upozornění: zvonek (vypnuté: přeškrtnutý)
+        bell: '<path class="fill-white/25" d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15z"/><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15zM12 3v2"/><path class="fill-white" d="M10 18a2 2 0 0 0 4 0z"/>',
+        bellOff: '<path class="fill-white/10" d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15z"/><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15zM12 3v2M10 18a2 2 0 0 0 4 0"/><path stroke-width="2.2" d="m4 4 16 16"/>',
         // Účet: štít s fajfkou
-        account: '<path class="fill-white/25" d="M12 2.8 19 5.5v5.7c0 4.5-3 7.9-7 9.6-4-1.7-7-5.1-7-9.6V5.5z"/><path d="M12 2.8 19 5.5v5.7c0 4.5-3 7.9-7 9.6-4-1.7-7-5.1-7-9.6V5.5z"/>'
-            + '<path class="stroke-gold-300" stroke-width="2.4" d="m8.6 11.8 2.4 2.4 4.6-4.8"/>',
-        // Pozvi kamarády: obálka se zlatou hvězdou
-        invite: '<rect class="fill-white/25" x="2.8" y="6" width="15.5" height="12" rx="2.2"/><rect x="2.8" y="6" width="15.5" height="12" rx="2.2"/><path d="m3.5 7.2 7 5.3 7-5.3"/>'
-            + '<path class="fill-gold-300" d="m19 2.6.9 2 2.1.2-1.6 1.4.5 2.1-1.9-1.1-1.9 1.1.5-2.1-1.6-1.4 2.1-.2z"/>'
+        account: '<path class="fill-white/25" d="M12 2.8 19 5.5v5.7c0 4.5-3 7.9-7 9.6-4-1.7-7-5.1-7-9.6V5.5z"/><path d="M12 2.8 19 5.5v5.7c0 4.5-3 7.9-7 9.6-4-1.7-7-5.1-7-9.6V5.5z"/><path stroke-width="2.3" d="m8.6 11.8 2.4 2.4 4.6-4.8"/>',
+        // Pozvi kamarády: obálka uprostřed
+        invite: '<rect class="fill-white/25" x="3" y="5.5" width="18" height="13" rx="2.4"/><rect x="3" y="5.5" width="18" height="13" rx="2.4"/><path d="m3.8 6.8 8.2 6.2 8.2-6.2"/>'
     };
     const jaSymbol = (name) => `<span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-b from-brand-500 to-brand-700 text-white shadow-[0_3px_0_0_rgb(var(--brand-900))] short:h-9 short:w-9 tiny:h-8 tiny:w-8"><svg viewBox="0 0 24 24" class="h-7 w-7 short:h-6 short:w-6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${JA_SYMBOL_PATHS[name]}</svg></span>`;
     const jaRow = ({ attrs, icon = '', art = '', title, text = '', tone = 'bg-brand-100 text-brand-700 dark:bg-brand-900/60 dark:text-brand-200', right = '<i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-400"></i>' }) => `
@@ -9318,6 +9311,19 @@
     const pushRowText = () => {
         if (!pushState) return 'Zápas v turnaji, nové výzvy, Dobývání';
         return pushState.kind === 'on' ? 'Zapnutá na tomhle zařízení' : pushState.kind === 'denied' ? 'V prohlížeči zakázaná' : pushState.kind === 'unsupported' ? (pushState.ios ? 'Na iPhonu jen z aplikace na ploše' : 'Tenhle prohlížeč je neumí') : 'Vypnutá · zápas v turnaji a nové výzvy';
+    };
+    // Upozornění rovnou jako přepínač v řádku (zapnout / vypnout bez otevírání Nastavení); co posílat (turnaje, výzvy, Dobývání)
+    // je dál v Nastavení hry. Zablokovaná v prohlížeči: klepnutí ukáže návod, jak je povolit; nepodporovaný prohlížeč: jen popis bez přepínače
+    const jaPushRow = () => {
+        const on = Boolean(pushState && pushState.kind === 'on');
+        const unsupported = Boolean(pushState && pushState.kind === 'unsupported');
+        const busyText = pushBusy === 'on' ? 'Zapínám… (potvrď dotaz prohlížeče)' : pushBusy === 'off' ? 'Vypínám…' : '';
+        return jaRow({
+            attrs: `data-ja="push"${unsupported ? '' : ` role="switch" aria-checked="${on}"`}${pushBusy ? ' disabled aria-busy="true"' : ''}`,
+            art: jaSymbol(on ? 'bell' : 'bellOff'), title: 'Upozornění',
+            text: `<span data-ja-push>${escapeHtml(busyText || pushRowText())}</span>`,
+            right: unsupported ? '' : switchMark(on)
+        });
     };
     const renderJa = () => {
         const state = Auth ? Auth.getState() : { configured: false };
@@ -9338,7 +9344,7 @@
             ...(Owl ? [jaRow({ attrs: 'data-ja="owl"', art: jaSymbol('owl'), title: 'Mudrlant', text: 'Oblek, čepice a doplňky sovy' })] : []),
             ...(user ? [jaRow({ attrs: 'data-ja="profile"', art: jaSymbol('profile'), title: 'Profil', text: 'Přezdívka, obrázek, rámeček a titul' })] : []),
             jaRow({ attrs: 'data-ja="game"', art: jaSymbol('game'), title: 'Nastavení hry', text: 'Varianta, obtížnost, barvy a zvuky' }),
-            ...(user && Push && Push.configured() && !(pushState && pushState.kind === 'hidden') ? [jaRow({ attrs: 'data-ja="push"', art: jaSymbol(pushState && pushState.kind === 'on' ? 'bell' : 'bellOff'), title: 'Upozornění', text: `<span data-ja-push>${escapeHtml(pushRowText())}</span>` })] : []),
+            ...(user && Push && Push.configured() && !(pushState && pushState.kind === 'hidden') ? [jaPushRow()] : []),
             ...(user ? [jaRow({ attrs: 'data-ja="account"', art: jaSymbol('account'), title: 'Účet', text: 'Přijímané výzvy, zablokovaní, moje data, odhlášení' })] : []),
             ...(user && Referral && referralState ? [jaRow({ attrs: 'data-ja="referral"', art: jaSymbol('invite'), title: 'Pozvi kamarády', text: referralState.ready.length ? 'Čeká odměna za pozvání' : 'Odměna pro tebe i kamaráda' })] : [])
         ];
@@ -9383,6 +9389,13 @@
             }
         } });
     };
+    // Přepínač upozornění na záložce Já: povolení se musí vyžádat hned v klepnutí (Safari), pak se řádek překreslí
+    const togglePushFromJa = () => {
+        const turnOn = !(pushState && pushState.kind === 'on');
+        const work = togglePush(turnOn);
+        paintTab('ja');
+        work.then(() => paintTab('ja'));
+    };
     const jaClick = (event) => {
         const row = event.target.closest('[data-ja]');
         if (!row) return false;
@@ -9391,7 +9404,7 @@
         else if (kind === 'login') startLogin();
         else if (kind === 'account') openAccount();
         else if (kind === 'referral') openReferral();
-        else if (kind === 'push') openSettings('', '[data-push-toggle], [data-push-panel] button', 'game');
+        else if (kind === 'push') { if (!(pushState && pushState.kind === 'unsupported')) togglePushFromJa(); }
         else if (kind === 'tutorial') { goTab('dnes'); if (Tutorial) Tutorial.restart(); }
         else openSettings('', null, kind);
         return true;
