@@ -1258,7 +1258,8 @@
         const keep = [question.title, question.showName ? item.n : '', item.ty, ...(ctx.topic.keepWords ? ctx.topic.keepWords(question.type, item, ctx) : [])].filter(Boolean);
         return answerWordsLeft(value, question.choices, { isGeneric: (word) => isGenericWord(word, extra), keep }).length ? '' : value;
     };
-    const buildQuestionTexts = (item, ctx, question, fetched, { special = false } = {}) => {
+    // extend: false = bez prodloužení obecného popisu (audit jednoznačnosti: stav „před“)
+    const buildQuestionTexts = (item, ctx, question, fetched, { special = false, extend = true } = {}) => {
         if (ctx.topic.withholdText && ctx.topic.withholdText(question.type, item, ctx)) {
             return { text: fetched, questionText: '', moreText: '', origin: 'withheld' };
         }
@@ -1276,7 +1277,28 @@
         const leakFree = (value) => leakFreeText(value, question, item, ctx);
         let questionText = leakFree(censorText(text.description));
         if (!fetched.fallback && censoredShare(questionText) > MAX_USABLE_CENSORED_SHARE) questionText = '';
-        const moreText = special || !text.more ? '' : leakFree(censorText(stripFactSentences(text.more, ctx.topic.facts(item, ctx, question.type))));
+        // Obecný popis („[***] byl český herec, komik a dramatik.“) prodlouží další věty úvodu, dokud nepřijde konkrétní údaj
+        // (rok, číslo, jméno, název díla); věty, které popis převzal, už v nápovědě Další věty nejsou. Jen u otázky na název bez
+        // obrázku (u obrázku je popis až nápovědou)
+        let rest = text.more || '';
+        const shownImage = ctx.topic.questionImage ? ctx.topic.questionImage(item, ctx, question.type) : null;
+        if (extend && named && !special && !shownImage && !fetched.fallback && questionText && rest && !isSpecificText(questionText)) {
+            const sentences = splitSentences(rest);
+            let extended = questionText;
+            let taken = 0;
+            while (taken < Math.min(2, sentences.length)) {
+                const next = leakFree(censorText(sentences[taken]));
+                if (!next || censoredShare(next) > MAX_USABLE_CENSORED_SHARE || `${extended} ${next}`.length > MAX_EXTENDED_LENGTH) break;
+                extended = `${extended} ${next}`;
+                taken += 1;
+                if (isSpecificText(next)) break;
+            }
+            if (taken && isSpecificText(extended)) {
+                questionText = extended;
+                rest = sentences.slice(taken).join(' ');
+            }
+        }
+        const moreText = special || !rest ? '' : leakFree(censorText(stripFactSentences(rest, ctx.topic.facts(item, ctx, question.type))));
         return { text, questionText, moreText, origin: fetched.fallback ? 'fallback' : 'article' };
     };
     // Prozrazuje fakt odpověď (nebo začíná stejným kořenem jako ona)? Takový fakt se jako nápověda nenabídne.
@@ -1731,7 +1753,8 @@
     // Náhrada nesprávné možnosti, na kterou sedí popis: položka stejné kategorie co nejpodobnější té vyřazené (similarity tématu),
     // u států jiný stát stejného kontinentu; bez střetu s ostatními možnostmi i s popisem. Pořadí možností zůstane. Vrátí novou otázku,
     // nebo null, když náhrada nejde
-    const replaceConflicts = ({ question, item, ctx, text, rng }) => {
+    // accept(položka) = smí položka být nesprávnou možností (rozlišující údaj ji vyvrací: uniqueChoices)
+    const replaceConflicts = ({ question, item, ctx, text, rng, accept = () => true }) => {
         const conflicts = (question.choices || []).filter(choice => choiceConflict(choice, { question, item, ctx, text }));
         if (!conflicts.length) return question;
         const choices = [...question.choices];
@@ -1750,7 +1773,7 @@
             } else return null;
             const pick = pool.find(candidate => !inUse.has(candidate.id) && !labels.has(normalizeAnswer(candidate.label))
                 && !choices.some(choice => choice.id !== conflict.id && candidate.ref && ctx.byId.get(choice.id) && sameArticle(candidate.ref, ctx.byId.get(choice.id)))
-                && !(candidate.ref && isNamePart(item.n, candidate.label))
+                && !(candidate.ref && isNamePart(item.n, candidate.label)) && (!candidate.ref || accept(candidate.ref))
                 && !choiceConflict({ id: candidate.id, label: candidate.label, correct: false }, { question, item, ctx, text }));
             if (!pick) return null;
             choices[choices.indexOf(conflict)] = { ...conflict, id: pick.id, label: pick.label };
@@ -2674,6 +2697,410 @@
         return [...result];
     };
 
+    // --- Jednoznačnost otázky: rozlišující údaj (scripts/audit-jednoznacnost.mjs, reports/jednoznacnost.md) ---
+    //
+    // Zásada: už bez nápovědy musí otázka ukázat aspoň jeden údaj, který platí pro správnou odpověď a pro žádnou ze tří nesprávných.
+    // U Jana Wericha mezi Karlem Högerem, Ladislavem Peškem a Jaroslavem Marvanem nestačí „herec, komik a dramatik“ ani léta života
+    // (1905–1980 proti 1901–1974 a 1906–1986), stačí „Film: Císařův pekař – Pekařův císař“. Údaje jsou fakta položky z dat tématu
+    // (topic.facts v režimu 'result'): dílo a role, letopočet, místo, autor, sloh, velikost, země. Nesprávná možnost údaj vyvrací,
+    // když má v datech stejný údaj jasně jiný (rok o 10 a víc let, u starších dob víc; číslo aspoň 1,5×; jiný stát, jiná třída;
+    // dílo, které v jejích datech není a v jehož datech není ona). Když jí údaj chybí, nevyvrací (nevíme). Text otázky se posuzuje
+    // opatrně: počítá se jen údaj z dat odpovědi, který text zmiňuje (isFactVisible: rok, číslo, název díla, místo, národnost).
+    //
+    // Hra (createRoundData) a audit staví otázku stejně: uniqueChoices vybere nesprávné možnosti tak, aby je některý údaj z dat
+    // vyvracel všechny (podobné možnosti vymění za jiné podobné, které údaj vyvrací; jen podle dat, ať je otázka výzvy pro všechny
+    // stejná, i když se někomu nenačte Wikipedie), planRound pak k popisu, který odpověď neurčí, přidá rozlišující údaj (clue).
+    const CLUE_TIERS = {};
+    const setTier = (tier, labels) => labels.forEach(label => { CLUE_TIERS[label] = tier; });
+    // 1 = dílo, role a vazby na jiné osoby a díla; 2 = letopočty; 3 = místo, událost, ocenění; 4 = sloh, doba, velikost, země, třída
+    setTier(1, ['Filmy', 'Film', 'Slavné dílo', 'Slavná díla', 'Slavná stavba', 'Slavné stavby', 'Dílo', 'Postavy', 'Album', 'Píseň z alba', 'Kapela', 'Členové',
+        'Hrají', 'Režie', 'Autor', 'Architekt', 'Architekti', 'Vynálezce', 'Objevitel', 'Tvůrce', 'Scénář', 'Libreto', 'Kluby', 'Klub', 'Domácí tým', 'Domácí týmy',
+        'Domácí aréna', 'Olympijští vítězové', 'Představitelé', 'Rodiče', 'Otec', 'Matka', 'Partner', 'Partnerka', 'Partneři', 'Partnerky', 'Sourozenci', 'Sourozenec',
+        'Protějšek v římské mytologii', 'Protějšek v řecké mytologii', 'Symboly', 'Oblast', 'Pojmenován po', 'Pojmenována po', 'Pojmenováno po', 'Typické příklady',
+        'Zahájil', 'Oheň zapálil', 'Provozovatel', 'Rod', 'Součást', 'Olympijské zlato', 'Disciplína', 'Domácí tým']);
+    setTier(2, ['Narození', 'Úmrtí', 'Život', 'Vznik', 'Rok', 'Premiéra', 'Založena', 'Založen', 'Založení', 'Otevřeno', 'Objeven', 'Objeveno', 'V úřadu', 'Vláda',
+        'Doba trvání', 'Doba', 'Vysílání', 'Kariéra', 'Existoval', 'Vlajka přijata', 'Od roku', 'Na olympiádě od', 'Termín']);
+    setTier(3, ['Město', 'Místo', 'Místo vzniku', 'Umístění', 'Stát', 'Státy', 'Kraj', 'Krajské město', 'Hlavní město', 'Správní centrum', 'Sídlo', 'Ústí do', 'Sbírka',
+        'Pořadatel', 'Obíhá kolem', 'Souhvězdí', 'Soutěž', 'Země původu', 'Patří k', 'Naleziště v Česku', 'Kde to je', 'Kde je dnes', 'Vysílala', 'Studio', 'Nobelova cena',
+        'Oscar', 'Olympijské hry', 'Žil v době', 'Patří do', 'Těží se z něj', 'Využití', 'Vzhled a vznik', 'Složení', 'Zajímavost', 'Význam', 'Část těla', 'Soustava',
+        'Veličina', 'Jednotka SI', 'Jednotka', 'Skupina FCI', 'Hráčů na hřišti', 'Vybavení', 'Jedlost', 'Post', 'Sport']);
+    setTier(4, ['Sloh', 'Směr', 'Období', 'Století', 'Žánr', 'Technika', 'Materiál', 'Jazyk', 'Země', 'Země vynálezce', 'Kontinent', 'Mytologie', 'Třída', 'Řád', 'Čeleď',
+        'Skupina', 'Skupina prvků', 'Krystalová soustava', 'Barva', 'Vryp', 'Tvrdost', 'Rozloha', 'Počet obyvatel', 'Délka', 'Nadmořská výška', 'Výška', 'Hmotnost',
+        'Průměr', 'Kapacita', 'Sportovců', 'Zemí', 'Oběžná doba', 'Vzdálenost', 'Rozsah', 'Dožívá se', 'Druh', 'Hustota', 'Teplota tání', 'Teplota varu',
+        'Odrůda nerostu', 'Protonové číslo', 'Atomová hmotnost', 'Molární hmotnost', 'Vzorec']);
+    // Jiný název odpovědi (vědecký, latinský, značka prvku) nebo údaj, který nic nerozliší, rozlišujícím údajem není
+    const CLUE_NEVER = new Set(['Vědecký název', 'Latinsky', 'Značka', 'Na obrázku', 'Ohrožení']);
+    const YEAR_LABELS = new Set(['Narození', 'Úmrtí', 'Život', 'Vznik', 'Rok', 'Premiéra', 'Založena', 'Založen', 'Založení', 'Otevřeno', 'Objeven', 'Objeveno',
+        'V úřadu', 'Vláda', 'Doba trvání', 'Doba', 'Vysílání', 'Kariéra', 'Existoval', 'Vlajka přijata', 'Od roku', 'Na olympiádě od']);
+    // Úřad, vláda, trvání, vysílání, kariéra: rozpětí, které se s jiným nepřekrývá (i navazující funkční období), je jasně jiné;
+    // u ostatních letopočtů (narození, úmrtí, vznik díla) až rok vzdálený aspoň yearSlack
+    const TERM_LABELS = new Set(['V úřadu', 'Vláda', 'Doba trvání', 'Doba', 'Existoval', 'Vysílání', 'Kariéra', 'Termín']);
+    // Seznamy děl a osob: rozlišuje jedno jejich jméno („Film: Císařův pekař – Pekařův císař“), ne celý výčet
+    const LINK_LABELS = new Set(['Filmy', 'Film', 'Slavné dílo', 'Slavná díla', 'Slavná stavba', 'Slavné stavby', 'Dílo', 'Postavy', 'Album', 'Kapela', 'Členové',
+        'Hrají', 'Režie', 'Architekti', 'Kluby', 'Domácí týmy', 'Olympijští vítězové', 'Představitelé', 'Rodiče', 'Sourozenci', 'Partneři', 'Partnerky', 'Symboly',
+        'Typické příklady', 'Státy', 'Olympijské zlato', 'Olympijské hry', 'Oheň zapálil', 'Disciplína', 'Domácí tým', 'Klub', 'Architekt', 'Autor', 'Režisér']);
+    const LAND_LABELS = new Set(['Země', 'Stát', 'Země původu', 'Země vynálezce', 'Patří k']);
+    // Popisek jednoho jména ze seznamu (bez rodu: „Mezi členy“, ne „Člen“)
+    const CLUE_SINGULAR = { Filmy: 'Film', 'Slavná díla': 'Slavné dílo', 'Slavné stavby': 'Slavná stavba', Postavy: 'Postava', Členové: 'Mezi členy', Hrají: 'Hraje',
+        Architekti: 'Mezi architekty', Kluby: 'Klub', 'Domácí týmy': 'Domácí tým', 'Olympijští vítězové': 'Mezi vítězi', Představitelé: 'Mezi představiteli',
+        Rodiče: 'Rodič', Sourozenci: 'Sourozenec', Partneři: 'Partner', Partnerky: 'Partnerka', Symboly: 'Symbol', 'Typické příklady': 'Příklad', Státy: 'Mimo jiné ve státě' };
+    // Stejný údaj pod popiskem jednoho jména i výčtu (Film × Filmy, Architekt × Architekti) se porovnává spolu
+    const CLUE_CANON = { Film: 'Filmy', 'Slavné dílo': 'Slavná díla', 'Slavná stavba': 'Slavné stavby', Postava: 'Postavy', 'Mezi členy': 'Členové', Hraje: 'Hrají',
+        'Mezi architekty': 'Architekti', Architekt: 'Architekti', Klub: 'Kluby', 'Domácí tým': 'Domácí týmy', 'Mezi vítězi': 'Olympijští vítězové',
+        'Mezi představiteli': 'Představitelé', Rodič: 'Rodiče', Sourozenec: 'Sourozenci', Partner: 'Partneři', Partnerka: 'Partnerky', Symbol: 'Symboly',
+        Příklad: 'Typické příklady', 'Mimo jiné ve státě': 'Státy', 'Pojmenována po': 'Pojmenován po', 'Pojmenováno po': 'Pojmenován po' };
+    // ctx.topic.clueKeys: vlastní spojení popisků tématu (v Historii je rok události totéž co doba války: Rok → Doba)
+    const labelKey = (label, ctx = null) => (ctx && ctx.topic && ctx.topic.clueKeys && ctx.topic.clueKeys[label]) || CLUE_CANON[label] || label;
+    // Obecná slova hodnot (architektura, sloh, umění): podle nich se dvě hodnoty za příbuzné nepovažují
+    const CLUE_PLAIN_WORDS = new Set(['architektura', 'sloh', 'styl', 'umeni', 'malirstvi', 'hudba', 'film', 'literatura', 'stoleti', 'obdobi', 'kultura', 'skupina',
+        'zeme', 'mesto', 'obec', 'statu', 'statni', 'narodni']);
+    const SUPERSCRIPT = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9', '⁻': '-' };
+    const UNIT_SCALE = { g: ['kg', 1e-3], kg: ['kg', 1], t: ['kg', 1e3], mm: ['m', 1e-3], cm: ['m', 1e-2], m: ['m', 1], km: ['m', 1e3],
+        'km²': ['m²', 1e6], 'km2': ['m²', 1e6], 'm²': ['m²', 1], ha: ['m²', 1e4], min: ['min', 1], h: ['min', 60], let: ['let', 1], roku: ['let', 1], dní: ['let', 1 / 365] };
+
+    // Rok z hodnoty: „1905“, „kolem 1490“, „303 př. n. l.“, „527 n. l.“, „* 1992“
+    const parseYearPart = (text) => {
+        const match = String(text).trim().match(/^(?:\*\s*|nar\.\s*|kolem\s+|asi\s+|cca\s+|po\s+|od\s+)?(\d{1,4})(?:\s*(př\.)?\s*n\.\s*l\.)?$/u);
+        if (!match) return null;
+        return match[2] ? -Number(match[1]) : Number(match[1]);
+    };
+    // Rozpětí let: „1905–1980“, „527–565 n. l.“, „300 př. n. l. – 500 n. l.“, „* 1992“ (žije), „od 2016“
+    const parseYearSpan = (value) => {
+        const text = String(value).trim();
+        const single = parseYearPart(text);
+        if (single !== null) return /^(?:\*|od\s|nar\.)/u.test(text) ? { from: single, to: null } : { from: single, to: single };
+        const parts = text.split(/\s*[–—]\s*|(?<=\d)-(?=\d)/u);
+        if (parts.length !== 2) return null;
+        const tail = (parts[1].match(/\s*(?:př\.\s*)?n\.\s*l\.$/u) || [''])[0];
+        const from = parseYearPart(/n\.\s*l\./u.test(parts[0]) ? parts[0] : `${parts[0]}${tail}`);
+        const to = parseYearPart(parts[1]);
+        return from === null || to === null ? null : { from, to };
+    };
+    // Století: „19. století“, „13.–20. století“, „3. století př. n. l.“
+    const parseCenturySpan = (value) => {
+        const match = String(value).trim().match(/^(\d{1,2})\.(?:\s*[–-]\s*(\d{1,2})\.)?\s*století(\s*př\.\s*n\.\s*l\.)?$/u);
+        if (!match) return null;
+        const sign = match[3] ? -1 : 1;
+        const a = sign * Number(match[1]);
+        const b = sign * Number(match[2] || match[1]);
+        return { from: Math.min(a, b), to: Math.max(a, b) };
+    };
+    // Číslo s jednotkou: „až 118 kg“, „3,9 mil.“, „8 848 m“, „1,9 × 10²⁷ kg“, „5,5–6,5“, „62 760 diváků“
+    const parseMeasure = (value) => {
+        const text = String(value).trim().replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]/g, ch => SUPERSCRIPT[ch]).replace(/[  ]/g, ' ');
+        const match = text.match(/^(?:až|asi|přibližně|kolem|cca|přes|téměř)?\s*(\d[\d ]*(?:,\d+)?)(?:\s*[–-]\s*(\d[\d ]*(?:,\d+)?))?(?:\s*×\s*10(-?\d+))?\s*(mil\.|mld\.|tis\.)?\s*(.*)$/u);
+        if (!match) return null;
+        const number = (part) => Number(part.replace(/ /g, '').replace(',', '.'));
+        const low = number(match[1]);
+        const high = match[2] ? number(match[2]) : low;
+        if (!Number.isFinite(low) || !Number.isFinite(high)) return null;
+        const scale = (match[3] ? 10 ** Number(match[3]) : 1) * ({ 'mil.': 1e6, 'mld.': 1e9, 'tis.': 1e3 }[match[4]] || 1);
+        const unitText = match[5].trim();
+        // Za číslem smí být jen jednotka nebo slovo počtu (diváků, světelných let), ne další text („1 v Plzni“)
+        if (unitText.length > 24 || /[,;:]/.test(unitText)) return null;
+        const [unit, factor] = UNIT_SCALE[unitText] || [unitText.toLowerCase(), 1];
+        return { value: (low + high) / 2 * scale * factor, unit };
+    };
+    // Pevné pořadí stejně podobných kandidátů (bez náhody: možnosti musí vyjít všem hráčům stejně)
+    const clueHash = (text) => {
+        let hash = 2166136261;
+        for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 16777619);
+        return hash >>> 0;
+    };
+    const yearSlack = (year) => (year >= 1800 ? 10 : year >= 1500 ? 20 : year >= 0 ? 40 : 150);
+    const clueWords = (text) => normalizeAnswer(text).split(' ').filter(word => word.length >= 4 && !/^\d+$/.test(word) && !CLUE_PLAIN_WORDS.has(word));
+    const wordsRelated = (a, b) => {
+        const common = (x, y) => { let i = 0; while (i < x.length && i < y.length && x[i] === y[i]) i++; return i; };
+        return a.some(x => b.some(y => x === y || common(x, y) >= Math.max(4, Math.ceil(Math.min(x.length, y.length) * 0.7))));
+    };
+    // Jsou dvě textové hodnoty jasně různé? Stát a země po převodu na dnešní stát (Československo = Česko), jinak bez společného
+    // výrazného slova (Gotika × Pozdní gotika jsou příbuzné, Gotika × Baroko ne); u výčtu (žánry, země) žádná společná položka
+    const splitList = (value) => String(value).split(/,\s+/).map(part => part.trim()).filter(Boolean);
+    const landKey = (name) => normalizeAnswer(MODERN_LAND[name] || name);
+    const textsDiffer = (label, a, b) => {
+        const left = splitList(a);
+        const right = splitList(b);
+        if (LAND_LABELS.has(label)) return !left.some(x => right.some(y => landKey(x) === landKey(y)));
+        // Hodnota bez výrazného slova (číslo, zkratka) se slovy porovnat nedá: nevíme
+        if ([...left, ...right].some(part => !clueWords(part).length)) return false;
+        return !left.some(x => right.some(y => normalizeAnswer(x) === normalizeAnswer(y) || wordsRelated(clueWords(x), clueWords(y))));
+    };
+
+    // Údaje položky pro porovnání: { label, value, tier, kind, …, elements } podle faktů tématu; pamatují se pro kontext tématu
+    const clueCache = new WeakMap();
+    const rawListOf = (item, value) => {
+        for (const raw of Object.values(item.f || {})) {
+            if (!Array.isArray(raw) || !raw.length || !raw.every(entry => typeof entry === 'string')) continue;
+            for (let size = raw.length; size >= 1; size--) if (raw.slice(0, size).join(', ') === value) return raw.slice(0, size);
+        }
+        return null;
+    };
+    const parseClueFact = (item, label, value, ctx = null) => {
+        const text = String(value ?? '').trim();
+        if (!text) return [];
+        const tier = CLUE_TIERS[label] || 4;
+        const key = labelKey(label, ctx);
+        const base = { label, value: text, tier, never: CLUE_NEVER.has(label), key, owner: item.n || '' };
+        if (YEAR_LABELS.has(label)) {
+            const span = parseYearSpan(text);
+            if (span && TERM_LABELS.has(key)) return [{ ...base, kind: 'years', term: true, from: span.from, to: span.to === null ? span.from : span.to }];
+            if (span) {
+                const parts = span.to !== null && span.to !== span.from
+                    ? [{ ...base, kind: 'years', from: span.from, to: null, part: true, value: formatYear(span.from) }, { ...base, kind: 'years', from: null, to: span.to, part: true, value: formatYear(span.to) }]
+                    : [];
+                return [{ ...base, kind: 'years', from: span.from, to: span.to }, ...parts];
+            }
+        }
+        const century = parseCenturySpan(text);
+        if (century) return [{ ...base, kind: 'century', ...century }];
+        const link = LINK_LABELS.has(label) || LINK_LABELS.has(key);
+        if (!link) {
+            const measure = /\d/.test(text) ? parseMeasure(text) : null;
+            if (measure) return [{ ...base, kind: 'measure', ...measure }];
+            if (/^\d/.test(text) && !/\p{L}{3,}/u.test(text)) return [{ ...base, kind: 'text', never: true }];
+        }
+        if (link) {
+            const list = rawListOf(item, text) || (/,\s/.test(text) ? splitList(text) : label === 'Rodiče' ? text.split(/\s+a\s+/) : [text]);
+            return list.filter(Boolean).map((entry, index) => ({ ...base, kind: 'element', value: entry, label: CLUE_SINGULAR[label] || label, index }));
+        }
+        return [{ ...base, kind: 'text' }];
+    };
+    const clueFactsOf = (item, ctx) => {
+        if (!item || !ctx || !ctx.topic || !ctx.topic.facts) return [];
+        let perItem = clueCache.get(ctx);
+        if (!perItem) { perItem = new WeakMap(); clueCache.set(ctx, perItem); }
+        if (perItem.has(item)) return perItem.get(item);
+        let facts = [];
+        try { facts = ctx.topic.facts(item, ctx, 'result') || []; } catch (e) { facts = []; }
+        const parsed = facts.flatMap(fact => parseClueFact(item, String(fact.label), fact.value, ctx));
+        // Rejstřík: všechny hodnoty položky normalizované (k hledání vazby díla a osoby)
+        const all = ` ${facts.map(fact => normalizeAnswer(fact.value)).join(' | ')} `;
+        const entry = { facts: parsed, byLabel: new Map(), all, names: new Set(facts.flatMap(fact => splitList(fact.value).map(normalizeAnswer))) };
+        parsed.forEach(fact => { if (!entry.byLabel.has(fact.key)) entry.byLabel.set(fact.key, []); entry.byLabel.get(fact.key).push(fact); });
+        perItem.set(item, entry);
+        return entry;
+    };
+    // Položky tématu podle názvu (vazba „Film: X“ → položka X a její herci)
+    const nameIndexCache = new WeakMap();
+    const itemsNamed = (ctx, name) => {
+        let index = nameIndexCache.get(ctx);
+        if (!index) {
+            index = new Map();
+            (ctx.items || []).forEach(other => { const key = normalizeAnswer(other.n); if (!index.has(key)) index.set(key, []); index.get(key).push(other); });
+            nameIndexCache.set(ctx, index);
+        }
+        return index.get(normalizeAnswer(name)) || [];
+    };
+    // Je jméno celé v rejstříku hodnot (normalizované hodnoty oddělené mezerami)?
+    const containsName = (haystack, name) => {
+        const key = normalizeAnswer(name);
+        return key.length >= 3 && haystack.includes(` ${key} `);
+    };
+    // Vyvrací údaj (fakt správné odpovědi) nesprávnou možnost other? true jen tehdy, když to z dat víme jistě
+    const contradicts = (fact, other, ctx) => {
+        if (!fact || !other) return false;
+        const data = clueFactsOf(other, ctx);
+        const same = (data.byLabel.get(fact.key || labelKey(fact.label, ctx)) || []).filter(entry => !entry.part);
+        if (fact.kind === 'element') {
+            const key = normalizeAnswer(fact.value);
+            // Dílo nebo osoba je v datech možnosti (i pod jiným popiskem), nebo je možnost v datech díla: vazba, nevyvrací
+            if (data.names.has(key) || containsName(data.all, fact.value)) return false;
+            const linked = itemsNamed(ctx, fact.value);
+            if (linked.some(entry => entry.q === other.q || containsName(clueFactsOf(entry, ctx).all, other.n))) return false;
+            // Možnost má v datech stejný výčet bez tohoto jména, nebo data díla či osoby jmenují správnou odpověď (autor, herec) a ji ne
+            return same.length > 0 || Boolean(fact.owner && linked.some(entry => containsName(clueFactsOf(entry, ctx).all, fact.owner)));
+        }
+        if (!same.length) return false;
+        if (fact.kind === 'years' && fact.term) {
+            const spans = same.filter(entry => entry.kind === 'years' && entry.term);
+            // Bez překryvu; navazující rozpětí (1921–1923 a 1923–1929) také, rok uvnitř nebo na kraji rozpětí ne
+            return spans.length > 0 && spans.every(entry => {
+                const overlap = Math.min(fact.to, entry.to) - Math.max(fact.from, entry.from);
+                return overlap < 0 || (overlap === 0 && fact.to > fact.from && entry.to > entry.from);
+            });
+        }
+        if (fact.kind === 'years') {
+            const spans = same.filter(entry => entry.kind === 'years' && !entry.term);
+            if (!spans.length) return false;
+            return spans.every(entry => {
+                const differs = (a, b) => a !== null && a !== undefined && b !== null && b !== undefined && Math.abs(a - b) >= yearSlack(Math.min(a, b));
+                // Část rozpětí (rok narození v textu) se porovná jen se stejnou částí; žijící (to = null) se od zemřelého liší jen rokem narození
+                if (fact.from !== null && fact.to === null && fact.part) return differs(fact.from, entry.from);
+                if (fact.from === null) return differs(fact.to, entry.to);
+                return differs(fact.from, entry.from) || differs(fact.to, entry.to);
+            });
+        }
+        if (fact.kind === 'century') {
+            const spans = same.filter(entry => entry.kind === 'century');
+            return spans.length > 0 && spans.every(entry => entry.to < fact.from || entry.from > fact.to);
+        }
+        if (fact.kind === 'measure') {
+            const values = same.filter(entry => entry.kind === 'measure' && entry.unit === fact.unit);
+            if (!values.length) return false;
+            return values.every(entry => {
+                if (fact.unit === '°c') return Math.abs(entry.value - fact.value) >= 50;
+                if (fact.label === 'Tvrdost') return Math.abs(entry.value - fact.value) >= 1.5;
+                const [low, high] = [Math.abs(entry.value), Math.abs(fact.value)].sort((a, b) => a - b);
+                return low > 0 ? high / low >= 1.5 : high > 0;
+            });
+        }
+        if (fact.kind === 'text') return same.every(entry => entry.kind === 'text' && textsDiffer(fact.key, fact.value, entry.value));
+        return false;
+    };
+
+    // Nesprávné možnosti otázky jako položky tématu; null = otázka nemá čtyři položky (stát, století, desetiletí…)
+    const wrongItemsOf = (question, ctx) => {
+        if (!question || !ctx || !ctx.byId || question.match) return null;
+        const choices = question.choices || [];
+        if (choices.length < 2 || choices.filter(choice => choice.correct).length !== 1) return null;
+        const wrong = choices.filter(choice => !choice.correct).map(choice => ctx.byId.get(choice.id));
+        return wrong.every(Boolean) ? wrong : null;
+    };
+    // Otázka na název bez obrázku, který by odpověď určil: obraz, vlajka, stavba ano; ukázka slohu, nerost na fotce ne (topic.exampleImage)
+    const needsUniqueness = (question, item, ctx, shown = null) => Boolean(question && item && ctx && question.type === 'name' && !question.showName && !question.match
+        && (!shown || (ctx.topic.exampleImage && ctx.topic.exampleImage(item, ctx))));
+    // Údaje, které smí být rozlišujícím údajem: z dat, ne jiný název odpovědi, neprozradí odpověď a nejmenují jinou možnost
+    const clueCandidates = (item, ctx, question) => {
+        const answers = answerNamesFor(question, item, ctx);
+        const extra = genericWordsOf(ctx);
+        const isGeneric = (word) => isGenericWord(word, extra);
+        const rootNames = answers.length ? specificWords(answers, extra) : '';
+        const wrongLabels = (question.choices || []).filter(choice => !choice.correct).map(choice => choice.label);
+        // Poznatelnost jména: dílo či osoba, jejíž data jmenují i odpověď (hlavní role, film v seznamu herce), a známá položka
+        const known = (fact) => {
+            if (fact.kind !== 'element') return 0;
+            const linked = itemsNamed(ctx, fact.value);
+            return (linked.some(other => containsName(clueFactsOf(other, ctx).all, item.n)) ? 2 : 0) + (linked.some(other => other.k === 1) ? 1 : 0);
+        };
+        return clueFactsOf(item, ctx).facts.filter(fact => !fact.never && !fact.part && fact.value.length <= 70
+            && !factRevealsAnswer(fact, answers, { isGeneric, rootNames })
+            && !answerWordsLeft(fact.value, question.choices, { isGeneric }).length
+            && !wrongLabels.some(label => namedIn(fact.value, label)))
+            .map((fact, order) => ({ fact, order, known: known(fact) }))
+            .sort((a, b) => a.fact.tier - b.fact.tier || b.known - a.known || a.order - b.order)
+            .map(entry => entry.fact);
+    };
+    // Které nesprávné možnosti vyvrací to, co hráč vidí: text (údaje z dat odpovědi, které text zmiňuje) a ukázané údaje (fakta
+    // u chudého popisu, rozlišující údaj, fakta v Dobývání). Vrátí { ok, open: nevyvrácené možnosti } nebo null (otázka není na položku)
+    const identifyAnswer = ({ item, ctx, question, text = '', facts = [] }) => {
+        const wrong = wrongItemsOf(question, ctx);
+        if (!wrong || !item) return null;
+        const own = clueFactsOf(item, ctx).facts;
+        const mentioned = text ? own.filter(fact => !fact.never && isFactVisible(fact.value, text, fact.label)) : [];
+        const shown = [...mentioned, ...(facts || []).flatMap(fact => parseClueFact(item, String(fact.label), fact.value, ctx))];
+        const open = wrong.filter(other => !shown.some(fact => contradicts(fact, other, ctx)));
+        return { ok: open.length === 0, open, shown };
+    };
+    // Rozlišující údaj: nejlepší údaj, který vyvrací všechny nevyvrácené možnosti (dílo, roky, místo, sloh…); když jeden nestačí
+    // (pevné možnosti Dobývání), dva, které je vyvrátí spolu. Vrátí [{ label, value }] (prázdné = nic nechybí nebo nic nejde)
+    const pickClue = (item, ctx, question, open, { pair = true } = {}) => {
+        if (!open || !open.length) return [];
+        const candidates = clueCandidates(item, ctx, question);
+        const single = candidates.find(fact => open.every(other => contradicts(fact, other, ctx)));
+        if (single) return [{ label: single.label, value: single.value }];
+        if (!pair) return [];
+        const scored = candidates.map(fact => ({ fact, hits: open.filter(other => contradicts(fact, other, ctx)) })).filter(entry => entry.hits.length);
+        for (const first of scored) {
+            const rest = open.filter(other => !first.hits.includes(other));
+            const second = scored.find(entry => entry !== first && rest.every(other => entry.hits.includes(other)));
+            if (second) return [first.fact, second.fact].map(fact => ({ label: fact.label, value: fact.value }));
+        }
+        return [];
+    };
+    // Rozlišující údaj otázky po zakrytí: text a fakta, která hráč vidí hned (visibleText, leadFacts). Prázdné pole, když odpověď
+    // určí už ony, otázka není na název položky, nebo údaj z dat nejde najít
+    // Vrátí { clue, open }: open = možnosti, které nevyvrací ani rozlišující údaj (pair: false = stačí jen jeden údaj pro všechny)
+    const clueFor = ({ item, ctx, question, text = '', facts = [], shown = null, pair = true }) => {
+        if (!needsUniqueness(question, item, ctx, shown)) return { clue: [], open: [] };
+        const check = identifyAnswer({ item, ctx, question, text, facts });
+        if (!check || check.ok) return { clue: [], open: [] };
+        const clue = pickClue(item, ctx, question, check.open, { pair });
+        return { clue, open: clue.length ? [] : check.open };
+    };
+    // Nesprávné možnosti, mezi kterými odpověď určí to, co hráč vidí, s rozlišujícím údajem. open = možnosti, které text a ukázaná
+    // fakta nevyvracejí (planRound: unresolved; bez něj všechny). Když žádný údaj z dat nevyvrací všechny otevřené, vymění se ty,
+    // které nejlepší údaj nevyvrací, za co nejpodobnější položky stejné kategorie, které vyvrací (topic.similarity, druh, známost;
+    // pevné pořadí bez náhody). Možnost vyvrácená textem zůstane. text = co hráč vidí (nová možnost nesmí být v textu jmenovaná).
+    // fixed = možnosti měnit nejde (Dobývání). Vrátí { question, ok, swapped, fact }; ok: false = položka se na tuto otázku nehodí.
+    const SWAP_FACTS = 12;
+    const uniqueChoices = (question, item, ctx, { fixed = false, shown = null, open = null, text = '' } = {}) => {
+        if (!needsUniqueness(question, item, ctx, shown)) return { question, ok: true, swapped: false };
+        const wrong = wrongItemsOf(question, ctx);
+        if (!wrong) return { question, ok: true, swapped: false };
+        const openIds = open ? new Set(open.map(other => (typeof other === 'string' ? other : other.q))) : null;
+        const pending = openIds ? wrong.filter(other => openIds.has(other.q)) : wrong;
+        if (!pending.length) return { question, ok: true, swapped: false };
+        const candidates = clueCandidates(item, ctx, question);
+        const found = candidates.find(fact => pending.every(other => contradicts(fact, other, ctx)));
+        if (found) return { question, ok: true, swapped: false, fact: found };
+        if (fixed) return { question, ok: false, swapped: false };
+        const similarity = (other) => (ctx.topic.similarity ? ctx.topic.similarity(item, other, ctx) || 0 : 0) + (item.ty && other.ty === item.ty ? 4 : 0)
+            + (other.k === item.k ? 2 : 0) + cultureScore(item, other);
+        const ownNames = new Set([item.n, displayName(item.t || '')].map(normalizeAnswer));
+        const pool = (ctx.items || []).filter(other => other.c === item.c && other.q !== item.q && !other.nq && !ownNames.has(normalizeAnswer(other.n))
+            && !sameArticle(item, other) && !isNamePart(item.n, other.n) && !wrong.includes(other)
+            && !(text && choiceConflict({ id: other.q, label: other.n, correct: false }, { question, item, ctx, text })));
+        const settled = wrong.filter(other => !pending.includes(other));
+        let best = null;
+        for (const fact of candidates.slice(0, SWAP_FACTS)) {
+            const keep = [...settled, ...pending.filter(other => contradicts(fact, other, ctx))];
+            const taken = new Set([normalizeAnswer(item.n), ...keep.map(other => normalizeAnswer(other.n))]);
+            const ranked = pool.filter(other => contradicts(fact, other, ctx) && !namedIn(fact.value, other.n))
+                .map(other => ({ other, value: similarity(other) + (clueHash(`${item.q}|${other.q}`) % 1000) / 2000 }))
+                .sort((a, b) => b.value - a.value).map(entry => entry.other);
+            const added = [];
+            for (const other of ranked) {
+                if (keep.length + added.length >= 3) break;
+                const key = normalizeAnswer(other.n);
+                if (taken.has(key) || [...keep, ...added].some(chosen => sameArticle(chosen, other))) continue;
+                taken.add(key);
+                added.push(other);
+            }
+            if (keep.length + added.length < 3) continue;
+            // Co nejméně výměn, potom lepší druh údaje (dílo před roky, roky před zemí)
+            const score = keep.length * 10 - fact.tier;
+            if (!best || score > best.score) best = { score, keep, added, fact };
+            if (keep.length === 2) break;
+        }
+        if (!best) return { question, ok: false, swapped: false };
+        // Pořadí možností zůstane: vyměněná možnost dostane místo té, kterou nahradila
+        const queue = [...best.added];
+        const choices = question.choices.map(choice => {
+            if (choice.correct) return choice;
+            const other = ctx.byId.get(choice.id);
+            if (best.keep.includes(other)) return choice;
+            const next = queue.shift();
+            return { ...choice, id: next.q, label: next.n };
+        });
+        return { question: { ...question, choices }, ok: true, swapped: true, fact: best.fact };
+    };
+
+    // Dobývání (app.js conquestRound → conquest.js completeQuestion): které nesprávné možnosti vyvrací popis a které jednotlivá
+    // fakta, a rozlišující údaje s možnostmi, které vyvracejí. completeQuestion podle toho, co opravdu ukáže, doplní údaj, nebo
+    // otázku vzdá. Vrátí null, když otázka není na čtyři položky tématu.
+    const uniqueInfo = ({ item, ctx, question, text = '', facts = [] }) => {
+        const wrong = wrongItemsOf(question, ctx);
+        if (!wrong || !item) return null;
+        const excluded = (list) => wrong.filter(other => list.some(fact => contradicts(fact, other, ctx))).map(other => other.q);
+        const mentioned = text ? clueFactsOf(item, ctx).facts.filter(fact => !fact.never && isFactVisible(fact.value, text, fact.label)) : [];
+        return {
+            wrong: wrong.map(other => other.q),
+            text: excluded(mentioned),
+            facts: (facts || []).map(fact => excluded(parseClueFact(item, String(fact.label), fact.value, ctx))),
+            clues: clueCandidates(item, ctx, question).slice(0, SWAP_FACTS)
+                .map(fact => ({ label: fact.label, value: fact.value, excludes: excluded([fact]) })).filter(entry => entry.excludes.length)
+        };
+    };
+
+    // Obecný popis (jen povolání či druh, bez roku, čísla, vlastního jména a názvu díla) se prodlouží o další věty úvodu, dokud
+    // v něm konkrétní údaj nebude (nejvýš dvě věty, celkem do ~420 znaků)
+    const isSpecificText = (text) => {
+        const value = String(text || '');
+        if (/\d/.test(value) || /[„"“]/.test(value)) return true;
+        return splitSentences(value).some(sentence => sentence.replace(/\[\*\*\*\]/g, ' ').split(/\s+/).filter(Boolean).slice(1).some(word => /^\p{Lu}/u.test(word)));
+    };
+    const MAX_EXTENDED_LENGTH = 420;
+
     // --- Nápovědy otázky: jedna cesta pro hru (app.js) i audit (scripts/lib/audit.mjs) ---
     //
     // Zásada: nápověda se nabídne jen tehdy, když přidá něco nového. Známé je už to, co hráč vidí bez nápovědy – otázka, štítek
@@ -2820,7 +3247,9 @@
     // nápověda → čísla a fakta; před ně další věty úvodu a u otázky s obrázkem popis. texts = výsledek buildQuestionTexts,
     // shown = obrázek otázky (topic.questionImage), special = otázka zvláštního druhu. Vrátí nápovědy, fakta ukázaná hned
     // v okně (u chudého popisu), thin a to, co hráč vidí bez nápovědy (visibleText, known).
-    const planRound = ({ item, ctx, question, texts, typeLabel, shown = null, special = false, photoUrl = null, describeVisual = () => null, photoMasks = {}, textPhotos = new Set() }) => {
+    // unique: false = bez rozlišujícího údaje (audit jednoznačnosti: stav „před“); cluePair = smí rozlišovat dva údaje spolu (když
+    // možnosti měnit nejde); vrátí i unresolved = nesprávné možnosti, které nevyvrací nic, co hráč vidí (uniqueChoices je vymění)
+    const planRound = ({ item, ctx, question, texts, typeLabel, shown = null, special = false, photoUrl = null, describeVisual = () => null, photoMasks = {}, textPhotos = new Set(), unique = true, cluePair = false }) => {
         const { topic } = ctx;
         const category = (topic.categories || []).find(entry => entry.key === item.c) || { key: item.c, label: item.c, one: topic.words.one };
         const { questionText = '', moreText = '', origin = 'article' } = texts;
@@ -2861,7 +3290,80 @@
             hints = hints.map(hint => hint.kind === 'facts' ? { ...hint, facts: dropKnownFacts(hint.facts, lead) } : hint)
                 .filter(hint => !(hint.kind === 'facts' && !hint.facts.length) && !(hint.kind === 'visual' && (timelineKnown(hint.spec, lead) || scaleKnown(hint.spec, lead))));
         }
-        return { hints, leadFacts, thin, visibleText, known, visual };
+        // Rozlišující údaj: když to, co hráč vidí bez nápovědy (zadání, štítek, popis, fakta u chudého popisu), mezi možnostmi odpověď
+        // neurčí, ukáže se hned i údaj z dat, který ostatní možnosti vyvrací. Nápověda, která ho jen opakuje, ho už neukáže znovu
+        const { clue, open } = unique && !special ? clueFor({ item, ctx, question, shown, facts: leadFacts, pair: cluePair,
+            text: shown ? [question.title, typeLabel].filter(Boolean).join(' · ') : visibleText }) : { clue: [], open: [] };
+        if (clue.length) {
+            const lead = `${visibleText} · ${known} · ${[...leadFacts, ...clue].map(fact => fact.value).join(' · ')}`;
+            hints = hints.map(hint => hint.kind === 'facts' ? { ...hint, facts: dropKnownFacts(hint.facts, lead) } : hint)
+                .filter(hint => !(hint.kind === 'facts' && !hint.facts.length));
+        }
+        return { hints, leadFacts, thin, visibleText, known, visual, clue, unresolved: open.map(other => other.q) };
+    };
+
+    // --- Sestavení otázky z textu: jedna cesta pro hru (app.js createRoundData) i audity (scripts/lib/jednoznacnost.mjs) ---
+    // Texty (buildQuestionTexts), náhrada nesprávné možnosti, na kterou sedí popis (replaceConflicts), nápovědy a rozlišující údaj
+    // (planRound) a jednoznačnost: nesprávná možnost, kterou nevyvrací nic, co hráč vidí, ani žádný údaj z dat, se vymění za
+    // podobnou, kterou nejlepší údaj vyvrací (uniqueChoices; možnosti vyvrácené popisem zůstanou) a popis se zakryje znovu. Když to
+    // nejde, položka se zeptá jinou otázkou tématu se svým jménem (Do které čeledi patří?, Kdo film režíroval?), která odpověď určí
+    // jménem; když ani ta není, otázka je „ambiguous“ (trénink vezme jinou položku, jinde rozliší aspoň dva údaje spolu).
+    // swaps = smí se možnosti měnit (denní módy až od svého dne), fixed = pevné možnosti (Dobývání), plain = jen otázka na název
+    // (Tajemná otázka), unique: false = stav před úpravou (bez rozlišujícího údaje, prodloužení popisu a výměny; audit)
+    const CONVERT_ROLLS = [0.05, 0.22, 0.28, 0.33, 0.42, 0.55, 0.78, 0.9];
+    const composeRound = ({ item, ctx, question, special = false, fetched, shown = null, rng = Math.random, photoUrl = null, describeVisual = () => null,
+        photoMasks = {}, textPhotos = new Set(), swaps = true, fixed = false, plain = false, unique = true }) => {
+        const { topic } = ctx;
+        const category = (topic.categories || []).find(entry => entry.key === item.c) || { one: topic.words.one };
+        let isSpecial = Boolean(special);
+        const build = () => buildQuestionTexts(item, ctx, question, fetched, { special: isSpecial, extend: unique });
+        let texts = build();
+        let conflict = false;
+        for (let attempt = 0; attempt <= 3; attempt++) {
+            const seen = [texts.questionText, texts.moreText].filter(Boolean).join(' ');
+            if (!(question.choices || []).some(choice => choiceConflict(choice, { question, item, ctx, text: seen }))) { conflict = false; break; }
+            conflict = true;
+            const replaced = fixed || attempt === 3 ? null : replaceConflicts({ question, item, ctx, text: seen, rng });
+            if (!replaced) break;
+            question = replaced;
+            texts = build();
+        }
+        // Typ položky („obec ve Španělsku“, „král“) nesmí prozradit odpověď
+        const typeLabelOf = () => (item.ty && !hideAnswer(item.ty, question, { ...item, ty: '' }, ctx).includes('[***]') ? item.ty : category.one);
+        const planOf = (pair = false) => planRound({ item, ctx, question, texts: { questionText: texts.questionText, moreText: texts.moreText, origin: texts.origin },
+            typeLabel: typeLabelOf(), shown, special: isSpecial, photoUrl, describeVisual, photoMasks, textPhotos, unique, cluePair: pair });
+        let plan = planOf();
+        let ambiguous = false;
+        let swapped = false;
+        let converted = false;
+        if (unique && plan.unresolved.length && swaps) {
+            const seen = [texts.questionText, texts.moreText].filter(Boolean).join(' ');
+            const result = uniqueChoices(question, item, ctx, { fixed, shown, open: plan.unresolved, text: seen });
+            if (result.ok && result.swapped) {
+                question = result.question;
+                swapped = true;
+                texts = build();
+                plan = planOf();
+            }
+            // Otázka se jménem položky místo otázky na název (jen se stejným obrázkem otázky; hody pokryjí větve specialQuestion)
+            if (plan.unresolved.length && !fixed && !plain && topic.specialQuestion) {
+                for (const roll of CONVERT_ROLLS) {
+                    const seeded = createSeededRandom(`jednoznacne|${item.q}|${roll}`);
+                    let first = true;
+                    const alt = topic.specialQuestion(item, ctx, () => { if (first) { first = false; return roll; } return seeded(); });
+                    const altShown = alt && topic.questionImage ? topic.questionImage(item, ctx, alt.type) : null;
+                    if (!alt || !alt.showName || (altShown && altShown.file) !== (shown && shown.file)) continue;
+                    question = alt;
+                    isSpecial = true;
+                    converted = true;
+                    texts = build();
+                    plan = planOf();
+                    break;
+                }
+            }
+            if (plan.unresolved.length) { plan = planOf(true); ambiguous = true; }
+        } else if (unique && plan.unresolved.length) plan = planOf(true);
+        return { question, special: isSpecial, texts, plan, typeLabel: typeLabelOf(), conflict, ambiguous, swapped, converted };
     };
 
     return {
@@ -2879,6 +3381,7 @@
         censorForItem, answerNamesOf, answerNamesFor, hideAnswer, leadSubject, leadAliases, aliasWords, sealAnswerWords, answerWordsLeft, leakFreeText, OUT_OF_CONTEXT, buildQuestionTexts, factRevealsAnswer, GENERIC_NAME_WORDS,
         JOINING_WORDS, distinctiveTokens, structureLeaks, sealStructure, contentWords, newWords, addsInformation, commonChoiceText,
         choicePoints, choicesView, fitMapToChoices, FIT_SHARE, WORLD_MIN_SPAN, buildHints, planRound, MIN_DESCRIPTION_WORDS, MIN_EXCERPT_WORDS,
+        composeRound, clueFactsOf, contradicts, identifyAnswer, clueFor, pickClue, clueCandidates, uniqueChoices, uniqueInfo, needsUniqueness, wrongItemsOf, isSpecificText, parseClueFact,
         setCountries, landOf, landsOf, landFromDescription, cultureDistance, CULTURE_GROUPS, cultureScore, cultureLandsFor, getWordStems, censorName, mergeCensored, swallowAliases, censorCountry, isKnownCountry, processWikiText, stripFactSentences, takeLeadFacts, normalizeAnswer, levenshtein, isAnswerMatch, isSymbolMatch, isCenturyMatch, isFormulaMatch, formulaCounts, checkAnswer,
         inCollection, filterItems, levelOf, tierLevel, pickItem, sortItems, getCountryNames, getContinent, continentAt, getCountryAliases,
         distanceKm, nearness, STATE_STEPS, sharesGroup, eraNearness, personSimilarity, rankBySimilarity, takeDistinct, isNamePart, nameStems, sameNameStem,

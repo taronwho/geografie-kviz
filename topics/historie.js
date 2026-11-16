@@ -392,6 +392,9 @@
             return score;
         },
 
+        // Rozlišující údaj (quiz-core.js uniqueChoices): rok události a doba války jsou tentýž údaj (Suezská krize 1956 × bitva 1944–1945)
+        clueKeys: { Rok: 'Doba' },
+
         // Občas „Ve kterém století začal vládnout?“ (narodila se, odehrálo se…) – jméno je pak vidět a z popisu zmizí letopočty
         specialQuestion: (item, ctx, rng) => {
             const roll = rng();

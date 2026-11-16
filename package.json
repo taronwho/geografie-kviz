@@ -42,7 +42,8 @@
     "audit:souvislosti": "node scripts/audit-souvislosti.mjs",
     "audit:retezovka": "node scripts/audit-retezovka.mjs --label=after",
     "audit:moznosti": "node scripts/sample-choices.mjs",
-    "audit:obrazky": "node scripts/audit-obrazky.mjs"
+    "audit:obrazky": "node scripts/audit-obrazky.mjs",
+    "audit:jednoznacnost": "node scripts/audit-jednoznacnost.mjs"
   },
   "devDependencies": {
     "web-push": "^3.6.7"
