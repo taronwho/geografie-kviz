@@ -64,8 +64,9 @@
     const safeSurnames = (items) => {
         if (!surnameCache.has(items)) {
             const surnames = items.filter(other => !isWork(other)).map(other => [other.q, surnameOf(other.n)]).filter(([, surname]) => surname);
-            surnameCache.set(items, new Set(surnames.filter(([qid, surname]) => surname.length >= 3
-                && !surnames.some(([other, name]) => other !== qid && core.isAnswerMatch(name, [surname]))).map(([qid]) => qid)));
+            // (core.fuzzyTwins = porovnání každého s každým přes isAnswerMatch, jen bez dvojic, které se splést nemohou)
+            const twins = core.fuzzyTwins(surnames);
+            surnameCache.set(items, new Set(surnames.filter(([qid, surname]) => surname.length >= 3 && !twins.has(qid)).map(([qid]) => qid)));
         }
         return surnameCache.get(items);
     };

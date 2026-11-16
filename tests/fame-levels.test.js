@@ -6,6 +6,9 @@ const core = require('../quiz-core.js');
 
 const load = (topic) => require(path.join(__dirname, '..', 'data', `${topic}.json`));
 const floorOf = (size) => size < 8 ? 0 : Math.min(size, Math.max(3, Math.ceil(size * 0.25)));
+// Okruhy bez základní úrovně (scripts/lib/fame-levels.mjs demoteKnown): odborná látka, hrají se jen celé z učení; geologické věky jen pro experty
+const EXPERT_ONLY = { geologie: ['veky'] };
+const NO_BASIC = { geologie: ['veky'] };
 
 test('fame-levels: pořadí známosti, známé, spodní hranice okruhu, experti a horní hranice expertů', async () => {
     const { assignLevels, fameRanks, levelGroups } = await import('../scripts/lib/fame-levels.mjs');
@@ -45,9 +48,31 @@ for (const topic of ['vlajky', 'geologie', 'mytologie']) {
         for (const collection of data.collections) {
             const members = core.filterItems(data.items, { collection: collection.id });
             const experts = members.filter(item => core.levelOf(item) === 3).length;
+            if ((EXPERT_ONLY[topic] || []).includes(collection.id)) assert.equal(experts, members.length, `${collection.id}: celý okruh je pro experty`);
+            if ((NO_BASIC[topic] || []).includes(collection.id)) {
+                assert.equal(members.filter(item => item.k === 1).length, 0, `${collection.id}: bez základní úrovně`);
+                continue;
+            }
             assert.ok(experts <= Math.floor(members.length * 0.45) + 1, `${collection.id}: expertů ${experts}/${members.length}`);
             // Základní úroveň: v okruhu aspoň pár otázek (kde to známost dovolí, aspoň max(3, 25 %))
             if (members.length >= 8) assert.ok(members.filter(item => item.k === 1).length >= Math.min(3, floorOf(members.length)), `${collection.id}: známých málo`);
         }
     });
 }
+
+test('geologie: geologické věky jsou jen pro experty, denní módy je do 17. 11. 2026 berou jako dřív', () => {
+    const data = load('geologie');
+    const ages = data.items.filter(item => item.c === 'obdobi' && item.f.lvl === 'věk');
+    assert.ok(ages.length >= 20);
+    for (const item of ages) assert.ok(item.k === 0 && item.x === 1, `${item.n}: jen pro experty`);
+    assert.deepEqual(ages.filter(item => item.ku).map(item => item.n).sort(), ['Alb', 'Apt', 'Barrem', 'Cenoman', 'Kampán', 'Turon', 'Valangin']);
+    // Okruh Věky druhohor jde hrát (okruh z učení bere všechny úrovně), v úrovních Základní a Mudrlant věky nepřijdou
+    assert.ok(core.filterItems(data.items, { collection: 'veky' }).length >= 20);
+    for (const tier of ['known', 'all']) assert.equal(core.filterItems(data.items, { tier }).filter(item => item.c === 'obdobi' && item.f.lvl === 'věk').length, 0, tier);
+    // Denní módy: 16. 11. jako dřív (sedm věků známých), od 17. 11. nové úrovně
+    const before = core.itemsAsOf(data.items, '2026-11-16');
+    assert.deepEqual(before.filter(item => item.c === 'obdobi' && item.f.lvl === 'věk' && item.k === 1).map(item => item.n).sort(), ['Alb', 'Apt', 'Barrem', 'Cenoman', 'Kampán', 'Turon', 'Valangin']);
+    assert.ok(before.filter(item => item.k === 1).every(item => !item.x));
+    assert.equal(core.itemsAsOf(data.items, '2026-11-16'), before, 'stejné pole pro tentýž den');
+    assert.equal(core.itemsAsOf(data.items, '2026-11-17'), data.items, 'od změny data, jak jsou');
+});

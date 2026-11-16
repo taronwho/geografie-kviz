@@ -530,6 +530,27 @@
         (Array.isArray(rows) ? rows : []).forEach(row => { if (row && list.includes(row.seed) && isSnapshotData(row.data)) found[row.seed] = row.data; });
         return found;
     });
+    // Zamrzlé denní módy (schéma 33): uložené otázky Kvízu dne, Dnešních otázek, Řetězovky, Tajemné otázky a Bosse týdne čte i nepřihlášený
+    // (daily_snapshots_get s veřejným klíčem); přihlášený se ptá se svým přihlášením. Databáze bez funkce (404): null a dál se neptá.
+    let dailySnapshotsMissing = false;
+    const DAILY_SEED = /^mudrlant-(?:kviz-dne|dnes|retezovka|tajemna|boss)-[A-Za-z0-9._:-]{1,120}$/;
+    const dailySnapshots = async (seeds) => {
+        if (dailySnapshotsMissing || !baseUrl() || !config().supabaseAnonKey) return null;
+        const list = [...new Set((Array.isArray(seeds) ? seeds : []).filter(seed => typeof seed === 'string' && DAILY_SEED.test(seed)))].slice(0, 100);
+        const found = Object.create(null);
+        if (!list.length) return found;
+        const token = auth() && auth().hasSession && auth().hasSession() ? await auth().accessToken().catch(() => null) : null;
+        const response = await fetch(`${baseUrl()}/rest/v1/rpc/daily_snapshots_get`, {
+            method: 'POST',
+            headers: { apikey: config().supabaseAnonKey, Authorization: `Bearer ${token || config().supabaseAnonKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ seeds: list })
+        });
+        if (response.status === 404) { dailySnapshotsMissing = true; return null; }
+        if (!response.ok) throw new SocialError(`Server odpověděl ${response.status}`, response.status);
+        const rows = await response.json().catch(() => []);
+        (Array.isArray(rows) ? rows : []).forEach(row => { if (row && list.includes(row.seed) && isSnapshotData(row.data)) found[row.seed] = row.data; });
+        return found;
+    };
     // XP za vyhrané zápasy turnaje (schéma 3): server zapíše dosud nevyplacené výhry a vrátí je ([{ id, round }]); retryKey = klíč zařízení,
     // se kterým opakované volání (ztracená odpověď) vrátí tytéž zápasy znovu. null = databáze vyplácení neeviduje (starší schéma).
     let claimMissing = false;
@@ -1380,7 +1401,7 @@
         // Rozpis otázek (schéma 10)
         challengeDetails, tournamentDetails,
         // Zamrzlé otázky (schéma 17)
-        claimQuestion, questionSnapshots,
+        claimQuestion, questionSnapshots, dailySnapshots,
         touchSeen, friendsList, addFriend, acceptFriend, removeFriend, REACTIONS, react, reactionsFor, lastReactionFrom, blockedPlayers, blockPlayer, unblockPlayer, REPORT_REASONS, reportPlayer, devReports, devResolveReport,
         submitAnswerStats, answerStatsTopic, devSuspiciousQuestions,
         // Kvíz dne (schéma 7)

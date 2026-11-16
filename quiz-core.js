@@ -150,11 +150,53 @@
     };
     const formatPoints = (count) => plural(count, 'bod', 'body', 'bodů');
 
-    const getDayKey = (date = new Date()) =>
-        `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    // Den aplikace je pražský kalendářní den (stejně jako Kvíz dne, Řetězovka, Tajemná otázka a Boss týdne): dnešní otázky, série a cíle
+    // se tak všem hráčům mění ve stejnou chvíli, i když má telefon jiné časové pásmo (dovolená, cizina, špatně nastavený čas).
+    // getDayKey(datum) s datem v argumentu jen přepíše místní kalendářní datum (pro výpočty s dny, shiftDayKey).
+    const localDayKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    let pragueDayFormat = null;
+    try { pragueDayFormat = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Prague', year: 'numeric', month: '2-digit', day: '2-digit' }); } catch (e) { /* bez Intl místní čas */ }
+    const pragueDayKey = (now = new Date()) => {
+        if (pragueDayFormat) {
+            try {
+                const parts = Object.fromEntries(pragueDayFormat.formatToParts(now).map(part => [part.type, part.value]));
+                const text = `${parts.year}-${parts.month}-${parts.day}`;
+                if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+            } catch (e) { /* neplatné datum */ }
+        }
+        return localDayKey(now);
+    };
+    const getDayKey = (date) => (date === undefined ? pragueDayKey(new Date()) : localDayKey(date));
     const shiftDayKey = (dayKey, days) => {
         const [y, m, d] = dayKey.split('-').map(Number);
         return getDayKey(new Date(y, m - 1, d + days));
+    };
+
+    // Data témat podle dne: položka s ku ('RRRR-MM-DD', „známá do“) byla známá (k: 1, bez x) do toho dne (bez něj) a pak se přesunula
+    // mezi méně známé; položka s xs („pro experty od“) byla do toho dne v úrovni Mudrlant (bez x). Denní módy (Kvíz dne, Dnešní otázky, Řetězovka, Boss týdne, Tajemná otázka) berou položky tak, jak byly v den,
+    // který se hraje, takže změna úrovní v datech nezmění den, který už někdo hrál (výzvy a trénink berou nové úrovně hned).
+    // Bez takových položek se vrátí stejné pole (stejná identita, mezipaměti podle pole platí dál); jinak jedno pole na kombinaci změn.
+    const asOfCache = typeof WeakMap === 'function' ? new WeakMap() : null;
+    const itemsAsOf = (items, day) => {
+        if (!Array.isArray(items) || typeof day !== 'string') return items;
+        const before = (item) => Boolean(item) && ((typeof item.ku === 'string' && day < item.ku) || (typeof item.xs === 'string' && day < item.xs));
+        const changed = items.filter(before);
+        if (!changed.length) return items;
+        const key = [...new Set(changed.flatMap(item => [item.ku, item.xs].filter(value => typeof value === 'string' && day < value)))].sort().join('|');
+        let byKey = asOfCache ? asOfCache.get(items) : null;
+        if (!byKey) { byKey = new Map(); if (asOfCache) asOfCache.set(items, byKey); }
+        if (byKey.has(key)) return byKey.get(key);
+        const old = items.map(item => {
+            if (!before(item)) return item;
+            const copy = { ...item };
+            if (typeof item.ku === 'string' && day < item.ku) copy.k = 1;
+            delete copy.x;
+            delete copy.ku;
+            delete copy.xs;
+            return copy;
+        });
+        byKey.set(key, old);
+        return old;
     };
     const formatDayKey = (dayKey) => {
         const [y, m, d] = dayKey.split('-').map(Number);
@@ -301,23 +343,31 @@
     // Zkratky (USA, ČR, ČLR) jen jako celé slovo a s velkými písmeny, ať nezakryjí běžná slova
     const isAbbreviation = (word) => /^\p{Lu}{2,4}$/u.test(word);
 
-    const censorWords = (text, phrase) => {
+    // Vzory zakrytí podle jména se pamatují: sestavení velkého regulárního výrazu (kmeny, varianty diakritiky) a jeho překlad v prohlížeči
+    // stojí mnohem víc než samotné hledání, a jedna otázka zakrývá stejná jména v desítkách vět (popis, fakta, nápovědy, možnosti).
+    // Bez paměti trvalo sestavení otázky Kvízu dne na počítači i 4 s (na telefonu několikanásobně déle).
+    const censorPatterns = new Map();
+    const CENSOR_CACHE_SIZE = 3000;
+    const censorPatternsFor = (phrase) => {
+        const cached = censorPatterns.get(phrase);
+        if (cached) return cached;
         // Dvojtečka, středník a uvozovky ve slovech neruší (Pán prstenů: Návrat krále – „prstenů:“ jinak kmen nenajde)
         const words = stripBrackets(phrase).trim().split(/[\s,\-–:;!?„“”"…\/]+/).filter(Boolean);
         const abbreviations = words.filter(word => isAbbreviation(word) && !isRomanNumeral(word));
         const hyphenated = stripBrackets(phrase).split(',').map(name => name.trim()).filter(name => /\p{L}[\-–]\p{L}/u.test(name));
-        const pattern = buildWordsPattern(words.filter(word => !isAbbreviation(word)), hyphenated);
-        let res = pattern ? text.replace(pattern, '[***]') : text;
-        if (abbreviations.length) {
-            res = res.replace(new RegExp(NOT_LETTER_BEFORE + '(?:' + abbreviations.map(escapeRegExp).join('|') + ')' + NOT_LETTER_AFTER, 'gu'), '[***]');
-        }
         // Dvoupísmenné slovo s velkým písmenem (Medvídek Pú, Ang Lee) jako celé slovo a jen s velkým písmenem
         const shortCapitals = words.filter(word => /^\p{Lu}\p{Ll}$/u.test(word) && !CENSOR_SKIP_WORDS.has(word.toLowerCase()));
-        if (shortCapitals.length) {
-            res = res.replace(new RegExp(NOT_LETTER_BEFORE + '(?:' + shortCapitals.map(escapeRegExp).join('|') + ')' + NOT_LETTER_AFTER, 'gu'), '[***]');
-        }
-        return res;
+        const patterns = [
+            buildWordsPattern(words.filter(word => !isAbbreviation(word)), hyphenated),
+            abbreviations.length ? new RegExp(NOT_LETTER_BEFORE + '(?:' + abbreviations.map(escapeRegExp).join('|') + ')' + NOT_LETTER_AFTER, 'gu') : null,
+            shortCapitals.length ? new RegExp(NOT_LETTER_BEFORE + '(?:' + shortCapitals.map(escapeRegExp).join('|') + ')' + NOT_LETTER_AFTER, 'gu') : null
+        ].filter(Boolean);
+        if (censorPatterns.size >= CENSOR_CACHE_SIZE) censorPatterns.clear();
+        censorPatterns.set(phrase, patterns);
+        return patterns;
     };
+    // Vzory mají příznak g: replace() začíná vždy od začátku textu, takže sdílený výraz nevadí
+    const censorWords = (text, phrase) => censorPatternsFor(String(phrase)).reduce((res, pattern) => res.replace(pattern, '[***]'), text);
 
     // Zakrytí nesmí prozradit tvar odpovědi. Slova, která v názvu jen spojují jeho části (Liška a pes, Obrazce na planině Nazca,
     // Pán prstenů: Návrat krále, Cesta do fantazie), mezi dvěma zakrytými místy by ho ukázala: „[***] a [***]“ má mezi
@@ -589,6 +639,48 @@
             const expectedForms = [...new Set([expected, withArabicNumbers(answer)])];
             return givenForms.some(form => expectedForms.some(other => matchesOne(form, other)));
         });
+    };
+    // Které klíče mají text, který jde s překlepem zaměnit s textem jiného klíče: klíč a padne, když isAnswerMatch(text b, [text a])
+    // pro nějaké jiné b (příjmení filmaře nebo umělce jako psaná odpověď jen tehdy, když nepatří i jinému). Výsledek je stejný jako
+    // u porovnání každého s každým, jen rychlejší: dvojice, kterou překlepy nemohou spojit (vzdálenost aspoň polovina rozdílu v počtech
+    // písmen, překlep je nejvýš 2 na slovo), se vůbec neporovnává – u 3 000 jmen dřív trvalo porovnání každého s každým 5–10 s.
+    const fuzzyTwins = (entries) => {
+        const prepared = entries.map(([key, text]) => {
+            const forms = [...new Set([normalizeAnswer(text), withArabicNumbers(text)])].filter(Boolean);
+            const compact = forms.map(form => form.replace(/ /g, ''));
+            // Písmena každého tvaru seřazená: rozdíl v počtech písmen dvou tvarů se pak spočítá jedním průchodem
+            return { key, text, compact, sorted: compact.map(form => [...form].sort()), words: Math.max(1, ...forms.map(form => form.split(' ').length)), length: compact.length ? compact[0].length : 0 };
+        }).filter(entry => entry.compact.length);
+        // Překlepů je aspoň polovina rozdílu v počtech písmen (záměna písmene ho mění o 2, vložení o 1, prohození vůbec)
+        const gapAtMost = (a, b, limit) => {
+            let i = 0;
+            let j = 0;
+            let gap = 0;
+            while (i < a.length || j < b.length) {
+                if (j >= b.length || (i < a.length && a[i] < b[j])) { gap += 1; i += 1; } else if (i >= a.length || b[j] < a[i]) { gap += 1; j += 1; } else { i += 1; j += 1; }
+                if (gap > 2 * limit) return false;
+            }
+            return true;
+        };
+        const mayMatch = (a, b) => {
+            const limit = 2 * Math.max(a.words, b.words);
+            return a.sorted.some((x, xi) => b.sorted.some((y, yi) => Math.abs(a.compact[xi].length - b.compact[yi].length) <= limit && gapAtMost(x, y, limit)));
+        };
+        const twins = new Set();
+        const byLength = [...prepared].sort((a, b) => a.length - b.length);
+        const reach = 2 * Math.max(1, ...prepared.map(entry => entry.words)) + 8;
+        for (let i = 0; i < byLength.length; i++) {
+            const a = byLength[i];
+            for (let j = i + 1; j < byLength.length; j++) {
+                const b = byLength[j];
+                // Seřazené podle délky: dál už jsou jen delší, které rozdíl délek vyřadí (s rezervou na tvar s arabskými číslicemi)
+                if (b.length - a.length > reach) break;
+                if (a.key === b.key || !mayMatch(a, b)) continue;
+                if (!twins.has(a.key) && isAnswerMatch(b.text, [a.text])) twins.add(a.key);
+                if (!twins.has(b.key) && isAnswerMatch(a.text, [b.text])) twins.add(b.key);
+            }
+        }
+        return twins;
     };
     // Značka nebo vzorec přesně (m ≠ m², CO ≠ CO₂); horní a dolní indexy jako obyčejné číslice, bez mezer;
     // velikost písmen jen tam, kde by rozhodovala (m – M)
@@ -1328,6 +1420,38 @@
         // Všechno už bylo: z polovičky hrané nejdávněji, ať se hned neopakuje právě odehraná otázka
         const oldestFirst = [...inCategory].sort((a, b) => recent.get(b.q) - recent.get(a.q));
         return pickOne(oldestFirst.slice(0, Math.ceil(oldestFirst.length / 2)));
+    };
+
+    // Otisk textu (32 bitů) pro výběr „položka s nejmenším otiskem“ – stejně jako daily-quiz.js hash32
+    const hashText = (text) => {
+        let hash = 2166136261;
+        for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 16777619);
+        hash ^= hash >>> 16; hash = Math.imul(hash, 0x85ebca6b); hash ^= hash >>> 13; hash = Math.imul(hash, 0xc2b2ae35); hash ^= hash >>> 16;
+        return hash >>> 0;
+    };
+    // Dnešní otázka tématu (app.js startDaily od DAILY_STABLE_FROM): jen ze semínka dne a dat, pro všechny stejná. Asi desetina (hardShare)
+    // z těžších položek (úroveň 2, vlastní los), jinak ze známých; kategorie losem ze semínka (každá stejně často, pořadí z tématu),
+    // v ní položka s nejmenším otiskem (semínko + id): nová nebo odebraná položka změní výběr jen tam, kde by sama vyhrála.
+    // Nezávisí na nastavení hráče, jeho úrovni, historii ani na Wikipedii.
+    const dailyPick = (items, { seed, categories = [], hardShare = 0.1 } = {}) => {
+        const list = (items || []).filter(item => item && item.q);
+        const hard = createSeededRandom(`${seed}:tezka`)() < hardShare;
+        const harder = hard ? list.filter(item => levelOf(item) === 2) : [];
+        const base = harder.length ? harder : list.filter(item => item.k === 1);
+        const askable = base.filter(item => !item.nq);
+        const pool = askable.length ? askable : base.length ? base : list;
+        if (!pool.length) return null;
+        const present = new Set(pool.map(item => item.c));
+        const keys = [...categories.filter(key => present.has(key)), ...[...present].filter(key => !categories.includes(key)).sort()];
+        const category = keys[Math.floor(createSeededRandom(`${seed}:kategorie`)() * keys.length)];
+        let best = null;
+        let bestHash = Infinity;
+        for (const item of pool) {
+            if (item.c !== category) continue;
+            const value = hashText(`${seed}|${item.q}`);
+            if (value < bestHash || (value === bestHash && String(item.q) < String(best.q))) { best = item; bestHash = value; }
+        }
+        return best;
     };
 
     // Řazení pro systematické procházení okruhu: podle názvu, nebo podle faktu (výška, rok…) – položky bez údaje na konec
@@ -2873,7 +2997,7 @@
         UNKNOWN_COUNTRY, INTERNATIONAL_WATERS, CZECHIA_QID, AFTER_SYMBOL_WORD, TILE_SIZE, COUNTRIES, CONTINENT_NAMES,
         SATELLITE_TILES, OSM_TILES,
         escapeHtml, stripBrackets, isRealPhoto, photoWords, OFF_SUBJECT, OFF_SUBJECT_BUILDINGS, offSubjectRule, commonsPhotoUrl, commonsFileUrl, displayName, plural, formatPoints,
-        getDayKey, shiftDayKey, formatDayKey, createSeededRandom, pickRandom, pickWeighted, shuffle,
+        getDayKey, pragueDayKey, itemsAsOf, dailyPick, hashText, fuzzyTwins, shiftDayKey, formatDayKey, createSeededRandom, pickRandom, pickWeighted, shuffle,
         ELEMENT_FAMILIES, elementFamily, periodicPosition,
         maskLeaks, findLeaks, answerTokens, foldKeys, isPersonName, genericWordsOf, isGenericWord, specificWords, absorbGenericWords, hideNicknames, CHOICE_MARK, hideOtherChoices,
         censorForItem, answerNamesOf, answerNamesFor, hideAnswer, leadSubject, leadAliases, aliasWords, sealAnswerWords, answerWordsLeft, leakFreeText, OUT_OF_CONTEXT, buildQuestionTexts, factRevealsAnswer, GENERIC_NAME_WORDS,

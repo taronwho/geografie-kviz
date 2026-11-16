@@ -726,3 +726,18 @@ nenabídne (funkce vrátí 404, sloupec 400), prestiž platí jen v zařízení 
   jen když jsou mezi dary v účtu (aplikace před uložením nahraje odměny).
 - Export dat má `pozvanky` (kód, kdo mě pozval, koho jsem pozval, vyzvednuté odměny). Smazání účtu je smaže (cizí klíče s kaskádou).
 - Testy: `tests/sql-motivace.test.js`, `tests/motivace.test.js` a `tests/e2e-motivace.test.js`.
+
+## Zamrzlé denní módy: stejné otázky dne pro všechny i po nasazení (schéma 33)
+
+**Po aktualizaci spusť znovu celý `supabase/schema.sql` (verze 33).** Dokud ho nespustíš, hraje se jako dřív: Kvíz dne má zamrzlé otázky
+(schéma 17) jen pro přihlášené a ostatní denní módy si každý hráč sestaví ze svých dat (všem stejně, dokud se během dne nezmění data).
+
+- `question_snapshot_claim` (stejná funkce jako ve schématu 17, nově i se semínky denních módů): **Dnešní otázky** `mudrlant-dnes-<den>:<téma>`,
+  **Řetězovka dne** `mudrlant-retezovka-<den>` (celý řetěz), **Tajemná otázka** `mudrlant-tajemna-<den>` (jen dnešek a včerejšek podle Prahy)
+  a **Boss týdne** `mudrlant-boss-<pondělí>-<pokus 1–3>:otazka:<0–9>` (tento a minulý týden). První uložená platí; kontrolu dne dělá
+  `daily_snapshot_seed_ok`.
+- `daily_snapshots_get(seeds)`: uložené otázky denních módů a Kvízu dne (`daily_snapshot_public`, nejvýš 100 semínek) čte **i nepřihlášený**
+  (anon), takže host dostane stejné otázky jako přihlášení. Otázky výzev a turnajů dál čte jen přihlášený přes `question_snapshots_get`.
+- Aplikace stáhne uložené otázky všech dnešních módů jedním dotazem po vykreslení úvodu (`prefetchDailySnapshots` v `app.js`); otázka, která
+  na serveru je, se po klepnutí ukáže hned (bez čekání na Wikipedii a fotky). Otázku, kterou server nemá, sestaví první hráč dne a uloží.
+- Testy: `tests/sql-daily-snapshots.test.js`, `tests/denni-sameness.test.js`, `tests/e2e-denni-audit.test.js` a audit `scripts/audit-denni.mjs`.
