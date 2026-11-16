@@ -3037,7 +3037,11 @@
         const similarity = (other) => (ctx.topic.similarity ? ctx.topic.similarity(item, other, ctx) || 0 : 0) + (item.ty && other.ty === item.ty ? 4 : 0)
             + (other.k === item.k ? 2 : 0) + cultureScore(item, other);
         const ownNames = new Set([item.n, displayName(item.t || '')].map(normalizeAnswer));
+        // Druh je vidět u otázky (hráč snookeru): mají-li ho stejný aspoň dvě původní možnosti, náhrada musí být stejného druhu
+        // (k Ronniemu O'Sullivanovi jiný hráč snookeru, ne fotbalista)
+        const sameKind = Boolean(item.ty) && wrong.filter(other => other.ty === item.ty).length >= 2;
         const pool = (ctx.items || []).filter(other => other.c === item.c && other.q !== item.q && !other.nq && !ownNames.has(normalizeAnswer(other.n))
+            && (!sameKind || other.ty === item.ty)
             && !sameArticle(item, other) && !isNamePart(item.n, other.n) && !wrong.includes(other)
             && !(text && choiceConflict({ id: other.q, label: other.n, correct: false }, { question, item, ctx, text })));
         const settled = wrong.filter(other => !pending.includes(other));

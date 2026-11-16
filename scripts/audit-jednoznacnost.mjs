@@ -270,8 +270,9 @@ const describe = (entry) => {
 const fixed = judged.filter(entry => !entry.before.ok && entry.after.ok && entry.kind !== 'jméno');
 const picked = [];
 for (const topicId of topics) {
-    const own = fixed.filter(entry => entry.topic === topicId).sort((a, b) => Number(b.wiki) - Number(a.wiki) || Number(b.swapped) - Number(a.swapped));
-    picked.push(...own.slice(0, 2));
+    // Jeden příklad s rozlišujícím údajem u původních možností, jeden s vyměněnými možnostmi (oba s úvodem z Wikipedie, je-li)
+    const own = fixed.filter(entry => entry.topic === topicId).sort((a, b) => Number(b.wiki) - Number(a.wiki));
+    picked.push(...[own.find(entry => !entry.swapped && entry.after.clue.length), own.find(entry => entry.swapped)].filter(Boolean));
 }
 // Případ, kvůli kterému audit vznikl: Jan Werich mezi Karlem Högerem, Ladislavem Peškem a Jaroslavem Marvanem s obecným popisem
 const werichCase = () => {

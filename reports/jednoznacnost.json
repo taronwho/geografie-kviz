@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-16T10:40:05.112Z",
+ "generated": "2026-11-16T11:08:56.169Z",
  "options": {
   "topics": [
    "architektura",
@@ -28,7 +28,7 @@
   "questions": 5412,
   "judged": 4615,
   "before": 2279,
-  "after": 186,
+  "after": 224,
   "byTopic": {
    "architektura": {
     "questions": 194,
@@ -53,7 +53,7 @@
    "fyzika": {
     "questions": 305,
     "before": 214,
-    "after": 40
+    "after": 44
    },
    "geologie": {
     "questions": 332,
@@ -78,7 +78,7 @@
    "mytologie": {
     "questions": 295,
     "before": 230,
-    "after": 22
+    "after": 56
    },
    "sport": {
     "questions": 341,
@@ -813,6 +813,224 @@
      "Boyleův-Mariottův zákon",
      "Wienův posunovací zákon",
      "Avogadrův zákon"
+    ],
+    "via": "nic",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "mytologie",
+   "level": 1,
+   "q": "Q215085",
+   "name": "Golem",
+   "type": "name",
+   "title": "Kdo je to?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": false,
+   "converted": false,
+   "ambiguous": true,
+   "day": null,
+   "before": {
+    "choices": [
+     "Krakonoš",
+     "Jehuda ben Becalel",
+     "Neklan",
+     "Golem ✓"
+    ],
+    "text": "[***] je v židovské mystice člověkem oživená socha. Takových [***] je známo poměrně dost. Většina lidí si [***] představuje jako oživenou sochu v podobě člověka, ale je to postava mytická, a proto může mít různé podoby.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Krakonoš",
+     "Jehuda ben Becalel",
+     "Neklan"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Krakonoš",
+     "Jehuda ben Becalel",
+     "Neklan",
+     "Golem ✓"
+    ],
+    "text": "[***] je v židovské mystice člověkem oživená socha. Takových [***] je známo poměrně dost. Většina lidí si [***] představuje jako oživenou sochu v podobě člověka, ale je to postava mytická, a proto může mít různé podoby.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Krakonoš",
+     "Jehuda ben Becalel",
+     "Neklan"
+    ],
+    "via": "nic",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "mytologie",
+   "level": 1,
+   "q": "Q11773777",
+   "name": "Sun Wu-kchung",
+   "type": "name",
+   "title": "Kdo je to?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": false,
+   "converted": false,
+   "ambiguous": true,
+   "day": null,
+   "before": {
+    "choices": [
+     "Momotaró",
+     "Sun Wu-kchung ✓",
+     "Šen-nung",
+     "Žlutý císař"
+    ],
+    "text": "[***] je ústřední postava populárního čínského románu spisovatele [***] Čcheng-ena Putování na západ ze 16. století.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Šen-nung",
+     "Žlutý císař"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Momotaró",
+     "Sun Wu-kchung ✓",
+     "Šen-nung",
+     "Žlutý císař"
+    ],
+    "text": "[***] je ústřední postava populárního čínského románu spisovatele [***] Čcheng-ena Putování na západ ze 16. století.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Šen-nung",
+     "Žlutý císař"
+    ],
+    "via": "nic",
+    "definition": false
+   }
+  },
+  {
+   "generator": "hra",
+   "topic": "mytologie",
+   "level": 1,
+   "q": "Q1237858",
+   "name": "Přemysl Oráč",
+   "type": "name",
+   "title": "Kdo je to?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": false,
+   "converted": false,
+   "ambiguous": true,
+   "day": null,
+   "before": {
+    "choices": [
+     "Krakonoš",
+     "Přemysl Oráč ✓",
+     "Bivoj",
+     "Mistr Hanuš"
+    ],
+    "text": "[***] je mytický český vládce, manžel kněžny Libuše a zakladatel nejstarší české vládnoucí dynastie [***].",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Krakonoš",
+     "Bivoj",
+     "Mistr Hanuš"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Krakonoš",
+     "Přemysl Oráč ✓",
+     "Bivoj",
+     "Mistr Hanuš"
+    ],
+    "text": "[***] je mytický český vládce, manžel kněžny Libuše a zakladatel nejstarší české vládnoucí dynastie [***].",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Krakonoš",
+     "Bivoj",
+     "Mistr Hanuš"
+    ],
+    "via": "nic",
+    "definition": false
+   }
+  },
+  {
+   "generator": "výzva",
+   "topic": "mytologie",
+   "level": 2,
+   "q": "Q587825",
+   "name": "Černoboh",
+   "type": "name",
+   "title": "Kdo je to?",
+   "kind": "popis",
+   "wiki": true,
+   "swapped": false,
+   "converted": false,
+   "ambiguous": true,
+   "day": null,
+   "before": {
+    "choices": [
+     "Bělbog",
+     "Černoboh ✓",
+     "Radegast",
+     "Rod"
+    ],
+    "text": "[***] bylo božstvo Polabských Slovanů zmiňované ve 12. století Helmoldem z Bosau.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Bělbog",
+     "Radegast",
+     "Rod"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Bělbog",
+     "Černoboh ✓",
+     "Radegast",
+     "Rod"
+    ],
+    "text": "[***] bylo božstvo Polabských Slovanů zmiňované ve 12. století Helmoldem z Bosau.",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Bělbog",
+     "Radegast",
+     "Rod"
     ],
     "via": "nic",
     "definition": false
@@ -1606,6 +1824,12 @@
   },
   {
    "topic": "fyzika",
+   "name": "Saturn",
+   "title": "Co je to za těleso?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
    "name": "Betlémská hvězda",
    "title": "Co je to za těleso?",
    "generator": "hra"
@@ -1674,6 +1898,18 @@
    "topic": "fyzika",
    "name": "Vlnění",
    "title": "Který zákon, jev nebo pojem to je?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Apollo 11",
+   "title": "Co je to za sondu nebo přístroj?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
+   "name": "Sputnik 1",
+   "title": "Co je to za sondu nebo přístroj?",
    "generator": "hra"
   },
   {
@@ -1774,6 +2010,12 @@
   },
   {
    "topic": "fyzika",
+   "name": "Gemini 4",
+   "title": "Co je to za sondu nebo přístroj?",
+   "generator": "hra"
+  },
+  {
+   "topic": "fyzika",
    "name": "Molekula",
    "title": "Která částice to je?",
    "generator": "výzva"
@@ -1828,6 +2070,12 @@
   },
   {
    "topic": "mytologie",
+   "name": "Mnémosyné",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
    "name": "Jama",
    "title": "Kdo je to?",
    "generator": "hra"
@@ -1836,6 +2084,36 @@
    "topic": "mytologie",
    "name": "Skřet",
    "title": "Co je to za bytost?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Jehuda ben Becalel",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Inari",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Svantovít",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Bruncvík",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Meleagros",
+   "title": "Kdo je to?",
    "generator": "hra"
   },
   {
@@ -1876,6 +2154,18 @@
   },
   {
    "topic": "mytologie",
+   "name": "Trihlav",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Duamutef",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
    "name": "Kobold",
    "title": "Co je to za bytost?",
    "generator": "hra"
@@ -1888,6 +2178,30 @@
   },
   {
    "topic": "mytologie",
+   "name": "Chors",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Rujevít",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Porenut",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Vnislav",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
    "name": "Dakša",
    "title": "Kdo je to?",
    "generator": "hra"
@@ -1895,6 +2209,18 @@
   {
    "topic": "mytologie",
    "name": "Urvaší",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Mimas",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Porfyrión",
    "title": "Kdo je to?",
    "generator": "hra"
   },
@@ -1924,9 +2250,81 @@
   },
   {
    "topic": "mytologie",
+   "name": "Savitar",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
    "name": "Hreidmar",
    "title": "Kdo je to?",
    "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Sarpédón",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Anu",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Matka vlhká země",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Podaga",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Bojan",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Airmid",
+   "title": "Kdo je to?",
+   "generator": "hra"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Jarilo",
+   "title": "Kdo je to?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Vlasta",
+   "title": "Kdo je to?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Ídomeneus",
+   "title": "Kdo je to?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Svantovít",
+   "title": "Kdo je to?",
+   "generator": "výzva"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Bivoj",
+   "title": "Kdo je to?",
+   "generator": "výzva"
   },
   {
    "topic": "zemepis",
@@ -1971,6 +2369,12 @@
    "generator": "kvíz dne"
   },
   {
+   "topic": "mytologie",
+   "name": "Morana",
+   "title": "Kdo je to?",
+   "generator": "kvíz dne"
+  },
+  {
    "topic": "chemie",
    "name": "Ionizace",
    "title": "Jaká reakce nebo proces to je?",
@@ -1989,9 +2393,21 @@
    "generator": "kvíz dne"
   },
   {
+   "topic": "mytologie",
+   "name": "Toutatis",
+   "title": "Kdo je to?",
+   "generator": "kvíz dne"
+  },
+  {
    "topic": "chemie",
    "name": "Ethery",
    "title": "Jaký pojem nebo metoda to je?",
+   "generator": "kvíz dne"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Kuan-jin",
+   "title": "Kdo je to?",
    "generator": "kvíz dne"
   },
   {
@@ -2016,6 +2432,12 @@
    "topic": "chemie",
    "name": "Hoření",
    "title": "Jaká reakce nebo proces to je?",
+   "generator": "kvíz dne"
+  },
+  {
+   "topic": "mytologie",
+   "name": "Taranis",
+   "title": "Kdo je to?",
    "generator": "kvíz dne"
   },
   {
@@ -2062,6 +2484,59 @@
   }
  ],
  "examples": [
+  {
+   "generator": "hra",
+   "topic": "architektura",
+   "level": 1,
+   "q": "Q331273",
+   "name": "Řecká antika",
+   "type": "name",
+   "title": "Který sloh to je?",
+   "kind": "ukázka",
+   "wiki": true,
+   "swapped": false,
+   "converted": false,
+   "ambiguous": false,
+   "day": null,
+   "before": {
+    "choices": [
+     "Byzantský sloh",
+     "Gotika",
+     "Řecká antika ✓",
+     "Románský sloh"
+    ],
+    "text": "",
+    "facts": [],
+    "clue": [],
+    "ok": false,
+    "strict": false,
+    "open": [
+     "Byzantský sloh",
+     "Gotika",
+     "Románský sloh"
+    ],
+    "via": "nic",
+    "definition": false
+   },
+   "after": {
+    "choices": [
+     "Byzantský sloh",
+     "Gotika",
+     "Řecká antika ✓",
+     "Románský sloh"
+    ],
+    "text": "",
+    "facts": [],
+    "clue": [
+     "Slavná stavba: Artemidin chrám v Efesu"
+    ],
+    "ok": true,
+    "strict": true,
+    "open": [],
+    "via": "rozlišující údaj",
+    "definition": false
+   }
+  },
   {
    "generator": "hra",
    "topic": "architektura",
@@ -2117,49 +2592,49 @@
   },
   {
    "generator": "hra",
-   "topic": "architektura",
+   "topic": "biologie",
    "level": 2,
-   "q": "Q380282",
-   "name": "Alexej Viktorovič Ščusev",
+   "q": "Q312756",
+   "name": "Čirůvka zelánka",
    "type": "name",
-   "title": "Kdo to je?",
+   "title": "Co je to za houbu?",
    "kind": "popis",
    "wiki": true,
-   "swapped": true,
+   "swapped": false,
    "converted": false,
    "ambiguous": false,
    "day": null,
    "before": {
     "choices": [
-     "Lev Vladimirovič Rudněv",
-     "Boris Michajlovič Iofan",
-     "Alexej Viktorovič Ščusev ✓",
-     "Alexandr Tamanjan"
+     "Čirůvka zelánka ✓",
+     "Čirůvka sírožlutá",
+     "Čirůvka havelka",
+     "Čirůvka tygrovaná"
     ],
-    "text": "[***] byl ruský architekt narozený na území dnešního Moldavska. Jeho starší stavby byly navrženy v historizujícím, takzvaně neoruském stylu, později čerpal i ze secese, neoklasicismu, konstruktivismu, aby se nakonec stal klíčovým představitelem architektury s…",
+    "text": "[***] je fakultativně jedovatá podzimní houba. V důsledku kyselých dešťů došlo k úbytku této houby. Jde o mykorhizní druh.",
     "facts": [],
     "clue": [],
     "ok": false,
     "strict": false,
     "open": [
-     "Lev Vladimirovič Rudněv",
-     "Boris Michajlovič Iofan",
-     "Alexandr Tamanjan"
+     "Čirůvka sírožlutá",
+     "Čirůvka havelka",
+     "Čirůvka tygrovaná"
     ],
     "via": "nic",
     "definition": false
    },
    "after": {
     "choices": [
-     "Lev Vladimirovič Rudněv",
-     "Boris Michajlovič Iofan",
-     "Alexej Viktorovič Ščusev ✓",
-     "Konstantin Stěpanovič Melnikov"
+     "Čirůvka zelánka ✓",
+     "Čirůvka sírožlutá",
+     "Čirůvka havelka",
+     "Čirůvka tygrovaná"
     ],
-    "text": "[***] byl ruský architekt narozený na území dnešního Moldavska. Jeho starší stavby byly navrženy v historizujícím, takzvaně neoruském stylu, později čerpal i ze secese, neoklasicismu, konstruktivismu, aby se nakonec stal klíčovým představitelem architektury s…",
+    "text": "[***] je fakultativně jedovatá podzimní houba. V důsledku kyselých dešťů došlo k úbytku této houby. Jde o mykorhizní druh.",
     "facts": [],
     "clue": [
-     "Narození: 1873"
+     "Jedlost: nutná opatrnost"
     ],
     "ok": true,
     "strict": true,
@@ -2221,49 +2696,49 @@
   },
   {
    "generator": "hra",
-   "topic": "biologie",
+   "topic": "chemie",
    "level": 1,
-   "q": "Q37083",
-   "name": "Olivovník evropský",
+   "q": "Q556",
+   "name": "Vodík",
    "type": "name",
-   "title": "Co je to za rostlinu?",
+   "title": "Který prvek to je?",
    "kind": "popis",
    "wiki": true,
-   "swapped": true,
+   "swapped": false,
    "converted": false,
    "ambiguous": false,
    "day": null,
    "before": {
     "choices": [
-     "Olivovník evropský ✓",
-     "Majoránka zahradní",
-     "Jasan ztepilý",
-     "Šalvěj rozmarýna"
+     "Uhlík",
+     "Kyslík",
+     "Síra",
+     "Vodík ✓"
     ],
-    "text": "[***] je strom z čeledi [***]. Pochází z Asie a Afriky, avšak dnes se s ním běžně setkáme ve středozemních oblastech [***].",
+    "text": "[***] je nejlehčí a nejjednodušší plynný chemický prvek. Tvoří převážnou část hmoty ve vesmíru. Elementární [***] má široké praktické využití: zdroj energie, redukční činidlo v chemické syntéze nebo metalurgii a také jako náplň meteorologických a pouťových ba…",
     "facts": [],
     "clue": [],
     "ok": false,
     "strict": false,
     "open": [
-     "Majoránka zahradní",
-     "Jasan ztepilý",
-     "Šalvěj rozmarýna"
+     "Uhlík",
+     "Kyslík",
+     "Síra"
     ],
     "via": "nic",
     "definition": false
    },
    "after": {
     "choices": [
-     "Olivovník evropský ✓",
-     "Rohovník obecný",
-     "Čajovník čínský",
-     "Brukev zelná"
+     "Uhlík",
+     "Kyslík",
+     "Síra",
+     "Vodík ✓"
     ],
-    "text": "[***] je strom z čeledi [***]. Pochází z Asie a Afriky, avšak dnes se s ním běžně setkáme ve středozemních oblastech [***].",
+    "text": "[***] je nejlehčí a nejjednodušší plynný chemický prvek. Tvoří převážnou část hmoty ve vesmíru. Elementární [***] má široké praktické využití: zdroj energie, redukční činidlo v chemické syntéze nebo metalurgii a také jako náplň meteorologických a pouťových ba…",
     "facts": [],
     "clue": [
-     "Řád: hluchavkotvaré"
+     "Objevitel: Henry Cavendish"
     ],
     "ok": true,
     "strict": true,
@@ -2327,49 +2802,57 @@
   },
   {
    "generator": "hra",
-   "topic": "chemie",
+   "topic": "film",
    "level": 1,
-   "q": "Q708",
-   "name": "Olovo",
+   "q": "Q102244",
+   "name": "Harry Potter a Tajemná komnata",
    "type": "name",
-   "title": "Který prvek to je?",
+   "title": "Který film to je?",
    "kind": "popis",
    "wiki": true,
-   "swapped": true,
+   "swapped": false,
    "converted": false,
    "ambiguous": false,
    "day": null,
    "before": {
     "choices": [
-     "Gallium",
-     "Olovo ✓",
-     "Cín",
-     "Hliník"
+     "Pán prstenů: Společenstvo Prstenu",
+     "Harry Potter a vězeň z Azkabanu",
+     "Harry Potter a Tajemná komnata ✓",
+     "Mumie"
     ],
-    "text": "[***] je těžký, jedovatý kov, který je znám lidstvu již od starověku. Má velmi nízkou teplotu tání a je dobře kujný i při pokojové teplotě a odolný vůči korozi.",
-    "facts": [],
+    "text": "[***] je britsko-americký film natočený podle stejnojmenné předlohy britské spisovatelky J. K. Rowlingové.",
+    "facts": [
+     "Rok: 2002",
+     "Žánr: fantasy, dobrodružný film",
+     "Země: Spojené státy americké, Spojené království"
+    ],
     "clue": [],
     "ok": false,
     "strict": false,
     "open": [
-     "Gallium",
-     "Cín",
-     "Hliník"
+     "Pán prstenů: Společenstvo Prstenu",
+     "Harry Potter a vězeň z Azkabanu",
+     "Mumie"
     ],
     "via": "nic",
     "definition": false
    },
    "after": {
     "choices": [
-     "Zlato",
-     "Olovo ✓",
-     "Germanium",
-     "Uhlík"
+     "Pán prstenů: Společenstvo Prstenu",
+     "Harry Potter a vězeň z Azkabanu",
+     "Harry Potter a Tajemná komnata ✓",
+     "Mumie"
     ],
-    "text": "[***] je těžký, jedovatý kov, který je znám lidstvu již od starověku. Má velmi nízkou teplotu tání a je dobře kujný i při pokojové teplotě a odolný vůči korozi.",
-    "facts": [],
+    "text": "[***] je britsko-americký film natočený podle stejnojmenné předlohy britské spisovatelky J. K. Rowlingové.",
+    "facts": [
+     "Rok: 2002",
+     "Žánr: fantasy, dobrodružný film",
+     "Země: Spojené státy americké, Spojené království"
+    ],
     "clue": [
-     "Skupina prvků: nepřechodný kov"
+     "Režie: Chris Columbus"
     ],
     "ok": true,
     "strict": true,
@@ -2430,52 +2913,51 @@
   },
   {
    "generator": "hra",
-   "topic": "film",
+   "topic": "fyzika",
    "level": 1,
-   "q": "Q180338",
-   "name": "Christopher Lee",
+   "q": "Q33680",
+   "name": "Radián",
    "type": "name",
-   "title": "Kdo to je?",
+   "title": "Která jednotka to je?",
    "kind": "popis",
    "wiki": true,
-   "swapped": true,
+   "swapped": false,
    "converted": false,
    "ambiguous": false,
    "day": null,
    "before": {
     "choices": [
-     "Sean Connery",
-     "Christopher Lee ✓",
-     "Patrick Stewart",
-     "Ian McKellen"
+     "Stupeň",
+     "Radián ✓",
+     "Coulomb",
+     "Ohm"
     ],
-    "text": "[***] byl britský herec a příležitostný zpěvák. Proslavil se v hororech studia Hammer, například jako „Mumie“ a zejména jako hrabě Drákula.",
+    "text": "[***] je bezrozměrová odvozená jednotka soustavy SI velikosti rovinného úhlu. Používá se pro něj značka [***]. 1 [***] je velikost středového úhlu, který přísluší oblouku o stejné délce, jako je poloměr kružnice.",
     "facts": [],
     "clue": [],
     "ok": false,
     "strict": false,
     "open": [
-     "Sean Connery",
-     "Patrick Stewart",
-     "Ian McKellen"
+     "Coulomb",
+     "Ohm"
     ],
     "via": "nic",
     "definition": false
    },
    "after": {
     "choices": [
-     "Sean Connery",
-     "Christopher Lee ✓",
-     "Patrick Stewart",
-     "Richard Attenborough"
+     "Stupeň",
+     "Radián ✓",
+     "Coulomb",
+     "Ohm"
     ],
-    "text": "[***] byl britský herec a příležitostný zpěvák. Proslavil se v hororech studia Hammer, například jako „Mumie“ a zejména jako hrabě Drákula.",
+    "text": "[***] je bezrozměrová odvozená jednotka soustavy SI velikosti rovinného úhlu. Používá se pro něj značka [***]. 1 [***] je velikost středového úhlu, který přísluší oblouku o stejné délce, jako je poloměr kružnice.",
     "facts": [],
     "clue": [
-     "Film: Pán prstenů: Společenstvo Prstenu"
+     "Veličina: úhlová vzdálenost"
     ],
     "ok": true,
-    "strict": true,
+    "strict": false,
     "open": [],
     "via": "rozlišující údaj",
     "definition": false
@@ -2536,49 +3018,49 @@
   },
   {
    "generator": "hra",
-   "topic": "fyzika",
+   "topic": "geologie",
    "level": 1,
-   "q": "Q36253",
-   "name": "Délka",
+   "q": "Q5283",
+   "name": "Diamant",
    "type": "name",
-   "title": "Která veličina to je?",
-   "kind": "popis",
+   "title": "Co je to za drahý kámen?",
+   "kind": "ukázka",
    "wiki": true,
-   "swapped": true,
+   "swapped": false,
    "converted": false,
    "ambiguous": false,
    "day": null,
    "before": {
     "choices": [
-     "Délka ✓",
-     "Vzdálenost",
-     "Průměr",
-     "Hustota"
+     "Diamant ✓",
+     "Topaz",
+     "Citrín",
+     "Hyalit"
     ],
-    "text": "[***] je jedna ze základních fyzikálních veličin. Pomocí [***] se vyjadřuje vzájemná poloha a rozprostraněnost objektů v prostoru.",
+    "text": "",
     "facts": [],
     "clue": [],
     "ok": false,
     "strict": false,
     "open": [
-     "Vzdálenost",
-     "Průměr",
-     "Hustota"
+     "Topaz",
+     "Citrín",
+     "Hyalit"
     ],
     "via": "nic",
     "definition": false
    },
    "after": {
     "choices": [
-     "Délka ✓",
-     "Úhlová rychlost",
-     "Kinetická energie",
-     "Atmosférický tlak"
+     "Diamant ✓",
+     "Topaz",
+     "Citrín",
+     "Hyalit"
     ],
-    "text": "[***] je jedna ze základních fyzikálních veličin. Pomocí [***] se vyjadřuje vzájemná poloha a rozprostraněnost objektů v prostoru.",
+    "text": "",
     "facts": [],
     "clue": [
-     "Jednotka SI: metr (m)"
+     "Třída: prvky"
     ],
     "ok": true,
     "strict": true,
@@ -2642,49 +3124,49 @@
   },
   {
    "generator": "hra",
-   "topic": "geologie",
+   "topic": "historie",
    "level": 1,
-   "q": "Q334719",
-   "name": "Citrín",
+   "q": "Q8409",
+   "name": "Alexandr Veliký",
    "type": "name",
-   "title": "Co je to za drahý kámen?",
-   "kind": "ukázka",
+   "title": "Kdo to je?",
+   "kind": "popis",
    "wiki": true,
-   "swapped": true,
+   "swapped": false,
    "converted": false,
    "ambiguous": false,
    "day": null,
    "before": {
     "choices": [
-     "Ametyst",
-     "Záhněda",
-     "Citrín ✓",
-     "Jantar"
+     "Filip II. Makedonský",
+     "Ptolemaios I. Sótér",
+     "Alexandr IV. Aigos",
+     "Alexandr Veliký ✓"
     ],
-    "text": "",
+    "text": "[***], ), byl král Makedonie. [***] rozšířil hranice své říše tažením do Persie a na indický subkontinent, díky čemuž se stal zřejmě největším a nejúspěšnějším vojevůdcem celé historie, který neprohrál žádnou bitvu.",
     "facts": [],
     "clue": [],
     "ok": false,
     "strict": false,
     "open": [
-     "Ametyst",
-     "Záhněda",
-     "Jantar"
+     "Filip II. Makedonský",
+     "Ptolemaios I. Sótér",
+     "Alexandr IV. Aigos"
     ],
     "via": "nic",
     "definition": false
    },
    "after": {
     "choices": [
-     "Ametyst",
-     "Záhněda",
-     "Citrín ✓",
-     "Tygří oko"
+     "Filip II. Makedonský",
+     "Ptolemaios I. Sótér",
+     "Alexandr IV. Aigos",
+     "Alexandr Veliký ✓"
     ],
-    "text": "",
+    "text": "[***], ), byl král Makedonie. [***] rozšířil hranice své říše tažením do Persie a na indický subkontinent, díky čemuž se stal zřejmě největším a nejúspěšnějším vojevůdcem celé historie, který neprohrál žádnou bitvu.",
     "facts": [],
     "clue": [
-     "Barva: žlutý až oranžový"
+     "Vláda: 335–322 př. n. l."
     ],
     "ok": true,
     "strict": true,
@@ -2747,49 +3229,49 @@
   },
   {
    "generator": "hra",
-   "topic": "historie",
+   "topic": "hudba",
    "level": 1,
-   "q": "Q7328",
-   "name": "Vasco da Gama",
+   "q": "Q7304",
+   "name": "Gustav Mahler",
    "type": "name",
    "title": "Kdo to je?",
    "kind": "popis",
    "wiki": true,
-   "swapped": true,
+   "swapped": false,
    "converted": false,
    "ambiguous": false,
    "day": null,
    "before": {
     "choices": [
-     "Fernão de Magalhães",
-     "Afonso de Albuquerque",
-     "Vasco da Gama ✓",
-     "Bartolomeo Diaz"
+     "Zdeněk Fibich",
+     "Bedřich Smetana",
+     "Gustav Mahler ✓",
+     "Antonín Dvořák"
     ],
-    "text": "[***] byl jeden z nejvýznamnějších portugalských mořeplavců a objevitelů, od roku 1519 hrabě z Vidigueiry. Byl prvním Evropanem, který se dostal do Indie po moři.",
+    "text": "[***] byl rakousko-uherský hudební skladatel původem z Čech a jeden z předních dirigentů své generace. Jako skladatel tvoří most mezi romantickou tradicí 19. století a modernismem počátku 20. století.",
     "facts": [],
     "clue": [],
     "ok": false,
     "strict": false,
     "open": [
-     "Fernão de Magalhães",
-     "Afonso de Albuquerque",
-     "Bartolomeo Diaz"
+     "Zdeněk Fibich",
+     "Bedřich Smetana",
+     "Antonín Dvořák"
     ],
     "via": "nic",
     "definition": false
    },
    "after": {
     "choices": [
-     "Jindřich Mořeplavec",
-     "Nuno Álvares Pereira",
-     "Vasco da Gama ✓",
-     "Bartolomeo Diaz"
+     "Zdeněk Fibich",
+     "Bedřich Smetana",
+     "Gustav Mahler ✓",
+     "Antonín Dvořák"
     ],
-    "text": "[***] byl jeden z nejvýznamnějších portugalských mořeplavců a objevitelů, od roku 1519 hrabě z Vidigueiry. Byl prvním Evropanem, který se dostal do Indie po moři.",
+    "text": "[***] byl rakousko-uherský hudební skladatel původem z Čech a jeden z předních dirigentů své generace. Jako skladatel tvoří most mezi romantickou tradicí 19. století a modernismem počátku 20. století.",
     "facts": [],
     "clue": [
-     "Úmrtí: 1525"
+     "Slavné dílo: Písně o mrtvých dětech"
     ],
     "ok": true,
     "strict": true,
@@ -2853,49 +3335,49 @@
   },
   {
    "generator": "hra",
-   "topic": "hudba",
+   "topic": "literatura",
    "level": 1,
-   "q": "Q5928",
-   "name": "Jimi Hendrix",
+   "q": "Q905",
+   "name": "Franz Kafka",
    "type": "name",
    "title": "Kdo to je?",
    "kind": "popis",
    "wiki": true,
-   "swapped": true,
+   "swapped": false,
    "converted": false,
    "ambiguous": false,
    "day": null,
    "before": {
     "choices": [
-     "Jim Morrison",
-     "Jimi Hendrix ✓",
-     "Lou Reed",
-     "Buddy Holly"
+     "Franz Kafka ✓",
+     "Josef Lada",
+     "Jaroslav Hašek",
+     "Franz Werfel"
     ],
-    "text": "[***] byl americký kytarista, zpěvák a skladatel. Je považován za jednoho z nejvýznamnějších a nejvlivnějších kytaristů v historii rockové hudby.",
+    "text": "[***], židovským jménem Anšel, byl český německy píšící židovský spisovatel. Je považován za jednoho z literárně nejvlivnějších spisovatelů 20. století, byl členem Pražského kruhu.",
     "facts": [],
     "clue": [],
     "ok": false,
     "strict": false,
     "open": [
-     "Jim Morrison",
-     "Lou Reed",
-     "Buddy Holly"
+     "Josef Lada",
+     "Jaroslav Hašek",
+     "Franz Werfel"
     ],
     "via": "nic",
     "definition": false
    },
    "after": {
     "choices": [
-     "Steve Morse",
-     "Jimi Hendrix ✓",
-     "Lou Reed",
-     "Buddy Holly"
+     "Franz Kafka ✓",
+     "Josef Lada",
+     "Jaroslav Hašek",
+     "Franz Werfel"
     ],
-    "text": "[***] byl americký kytarista, zpěvák a skladatel. Je považován za jednoho z nejvýznamnějších a nejvlivnějších kytaristů v historii rockové hudby. Po uvedení do Rock and Rollové síně slávy v roce 1992 jako člen skupiny [***] o něm instituce prohlásila, že je „…",
+    "text": "[***], židovským jménem Anšel, byl český německy píšící židovský spisovatel. Je považován za jednoho z literárně nejvlivnějších spisovatelů 20. století, byl členem Pražského kruhu.",
     "facts": [],
     "clue": [
-     "Život: 1942–1970"
+     "Slavné dílo: Proměna"
     ],
     "ok": true,
     "strict": true,
@@ -2958,49 +3440,49 @@
   },
   {
    "generator": "hra",
-   "topic": "literatura",
+   "topic": "mytologie",
    "level": 1,
-   "q": "Q18391",
-   "name": "Elie Wiesel",
+   "q": "Q47652",
+   "name": "Venuše",
    "type": "name",
-   "title": "Kdo to je?",
+   "title": "Kdo je to?",
    "kind": "popis",
    "wiki": true,
-   "swapped": true,
+   "swapped": false,
    "converted": false,
    "ambiguous": false,
    "day": null,
    "before": {
     "choices": [
-     "Ray Bradbury",
-     "Francis Fukuyama",
-     "Gore Vidal",
-     "Elie Wiesel ✓"
+     "Juno",
+     "Ceres",
+     "Venuše ✓",
+     "Vesta"
     ],
-    "text": "[***] byl židovský prozaik, esejista, dramatik, filozof, humanista, politický aktivista, náboženský myslitel a nositel Nobelovy ceny za mír.",
+    "text": "[***] je římská bohyně smyslnosti, krásy a lásky. Později byla ztotožňována s řeckou bohyní [***]. V římské mytologii představovala [***] zrozená z pěny matku Aenea, bájného zakladatele římského národa.",
     "facts": [],
     "clue": [],
     "ok": false,
     "strict": false,
     "open": [
-     "Ray Bradbury",
-     "Francis Fukuyama",
-     "Gore Vidal"
+     "Juno",
+     "Ceres",
+     "Vesta"
     ],
     "via": "nic",
     "definition": false
    },
    "after": {
     "choices": [
-     "Theodore Dreiser",
-     "Francis Fukuyama",
-     "Jack Kerouac",
-     "Elie Wiesel ✓"
+     "Juno",
+     "Ceres",
+     "Venuše ✓",
+     "Vesta"
     ],
-    "text": "[***] byl židovský prozaik, esejista, dramatik, filozof, humanista, politický aktivista, náboženský myslitel a nositel Nobelovy ceny za mír.",
+    "text": "[***] je římská bohyně smyslnosti, krásy a lásky. Později byla ztotožňována s řeckou bohyní [***]. V římské mytologii představovala [***] zrozená z pěny matku Aenea, bájného zakladatele římského národa.",
     "facts": [],
     "clue": [
-     "Život: 1928–2016"
+     "Oblast: láska, jaro, krása, lidská sexualita"
     ],
     "ok": true,
     "strict": true,
@@ -3060,50 +3542,54 @@
   },
   {
    "generator": "hra",
-   "topic": "mytologie",
+   "topic": "sport",
    "level": 1,
-   "q": "Q129866",
-   "name": "Mínótauros",
+   "q": "Q8488",
+   "name": "Letní olympijské hry 1992",
    "type": "name",
-   "title": "Co je to za bytost?",
+   "title": "Které olympijské hry to jsou?",
    "kind": "popis",
    "wiki": true,
-   "swapped": true,
+   "swapped": false,
    "converted": false,
    "ambiguous": false,
    "day": null,
    "before": {
     "choices": [
-     "Nemejský lev",
-     "Mínótauros ✓",
-     "Hydra",
-     "Siréna"
+     "Letní olympijské hry 1984",
+     "Letní olympijské hry 1992 ✓",
+     "Letní olympijské hry 1996",
+     "Letní olympijské hry 1988"
     ],
-    "text": "[***] je v řecké mytologii bestie s lidským tělem a býčí hlavou. Narodil se ze spojení bílého býka a krétské královny Pásifaé, její manžel, král [***], jej nechal zavřít do krétského labyrintu, který k tomu účelu postavil Daidalos a Ikaros.",
+    "text": "[***] letní olympijské hry se uskutečnily v době od 25. července až do 9. srpna [***], Katalánsko. Zúčastnilo se jich 9 956 sportovců ze 169 zemí.",
     "facts": [],
     "clue": [],
     "ok": false,
     "strict": false,
     "open": [
-     "Siréna"
+     "Letní olympijské hry 1984",
+     "Letní olympijské hry 1996",
+     "Letní olympijské hry 1988"
     ],
     "via": "nic",
     "definition": false
    },
    "after": {
     "choices": [
-     "Nemejský lev",
-     "Mínótauros ✓",
-     "Hydra",
-     "Pegas"
+     "Letní olympijské hry 1984",
+     "Letní olympijské hry 1992 ✓",
+     "Letní olympijské hry 1996",
+     "Letní olympijské hry 1988"
     ],
-    "text": "[***] je v řecké mytologii bestie s lidským tělem a býčí hlavou. Narodil se ze spojení bílého býka a krétské královny Pásifaé, její manžel, král [***], jej nechal zavřít do krétského labyrintu, který k tomu účelu postavil Daidalos a Ikaros.",
+    "text": "[***] letní olympijské hry se uskutečnily v době od 25. července až do 9. srpna [***], Katalánsko. Zúčastnilo se jich 9 956 sportovců ze 169 zemí.",
     "facts": [],
-    "clue": [],
+    "clue": [
+     "Mezi vítězi: Lukáš Pollert"
+    ],
     "ok": true,
     "strict": true,
     "open": [],
-    "via": "popis",
+    "via": "rozlišující údaj",
     "definition": false
    }
   },
@@ -3162,49 +3648,49 @@
   },
   {
    "generator": "hra",
-   "topic": "sport",
+   "topic": "umeni",
    "level": 1,
-   "q": "Q190782",
-   "name": "Ronnie O'Sullivan",
+   "q": "Q5593",
+   "name": "Pablo Picasso",
    "type": "name",
    "title": "Kdo to je?",
    "kind": "popis",
    "wiki": true,
-   "swapped": true,
+   "swapped": false,
    "converted": false,
    "ambiguous": false,
    "day": null,
    "before": {
     "choices": [
-     "Mark Selby",
-     "Steve Davis",
-     "Judd Trump",
-     "Ronnie O'Sullivan ✓"
+     "Salvador Dalí",
+     "Pablo Picasso ✓",
+     "Joan Miró",
+     "Juan Gris"
     ],
-    "text": "[***] je profesionální hráč a sedminásobný mistr světa ve snookeru. Jeho sportovní přezdívka je Raketa.",
+    "text": "[***] byl španělský malíř a sochař. Je jednou z nejvýznamnějších osobností umění 20. století. Společně s Georgesem Braquem je považován za zakladatele kubismu.",
     "facts": [],
     "clue": [],
     "ok": false,
     "strict": false,
     "open": [
-     "Mark Selby",
-     "Steve Davis",
-     "Judd Trump"
+     "Salvador Dalí",
+     "Joan Miró",
+     "Juan Gris"
     ],
     "via": "nic",
     "definition": false
    },
    "after": {
     "choices": [
-     "Wayne Rooney",
-     "Steve Davis",
-     "Judd Trump",
-     "Ronnie O'Sullivan ✓"
+     "Salvador Dalí",
+     "Pablo Picasso ✓",
+     "Joan Miró",
+     "Juan Gris"
     ],
-    "text": "[***] je profesionální hráč a sedminásobný mistr světa ve snookeru. Jeho sportovní přezdívka je Raketa.",
+    "text": "[***] byl španělský malíř a sochař. Je jednou z nejvýznamnějších osobností umění 20. století. Společně s Georgesem Braquem je považován za zakladatele kubismu.",
     "facts": [],
     "clue": [
-     "Život: * 1975"
+     "Slavné dílo: Guernica"
     ],
     "ok": true,
     "strict": true,
@@ -3268,49 +3754,49 @@
   },
   {
    "generator": "hra",
-   "topic": "umeni",
+   "topic": "zemepis",
    "level": 1,
-   "q": "Q190116",
-   "name": "Benvenuto Cellini",
+   "q": "Q43",
+   "name": "Turecko",
    "type": "name",
-   "title": "Kdo to je?",
+   "title": "Co je to za místo?",
    "kind": "popis",
    "wiki": true,
-   "swapped": true,
+   "swapped": false,
    "converted": false,
    "ambiguous": false,
    "day": null,
    "before": {
     "choices": [
-     "Agnolo Bronzino",
-     "Giuseppe Arcimboldo",
-     "Francesco Primaticcio",
-     "Benvenuto Cellini ✓"
+     "Stát Palestina",
+     "Sýrie",
+     "Turecko ✓",
+     "Libanon"
     ],
-    "text": "[***] byl italský zlatník, sochař a spisovatel, který se stal známý svými manýristickými kovovými sochami na přechodu renesance a baroka, šperky a mincemi i knihou Vlastní životopis.",
+    "text": "[***] je transkontinentální stát ležící převážně v Anatolii v západní Asii, s menší částí zvanou Východní Thrákie v jihovýchodní Evropě.",
     "facts": [],
     "clue": [],
     "ok": false,
     "strict": false,
     "open": [
-     "Agnolo Bronzino",
-     "Giuseppe Arcimboldo",
-     "Francesco Primaticcio"
+     "Stát Palestina",
+     "Sýrie",
+     "Libanon"
     ],
     "via": "nic",
     "definition": false
    },
    "after": {
     "choices": [
-     "Paolo Veronese",
-     "Giuseppe Arcimboldo",
-     "Giacomo della Porta",
-     "Benvenuto Cellini ✓"
+     "Stát Palestina",
+     "Sýrie",
+     "Turecko ✓",
+     "Libanon"
     ],
-    "text": "[***] byl italský zlatník, sochař a spisovatel, který se stal známý svými manýristickými kovovými sochami na přechodu renesance a baroka, šperky a mincemi i knihou Vlastní životopis.",
+    "text": "[***] je transkontinentální stát ležící převážně v Anatolii v západní Asii, s menší částí zvanou Východní Thrákie v jihovýchodní Evropě.",
     "facts": [],
     "clue": [
-     "Narození: 1500"
+     "Hlavní město: Ankara"
     ],
     "ok": true,
     "strict": true,
@@ -3369,57 +3855,6 @@
     "strict": true,
     "open": [],
     "via": "rozlišující údaj",
-    "definition": false
-   }
-  },
-  {
-   "generator": "hra",
-   "topic": "zemepis",
-   "level": 1,
-   "q": "Q817",
-   "name": "Kuvajt",
-   "type": "name",
-   "title": "Co je to za místo?",
-   "kind": "popis",
-   "wiki": true,
-   "swapped": true,
-   "converted": false,
-   "ambiguous": false,
-   "day": null,
-   "before": {
-    "choices": [
-     "Irák",
-     "Saúdská Arábie",
-     "Írán",
-     "Kuvajt ✓"
-    ],
-    "text": "[***] je stát v jihozápadní Asii na Blízkém východě. Nachází se na severním okraji [***] poloostrova v cípu Perského zálivu, na severu sousedí s [***] a na jihu se [***].",
-    "facts": [],
-    "clue": [],
-    "ok": false,
-    "strict": false,
-    "open": [
-     "Irák",
-     "Saúdská Arábie",
-     "Írán"
-    ],
-    "via": "nic",
-    "definition": false
-   },
-   "after": {
-    "choices": [
-     "Kypr",
-     "Egypt",
-     "Gruzie",
-     "Kuvajt ✓"
-    ],
-    "text": "[***] je stát v jihozápadní Asii na Blízkém východě. Nachází se na severním okraji Arabského poloostrova v cípu Perského zálivu, na severu sousedí s Irákem a na jihu se Saúdskou Arábií.",
-    "facts": [],
-    "clue": [],
-    "ok": true,
-    "strict": true,
-    "open": [],
-    "via": "popis",
     "definition": false
    }
   }

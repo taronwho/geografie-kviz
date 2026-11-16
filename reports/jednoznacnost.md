@@ -1,6 +1,6 @@
 # Jednoznačnost otázek
 
-Vygenerováno 2026-11-16 10:40 UTC skriptem `npm run audit:jednoznacnost` (5412 otázek, 715 s). Úplný výpis je v `reports/jednoznacnost.json`.
+Vygenerováno 2026-11-16 11:08 UTC skriptem `npm run audit:jednoznacnost` (5412 otázek, 711 s). Úplný výpis je v `reports/jednoznacnost.json`.
 
 Popis otázky: úvod článku z Wikipedie u 5409 otázek (tests/wiki-intros.json a jedno-uvody.json, stažené z cs.wikipedia.org volbou --fetch stejným dotazem jako aplikace), u ostatních krátký popis z Wikidat, jako když se Wikipedie nenačte.
 
@@ -22,18 +22,18 @@ Druhy otázek: **popis** = otázka na název bez obrázku (posuzuje se strukturo
 
 | | Otázek | Před: nejednoznačné | Před | Po: nejednoznačné | Po | Po: jen popis | Po: dvěma údaji | S rozlišujícím údajem | Vyměněné možnosti | Otázka se jménem |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| **Celkem** | 4615 | 2279 | 49.4 % | 17 | 0.4 % | 169 | 202 | 1607 | 1135 | 13 |
-| hra | 3579 | 1685 | 47.1 % | 11 | 0.3 % | 116 | 124 | 1180 | 884 | 11 |
-| výzva | 430 | 280 | 65.1 % | 3 | 0.7 % | 33 | 15 | 180 | 136 | 1 |
-| kvíz dne | 348 | 241 | 69.3 % | 3 | 0.9 % | 20 | 16 | 170 | 115 | 1 |
+| **Celkem** | 4615 | 2279 | 49.4 % | 21 | 0.5 % | 203 | 201 | 1596 | 1089 | 21 |
+| hra | 3579 | 1685 | 47.1 % | 14 | 0.4 % | 141 | 123 | 1169 | 848 | 19 |
+| výzva | 430 | 280 | 65.1 % | 4 | 0.9 % | 38 | 15 | 181 | 130 | 1 |
+| kvíz dne | 348 | 241 | 69.3 % | 3 | 0.9 % | 24 | 16 | 169 | 111 | 1 |
 | Dobývání | 258 | 73 | 28.3 % | 0 | 0.0 % | 0 | 47 | 77 | 0 | 0 |
 | druh: ukázka | 237 | 237 | 100.0 % | 0 | 0.0 % | 0 | 0 | 237 | 78 | 0 |
-| druh: jméno | 1594 | 13 | 0.8 % | 0 | 0.0 % | 0 | 0 | 0 | 0 | 13 |
-| druh: popis | 2784 | 2029 | 72.9 % | 17 | 0.6 % | 169 | 202 | 1370 | 1057 | 0 |
-| úroveň Základní (známé) | 1983 | 1027 | 51.8 % | 7 | 0.4 % | 80 | 87 | 748 | 475 | 3 |
-| úroveň Mudrlant | 1418 | 679 | 47.9 % | 7 | 0.5 % | 51 | 70 | 467 | 348 | 5 |
-| úroveň Mudrlant Expert | 1214 | 573 | 47.2 % | 3 | 0.2 % | 38 | 45 | 392 | 312 | 5 |
-| s úvodem z Wikipedie | 4612 | 2278 | 49.4 % | 16 | 0.3 % | 169 | 201 | 1607 | 1135 | 13 |
+| druh: jméno | 1602 | 21 | 1.3 % | 0 | 0.0 % | 0 | 0 | 0 | 0 | 21 |
+| druh: popis | 2776 | 2021 | 72.8 % | 21 | 0.8 % | 203 | 201 | 1359 | 1011 | 0 |
+| úroveň Základní (známé) | 1983 | 1027 | 51.8 % | 10 | 0.5 % | 96 | 86 | 743 | 453 | 6 |
+| úroveň Mudrlant | 1418 | 679 | 47.9 % | 8 | 0.6 % | 58 | 70 | 467 | 338 | 7 |
+| úroveň Mudrlant Expert | 1214 | 573 | 47.2 % | 3 | 0.2 % | 49 | 45 | 386 | 298 | 8 |
+| s úvodem z Wikipedie | 4612 | 2278 | 49.4 % | 20 | 0.4 % | 203 | 200 | 1596 | 1089 | 21 |
 
 ## Podle témat
 
@@ -43,14 +43,14 @@ Druhy otázek: **popis** = otázka na název bez obrázku (posuzuje se strukturo
 | biologie | 368 | 219 | 59.5 % | 8 | 2.2 % | 24 | 15 | 76 | 186 | 0 |
 | chemie | 327 | 218 | 66.7 % | 5 | 1.5 % | 85 | 1 | 115 | 50 | 12 |
 | film | 428 | 100 | 23.4 % | 0 | 0.0 % | 0 | 1 | 96 | 12 | 0 |
-| fyzika | 305 | 214 | 70.2 % | 3 | 1.0 % | 37 | 12 | 149 | 98 | 1 |
+| fyzika | 305 | 214 | 70.2 % | 3 | 1.0 % | 41 | 11 | 146 | 94 | 1 |
 | geologie | 332 | 241 | 72.6 % | 0 | 0.0 % | 0 | 3 | 226 | 102 | 0 |
-| historie | 438 | 154 | 35.2 % | 0 | 0.0 % | 0 | 14 | 133 | 78 | 0 |
+| historie | 438 | 154 | 35.2 % | 0 | 0.0 % | 0 | 14 | 131 | 75 | 3 |
 | hudba | 349 | 155 | 44.4 % | 0 | 0.0 % | 0 | 37 | 133 | 58 | 0 |
 | literatura | 501 | 178 | 35.5 % | 0 | 0.0 % | 0 | 5 | 125 | 89 | 0 |
-| mytologie | 295 | 230 | 78.0 % | 1 | 0.3 % | 21 | 9 | 99 | 176 | 0 |
-| sport | 341 | 145 | 42.5 % | 0 | 0.0 % | 0 | 39 | 126 | 62 | 0 |
-| umeni | 219 | 137 | 62.6 % | 0 | 0.0 % | 0 | 13 | 135 | 55 | 0 |
+| mytologie | 295 | 230 | 78.0 % | 5 | 1.7 % | 51 | 9 | 93 | 139 | 3 |
+| sport | 341 | 145 | 42.5 % | 0 | 0.0 % | 0 | 39 | 124 | 60 | 2 |
+| umeni | 219 | 137 | 62.6 % | 0 | 0.0 % | 0 | 13 | 137 | 55 | 0 |
 | vlajky | 0 | 0 | – | 0 | – | 0 | 0 | 0 | 0 | 0 |
 | zemepis | 518 | 236 | 45.6 % | 0 | 0.0 % | 2 | 50 | 142 | 163 | 0 |
 
@@ -113,18 +113,18 @@ Druhy otázek: **popis** = otázka na název bez obrázku (posuzuje se strukturo
 | geologie | Jakou má tvrdost podle Mohse? | 7 | 0.0 % | 0.0 % |
 | geologie | Jaký má vzorec? | 62 | 0.0 % | 0.0 % |
 | geologie | Které je to období? | 26 | 96.2 % | 0.0 % |
-| historie | Kdo to je? | 147 | 70.7 % | 0.0 % |
-| historie | Která bitva, válka nebo revoluce to je? | 49 | 49.0 % | 0.0 % |
+| historie | Kdo to je? | 145 | 70.3 % | 0.0 % |
+| historie | Která bitva, válka nebo revoluce to je? | 48 | 47.9 % | 0.0 % |
 | historie | Která událost to je? | 22 | 13.6 % | 0.0 % |
 | historie | Který stát to je? | 26 | 88.5 % | 0.0 % |
 | historie | Ve kterém dnešním státě byla podepsána? | 1 | 0.0 % | 0.0 % |
 | historie | Ve kterém dnešním státě se to stalo? | 3 | 0.0 % | 0.0 % |
 | historie | Ve kterém století byla podepsána? | 2 | 0.0 % | 0.0 % |
-| historie | Ve kterém století nastoupil do úřadu? | 28 | 0.0 % | 0.0 % |
+| historie | Ve kterém století nastoupil do úřadu? | 29 | 3.4 % | 0.0 % |
 | historie | Ve kterém století nastoupila do úřadu? | 1 | 0.0 % | 0.0 % |
-| historie | Ve kterém století se narodil? | 43 | 0.0 % | 0.0 % |
+| historie | Ve kterém století se narodil? | 44 | 2.3 % | 0.0 % |
 | historie | Ve kterém století se narodila? | 10 | 0.0 % | 0.0 % |
-| historie | Ve kterém století se to odehrálo? | 36 | 0.0 % | 0.0 % |
+| historie | Ve kterém století se to odehrálo? | 37 | 2.7 % | 0.0 % |
 | historie | Ve kterém století se to stalo? | 8 | 0.0 % | 0.0 % |
 | historie | Ve kterém století tento stát vznikl? | 17 | 0.0 % | 0.0 % |
 | historie | Ve kterém století to začalo? | 3 | 0.0 % | 0.0 % |
@@ -151,13 +151,13 @@ Druhy otázek: **popis** = otázka na název bez obrázku (posuzuje se strukturo
 | literatura | Ve kterém století žil? | 26 | 0.0 % | 0.0 % |
 | literatura | Ve kterém století žila? | 1 | 0.0 % | 0.0 % |
 | literatura | Ze kterého díla je tato postava? | 5 | 0.0 % | 0.0 % |
-| mytologie | Co je to za bytost? | 36 | 100.0 % | 0.0 % |
-| mytologie | Co je to? | 13 | 100.0 % | 0.0 % |
+| mytologie | Co je to za bytost? | 35 | 100.0 % | 0.0 % |
+| mytologie | Co je to? | 11 | 100.0 % | 0.0 % |
 | mytologie | Jak se jmenuje v řecké mytologii? | 4 | 0.0 % | 0.0 % |
 | mytologie | Jak se jmenuje v římské mytologii? | 2 | 0.0 % | 0.0 % |
-| mytologie | Kdo je to? | 193 | 93.8 % | 0.5 % |
-| mytologie | Ze které mytologie je? | 25 | 0.0 % | 0.0 % |
-| mytologie | Ze které mytologie tato bytost pochází? | 22 | 0.0 % | 0.0 % |
+| mytologie | Kdo je to? | 193 | 93.8 % | 2.6 % |
+| mytologie | Ze které mytologie je? | 27 | 7.4 % | 0.0 % |
+| mytologie | Ze které mytologie tato bytost pochází? | 23 | 4.3 % | 0.0 % |
 | sport | Kde se konaly letní olympijské hry 1896? | 1 | 0.0 % | 0.0 % |
 | sport | Kde se konaly letní olympijské hry 1900? | 1 | 0.0 % | 0.0 % |
 | sport | Kde se konaly letní olympijské hry 1964? | 1 | 0.0 % | 0.0 % |
@@ -167,12 +167,12 @@ Druhy otázek: **popis** = otázka na název bez obrázku (posuzuje se strukturo
 | sport | Kde se konaly zimní olympijské hry 1960? | 1 | 0.0 % | 0.0 % |
 | sport | Kde se konaly zimní olympijské hry 1992? | 1 | 0.0 % | 0.0 % |
 | sport | Kde se konaly zimní olympijské hry 2002? | 1 | 0.0 % | 0.0 % |
-| sport | Kdo to je? | 122 | 58.2 % | 0.0 % |
+| sport | Kdo to je? | 120 | 57.5 % | 0.0 % |
 | sport | Která soutěž to je? | 25 | 88.0 % | 0.0 % |
 | sport | Které olympijské hry to jsou? | 10 | 30.0 % | 0.0 % |
 | sport | Které sportoviště to je? | 52 | 26.9 % | 0.0 % |
 | sport | Který klub nebo tým to je? | 44 | 79.5 % | 0.0 % |
-| sport | Ve kterém sportu se proslavil? | 45 | 0.0 % | 0.0 % |
+| sport | Ve kterém sportu se proslavil? | 47 | 4.3 % | 0.0 % |
 | sport | Ve kterém sportu se proslavila? | 34 | 0.0 % | 0.0 % |
 | umeni | Jaký je to umělecký směr? | 17 | 94.1 % | 0.0 % |
 | umeni | Kdo to je? | 152 | 79.6 % | 0.0 % |
@@ -195,6 +195,15 @@ Nepočítané otázky (odpověď určí obrázek věci samé, mapa nebo místní
   - možnosti: Jan Werich ✓, Karel Höger, Ladislav Pešek, Jaroslav Marvan
   - jednoznačná (rozlišující údaj)
 
+### Řecká antika (architektura, hra, Který sloh to je?)
+
+- **Před:** (bez popisu)
+  - možnosti: Byzantský sloh, Gotika, Řecká antika ✓, Románský sloh
+  - nevyvrácené: Byzantský sloh, Gotika, Románský sloh
+- **Po:** (bez popisu) · **rozlišující údaj: Slavná stavba: Artemidin chrám v Efesu**
+  - možnosti: Byzantský sloh, Gotika, Řecká antika ✓, Románský sloh
+  - jednoznačná (rozlišující údaj)
+
 ### Tojoo Itó (architektura, hra, Kdo to je?)
 
 - **Před:** „[***] je japonský architekt, známý svou mimořádně tvořivou koncepční architekturou, v níž usiluje o propojení fyzického světa se světem virtuálním.“
@@ -204,13 +213,13 @@ Nepočítané otázky (odpověď určí obrázek věci samé, mapa nebo místní
   - možnosti: Tojoo Itó ✓, Kengo Kuma, Šigeru Ban, Fumihiko Maki (vyměněné)
   - jednoznačná (rozlišující údaj)
 
-### Alexej Viktorovič Ščusev (architektura, hra, Kdo to je?)
+### Čirůvka zelánka (biologie, hra, Co je to za houbu?)
 
-- **Před:** „[***] byl ruský architekt narozený na území dnešního Moldavska. Jeho starší stavby byly navrženy v historizujícím, takzvaně neoruském stylu, později čerpal i ze secese, neoklasicismu, konstruktivismu, aby se nakonec stal klíčovým představitelem architektury s…“
-  - možnosti: Lev Vladimirovič Rudněv, Boris Michajlovič Iofan, Alexej Viktorovič Ščusev ✓, Alexandr Tamanjan
-  - nevyvrácené: Lev Vladimirovič Rudněv, Boris Michajlovič Iofan, Alexandr Tamanjan
-- **Po:** „[***] byl ruský architekt narozený na území dnešního Moldavska. Jeho starší stavby byly navrženy v historizujícím, takzvaně neoruském stylu, později čerpal i ze secese, neoklasicismu, konstruktivismu, aby se nakonec stal klíčovým představitelem architektury s…“ · **rozlišující údaj: Narození: 1873**
-  - možnosti: Lev Vladimirovič Rudněv, Boris Michajlovič Iofan, Alexej Viktorovič Ščusev ✓, Konstantin Stěpanovič Melnikov (vyměněné)
+- **Před:** „[***] je fakultativně jedovatá podzimní houba. V důsledku kyselých dešťů došlo k úbytku této houby. Jde o mykorhizní druh.“
+  - možnosti: Čirůvka zelánka ✓, Čirůvka sírožlutá, Čirůvka havelka, Čirůvka tygrovaná
+  - nevyvrácené: Čirůvka sírožlutá, Čirůvka havelka, Čirůvka tygrovaná
+- **Po:** „[***] je fakultativně jedovatá podzimní houba. V důsledku kyselých dešťů došlo k úbytku této houby. Jde o mykorhizní druh.“ · **rozlišující údaj: Jedlost: nutná opatrnost**
+  - možnosti: Čirůvka zelánka ✓, Čirůvka sírožlutá, Čirůvka havelka, Čirůvka tygrovaná
   - jednoznačná (rozlišující údaj)
 
 ### Pes domácí (biologie, hra, Co je to za zvíře?)
@@ -222,13 +231,13 @@ Nepočítané otázky (odpověď určí obrázek věci samé, mapa nebo místní
   - možnosti: Pes domácí ✓, Křeček zlatý, Sviňucha obecná, Ptakopysk podivný (vyměněné)
   - jednoznačná (popis)
 
-### Olivovník evropský (biologie, hra, Co je to za rostlinu?)
+### Vodík (chemie, hra, Který prvek to je?)
 
-- **Před:** „[***] je strom z čeledi [***]. Pochází z Asie a Afriky, avšak dnes se s ním běžně setkáme ve středozemních oblastech [***].“
-  - možnosti: Olivovník evropský ✓, Majoránka zahradní, Jasan ztepilý, Šalvěj rozmarýna
-  - nevyvrácené: Majoránka zahradní, Jasan ztepilý, Šalvěj rozmarýna
-- **Po:** „[***] je strom z čeledi [***]. Pochází z Asie a Afriky, avšak dnes se s ním běžně setkáme ve středozemních oblastech [***].“ · **rozlišující údaj: Řád: hluchavkotvaré**
-  - možnosti: Olivovník evropský ✓, Rohovník obecný, Čajovník čínský, Brukev zelná (vyměněné)
+- **Před:** „[***] je nejlehčí a nejjednodušší plynný chemický prvek. Tvoří převážnou část hmoty ve vesmíru. Elementární [***] má široké praktické využití: zdroj energie, redukční činidlo v chemické syntéze nebo metalurgii a také jako náplň meteorologických a pouťových ba…“
+  - možnosti: Uhlík, Kyslík, Síra, Vodík ✓
+  - nevyvrácené: Uhlík, Kyslík, Síra
+- **Po:** „[***] je nejlehčí a nejjednodušší plynný chemický prvek. Tvoří převážnou část hmoty ve vesmíru. Elementární [***] má široké praktické využití: zdroj energie, redukční činidlo v chemické syntéze nebo metalurgii a také jako náplň meteorologických a pouťových ba…“ · **rozlišující údaj: Objevitel: Henry Cavendish**
+  - možnosti: Uhlík, Kyslík, Síra, Vodík ✓
   - jednoznačná (rozlišující údaj)
 
 ### Cesium (chemie, hra, Který prvek to je?)
@@ -240,13 +249,13 @@ Nepočítané otázky (odpověď určí obrázek věci samé, mapa nebo místní
   - možnosti: Lithium, Draslík, Cesium ✓, Sodík (vyměněné)
   - jednoznačná (rozlišující údaj)
 
-### Olovo (chemie, hra, Který prvek to je?)
+### Harry Potter a Tajemná komnata (film, hra, Který film to je?)
 
-- **Před:** „[***] je těžký, jedovatý kov, který je znám lidstvu již od starověku. Má velmi nízkou teplotu tání a je dobře kujný i při pokojové teplotě a odolný vůči korozi.“
-  - možnosti: Gallium, Olovo ✓, Cín, Hliník
-  - nevyvrácené: Gallium, Cín, Hliník
-- **Po:** „[***] je těžký, jedovatý kov, který je znám lidstvu již od starověku. Má velmi nízkou teplotu tání a je dobře kujný i při pokojové teplotě a odolný vůči korozi.“ · **rozlišující údaj: Skupina prvků: nepřechodný kov**
-  - možnosti: Zlato, Olovo ✓, Germanium, Uhlík (vyměněné)
+- **Před:** „[***] je britsko-americký film natočený podle stejnojmenné předlohy britské spisovatelky J. K. Rowlingové.“ · fakta: Rok: 2002; Žánr: fantasy, dobrodružný film; Země: Spojené státy americké, Spojené království
+  - možnosti: Pán prstenů: Společenstvo Prstenu, Harry Potter a vězeň z Azkabanu, Harry Potter a Tajemná komnata ✓, Mumie
+  - nevyvrácené: Pán prstenů: Společenstvo Prstenu, Harry Potter a vězeň z Azkabanu, Mumie
+- **Po:** „[***] je britsko-americký film natočený podle stejnojmenné předlohy britské spisovatelky J. K. Rowlingové.“ · **rozlišující údaj: Režie: Chris Columbus** · fakta: Rok: 2002; Žánr: fantasy, dobrodružný film; Země: Spojené státy americké, Spojené království
+  - možnosti: Pán prstenů: Společenstvo Prstenu, Harry Potter a vězeň z Azkabanu, Harry Potter a Tajemná komnata ✓, Mumie
   - jednoznačná (rozlišující údaj)
 
 ### Cesta do fantazie (film, hra, Který animovaný film to je?)
@@ -258,13 +267,13 @@ Nepočítané otázky (odpověď určí obrázek věci samé, mapa nebo místní
   - možnosti: Cesta do fantazie ✓, Království koček, Gedo senki, Ponpoko (vyměněné)
   - jednoznačná (popis)
 
-### Christopher Lee (film, hra, Kdo to je?)
+### Radián (fyzika, hra, Která jednotka to je?)
 
-- **Před:** „[***] byl britský herec a příležitostný zpěvák. Proslavil se v hororech studia Hammer, například jako „Mumie“ a zejména jako hrabě Drákula.“
-  - možnosti: Sean Connery, Christopher Lee ✓, Patrick Stewart, Ian McKellen
-  - nevyvrácené: Sean Connery, Patrick Stewart, Ian McKellen
-- **Po:** „[***] byl britský herec a příležitostný zpěvák. Proslavil se v hororech studia Hammer, například jako „Mumie“ a zejména jako hrabě Drákula.“ · **rozlišující údaj: Film: Pán prstenů: Společenstvo Prstenu**
-  - možnosti: Sean Connery, Christopher Lee ✓, Patrick Stewart, Richard Attenborough (vyměněné)
+- **Před:** „[***] je bezrozměrová odvozená jednotka soustavy SI velikosti rovinného úhlu. Používá se pro něj značka [***]. 1 [***] je velikost středového úhlu, který přísluší oblouku o stejné délce, jako je poloměr kružnice.“
+  - možnosti: Stupeň, Radián ✓, Coulomb, Ohm
+  - nevyvrácené: Coulomb, Ohm
+- **Po:** „[***] je bezrozměrová odvozená jednotka soustavy SI velikosti rovinného úhlu. Používá se pro něj značka [***]. 1 [***] je velikost středového úhlu, který přísluší oblouku o stejné délce, jako je poloměr kružnice.“ · **rozlišující údaj: Veličina: úhlová vzdálenost**
+  - možnosti: Stupeň, Radián ✓, Coulomb, Ohm
   - jednoznačná (rozlišující údaj)
 
 ### Energie (fyzika, hra, Která veličina to je?)
@@ -276,13 +285,13 @@ Nepočítané otázky (odpověď určí obrázek věci samé, mapa nebo místní
   - možnosti: Energie ✓, Zrychlení, Hmotnost, Vlnová délka (vyměněné)
   - jednoznačná (rozlišující údaj)
 
-### Délka (fyzika, hra, Která veličina to je?)
+### Diamant (geologie, hra, Co je to za drahý kámen?)
 
-- **Před:** „[***] je jedna ze základních fyzikálních veličin. Pomocí [***] se vyjadřuje vzájemná poloha a rozprostraněnost objektů v prostoru.“
-  - možnosti: Délka ✓, Vzdálenost, Průměr, Hustota
-  - nevyvrácené: Vzdálenost, Průměr, Hustota
-- **Po:** „[***] je jedna ze základních fyzikálních veličin. Pomocí [***] se vyjadřuje vzájemná poloha a rozprostraněnost objektů v prostoru.“ · **rozlišující údaj: Jednotka SI: metr (m)**
-  - možnosti: Délka ✓, Úhlová rychlost, Kinetická energie, Atmosférický tlak (vyměněné)
+- **Před:** (bez popisu)
+  - možnosti: Diamant ✓, Topaz, Citrín, Hyalit
+  - nevyvrácené: Topaz, Citrín, Hyalit
+- **Po:** (bez popisu) · **rozlišující údaj: Třída: prvky**
+  - možnosti: Diamant ✓, Topaz, Citrín, Hyalit
   - jednoznačná (rozlišující údaj)
 
 ### Smaragd (geologie, hra, Co je to za drahý kámen?)
@@ -294,13 +303,13 @@ Nepočítané otázky (odpověď určí obrázek věci samé, mapa nebo místní
   - možnosti: Nefrit, Smaragd ✓, Chryzopras, Alexandrit (vyměněné)
   - jednoznačná (rozlišující údaj)
 
-### Citrín (geologie, hra, Co je to za drahý kámen?)
+### Alexandr Veliký (historie, hra, Kdo to je?)
 
-- **Před:** (bez popisu)
-  - možnosti: Ametyst, Záhněda, Citrín ✓, Jantar
-  - nevyvrácené: Ametyst, Záhněda, Jantar
-- **Po:** (bez popisu) · **rozlišující údaj: Barva: žlutý až oranžový**
-  - možnosti: Ametyst, Záhněda, Citrín ✓, Tygří oko (vyměněné)
+- **Před:** „[***], ), byl král Makedonie. [***] rozšířil hranice své říše tažením do Persie a na indický subkontinent, díky čemuž se stal zřejmě největším a nejúspěšnějším vojevůdcem celé historie, který neprohrál žádnou bitvu.“
+  - možnosti: Filip II. Makedonský, Ptolemaios I. Sótér, Alexandr IV. Aigos, Alexandr Veliký ✓
+  - nevyvrácené: Filip II. Makedonský, Ptolemaios I. Sótér, Alexandr IV. Aigos
+- **Po:** „[***], ), byl král Makedonie. [***] rozšířil hranice své říše tažením do Persie a na indický subkontinent, díky čemuž se stal zřejmě největším a nejúspěšnějším vojevůdcem celé historie, který neprohrál žádnou bitvu.“ · **rozlišující údaj: Vláda: 335–322 př. n. l.**
+  - možnosti: Filip II. Makedonský, Ptolemaios I. Sótér, Alexandr IV. Aigos, Alexandr Veliký ✓
   - jednoznačná (rozlišující údaj)
 
 ### Jana z Arku (historie, hra, Kdo to je?)
@@ -312,13 +321,13 @@ Nepočítané otázky (odpověď určí obrázek věci samé, mapa nebo místní
   - možnosti: Jana z Arku ✓, Markéta z Valois, Anna Francouzská, Marie Burgundská (vyměněné)
   - jednoznačná (rozlišující údaj)
 
-### Vasco da Gama (historie, hra, Kdo to je?)
+### Gustav Mahler (hudba, hra, Kdo to je?)
 
-- **Před:** „[***] byl jeden z nejvýznamnějších portugalských mořeplavců a objevitelů, od roku 1519 hrabě z Vidigueiry. Byl prvním Evropanem, který se dostal do Indie po moři.“
-  - možnosti: Fernão de Magalhães, Afonso de Albuquerque, Vasco da Gama ✓, Bartolomeo Diaz
-  - nevyvrácené: Fernão de Magalhães, Afonso de Albuquerque, Bartolomeo Diaz
-- **Po:** „[***] byl jeden z nejvýznamnějších portugalských mořeplavců a objevitelů, od roku 1519 hrabě z Vidigueiry. Byl prvním Evropanem, který se dostal do Indie po moři.“ · **rozlišující údaj: Úmrtí: 1525**
-  - možnosti: Jindřich Mořeplavec, Nuno Álvares Pereira, Vasco da Gama ✓, Bartolomeo Diaz (vyměněné)
+- **Před:** „[***] byl rakousko-uherský hudební skladatel původem z Čech a jeden z předních dirigentů své generace. Jako skladatel tvoří most mezi romantickou tradicí 19. století a modernismem počátku 20. století.“
+  - možnosti: Zdeněk Fibich, Bedřich Smetana, Gustav Mahler ✓, Antonín Dvořák
+  - nevyvrácené: Zdeněk Fibich, Bedřich Smetana, Antonín Dvořák
+- **Po:** „[***] byl rakousko-uherský hudební skladatel původem z Čech a jeden z předních dirigentů své generace. Jako skladatel tvoří most mezi romantickou tradicí 19. století a modernismem počátku 20. století.“ · **rozlišující údaj: Slavné dílo: Písně o mrtvých dětech**
+  - možnosti: Zdeněk Fibich, Bedřich Smetana, Gustav Mahler ✓, Antonín Dvořák
   - jednoznačná (rozlišující údaj)
 
 ### Arnold Schoenberg (hudba, hra, Kdo to je?)
@@ -330,13 +339,13 @@ Nepočítané otázky (odpověď určí obrázek věci samé, mapa nebo místní
   - možnosti: Max Steiner, Arnold Schoenberg ✓, Anton Bruckner, Fritz Kreisler (vyměněné)
   - jednoznačná (rozlišující údaj)
 
-### Jimi Hendrix (hudba, hra, Kdo to je?)
+### Franz Kafka (literatura, hra, Kdo to je?)
 
-- **Před:** „[***] byl americký kytarista, zpěvák a skladatel. Je považován za jednoho z nejvýznamnějších a nejvlivnějších kytaristů v historii rockové hudby.“
-  - možnosti: Jim Morrison, Jimi Hendrix ✓, Lou Reed, Buddy Holly
-  - nevyvrácené: Jim Morrison, Lou Reed, Buddy Holly
-- **Po:** „[***] byl americký kytarista, zpěvák a skladatel. Je považován za jednoho z nejvýznamnějších a nejvlivnějších kytaristů v historii rockové hudby. Po uvedení do Rock and Rollové síně slávy v roce 1992 jako člen skupiny [***] o něm instituce prohlásila, že je „…“ · **rozlišující údaj: Život: 1942–1970**
-  - možnosti: Steve Morse, Jimi Hendrix ✓, Lou Reed, Buddy Holly (vyměněné)
+- **Před:** „[***], židovským jménem Anšel, byl český německy píšící židovský spisovatel. Je považován za jednoho z literárně nejvlivnějších spisovatelů 20. století, byl členem Pražského kruhu.“
+  - možnosti: Franz Kafka ✓, Josef Lada, Jaroslav Hašek, Franz Werfel
+  - nevyvrácené: Josef Lada, Jaroslav Hašek, Franz Werfel
+- **Po:** „[***], židovským jménem Anšel, byl český německy píšící židovský spisovatel. Je považován za jednoho z literárně nejvlivnějších spisovatelů 20. století, byl členem Pražského kruhu.“ · **rozlišující údaj: Slavné dílo: Proměna**
+  - možnosti: Franz Kafka ✓, Josef Lada, Jaroslav Hašek, Franz Werfel
   - jednoznačná (rozlišující údaj)
 
 ### Alice Munroová (literatura, hra, Kdo to je?)
@@ -348,13 +357,13 @@ Nepočítané otázky (odpověď určí obrázek věci samé, mapa nebo místní
   - možnosti: Alice Munroová ✓, Lucy Maud Montgomery, Agatha Christie, Nadine Gordimerová (vyměněné)
   - jednoznačná (rozlišující údaj)
 
-### Elie Wiesel (literatura, hra, Kdo to je?)
+### Venuše (mytologie, hra, Kdo je to?)
 
-- **Před:** „[***] byl židovský prozaik, esejista, dramatik, filozof, humanista, politický aktivista, náboženský myslitel a nositel Nobelovy ceny za mír.“
-  - možnosti: Ray Bradbury, Francis Fukuyama, Gore Vidal, Elie Wiesel ✓
-  - nevyvrácené: Ray Bradbury, Francis Fukuyama, Gore Vidal
-- **Po:** „[***] byl židovský prozaik, esejista, dramatik, filozof, humanista, politický aktivista, náboženský myslitel a nositel Nobelovy ceny za mír.“ · **rozlišující údaj: Život: 1928–2016**
-  - možnosti: Theodore Dreiser, Francis Fukuyama, Jack Kerouac, Elie Wiesel ✓ (vyměněné)
+- **Před:** „[***] je římská bohyně smyslnosti, krásy a lásky. Později byla ztotožňována s řeckou bohyní [***]. V římské mytologii představovala [***] zrozená z pěny matku Aenea, bájného zakladatele římského národa.“
+  - možnosti: Juno, Ceres, Venuše ✓, Vesta
+  - nevyvrácené: Juno, Ceres, Vesta
+- **Po:** „[***] je římská bohyně smyslnosti, krásy a lásky. Později byla ztotožňována s řeckou bohyní [***]. V římské mytologii představovala [***] zrozená z pěny matku Aenea, bájného zakladatele římského národa.“ · **rozlišující údaj: Oblast: láska, jaro, krása, lidská sexualita**
+  - možnosti: Juno, Ceres, Venuše ✓, Vesta
   - jednoznačná (rozlišující údaj)
 
 ### Perseus (mytologie, hra, Kdo je to?)
@@ -366,14 +375,14 @@ Nepočítané otázky (odpověď určí obrázek věci samé, mapa nebo místní
   - možnosti: Oidipus, Perseus ✓, Agamemnón, Hektór (vyměněné)
   - jednoznačná (popis)
 
-### Mínótauros (mytologie, hra, Co je to za bytost?)
+### Letní olympijské hry 1992 (sport, hra, Které olympijské hry to jsou?)
 
-- **Před:** „[***] je v řecké mytologii bestie s lidským tělem a býčí hlavou. Narodil se ze spojení bílého býka a krétské královny Pásifaé, její manžel, král [***], jej nechal zavřít do krétského labyrintu, který k tomu účelu postavil Daidalos a Ikaros.“
-  - možnosti: Nemejský lev, Mínótauros ✓, Hydra, Siréna
-  - nevyvrácené: Siréna
-- **Po:** „[***] je v řecké mytologii bestie s lidským tělem a býčí hlavou. Narodil se ze spojení bílého býka a krétské královny Pásifaé, její manžel, král [***], jej nechal zavřít do krétského labyrintu, který k tomu účelu postavil Daidalos a Ikaros.“
-  - možnosti: Nemejský lev, Mínótauros ✓, Hydra, Pegas (vyměněné)
-  - jednoznačná (popis)
+- **Před:** „[***] letní olympijské hry se uskutečnily v době od 25. července až do 9. srpna [***], Katalánsko. Zúčastnilo se jich 9 956 sportovců ze 169 zemí.“
+  - možnosti: Letní olympijské hry 1984, Letní olympijské hry 1992 ✓, Letní olympijské hry 1996, Letní olympijské hry 1988
+  - nevyvrácené: Letní olympijské hry 1984, Letní olympijské hry 1996, Letní olympijské hry 1988
+- **Po:** „[***] letní olympijské hry se uskutečnily v době od 25. července až do 9. srpna [***], Katalánsko. Zúčastnilo se jich 9 956 sportovců ze 169 zemí.“ · **rozlišující údaj: Mezi vítězi: Lukáš Pollert**
+  - možnosti: Letní olympijské hry 1984, Letní olympijské hry 1992 ✓, Letní olympijské hry 1996, Letní olympijské hry 1988
+  - jednoznačná (rozlišující údaj)
 
 ### Monika Selešová (sport, hra, Kdo to je?)
 
@@ -384,13 +393,13 @@ Nepočítané otázky (odpověď určí obrázek věci samé, mapa nebo místní
   - možnosti: Coco Gauffová, Billie Jean Kingová, Ana Ivanovićová, Monika Selešová ✓ (vyměněné)
   - jednoznačná (rozlišující údaj)
 
-### Ronnie O'Sullivan (sport, hra, Kdo to je?)
+### Pablo Picasso (umeni, hra, Kdo to je?)
 
-- **Před:** „[***] je profesionální hráč a sedminásobný mistr světa ve snookeru. Jeho sportovní přezdívka je Raketa.“
-  - možnosti: Mark Selby, Steve Davis, Judd Trump, Ronnie O'Sullivan ✓
-  - nevyvrácené: Mark Selby, Steve Davis, Judd Trump
-- **Po:** „[***] je profesionální hráč a sedminásobný mistr světa ve snookeru. Jeho sportovní přezdívka je Raketa.“ · **rozlišující údaj: Život: * 1975**
-  - možnosti: Wayne Rooney, Steve Davis, Judd Trump, Ronnie O'Sullivan ✓ (vyměněné)
+- **Před:** „[***] byl španělský malíř a sochař. Je jednou z nejvýznamnějších osobností umění 20. století. Společně s Georgesem Braquem je považován za zakladatele kubismu.“
+  - možnosti: Salvador Dalí, Pablo Picasso ✓, Joan Miró, Juan Gris
+  - nevyvrácené: Salvador Dalí, Joan Miró, Juan Gris
+- **Po:** „[***] byl španělský malíř a sochař. Je jednou z nejvýznamnějších osobností umění 20. století. Společně s Georgesem Braquem je považován za zakladatele kubismu.“ · **rozlišující údaj: Slavné dílo: Guernica**
+  - možnosti: Salvador Dalí, Pablo Picasso ✓, Joan Miró, Juan Gris
   - jednoznačná (rozlišující údaj)
 
 ### Andy Warhol (umeni, hra, Kdo to je?)
@@ -402,13 +411,13 @@ Nepočítané otázky (odpověď určí obrázek věci samé, mapa nebo místní
   - možnosti: Robert Indiana, Andy Warhol ✓, James Rosenquist, Roy Lichtenstein (vyměněné)
   - jednoznačná (rozlišující údaj)
 
-### Benvenuto Cellini (umeni, hra, Kdo to je?)
+### Turecko (zemepis, hra, Co je to za místo?)
 
-- **Před:** „[***] byl italský zlatník, sochař a spisovatel, který se stal známý svými manýristickými kovovými sochami na přechodu renesance a baroka, šperky a mincemi i knihou Vlastní životopis.“
-  - možnosti: Agnolo Bronzino, Giuseppe Arcimboldo, Francesco Primaticcio, Benvenuto Cellini ✓
-  - nevyvrácené: Agnolo Bronzino, Giuseppe Arcimboldo, Francesco Primaticcio
-- **Po:** „[***] byl italský zlatník, sochař a spisovatel, který se stal známý svými manýristickými kovovými sochami na přechodu renesance a baroka, šperky a mincemi i knihou Vlastní životopis.“ · **rozlišující údaj: Narození: 1500**
-  - možnosti: Paolo Veronese, Giuseppe Arcimboldo, Giacomo della Porta, Benvenuto Cellini ✓ (vyměněné)
+- **Před:** „[***] je transkontinentální stát ležící převážně v Anatolii v západní Asii, s menší částí zvanou Východní Thrákie v jihovýchodní Evropě.“
+  - možnosti: Stát Palestina, Sýrie, Turecko ✓, Libanon
+  - nevyvrácené: Stát Palestina, Sýrie, Libanon
+- **Po:** „[***] je transkontinentální stát ležící převážně v Anatolii v západní Asii, s menší částí zvanou Východní Thrákie v jihovýchodní Evropě.“ · **rozlišující údaj: Hlavní město: Ankara**
+  - možnosti: Stát Palestina, Sýrie, Turecko ✓, Libanon
   - jednoznačná (rozlišující údaj)
 
 ### Izrael (zemepis, hra, Co je to za místo?)
@@ -420,17 +429,8 @@ Nepočítané otázky (odpověď určí obrázek věci samé, mapa nebo místní
   - možnosti: Irák, Libanon, Jordánsko, Izrael ✓ (vyměněné)
   - jednoznačná (rozlišující údaj)
 
-### Kuvajt (zemepis, hra, Co je to za místo?)
 
-- **Před:** „[***] je stát v jihozápadní Asii na Blízkém východě. Nachází se na severním okraji [***] poloostrova v cípu Perského zálivu, na severu sousedí s [***] a na jihu se [***].“
-  - možnosti: Irák, Saúdská Arábie, Írán, Kuvajt ✓
-  - nevyvrácené: Irák, Saúdská Arábie, Írán
-- **Po:** „[***] je stát v jihozápadní Asii na Blízkém východě. Nachází se na severním okraji Arabského poloostrova v cípu Perského zálivu, na severu sousedí s Irákem a na jihu se Saúdskou Arábií.“
-  - možnosti: Kypr, Egypt, Gruzie, Kuvajt ✓ (vyměněné)
-  - jednoznačná (popis)
-
-
-## Zbývající nejednoznačné otázky (17)
+## Zbývající nejednoznačné otázky (21)
 
 Hra je nepoloží tak, jak jsou: v tréninku vezme jinou položku (createRoundData: ambiguous), v denních módech, výzvách a Bossovi, kde je položka daná semínkem, zůstanou s nejlepšími údaji, které jdou; Dobývání místo nich dá místní otázku.
 
@@ -551,6 +551,42 @@ Hra je nepoloží tak, jak jsou: v tréninku vezme jinou položku (createRoundDa
   - možnosti: Gay-Lussacův zákon ✓, Boyleův-Mariottův zákon, Wienův posunovací zákon, Avogadrův zákon
   - stále nevyvrácené: Boyleův-Mariottův zákon, Wienův posunovací zákon, Avogadrův zákon
 
+### Golem (mytologie, hra, Kdo je to?)
+
+- **Před:** „[***] je v židovské mystice člověkem oživená socha. Takových [***] je známo poměrně dost. Většina lidí si [***] představuje jako oživenou sochu v podobě člověka, ale je to postava mytická, a proto může mít různé podoby.“
+  - možnosti: Krakonoš, Jehuda ben Becalel, Neklan, Golem ✓
+  - nevyvrácené: Krakonoš, Jehuda ben Becalel, Neklan
+- **Po:** „[***] je v židovské mystice člověkem oživená socha. Takových [***] je známo poměrně dost. Většina lidí si [***] představuje jako oživenou sochu v podobě člověka, ale je to postava mytická, a proto může mít různé podoby.“
+  - možnosti: Krakonoš, Jehuda ben Becalel, Neklan, Golem ✓
+  - stále nevyvrácené: Krakonoš, Jehuda ben Becalel, Neklan
+
+### Sun Wu-kchung (mytologie, hra, Kdo je to?)
+
+- **Před:** „[***] je ústřední postava populárního čínského románu spisovatele [***] Čcheng-ena Putování na západ ze 16. století.“
+  - možnosti: Momotaró, Sun Wu-kchung ✓, Šen-nung, Žlutý císař
+  - nevyvrácené: Šen-nung, Žlutý císař
+- **Po:** „[***] je ústřední postava populárního čínského románu spisovatele [***] Čcheng-ena Putování na západ ze 16. století.“
+  - možnosti: Momotaró, Sun Wu-kchung ✓, Šen-nung, Žlutý císař
+  - stále nevyvrácené: Šen-nung, Žlutý císař
+
+### Přemysl Oráč (mytologie, hra, Kdo je to?)
+
+- **Před:** „[***] je mytický český vládce, manžel kněžny Libuše a zakladatel nejstarší české vládnoucí dynastie [***].“
+  - možnosti: Krakonoš, Přemysl Oráč ✓, Bivoj, Mistr Hanuš
+  - nevyvrácené: Krakonoš, Bivoj, Mistr Hanuš
+- **Po:** „[***] je mytický český vládce, manžel kněžny Libuše a zakladatel nejstarší české vládnoucí dynastie [***].“
+  - možnosti: Krakonoš, Přemysl Oráč ✓, Bivoj, Mistr Hanuš
+  - stále nevyvrácené: Krakonoš, Bivoj, Mistr Hanuš
+
+### Černoboh (mytologie, výzva, Kdo je to?)
+
+- **Před:** „[***] bylo božstvo Polabských Slovanů zmiňované ve 12. století Helmoldem z Bosau.“
+  - možnosti: Bělbog, Černoboh ✓, Radegast, Rod
+  - nevyvrácené: Bělbog, Radegast, Rod
+- **Po:** „[***] bylo božstvo Polabských Slovanů zmiňované ve 12. století Helmoldem z Bosau.“
+  - možnosti: Bělbog, Černoboh ✓, Radegast, Rod
+  - stále nevyvrácené: Bělbog, Radegast, Rod
+
 ### Weret Hekau (mytologie, výzva, Kdo je to?)
 
 - **Před:** „[***] byla staroegyptská bohyně. Byla zosobněním nadpřirozených sil.“
@@ -588,18 +624,18 @@ Hra je nepoloží tak, jak jsou: v tréninku vezme jinou položku (createRoundDa
   - stále nevyvrácené: Australský ovčák, Americký stafordširský teriér, Black and tan coonhound
 
 
-## Otázky, které určí jen popis (169)
+## Otázky, které určí jen popis (203)
 
 Pojmy, procesy, zákony a jevy (Chemický prvek, Fotosyntéza, Ohmův zákon) nemají v datech údaje, které by šly porovnat, a u některých druhů, dinosaurů nebo částí těla údaje z dat podobné možnosti nerozliší: odpověď určí definice či konkrétní údaj z úvodu článku (místo nálezu, rok, orgán, ke kterému část patří), který ale data neobsahují. Audit to strukturovaně ověřit neumí, proto je počítá zvlášť a nepovažuje je za vyřešené ani za nejednoznačné. Hra takovou otázku položí jen s plným úvodem článku (aspoň 14 slov, u položky s údaji navíc s konkrétním údajem); bez Wikipedie (krátký popis z Wikidat) je otázka nejednoznačná a trénink vezme jinou položku.
 
 - chemie – Jaký pojem nebo metoda to je?: 48 (např. Chemický prvek, Sacharidy, Beton)
+- mytologie – Kdo je to?: 46 (např. Mnémosyné, Jama, Jehuda ben Becalel)
 - chemie – Jaká reakce nebo proces to je?: 35 (např. Dielsova–Alderova reakce, Siemensova-Martinova pec, Mannichova reakce)
 - fyzika – Který zákon, jev nebo pojem to je?: 18 (např. Blesk, Radioaktivita, Maxwellovy rovnice)
-- mytologie – Kdo je to?: 16 (např. Jama, Kuk, Harpokratés)
 - biologie – Co je to za pravěkého tvora?: 11 (např. Tyrannosaurus rex, Cryolophosaurus ellioti, Sinosauropteryx)
-- fyzika – Co je to za těleso?: 9 (např. Betlémská hvězda, Střelec, Kentaur)
+- fyzika – Co je to za těleso?: 10 (např. Saturn, Betlémská hvězda, Střelec)
+- fyzika – Co je to za sondu nebo přístroj?: 8 (např. Apollo 11, Sputnik 1, Tepelné čerpadlo)
 - fyzika – Která částice to je?: 5 (např. Atom, Antičástice, Molekula)
-- fyzika – Co je to za sondu nebo přístroj?: 5 (např. Tepelné čerpadlo, Galvanometr, Refraktor)
 - mytologie – Co je to za bytost?: 5 (např. Drak, Mořská panna, Fénix)
 - biologie – Co je to za plemeno?: 4 (např. Český teriér, Portugalský ovčák, Portugalský vodní pes)
 - biologie – Která část těla to je?: 3 (např. Mozeček, Oko, Močová trubice)
