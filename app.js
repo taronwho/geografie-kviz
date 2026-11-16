@@ -9280,6 +9280,35 @@
 
     // ----- Záložka Já: karta hráče a řádky do oken (Mudrlant, Profil, Nastavení hry, Upozornění, Účet, Pozvi kamarády) -----
     const JA_ROW = `${HOME_ROW} min-h-[3.4rem] short:min-h-[3rem] short:py-1.5 tiny:min-h-[2.7rem] tiny:py-1`;
+    // Vlastní symboly záložky Já: dvoubarevné kresby (bílý obrys, průsvitná výplň, zlatý detail) na plastické dlaždici v barvě tématu
+    const JA_SYMBOL_PATHS = {
+        // Mudrlant: hlava sovy s doktorskou čepicí
+        owl: '<path class="fill-white/25" d="M5.5 11.5c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6v3.2c0 3.2-2.9 5.8-6.5 5.8s-6.5-2.6-6.5-5.8z"/>'
+            + '<path d="M5.5 11.5c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6v3.2c0 3.2-2.9 5.8-6.5 5.8s-6.5-2.6-6.5-5.8z"/>'
+            + '<path class="fill-gold-300" stroke="none" d="M12 1.6 4 4.6l8 3 8-3z"/><path d="M12 1.6 4 4.6l8 3 8-3zM19.5 4.8v3.4"/>'
+            + '<circle class="fill-white" cx="9.2" cy="12.6" r="2.1"/><circle class="fill-white" cx="14.8" cy="12.6" r="2.1"/>'
+            + '<circle class="fill-current" stroke="none" cx="9.4" cy="12.8" r=".9"/><circle class="fill-current" stroke="none" cx="15" cy="12.8" r=".9"/>'
+            + '<path class="fill-gold-300" d="m12 14.8-1.2 1.6h2.4z"/>',
+        // Profil: průkaz s portrétem
+        profile: '<rect class="fill-white/25" x="3" y="5" width="18" height="14" rx="3"/><rect x="3" y="5" width="18" height="14" rx="3"/>'
+            + '<circle class="fill-gold-300" cx="9" cy="11" r="2.4"/><path d="M5.6 16.2c.7-1.5 2-2.3 3.4-2.3s2.7.8 3.4 2.3M14.5 10h3.5M14.5 13.5h2.5"/>',
+        // Nastavení hry: ozubené kolo se zlatým středem
+        game: '<path class="fill-white/25" d="M10.3 3h3.4l.5 2.3 1.7.9 2.2-.8 1.7 3-1.8 1.5v1.9l1.8 1.5-1.7 3-2.2-.8-1.7.9-.5 2.6h-3.4l-.5-2.6-1.7-.9-2.2.8-1.7-3 1.8-1.5V9.9L3.9 8.4l1.7-3 2.2.8 1.7-.9z"/>'
+            + '<path d="M10.3 3h3.4l.5 2.3 1.7.9 2.2-.8 1.7 3-1.8 1.5v1.9l1.8 1.5-1.7 3-2.2-.8-1.7.9-.5 2.6h-3.4l-.5-2.6-1.7-.9-2.2.8-1.7-3 1.8-1.5V9.9L3.9 8.4l1.7-3 2.2.8 1.7-.9z"/>'
+            + '<circle class="fill-gold-300" cx="12" cy="11.8" r="2.6"/>',
+        // Upozornění: zvonek se zlatým srdcem (vypnuté: přeškrtnutý)
+        bell: '<path class="fill-white/25" d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15z"/><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15zM12 3v2"/>'
+            + '<path class="fill-gold-300" d="M10 18a2 2 0 0 0 4 0z"/>',
+        bellOff: '<path class="fill-white/15" d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15z"/><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15zM12 3v2M10 18a2 2 0 0 0 4 0"/>'
+            + '<path class="stroke-gold-300" stroke-width="2.2" d="m4 4 16 16"/>',
+        // Účet: štít s fajfkou
+        account: '<path class="fill-white/25" d="M12 2.8 19 5.5v5.7c0 4.5-3 7.9-7 9.6-4-1.7-7-5.1-7-9.6V5.5z"/><path d="M12 2.8 19 5.5v5.7c0 4.5-3 7.9-7 9.6-4-1.7-7-5.1-7-9.6V5.5z"/>'
+            + '<path class="stroke-gold-300" stroke-width="2.4" d="m8.6 11.8 2.4 2.4 4.6-4.8"/>',
+        // Pozvi kamarády: obálka se zlatou hvězdou
+        invite: '<rect class="fill-white/25" x="2.8" y="6" width="15.5" height="12" rx="2.2"/><rect x="2.8" y="6" width="15.5" height="12" rx="2.2"/><path d="m3.5 7.2 7 5.3 7-5.3"/>'
+            + '<path class="fill-gold-300" d="m19 2.6.9 2 2.1.2-1.6 1.4.5 2.1-1.9-1.1-1.9 1.1.5-2.1-1.6-1.4 2.1-.2z"/>'
+    };
+    const jaSymbol = (name) => `<span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-b from-brand-500 to-brand-700 text-white shadow-[0_3px_0_0_rgb(var(--brand-900))] short:h-9 short:w-9 tiny:h-8 tiny:w-8"><svg viewBox="0 0 24 24" class="h-7 w-7 short:h-6 short:w-6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${JA_SYMBOL_PATHS[name]}</svg></span>`;
     const jaRow = ({ attrs, icon = '', art = '', title, text = '', tone = 'bg-brand-100 text-brand-700 dark:bg-brand-900/60 dark:text-brand-200', right = '<i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-400"></i>' }) => `
             <button type="button" ${attrs} class="${JA_ROW}">
                 ${art || `<span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl short:h-9 short:w-9 tiny:h-8 tiny:w-8 ${tone}"><i data-lucide="${icon}" class="h-5 w-5"></i></span>`}
@@ -9306,12 +9335,12 @@
                 </div>
             </div>`;
         const rows = [
-            ...(Owl ? [jaRow({ attrs: 'data-ja="owl"', icon: 'sparkles', title: 'Mudrlant', text: 'Oblek, čepice a doplňky sovy' })] : []),
-            ...(user ? [jaRow({ attrs: 'data-ja="profile"', icon: 'user-round', title: 'Profil', text: 'Přezdívka, obrázek, rámeček a titul' })] : []),
-            jaRow({ attrs: 'data-ja="game"', icon: 'settings-2', title: 'Nastavení hry', text: 'Varianta, obtížnost, barvy a zvuky' }),
-            ...(user && Push && Push.configured() && !(pushState && pushState.kind === 'hidden') ? [jaRow({ attrs: 'data-ja="push"', icon: pushState && pushState.kind === 'on' ? 'bell' : 'bell-off', title: 'Upozornění', text: `<span data-ja-push>${escapeHtml(pushRowText())}</span>` })] : []),
-            ...(user ? [jaRow({ attrs: 'data-ja="account"', icon: 'shield-check', title: 'Účet', text: 'Přijímané výzvy, zablokovaní, moje data, odhlášení' })] : []),
-            ...(user && Referral && referralState ? [jaRow({ attrs: 'data-ja="referral"', icon: 'user-plus', title: 'Pozvi kamarády', text: referralState.ready.length ? 'Čeká odměna za pozvání' : 'Odměna pro tebe i kamaráda' })] : [])
+            ...(Owl ? [jaRow({ attrs: 'data-ja="owl"', art: jaSymbol('owl'), title: 'Mudrlant', text: 'Oblek, čepice a doplňky sovy' })] : []),
+            ...(user ? [jaRow({ attrs: 'data-ja="profile"', art: jaSymbol('profile'), title: 'Profil', text: 'Přezdívka, obrázek, rámeček a titul' })] : []),
+            jaRow({ attrs: 'data-ja="game"', art: jaSymbol('game'), title: 'Nastavení hry', text: 'Varianta, obtížnost, barvy a zvuky' }),
+            ...(user && Push && Push.configured() && !(pushState && pushState.kind === 'hidden') ? [jaRow({ attrs: 'data-ja="push"', art: jaSymbol(pushState && pushState.kind === 'on' ? 'bell' : 'bellOff'), title: 'Upozornění', text: `<span data-ja-push>${escapeHtml(pushRowText())}</span>` })] : []),
+            ...(user ? [jaRow({ attrs: 'data-ja="account"', art: jaSymbol('account'), title: 'Účet', text: 'Přijímané výzvy, zablokovaní, moje data, odhlášení' })] : []),
+            ...(user && Referral && referralState ? [jaRow({ attrs: 'data-ja="referral"', art: jaSymbol('invite'), title: 'Pozvi kamarády', text: referralState.ready.length ? 'Čeká odměna za pozvání' : 'Odměna pro tebe i kamaráda' })] : [])
         ];
         const login = state.configured && !user ? `
             <button type="button" data-ja="login" class="flex w-full shrink-0 items-center gap-3 rounded-[1.15rem] btn-3d bg-brand-700 px-4 py-2.5 text-left text-white">
