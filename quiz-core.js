@@ -150,11 +150,53 @@
     };
     const formatPoints = (count) => plural(count, 'bod', 'body', 'bodů');
 
-    const getDayKey = (date = new Date()) =>
-        `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    // Den aplikace je pražský kalendářní den (stejně jako Kvíz dne, Řetězovka, Tajemná otázka a Boss týdne): dnešní otázky, série a cíle
+    // se tak všem hráčům mění ve stejnou chvíli, i když má telefon jiné časové pásmo (dovolená, cizina, špatně nastavený čas).
+    // getDayKey(datum) s datem v argumentu jen přepíše místní kalendářní datum (pro výpočty s dny, shiftDayKey).
+    const localDayKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    let pragueDayFormat = null;
+    try { pragueDayFormat = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Prague', year: 'numeric', month: '2-digit', day: '2-digit' }); } catch (e) { /* bez Intl místní čas */ }
+    const pragueDayKey = (now = new Date()) => {
+        if (pragueDayFormat) {
+            try {
+                const parts = Object.fromEntries(pragueDayFormat.formatToParts(now).map(part => [part.type, part.value]));
+                const text = `${parts.year}-${parts.month}-${parts.day}`;
+                if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+            } catch (e) { /* neplatné datum */ }
+        }
+        return localDayKey(now);
+    };
+    const getDayKey = (date) => (date === undefined ? pragueDayKey(new Date()) : localDayKey(date));
     const shiftDayKey = (dayKey, days) => {
         const [y, m, d] = dayKey.split('-').map(Number);
         return getDayKey(new Date(y, m - 1, d + days));
+    };
+
+    // Data témat podle dne: položka s ku ('RRRR-MM-DD', „známá do“) byla známá (k: 1, bez x) do toho dne (bez něj) a pak se přesunula
+    // mezi méně známé; položka s xs („pro experty od“) byla do toho dne v úrovni Mudrlant (bez x). Denní módy (Kvíz dne, Dnešní otázky, Řetězovka, Boss týdne, Tajemná otázka) berou položky tak, jak byly v den,
+    // který se hraje, takže změna úrovní v datech nezmění den, který už někdo hrál (výzvy a trénink berou nové úrovně hned).
+    // Bez takových položek se vrátí stejné pole (stejná identita, mezipaměti podle pole platí dál); jinak jedno pole na kombinaci změn.
+    const asOfCache = typeof WeakMap === 'function' ? new WeakMap() : null;
+    const itemsAsOf = (items, day) => {
+        if (!Array.isArray(items) || typeof day !== 'string') return items;
+        const before = (item) => Boolean(item) && ((typeof item.ku === 'string' && day < item.ku) || (typeof item.xs === 'string' && day < item.xs));
+        const changed = items.filter(before);
+        if (!changed.length) return items;
+        const key = [...new Set(changed.flatMap(item => [item.ku, item.xs].filter(value => typeof value === 'string' && day < value)))].sort().join('|');
+        let byKey = asOfCache ? asOfCache.get(items) : null;
+        if (!byKey) { byKey = new Map(); if (asOfCache) asOfCache.set(items, byKey); }
+        if (byKey.has(key)) return byKey.get(key);
+        const old = items.map(item => {
+            if (!before(item)) return item;
+            const copy = { ...item };
+            if (typeof item.ku === 'string' && day < item.ku) copy.k = 1;
+            delete copy.x;
+            delete copy.ku;
+            delete copy.xs;
+            return copy;
+        });
+        byKey.set(key, old);
+        return old;
     };
     const formatDayKey = (dayKey) => {
         const [y, m, d] = dayKey.split('-').map(Number);
@@ -301,23 +343,33 @@
     // Zkratky (USA, ČR, ČLR) jen jako celé slovo a s velkými písmeny, ať nezakryjí běžná slova
     const isAbbreviation = (word) => /^\p{Lu}{2,4}$/u.test(word);
 
-    const censorWords = (text, phrase) => {
+    // Vzory zakrytí podle jména se pamatují: sestavení velkého regulárního výrazu (kmeny, varianty diakritiky) a jeho překlad v prohlížeči
+    // stojí mnohem víc než samotné hledání, a jedna otázka zakrývá stejná jména v desítkách vět (popis, fakta, nápovědy, možnosti).
+    // Bez paměti trvalo sestavení otázky Kvízu dne na počítači i 4 s (na telefonu několikanásobně déle).
+    const censorPatterns = new Map();
+    // Přeložené výrazy zabírají paměť kódu (velký výraz i stovky kB): víc než pár stovek vzorů ji v dlouhé hře vyčerpá (audit pádem
+    // „heap out of memory“ při překladu výrazu po ~3 000 otázkách), na jednu otázku jich stačí desítky
+    const CENSOR_CACHE_SIZE = 400;
+    const censorPatternsFor = (phrase) => {
+        const cached = censorPatterns.get(phrase);
+        if (cached) return cached;
         // Dvojtečka, středník a uvozovky ve slovech neruší (Pán prstenů: Návrat krále – „prstenů:“ jinak kmen nenajde)
         const words = stripBrackets(phrase).trim().split(/[\s,\-–:;!?„“”"…\/]+/).filter(Boolean);
         const abbreviations = words.filter(word => isAbbreviation(word) && !isRomanNumeral(word));
         const hyphenated = stripBrackets(phrase).split(',').map(name => name.trim()).filter(name => /\p{L}[\-–]\p{L}/u.test(name));
-        const pattern = buildWordsPattern(words.filter(word => !isAbbreviation(word)), hyphenated);
-        let res = pattern ? text.replace(pattern, '[***]') : text;
-        if (abbreviations.length) {
-            res = res.replace(new RegExp(NOT_LETTER_BEFORE + '(?:' + abbreviations.map(escapeRegExp).join('|') + ')' + NOT_LETTER_AFTER, 'gu'), '[***]');
-        }
         // Dvoupísmenné slovo s velkým písmenem (Medvídek Pú, Ang Lee) jako celé slovo a jen s velkým písmenem
         const shortCapitals = words.filter(word => /^\p{Lu}\p{Ll}$/u.test(word) && !CENSOR_SKIP_WORDS.has(word.toLowerCase()));
-        if (shortCapitals.length) {
-            res = res.replace(new RegExp(NOT_LETTER_BEFORE + '(?:' + shortCapitals.map(escapeRegExp).join('|') + ')' + NOT_LETTER_AFTER, 'gu'), '[***]');
-        }
-        return res;
+        const patterns = [
+            buildWordsPattern(words.filter(word => !isAbbreviation(word)), hyphenated),
+            abbreviations.length ? new RegExp(NOT_LETTER_BEFORE + '(?:' + abbreviations.map(escapeRegExp).join('|') + ')' + NOT_LETTER_AFTER, 'gu') : null,
+            shortCapitals.length ? new RegExp(NOT_LETTER_BEFORE + '(?:' + shortCapitals.map(escapeRegExp).join('|') + ')' + NOT_LETTER_AFTER, 'gu') : null
+        ].filter(Boolean);
+        if (censorPatterns.size >= CENSOR_CACHE_SIZE) censorPatterns.clear();
+        censorPatterns.set(phrase, patterns);
+        return patterns;
     };
+    // Vzory mají příznak g: replace() začíná vždy od začátku textu, takže sdílený výraz nevadí
+    const censorWords = (text, phrase) => censorPatternsFor(String(phrase)).reduce((res, pattern) => res.replace(pattern, '[***]'), text);
 
     // Zakrytí nesmí prozradit tvar odpovědi. Slova, která v názvu jen spojují jeho části (Liška a pes, Obrazce na planině Nazca,
     // Pán prstenů: Návrat krále, Cesta do fantazie), mezi dvěma zakrytými místy by ho ukázala: „[***] a [***]“ má mezi
@@ -589,6 +641,48 @@
             const expectedForms = [...new Set([expected, withArabicNumbers(answer)])];
             return givenForms.some(form => expectedForms.some(other => matchesOne(form, other)));
         });
+    };
+    // Které klíče mají text, který jde s překlepem zaměnit s textem jiného klíče: klíč a padne, když isAnswerMatch(text b, [text a])
+    // pro nějaké jiné b (příjmení filmaře nebo umělce jako psaná odpověď jen tehdy, když nepatří i jinému). Výsledek je stejný jako
+    // u porovnání každého s každým, jen rychlejší: dvojice, kterou překlepy nemohou spojit (vzdálenost aspoň polovina rozdílu v počtech
+    // písmen, překlep je nejvýš 2 na slovo), se vůbec neporovnává – u 3 000 jmen dřív trvalo porovnání každého s každým 5–10 s.
+    const fuzzyTwins = (entries) => {
+        const prepared = entries.map(([key, text]) => {
+            const forms = [...new Set([normalizeAnswer(text), withArabicNumbers(text)])].filter(Boolean);
+            const compact = forms.map(form => form.replace(/ /g, ''));
+            // Písmena každého tvaru seřazená: rozdíl v počtech písmen dvou tvarů se pak spočítá jedním průchodem
+            return { key, text, compact, sorted: compact.map(form => [...form].sort()), words: Math.max(1, ...forms.map(form => form.split(' ').length)), length: compact.length ? compact[0].length : 0 };
+        }).filter(entry => entry.compact.length);
+        // Překlepů je aspoň polovina rozdílu v počtech písmen (záměna písmene ho mění o 2, vložení o 1, prohození vůbec)
+        const gapAtMost = (a, b, limit) => {
+            let i = 0;
+            let j = 0;
+            let gap = 0;
+            while (i < a.length || j < b.length) {
+                if (j >= b.length || (i < a.length && a[i] < b[j])) { gap += 1; i += 1; } else if (i >= a.length || b[j] < a[i]) { gap += 1; j += 1; } else { i += 1; j += 1; }
+                if (gap > 2 * limit) return false;
+            }
+            return true;
+        };
+        const mayMatch = (a, b) => {
+            const limit = 2 * Math.max(a.words, b.words);
+            return a.sorted.some((x, xi) => b.sorted.some((y, yi) => Math.abs(a.compact[xi].length - b.compact[yi].length) <= limit && gapAtMost(x, y, limit)));
+        };
+        const twins = new Set();
+        const byLength = [...prepared].sort((a, b) => a.length - b.length);
+        const reach = 2 * Math.max(1, ...prepared.map(entry => entry.words)) + 8;
+        for (let i = 0; i < byLength.length; i++) {
+            const a = byLength[i];
+            for (let j = i + 1; j < byLength.length; j++) {
+                const b = byLength[j];
+                // Seřazené podle délky: dál už jsou jen delší, které rozdíl délek vyřadí (s rezervou na tvar s arabskými číslicemi)
+                if (b.length - a.length > reach) break;
+                if (a.key === b.key || !mayMatch(a, b)) continue;
+                if (!twins.has(a.key) && isAnswerMatch(b.text, [a.text])) twins.add(a.key);
+                if (!twins.has(b.key) && isAnswerMatch(a.text, [b.text])) twins.add(b.key);
+            }
+        }
+        return twins;
     };
     // Značka nebo vzorec přesně (m ≠ m², CO ≠ CO₂); horní a dolní indexy jako obyčejné číslice, bez mezer;
     // velikost písmen jen tam, kde by rozhodovala (m – M)
@@ -1350,6 +1444,38 @@
         // Všechno už bylo: z polovičky hrané nejdávněji, ať se hned neopakuje právě odehraná otázka
         const oldestFirst = [...inCategory].sort((a, b) => recent.get(b.q) - recent.get(a.q));
         return pickOne(oldestFirst.slice(0, Math.ceil(oldestFirst.length / 2)));
+    };
+
+    // Otisk textu (32 bitů) pro výběr „položka s nejmenším otiskem“ – stejně jako daily-quiz.js hash32
+    const hashText = (text) => {
+        let hash = 2166136261;
+        for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 16777619);
+        hash ^= hash >>> 16; hash = Math.imul(hash, 0x85ebca6b); hash ^= hash >>> 13; hash = Math.imul(hash, 0xc2b2ae35); hash ^= hash >>> 16;
+        return hash >>> 0;
+    };
+    // Dnešní otázka tématu (app.js startDaily od DAILY_STABLE_FROM): jen ze semínka dne a dat, pro všechny stejná. Asi desetina (hardShare)
+    // z těžších položek (úroveň 2, vlastní los), jinak ze známých; kategorie losem ze semínka (každá stejně často, pořadí z tématu),
+    // v ní položka s nejmenším otiskem (semínko + id): nová nebo odebraná položka změní výběr jen tam, kde by sama vyhrála.
+    // Nezávisí na nastavení hráče, jeho úrovni, historii ani na Wikipedii.
+    const dailyPick = (items, { seed, categories = [], hardShare = 0.1 } = {}) => {
+        const list = (items || []).filter(item => item && item.q);
+        const hard = createSeededRandom(`${seed}:tezka`)() < hardShare;
+        const harder = hard ? list.filter(item => levelOf(item) === 2) : [];
+        const base = harder.length ? harder : list.filter(item => item.k === 1);
+        const askable = base.filter(item => !item.nq);
+        const pool = askable.length ? askable : base.length ? base : list;
+        if (!pool.length) return null;
+        const present = new Set(pool.map(item => item.c));
+        const keys = [...categories.filter(key => present.has(key)), ...[...present].filter(key => !categories.includes(key)).sort()];
+        const category = keys[Math.floor(createSeededRandom(`${seed}:kategorie`)() * keys.length)];
+        let best = null;
+        let bestHash = Infinity;
+        for (const item of pool) {
+            if (item.c !== category) continue;
+            const value = hashText(`${seed}|${item.q}`);
+            if (value < bestHash || (value === bestHash && String(item.q) < String(best.q))) { best = item; bestHash = value; }
+        }
+        return best;
     };
 
     // Řazení pro systematické procházení okruhu: podle názvu, nebo podle faktu (výška, rok…) – položky bez údaje na konec
@@ -2753,7 +2879,7 @@
     const labelKey = (label, ctx = null) => (ctx && ctx.topic && ctx.topic.clueKeys && ctx.topic.clueKeys[label]) || CLUE_CANON[label] || label;
     // Obecná slova hodnot (architektura, sloh, umění): podle nich se dvě hodnoty za příbuzné nepovažují
     const CLUE_PLAIN_WORDS = new Set(['architektura', 'sloh', 'styl', 'umeni', 'malirstvi', 'hudba', 'film', 'literatura', 'stoleti', 'obdobi', 'kultura', 'skupina',
-        'zeme', 'mesto', 'obec', 'statu', 'statni', 'narodni']);
+        'zeme', 'mesto', 'obec', 'statu', 'statni', 'narodni', 'celed', 'rodu', 'druh', 'trida']);
     const SUPERSCRIPT = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9', '⁻': '-' };
     const UNIT_SCALE = { g: ['kg', 1e-3], kg: ['kg', 1], t: ['kg', 1e3], mm: ['m', 1e-3], cm: ['m', 1e-2], m: ['m', 1], km: ['m', 1e3],
         'km²': ['m²', 1e6], 'km2': ['m²', 1e6], 'm²': ['m²', 1], ha: ['m²', 1e4], min: ['min', 1], h: ['min', 60], let: ['let', 1], roku: ['let', 1], dní: ['let', 1 / 365] };
@@ -2799,7 +2925,7 @@
         // Za číslem smí být jen jednotka nebo slovo počtu (diváků, světelných let), ne další text („1 v Plzni“)
         if (unitText.length > 24 || /[,;:]/.test(unitText)) return null;
         const [unit, factor] = UNIT_SCALE[unitText] || [unitText.toLowerCase(), 1];
-        return { value: (low + high) / 2 * scale * factor, unit };
+        return { amount: (low + high) / 2 * scale * factor, unit };
     };
     // Pevné pořadí stejně podobných kandidátů (bez náhody: možnosti musí vyjít všem hráčům stejně)
     const clueHash = (text) => {
@@ -2938,9 +3064,9 @@
             const values = same.filter(entry => entry.kind === 'measure' && entry.unit === fact.unit);
             if (!values.length) return false;
             return values.every(entry => {
-                if (fact.unit === '°c') return Math.abs(entry.value - fact.value) >= 50;
-                if (fact.label === 'Tvrdost') return Math.abs(entry.value - fact.value) >= 1.5;
-                const [low, high] = [Math.abs(entry.value), Math.abs(fact.value)].sort((a, b) => a - b);
+                if (fact.unit === '°c') return Math.abs(entry.amount - fact.amount) >= 50;
+                if (fact.label === 'Tvrdost') return Math.abs(entry.amount - fact.amount) >= 1.5;
+                const [low, high] = [Math.abs(entry.amount), Math.abs(fact.amount)].sort((a, b) => a - b);
                 return low > 0 ? high / low >= 1.5 : high > 0;
             });
         }
@@ -3017,66 +3143,86 @@
         const clue = pickClue(item, ctx, question, check.open, { pair });
         return { clue, open: clue.length ? [] : check.open };
     };
-    // Nesprávné možnosti, mezi kterými odpověď určí to, co hráč vidí, s rozlišujícím údajem. open = možnosti, které text a ukázaná
-    // fakta nevyvracejí (planRound: unresolved; bez něj všechny). Když žádný údaj z dat nevyvrací všechny otevřené, vymění se ty,
-    // které nejlepší údaj nevyvrací, za co nejpodobnější položky stejné kategorie, které vyvrací (topic.similarity, druh, známost;
-    // pevné pořadí bez náhody). Možnost vyvrácená textem zůstane. text = co hráč vidí (nová možnost nesmí být v textu jmenovaná).
-    // fixed = možnosti měnit nejde (Dobývání). Vrátí { question, ok, swapped, fact }; ok: false = položka se na tuto otázku nehodí.
+    // Nesprávné možnosti, mezi kterými odpověď určí to, co hráč vidí, s nejvýš dvěma rozlišujícími údaji. open = možnosti, které
+    // text a ukázaná fakta nevyvracejí (planRound: unresolved; bez něj všechny). Když je jeden údaj nebo dva spolu nevyvrátí všechny,
+    // vymění se jen ty, které nevyvrací nic, a to za co nejpodobnější položku (swapSimilar: stejný druh, třída, řád, sport, okruh…),
+    // kterou ukázaný údaj vyvrací. Podobnou náhradu nenajde-li, nic se nemění (ok: false: otázka se jménem, nebo se položka nezeptá).
+    // text = co hráč vidí (nová možnost v něm nesmí být jmenovaná); fixed = možnosti měnit nejde (Dobývání). Vrátí { question, ok,
+    // swapped, swaps: [{ from, to }], facts: údaje, které otevřené možnosti vyvracejí }.
     const SWAP_FACTS = 12;
-    const uniqueChoices = (question, item, ctx, { fixed = false, shown = null, open = null, text = '' } = {}) => {
-        if (!needsUniqueness(question, item, ctx, shown)) return { question, ok: true, swapped: false };
+    // Skupiny, ze kterých náhrada nesmí vybočit, když v nich je správná odpověď i vyměněná možnost (pes za psovitou šelmu, německé
+    // město za německé, veličina v joulech za veličinu v joulech, tenista za tenistu, řecký bůh za řeckého boha, impresionista za
+    // impresionistu). Náhradu pak vyvrací jen jemnější údaj (rok, číslo, dílo, rodiče), ne skupina sama – otázka zůstane stejně těžká.
+    const BROAD_GROUPS = ['Třída', 'Řád', 'Čeleď', 'Skupina prvků', 'Skupina', 'Sport', 'Mytologie', 'Soustava', 'Kontinent', 'Stát', 'Země', 'Země původu',
+        'Jednotka SI', 'Jednotka', 'Veličina', 'Obíhá kolem', 'Sloh', 'Směr', 'Jazyk', 'Krystalová soustava', 'Kraj', 'Patří k'];
+    const groupValue = (other, label, ctx) => (clueFactsOf(other, ctx).byLabel.get(label) || []).map(fact => normalizeAnswer(fact.value)).join('|');
+    const swapSimilar = (item, from, to, ctx) => {
+        if (item.ty && from.ty === item.ty && to.ty !== item.ty) return false;
+        // Pohlaví osoby (popis ho prozradí tvarem slov: byla, narozená)
+        if ((from.sx === 'f') === (item.sx === 'f') && (to.sx === 'f') !== (item.sx === 'f')) return false;
+        for (const label of BROAD_GROUPS) {
+            const own = groupValue(item, label, ctx);
+            if (own && own === groupValue(from, label, ctx) && groupValue(to, label, ctx) !== own) return false;
+        }
+        const shared = (from.g || []).filter(group => (item.g || []).includes(group));
+        return !shared.length || shared.some(group => (to.g || []).includes(group));
+    };
+    // Rod (první slovo názvu druhu: Pes, Čirůvka) a čeleď navíc: z podobných náhrad vyhraje ta nejbližší
+    const swapScore = (item, from, to, ctx) => {
+        const similarity = (a, b) => (ctx.topic.similarity ? ctx.topic.similarity(a, b, ctx) || 0 : 0);
+        const genus = (other) => normalizeAnswer(other.n).split(' ')[0];
+        const family = groupValue(from, 'Čeleď', ctx);
+        return similarity(item, to) + similarity(from, to) + (to.ty && to.ty === from.ty ? 4 : 0) + (to.k === from.k ? 2 : 0) + cultureScore(from, to)
+            + (family && family === groupValue(to, 'Čeleď', ctx) ? 3 : 0) + (genus(from).length >= 3 && genus(from) === genus(to) ? 2 : 0)
+            + Math.min(3, (from.g || []).filter(group => (to.g || []).includes(group)).length);
+    };
+    // maxSwaps = kolik možností se smí vyměnit (composeRound: nejdřív jen jedna, jinak radši otázka se jménem)
+    const uniqueChoices = (question, item, ctx, { fixed = false, shown = null, open = null, text = '', maxSwaps = 3 } = {}) => {
+        if (!needsUniqueness(question, item, ctx, shown)) return { question, ok: true, swapped: false, swaps: [] };
         const wrong = wrongItemsOf(question, ctx);
-        if (!wrong) return { question, ok: true, swapped: false };
+        if (!wrong) return { question, ok: true, swapped: false, swaps: [] };
         const openIds = open ? new Set(open.map(other => (typeof other === 'string' ? other : other.q))) : null;
         const pending = openIds ? wrong.filter(other => openIds.has(other.q)) : wrong;
-        if (!pending.length) return { question, ok: true, swapped: false };
-        const candidates = clueCandidates(item, ctx, question);
-        const found = candidates.find(fact => pending.every(other => contradicts(fact, other, ctx)));
-        if (found) return { question, ok: true, swapped: false, fact: found };
-        if (fixed) return { question, ok: false, swapped: false };
-        const similarity = (other) => (ctx.topic.similarity ? ctx.topic.similarity(item, other, ctx) || 0 : 0) + (item.ty && other.ty === item.ty ? 4 : 0)
-            + (other.k === item.k ? 2 : 0) + cultureScore(item, other);
+        if (!pending.length) return { question, ok: true, swapped: false, swaps: [] };
+        const candidates = clueCandidates(item, ctx, question).slice(0, SWAP_FACTS);
+        // Jeden údaj, nebo dva spolu: kolik otevřených možností vyvrátí
+        const hits = new Map(candidates.map(fact => [fact, pending.filter(other => contradicts(fact, other, ctx))]));
+        const covers = [...candidates.map(fact => [fact]), ...candidates.flatMap((a, i) => candidates.slice(i + 1).map(b => [a, b]))]
+            .map(facts => ({ facts, covered: new Set(facts.flatMap(fact => hits.get(fact))) }))
+            .sort((a, b) => b.covered.size - a.covered.size || a.facts.length - b.facts.length
+                || a.facts.reduce((sum, fact) => sum + fact.tier, 0) - b.facts.reduce((sum, fact) => sum + fact.tier, 0));
+        const full = covers.find(cover => cover.covered.size === pending.length);
+        if (full) return { question, ok: true, swapped: false, swaps: [], facts: full.facts };
+        if (fixed) return { question, ok: false, swapped: false, swaps: [] };
         const ownNames = new Set([item.n, displayName(item.t || '')].map(normalizeAnswer));
-        // Druh je vidět u otázky (hráč snookeru): mají-li ho stejný aspoň dvě původní možnosti, náhrada musí být stejného druhu
-        // (k Ronniemu O'Sullivanovi jiný hráč snookeru, ne fotbalista)
-        const sameKind = Boolean(item.ty) && wrong.filter(other => other.ty === item.ty).length >= 2;
         const pool = (ctx.items || []).filter(other => other.c === item.c && other.q !== item.q && !other.nq && !ownNames.has(normalizeAnswer(other.n))
-            && (!sameKind || other.ty === item.ty)
             && !sameArticle(item, other) && !isNamePart(item.n, other.n) && !wrong.includes(other)
             && !(text && choiceConflict({ id: other.q, label: other.n, correct: false }, { question, item, ctx, text })));
-        const settled = wrong.filter(other => !pending.includes(other));
-        let best = null;
-        for (const fact of candidates.slice(0, SWAP_FACTS)) {
-            const keep = [...settled, ...pending.filter(other => contradicts(fact, other, ctx))];
-            const taken = new Set([normalizeAnswer(item.n), ...keep.map(other => normalizeAnswer(other.n))]);
-            const ranked = pool.filter(other => contradicts(fact, other, ctx) && !namedIn(fact.value, other.n))
-                .map(other => ({ other, value: similarity(other) + (clueHash(`${item.q}|${other.q}`) % 1000) / 2000 }))
-                .sort((a, b) => b.value - a.value).map(entry => entry.other);
-            const added = [];
-            for (const other of ranked) {
-                if (keep.length + added.length >= 3) break;
-                const key = normalizeAnswer(other.n);
-                if (taken.has(key) || [...keep, ...added].some(chosen => sameArticle(chosen, other))) continue;
-                taken.add(key);
-                added.push(other);
+        for (const cover of covers.slice(0, 8)) {
+            const missing = pending.filter(other => !cover.covered.has(other));
+            if (missing.length > maxSwaps) continue;
+            const taken = new Set([item, ...wrong].map(other => normalizeAnswer(other.n)));
+            const kept = wrong.filter(other => !missing.includes(other));
+            const swaps = [];
+            for (const from of missing) {
+                const best = pool.filter(to => !taken.has(normalizeAnswer(to.n)) && swapSimilar(item, from, to, ctx)
+                    && cover.facts.some(fact => contradicts(fact, to, ctx) && !namedIn(fact.value, to.n))
+                    && ![...kept, ...swaps.map(swap => swap.to)].some(chosen => sameArticle(chosen, to)))
+                    .map(to => ({ to, value: swapScore(item, from, to, ctx) + (clueHash(`${item.q}|${to.q}`) % 1000) / 2000 }))
+                    .sort((a, b) => b.value - a.value)[0];
+                if (!best) break;
+                taken.add(normalizeAnswer(best.to.n));
+                swaps.push({ from, to: best.to });
             }
-            if (keep.length + added.length < 3) continue;
-            // Co nejméně výměn, potom lepší druh údaje (dílo před roky, roky před zemí)
-            const score = keep.length * 10 - fact.tier;
-            if (!best || score > best.score) best = { score, keep, added, fact };
-            if (keep.length === 2) break;
+            if (swaps.length < missing.length) continue;
+            // Pořadí možností zůstane: náhrada dostane místo možnosti, kterou nahradila
+            const choices = question.choices.map(choice => {
+                const swap = swaps.find(entry => entry.from.q === choice.id);
+                return swap ? { ...choice, id: swap.to.q, label: swap.to.n } : choice;
+            });
+            return { question: { ...question, choices }, ok: true, swapped: true, swaps: swaps.map(swap => ({ from: swap.from.q, to: swap.to.q })), facts: cover.facts };
         }
-        if (!best) return { question, ok: false, swapped: false };
-        // Pořadí možností zůstane: vyměněná možnost dostane místo té, kterou nahradila
-        const queue = [...best.added];
-        const choices = question.choices.map(choice => {
-            if (choice.correct) return choice;
-            const other = ctx.byId.get(choice.id);
-            if (best.keep.includes(other)) return choice;
-            const next = queue.shift();
-            return { ...choice, id: next.q, label: next.n };
-        });
-        return { question: { ...question, choices }, ok: true, swapped: true, fact: best.fact };
+        return { question, ok: false, swapped: false, swaps: [] };
     };
 
     // Dobývání (app.js conquestRound → conquest.js completeQuestion): které nesprávné možnosti vyvrací popis a které jednotlivá
@@ -3321,13 +3467,19 @@
     // swaps = smí se možnosti měnit (denní módy až od svého dne), fixed = pevné možnosti (Dobývání), plain = jen otázka na název
     // (Tajemná otázka), unique: false = stav před úpravou (bez rozlišujícího údaje, prodloužení popisu a výměny; audit)
     const CONVERT_ROLLS = [0.05, 0.22, 0.28, 0.33, 0.42, 0.55, 0.78, 0.9];
-    const composeRound = ({ item, ctx, question, special = false, fetched, shown = null, rng = Math.random, photoUrl = null, describeVisual = () => null,
-        photoMasks = {}, textPhotos = new Set(), swaps = true, fixed = false, plain = false, unique = true }) => {
+    // fallback = krátký popis z Wikidat ({ description, more: '', fallback: true }), který mají všichni hráči. stableChoices (denní
+    // módy: app.js options.stableChoices) = střet nesprávné možnosti s popisem i výměna se hledají jen v něm a jméno nesprávné možnosti
+    // v úvodu z Wikipedie se pak jen zakryje; stableSwaps (výzvy) = jen výměna podle něj. Možnosti tak nezávisí na tom, jestli se hráči
+    // Wikipedie načetla. Rozlišující údaj (jen zobrazení) se vybírá podle textu, který hráč opravdu vidí.
+    const composeRound = ({ item, ctx, question, special = false, fetched, fallback = null, stableChoices = false, stableSwaps = false, shown = null, rng = Math.random,
+        photoUrl = null, describeVisual = () => null, photoMasks = {}, textPhotos = new Set(), swaps = true, fixed = false, plain = false, unique = true }) => {
         const { topic } = ctx;
         const category = (topic.categories || []).find(entry => entry.key === item.c) || { one: topic.words.one };
         let isSpecial = Boolean(special);
-        const build = () => buildQuestionTexts(item, ctx, question, fetched, { special: isSpecial, extend: unique });
-        let texts = build();
+        const stableText = fallback || { description: item.d ? `${item.d.charAt(0).toUpperCase()}${item.d.slice(1)}.` : '', funFacts: [], more: '', fallback: true };
+        const build = (source) => buildQuestionTexts(item, ctx, question, source, { special: isSpecial, extend: unique });
+        const choiceSource = stableChoices ? stableText : fetched;
+        let texts = build(choiceSource);
         let conflict = false;
         for (let attempt = 0; attempt <= 3; attempt++) {
             const seen = [texts.questionText, texts.moreText].filter(Boolean).join(' ');
@@ -3336,27 +3488,37 @@
             const replaced = fixed || attempt === 3 ? null : replaceConflicts({ question, item, ctx, text: seen, rng });
             if (!replaced) break;
             question = replaced;
-            texts = build();
+            texts = build(choiceSource);
         }
         // Typ položky („obec ve Španělsku“, „král“) nesmí prozradit odpověď
         const typeLabelOf = () => (item.ty && !hideAnswer(item.ty, question, { ...item, ty: '' }, ctx).includes('[***]') ? item.ty : category.one);
-        const planOf = (pair = false) => planRound({ item, ctx, question, texts: { questionText: texts.questionText, moreText: texts.moreText, origin: texts.origin },
-            typeLabel: typeLabelOf(), shown, special: isSpecial, photoUrl, describeVisual, photoMasks, textPhotos, unique, cluePair: pair });
-        let plan = planOf();
-        let ambiguous = false;
+        // Rozlišující údaj smí být i dva údaje spolu (A vyvrací část možností, B zbytek): radši dva údaje než snazší možnosti
+        const planOf = (source) => planRound({ item, ctx, question, texts: { questionText: source.questionText, moreText: source.moreText, origin: source.origin },
+            typeLabel: typeLabelOf(), shown, special: isSpecial, photoUrl, describeVisual, photoMasks, textPhotos, unique, cluePair: true });
         let swapped = false;
+        let swapList = [];
         let converted = false;
-        if (unique && plan.unresolved.length && swaps) {
-            const seen = [texts.questionText, texts.moreText].filter(Boolean).join(' ');
-            const result = uniqueChoices(question, item, ctx, { fixed, shown, open: plan.unresolved, text: seen });
-            if (result.ok && result.swapped) {
+        if (unique && swaps && !isSpecial) {
+            const decideSource = stableChoices || stableSwaps ? stableText : fetched;
+            let decideTexts = build(decideSource);
+            let decide = planOf(decideTexts);
+            // Výměna nejvýš maxSwaps možností za podobné (náhradu vyvrací ukázaný údaj)
+            const trySwap = (maxSwaps) => {
+                if (!decide.unresolved.length || isSpecial) return;
+                const seen = [decideTexts.questionText, decideTexts.moreText].filter(Boolean).join(' ');
+                const result = uniqueChoices(question, item, ctx, { fixed, shown, open: decide.unresolved, text: seen, maxSwaps });
+                if (!result.ok || !result.swapped) return;
                 question = result.question;
                 swapped = true;
-                texts = build();
-                plan = planOf();
-            }
-            // Otázka se jménem položky místo otázky na název (jen se stejným obrázkem otázky; hody pokryjí větve specialQuestion)
-            if (plan.unresolved.length && !fixed && !plain && topic.specialQuestion) {
+                swapList = result.swaps;
+                decideTexts = build(decideSource);
+                decide = planOf(decideTexts);
+            };
+            // Jedna vyměněná možnost otázku nezmění; víc vyměněných by z ní udělalo jinou (a často snazší) otázku: pak se položka radši
+            // zeptá otázkou se svým jménem (jen se stejným obrázkem otázky; hody pokryjí větve specialQuestion), a teprve když ta není,
+            // vymění se až tři možnosti
+            trySwap(1);
+            if (decide.unresolved.length && !fixed && !plain && topic.specialQuestion) {
                 for (const roll of CONVERT_ROLLS) {
                     const seeded = createSeededRandom(`jednoznacne|${item.q}|${roll}`);
                     let first = true;
@@ -3366,22 +3528,33 @@
                     question = alt;
                     isSpecial = true;
                     converted = true;
-                    texts = build();
-                    plan = planOf();
                     break;
                 }
             }
-            if (plan.unresolved.length) {
-                plan = planOf(true);
-                // Plný úvod článku s konkrétním údajem (místo, rok, jméno), který data ověřit neumějí (dinosaurus z Antarktidy, objevený
-                // 1991; část těla), odpověď určí popisem: otázka se položí (definitionOnly), jen ji audit počítá zvlášť
-                const article = !shown && texts.origin === 'article' && countRealWords(texts.questionText) >= MIN_DESCRIPTION_WORDS && isSpecificText(texts.questionText);
-                if (plan.unresolved.length && article) plan = { ...plan, definitionOnly: true };
-                else ambiguous = plan.unresolved.length > 0;
+            trySwap(3);
+        }
+        texts = build(fetched);
+        // Denní módy: jméno nesprávné možnosti v úvodu z Wikipedie se jen zakryje (možnosti se podle něj neměnily)
+        if (stableChoices && !fixed) {
+            const seen = [texts.questionText, texts.moreText].filter(Boolean).join(' ');
+            const named = (question.choices || []).filter(choice => !choice.correct && choiceConflict(choice, { question, item, ctx, text: seen }));
+            if (named.length) {
+                const hide = (value) => (value ? mergeCensored(named.reduce((result, choice) => censorName(result, choice.label), value)) : value);
+                texts = { ...texts, questionText: hide(texts.questionText), moreText: hide(texts.moreText) };
             }
-        } else if (unique && plan.unresolved.length) plan = planOf(true);
-        return { question, special: isSpecial, texts, plan, typeLabel: typeLabelOf(), conflict, ambiguous, swapped, converted };
+        }
+        let plan = planOf(texts);
+        let ambiguous = false;
+        if (unique && plan.unresolved.length) {
+            // Plný úvod článku s konkrétním údajem (místo, rok, jméno), který data ověřit neumějí (dinosaurus z Antarktidy, objevený
+            // 1991; část těla), odpověď určí popisem: otázka se položí (definitionOnly), jen ji audit počítá zvlášť
+            const article = !shown && texts.origin === 'article' && countRealWords(texts.questionText) >= MIN_DESCRIPTION_WORDS && isSpecificText(texts.questionText);
+            if (article) plan = { ...plan, definitionOnly: true };
+            else ambiguous = true;
+        }
+        return { question, special: isSpecial, texts, plan, typeLabel: typeLabelOf(), conflict, ambiguous, swapped, swaps: swapList, converted };
     };
+
 
     return {
         EMPTY_COUNTERS, BADGES, BADGE_GROUPS, BADGE_BY_ID, earnedBadgeIds, compactBadges, expandBadges, normalizeCounters,
@@ -3392,13 +3565,13 @@
         UNKNOWN_COUNTRY, INTERNATIONAL_WATERS, CZECHIA_QID, AFTER_SYMBOL_WORD, TILE_SIZE, COUNTRIES, CONTINENT_NAMES,
         SATELLITE_TILES, OSM_TILES,
         escapeHtml, stripBrackets, isRealPhoto, photoWords, OFF_SUBJECT, OFF_SUBJECT_BUILDINGS, offSubjectRule, commonsPhotoUrl, commonsFileUrl, displayName, plural, formatPoints,
-        getDayKey, shiftDayKey, formatDayKey, createSeededRandom, pickRandom, pickWeighted, shuffle,
+        getDayKey, pragueDayKey, itemsAsOf, dailyPick, hashText, fuzzyTwins, shiftDayKey, formatDayKey, createSeededRandom, pickRandom, pickWeighted, shuffle,
         ELEMENT_FAMILIES, elementFamily, periodicPosition,
         maskLeaks, findLeaks, answerTokens, foldKeys, isPersonName, genericWordsOf, isGenericWord, specificWords, absorbGenericWords, hideNicknames, CHOICE_MARK, hideOtherChoices,
         censorForItem, answerNamesOf, answerNamesFor, hideAnswer, leadSubject, leadAliases, aliasWords, sealAnswerWords, answerWordsLeft, leakFreeText, OUT_OF_CONTEXT, buildQuestionTexts, factRevealsAnswer, GENERIC_NAME_WORDS,
         JOINING_WORDS, distinctiveTokens, structureLeaks, sealStructure, contentWords, newWords, addsInformation, commonChoiceText,
         choicePoints, choicesView, fitMapToChoices, FIT_SHARE, WORLD_MIN_SPAN, buildHints, planRound, MIN_DESCRIPTION_WORDS, MIN_EXCERPT_WORDS,
-        composeRound, clueFactsOf, contradicts, identifyAnswer, clueFor, pickClue, clueCandidates, uniqueChoices, uniqueInfo, needsUniqueness, wrongItemsOf, isSpecificText, parseClueFact,
+        composeRound, swapSimilar, clueFactsOf, contradicts, identifyAnswer, clueFor, pickClue, clueCandidates, uniqueChoices, uniqueInfo, needsUniqueness, wrongItemsOf, isSpecificText, parseClueFact,
         setCountries, landOf, landsOf, landFromDescription, cultureDistance, CULTURE_GROUPS, cultureScore, cultureLandsFor, getWordStems, censorName, mergeCensored, swallowAliases, censorCountry, isKnownCountry, processWikiText, stripFactSentences, takeLeadFacts, normalizeAnswer, levenshtein, isAnswerMatch, isSymbolMatch, isCenturyMatch, isFormulaMatch, formulaCounts, checkAnswer,
         inCollection, filterItems, levelOf, tierLevel, pickItem, sortItems, getCountryNames, getContinent, continentAt, getCountryAliases,
         distanceKm, nearness, STATE_STEPS, sharesGroup, eraNearness, personSimilarity, rankBySimilarity, takeDistinct, isNamePart, nameStems, sameNameStem,

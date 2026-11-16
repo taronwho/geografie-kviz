@@ -280,6 +280,7 @@ test('napojení: skripty v index.html, CSP s blob: pro přebarvenou sovu, servic
     assert.ok(cspHeaders.startsWith(cspIndex), 'index.html a _headers stejné');
     assert.match(cspIndex, /img-src 'self' blob: https:/);
     assert.doesNotMatch(cspIndex, /unsafe-inline|data:/);
-    assert.equal(/language sql immutable as \$\$ select (\d+) \$\$/.exec(SQL)[1], '32');
-    assert.equal(/const REQUIRED_SCHEMA = (\d+);/.exec(read('app.js'))[1], '32');
+    // (verze schématu je aspoň 32: blok 33 přidal zamrzlé denní módy)
+    assert.ok(Number(/language sql immutable as \$\$ select (\d+) \$\$/.exec(SQL)[1]) >= 32);
+    assert.ok(Number(/const REQUIRED_SCHEMA = (\d+);/.exec(read('app.js'))[1]) >= 32);
 });

@@ -2080,6 +2080,9 @@
     // uiArt, specialTile, avatarHtml, xpLine, meRow, loadTopic, loadCountries, readJson, writeJson, signedUser, social, auth, startLogin,
     // shareCard, shareImageCounted, robeNow, appUrl, appName, awardXp, sound, isLoading, loadExtra (data/retezovka.json), loadScript (chain-legacy.js
     // pro dny před NEW_FROM), chainSubject ({ source, later, photo } → { image, text }: fotka a zakrytý úvod předchozí odpovědi) }
+    // Měření (scripts/measure-denni.mjs): úsek jako performance.measure „mudrlant:<název>“
+    const perfNow = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
+    const perfSpan = (name, start) => { try { performance.measure(`mudrlant:${name}`, { start, end: perfNow() }); } catch (e) { /* bez Performance API */ } };
     const createController = (deps) => {
         let graphPromise = null;
         let attempt = null; // hraný pokus (dnešní nebo cvičný)
@@ -2117,14 +2120,28 @@
         };
 
         // Graf ze všech témat řetězu a vazeb z Wikidat (data/retezovka.json); načte se jednou za spuštění aplikace. Všechno musí být k dispozici,
-        // jinak by řetěz dne vyšel jinak než ostatním (bez dat se Řetězovka nenačte, jako když chybí téma)
-        const graph = () => {
-            if (!graphPromise) {
-                graphPromise = Promise.all([Promise.all(SOURCES.map(id => deps.loadTopic(id))), deps.loadCountries(), deps.loadExtra ? deps.loadExtra() : null])
-                    .then(([contexts, countries, extra]) => buildGraph(Object.fromEntries(contexts.map((ctx, i) => [SOURCES[i], ctx.items])), countries, extra))
-                    .catch(error => { graphPromise = null; throw error; });
+        // jinak by řetěz dne vyšel jinak než ostatním (bez dat se Řetězovka nenačte, jako když chybí téma). Položky se berou tak, jak byly
+        // ve hraný den (core.itemsAsOf: změna úrovní známosti platí od svého dne), takže graf je jeden na každou takovou verzi dat.
+        let sourcesPromise = null;
+        const graphs = new Map();
+        const listIds = typeof WeakMap === 'function' ? new WeakMap() : null;
+        let nextListId = 0;
+        const listId = (list) => { if (!listIds) return 0; if (!listIds.has(list)) listIds.set(list, ++nextListId); return listIds.get(list); };
+        const graph = (day = today()) => {
+            if (!sourcesPromise) {
+                sourcesPromise = Promise.all([Promise.all(SOURCES.map(id => deps.loadTopic(id))), deps.loadCountries(), deps.loadExtra ? deps.loadExtra() : null])
+                    .catch(error => { sourcesPromise = null; throw error; });
             }
-            return graphPromise;
+            return sourcesPromise.then(([contexts, countries, extra]) => {
+                const lists = contexts.map(ctx => (core.itemsAsOf ? core.itemsAsOf(ctx.items, day) : ctx.items));
+                const key = lists.map(listId).join(',');
+                if (!graphs.has(key)) {
+                    const started = perfNow();
+                    graphs.set(key, buildGraph(Object.fromEntries(lists.map((items, i) => [SOURCES[i], items])), countries, extra));
+                    perfSpan('graf', started);
+                }
+                return graphs.get(key);
+            });
         };
         // Den před NEW_FROM (řetěz dne, který už někdo hrál původním generátorem): chain-legacy.js se načte až teď a graf z jeho témat
         const legacyChain = async (day) => {
@@ -2135,17 +2152,23 @@
             await new Promise(resolve => setTimeout(resolve, 30));
             return legacyDailyChain(Object.fromEntries(contexts.map((ctx, i) => [old.SOURCES[i], ctx.items])), countries, day);
         };
-        // Řetěz dne: jednou spočítaný se pamatuje (cache), ať se při každém otevření nepočítá znovu
+        // Řetěz dne: jednou spočítaný se pamatuje (cache), ať se při každém otevření nepočítá znovu. Řetěz uložený na serveru (zamrzlé denní
+        // módy, schéma 33: deps.frozenChain) má přednost – je to přesně ten, který hrál první hráč dne, i když má toto zařízení jiná data
+        // (nová verze aplikace během dne); jinak se postaví ze dat a uloží (deps.claimChain vrátí platný, první uložený)
         const dayChain = async (day) => {
             const state = load();
             if (state.cache && state.cache.day === day) { const cached = cleanChain(state.cache.chain); if (cached) return cached; }
-            let chain;
-            if (isLegacyDay(day)) chain = await legacyChain(day);
-            else {
-                const built = await graph();
+            let chain = null;
+            if (!isLegacyDay(day) && deps.frozenChain) chain = cleanChain(await deps.frozenChain(day).catch(() => null));
+            if (!chain && isLegacyDay(day)) chain = await legacyChain(day);
+            else if (!chain) {
+                const built = await graph(day);
                 // Výpočet chvíli trvá: nejdřív se nechá vykreslit načítání
                 await new Promise(resolve => setTimeout(resolve, 30));
+                const started = perfNow();
                 chain = dailyChain(built, day);
+                perfSpan('retez-dne', started);
+                if (chain && deps.claimChain) chain = cleanChain(await deps.claimChain(day, chain).catch(() => null)) || chain;
             }
             if (!chain) throw new Error('Řetěz dne se nepodařilo sestavit');
             const fresh = load();
@@ -2303,7 +2326,7 @@
             stopTimers();
             show(loadingHtml(helpers(), 'Skládám cvičný řetěz…'));
             let built;
-            try { built = await graph(); } catch (error) { deps.showToast('Cvičnou řetězovku se teď nepodařilo načíst.'); deps.renderHome(); return; }
+            try { built = await graph(today()); } catch (error) { deps.showToast('Cvičnou řetězovku se teď nepodařilo načíst.'); deps.renderHome(); return; }
             await new Promise(resolve => setTimeout(resolve, 30));
             const chain = practiceChain(built, `${Date.now()}-${Math.random()}`);
             if (deps.getScreen() !== 'chain') return;

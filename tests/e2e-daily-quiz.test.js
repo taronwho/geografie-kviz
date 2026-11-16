@@ -71,6 +71,7 @@ const backend = async (context, db) => {
         if (rpc) {
             const name = rpc[1];
             db.log.push(name);
+            if (name === 'question_snapshot_claim') (db.claims = db.claims || []).push(body.seed);
             if (name === 'schema_version') return json(REQUIRED_SCHEMA);
             if (name === 'touch_seen') return route.fulfill({ status: 204, body: '' });
             if (name === 'friends_list') return json([]);
@@ -401,9 +402,11 @@ test('Kvíz dne v prohlížeči', { skip: !chromium && 'Playwright není nainsta
         assert.equal(shown[0].question.answerLabel, 'Gama');
         assert.equal(db.quiz[`u-1|${TODAY}`].correct, 10, 'odpověď na uloženou otázku se počítá podle ní');
         // Ostatní otázky sestavilo zařízení a uložilo je (pro hráče, kteří přijdou po něm), každou jednou
-        assert.equal(Object.keys(db.snapshots).length, 10);
+        // (Dnešní otázky a další denní módy, schéma 33, se ukládají pod svými semínky)
+        const quizSeeds = (list) => list.filter(key => key.startsWith('mudrlant-kviz-dne-'));
+        assert.equal(quizSeeds(Object.keys(db.snapshots)).length, 10);
         for (let i = 1; i < 10; i++) assert.equal(`${db.snapshots[seed(i)].topic}:${db.snapshots[seed(i)].id}`, `${shown[i].topic}:${shown[i].id}`);
-        assert.equal(db.log.filter(name => name === 'question_snapshot_claim').length, 9, 'uložená otázka se znovu neukládá');
+        assert.equal(quizSeeds(db.claims).length, 9, `uložená otázka se znovu neukládá: ${quizSeeds(db.claims).map(s => s.slice(-1)).join(',')}`);
         assert.equal((await quizStore(tab)).attempt.plan[0].q, 'Q999001', 'plán pokusu má položku ze serveru');
         // Rozpis: zadání první otázky je to uložené na serveru
         await tab.waitForSelector('[data-quiz-row="u-3"]', { timeout: 30000 });

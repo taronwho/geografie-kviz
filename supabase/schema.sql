@@ -8022,6 +8022,116 @@ revoke all on function public.referral_status(), public.referral_join(text), pub
 grant execute on function public.referral_status(), public.referral_join(text), public.referral_claim(), public.prestige_up() to authenticated;
 -- ===== 32: Motivace — KONEC BLOKU =====
 
+-- ===== 33: Zamrzlé denní módy — ZAČÁTEK BLOKU =====
+-- Dnešní otázky, Řetězovka dne, Boss týdne a Tajemná otázka dne mají být pro všechny stejné jako Kvíz dne (schéma 17): otázku (řetěz) sestaví
+-- první hráč dne v zařízení a uloží ji (question_snapshot_claim, první zápis platí), ostatní hrají uloženou – i když mezitím přišla nová verze
+-- aplikace s jinými daty (odstraněné fotky a položky, jiné úrovně známosti) nebo se jim nenačetla Wikipedie. Nová semínka:
+--   Dnešní otázky    mudrlant-dnes-<YYYY-MM-DD>:<téma>                     jen dnešek a včerejšek (pražský čas)
+--   Řetězovka dne    mudrlant-retezovka-<YYYY-MM-DD>                         celý řetěz dne; dnešek a včerejšek
+--   Tajemná otázka   mudrlant-tajemna-<YYYY-MM-DD>                           otázka dne; dnešek a včerejšek
+--   Boss týdne       mudrlant-boss-<pondělí>-<pokus 1–3>:otazka:<0–9>        tento a minulý týden (pondělí podle Prahy)
+-- daily_snapshots_get vrátí uložené otázky denních módů (i Kvízu dne) komukoli včetně nepřihlášených (anon): otázky dne jsou pro všechny
+-- stejné a veřejné, host je tak dostane stejné jako přihlášení. Otázky výzev a turnajů dál čte jen přihlášený (question_snapshots_get).
+-- Starší aplikace (bez těchto semínek) se nemění; aplikace se starší databází (bez bloku 33) hraje jako dřív, jen bez zamrzlých denních módů.
+
+-- Semínko denního módu, které jde uložit dnes (Kvíz dne se kontroluje jako dřív v question_snapshot_claim)
+create or replace function public.daily_snapshot_seed_ok(s text) returns boolean
+language plpgsql stable set search_path = public as $$
+declare
+    today date := public.daily_quiz_today();
+    m text[];
+    d date;
+begin
+    if s is null then return false; end if;
+    m := regexp_match(s, '^mudrlant-(?:dnes-([0-9]{4}-[0-9]{2}-[0-9]{2}):[a-z]{2,20}|retezovka-([0-9]{4}-[0-9]{2}-[0-9]{2})|tajemna-([0-9]{4}-[0-9]{2}-[0-9]{2}))$');
+    if m is not null then
+        begin d := coalesce(m[1], m[2], m[3])::date; exception when others then return false; end;
+        return d in (today, today - 1);
+    end if;
+    m := regexp_match(s, '^mudrlant-boss-([0-9]{4}-[0-9]{2}-[0-9]{2})-([1-3]):otazka:([0-9])$');
+    if m is not null then
+        begin d := m[1]::date; exception when others then return false; end;
+        return extract(isodow from d) = 1 and d in (date_trunc('week', today)::date, date_trunc('week', today)::date - 7);
+    end if;
+    return false;
+end;
+$$;
+-- Semínko, které daily_snapshots_get vrací i hostovi: denní módy a Kvíz dne (jakéhokoli dne – uložené otázky minulých dnů pro rozpis)
+create or replace function public.daily_snapshot_public(s text) returns boolean
+language sql immutable set search_path = public as $$
+    select s ~ '^mudrlant-(?:kviz-dne-[0-9]{4}-[0-9]{2}-[0-9]{2}:otazka:[0-9]|dnes-[0-9]{4}-[0-9]{2}-[0-9]{2}:[a-z]{2,20}|retezovka-[0-9]{4}-[0-9]{2}-[0-9]{2}|tajemna-[0-9]{4}-[0-9]{2}-[0-9]{2}|boss-[0-9]{4}-[0-9]{2}-[0-9]{2}-[1-3]:otazka:[0-9])$'
+$$;
+
+-- Jako ve schématu 17, navíc semínka denních módů (daily_snapshot_seed_ok)
+create or replace function public.question_snapshot_claim(seed text, data jsonb) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+    uid uuid := auth.uid();
+    s text := question_snapshot_claim.seed;
+    payload jsonb := question_snapshot_claim.data;
+    today date := public.daily_quiz_today();
+    m text[];
+    d date;
+    allowed boolean := false;
+    stored jsonb;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if s is null or char_length(s) not between 1 and 200 or s !~ '^[A-Za-z0-9._:-]+$' then raise exception 'Neplatné semínko otázky.' using errcode = '22023'; end if;
+    if payload is null or jsonb_typeof(payload) <> 'object' then raise exception 'Neplatná otázka.' using errcode = '22023'; end if;
+    if octet_length(payload::text) > 150000 then raise exception 'Otázka je příliš velká.' using errcode = '22023'; end if;
+    select q.data into stored from public.question_snapshots q where q.seed = s;
+    if stored is not null then return stored; end if;
+    -- Kvíz dne: jen dnešek a včerejšek (pokus začatý před půlnocí se dohrává po ní)
+    m := regexp_match(s, '^mudrlant-kviz-dne-([0-9]{4}-[0-9]{2}-[0-9]{2}):otazka:([0-9])$');
+    if m is not null then
+        begin d := m[1]::date; exception when others then d := null; end;
+        if d is null or d not in (today, today - 1) then raise exception 'Otázky Kvízu dne jde uložit jen za dnešek.' using errcode = '22023'; end if;
+        allowed := true;
+    end if;
+    -- Denní módy (schéma 33): Dnešní otázky, Řetězovka, Tajemná otázka (dnešek a včerejšek) a Boss týdne (tento a minulý týden)
+    if not allowed and s ~ '^mudrlant-(dnes|retezovka|tajemna|boss)-' then
+        if not public.daily_snapshot_seed_ok(s) then raise exception 'Otázky denních módů jde uložit jen za dnešek.' using errcode = '22023'; end if;
+        allowed := true;
+    end if;
+    -- Zápas turnaje: jen hráč zápasu v tom kole
+    if not allowed then
+        m := regexp_match(s, '^(.+)-r([0-9]{1,2}):([0-9]{1,2})$');
+        if m is not null and m[3]::integer < 20 then
+            allowed := exists (select 1 from public.tournaments t join public.tournament_matches mm on mm.tournament_id = t.id
+                where t.seed = m[1] and mm.round = m[2]::integer and uid in (mm.p1, mm.p2));
+        end if;
+    end if;
+    -- Výzva: nejstarší výzva s tímhle semínkem, kterou hráč smí hrát (jako pravidlo zápisu výsledku), a pořadí v rozsahu jejích otázek
+    if not allowed then
+        m := regexp_match(s, '^(.+):([0-9]{1,2})$');
+        if m is not null then
+            select (c.invited_id is null or uid in (c.invited_id, c.creator_id)) and m[2]::integer < c.count into allowed
+            from public.challenges c where c.seed = m[1] order by c.created_at, c.id limit 1;
+            allowed := coalesce(allowed, false);
+        end if;
+    end if;
+    if not allowed then raise exception 'Tuhle otázku uložit nejde.' using errcode = '42501'; end if;
+    if (select count(*) from public.question_snapshots q where q.created_by = uid and q.created_at > now() - interval '1 hour') >= 400 then
+        raise exception 'Příliš mnoho nových otázek, zkus to za chvíli.' using errcode = '22023';
+    end if;
+    insert into public.question_snapshots (seed, data, created_by) values (s, payload, uid) on conflict on constraint question_snapshots_pkey do nothing;
+    select q.data into stored from public.question_snapshots q where q.seed = s;
+    return stored;
+end;
+$$;
+
+-- Uložené otázky denních módů k semínkům (nejvýš 100 najednou), i pro nepřihlášené; jiná semínka (výzvy, turnaje) ve výsledku nejsou
+create or replace function public.daily_snapshots_get(seeds text[]) returns table (seed text, data jsonb)
+language sql stable security definer set search_path = public as $$
+    select q.seed, q.data from public.question_snapshots q
+    where q.seed = any((coalesce(daily_snapshots_get.seeds, '{}'::text[]))[1:100]) and public.daily_snapshot_public(q.seed)
+$$;
+revoke all on function public.daily_snapshot_seed_ok(text), public.daily_snapshot_public(text) from public, anon, authenticated;
+revoke all on function public.question_snapshot_claim(text, jsonb), public.daily_snapshots_get(text[]) from public, anon;
+grant execute on function public.question_snapshot_claim(text, jsonb) to authenticated;
+grant execute on function public.daily_snapshots_get(text[]) to anon, authenticated;
+-- ===== 33: Zamrzlé denní módy — KONEC BLOKU =====
+
 -- ===== Verze schématu =====
 -- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.
 -- Aplikace ho po přihlášení porovná a správci (dev_admins nebo vývojářský režim) ukáže v Nastavení, že má schéma spustit znovu;
@@ -8100,7 +8210,9 @@ grant execute on function public.referral_status(), public.referral_join(text), 
 --     referral_rewards; referral_status, referral_join, referral_claim; export_my_data má i 'pozvanky'), prestiž (profiles.prestige
 --     a prestige_xp, prestige_up), vítězný efekt (profiles.victory_fx), reakce navíc jen odemčené (match_reactions_emoji_list, check_reaction)
 --     a vitrína s titulem a věcmi ze Sezóny Mudrlanta (showcase_format_ok a check_showcase: t:<titul>, s:<druh>:<id>).
+-- 33: Zamrzlé denní módy – Dnešní otázky, Řetězovka dne, Tajemná otázka dne a Boss týdne ukládá question_snapshot_claim jako Kvíz dne (semínka
+--     mudrlant-dnes-, -retezovka-, -tajemna- a -boss-; daily_snapshot_seed_ok), daily_snapshots_get je vrací i nepřihlášeným (daily_snapshot_public).
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 32 $$;
+language sql immutable as $$ select 33 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

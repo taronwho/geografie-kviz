@@ -80,13 +80,13 @@ test('Obecný popis se prodlouží o další větu s konkrétním údajem; konkr
     assert.doesNotMatch(plain.questionText, /Osvobozené/);
 });
 
-// Malé téma: stavby, které se liší jen slohem; Beta a Gama mají stejný sloh jako Alfa, Delta jiný
+// Malé téma: gotické stavby, které se liší jen rokem vzniku; Beta a Gama vznikly skoro současně s Alfou, Delta je barokní
 const toyContext = () => {
-    const make = (q, n, style, sim) => ({ q, t: n, n, c: 'stavby', k: 1, f: {}, style, sim });
-    const items = [make('QA', 'Alfa', 'Gotika', 0), make('QB', 'Beta', 'Gotika', 5), make('QC', 'Gama', 'Gotika', 4), make('QD', 'Delta', 'Baroko', 3),
-        make('QE', 'Epsilon', 'Renesance', 2), make('QF', 'Fí', 'Klasicismus', 1), make('QG', 'Gotická kopie', 'Gotika', 6)];
+    const make = (q, n, style, year, sim) => ({ q, t: n, n, c: 'stavby', k: 1, f: {}, style, year, sim });
+    const items = [make('QA', 'Alfa', 'Gotika', 1250, 0), make('QB', 'Beta', 'Gotika', 1255, 5), make('QC', 'Gama', 'Gotika', 1260, 4), make('QD', 'Delta', 'Baroko', 1700, 3),
+        make('QE', 'Epsilon', 'Gotika', 1450, 2), make('QF', 'Fí', 'Gotika', 1500, 1), make('QG', 'Gotická kopie', 'Gotika', 1252, 6), make('QH', 'Éta', 'Baroko', 1650, 9)];
     const topic = { id: 'hracka', words: { one: 'stavba', question: 'Co je to?' }, categories: [{ key: 'stavby', one: 'stavba', question: 'Která stavba to je?' }],
-        facts: (item) => [{ label: 'Sloh', value: item.style }], similarity: (item, other) => other.sim };
+        facts: (item) => [{ label: 'Sloh', value: item.style }, { label: 'Vznik', value: String(item.year) }], similarity: (item, other) => other.sim };
     return { topic, items, byId: new Map(items.map(item => [item.q, item])), countries: {} };
 };
 test('composeRound: nesprávnou možnost, kterou nic nevyvrací, vymění za co nejpodobnější, kterou údaj vyvrací (pevné pořadí bez náhody); pevné možnosti nemění', () => {
@@ -98,8 +98,10 @@ test('composeRound: nesprávnou možnost, kterou nic nevyvrací, vymění za co 
     const first = run();
     assert.equal(first.ambiguous, false);
     assert.ok(first.swapped);
-    // Beta a Gama (stejný sloh) pryč, Delta zůstala, místo nich nejpodobnější jiného slohu; Gotická kopie má sloh stejný
+    // Beta a Gama (stejný sloh i doba) pryč, Delta zůstala; náhrady jsou gotické stavby jiné doby (sloh je skupina, ze které náhrada
+    // nevybočí: barokní Éta ne, i když je podobnější), Gotická kopie má i stejnou dobu
     assert.deepEqual(first.question.choices.map(choice => choice.label), ['Alfa', 'Epsilon', 'Fí', 'Delta']);
+    assert.deepEqual(first.swaps.map(swap => swap.to), ['QE', 'QF']);
     assert.deepEqual(run().question.choices, first.question.choices);
     assert.ok(core.identifyAnswer({ item: alfa, ctx, question: first.question, facts: [...first.plan.leadFacts, ...first.plan.clue] }).ok);
     // Pevné možnosti (Dobývání) se nemění: otázka je nejednoznačná a ukáže, co jde
@@ -166,6 +168,7 @@ test('Vzorek her a témat: po úpravě odpověď určí to, co hráč vidí bez 
     assert.ok(total >= 120, `posouzeno ${total}`);
     assert.ok(before > total * 0.1, `před úpravou nejednoznačných ${before} z ${total}`);
     assert.deepEqual(failures, []);
-    // Otázky, které nejde určit ani výměnou, ani otázkou se jménem, hra v tréninku nahradí jinou položkou: jen výjimečně
-    assert.ok(skipped <= total * 0.08, `nepoložených ${skipped} z ${total}`);
+    // Otázky, které nejde určit ani podobnou výměnou, ani otázkou se jménem, hra v tréninku nahradí jinou položkou. Vzorek má úvody
+    // z Wikipedie jen u malé části položek (krátký popis z Wikidat nic neurčí), proto je podíl vyšší než v auditu s úvody (asi 1,4 %)
+    assert.ok(skipped <= total * 0.15, `nepoložených ${skipped} z ${total}`);
 });

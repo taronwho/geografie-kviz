@@ -63,7 +63,7 @@ test('SQL: motivace (pozvánky, reakce, kontrola odemčení, prestiž, vitrína)
     for (let run = 0; run < 2; run++) { const r = psql(dbName, '', schema); assert.equal(r.status, 0, `schema.sql běh ${run + 1}: ${r.stderr}`); }
     q(`insert into auth.users (id, email, created_at) values ('${A}', 'a@example.com', now() - interval '200 days'), ('${B}', 'b@example.com', now() - interval '2 days'),
         ('${C}', 'c@example.com', now() - interval '1 day'), ('${D}', 'd@example.com', now()), ('${OLD}', 'old@example.com', now() - interval '30 days')`);
-    assert.equal(q('select schema_version()'), '32');
+    assert.ok(Number(q('select schema_version()')) >= 32);
 
     await t.test('kód přítele: založí se jednou, 8 znaků bez zaměnitelných; tabulky klient nezapíše', () => {
         const first = status(A);

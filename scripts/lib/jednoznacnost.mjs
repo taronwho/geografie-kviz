@@ -62,10 +62,12 @@ export const questionFromRng = (item, ctx, rng, { plain = false, wrong = null } 
 };
 // Sestavení otázky stejnou funkcí jádra jako hra (quiz-core.js composeRound). after: false = stav před úpravou (bez rozlišujícího
 // údaje, prodloužení popisu a výměny možností); fixed = pevné nesprávné možnosti (Dobývání); swaps = smí se možnosti vyměnit
-export const assemble = ({ item, ctx, question, special = false, fetched, after = true, fixed = false, swaps = true, plain = false, rng = Math.random }) => {
+// stableChoices = denní módy (možnosti jen podle krátkého popisu z Wikidat), stableSwaps = výzvy (výměna jen podle něj)
+export const assemble = ({ item, ctx, question, special = false, fetched, after = true, fixed = false, swaps = true, plain = false, stableChoices = false, stableSwaps = false,
+    rng = Math.random }) => {
     const shown = ctx.topic.questionImage ? ctx.topic.questionImage(item, ctx, question.type) : null;
     const composed = core.composeRound({ item, ctx, question, special, fetched, shown, rng, photoUrl: null, describeVisual: visualInfo, photoMasks: ctx.photoMasks || {},
-        textPhotos: ctx.textPhotos || new Set(), swaps, fixed, plain, unique: after });
+        textPhotos: ctx.textPhotos || new Set(), swaps, fixed, plain, unique: after, stableChoices, stableSwaps });
     const nowShown = ctx.topic.questionImage ? ctx.topic.questionImage(item, ctx, composed.question.type) : null;
     return { item, ...composed, shown: nowShown };
 };
@@ -118,4 +120,15 @@ export const evaluate = (round, ctx, { text = null, facts = null } = {}) => {
     // Odpověď určí jen plný úvod článku (definice pojmu, údaj, který data nemají; planRound/composeRound: definitionOnly): data ho neověří
     const definition = !check.ok && text === null && Boolean(round.plan.definitionOnly);
     return { kind: example ? 'ukázka' : 'popis', ok: check.ok, strict, open: check.open.map(other => other.n), via: definition ? 'jen popis' : via, definition };
+};
+
+// Podobnost výměny: náhrada je stejného druhu (ty), ve stejných širších skupinách (třída, řád, sport…) a okruhu jako vyměněná možnost
+// (quiz-core.js swapSimilar), a o kolik je správné odpovědi méně podobná než vyměněná (topic.similarity; víc = horší výměna)
+export const swapQuality = (item, fromId, toId, ctx) => {
+    const from = ctx.byId.get(fromId);
+    const to = ctx.byId.get(toId);
+    if (!from || !to) return null;
+    const similarity = (other) => (ctx.topic.similarity ? ctx.topic.similarity(item, other, ctx) || 0 : 0);
+    return { from: from.n, to: to.n, sameCategory: from.c === to.c, sameType: !from.ty || from.ty === to.ty, similar: core.swapSimilar(item, from, to, ctx),
+        drop: Math.round((similarity(from) - similarity(to)) * 10) / 10 };
 };

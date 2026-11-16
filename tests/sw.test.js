@@ -12,7 +12,8 @@ const makeWorker = ({ networkResponse, cached = {} }) => {
     const stored = new Map(Object.entries(cached));
     const puts = [];
     const caches = {
-        open: async () => ({ put: async (request, response) => { puts.push(request.url); stored.set(request.url, response); }, addAll: async () => {} }),
+        open: async () => ({ put: async (request, response) => { puts.push(request.url); stored.set(request.url, response); }, addAll: async () => {},
+            match: async (request) => stored.get(typeof request === 'string' ? `https://app.test/${request}` : request.url) }),
         match: async (request) => stored.get(typeof request === 'string' ? `https://app.test/${request}` : request.url),
         keys: async () => [], delete: async () => true
     };
@@ -63,4 +64,26 @@ test('sw: bez sítě poslouží mezipaměť, cizí adresy a POST se nechytají',
     handlers.fetch({ request: { method: 'GET', url: 'https://cs.wikipedia.org/w/api.php', mode: 'cors' }, respondWith: () => { intercepted = true; } });
     handlers.fetch({ request: { method: 'POST', url: 'https://app.test/x', mode: 'cors' }, respondWith: () => { intercepted = true; } });
     assert.equal(intercepted, false);
+});
+
+test('sw: soubory aplikace z mezipaměti této verze bez čekání na síť, ostatní přes síť', async () => {
+    let fetched = 0;
+    const handlers = {};
+    const cached = { 'https://app.test/data/zemepis.json': reply('z cache', 'application/json'), 'https://app.test/app.js': reply('starý skript') };
+    const open = async () => ({ match: async (request, options = {}) => cached[options.ignoreSearch ? request.url.split('?')[0] : request.url], put: async () => {} });
+    vm.runInNewContext(source, {
+        self: { location: { origin: 'https://app.test', href: 'https://app.test/' }, addEventListener: (name, handler) => { handlers[name] = handler; } },
+        caches: { open, match: async () => undefined }, URL, Request: class { constructor(url) { this.url = url; } }, Response: { error: () => ({ error: true }) }, Promise, setTimeout, clearTimeout,
+        fetch: async () => { fetched += 1; return reply('ze sítě', 'application/json'); }
+    });
+    const run = async (url, mode = 'no-cors') => {
+        let answer;
+        handlers.fetch({ request: { method: 'GET', url, mode, clone() { return this; } }, respondWith: (promise) => { answer = promise; }, waitUntil: () => {} });
+        return answer;
+    };
+    assert.equal((await run('https://app.test/data/zemepis.json')).body, 'z cache');
+    assert.equal((await run('https://app.test/app.js?v=2')).body, 'starý skript');
+    assert.equal(fetched, 0, 'data a skript z APP_SHELL se ze sítě znovu nestahují');
+    assert.equal((await run('https://app.test/data/fakt.json')).body, 'ze sítě', 'denní zajímavost (mimo APP_SHELL) přes síť');
+    assert.equal((await run('https://app.test/data/historie.json')).body, 'ze sítě', 'chybí v mezipaměti → síť');
 });

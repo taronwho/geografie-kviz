@@ -113,6 +113,8 @@ const waitForQuestion = (tab) => tab.waitForSelector('[data-action="give-up"]', 
 const waitForResult = (tab) => tab.waitForSelector('h1', { timeout: 30000 });
 // Rozehraná otázka z uloženého stavu – podle ní test ví, co je správná odpověď
 const readRound = (tab) => tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.session')).data);
+// Dotazy na Wikipedii k jedné položce (aplikace na pozadí chystá i další otázky dne, ty mají vlastní dotazy)
+const wikiFor = (log, title) => log.wiki.filter(url => new URL(url).searchParams.get('titles') === title).length;
 const hintKeys = (data) => data.hints.map(hint => hint.key);
 const readStorage = (tab, key) => tab.evaluate(k => JSON.parse(localStorage.getItem(k)), key);
 const appText = (tab) => tab.textContent('#app-content');
@@ -279,10 +281,10 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.match(await tab.textContent('#daily-sheet [data-action="play-daily"]'), /Hrát dál\s*· zbývá 13/);
 
         // Odehraná dnešní otázka zůstane uložená i po obnovení stránky
-        const requestsBefore = log.wiki.length;
+        const requestsBefore = wikiFor(log, data.title);
         await nav.daily(tab, 'zemepis');
         await waitForResult(tab);
-        assert.equal(log.wiki.length, requestsBefore, 'dnešní otázka z mezipaměti');
+        assert.equal(wikiFor(log, data.title), requestsBefore, 'dnešní otázka z mezipaměti');
         // Zkušenosti: odpověď a bonus za dnešní otázku se zapíšou, v hlavičce je úroveň a postup má vlastní záložku
         const gained = await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.progress')).xp);
         assert.ok(gained >= 15, `XP za dnešní otázku (${gained})`);
@@ -374,7 +376,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await nav.daily(tab, 'zemepis');
         await waitForResult(tab);
         assert.equal(await tab.textContent('h1'), data.name);
-        assert.equal(log.wiki.length, requestsBefore);
+        assert.equal(wikiFor(log, data.title), requestsBefore);
 
         assert.equal(await tab.evaluate(() => window.__xss), undefined);
         assert.equal(await tab.locator('i[data-lucide]').count(), 0, 'všechny ikony vykreslené');
@@ -1159,7 +1161,8 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await waitForHome(tab);
         await nav.daily(tab, 'zemepis');
         await waitForQuestion(tab);
-        assert.equal(log.wiki.length, 2, 'dva pokusy o popis');
+        const first = await readRound(tab);
+        assert.equal(wikiFor(log, first.title), 2, 'dva pokusy o popis');
         assert.match(await tab.textContent('p.italic'), /v testovacím světě\./);
         await tab.click('[data-action="give-up"]');
         await waitForResult(tab);
@@ -1169,7 +1172,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await waitForHome(tab);
         await nav.daily(tab, 'historie');
         await waitForQuestion(tab);
-        assert.equal(log.wiki.length, 2, 'po výpadku se Wikipedie chvíli nezkouší');
+        assert.equal(wikiFor(log, (await readRound(tab)).title), 0, 'po výpadku se Wikipedie chvíli nezkouší');
         assert.deepEqual(log.errors, []);
         await context.close();
     });
@@ -1213,7 +1216,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
             await tab.waitForTimeout(100);
         }
         assert.ok(await tab.isVisible('[data-action="give-up"]'));
-        assert.equal(log.wiki.length, 2, 'dva pokusy, každý po vypršení limitu');
+        assert.equal(wikiFor(log, (await readRound(tab)).title), 2, 'dva pokusy, každý po vypršení limitu');
         assert.match(await tab.textContent('p.italic'), /v testovacím světě\./);
         await context.close();
     });

@@ -17,7 +17,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { core } from './lib/audit.mjs';
-import { TOPIC_IDS, DailyQuiz, Conquest, loadIntros, fetchedTextOf, contextOf, questionFromRng, assemble, evaluate } from './lib/jednoznacnost.mjs';
+import { TOPIC_IDS, DailyQuiz, Conquest, loadIntros, fetchedTextOf, contextOf, questionFromRng, assemble, evaluate, swapQuality } from './lib/jednoznacnost.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = Object.fromEntries(process.argv.slice(2).map(arg => { const m = /^--([^=]+)(?:=(.*))?$/.exec(arg); return m ? [m[1], m[2] ?? 'true'] : [arg, 'true']; }));
@@ -180,14 +180,16 @@ const conquestContent = (round, ctx, form, pending, after) => {
 const results = [];
 let done = 0;
 for (const job of jobs) {
+    if (args.trace === 'true') process.stderr.write(`${done} ${job.generator} ${job.topic} ${job.item.n}\n`);
     const ctx = contextOf(job.topic);
     const fetched = fetchedTextOf(job.topic, job.item, intros);
     const states = {};
     for (const after of [false, true]) {
         const made = job.make();
         const swaps = job.generator !== 'Dobývání';
+        // Kvíz dne od 17. 11. 2026 se stabilními možnostmi (jen podle dat), výzvy mění možnosti jen podle krátkého popisu
         const round = assemble({ item: job.item, ctx, question: made.question, special: made.special, fetched, after, fixed: job.generator === 'Dobývání', swaps, rng: made.rng,
-            plain: job.generator === 'Dobývání' });
+            plain: job.generator === 'Dobývání', stableChoices: job.generator === 'kvíz dne', stableSwaps: job.generator === 'výzva' });
         let evaluation;
         let content = null;
         if (job.conquest) {
@@ -211,6 +213,7 @@ for (const job of jobs) {
     const entry = {
         generator: job.generator, topic: job.topic, level: job.level, q: job.item.q, name: job.item.n, type: after.round.question.type, title: after.round.question.title,
         kind: after.evaluation.kind, wiki: !fetched.fallback, swapped: after.round.swapped, converted: after.round.converted, ambiguous: after.round.ambiguous, day: job.day || null,
+        swaps: (after.round.swaps || []).map(swap => swapQuality(job.item, swap.from, swap.to, ctx)).filter(Boolean),
         before: view(before), after: view(after)
     };
     results.push(entry);
@@ -226,8 +229,8 @@ const groupBy = (list, keyOf) => list.reduce((map, entry) => { const key = keyOf
 // Po úpravě nejednoznačná = nic z toho, co hráč vidí, nevyvrací některou nesprávnou možnost, a odpověď neurčí ani plný úvod článku,
 // který data ověřit neumějí (definice pojmu, dinosaurus „z Antarktidy, objevený 1991“)
 const stillOpen = (entry) => !entry.after.ok && !entry.after.definition;
-const row = (label, list) => `| ${label} | ${list.length} | ${count(list, entry => !entry.before.ok)} | ${share(list, entry => !entry.before.ok)} | ${count(list, stillOpen)} | ${share(list, stillOpen)} | ${count(list, entry => entry.after.definition)} | ${count(list, entry => entry.after.ok && !entry.after.strict)} | ${count(list, entry => entry.after.clue.length)} | ${count(list, entry => entry.swapped)} | ${count(list, entry => entry.converted)} |`;
-const header = ['| | Otázek | Před: nejednoznačné | Před | Po: nejednoznačné | Po | Po: jen popis | Po: dvěma údaji | S rozlišujícím údajem | Vyměněné možnosti | Otázka se jménem |', '|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|'];
+const row = (label, list) => `| ${label} | ${list.length} | ${count(list, entry => !entry.before.ok)} | ${share(list, entry => !entry.before.ok)} | ${count(list, stillOpen)} | ${share(list, stillOpen)} | ${count(list, entry => entry.after.definition)} | ${count(list, entry => entry.after.clue.length)} | ${count(list, entry => entry.after.clue.length > 1)} | ${count(list, entry => entry.swapped)} | ${share(list, entry => entry.swapped)} | ${count(list, entry => (entry.swaps || []).some(swap => !swap.similar))} | ${count(list, entry => entry.converted)} |`;
+const header = ['| | Otázek | Před: nejednoznačné | Před | Po: nejednoznačné | Po | Po: jen popis | S rozlišujícím údajem | z toho dva údaje | Vyměněné možnosti | Podíl výměn | Výměna mimo skupinu | Otázka se jménem |', '|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|'];
 const lines = ['# Jednoznačnost otázek', ''];
 const wikiCount = results.filter(entry => entry.wiki).length;
 lines.push(`Vygenerováno ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC skriptem \`npm run audit:jednoznacnost\` (${results.length} otázek, ${Math.round((Date.now() - started) / 1000)} s). Úplný výpis je v \`${path.relative(ROOT, jsonOut)}\`.`);
@@ -237,9 +240,10 @@ lines.push('', 'Druhy otázek: **popis** = otázka na název bez obrázku (posuz
 lines.push('', '## Úprava (stav „po“)', '', [
     '1. **Prodloužení popisu:** obecný popis (jen povolání či druh, bez roku, čísla, jména a názvu díla) převezme další věty úvodu, dokud v něm konkrétní údaj nebude; převzaté věty v nápovědě Další věty už nejsou.',
     '2. **Rozlišující údaj:** když popis a fakta ukázaná hned odpověď neurčí, ukáže se hned pod záložkami údaj z dat, který všechny nevyvrácené možnosti vyvrací: dílo či role („Film: Císařův pekař – Pekařův císař“), roky (jen jasně jiné), místo, ocenění, autor, sloh, velikost, země. Nikdy jméno ani nic, co odpověď obsahuje (stejné kontroly jako fakta: factRevealsAnswer, answerWordsLeft). Nápověda Fakta ho už neopakuje.',
-    '3. **Výměna nesprávných možností:** když takový údaj není, nesprávné možnosti, které nevyvrací nic, se vymění za co nejpodobnější položky stejné kategorie, které nejlepší údaj vyvrací (stejné skóre podobnosti jako výběr možností, bez náhody). Možnosti vyvrácené popisem zůstanou.',
-    '4. **Otázka se jménem:** když nejde ani výměna, položka se zeptá jinou otázkou tématu se svým jménem (Ze které mytologie je?), a když ani ta není, otázka je nejednoznačná: trénink vezme jinou položku, jinde rozliší aspoň dva údaje spolu.',
-    '5. **Denní módy** (Dnešní otázky, Kvíz dne, Tajemná otázka, Boss) mění možnosti až od 17. 11. 2026, ať se dnešní sada nezmění; rozlišující údaj a prodloužený popis ukážou hned. Dobývání má pevné možnosti: chybí-li údaj, který je vyvrátí, dá místo otázky Mudrlanta místní otázku.'
+    '3. **Dva údaje spolu:** když jeden údaj nevyvrátí všechny tři, ukážou se dva, z nichž každý vyvrací část (například rok narození a země).',
+    '4. **Výměna jedné možnosti:** teprve když ani dva údaje nestačí a nevyvrácená zbývá jediná možnost, vymění se za co nejpodobnější položku stejného druhu, pohlaví a skupiny (třída, řád, čeleď, sport, mytologie, skupina prvků, stát, kontinent, jednotka, sloh, směr…) a okruhu, kterou vyvrací jemnější ukázaný údaj (rok, číslo, dílo, rodiče) – skupina sama ne, takže otázka zůstane stejně těžká. Výzvy a denní módy rozhodují o výměně jen podle dat a krátkého popisu z Wikidat, takže mají všichni hráči stejné možnosti.',
+    '5. **Otázka se jménem, nebo víc výměn:** když by se musely vyměnit dvě nebo tři možnosti, položka se radši zeptá jinou otázkou tématu se svým jménem (Do kterého řádu patří?, Jaká je jednotka SI této veličiny?); když ta není, vymění se až tři možnosti se stejnými pravidly, a když ani to nejde, otázka je nejednoznačná: trénink vezme jinou položku, kde je položka daná semínkem (denní módy, výzvy), zůstanou nejlepší údaje, které jdou.',
+    '6. **Denní módy** mění možnosti jen se stabilními možnostmi denni-mody (Dnešní otázky, Kvíz dne a Tajemná otázka od 17. 11. 2026, Boss od týdne 23. 11. 2026), ať se dnešní sada nezmění; rozlišující údaj a prodloužený popis ukážou hned. Dobývání má pevné možnosti: chybí-li údaj, který je vyvrátí, dá místo otázky Mudrlanta místní otázku.'
 ].join('\n'));
 lines.push('', '## Souhrn', '', ...header);
 lines.push(row('**Celkem**', judged));
@@ -302,6 +306,13 @@ else {
     for (const entry of remaining.slice(0, 40)) lines.push(...describe(entry));
     if (remaining.length > 40) lines.push(`… a dalších ${remaining.length - 40} v JSON.`);
 }
+// Nejhorší výměny: náhrada mimo skupinu vyměněné možnosti, potom největší pokles podobnosti ke správné odpovědi
+const allSwaps = judged.flatMap(entry => (entry.swaps || []).map(swap => ({ ...swap, entry })));
+const worst = [...allSwaps].sort((a, b) => Number(a.similar) - Number(b.similar) || b.drop - a.drop).slice(0, 30);
+lines.push('', `## Výměny nesprávných možností (${allSwaps.length} v ${count(judged, entry => entry.swapped)} otázkách)`, '');
+lines.push(`Náhrada musí být stejného druhu, pohlaví, skupiny (třída, řád, čeleď, sport, mytologie, skupina prvků, stát, kontinent, jednotka, sloh, směr, jazyk) a okruhu jako vyměněná možnost a vyvrací ji ukázaný údaj; „Stejná skupina“ to ověřuje znovu (swapSimilar). Mimo skupinu: ${allSwaps.filter(swap => !swap.similar).length}, jiného druhu: ${allSwaps.filter(swap => !swap.sameType).length}, jiné kategorie: ${allSwaps.filter(swap => !swap.sameCategory).length}. Pokles = o kolik je náhrada správné odpovědi méně podobná než vyměněná možnost (skóre podobnosti tématu).`, '');
+lines.push('| Téma | Otázka (správně) | Vyměněná možnost | Náhrada | Stejná skupina | Pokles podobnosti | Rozlišující údaj |', '|---|---|---|---|---|---:|---|');
+for (const swap of worst) lines.push(`| ${swap.entry.topic} | ${esc(swap.entry.name)} | ${esc(swap.from)} | ${esc(swap.to)} | ${swap.similar ? 'ano' : '**ne**'} | ${swap.drop} | ${esc(swap.entry.after.clue.join('; ') || '(popis)')} |`);
 lines.push('', `## Otázky, které určí jen popis (${definitions.length})`, '');
 lines.push('Pojmy, procesy, zákony a jevy (Chemický prvek, Fotosyntéza, Ohmův zákon) nemají v datech údaje, které by šly porovnat, a u některých druhů, dinosaurů nebo částí těla údaje z dat podobné možnosti nerozliší: odpověď určí definice či konkrétní údaj z úvodu článku (místo nálezu, rok, orgán, ke kterému část patří), který ale data neobsahují. Audit to strukturovaně ověřit neumí, proto je počítá zvlášť a nepovažuje je za vyřešené ani za nejednoznačné. Hra takovou otázku položí jen s plným úvodem článku (aspoň 14 slov, u položky s údaji navíc s konkrétním údajem); bez Wikipedie (krátký popis z Wikidat) je otázka nejednoznačná a trénink vezme jinou položku.', '');
 for (const [key, list] of [...groupBy(definitions, entry => `${entry.topic} – ${entry.title}`)].sort((a, b) => b[1].length - a[1].length)) lines.push(`- ${key}: ${list.length} (např. ${list.slice(0, 3).map(entry => entry.name).join(', ')})`);
@@ -311,7 +322,7 @@ fs.writeFileSync(jsonOut, `${JSON.stringify({
     generated: new Date().toISOString(), options: { topics, perLevel: PER_LEVEL, days: DAYS, challenges: CHALLENGES, conquest: CONQUEST, from: FIRST_DAY, wiki: wikiFile ? path.basename(wikiFile) : null },
     summary: { questions: results.length, judged: judged.length, before: count(judged, entry => !entry.before.ok), after: count(judged, entry => !entry.after.ok),
         byTopic: Object.fromEntries(topics.map(topicId => { const list = judged.filter(entry => entry.topic === topicId); return [topicId, { questions: list.length, before: count(list, entry => !entry.before.ok), after: count(list, entry => !entry.after.ok) }]; })) },
-    remaining, definitions: definitions.map(entry => ({ topic: entry.topic, name: entry.name, title: entry.title, generator: entry.generator })), examples: picked
+    swaps: allSwaps.map(({ entry, ...swap }) => ({ topic: entry.topic, name: entry.name, ...swap })), remaining, definitions: definitions.map(entry => ({ topic: entry.topic, name: entry.name, title: entry.title, generator: entry.generator })), examples: picked
 }, null, 1)}\n`);
 log(`Hotovo: ${judged.length} posouzených otázek, nejednoznačných před ${count(judged, entry => !entry.before.ok)}, po ${remaining.length}; zpráva ${path.relative(ROOT, out)}`);
 process.exitCode = remaining.some(entry => !entry.ambiguous && entry.generator !== 'Dobývání') ? 1 : 0;

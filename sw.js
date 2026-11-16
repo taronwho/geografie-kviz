@@ -75,12 +75,33 @@ self.addEventListener('activate', (event) => {
 });
 
 // Jen vlastní soubory aplikace; Wikipedie, fotky a mapy jdou přímo na síť
-// Síť má přednost, aby se nová verze projevila hned po nasazení. Bez internetu, nebo když síť visí déle
-// než NETWORK_WAIT (slabý signál), poslouží mezipaměť; čerstvá odpověď ze sítě ji pak stejně aktualizuje.
+// Soubory aplikace z APP_SHELL (skripty, data témat, obrázky) se berou rovnou z mezipaměti této verze: instalace je stáhla všechny
+// najednou, takže kód i data jsou vždy ze stejného nasazení (dřív síť s přednostní mohla po nasazení smíchat nový skript se starými daty
+// a dva hráči pak dostali jinou dnešní otázku) a hlavně se nic nestahuje znovu – na pomalé síti se dřív každé téma (stovky kB) stahovalo
+// při každém spuštění až NETWORK_WAIT. Nová verze = nový service worker (jiný CACHE_NAME), který po instalaci stránku obnoví (app.js).
+// Stránka (navigace) také z mezipaměti této verze, ať k ní patří skripty. Ostatní soubory (denní zajímavost, verze) a vše, co v mezipaměti
+// chybí: síť má přednost, bez internetu, nebo když síť visí déle než NETWORK_WAIT (slabý signál), poslouží mezipaměť; čerstvá odpověď
+// ze sítě ji pak stejně aktualizuje.
 const NETWORK_WAIT = 4000;
+const scopeUrl = () => (self.location && self.location.href) || `${self.location.origin}/`;
+let shellPaths = null;
+const inShell = (url) => {
+    if (!shellPaths) shellPaths = new Set(APP_SHELL.map(entry => new URL(entry, scopeUrl()).pathname));
+    return shellPaths.has(new URL(url).pathname);
+};
 self.addEventListener('fetch', (event) => {
     const { request } = event;
     if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) return;
+    if (inShell(request.url)) {
+        // Jen z mezipaměti této verze (caches.match by během instalace nové verze sáhl i do její rozpracované mezipaměti)
+        const own = caches.open(CACHE_NAME).then(cache => cache.match(request, { ignoreSearch: true })).catch(() => undefined);
+        event.respondWith(own.then(cached => cached || networkFirst(event)));
+        return;
+    }
+    event.respondWith(networkFirst(event));
+});
+const networkFirst = (event) => {
+    const { request } = event;
 
     // Uložení čerstvé odpovědi do mezipaměti se dokončí, i když stránka mezitím dostala verzi z mezipaměti
     let saving = Promise.resolve();
@@ -101,13 +122,13 @@ self.addEventListener('fetch', (event) => {
     event.waitUntil(fromNetwork.then(() => saving).catch(() => {}));
     const fallback = () => caches.match(request, { ignoreSearch: true })
         .then(cached => cached || (request.mode === 'navigate' ? caches.match('index.html') : undefined));
-    event.respondWith((async () => {
+    return (async () => {
         const cached = await fallback();
         if (!cached) return fromNetwork.catch(() => Response.error());
         const slow = new Promise(resolve => setTimeout(() => resolve(cached), NETWORK_WAIT));
         return Promise.race([fromNetwork.catch(() => cached), slow]);
-    })());
-});
+    })();
+};
 
 // Web push (odesílá GitHub Actions, viz docs/SUPABASE.md): ukáže upozornění a po klepnutí otevře aplikaci na záložce Soupeři (adresa ?tab=multi)
 // (upozornění k výzvě rovnou výzvu, upozornění na útok v Dobývání rovnou hru: parametry vyzva a dobyvani)
