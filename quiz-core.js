@@ -659,7 +659,11 @@
 
     // Náhled fotky z Wikimedia Commons přímo z upload.wikimedia.org (bez přesměrování na plné rozlišení);
     // hash = první dva znaky MD5 názvu souboru, spočítané při sestavení sady míst
+    // Wikimedia generuje náhledy jen ve standardních šířkách; jiná šířka (480, 320…) vrátí chybu 400 a obrázek se neukáže
+    const THUMB_WIDTHS = [20, 40, 60, 120, 250, 330, 500, 960, 1280, 1920];
+    const thumbWidth = (width) => THUMB_WIDTHS.find(step => step >= width) || THUMB_WIDTHS[THUMB_WIDTHS.length - 1];
     const commonsPhotoUrl = (fileName, hash, width = 960) => {
+        width = thumbWidth(Number(width) || 960);
         const name = encodeURIComponent(fileName.replace(/ /g, '_'));
         // Náhled kresby SVG (mapy rozšíření) je obrázek PNG
         const thumb = /\.svg$/i.test(fileName) ? `${name}.png` : name;
