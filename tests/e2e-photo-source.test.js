@@ -72,6 +72,8 @@ test('zdroj obrázku: „i“ u vlajky před odpovědí a po ní', { skip: !chro
             }
             // Jako skutečné Commons: obrázky s Access-Control-Allow-Origin: * (stahují se přes fetch a ukazují jako blob:)
             if (url.hostname === 'upload.wikimedia.org') return route.fulfill({ contentType: 'image/png', headers: { 'access-control-allow-origin': '*' }, body: PNG });
+            // Uložené denní otázky (daily_snapshots_get čte i host, schéma 33): zatím žádné – s obrázky nesouvisí
+            if (url.hostname.endsWith('.supabase.co')) return route.fulfill({ contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: '[]' });
             return route.abort();
         });
         const tab = await context.newPage();
