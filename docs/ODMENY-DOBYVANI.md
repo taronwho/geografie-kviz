@@ -64,6 +64,14 @@ Domovský hrad na mapě roste s opevněním (dnes č. 262 a 275–277). Sada nah
 se pořád barví barvou hráče (scripts/building-art.py), takže každý obrázek musí mít břidlicově modré střechy a plné zlaté praporky.
 K sadě patří i opevnění ostatních území ve stejném stylu (Palisáda a Hradba, č. 362–367), takže je sada vidět na celé mapě, ne jen na domově.
 
+**Stav: hotovo (schéma 40).** Sady jsou v `conquest.js` `CASTLE_SETS` (obrázky `icons/stavby/hrad-<sada>-<stupeň>.webp` a `opevneni-<sada>-1`
+a `-2` s vrstvou `-barva`, `scripts/building-art.py`). Hráč se sadou (`conquest_players.castle`) má na mapě domovský hrad stupně 0–3
+a Palisádu a Hradbu ostatních území v jejím stylu (`levelIcon`, druhy `castle-<sada>` … `castle3-<sada>`, `palisade-<sada>`, `wall-<sada>`;
+stejná velikost jako základní stavby); praporky, vlaječky a barva zůstávají. Ve hře ji může mít víc hráčů. Volí se v okně Barva a znak
+na záložce Hrad (Základní a tři sady, zamčené se zámkem a postupem „3/10“, klepnutí ukáže, jak sadu získat); náhled nahoře ukáže hrad
+na kusu území. Odemyká server (`conquest_look_catalog` druhu `castle`, statistiky `home_fortress`, `battles` a `season15`), nový hrad
+se oslaví oknem „Nový hrad do Dobývání“. Nápověda Dobývání (Základy: Vzhled) a Mudrlant tip `dobyvani-hrady` je zmiňují.
+
 | Sada | Styl | Jak ji získat |
 |---|---|---|
 | Gotický hrad | vysoké věže, cimbuří, kamenné mosty (č. 297–300, opevnění č. 362–363) | Postav Pevnost na domovském hradu 10× |
@@ -112,14 +120,14 @@ bitev), Mořeplavec (100 území přes moře), Bleskový stratég (10 výher v B
 
 Body 1 a 2 pro vzory a vzácné znaky jsou hotové (schéma 38, docs/SUPABASE.md): statistiky počítá `conquest_look_stats` z dat serveru
 (i zpětně, žádná nová počítadla v tazích), odemčené jsou v `conquest_looks`, volba v `conquest_players.pattern` a `emblem`. Hrady
-(`castle_set`) a efekty (`effect`) zatím ne – obrázky hradů nejsou dodané.
+jsou hotové stejně (schéma 40, `conquest_players.castle`); efekty (`effect`) zatím ne.
 
 
 1. Server: statistiky hráče v Dobývání (výhry podle mapy a tempa, bitvy, odražené útoky, regiony, území přes moře, hrady, Vzkříšení / Návrat do
    hry a výhra, hry bez ztráty domova) – počítá conquest_finish a tahy; odemčené věci se uloží k profilu.
 2. Volba vzhledu ve hře: `conquest_players` dostane `pattern`, `castle_set`, `effect` (server ověří, že je hráč má odemčené).
 3. Vykreslení: výplň území v `mapSvg` (jeden `<pattern>` na hráče), vzácný znak v `pennantGroup` a `sealSvg`, hrad podle sady v `BUILDINGS`, efekty v conquest-ui.js.
-4. Obrázky: č. 278–308 v docs/OBRAZKY.md (oddíl 24) + skripty na textury, siluety znaků a sady hradů (building-art.py). Vzory a znaky (č. 278–296) jsou dodané a převedené (`scripts/conquest-art.py vzory znaky`); chybí hrady.
+4. Obrázky: č. 278–308 v docs/OBRAZKY.md (oddíl 24) + skripty na textury, siluety znaků a sady hradů (building-art.py). Vzory a znaky (č. 278–296) jsou dodané a převedené (`scripts/conquest-art.py vzory znaky`), hrady a opevnění (č. 297–308 a 362–367) také (`python3 scripts/building-art.py`).
 
 ## 9. Pomůcky (hotovo, schéma 30 a 39)
 

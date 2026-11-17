@@ -118,6 +118,9 @@
         // Dobývání (schéma 38): výplně území a vzácné znaky a odkud se berou; pro toho, kdo Dobývání už otevřel
         { id: 'dobyvani-vzory', icon: 'brush', art: 'dobyvani', multi: true, account: true, after: 20, title: 'Výplně území a vzácné znaky', text: 'Vybarvi svá území v Dobývání vzorem: výplně území a vzácné znaky získáš za výhry, bitvy a území dobytá přes moře, ale i za Bosse týdne, sérii v Kvízu dne nebo celé Řetězovky. V okně Barva a znak uvidíš i zamčené a co k nim chybí.',
             action: { kind: 'conquest', label: 'Otevřít Dobývání' }, ready: (u) => Boolean(u.visited.conquest), used: () => false },
+        // Dobývání (schéma 40): sady hradů a jak je získat; pro toho, kdo Dobývání už otevřel
+        { id: 'dobyvani-hrady', icon: 'castle', art: 'hrad-domov', multi: true, account: true, after: 20, title: 'Sady hradů v Dobývání', text: 'Domovský hrad i opevnění svých území v Dobývání můžeš mít v jiném stylu: Gotický hrad za 10 Pevností na domově, Orientální palác za 25 vyhraných bitev, Japonský hrad za 15. stupeň Sezóny ve 3 sezónách. Vybereš je v okně Barva a znak.',
+            action: { kind: 'conquest', label: 'Otevřít Dobývání' }, ready: (u) => Boolean(u.visited.conquest), used: () => false },
         // Dobývání (schéma 24): pozvánky přátel; pro toho, kdo Dobývání už otevřel a přátele má; kdo přátele už pozval, tip nepotřebuje
         { id: 'dobyvani-pratele', icon: 'user-plus', art: 'dobyvani', multi: true, account: true, after: 20, title: 'Pozvi přátele do Dobývání', text: 'Při zakládání hry v Dobývání klepni na Pozvat přátele a vyber je ze seznamu. Pozvánka jim přijde do aplikace a přidají se i do soukromé hry bez kódu.',
             action: { kind: 'conquest', label: 'Otevřít Dobývání' }, ready: (u) => Boolean(u.visited.conquest) && num(u.friends) > 0, used: (u) => Boolean(u.visited.conquestInvite) },

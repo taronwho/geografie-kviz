@@ -129,20 +129,25 @@
             })();
             return lobbyLoading;
         };
-        // Výplně území a vzácné znaky (blok 38): looks z lobby (null = databáze bez bloku 38: jen barvy a základní znaky)
-        // Vývojářské „Odemknout úplně vše“ (deps.devAll) nabídne v tomto zařízení všechny výplně a vzácné znaky; server je správci
-        // (dev_admins) přijme, ostatním ne. Bez něj i správce vidí jen skutečně odemčené
+        // Výplně území a vzácné znaky (blok 38) a sady hradů (blok 40): looks z lobby (null = databáze bez bloku 38: jen barvy a základní
+        // znaky; looks.castles null = databáze bez bloku 40: bez záložky Hrad). Vývojářské „Odemknout úplně vše“ (deps.devAll) nabídne
+        // v tomto zařízení všechny výplně, vzácné znaky a sady hradů; server je správci (dev_admins) přijme, ostatním ne. Bez něj i správce
+        // vidí jen skutečně odemčené
         const looksNow = () => {
             const looks = (lobby && lobby.looks) || null;
             if (!looks || !deps.devAll || !deps.devAll()) return looks;
-            return { ...looks, patterns: C.PATTERNS.map(item => item.id), emblems: C.RARE_EMBLEMS.map(item => item.id) };
+            return { ...looks, patterns: C.PATTERNS.map(item => item.id), emblems: C.RARE_EMBLEMS.map(item => item.id),
+                ...(C.castlesOn(looks) ? { castles: C.CASTLE_SETS.map(item => item.id) } : {}) };
         };
-        // Vybraný vzácný znak a vzor jen odemčené (jinak výchozí), aby server volbu nepřijal se starým zámkem
+        // Sada hradů se posílá jen databázi, která sady zná (blok 40), a jen odemčená
+        const castleNow = (castle) => (C.castlesOn(looksNow()) && C.castleAllowed(looksNow(), castle) ? castle || null : null);
+        // Vybraný vzácný znak, vzor a sada hradů jen odemčené (jinak výchozí), aby server volbu nepřijal se starým zámkem
         const fitLooks = () => {
             if (!lobby) return;
             const looks = looksNow();
             if (!C.emblemAllowed(looks, draft.emblem)) draft.emblem = 'lev';
             if (!looks || !C.patternAllowed(looks, draft.pattern)) draft.pattern = null;
+            if (!C.castlesOn(looks) || !C.castleAllowed(looks, draft.castle)) draft.castle = null;
         };
         // Oznámení nově odemčených (oslava v app.js) jednou: server si pamatuje ohlášené do času posledního ukázaného (conquest_looks_seen)
         const announced = new Set();
@@ -240,7 +245,9 @@
             ...(prefs.draft || {}),
             color: C.COLOR_BY_ID[prefs.color] ? prefs.color : 'cervena', emblem: C.EMBLEM_BY_ID[prefs.emblem] || C.RARE_EMBLEM_BY_ID[prefs.emblem] ? prefs.emblem : 'lev',
             // Výplň území (vzor, blok 38); vzácný znak i výplň platí, jen když je hráč podle serveru má (fitLooks po načtení lobby)
-            pattern: C.PATTERN_BY_ID[prefs.pattern] ? prefs.pattern : null
+            pattern: C.PATTERN_BY_ID[prefs.pattern] ? prefs.pattern : null,
+            // Sada hradů (blok 40), platí jen odemčená (fitLooks)
+            castle: C.CASTLE_SET_BY_ID[prefs.castle] ? prefs.castle : null
         };
         if (!C.MAP_BY_ID[draft.map]) draft.map = 'evropa';
         // Tempo: délka kola a hry v minutách (dřívější volba v hodinách se převede); neplatná kombinace = výchozí délka pro to kolo
@@ -294,17 +301,18 @@
             schedule();
         };
 
-        // Barva, znak a výplň území (okno): obsazené barvy a barevné výplně hry nejdou, zamčený vzácný znak nebo výplň jen ukáže, jak je získat;
-        // onDone({ color, emblem, pattern })
+        // Barva, znak, výplň území a sada hradů (okno): obsazené barvy a barevné výplně hry nejdou, zamčený vzácný znak, výplň nebo hrad jen
+        // ukáže, jak je získat; onDone({ color, emblem, pattern, castle })
         const pickLook = ({ taken = [], takenPatterns = [], title = 'Barva a znak', onDone }) => {
             const free = C.COLORS.find(color => !taken.includes(color.id));
             const looks = looksNow();
             const state = { color: taken.includes(draft.color) ? (free ? free.id : draft.color) : draft.color, emblem: C.emblemAllowed(looks, draft.emblem) ? draft.emblem : 'lev',
-                pattern: looks && C.patternAllowed(looks, draft.pattern) && !takenPatterns.includes(draft.pattern) ? draft.pattern : null, tab: 'color', error: '', info: null };
+                pattern: looks && C.patternAllowed(looks, draft.pattern) && !takenPatterns.includes(draft.pattern) ? draft.pattern : null,
+                castle: C.castlesOn(looks) && C.castleAllowed(looks, draft.castle) ? draft.castle : null, tab: 'color', error: '', info: null };
             const render = () => deps.showDialog(title, C.lookHtml({ ...state, taken, takenPatterns, looks }), {
                 onClick: (event) => {
                     const tab = event.target.closest('[data-cq-look-tab]');
-                    if (tab) { state.tab = ['emblem', 'pattern'].includes(tab.dataset.cqLookTab) ? tab.dataset.cqLookTab : 'color'; state.info = null; render(); return; }
+                    if (tab) { state.tab = ['emblem', 'pattern', 'castle'].includes(tab.dataset.cqLookTab) ? tab.dataset.cqLookTab : 'color'; state.info = null; render(); return; }
                     const color = event.target.closest('[data-cq-color]');
                     if (color && !color.disabled) { state.color = color.dataset.cqColor; render(); return; }
                     const emblem = event.target.closest('[data-cq-emblem]');
@@ -321,13 +329,21 @@
                         render();
                         return;
                     }
+                    const castle = event.target.closest('[data-cq-castle]');
+                    if (castle) {
+                        if (castle.dataset.cqLocked) state.info = { kind: 'castle', id: castle.dataset.cqCastle };
+                        else { state.castle = castle.dataset.cqCastle || null; state.info = null; }
+                        render();
+                        return;
+                    }
                     if (event.target.closest('[data-cq="look-done"]')) {
                         draft.color = state.color;
                         draft.emblem = state.emblem;
                         draft.pattern = state.pattern;
-                        writePrefs({ color: state.color, emblem: state.emblem, pattern: state.pattern });
+                        draft.castle = state.castle;
+                        writePrefs({ color: state.color, emblem: state.emblem, pattern: state.pattern, castle: state.castle });
                         deps.closeDialog();
-                        onDone({ color: state.color, emblem: state.emblem, pattern: state.pattern });
+                        onDone({ color: state.color, emblem: state.emblem, pattern: state.pattern, castle: state.castle });
                     }
                 }
             });
@@ -342,9 +358,9 @@
             const found = id ? findGame(id) || findInvite(id) : null;
             pickLook({
                 taken: takenColors(found), takenPatterns: takenFills(found), title: 'Tvoje barva a znak',
-                onDone: async ({ color, emblem, pattern }) => {
+                onDone: async ({ color, emblem, pattern, castle }) => {
                     try {
-                        const joined = await Social.conquestJoin({ game: id, code, color, emblem, pattern: looksNow() ? pattern : null });
+                        const joined = await Social.conquestJoin({ game: id, code, color, emblem, pattern: looksNow() ? pattern : null, castle: castleNow(castle) });
                         dropInvite(joined.id);
                         upsertMine(joined);
                         if (!lobby) await loadLobby();
@@ -536,7 +552,7 @@
                 const players = Math.min(draft.players, data ? data.maxPlayers : C.MAX_PLAYERS);
                 // Rychlé hry (kola po 5 a 10 minutách) mají délku v minutách, ostatní v hodinách
                 const fast = draft.minutes < 360;
-                let created = await Social.conquestCreate({ map: draft.map, players, hours: fast ? null : draft.minutes / 60, minutes: fast ? draft.minutes : null, period: draft.period, actions: draft.actions, visibility: draft.visibility, color: draft.color, emblem: draft.emblem, pattern: looksNow() ? draft.pattern : null });
+                let created = await Social.conquestCreate({ map: draft.map, players, hours: fast ? null : draft.minutes / 60, minutes: fast ? draft.minutes : null, period: draft.period, actions: draft.actions, visibility: draft.visibility, color: draft.color, emblem: draft.emblem, pattern: looksNow() ? draft.pattern : null, castle: castleNow(draft.castle) });
                 // Vybraní přátelé dostanou pozvánku hned po založení; když se to nepovede, hra zůstane a pozvat jde z jejího detailu
                 const friends = ui.invites.map(friend => friend.id).slice(0, players - 1);
                 let invited = 0;
@@ -604,8 +620,8 @@
             if (!found) return;
             pickLook({
                 taken: takenColors(found), takenPatterns: takenFills(found),
-                onDone: async ({ color, emblem, pattern }) => {
-                    try { upsertMine(await Social.conquestSetLook(found.id, color, emblem, looksNow() ? pattern : null, Boolean(looksNow()))); } catch (error) { ui.error = errorText(error, 'Barvu a znak se nepodařilo uložit.'); }
+                onDone: async ({ color, emblem, pattern, castle }) => {
+                    try { upsertMine(await Social.conquestSetLook(found.id, color, emblem, looksNow() ? pattern : null, Boolean(looksNow()), castleNow(castle), C.castlesOn(looksNow()))); } catch (error) { ui.error = errorText(error, 'Barvu a znak se nepodařilo uložit.'); }
                     renderHub();
                 }
             });

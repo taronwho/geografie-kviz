@@ -851,3 +851,21 @@ stav hry nemá `items.can_revive`).
   po Vzkříšení.
 - Testy: `tests/sql-vzkriseni.test.js`, `tests/sql-conquest.test.js`, `tests/sql-pomucky.test.js`, `tests/conquest-revive.test.js`,
   `tests/conquest-items.test.js` a `tests/e2e-conquest.test.js`.
+
+## Dobývání – sady hradů (schéma 40)
+
+**Po aktualizaci spusť znovu celý `supabase/schema.sql` (verze 40).** Dokud ho nespustíš, okno Barva a znak nemá záložku Hrad (lobby
+posílá `looks` bez `castles`) a aplikace sadu hradů serveru nepošle; vše ostatní běží jako dřív.
+
+- `conquest_players.castle` (sada hradů hráče v této hře: `goticky`, `orientalni`, `japonsky`, null = základní hrad a opevnění). Na rozdíl
+  od barevných výplní ji ve hře může mít víc hráčů. Seznam je `conquest_castles()` (stejný jako `conquest.js` CASTLE_SETS).
+- **Odemčení** stejně jako výplně a vzácné znaky (schéma 38): řádky druhu `castle` v `conquest_look_catalog()` a v `conquest_looks`.
+  Gotický hrad: Pevnost na domovském hradu 10× (statistika `home_fortress` = tahy `fortify` hráče, které dosáhly 3. stupně, v kterékoli hře),
+  Orientální palác: 25 vyhraných bitev (`battles`), Japonský hrad: 15. stupeň Sezóny Mudrlanta ve 3 různých sezónách (`season15` = počet
+  klíčů `season:<RRRR-MM>:15` v `player_item_grants`). `conquest_looks_json` vrací navíc `castles` (odemčené v pořadí nabídky); nové se
+  ohlásí v `new` s druhem `castle`. Boti nic neodemykají.
+- **Volba**: `conquest_create`, `conquest_join` a `conquest_set_look` mají nepovinný poslední parametr `castle_id` (za `pattern_id`; staré
+  podoby se mažou), `conquest_add_player` také. Projde jen sada z nabídky a odemčená (`conquest_check_castle`: „Vyber hrad z nabídky.“,
+  „Tenhle hrad ještě nemáš. Vyber jiný.“), správci v `dev_admins` cokoli. Souhrn hry (`conquest_summary`) má u hráčů `castle`, takže stavby
+  v jejich stylu vidí na mapě všichni.
+- Testy: `tests/sql-conquest-looks.test.js`, `tests/conquest-looks.test.js`, `tests/conquest.test.js` a `tests/e2e-conquest.test.js`.

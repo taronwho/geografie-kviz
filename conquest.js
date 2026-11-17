@@ -320,6 +320,19 @@
     // Barevné výplně (nebarví se barvou hráče) smí mít ve hře jen jeden hráč (server conquest_colored_patterns, conquest_check_fill)
     const COLORED_PATTERNS = PATTERNS.filter(pattern => pattern.colored).map(pattern => pattern.id);
     const patternOf = (id) => (id && PATTERN_BY_ID[id]) || null;
+
+    // --- Sady hradů (docs/ODMENY-DOBYVANI.md oddíl 3, obrázky č. 297–308 a 362–367): jiný styl domovského hradu (stupně 0–3,
+    // icons/stavby/hrad-<id>-<stupeň>.webp) a opevnění ostatních území (Palisáda a Hradba, opevneni-<id>-1 a -2), každý obrázek s vrstvou
+    // -barva (střechy a praporky v barvě hráče, scripts/building-art.py). Bez sady (null) základní hrad-domov…, palisada a hradba.
+    // stat a need = kdy se sada odemkne (blok 40, conquest_look_catalog druhu 'castle'); hráč s polem castle (conquest_players.castle) má
+    // na mapě stavby ze své sady (levelIcon). Na rozdíl od barevných výplní ji ve hře může mít víc hráčů.
+    const CASTLE_SETS = [
+        { id: 'goticky', name: 'Gotický hrad', how: 'Postav Pevnost na domovském hradu 10×', stat: 'home_fortress', need: 10 },
+        { id: 'orientalni', name: 'Orientální palác', how: 'Vyhraj 25 bitev o území', stat: 'battles', need: 25 },
+        { id: 'japonsky', name: 'Japonský hrad', how: 'Sezóna Mudrlanta: 15. stupeň ve 3 různých sezónách', stat: 'season15', need: 3 }
+    ];
+    const CASTLE_SET_BY_ID = Object.fromEntries(CASTLE_SETS.map(set => [set.id, set]));
+    const castleSetOf = (id) => (id && CASTLE_SET_BY_ID[id]) || null;
     const patternUrl = (pattern) => `icons/${pattern.art}.webp`;
     // Násobení šedé textury barvou hráče (feColorMatrix; vstup je šedý, R = G = B = t). Medián textury je kolem 0,85, proto barva o desetinu
     // světlejší, ať praporec nevyjde tmavší než území. Na černé by násobení nebylo vidět: tam kresba zesvětluje (c + 0,5 · (1 − t)).
@@ -2094,30 +2107,56 @@
         treasure: '<path d="M3 11h18v10H3z" fill="#9a5b22" stroke="#3a210b" stroke-width="1.1"/><path d="M3 11c0-4 3.6-6.4 9-6.4S21 7 21 11z" fill="#b8722e" stroke="#3a210b" stroke-width="1.1"/><path d="M3 13.6h18M7 4.9V21M17 4.9V21" stroke="#e8b923" stroke-width="1.6"/><rect x="10.2" y="12" width="3.6" height="4.2" rx="0.8" fill="#f2cf4d" stroke="#3a210b" stroke-width="0.8"/>',
         chestLid: '<path d="M3 11c0-4 3.6-6.4 9-6.4S21 7 21 11z" fill="#b8722e" stroke="#3a210b" stroke-width="1.1"/><path d="M7 4.9V11M17 4.9V11" stroke="#e8b923" stroke-width="1.6"/>'
     };
-    // Stavby: základ a nad ním vrstva střech a vlaječek, kterou filtr cqb-<barva> (buildingTint v defs mapy) vynásobí barvou majitele
+    // Stavby: základ a nad ním vrstva střech a vlaječek, kterou filtr cqb-<barva> (buildingTint v defs mapy) vynásobí barvou majitele.
+    // Sady hradů (CASTLE_SETS, blok 40) mají vlastní druhy <základ>-<sada> (castle-goticky … castle3-goticky, palisade-goticky,
+    // wall-goticky): domovský hrad hrad-<sada>-<stupeň>, opevnění ostatních území opevneni-<sada>-1 (Palisáda) a -2 (Hradba).
     const BUILDINGS = ['palisade', 'wall', 'fortress', 'castle', 'castle1', 'castle2', 'castle3'];
+    const SET_BUILDINGS = { castle: 'hrad-%-0', castle1: 'hrad-%-1', castle2: 'hrad-%-2', castle3: 'hrad-%-3', palisade: 'opevneni-%-1', wall: 'opevneni-%-2' };
+    const BUILDING_ART = Object.fromEntries([
+        ...BUILDINGS.filter(kind => ART[kind]).map(kind => [kind, ART[kind]]),
+        ...CASTLE_SETS.flatMap(set => Object.entries(SET_BUILDINGS).map(([kind, file]) => [`${kind}-${set.id}`, file.replace('%', set.id)]))
+    ]);
     const buildingUrl = (name, layer = '') => `icons/stavby/${name}${layer}.webp`;
-    const iconMarkup = (kind, colorId = null) => {
-        if (BUILDINGS.includes(kind) && ART[kind]) {
-            const tint = colorId ? `<image class="cq-tint" href="${buildingUrl(ART[kind], '-barva')}" x="0" y="0" width="24" height="24" filter="url(#cqb-${colorOf(colorId).id})"/>` : '';
-            return `<image href="${buildingUrl(ART[kind])}" x="0" y="0" width="24" height="24"/>${tint}`;
+    // filterId: vlastní filtr barvy (náhled sady v okně Barva a znak), jinak cqb-<barva> z defs mapy
+    const iconMarkup = (kind, colorId = null, filterId = null) => {
+        if (BUILDING_ART[kind]) {
+            const tint = colorId ? `<image class="cq-tint" href="${buildingUrl(BUILDING_ART[kind], '-barva')}" x="0" y="0" width="24" height="24" filter="url(#${filterId || `cqb-${colorOf(colorId).id}`})"/>` : '';
+            return `<image href="${buildingUrl(BUILDING_ART[kind])}" x="0" y="0" width="24" height="24"/>${tint}`;
         }
         if (kind === 'treasure' && ART.treasure) return `<image href="${artUrl(ART.treasure)}" x="0" y="0" width="24" height="24"/>`;
         return ICON_SHAPES[kind] || ICON_SHAPES[kind.replace(/\d$/, '')];
     };
-    // Domovský hrad roste s opevněním (palisáda, hradby, pevnost); bez obrázku úrovně zůstane základní hrad s kamínky úrovně
-    const levelIcon = (level, home) => {
-        if (home) return level && ART[`castle${level}`] ? `castle${level}` : 'castle';
-        return ['', 'palisade', 'wall', 'fortress'][level] || '';
+    // Domovský hrad roste s opevněním (palisáda, hradby, pevnost); bez obrázku úrovně zůstane základní hrad s kamínky úrovně.
+    // set = sada hradů majitele (conquest_players.castle): domov i opevnění ostatních území v jejím stylu (Pevnost je jen na domově)
+    const levelIcon = (level, home, set = null) => {
+        const base = home ? (level && ART[`castle${level}`] ? `castle${level}` : 'castle') : ['', 'palisade', 'wall', 'fortress'][level] || '';
+        const sada = castleSetOf(set);
+        return base && sada && BUILDING_ART[`${base}-${sada.id}`] ? `${base}-${sada.id}` : base;
     };
     // Filtr barvy majitele pro střechy a vlaječky: šedá vrstva (prostřední jas 0,78) × barva × 1,28 = plná barva, světlá strana
     // střechy světlejší, stinná tmavší. Tmavé barvy (černá) se zesvětlí, jinak by střecha splynula s obrysem.
-    const buildingTint = (colorId) => {
+    const buildingTint = (colorId, id = null) => {
         const color = colorOf(colorId);
         let rgb = hexRgb(color.hex).map(value => value / 255);
         if (rgb[0] * 0.299 + rgb[1] * 0.587 + rgb[2] * 0.114 < 0.2) rgb = rgb.map(value => value + (1 - value) * 0.32);
         const [r, g, b] = rgb.map(value => (value * 1.28).toFixed(3));
-        return `<filter id="cqb-${color.id}" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="${r} 0 0 0 0 0 ${g} 0 0 0 0 0 ${b} 0 0 0 0 0 1 0"/></filter>`;
+        return `<filter id="${id || `cqb-${color.id}`}" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="${r} 0 0 0 0 0 ${g} 0 0 0 0 0 ${b} 0 0 0 0 0 1 0"/></filter>`;
+    };
+    // Náhled sady hradů (okno Barva a znak, oznámení nového hradu): domovský hrad (stupeň 0) a vedle něj Palisáda, střechy a praporky
+    // v barvě hráče (vlastní filtr v každém SVG, ať nezávisí na mapě); setId null = základní hrad a palisáda
+    const castlePreviewSvg = (colorId, setId, cls = 'h-12 w-20') => {
+        const sada = castleSetOf(setId);
+        const fid = nextUid('cqh');
+        const [home, wall] = sada ? [`castle-${sada.id}`, `palisade-${sada.id}`] : ['castle', 'palisade'];
+        return `<svg viewBox="0 0 38 24" class="${cls} shrink-0" aria-hidden="true" focusable="false"><defs>${buildingTint(colorId, fid)}</defs>`
+            + `<g transform="translate(19.5 7.5) scale(0.6875)">${iconMarkup(wall, colorId, fid)}</g><g transform="translate(0.5 0)">${iconMarkup(home, colorId, fid)}</g></svg>`;
+    };
+    // Náhled nahoře v okně Barva a znak se sadou hradů: kus území jako na mapě (výplň, nebo jen barva) a na něm domovský hrad ze sady
+    const territoryCastleSvg = (colorId, patternId, setId, cls = 'h-12 w-16') => {
+        const sada = castleSetOf(setId);
+        const fid = nextUid('cqh');
+        return `<svg viewBox="0 0 48 36" class="${cls} shrink-0" aria-hidden="true" focusable="false"><defs>${buildingTint(colorId, fid)}</defs>${fillSwatchSvg(colorId, patternId, '')}`
+            + `<g transform="translate(8.6 0) scale(1.3)">${iconMarkup(sada ? `castle-${sada.id}` : 'castle', colorId, fid)}</g></svg>`;
     };
 
     // --- Vlaječka hráče se znakem (SVG): na mapě i v HTML ---
@@ -2299,13 +2338,17 @@
     // Značky na území: opevnění nebo domovský hrad, poklad, vlaječka majitele (velikost 24 jednotek mapy; aplikace je při přiblížení zmenšuje)
     const MARK = 22;
     const ICON_SCALE = { castle: 1.3, castle1: 1.34, castle2: 1.38, castle3: 1.44, fortress: 1.25, wall: 1.18, palisade: 1.16, treasure: 0.7 };
+    // Sady hradů: stejná velikost jako základní stavby téhož stupně (obrázky mají stejný rámeček 192 × 192 a stojí na stejné čáře);
+    // výjimka je nízká japonská hradba (zeď s bránou jen ve spodní polovině obrázku), ta je o kus větší, ať na mapě nezanikne
+    const SET_SCALE = { 'wall-japonsky': 1.36 };
+    CASTLE_SETS.forEach(set => Object.keys(SET_BUILDINGS).forEach(kind => { ICON_SCALE[`${kind}-${set.id}`] = SET_SCALE[`${kind}-${set.id}`] || ICON_SCALE[kind]; }));
     const marksFor = (item, view) => {
         const info = view.owners.get(item.id);
         if (!info) return '';
         const owner = info.owner ? view.byId.get(info.owner) : null;
         const [x, y] = item.a;
         let inner = '';
-        const icon = levelIcon(info.level, info.home);
+        const icon = levelIcon(info.level, info.home, owner ? owner.castle : null);
         // Hrad a opevnění větší, poklad menší (je to jen bonus, ne stavba); spodní okraj ikon zůstává na stejné čáře
         const iconAt = (k, left) => `translate(${(left * k * MARK).toFixed(2)} ${(-(k - 0.05) * MARK).toFixed(2)}) scale(${(k * MARK / 24).toFixed(3)})`;
         if (icon) inner += `<g class="cq-icon" data-icon="${icon}" transform="${iconAt(ICON_SCALE[icon] || 1, -0.05)}">${iconMarkup(icon, owner ? owner.flag_color : null)}${icon === 'castle' && info.level ? levelPips(info.level) : ''}</g>`;
@@ -2722,7 +2765,7 @@
     const field = (label, inner, extra = '') => `<div class="flex min-w-0 flex-col gap-0.5 ${extra}"><span class="px-1 text-[10px] font-black uppercase leading-3 tracking-widest text-slate-500 dark:text-slate-400">${esc(label)}</span>${inner}</div>`;
     // Řádek-tlačítko formuláře (popisek a hodnota); half = polovina šířky vedle Pozvat přátele (bez tužky, popisek se zkrátí)
     const pickRow = (action, icon, label, value, half) => `<button type="button" data-cq="${action}" class="cq-pick flex min-h-[2.75rem] min-w-0 items-center gap-2 ${CARD} ${half ? 'px-2' : 'px-2.5'} text-left">${icon}<span class="min-w-0 flex-1"><span class="block truncate text-[10px] font-black uppercase leading-3 ${half ? 'tracking-wider' : 'tracking-widest'} text-slate-500 dark:text-slate-400">${esc(label)}</span><span class="block truncate text-[13px] font-bold text-slate-700 dark:text-slate-200">${esc(value)}</span></span>${half ? '' : '<i data-lucide="pencil" class="h-4 w-4 text-brand-700 dark:text-cream"></i>'}</button>`;
-    const lookRow = (draft, half) => pickRow('look', pennantSvg(draft.color, draft.emblem, 'h-7 w-9'), 'Barva a znak', `${colorOf(draft.color).name} · ${emblemOf(draft.emblem).name}${patternOf(draft.pattern) ? ` · ${patternOf(draft.pattern).name}` : ''}`, half);
+    const lookRow = (draft, half) => pickRow('look', pennantSvg(draft.color, draft.emblem, 'h-7 w-9'), 'Barva a znak', `${colorOf(draft.color).name} · ${emblemOf(draft.emblem).name}${patternOf(draft.pattern) ? ` · ${patternOf(draft.pattern).name}` : ''}${castleSetOf(draft.castle) ? ` · ${castleSetOf(draft.castle).name}` : ''}`, half);
     const inviteRow = (invites, avatar) => pickRow('invite-pick', invites.length ? avatarStack(invites, avatar)
         : '<span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gold-100 text-gold-800 dark:bg-gold-900/40 dark:text-gold-200"><i data-lucide="user-plus" class="h-4 w-4"></i></span>',
         invites.length ? `Pozvánky (${invites.length})` : 'Pozvat přátele', invites.length ? invites.map(friend => shortName(friend.display_name)).join(', ') : 'Zatím nikoho', true);
@@ -2811,38 +2854,49 @@
             + `<image href="${artUrl(ART.seal)}" x="0" y="0" width="48" height="48" filter="url(#cqt-${color.id})"/>`
             + `<g transform="translate(15.6 16.2) scale(0.7)">${emblem.draw(light)}</g><g transform="translate(15.6 15.6) scale(0.7)">${emblem.draw(deep)}</g></svg>`;
     };
-    // Výplně území a vzácné znaky (blok 38): looks = { patterns, emblems (odemčené id), new, stats } ze serveru, null = databáze bez bloku 38
-    // (nabídka jen barev a základních znaků). Zamčené věci jsou v nabídce zašedlé se zámkem; klepnutí na ně ukáže jen „Jak získat“ s postupem
-    // (info = { kind, id } posledního klepnutí na zamčenou věc).
-    const lookItem = (kind, id) => (kind === 'pattern' ? PATTERN_BY_ID[id] : RARE_EMBLEM_BY_ID[id]) || null;
-    const lookOwned = (looks, kind, id) => Boolean(looks && Array.isArray(kind === 'pattern' ? looks.patterns : looks.emblems) && (kind === 'pattern' ? looks.patterns : looks.emblems).includes(id));
+    // Výplně území a vzácné znaky (blok 38) a sady hradů (blok 40): looks = { patterns, emblems, castles (odemčené id; castles null = databáze
+    // bez bloku 40), new, stats } ze serveru, null = databáze bez bloku 38 (nabídka jen barev a základních znaků). Zamčené věci jsou v nabídce
+    // zašedlé se zámkem; klepnutí na ně ukáže jen „Jak získat“ s postupem (info = { kind, id } posledního klepnutí na zamčenou věc).
+    const LOOK_KINDS = { pattern: ['patterns', PATTERN_BY_ID], emblem: ['emblems', RARE_EMBLEM_BY_ID], castle: ['castles', CASTLE_SET_BY_ID] };
+    const lookItem = (kind, id) => (LOOK_KINDS[kind] && LOOK_KINDS[kind][1][id]) || null;
+    const lookOwned = (looks, kind, id) => Boolean(looks && LOOK_KINDS[kind] && Array.isArray(looks[LOOK_KINDS[kind][0]]) && looks[LOOK_KINDS[kind][0]].includes(id));
     const emblemAllowed = (looks, id) => Boolean(EMBLEM_BY_ID[id]) || lookOwned(looks, 'emblem', id);
     const patternAllowed = (looks, id) => !id || lookOwned(looks, 'pattern', id);
+    // Sady hradů zná databáze od bloku 40 (looks.castles je seznam); null = základní hrad
+    const castlesOn = (looks) => Boolean(looks && Array.isArray(looks.castles));
+    const castleAllowed = (looks, id) => !id || lookOwned(looks, 'castle', id);
     // Postup k odemčení: { have (nejvýš need), need }; u věcí na jedno splnění (need 1) bez čísel
     const lookProgress = (looks, item) => ({ have: Math.min(item.need, Math.max(0, Math.floor(Number(looks && looks.stats ? looks.stats[item.stat] : 0) || 0))), need: item.need });
     const lookHowText = (looks, item) => {
         const { have, need } = lookProgress(looks, item);
         return `${item.how}${need > 1 ? ` (${have}/${need})` : ''}`;
     };
-    // Nově odemčené (looks.new) jako oznámení: { kind, id, title, name, text } (neznámé položky vypadnou); vzor = výplň území
+    // Nově odemčené (looks.new) jako oznámení: { kind, id, title, name, text } (neznámé položky vypadnou); vzor = výplň území, castle = sada hradů
     const lookNews = (looks) => (looks && Array.isArray(looks.new) ? looks.new : []).map(entry => {
         const item = entry && lookItem(entry.kind, entry.item);
         if (!item) return null;
+        if (entry.kind === 'castle') {
+            return { kind: 'castle', id: item.id, at: entry.at || null, name: item.name, title: 'Nový hrad do Dobývání',
+                text: `${item.name}. Najdeš ho v okně Barva a znak na záložce Hrad.` };
+        }
         const pattern = entry.kind === 'pattern';
         return { kind: entry.kind, id: item.id, at: entry.at || null, name: item.name, title: pattern ? 'Nová výplň území' : 'Nový vzácný znak',
             text: `${item.name}. Najdeš ${pattern ? 'ji' : 'ho'} v okně Barva a znak.` };
     }).filter(Boolean);
-    // Obrázek oznámení: výplň na vzorku území v barvě hráče, vzácný znak v pečeti
-    const lookNewsArt = (news, color, emblem, cls = 'h-16 w-20') => (news.kind === 'pattern' ? fillSwatchSvg(color, news.id, cls) : sealSvg(color, news.id, 'h-16 w-16'));
+    // Obrázek oznámení: výplň na vzorku území v barvě hráče, vzácný znak v pečeti, sada hradů jako hrad s palisádou v barvě hráče
+    const lookNewsArt = (news, color, emblem, cls = 'h-16 w-20') => (news.kind === 'pattern' ? fillSwatchSvg(color, news.id, cls)
+        : news.kind === 'castle' ? castlePreviewSvg(color, news.id, cls) : sealSvg(color, news.id, 'h-16 w-16'));
     const lockMark = '<i data-lucide="lock" class="cq-seal-lock absolute bottom-0.5 right-0.5 h-3 w-3"></i>';
-    // Okno Barva a znak ve stylu map Dobývání: pergamen, náhled praporce (a výplně území), přepínač Barva / Znak / Výplň jako kožené záložky.
-    // Barvy jako voskové pečeti 3 × 3 (obsazené jiným hráčem zašedlé a nejdou), znaky jako razítka na pergamenu 6 × 4 a pod nimi vzácné znaky
-    // 6 × 2, výplně území jako vzorky 5 × 3 (první Jen barva)
+    // Okno Barva a znak ve stylu map Dobývání: pergamen, náhled praporce (a výplně území, na ní hrad ze sady), přepínač Barva / Znak / Výplň
+    // / Hrad jako kožené záložky. Barvy jako voskové pečeti 4 × 3 (obsazené jiným hráčem zašedlé a nejdou), znaky jako razítka na pergamenu
+    // 6 × 4 a pod nimi vzácné znaky 6 × 2, výplně území jako vzorky 5 × 3 (první Jen barva), sady hradů jako dlaždice 2 × 2 (první Základní;
+    // zamčené s postupem „3/10“; záložka Hrad jen s databází, která sady zná, blok 40)
     // takenPatterns = barevné výplně, které ve hře už má jiný hráč (jen jednou ve hře, blok 38): zašedlé a nejdou
-    const lookHtml = ({ color, emblem, pattern = null, taken = [], takenPatterns = [], tab = 'color', error = '', looks = null, info = null }) => {
-        const tabs = [['color', 'Barva', 'palette'], ['emblem', 'Znak', 'shield'], ...(looks ? [['pattern', 'Výplň', 'brush']] : [])];
-        const current = looks && tab === 'pattern' ? 'pattern' : tab === 'emblem' ? 'emblem' : 'color';
+    const lookHtml = ({ color, emblem, pattern = null, castle = null, taken = [], takenPatterns = [], tab = 'color', error = '', looks = null, info = null }) => {
+        const tabs = [['color', 'Barva', 'palette'], ['emblem', 'Znak', 'shield'], ...(looks ? [['pattern', 'Výplň', 'brush']] : []), ...(castlesOn(looks) ? [['castle', 'Hrad', 'castle']] : [])];
+        const current = looks && tab === 'pattern' ? 'pattern' : castlesOn(looks) && tab === 'castle' ? 'castle' : tab === 'emblem' ? 'emblem' : 'color';
         const vzor = patternOf(pattern);
+        const sada = castlesOn(looks) ? castleSetOf(castle) : null;
         const infoItem = info && lookItem(info.kind, info.id);
         const infoLine = (text, locked) => `<p data-cq-look-info class="flex min-h-[2.1rem] items-center gap-1.5 text-[12px] font-semibold leading-snug text-amber-900/85 dark:text-gold-200/85" role="status">${locked ? '<i data-lucide="lock" class="h-3.5 w-3.5 shrink-0"></i>' : '<i data-lucide="sparkles" class="h-3.5 w-3.5 shrink-0"></i>'}<span class="min-w-0">${text}</span></p>`;
         const lockedInfo = (kind) => (infoItem && info.kind === kind ? infoLine(`<b>${esc(infoItem.name)}</b> · ${esc(lookHowText(looks, infoItem))}`, true) : '');
@@ -2853,11 +2907,23 @@
                 return `<button type="button" role="radio" aria-checked="${item.id === color}" aria-label="${esc(item.name)}${off ? ' (má jiný hráč)' : ''}" data-cq-color="${item.id}" ${off ? 'disabled' : ''} class="cq-seal-pick relative flex h-[4.25rem] items-center justify-center rounded-xl">${sealSvg(item.id, emblem, 'h-14 w-14')}${off ? '<i data-lucide="lock" class="cq-seal-lock absolute bottom-1 right-2 h-4 w-4"></i>' : ''}</button>`;
             }).join('')}</div>`;
         } else if (current === 'emblem') {
-            const stamp = (item, locked) => `<button type="button" role="radio" aria-checked="${item.id === emblem}" aria-label="${esc(item.name)}${locked ? ' (zamčený)' : ''}" title="${esc(item.name)}" data-cq-emblem="${item.id}"${locked ? ' data-cq-locked="emblem"' : ''} class="cq-stamp${locked ? ' cq-look-locked' : ''} relative flex ${looks ? 'h-9' : 'h-11'} items-center justify-center rounded-lg">${item.id === emblem ? sealSvg(color, item.id, looks ? 'h-8 w-8' : 'h-10 w-10') : emblemSvg(item.id, 'currentColor', 'h-6 w-6 text-[#5a3416] dark:text-[#e2cfa4]')}${locked ? lockMark : ''}</button>`;
+            const stamp = (item, locked) => `<button type="button" role="radio" aria-checked="${item.id === emblem}" aria-label="${esc(item.name)}${locked ? ' (zamčený)' : ''}" title="${esc(item.name)}" data-cq-emblem="${item.id}"${locked ? ' data-cq-locked="emblem"' : ''} class="cq-stamp${locked ? ' cq-look-locked' : ''} relative flex ${looks ? 'h-8' : 'h-11'} items-center justify-center rounded-lg">${item.id === emblem ? sealSvg(color, item.id, looks ? 'h-[1.875rem] w-[1.875rem]' : 'h-10 w-10') : emblemSvg(item.id, 'currentColor', 'h-6 w-6 text-[#5a3416] dark:text-[#e2cfa4]')}${locked ? lockMark : ''}</button>`;
             body = `<div role="radiogroup" aria-label="Znak" class="flex flex-col gap-1"><div class="grid grid-cols-6 gap-1">${EMBLEMS.map(item => stamp(item, false)).join('')}</div>`
                 + (looks ? `<p class="cq-ledger-title mt-0.5 text-[12px]">Vzácné znaky</p><div class="grid grid-cols-6 gap-1" data-cq-rare>${RARE_EMBLEMS.map(item => stamp(item, !lookOwned(looks, 'emblem', item.id))).join('')}</div>` : '')
                 + '</div>'
                 + (looks ? (lockedInfo('emblem') || (RARE_EMBLEM_BY_ID[emblem] ? infoLine(`Vzácný znak <b>${esc(emblemOf(emblem).name)}</b>`, false) : infoLine('Vzácné znaky získáš za výhry a úspěchy v Dobývání.', false))) : '');
+        } else if (current === 'castle') {
+            const tile = (item, locked) => {
+                const id = item ? item.id : '';
+                const name = item ? item.name : 'Základní';
+                const { have, need } = item ? lookProgress(looks, item) : { have: 0, need: 0 };
+                return `<button type="button" role="radio" aria-checked="${(id || null) === (sada ? sada.id : null)}" aria-label="${esc(name)}${locked ? ` (zamčený, ${have} z ${need})` : ''}" title="${esc(name)}" data-cq-castle="${id}"${locked ? ' data-cq-locked="castle"' : ''} class="cq-stamp${locked ? ' cq-look-locked' : ''} relative flex min-h-[5.6rem] flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1">`
+                    + `${castlePreviewSvg(color, id || null, 'h-12 w-20')}<span class="cq-ledger-title text-[13px] leading-tight">${esc(name)}</span>`
+                    + (locked ? `<span class="flex items-center gap-1 text-[11.5px] font-black leading-none text-amber-900/80 dark:text-gold-200/80"><i data-lucide="lock" class="h-3 w-3"></i>${have}/${need}</span>` : '')
+                    + '</button>';
+            };
+            body = `<div role="radiogroup" aria-label="Hrad" class="grid grid-cols-2 gap-1" data-cq-castles>${tile(null, false)}${CASTLE_SETS.map(item => tile(item, !lookOwned(looks, 'castle', item.id))).join('')}</div>`
+                + (lockedInfo('castle') || infoLine(sada ? `Sada <b>${esc(sada.name)}</b>: domovský hrad i opevnění tvých území` : 'Sady hradů získáš v Dobývání a v Sezóně Mudrlanta.', false));
         } else {
             const swatch = (id, name, locked) => {
                 const off = !locked && Boolean(id) && takenPatterns.includes(id) && id !== (vzor ? vzor.id : null);
@@ -2868,7 +2934,7 @@
         }
         return `
         <div class="cq-look cq-card-paper flex flex-col gap-2 rounded-2xl p-2.5" data-cq-look>
-            <div class="flex items-center justify-center gap-3">${vzor ? fillSwatchSvg(color, vzor.id, 'h-12 w-16') : ''}${pennantSvg(color, emblem, 'h-12 w-16')}<span class="flex min-w-0 flex-col"><span class="cq-ledger-title text-[16px] leading-tight">${esc(colorOf(color).name)} · ${esc(emblemOf(emblem).name)}${vzor ? ` · ${esc(vzor.name)}` : ''}</span><span class="text-[11.5px] font-semibold text-amber-900/75 dark:text-gold-200/80">Takhle tě uvidí ostatní na mapě</span></span></div>
+            <div class="flex items-center justify-center gap-3">${sada ? territoryCastleSvg(color, vzor ? vzor.id : null, sada.id, 'h-12 w-16') : vzor ? fillSwatchSvg(color, vzor.id, 'h-12 w-16') : ''}${pennantSvg(color, emblem, 'h-12 w-16')}<span class="flex min-w-0 flex-col"><span class="cq-ledger-title text-[16px] leading-tight">${esc(colorOf(color).name)} · ${esc(emblemOf(emblem).name)}${vzor ? ` · ${esc(vzor.name)}` : ''}</span><span class="text-[11.5px] font-semibold leading-snug text-amber-900/75 dark:text-gold-200/80">${sada || vzor ? 'Takhle tě uvidí ostatní' : 'Takhle tě uvidí ostatní na mapě'}</span></span></div>
             <div role="tablist" class="cq-look-tabs flex gap-1 rounded-xl p-1">${tabs.map(([id, label, icon]) => `<button type="button" role="tab" aria-selected="${current === id}" data-cq-look-tab="${id}" class="cq-look-tab flex min-h-[2.5rem] flex-1 items-center justify-center gap-1.5 rounded-lg text-[13px] font-black"><i data-lucide="${icon}" class="h-4 w-4"></i>${label}</button>`).join('')}</div>
             ${body}
             <button type="button" data-cq="look-done" class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="check" class="h-5 w-5"></i> Hotovo</button>
@@ -3439,7 +3505,8 @@
             ['Cíl', 'Mít na konci hry co nejvíc bodů. Body jsou za území, která na konci držíš (víc v záložce Konec).'],
             ['Začátek', 'Hra začne, až je plná, nebo až jsou v ní aspoň 2 hráči a všichni klepli na „Chci hrát“. Každý dostane jedno domovské území s hradem, ostatní území jsou volná.'],
             ['Kola', 'Hra je rozdělená na kola: podle nastavení 5 min, 10 min, hodina, nebo den. Když všichni dohrají tahy dřív, můžou klepnout na „Chci další kolo“ a další začne po odpočtu 10 s.'],
-            ['Tahy', 'V každém kole máš několik tahů (počítadlo s meči vpravo nahoře: 3/5 = zbývají 3 z 5). Jeden tah je jedna otázka: útok, nebo opevnění. Nevyužité tahy na konci kola propadnou.']
+            ['Tahy', 'V každém kole máš několik tahů (počítadlo s meči vpravo nahoře: 3/5 = zbývají 3 z 5). Jeden tah je jedna otázka: útok, nebo opevnění. Nevyužité tahy na konci kola propadnou.'],
+            ['Vzhled', 'Výplně území, vzácné znaky a sady hradů získáš za úspěchy a vybereš v okně Barva a znak.']
         ],
         utok: [
             ['Útok', 'Klepni na volné nebo cizí sousední území (i přes tečkovanou námořní cestu) a pak na „Zaútočit“.'],
@@ -3484,6 +3551,7 @@
     return {
         ART, MAPS, MAP_BY_ID, DURATIONS, PERIODS, PERIOD_MINUTES, LENGTHS, TEMPOS, tempoOf, defaultMinutes, minutesLabel, gameMinutes, roundLabel, MIN_PLAYERS, MAX_PLAYERS, MAX_ACTIONS, MAX_GAMES, MAX_OWN_LOBBIES, REGION_POINTS, LEVELS, REWARD_XP,
         COLORS, COLOR_BY_ID, EMBLEMS, EMBLEM_BY_ID, RARE_EMBLEMS, RARE_EMBLEM_BY_ID, PATTERNS, PATTERN_BY_ID, patternOf, emblemArtUrl, patternUrl, colorOf, emblemOf,
+        CASTLE_SETS, CASTLE_SET_BY_ID, castleSetOf, castlesOn, castleAllowed, castlePreviewSvg, territoryCastleSvg, BUILDING_ART, ICON_SCALE,
         lookItem, lookOwned, emblemAllowed, patternAllowed, lookProgress, lookHowText, lookNews, lookNewsArt, fillSwatchSvg, patternTintRows, tileKey, COLORED_PATTERNS, inkOf, isLight, emblemInk, luminance, maxLevel, rewardFor,
         durationLabel, periodLabel, actionsLabel, timeLeft, movesWord, pointsWord, playersWord, territoriesWord, regionsWord, nextPeriodAt, agoLabel, periodLine,
         budgetTitle, budgetInnerHtml, periodStartText, PENALTY_TEXT,

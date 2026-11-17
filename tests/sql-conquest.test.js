@@ -966,7 +966,7 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         assert.equal(lobby(R1).open.find(g => g.preset === 'evropa-3d').minutes, 72 * 60);
         // Oprávnění: jen Chci další kolo a nové založení; stará podoba založení zmizela; pomocné funkce a značky nikdo zvenčí
         const can = (role, fn) => q(`select has_function_privilege('${role}', 'public.${fn}', 'execute')`);
-        for (const fn of ['conquest_round_ready(uuid, boolean)', 'conquest_create(text, integer, integer, text, integer, text, text, text, integer, text)']) {
+        for (const fn of ['conquest_round_ready(uuid, boolean)', 'conquest_create(text, integer, integer, text, integer, text, text, text, integer, text, text)']) {
             assert.deepEqual([can('authenticated', fn), can('anon', fn), can('public', fn)], ['t', 'f', 'f'], fn);
         }
         for (const fn of ['conquest_minutes(public.conquest_games)', 'conquest_period_start(public.conquest_games, integer)', 'conquest_period_end(public.conquest_games, integer)',
@@ -976,6 +976,7 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         }
         assert.equal(q(`select to_regprocedure('public.conquest_create(text, integer, integer, text, integer, text, text, text)') is null`), 't', 'stará podoba se osmi parametry');
         assert.equal(q(`select to_regprocedure('public.conquest_create(text, integer, integer, text, integer, text, text, text, integer)') is null`), 't', 'podoba bez vzoru (blok 38)');
+        assert.equal(q(`select to_regprocedure('public.conquest_create(text, integer, integer, text, integer, text, text, text, integer, text)') is null`), 't', 'podoba bez sady hradů (blok 40)');
         assert.equal(q(`select relrowsecurity from pg_class where oid = 'public.conquest_round_marks'::regclass`), 't');
         denied(as(R1, 'select * from conquest_round_marks;'), /permission denied/, 'značky jen přes funkce');
         denied(as(R1, `select conquest_round_done(g) from conquest_games g limit 1;`), /permission denied/);

@@ -37,7 +37,7 @@ test('social.js: looks z lobby a po hře očištěné; vzor se posílá jen vybr
         return [400, { message: 'neznámé' }];
     });
     try {
-        const clean = { patterns: ['plameny'], emblems: ['sfinga'], stats: { battles: 12, games: 3, sea: 0 }, new: [{ kind: 'pattern', item: 'plameny', at: '2026-11-12T10:00:00Z' }] };
+        const clean = { patterns: ['plameny'], emblems: ['sfinga'], castles: null, stats: { battles: 12, games: 3, sea: 0 }, new: [{ kind: 'pattern', item: 'plameny', at: '2026-11-12T10:00:00Z' }] };
         const lobby = await Social.conquestLobby();
         assert.deepEqual(lobby.looks, clean);
         assert.deepEqual([lobby.mine[0].players[0].pattern, lobby.mine[0].players[0].emblem], ['plameny', 'sfinga'], 'vzor hráče projde do souhrnu');
@@ -59,12 +59,43 @@ test('social.js: looks z lobby a po hře očištěné; vzor se posílá jen vybr
         assert.equal(calls.pop().body.pattern_id, null, 'databáze se vzory: null = bez vzoru');
         await Social.conquestSetLook(GAME, 'modra', 'orel', 'led', true);
         assert.equal(calls.pop().body.pattern_id, 'led');
+        assert.equal('castle_id' in calls[calls.length - 1].body, false, 'bez bloku 40 se sada neposílá');
         const claimed = await Social.conquestClaim(GAME);
         assert.deepEqual(claimed.looks, clean);
         await Social.conquestLooksSeen('2026-11-12T10:00:00Z');
         assert.deepEqual(calls.pop(), { name: 'conquest_looks_seen', body: { upto: '2026-11-12T10:00:00Z' } });
         const chest = await Social.playerItemsClaim('chest', 'chest:2026-W46');
         assert.equal(chest.pattern, 'duha');
+    } finally {
+        done();
+    }
+});
+
+test('social.js: sady hradů (blok 40) – castles z lobby očištěné, castle_id jen s vybranou sadou, změna vzhledu se sadou jen s databází, která sady zná', async () => {
+    const LOOKS40 = { ...LOOKS, castles: ['goticky', 'goticky', 'Hrad!', 3, 'japonsky'], new: [{ kind: 'castle', item: 'goticky', at: '2026-11-15T10:00:00Z' }, { kind: 'castle', item: 'Zlý!' }] };
+    const { Social, calls, done } = loadSocial((name) => {
+        if (name === 'conquest_lobby') return [200, { open: [], mine: [summary({ players: [{ id: 'u1', pattern: null, emblem: 'lev', castle: 'goticky' }] })], items: null, looks: LOOKS40 }];
+        if (['conquest_create', 'conquest_join', 'conquest_set_look'].includes(name)) return [200, summary()];
+        return [400, { message: 'neznámé' }];
+    });
+    try {
+        const lobby = await Social.conquestLobby();
+        assert.deepEqual(lobby.looks.castles, ['goticky', 'japonsky']);
+        assert.deepEqual(lobby.looks.new, [{ kind: 'castle', item: 'goticky', at: '2026-11-15T10:00:00Z' }]);
+        assert.equal(lobby.mine[0].players[0].castle, 'goticky', 'sada hráče projde do souhrnu');
+        assert.deepEqual(Social.cleanLooks({ patterns: [], emblems: [], castles: [] }).castles, [], 'prázdný seznam = databáze sady zná');
+        await Social.conquestCreate({ map: 'evropa', players: 4, hours: 72, period: 'day', actions: 5, visibility: 'public', color: 'cervena', emblem: 'lev' });
+        assert.equal('castle_id' in calls.pop().body, false);
+        await Social.conquestCreate({ map: 'evropa', players: 4, hours: 72, period: 'day', actions: 5, visibility: 'public', color: 'cervena', emblem: 'lev', castle: 'goticky' });
+        assert.deepEqual([calls[calls.length - 1].body.castle_id, 'pattern_id' in calls[calls.length - 1].body], ['goticky', false]);
+        await Social.conquestJoin({ code: 'ABCDEF', color: 'modra', emblem: 'orel', pattern: 'led', castle: 'japonsky' });
+        assert.deepEqual([calls[calls.length - 1].body.pattern_id, calls[calls.length - 1].body.castle_id], ['led', 'japonsky']);
+        await Social.conquestJoin({ code: 'ABCDEF', color: 'modra', emblem: 'orel' });
+        assert.equal('castle_id' in calls.pop().body, false);
+        await Social.conquestSetLook(GAME, 'modra', 'orel', null, true, null, true);
+        assert.deepEqual([calls[calls.length - 1].body.pattern_id, calls[calls.length - 1].body.castle_id], [null, null], 'databáze se sadami: null = základní hrad');
+        await Social.conquestSetLook(GAME, 'modra', 'orel', null, true, 'goticky', true);
+        assert.equal(calls.pop().body.castle_id, 'goticky');
     } finally {
         done();
     }
@@ -108,5 +139,29 @@ test('schema.sql: blok 38 před verzí schématu, verze 38 i v app.js; RPC jen p
     for (const message of messages) {
         assert.ok(schema.includes(message), message);
         assert.doesNotMatch(message, /\b(získal|získala|vybral|vybrala)\b/);
+    }
+});
+
+test('schema.sql: blok 40 (sady hradů) za blokem 39 a před verzí schématu, verze 40 i v app.js; pomocné funkce jen interně, staré podoby se mažou, chyby česky a bez rodu', () => {
+    const schema = fs.readFileSync(path.join(ROOT, 'supabase', 'schema.sql'), 'utf8');
+    const start = schema.indexOf('-- ===== 40: Dobývání – sady hradů — ZAČÁTEK BLOKU =====');
+    const end = schema.indexOf('-- ===== 40: Dobývání – sady hradů — KONEC BLOKU =====');
+    assert.ok(start > schema.indexOf('-- ===== 39: Dobývání – pomůcka Vzkříšení — KONEC BLOKU ====='));
+    assert.ok(end > start && end < schema.indexOf('-- ===== Verze schématu ====='));
+    const version = Number(/language sql immutable as \$\$ select (\d+) \$\$;/.exec(schema)[1]);
+    assert.ok(version >= 40);
+    assert.equal(Number(/const REQUIRED_SCHEMA = (\d+);/.exec(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8'))[1]), version);
+    assert.match(schema, /^-- 40: Dobývání – sady hradů/m, 'řádek v seznamu verzí');
+    for (const name of ['conquest_castles', 'conquest_check_castle']) assert.doesNotMatch(schema, new RegExp(`grant [^;]*${name}\\(`), `${name} jen interně`);
+    for (const old of ['conquest_create\\(text, integer, integer, text, integer, text, text, text, integer, text\\)', 'conquest_join\\(uuid, text, text, text, text\\)',
+        'conquest_set_look\\(uuid, text, text, text\\)', 'conquest_add_player\\(public\\.conquest_games, uuid, text, text, text\\)']) {
+        assert.match(schema, new RegExp(`drop function if exists public\\.${old};`), old);
+    }
+    // Sloupec castle je u sloupce pattern (čte ho conquest_summary), druh 'castle' v tabulce odemčených
+    assert.ok(schema.indexOf('add column if not exists castle text') < schema.indexOf('create or replace function public.conquest_summary('));
+    assert.match(schema, /conquest_looks_values check \(kind in \('pattern', 'emblem', 'castle'\)/);
+    for (const message of ['Tenhle hrad ještě nemáš. Vyber jiný.', 'Vyber hrad z nabídky.']) {
+        assert.ok(schema.includes(message), message);
+        assert.doesNotMatch(message, /\b(získal|získala|vybral|vybrala|postavil|postavila)\b/);
     }
 });
