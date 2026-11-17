@@ -8374,7 +8374,7 @@ grant execute on function public.chain_badge_counts() to authenticated;
 -- 35: Další postavičky (č. 317–340) v katalogu odemykání: unlock_catalog_more() (v bloku 32 prázdná, unlock_catalog() ji přidá za své řádky).
 -- 36: Odznaky Řetězovky dne (retezovka-*, retezovka-cela-* v badge_catalog() a badge_tiers()), chain_badge_counts() (dohrané dny a celé
 --     řetězy bez Záchrany z chain_results pro dorovnání počítadel), Pavouk pletař za odznak retezovka-10 místo turnaj-postupy-5 (unlock_catalog_more);
---     check_unlocks pustí jiné barvy postavičky, kterou profil už má (i když se mezitím změnilo, čím se odemyká).
+--     check_unlocks pustí jiné barvy postavičky, kterou profil už má (i když se mezitím změnilo, čím se odemyká), a správci (dev_admins) cokoli.
 create or replace function public.schema_version() returns integer
 language sql immutable as $$ select 36 $$;
 revoke all on function public.schema_version() from public, anon;
