@@ -460,3 +460,44 @@ test('soubory aplikace: index.html, service worker, nasazení, Tailwind a app.js
     const schema = read('supabase/schema.sql');
     assert.ok(schema.indexOf('-- ===== Řetězovka dne (blok 21) — ZAČÁTEK BLOKU =====') > 0 && schema.indexOf('-- ===== Řetězovka dne (blok 21) — ZAČÁTEK BLOKU =====') < schema.indexOf('create or replace function public.schema_version()'), 'blok 21 před verzí schématu');
 });
+
+// Odznaky Řetězovky (quiz-core.js, blok 36 ve schema.sql): dohrané dny a celé řetězy bez Záchrany, z počítadel i z historie v zařízení
+// (dny před odznaky), postavička Pavouk pletař za Kovář řetězů, dorovnání podle serveru v app.js a social.js
+test('odznaky Řetězovky: stupně, texty, počítání z počítadel i historie, Pavouk pletař a dorovnání podle serveru', () => {
+    const Look = require('../look.js');
+    const groups = Chain.BADGE_GROUPS.map(id => core.BADGE_GROUPS.find(group => group.id === id));
+    assert.deepEqual(groups.map(group => group.badges.map(badge => [badge.id, badge.goal])), [
+        [['retezovka', 3], ['retezovka-10', 10], ['retezovka-30', 30], ['retezovka-100', 100], ['retezovka-365', 365]],
+        [['retezovka-cela', 1], ['retezovka-cela-5', 5], ['retezovka-cela-15', 15], ['retezovka-cela-30', 30], ['retezovka-cela-60', 60]]
+    ]);
+    assert.deepEqual(groups[0].badges.map(badge => badge.text), ['Dohraj 3 Řetězovky dne.', 'Dohraj 10 Řetězovek dne.', 'Dohraj 30 Řetězovek dne.', 'Dohraj 100 Řetězovek dne.', 'Dohraj 365 Řetězovek dne.']);
+    assert.equal(core.BADGE_BY_ID['retezovka-cela'].text, 'Celá Řetězovka dne (všech 7 článků) bez Záchrany.');
+    assert.equal(core.BADGE_BY_ID['retezovka-cela-5'].text, '5× celá Řetězovka dne (všech 7 článků) bez Záchrany.');
+    assert.deepEqual(groups.map(group => group.title), ['Řetězovka dne', 'Celý řetěz bez Záchrany']);
+    for (const key of ['chainDone', 'chainFull', 'chainClean']) assert.equal(core.EMPTY_COUNTERS[key], 0, key);
+    // Historie v zařízení: každý den jednou; celý řetěz bez Záchrany jen se 7 články a bez Záchrany
+    const state = Chain.parseState({ days: { '2026-11-10': { links: 7, score: 28 }, '2026-11-11': { links: 7, score: 25, rescued: true }, '2026-11-12': { links: 3, score: 6 }, '2026-11-13': { links: 7, score: 28, rescued: false } } });
+    assert.deepEqual(Chain.badgeCounts(state), { days: 4, clean: 2 });
+    assert.deepEqual(Chain.badgeCounts(Chain.parseState(null)), { days: 0, clean: 0 });
+    const x = (chain) => ({ level: 1, learned: 0, topicStars: {}, topicCount: 14, chain });
+    const earned = (counters, chain) => core.earnedBadgeIds(counters, x(chain)).filter(id => id.startsWith('retezovka'));
+    assert.deepEqual(earned({ chainDone: 2 }, null), []);
+    assert.deepEqual(earned({ chainDone: 2 }, { days: 3, clean: 0 }), ['retezovka'], 'historie dní před odznaky stačí');
+    assert.deepEqual(earned({ chainDone: 10, chainClean: 1 }, { days: 4, clean: 0 }), ['retezovka', 'retezovka-10', 'retezovka-cela'], 'větší z počítadla a historie');
+    assert.deepEqual(earned({}, { days: 0, clean: 5 }), ['retezovka-cela', 'retezovka-cela-5']);
+    assert.deepEqual(core.compactBadges(earned({ chainDone: 30, chainClean: 15 }, null)), ['retezovka-30', 'retezovka-cela-15']);
+    // Pavouk pletař: za Kovář řetězů (retezovka-10), turnaje ho už nedávají
+    const pavouk = Look.find('avatars', 'pavouk');
+    assert.equal(pavouk.badge, 'retezovka-10');
+    assert.equal(Look.isUnlocked(pavouk, { level: 1, badges: { 'retezovka-10': '2026-11-17' } }), true);
+    assert.equal(Look.isUnlocked(pavouk, { level: 1, badges: { 'turnaj-postupy-5': '2026-11-17' } }), false);
+    assert.match(Look.badgeRewardText('retezovka-10'), /Pavouk pletař \(profilový obrázek\)/);
+    assert.equal(Look.badgeRewardText('turnaj-postupy-5'), '');
+    // app.js: počítadla po dohrání dne, historie v souvislostech odznaků, dorovnání podle serveru; social.js: funkce bloku 36
+    const app = read('app.js');
+    assert.match(app, /if \(summary\.full && !summary\.rescued\) progress\.counters\.chainClean = /);
+    assert.match(app, /chain: Chain \? Chain\.badgeCounts\(Chain\.parseState\(readJson\(Chain\.KEY\)\)\) : null/);
+    assert.match(app, /progress\.counters\.chainDone = Math\.max\(progress\.counters\.chainDone, remote\.days\);/);
+    assert.ok(app.indexOf('const Chain = window.MudrlantChain') < app.indexOf('const badgeContext = '), 'Chain je známý dřív, než ho odznaky potřebují');
+    assert.match(read('social.js'), /request\('POST', 'rpc\/chain_badge_counts', \{ body: \{\} \}\)/);
+});

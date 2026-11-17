@@ -754,3 +754,20 @@ volně (neznámý obrázek bere jako základní emoji); všechno ostatní funguj
   `referral:pritel-3` (Kosatka komorník) a `prestige:1` (Avokádo jogín).
 - Další postavičky se připíšou na konec seznamu v bloku 35 (a zvýší se verze schématu); shodu s `look.js` hlídá `tests/motivace.test.js`.
 - Testy: `tests/motivace.test.js`, `tests/sql-motivace.test.js` a `tests/avatars.test.js`.
+
+## Odznaky Řetězovky dne (schéma 36)
+
+**Po aktualizaci spusť znovu celý `supabase/schema.sql` (verze 36).** Dokud ho nespustíš, server odznaky Řetězovky nezná: do účtu se neuloží
+(v zařízení platí dál), počítadla se nedorovnají podle serveru a Pavouk pletař se na serveru odemyká postaru (`turnaj-postupy-5`).
+
+- Dvě skupiny odznaků (quiz-core.js `BADGE_GROUPS`): **Řetězovka dne** (`retezovka` = 3 dohrané dny, `retezovka-10`, `-30`, `-100`, `-365`)
+  a **Celý řetěz bez Záchrany** (`retezovka-cela` = 1, `retezovka-cela-5`, `-15`, `-30`, `-60`). Jsou v `badge_catalog()` a `badge_tiers()`.
+  Stejně jako odznaky Detektiv je počítá zařízení (počítadla `chainDone` a `chainClean`, jedna hra za den, cvičná se nepočítá, a historie
+  Řetězovky v zařízení); server je jen přijme z katalogu.
+- `chain_badge_counts()` (blok 36): kolik dní má hráč v `chain_results` a kolik z nich je celý řetěz (7 článků) bez Záchrany. Aplikace ho
+  zavolá jednou za spuštění po sloučení postupu s účtem a počítadla zvedne na větší z obou čísel, takže se započítají hry z jiných zařízení
+  i ze dnů před odznaky (výsledky Řetězovky jsou na serveru od začátku módu).
+- Pavouk pletař (`unlock_catalog_more`, blok 35) se odemyká odznakem Kovář řetězů (`retezovka-10`) místo `turnaj-postupy-5`. Kdo ho už má
+  v profilu, o něj nepřijde: `check_unlocks` kontroluje jen změněný obrázek a jiné barvy postavičky, kterou profil už má, pustí vždy
+  (aplikace uložený obrázek také nezamyká). Kdo si mezitím vybere jiný obrázek, Pavouka znovu odemkne až odznakem Řetězovky.
+- Testy: `tests/sql-chain.test.js`, `tests/sql-motivace.test.js`, `tests/chain.test.js`, `tests/avatars.test.js` a `tests/badge-art.test.js`.

@@ -267,6 +267,17 @@ test('SQL: motivace (pozvánky, reakce, kontrola odemčení, prestiž, vitrína)
         q(`update profiles set prestige = 1 where id = '${D}'`);
         assert.equal(tryAvatar(D, 'avokad'), 'avokad', 'první prestiž');
         assert.equal(q("select count(*) from public.unlock_catalog() where cat = 'avatars' and item in ('vacice', 'velbl', 'avokad')"), '3', 'katalog má řádky bloku 35');
+        // Pavouk pletař (schéma 36): za odznak Řetězovky Kovář řetězů (retezovka-10, i vyšší stupeň), už ne za 5 vyhraných zápasů v turnajích;
+        // kdo ho má v profilu z dřívějška (turnaj-postupy-5), o něj nepřijde, ani když mění jiné věci profilu
+        assert.equal(q("select rule from public.unlock_catalog() where cat = 'avatars' and item = 'pavouk'"), 'badge:retezovka-10');
+        q(`update profiles set badges = array['turnaj-postupy-5'], avatar = '🦊' where id = '${D}'`);
+        assert.equal(tryAvatar(D, 'pavouk2'), '🦊', 'turnaje Pavouka nedávají');
+        q(`update profiles set badges = array['turnaj-postupy-5', 'retezovka-30'] where id = '${D}'`);
+        assert.equal(tryAvatar(D, 'pavouk2'), 'pavouk2', 'vyšší stupeň Řetězovky stačí');
+        q(`update profiles set badges = array['turnaj-postupy-5'], avatar = 'pavouk13' where id = '${D}'`);
+        ok(asUser(D, `update profiles set frame = 'zadny', title_pref = 'level', victory_fx = null where id = '${D}'`));
+        assert.equal(profile(D, 'avatar'), 'pavouk13', 'uložený Pavouk zůstane');
+        assert.equal(tryAvatar(D, 'pavouk2'), 'pavouk2', 'jiné barvy téže postavičky');
         q(`update profiles set prestige = ${before.prestige === '-' ? 'null' : before.prestige}, prestige_xp = ${before.prestigeXp === '-' ? 'null' : before.prestigeXp}, avatar = '🦊', rewards = null, badges = '{}' where id = '${D}'`);
     });
 

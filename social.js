@@ -967,6 +967,19 @@
         return { day: cleanDay(data.day), players: wholeNumber(data.players, 10000000), full: wholeNumber(data.full, 10000000), full_pct: wholeNumber(data.full_pct, 100),
             best: wholeNumber(data.best, 28), me: cleanChainMe(data.me), top };
     });
+    // Odznaky Řetězovky (blok 36): kolik dní mám v Řetězovce dohraných a kolik celých řetězů bez Záchrany (všechna zařízení, celá historie).
+    // Starší databáze bez funkce (404): null a dál se o ni nežádá (odeslání výsledku a pořadí dne tím nevypne)
+    let chainCountsMissing = false;
+    const chainBadgeCounts = async () => {
+        if (chainCountsMissing) return null;
+        try {
+            const data = (await request('POST', 'rpc/chain_badge_counts', { body: {} })) || {};
+            return { days: wholeNumber(data.days, 100000), clean: wholeNumber(data.clean, 100000) };
+        } catch (error) {
+            if (error.status === 404) { chainCountsMissing = true; return null; }
+            throw error;
+        }
+    };
     // --- Skupiny (schéma 8, groups.js): moje skupiny, detail s pořadím, založení, přidání kódem a správa zakladatelem ---
     // Databáze bez funkcí (404): seznam vrací null (aplikace Skupiny nenabídne) a dál se o ně nežádá; ostatní volání skončí srozumitelnou chybou.
     // Hlášky databáze jsou česky (limit skupin, plná skupina, jen zakladatel…) a předají se dál; jiné chyby nahradí obecný text.
@@ -1429,7 +1442,7 @@
         // Vývojářští boti v Dobývání (blok 22)
         devConquestAddBots, devConquestBotsPlay, devConquestNextPeriod,
         // Řetězovka dne (blok 21)
-        chainSubmit, chainDayStats,
+        chainSubmit, chainDayStats, chainBadgeCounts,
         // Motivace (blok 32): prestiž, pozvánky kamarádů, vítězný efekt
         getPrestige, prestigeUp, referralStatus, referralJoin, referralClaim, victoryFx, saveVictoryFx };
 });

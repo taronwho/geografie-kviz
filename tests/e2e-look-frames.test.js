@@ -427,6 +427,9 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         }
         await tab.click('[data-locked-avatar="koala"]', { force: true });
         await tab.waitForFunction(() => /Koala ninja se odemkne odznakem „Rychlík“ \(v Bleskovce 12 správných odpovědí za 60 sekund\)\./.test(document.getElementById('settings-note').textContent));
+        // Pavouk pletař: za odznak Řetězovky dne (schéma 36), ne za turnaje
+        await tab.click('[data-locked-avatar="pavouk"]', { force: true });
+        await tab.waitForFunction(() => /Pavouk pletař se odemkne odznakem „Kovář řetězů“ \(dohraj 10 Řetězovek dne\)\./.test(document.getElementById('settings-note').textContent));
         await tab.click('[data-locked-avatar="kosatk"]', { force: true });
         await tab.waitForFunction(() => /Kosatka komorník: Pozvi 3 kamarády/.test(document.getElementById('settings-note').textContent));
         assert.equal(await tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return box.scrollHeight <= box.clientHeight; }), true, 'okno bez posouvání');

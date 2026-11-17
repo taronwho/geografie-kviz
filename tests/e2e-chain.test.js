@@ -11,6 +11,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const Chain = require('../chain.js');
+const nav = require('./nav.js');
 
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
@@ -70,6 +71,8 @@ const backend = async (context, db) => {
                     return json({ day: body.for_day, ...db.mine, rank: 2 });
                 }
                 if (name === 'chain_day_stats') return json(statsOf(db));
+                // Odznaky Řetězovky (blok 36): dny a celé řetězy bez Záchrany podle serveru; bez db.counts jako starší databáze (404)
+                if (name === 'chain_badge_counts' && db.counts) return json(db.counts);
             }
             return json({ code: 'PGRST202', message: 'Could not find the function' }, 404);
         }
@@ -495,5 +498,54 @@ test('Řetězovka dne v prohlížeči', { skip: !chromium && 'Playwright není n
         await legacy.tab.waitForFunction(() => /není k dispozici/.test(document.getElementById('chain-stats').textContent));
         assert.deepEqual(legacy.log.errors, []);
         await legacy.context.close();
+    });
+
+    await t.test('odznaky Řetězovky: z historie v zařízení i podle serveru, oslava, Pavouk pletař, medaile se symbolem a popisem', async () => {
+        // Host: dva dny v historii (před odznaky), dnešní dohraný třetí dá první odznak Řetízek
+        const days = { '2026-11-14': { links: 7, score: 28, rescued: false, xp: true }, '2026-11-15': { links: 4, score: 10, rescued: false, xp: true } };
+        const host = await open(browser, { 'mudrlant.chain': JSON.stringify({ intro: true, days }) });
+        await openChain(host.tab);
+        await nextQuestion(host.tab, 1);
+        const ask = await answers(host.tab);
+        await choose(host.tab, ask.wrong);
+        await host.tab.waitForSelector('[data-chain-decide]');
+        await host.tab.click('[data-action="chain-giveup"]');
+        await host.tab.click('[data-action="chain-result"]');
+        await host.tab.waitForSelector('#chain-result');
+        const progress = await host.tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.progress')));
+        assert.deepEqual([progress.counters.chainDone, progress.counters.chainClean], [1, 0]);
+        assert.ok(progress.badges.retezovka, 'Řetízek: 3 dny z historie a dnešek');
+        assert.ok(progress.badges['retezovka-cela'], 'celý řetěz bez Záchrany z historie');
+        assert.ok(!progress.badges['retezovka-10']);
+        await host.tab.waitForFunction(() => /Nový odznak.*(Řetízek|Pevný řetěz)/.test((document.getElementById('celebration') || {}).textContent || ''), null, { timeout: 15000 });
+        assert.deepEqual(host.log.errors, []);
+        await host.context.close();
+
+        // Přihlášený: počítadla se dorovnají podle serveru (12 dní, 1 celý řetěz bez Záchrany) jednou za spuštění; Kovář řetězů dá Pavouka pletaře
+        const db = newDb();
+        db.counts = { days: 12, clean: 1 };
+        const signed = await open(browser, { ...login, 'mudrlant.chain': JSON.stringify({ intro: true }) }, { db });
+        await signed.tab.waitForFunction(() => ((JSON.parse(localStorage.getItem('mudrlant.progress') || '{}').counters || {}).chainDone || 0) === 12, null, { timeout: 20000 });
+        const synced = await signed.tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.progress')));
+        assert.equal(synced.counters.chainClean, 1);
+        for (const id of ['retezovka', 'retezovka-10', 'retezovka-cela']) assert.ok(synced.badges[id], id);
+        assert.ok(!synced.badges['retezovka-30'] && !synced.badges['retezovka-cela-5']);
+        await signed.tab.waitForFunction(() => /Pavouk pletař/.test((document.getElementById('celebration') || {}).textContent || ''), null, { timeout: 30000 });
+        await signed.tab.evaluate(() => { const card = document.getElementById('celebration'); if (card) card.remove(); });
+        assert.equal(db.calls.filter(call => call.name === 'chain_badge_counts').length, 1, 'jednou za spuštění');
+        // Všechny odznaky: skupiny Řetězovky se symbolem (sova se řetězem), popisem a postupem
+        await nav.go(signed.tab, 'postup');
+        await signed.tab.click('#tab-postup [data-open-badges]');
+        await signed.tab.waitForSelector('[data-badge="retezovka-30"]');
+        assert.equal(await signed.tab.locator('[data-badge="retezovka-10"] img[data-badge-art][src="icons/topics/retezovka.webp"]:not(.grayscale)').count(), 1, 'získaný: barevný symbol');
+        assert.equal(await signed.tab.locator('[data-badge="retezovka-30"] img[data-badge-art][src="icons/topics/retezovka.webp"].grayscale').count(), 1, 'zamčený: zašedlý symbol');
+        await signed.tab.click('[data-badge="retezovka-10"]');
+        assert.match(await compact(signed.tab, '#dialog-overlay'), /Kovář řetězů Dohraj 10 Řetězovek dne\. Odměna: Pavouk pletař \(profilový obrázek\)/);
+        await signed.tab.click('[data-badge="retezovka-30"]');
+        assert.match(await compact(signed.tab, '#dialog-overlay'), /Mistr řetězů Dohraj 30 Řetězovek dne\. 12 \/ 30/);
+        await signed.tab.click('[data-badge="retezovka-cela-5"]');
+        assert.match(await compact(signed.tab, '#dialog-overlay'), /Ocelový řetěz 5× celá Řetězovka dne \(všech 7 článků\) bez Záchrany\. 1 \/ 5/);
+        assert.deepEqual(signed.log.errors, []);
+        await signed.context.close();
     });
 });
