@@ -58,16 +58,17 @@ je jde tisknout do pečeti i na praporec v barvě hráče stejně jako dnešní 
 | Svatováclavská koruna | Vyhraj 25 her |
 | Sova Mudrlant | Dosáhni úrovně 50 (celá aplikace) |
 
-## 3. Domovské hrady (sady) – 3 sady po 4 obrázcích
+## 3. Hrady (sady) – 3 sady po 6 obrázcích
 
 Domovský hrad na mapě roste s opevněním (dnes č. 262 a 275–277). Sada nahradí všechny čtyři stupně jiným stylem; střechy a praporky
 se pořád barví barvou hráče (scripts/building-art.py), takže každý obrázek musí mít břidlicově modré střechy a plné zlaté praporky.
+K sadě patří i opevnění ostatních území ve stejném stylu (Palisáda a Hradba, č. 362–367), takže je sada vidět na celé mapě, ne jen na domově.
 
 | Sada | Styl | Jak ji získat |
 |---|---|---|
-| Gotický hrad | vysoké věže, cimbuří, kamenné mosty (č. 297–300) | Postav Pevnost na domovském hradu 10× |
-| Orientální palác | cibulové kopule, minarety, hradby z pískovce (č. 301–304) | Vyhraj 25 bitev o území |
-| Japonský hrad | vícepatrová pagoda, bílé zdi, kamenný sokl (č. 305–308) | Sezóna Mudrlanta: 15. stupeň ve 3 různých sezónách |
+| Gotický hrad | vysoké věže, cimbuří, kamenné mosty (č. 297–300, opevnění č. 362–363) | Postav Pevnost na domovském hradu 10× |
+| Orientální palác | cibulové kopule, minarety, hradby z pískovce (č. 301–304, opevnění č. 364–365) | Vyhraj 25 bitev o území |
+| Japonský hrad | vícepatrová pagoda, bílé zdi, kamenný sokl (č. 305–308, opevnění č. 366–367) | Sezóna Mudrlanta: 15. stupeň ve 3 různých sezónách |
 
 ## 4. Efekty dobytí – 6 kusů (bez obrázků, animace CSS)
 
