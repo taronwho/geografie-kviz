@@ -127,7 +127,7 @@
             })();
             return lobbyLoading;
         };
-        // Vzory praporců a vzácné znaky (blok 38): looks z lobby (null = databáze bez bloku 38: jen barvy a základní znaky)
+        // Výplně území a vzácné znaky (blok 38): looks z lobby (null = databáze bez bloku 38: jen barvy a základní znaky)
         const looksNow = () => (lobby && lobby.looks) || null;
         // Vybraný vzácný znak a vzor jen odemčené (jinak výchozí), aby server volbu nepřijal se starým zámkem
         const fitLooks = () => {
@@ -231,7 +231,7 @@
             map: 'evropa', hours: 72, players: 4, actions: 5, period: 'day', visibility: 'public',
             ...(prefs.draft || {}),
             color: C.COLOR_BY_ID[prefs.color] ? prefs.color : 'cervena', emblem: C.EMBLEM_BY_ID[prefs.emblem] || C.RARE_EMBLEM_BY_ID[prefs.emblem] ? prefs.emblem : 'lev',
-            // Vzor praporce (blok 38); vzácný znak i vzor platí, jen když je hráč podle serveru má (fitLooks po načtení lobby)
+            // Výplň území (vzor, blok 38); vzácný znak i výplň platí, jen když je hráč podle serveru má (fitLooks po načtení lobby)
             pattern: C.PATTERN_BY_ID[prefs.pattern] ? prefs.pattern : null
         };
         if (!C.MAP_BY_ID[draft.map]) draft.map = 'evropa';
@@ -286,14 +286,14 @@
             schedule();
         };
 
-        // Barva, znak a vzor praporce (okno): obsazené barvy hry nejdou, zamčený vzácný znak nebo vzor jen ukáže, jak ho získat;
+        // Barva, znak a výplň území (okno): obsazené barvy a barevné výplně hry nejdou, zamčený vzácný znak nebo výplň jen ukáže, jak je získat;
         // onDone({ color, emblem, pattern })
-        const pickLook = ({ taken = [], title = 'Barva a znak', onDone }) => {
+        const pickLook = ({ taken = [], takenPatterns = [], title = 'Barva a znak', onDone }) => {
             const free = C.COLORS.find(color => !taken.includes(color.id));
             const looks = looksNow();
             const state = { color: taken.includes(draft.color) ? (free ? free.id : draft.color) : draft.color, emblem: C.emblemAllowed(looks, draft.emblem) ? draft.emblem : 'lev',
-                pattern: looks && C.patternAllowed(looks, draft.pattern) ? draft.pattern : null, tab: 'color', error: '', info: null };
-            const render = () => deps.showDialog(title, C.lookHtml({ ...state, taken, looks }), {
+                pattern: looks && C.patternAllowed(looks, draft.pattern) && !takenPatterns.includes(draft.pattern) ? draft.pattern : null, tab: 'color', error: '', info: null };
+            const render = () => deps.showDialog(title, C.lookHtml({ ...state, taken, takenPatterns, looks }), {
                 onClick: (event) => {
                     const tab = event.target.closest('[data-cq-look-tab]');
                     if (tab) { state.tab = ['emblem', 'pattern'].includes(tab.dataset.cqLookTab) ? tab.dataset.cqLookTab : 'color'; state.info = null; render(); return; }
@@ -307,7 +307,7 @@
                         return;
                     }
                     const pattern = event.target.closest('[data-cq-pattern]');
-                    if (pattern) {
+                    if (pattern && !pattern.disabled) {
                         if (pattern.dataset.cqLocked) state.info = { kind: 'pattern', id: pattern.dataset.cqPattern };
                         else { state.pattern = pattern.dataset.cqPattern || null; state.info = null; }
                         render();
@@ -326,12 +326,14 @@
             render();
         };
         const takenColors = (found, meId) => (found ? found.players.filter(player => !player.me && player.id !== meId).map(player => player.flag_color) : []);
+        // Barevné výplně území, které ve hře má jiný hráč (blok 38: jen jednou ve hře)
+        const takenFills = (found) => (found ? found.players.filter(player => !player.me && C.COLORED_PATTERNS.includes(player.pattern)).map(player => player.pattern) : []);
 
         // Přidání: veřejná hra podle id, soukromá kódem, s pozvánkou od přítele podle id (i soukromá)
         const joinGame = ({ id = null, code = '' }) => {
             const found = id ? findGame(id) || findInvite(id) : null;
             pickLook({
-                taken: takenColors(found), title: 'Tvoje barva a znak',
+                taken: takenColors(found), takenPatterns: takenFills(found), title: 'Tvoje barva a znak',
                 onDone: async ({ color, emblem, pattern }) => {
                     try {
                         const joined = await Social.conquestJoin({ game: id, code, color, emblem, pattern: looksNow() ? pattern : null });
@@ -593,7 +595,7 @@
             const found = findGame(ui.gameId);
             if (!found) return;
             pickLook({
-                taken: takenColors(found),
+                taken: takenColors(found), takenPatterns: takenFills(found),
                 onDone: async ({ color, emblem, pattern }) => {
                     try { upsertMine(await Social.conquestSetLook(found.id, color, emblem, looksNow() ? pattern : null, Boolean(looksNow()))); } catch (error) { ui.error = errorText(error, 'Barvu a znak se nepodařilo uložit.'); }
                     renderHub();
@@ -622,7 +624,54 @@
                 }
             } catch (error) { claiming.delete(id); }
         };
-        const viewFor = (state, data) => C.viewOf(state, data, (deps.signedUser() || {}).id);
+        // Výplně území (blok 38): šedý vzor v barvě hráče se předbarví jednou v canvasu (stejné koeficienty jako filtr patternTint) a mapa
+        // pak dlaždici bere jako obrázek blob: bez filtru (rychlejší posouvání a přibližování na telefonu). Do hotové dlaždice kreslí mapa
+        // vzor filtrem na dlaždici; po předbarvení se mapa překreslí. tiles = { 'vzor|barva': url } (sdílené všemi pohledy)
+        const tiles = {};
+        const tinting = new Set();
+        const TILE = 256;
+        const tintTile = async (pattern, colorId) => {
+            const img = new root.Image();
+            img.src = C.patternUrl(pattern);
+            await img.decode();
+            const canvas = doc.createElement('canvas');
+            canvas.width = TILE;
+            canvas.height = TILE;
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            ctx.drawImage(img, 0, 0, TILE, TILE);
+            const image = ctx.getImageData(0, 0, TILE, TILE);
+            const rows = C.patternTintRows(colorId, pattern.pop || 0);
+            const px = image.data;
+            for (let i = 0; i < px.length; i += 4) {
+                const t = px[i] / 255;
+                for (let k = 0; k < 3; k++) px[i + k] = Math.max(0, Math.min(255, Math.round((rows[k][0] * t + rows[k][1]) * 255)));
+            }
+            ctx.putImageData(image, 0, 0);
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+            if (!blob) throw new Error('canvas');
+            return root.URL.createObjectURL(blob);
+        };
+        const ensureTiles = (view) => {
+            if (!view || !doc || typeof root.Image !== 'function' || !root.URL || !root.URL.createObjectURL) return;
+            for (const player of view.players) {
+                const pattern = C.patternOf(player.pattern);
+                if (!pattern || !pattern.art || pattern.colored) continue;
+                const key = C.tileKey(pattern.id, player.flag_color);
+                if (tiles[key] || tinting.has(key)) continue;
+                tinting.add(key);
+                tintTile(pattern, player.flag_color).then(url => {
+                    tiles[key] = url;
+                    // Mapa se překreslí, jen když se zrovna nehraje tah (otázka, bitva); jinak dlaždici vezme příští překreslení
+                    if (game && ui.kind === 'game' && !game.move && active()) repaintMap();
+                }).catch(() => { /* zůstane filtr na dlaždici */ });
+            }
+        };
+        const viewFor = (state, data) => {
+            const view = C.viewOf(state, data, (deps.signedUser() || {}).id);
+            view.tiles = tiles;
+            ensureTiles(view);
+            return view;
+        };
         const openGame = async (id) => {
             if (!deps.signedUser()) { deps.login(); return; }
             stopGame();
@@ -1806,7 +1855,7 @@
             const title = me ? 'Vítězství!' : winners.length > 1 ? 'Vítězové tažení' : 'Vítěz tažení';
             const names = winners.map(player => (player.me ? 'Ty' : player.display_name || 'Hráč')).join(', ');
             wrap.insertAdjacentHTML('beforeend', `<div data-cq-finale class="cq-finale-banner pointer-events-none absolute inset-x-0 top-[12%] flex flex-col items-center px-3" role="status">
-                ${me ? `<img src="icons/topics/${C.ART.victory || 'sova-vitez'}.webp" alt="" class="cq-finale-owl h-24 w-24 object-contain">` : `<span class="cq-finale-flag relative flex h-20 w-24 items-center justify-center">${C.ART.laurel ? `<img src="icons/topics/${C.ART.laurel}.webp" alt="" class="absolute inset-0 h-full w-full object-contain">` : ''}<span class="relative -mt-2">${C.pennantSvg(winner.flag_color, winner.emblem, 'h-10 w-[3.4rem]', winner.pattern)}</span></span>`}
+                ${me ? `<img src="icons/topics/${C.ART.victory || 'sova-vitez'}.webp" alt="" class="cq-finale-owl h-24 w-24 object-contain">` : `<span class="cq-finale-flag relative flex h-20 w-24 items-center justify-center">${C.ART.laurel ? `<img src="icons/topics/${C.ART.laurel}.webp" alt="" class="absolute inset-0 h-full w-full object-contain">` : ''}<span class="relative -mt-2">${C.pennantSvg(winner.flag_color, winner.emblem, 'h-10 w-[3.4rem]')}</span></span>`}
                 <div class="cq-finale-scroll cq-cartouche-art aspect-[29/10] h-20 max-w-full px-[15%] pt-[4px] flex flex-col items-center justify-center text-center"><span class="cq-cartouche-title cq-cartouche-big">${esc(title)}</span><span class="max-w-full truncate text-[10.5px] font-bold leading-[1.2] text-amber-900/85">${esc(names)} · ${esc(C.pointsWord(winner.score))}</span></div>
                 ${Array.from({ length: 10 }, () => '<i class="cq-finale-spark" aria-hidden="true"></i>').join('')}</div>`);
             wrap.querySelectorAll('.cq-finale-spark').forEach((spark, i) => {

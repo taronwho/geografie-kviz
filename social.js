@@ -1183,7 +1183,7 @@
         sieges: 'Bitvy o území zatím nejdou (databáze potřebuje nejnovější schema.sql).',
         rounds: 'Rychlé hry a další kolo zatím nejdou (databáze potřebuje nejnovější schema.sql).',
         items: 'Pomůcky do Dobývání zatím nejdou (databáze potřebuje nejnovější schema.sql).',
-        looks: 'Vzory praporců a vzácné znaky zatím nejdou (databáze potřebuje nejnovější schema.sql).'
+        looks: 'Výplně území a vzácné znaky zatím nejdou (databáze potřebuje nejnovější schema.sql).'
     };
     const partMissing = { invites: false, sieges: false, rounds: false, items: false, looks: false };
     const conquestCall = async (name, body, fallback, part = null) => {
@@ -1213,7 +1213,7 @@
     // items = moje pomůcky v této hře (blok 30, cleanGameItems; jen stav hry, jinak null)
     const conquestGame = (value) => (value && typeof value === 'object' && isUuid(value.id) ? { ...value, players: Array.isArray(value.players) ? value.players.filter(row => row && row.id) : [],
         invited: Array.isArray(value.invited) ? value.invited.filter(row => row && row.id) : [], round: conquestRound(value.round), items: cleanGameItems(value.items) } : null);
-    // Vzory praporců a vzácné znaky (blok 38): { patterns: [id], emblems: [id] (odemčené), new: [{ kind, item, at }] (ještě neohlášené),
+    // Výplně území (vzory) a vzácné znaky (blok 38): { patterns: [id], emblems: [id] (odemčené), new: [{ kind, item, at }] (ještě neohlášené),
     // stats: { klíč: číslo } (postup) }; databáze bez bloku 38 null (nabídka jen barev a základních znaků)
     const LOOK_ID = /^[a-z][a-z-]{1,23}$/;
     const cleanLooks = (value) => {
@@ -1232,7 +1232,7 @@
         return { open: (Array.isArray(data.open) ? data.open : []).map(conquestGame).filter(Boolean), mine: (Array.isArray(data.mine) ? data.mine : []).map(conquestGame).filter(Boolean),
             items: cleanItems(data.items), looks: cleanLooks(data.looks) };
     };
-    // Vzor praporce a vzácný znak se posílají jen s databází, která je zná (blok 38): pattern_id jen, když hráč vzor vybral (aplikace
+    // Výplň území (vzor) a vzácný znak se posílají jen s databází, která je zná (blok 38): pattern_id jen, když hráč vzor vybral (aplikace
     // ho nabídne jen s looks z lobby), takže starší databáze dostane volání postaru
     const withPattern = (body, pattern) => (pattern ? { ...body, pattern_id: conquestText(pattern) } : body);
     // Založení: období (period) 'day' nebo 'hour' s délkou v hodinách (hours), rychlá hra s kolem 'min10' nebo 'min5' s délkou v minutách
@@ -1251,7 +1251,7 @@
             return conquestGame(await conquestCall('conquest_create', older, fallback));
         }
     };
-    // Přidání: veřejná hra podle id, soukromá kódem; pattern = vzor praporce (blok 38) nebo null
+    // Přidání: veřejná hra podle id, soukromá kódem; pattern = výplň území (blok 38) nebo null
     const conquestJoin = async ({ game = null, code = '', color, emblem, pattern = null }) => conquestGame(await conquestCall('conquest_join', withPattern({
         game: game ? conquestId(game) : null, join_code: conquestText(code, 12), colour: conquestText(color), emblem_id: conquestText(emblem)
     }, pattern), 'Přidat se do hry se nepodařilo. Zkus to znovu.'));
@@ -1405,7 +1405,7 @@
     const playerItemsClaim = async (source, key) => {
         const data = (await itemsCall('player_items_claim', { source: conquestText(source, 12), key: conquestText(key, 40) }, 'Pomůcku se nepodařilo vyzvednout.')) || {};
         const grant = cleanItemGrant(data);
-        // Truhla Mudrlanta se vzácným vzorem praporce Duha (blok 38)
+        // Truhla Mudrlanta se vzácnou výplní území Duha (blok 38)
         return grant ? { ...grant, items: cleanItems(data.items), ...(data.pattern === 'duha' ? { pattern: 'duha' } : {}) } : null;
     };
     // Tah navíc v běžící hře (jednou za hru, ne v posledním kole): vrací stav hry (conquestState) s used

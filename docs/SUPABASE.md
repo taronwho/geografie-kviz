@@ -795,12 +795,14 @@ nezná, `chain_use_rescue` chybí), 12. stupeň Sezóny dá běžnou věc a Řet
 - Export dat má v `pomucky` i `pouzite` (použití z `player_item_uses`); smazání účtu je smaže (cizí klíč na profil).
 - Testy: `tests/sql-chain.test.js`, `tests/sql-pomucky.test.js`, `tests/sql-boss.test.js`, `tests/chain.test.js` a `tests/e2e-chain.test.js`.
 
-## Dobývání – vzory praporců a vzácné znaky (schéma 38)
+## Dobývání – výplně území (vzory) a vzácné znaky (schéma 38)
 
 **Po aktualizaci spusť znovu celý `supabase/schema.sql` (verze 38).** Dokud ho nespustíš, okno Barva a znak v Dobývání nabízí jen barvy
 a základní znaky (bez záložky Vzor) a vše ostatní běží jako dřív; aplikace vzor ani vzácný znak serveru nepošle.
 
-- `conquest_players.pattern` (vzor praporce hráče v této hře, null = bez vzoru), `conquest_links.sea` (námořní spoje; nastavuje je
+- `conquest_players.pattern` (výplň území hráče v této hře, null = jen barva; barevnou výplň – Hermelín, Zlatá fólie, Zlatý brokát, Duha –
+  má ve hře nejvýš jeden hráč: `conquest_check_fill` v `conquest_add_player` a `conquest_set_look` pod zámkem hry a unikátní index
+  `conquest_players_fill_key`), `conquest_links.sea` (námořní spoje; nastavuje je
   vygenerovaná část bloku 21 ze `scripts/build-dobyvani.js`), `conquest_looks` (co hráč odemkl a kdy to aplikace ohlásila).
 - **Odemčení** podle statistik, které server spočítá z dat, která už má (`conquest_look_stats`; platí tedy i zpětně): dohrané hry Dobývání
   (počítá se hra s aspoň 3 vlastními tahy a 1 bodem, se 3 a více hráči nebo na den a déle – stejně jako odměna v `conquest_claim`), výhry
@@ -814,6 +816,6 @@ a základní znaky (bez záložky Vzor) a vše ostatní běží jako dřív; apl
   (`player_items_claim('chest', …)`) se šťastným losem vrátí `pattern: 'duha'`.
 - **Volba**: `conquest_create`, `conquest_join` a `conquest_set_look` mají nepovinný poslední parametr `pattern_id` (staré podoby se mažou);
   vzácný znak a vzor projdou jen odemčené (`conquest_check_style`, chyby „Tenhle vzácný znak ještě nemáš…“), správci v `dev_admins` cokoli.
-  Souhrn hry (`conquest_summary`) má u hráčů `pattern`, takže vzor vidí všichni (praporce, pečeti, vlaječky na mapě, kronika).
+  Souhrn hry (`conquest_summary`) má u hráčů `pattern`, takže výplň jejich území na mapě vidí všichni (i v náhledech map).
 - Export dat má `dobyvani_vzhled`; smazání účtu řádky smaže (cizí klíč na profil). Boti nic neodemykají.
 - Testy: `tests/sql-conquest-looks.test.js`, `tests/conquest-looks.test.js`, `tests/conquest.test.js` a `tests/e2e-conquest.test.js`.

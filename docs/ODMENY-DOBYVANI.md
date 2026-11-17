@@ -9,15 +9,17 @@ Kde je hráč uvidí a nastaví: v okně **Barva a znak** přibudou záložky **
 jsou vidět zašedle se zámkem a jednou větou „Jak získat“ (např. „Vyhraj 10 bitev o území“) a ukazatelem postupu (3/10). Nově
 odemčená věc se oznámí jako ostatní odměny (okno s obřadem, záznam ve Vitríně).
 
-Kde je uvidí ostatní: na mapě (praporce, pečeť v pořadí, hrad na domovském území, efekt při dobytí), v lobby a v kronice.
+Kde je uvidí ostatní: na mapě (výplň jeho území, vzácný znak na praporcích a pečeti, hrad na domovském území, efekt při dobytí), v lobby a v kronice.
 
-## 1. Vzory praporce (látky) – 12 kusů
+## 1. Výplně území (vzory) – 12 kusů
 
-Vzor je „látka“ praporce, pečeti a vlaječek na mapě. Barva hráče zůstává (území na mapě má pořád jeho barvu, aby se hráči nepletli),
-vzor se přes ni položí (šedá textura vynásobená barvou, stejně jako dnes pečeť a střechy staveb). Dva vzory jsou vícebarevné
-(Duha, Zlatý brokát): praporec je celý ve vzoru, jen lem má barvu hráče.
+Výplň je vzor, kterým se vybarví území hráče na mapě (místo prosté akvarelové lazury). Barva hráče zůstává (území má pořád jeho barvu,
+aby se hráči nepletli): šedá textura se vynásobí barvou hráče, stejně jako pečeť a střechy staveb. Barevné výplně (Hermelín, Zlatá fólie,
+Zlatý brokát, Duha) se použijí jak jsou a barvu hráče nese sytý lem podél hranice území; v jedné hře smí každou barevnou výplň mít jen jeden
+hráč (server ji druhému nepustí: „Výplň Duha už v této hře má jiný hráč.“, v okně je zašedlá). Praporce, pečeti a vlaječky zůstávají v barvě
+hráče (vzácný znak na nich ano).
 
-**Stav: hotovo (schéma 38).** Všech 12 vzorů je v `conquest.js` `PATTERNS` (obrázky č. 278–284 v `icons/vzory/`, Zlatá fólie z `icons/textury/textura-zlato.webp`, Šachovnice, Pokosy, Vlnky a Hermelín jako kresby SVG). `pennantSvg`, `pennantGroup` (vlaječky na mapě) a `sealSvg` je kreslí podle `conquest_players.pattern`; barevné vzory (Brokát, Duha, Zlatá fólie, Hermelín) mají lem v barvě hráče a znak s obrysem v jeho barvě. Odemyká server (oddíl 8), volí se v okně Barva a znak na záložce Vzor. Tabulka níž je tak, jak to platí; oproti návrhu: Pokosy počítají celé regiony na konci her, Listí celé Řetězovky (7 z 7; řetěz má jen 7 článků), Zlatá fólie odznak Zlatokop (10 správně zodpovězených zlatých otázek; střípky zná jen zařízení) a Duha je jen vzácnost z Truhly (Šampiona sezóny server nezná).
+**Stav: hotovo (schéma 38).** Všech 12 výplní je v `conquest.js` `PATTERNS` (obrázky č. 278–284 v `icons/vzory/`, Zlatá fólie z `icons/textury/textura-zlato.webp`, Šachovnice, Pokosy, Vlnky a Hermelín jako kresby SVG). `mapSvg` vyplní území hráče podle `conquest_players.pattern` jedním `<pattern>` na hráče (dlaždice `mapTile` v jednotkách mapy; šedé vzory předbarví conquest-ui.js jednou v canvasu na obrázek blob:, do té doby filtr na dlaždici), náhledy map v seznamech her také. Odemyká server (oddíl 8), volí se v okně Barva a znak na záložce Výplň (vzorky území). Tabulka níž je tak, jak to platí; oproti návrhu: Pokosy počítají celé regiony na konci her, Listí celé Řetězovky (7 z 7; řetěz má jen 7 článků), Zlatá fólie odznak Zlatokop (10 správně zodpovězených zlatých otázek; střípky zná jen zařízení) a Duha je jen vzácnost z Truhly (Šampiona sezóny server nezná).
 
 | Vzor | Jak vypadá | Jak ho získat |
 |---|---|---|
@@ -102,7 +104,7 @@ bitev), Mořeplavec (100 území přes moře), Bleskový stratég (10 výher v B
 - **Boss týdne, Kvíz dne, Zlatá otázka, Řetězovka**: po jednom vzoru (tabulka výš) – hráč, který tyto módy hraje, má v Dobývání
   hned čím se odlišit. Hotovo (schéma 38): server je počítá z `boss_results`, `daily_quiz_results`, `chain_results` a odznaků Zlatokop,
   Ledové krystaly z 15. stupně Sezóny v zimě (zdroj pomůcky v `player_item_grants`), Duhu z losu Truhly (truhla ji hned ohlásí řádkem
-  „A navíc vzácný vzor praporce“). Nové se oslaví při příštím otevření Dobývání.
+  „A navíc vzácná výplň území“). Nové se oslaví při příštím otevření Dobývání.
 - **Vitrína a Album**: nová stránka „Zbrojnice“ s vystavenými vzory, znaky a hrady (počet 12 + 12 + 3 + 6).
 
 ## 8. Co je potřeba technicky
@@ -115,7 +117,7 @@ Body 1 a 2 pro vzory a vzácné znaky jsou hotové (schéma 38, docs/SUPABASE.md
 1. Server: statistiky hráče v Dobývání (výhry podle mapy a tempa, bitvy, odražené útoky, regiony, území přes moře, hrady, Návrat do
    hry a výhra, hry bez ztráty domova) – počítá conquest_finish a tahy; odemčené věci se uloží k profilu.
 2. Volba vzhledu ve hře: `conquest_players` dostane `pattern`, `castle_set`, `effect` (server ověří, že je hráč má odemčené).
-3. Vykreslení: vzor v `pennantGroup` a `sealSvg` (maska praporce + textura), hrad podle sady v `BUILDINGS`, efekty v conquest-ui.js.
+3. Vykreslení: výplň území v `mapSvg` (jeden `<pattern>` na hráče), vzácný znak v `pennantGroup` a `sealSvg`, hrad podle sady v `BUILDINGS`, efekty v conquest-ui.js.
 4. Obrázky: č. 278–308 v docs/OBRAZKY.md (oddíl 24) + skripty na textury, siluety znaků a sady hradů (building-art.py). Vzory a znaky (č. 278–296) jsou dodané a převedené (`scripts/conquest-art.py vzory znaky`); chybí hrady.
 
 ## 9. Pomůcky (hotovo, schéma 30)

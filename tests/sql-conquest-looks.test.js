@@ -1,4 +1,4 @@
-// Vzory praporců a vzácné znaky do Dobývání v databázi (PostgreSQL 16, blok „38: Dobývání – vzory praporců a vzácné znaky“): statistiky
+// Výplně území (vzory) a vzácné znaky do Dobývání v databázi (PostgreSQL 16, blok „38: Dobývání – výplně území a vzácné znaky“): statistiky
 // hráče z dat serveru (i zpětně: dohrané hry, výhry podle mapy, tempa a Návratu do hry, hry bez ztráty hradu, celé regiony, vyhrané bitvy,
 // území přes moře, Boss týdne, série Kvízu dne, celé Řetězovky, odznaky Zlaté otázky, zimní Sezóna, Truhla, úroveň), odemčení do
 // conquest_looks a ohlášení nových, volba při založení, přidání a změně vzhledu jen odemčeného (správce cokoli), vzor v souhrnu hry,
@@ -46,6 +46,7 @@ alter default privileges in schema public grant execute on functions to anon, au
 
 const [A, B, D, E, ADMIN] = [1, 2, 4, 5, 6].map(id);
 const BOT = id(90);
+let LUCKY = null;
 const looks = (uid) => json(as(uid, 'select conquest_looks();'));
 const create = (uid, { map = 'evropa', players = 2, hours = 24, minutes = null, per = 'hour', actions = 5, colour = 'cervena', emblem = 'lev', pattern } = {}) =>
     as(uid, `select conquest_create(${lit(map)}, ${players}, ${hours === null ? 'null' : hours}, ${lit(per)}, ${actions}, 'private', ${lit(colour)}, ${lit(emblem)}, ${minutes === null ? 'null' : minutes}${pattern === undefined ? '' : `, ${lit(pattern)}`});`);
@@ -65,7 +66,7 @@ const twoPlayerGame = (a, b, map, homeA, homeB) => {
 };
 const finish = (game) => q(`update conquest_games set ends_at = '2026-11-01T00:00:00Z' where id = ${lit(game.id)}`);
 
-test('SQL: vzory praporců a vzácné znaky v Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, async (t) => {
+test('SQL: výplně území a vzácné znaky v Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, async (t) => {
     assert.equal(psql('postgres', `create database ${dbName}`).status, 0);
     t.after(() => psql('postgres', `drop database if exists ${dbName} with (force)`));
     q(bootstrap);
@@ -115,13 +116,13 @@ test('SQL: vzory praporců a vzácné znaky v Dobývání', { skip: !available &
 
     await t.test('volba: vzácný znak a vzor jen odemčené, neznámý vzor ne; bez vzoru jako dřív (i staré volání bez parametru); správce cokoli', () => {
         denied(create(A, { emblem: 'sfinga' }), /Tenhle vzácný znak ještě nemáš/);
-        denied(create(A, { pattern: 'plameny' }), /Tenhle vzor praporce ještě nemáš/);
-        denied(create(A, { pattern: 'kostkovany' }), /Vyber vzor praporce z nabídky/);
+        denied(create(A, { pattern: 'plameny' }), /Tuhle výplň území ještě nemáš/);
+        denied(create(A, { pattern: 'kostkovany' }), /Vyber výplň území z nabídky/);
         denied(create(A, { emblem: 'jednorozec-x' }), /Vyber znak z nabídky/);
         const game = json(create(A));
         assert.equal(game.players[0].pattern, null);
         denied(join(B, game.code, { emblem: 'gryf' }), /vzácný znak ještě nemáš/);
-        denied(join(B, game.code, { pattern: 'duha' }), /vzor praporce ještě nemáš/);
+        denied(join(B, game.code, { pattern: 'duha' }), /výplň území ještě nemáš/);
         // Správce má v nabídce všechno a smí to vybrat
         const admin = looks(ADMIN);
         assert.equal(admin.patterns.length, 12);
@@ -203,6 +204,7 @@ test('SQL: vzory praporců a vzácné znaky v Dobývání', { skip: !available &
         const lucky = Number(q(`select n from generate_series(100, 20000) n where conquest_chest_pattern(('00000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid, '${week}') limit 1`));
         const unlucky = Number(q(`select n from generate_series(100, 20000) n where not conquest_chest_pattern(('00000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid, '${week}') limit 1`));
         const [L, U] = [id(lucky), id(unlucky)];
+        LUCKY = L;
         q(`insert into auth.users (id, email) values ('${L}', 'l@example.com'), ('${U}', 'n@example.com')`);
         const r = json(as(L, `select player_items_claim('chest', '${week}');`));
         assert.equal(r.pattern, 'duha');
@@ -210,6 +212,30 @@ test('SQL: vzory praporců a vzácné znaky v Dobývání', { skip: !available &
         assert.equal(json(as(L, `select player_items_claim('chest', '${week}');`)).pattern, 'duha', 'opakované otevření totéž');
         assert.equal(json(as(U, `select player_items_claim('chest', '${week}');`)).pattern, undefined);
         assert.deepEqual(looks(U).patterns, []);
+    });
+
+    await t.test('barevná výplň (Hermelín, Zlatá fólie, Zlatý brokát, Duha) jen jednou ve hře; šedé mohou mít víc hráčů (barvy jsou různé); pojistka v indexu', () => {
+        clock = '2026-11-14T09:00:00Z';
+        const L = LUCKY;
+        const game = json(create(L, { pattern: 'duha', players: 4 }));
+        denied(join(ADMIN, game.code, { colour: 'zelena', pattern: 'duha' }), /Výplň Duha už v této hře má jiný hráč\. Vyber jinou\./);
+        const joined = json(join(ADMIN, game.code, { colour: 'zelena', pattern: 'brokat' }));
+        assert.equal(joined.players.find(p => p.id === ADMIN).pattern, 'brokat');
+        denied(as(ADMIN, `select conquest_set_look(${lit(game.id)}, 'zelena', 'lev', 'duha');`), /Výplň Duha už v této hře má jiný hráč/);
+        // Šedá výplň: stejnou může mít víc hráčů (Mramor má E i správce), barvy jsou ve hře vždy různé
+        json(as(ADMIN, `select conquest_set_look(${lit(game.id)}, 'zelena', 'lev', 'mramor');`));
+        const both = json(join(E, game.code, { colour: 'fialova', pattern: 'mramor' }));
+        assert.deepEqual(both.players.filter(p => p.pattern === 'mramor').map(p => p.flag_color).sort(), ['fialova', 'zelena']);
+        denied(join(B, game.code, { colour: 'zelena' }), /Tuhle barvu už má jiný hráč/, 'barvy ve hře různé');
+        // Hráč, který výplň má, ji může znovu potvrdit; když ji pustí, může ji vzít jiný
+        json(as(L, `select conquest_set_look(${lit(game.id)}, 'cervena', 'lev', 'duha');`));
+        json(as(L, `select conquest_set_look(${lit(game.id)}, 'cervena', 'lev', null);`));
+        const taken = json(as(ADMIN, `select conquest_set_look(${lit(game.id)}, 'zelena', 'lev', 'duha');`));
+        assert.equal(taken.players.find(p => p.me).pattern, 'duha');
+        // Pojistka: dvě stejné barevné výplně v jedné hře nepustí ani přímý zápis
+        const bad = psql(dbName, `update conquest_players set pattern = 'duha' where game_id = ${lit(game.id)} and user_id = '${L}'`);
+        assert.match(bad.stderr, /conquest_players_fill_key/);
+        q(`delete from conquest_games where id = ${lit(game.id)}`);
     });
 
     await t.test('vzor ve hře: založení, přidání a změna vzhledu se vzorem; souhrn ukáže vzor všem; vzor null = bez vzoru', () => {
@@ -222,7 +248,7 @@ test('SQL: vzory praporců a vzácné znaky v Dobývání', { skip: !available &
         assert.ok(lobby.looks && Array.isArray(lobby.looks.patterns), 'lobby posílá looks');
         const changed = json(as(E, `select conquest_set_look(${lit(game.id)}, 'cervena', 'lev', 'led');`));
         assert.deepEqual([changed.players.find(p => p.me).pattern, changed.players.find(p => p.me).emblem], ['led', 'lev']);
-        denied(as(E, `select conquest_set_look(${lit(game.id)}, 'cervena', 'lev', 'duha');`), /vzor praporce ještě nemáš/);
+        denied(as(E, `select conquest_set_look(${lit(game.id)}, 'cervena', 'lev', 'duha');`), /výplň území ještě nemáš/);
         denied(as(A, `select conquest_set_look(${lit(game.id)}, 'zelena', 'kraken', null);`), /vzácný znak ještě nemáš/);
         const plain = json(as(E, `select conquest_set_look(${lit(game.id)}, 'cervena', 'lev', null);`));
         assert.equal(plain.players.find(p => p.me).pattern, null);

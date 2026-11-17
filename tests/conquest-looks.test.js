@@ -1,4 +1,4 @@
-// Vzory praporců a vzácné znaky do Dobývání (blok 38): volání v social.js (looks z lobby a po hře očištěné, pattern_id jen se vzorem,
+// Výplně území (vzory) a vzácné znaky do Dobývání (blok 38): volání v social.js (looks z lobby a po hře očištěné, pattern_id jen se vzorem,
 // změna vzhledu s vzorem jen s databází, která ho zná, ohlášení nových, Duha z truhly) a blok 38 ve schema.sql (pořadí, verze 38 i v app.js,
 // oprávnění, texty chyb bez rodu). Chování v databázi hlídá tests/sql-conquest-looks.test.js, okno a katalog tests/conquest.test.js.
 const test = require('node:test');
@@ -78,7 +78,7 @@ test('social.js: databáze bez bloku 38 – lobby bez looks (null), vzory nejdou
     });
     try {
         assert.equal((await Social.conquestLobby()).looks, null);
-        await assert.rejects(Social.conquestLooks(), (error) => error.status === 404 && /Vzory praporců a vzácné znaky zatím nejdou/.test(error.message));
+        await assert.rejects(Social.conquestLooks(), (error) => error.status === 404 && /Výplně území a vzácné znaky zatím nejdou/.test(error.message));
         assert.deepEqual((await Social.conquestLobby()).open, [], 'Dobývání dál funguje');
     } finally {
         done();
@@ -87,16 +87,16 @@ test('social.js: databáze bez bloku 38 – lobby bez looks (null), vzory nejdou
 
 test('schema.sql: blok 38 před verzí schématu, verze 38 i v app.js; RPC jen přihlášeným, pomocné funkce jen interně, chyby česky a bez rodu', () => {
     const schema = fs.readFileSync(path.join(ROOT, 'supabase', 'schema.sql'), 'utf8');
-    const start = schema.indexOf('-- ===== 38: Dobývání – vzory praporců a vzácné znaky — ZAČÁTEK BLOKU =====');
-    const end = schema.indexOf('-- ===== 38: Dobývání – vzory praporců a vzácné znaky — KONEC BLOKU =====');
+    const start = schema.indexOf('-- ===== 38: Dobývání – výplně území a vzácné znaky — ZAČÁTEK BLOKU =====');
+    const end = schema.indexOf('-- ===== 38: Dobývání – výplně území a vzácné znaky — KONEC BLOKU =====');
     assert.ok(start > schema.indexOf('-- ===== 37: Pomůcka Záchrana navíc do Řetězovky — KONEC BLOKU ====='));
     assert.ok(end > start && end < schema.indexOf('-- ===== Verze schématu ====='));
     const version = Number(/language sql immutable as \$\$ select (\d+) \$\$;/.exec(schema)[1]);
     assert.ok(version >= 38);
     assert.equal(Number(/const REQUIRED_SCHEMA = (\d+);/.exec(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8'))[1]), version);
-    assert.match(schema, /^-- 38: Dobývání – vzory praporců a vzácné znaky/m, 'řádek v seznamu verzí');
+    assert.match(schema, /^-- 38: Dobývání – výplně území \(vzory\) a vzácné znaky/m, 'řádek v seznamu verzí');
     assert.match(schema, /grant execute on function public\.conquest_looks\(\), public\.conquest_looks_seen\(timestamptz\) to authenticated;/);
-    for (const name of ['conquest_look_stats', 'conquest_looks_json', 'conquest_look_owned', 'conquest_check_style', 'conquest_chest_pattern', 'conquest_look_catalog']) {
+    for (const name of ['conquest_look_stats', 'conquest_looks_json', 'conquest_look_owned', 'conquest_check_style', 'conquest_check_fill', 'conquest_colored_patterns', 'conquest_chest_pattern', 'conquest_look_catalog']) {
         assert.doesNotMatch(schema, new RegExp(`grant [^;]*${name}\\(`), `${name} jen interně`);
     }
     // Staré podoby funkcí se vzhledem se mažou (PostgREST by jinak našel dvě)
@@ -104,7 +104,7 @@ test('schema.sql: blok 38 před verzí schématu, verze 38 i v app.js; RPC jen p
         'conquest_add_player\\(public\\.conquest_games, uuid, text, text\\)']) {
         assert.match(schema, new RegExp(`drop function if exists public\\.${old};`), old);
     }
-    const messages = ['Tenhle vzácný znak ještě nemáš. Vyber jiný.', 'Tenhle vzor praporce ještě nemáš. Vyber jiný.', 'Vyber vzor praporce z nabídky.'];
+    const messages = ['Tenhle vzácný znak ještě nemáš. Vyber jiný.', 'Tuhle výplň území ještě nemáš. Vyber jinou.', 'Vyber výplň území z nabídky.', 'Výplň % už v této hře má jiný hráč. Vyber jinou.'];
     for (const message of messages) {
         assert.ok(schema.includes(message), message);
         assert.doesNotMatch(message, /\b(získal|získala|vybral|vybrala)\b/);

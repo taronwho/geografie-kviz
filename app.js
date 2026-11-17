@@ -4759,7 +4759,7 @@
         if (news.kind === 'new') showCelebration('vitez', news.title, news.text, 'badge', itemArt(grant.kind, 'h-16 w-16 -my-2 drop-shadow-lg'));
         else if (news.kind === 'full') showToast(news.text);
     };
-    // Vzory praporců a vzácné znaky do Dobývání (blok 38, conquest.js lookNews): každý nový vlastní oslavou (nejvýš tři, víc jedním souhrnem)
+    // Výplně území a vzácné znaky do Dobývání (blok 38, conquest.js lookNews): každý nový vlastní oslavou (nejvýš tři, víc jedním souhrnem)
     const celebrateLooks = (news, look = {}) => {
         const Conquest = window.MudrlantConquest;
         if (!Conquest || !Array.isArray(news) || !news.length) return;
@@ -5271,12 +5271,12 @@
         if (goldRow) { goldRow.remove(); if (screen === 'mode') renderModeScreen(); else paintGold(); }
     };
     const chestHelpers = () => ({ frameClass: (id) => (window.MudrlantLookFrames ? window.MudrlantLookFrames.frameClass(id) : ''), itemArt,
-        // Praporec se vzorem (vzácnost z truhly, blok 38) v barvě a znaku z poslední volby v Dobývání
+        // Vzorek výplně území (vzácnost z truhly, blok 38) v barvě z poslední volby v Dobývání
         patternArt: (id, cls) => {
             const Conquest = window.MudrlantConquest;
             if (!Conquest) return '';
             const prefs = readJson('mudrlant.conquest') || {};
-            return Conquest.pennantSvg(Conquest.COLOR_BY_ID[prefs.color] ? prefs.color : 'cervena', Conquest.EMBLEM_BY_ID[prefs.emblem] || Conquest.RARE_EMBLEM_BY_ID[prefs.emblem] ? prefs.emblem : 'lev', cls, id);
+            return Conquest.fillSwatchSvg(Conquest.COLOR_BY_ID[prefs.color] ? prefs.color : 'cervena', id, cls);
         } });
     // Pomůcky ze Sezóny a z Truhly Mudrlanta jdou jen přihlášenému a jen s databází, která je zná (blok 30)
     const itemsClaimable = () => Boolean(signedUser() && Social && Social.playerItemsClaim && !(Social.conquestItemsMissing && Social.conquestItemsMissing()));
@@ -5316,7 +5316,7 @@
         const showBonus = () => {
             if (!bonus) return;
             bonus.then(grant => {
-                // Vzácný vzor praporce Duha do Dobývání (blok 38): řádek v truhle, jen při prvním otevření
+                // Vzácná výplň území Duha do Dobývání (blok 38): řádek v truhle, jen při prvním otevření
                 if (grant && grant.pattern && !grant.already && opened && overlay.isConnected) {
                     opened = { ...opened, pattern: { id: grant.pattern, name: 'Duha' } };
                     paint();
@@ -14507,7 +14507,7 @@
             share: (payload) => ShareCard ? ShareCard.shareText(payload, { toast: showToast, copied: 'Odkaz na hru zkopírován', failed: 'Kopírování se nepodařilo' }) : null,
             // Výhra: pomůcka Půl na půl (blok 30)
             itemGranted: (grant) => celebrateItem(grant),
-            // Nově odemčené vzory praporců a vzácné znaky (blok 38): oslava s praporcem nebo pečetí v barvě a znaku hráče
+            // Nově odemčené výplně území a vzácné znaky (blok 38): oslava se vzorkem území nebo pečetí v barvě a znaku hráče
             looksUnlocked: (news, look) => celebrateLooks(news, look),
             sound: (name) => { if (Sound) Sound.play(name); },
             touchTip,

@@ -212,7 +212,7 @@ test('tip Vzory a vzácné znaky (Dobývání): přihlášenému, který Dobýv�
     const tip = at(base({ counters: { answered: 50 }, signedIn: true }), visited);
     assert.equal(tip.id, 'dobyvani-vzory');
     assert.deepEqual(tip.action, { kind: 'conquest', label: 'Otevřít Dobývání' });
-    assert.match(tip.text, /vzory praporců a vzácné znaky[\s\S]*Bosse týdne, sérii v Kvízu dne nebo celé Řetězovky[\s\S]*Barva a znak/);
+    assert.match(tip.text, /výplně území[\s\S]*vzácné znaky[\s\S]*Bosse týdne, sérii v Kvízu dne nebo celé Řetězovky[\s\S]*Barva a znak/);
     assert.doesNotMatch(tip.text, /\b(získal|získala|vyhrál|vyhrála|dobyl|dobyla|otevřel|otevřela)\b/);
 });
 
