@@ -149,8 +149,11 @@ test('SQL: Boss týdne', { skip: !available && 'PostgreSQL není dostupný' }, a
         // Příští týden v pondělí 0:10 ještě ne (30 minut se přijímají souboje), v 1:00 už ano
         denied(as(A, `select boss_claim_bonus('${WEEK}');`, '2026-11-15T23:10:00Z'), /skončený týden/);
         const later = '2026-11-16T09:00:00Z';
-        assert.deepEqual(json(as(A, `select boss_claim_bonus('${WEEK}');`, later)), { week: WEEK, played: true, reached: true, claimed: true, xp: 50 });
-        assert.equal(json(as(A, `select boss_claim_bonus('${WEEK}');`, later)).xp, 0, 'podruhé nic');
+        // Splněný společný cíl dá i pomůcku Záchrana navíc do Řetězovky (blok 37, klíč bossbonus:<týden>)
+        assert.deepEqual(json(as(A, `select boss_claim_bonus('${WEEK}');`, later)), { week: WEEK, played: true, reached: true, claimed: true, xp: 50,
+            item: { kind: 'chain_rescue', granted: true, full: false, already: false, count: 1, max: 1 } });
+        assert.deepEqual(json(as(A, `select boss_claim_bonus('${WEEK}');`, later)), { week: WEEK, played: true, reached: true, claimed: true, xp: 0 }, 'podruhé nic');
+        assert.equal(q(`select count from player_items where user_id = '${A}' and kind = 'chain_rescue'`), '1');
         assert.equal(json(as(B, `select boss_claim_bonus('${WEEK}');`, later)).xp, 50, 'i hráč, který prohrál');
         assert.deepEqual(json(as(E, `select boss_claim_bonus('${WEEK}');`, later)), { week: WEEK, played: false, reached: true, claimed: false, xp: 0 }, 'kdo nehrál, nic');
         assert.equal(q(`select bonus_claimed from boss_results where user_id = '${A}'`), 't');

@@ -325,7 +325,7 @@ test('hra: článek k dává k bodů, celý řetěz 28; Záchrana jednou (0 bod�
         assert.equal(result.outcome, 'right');
         attempt = result.attempt;
     }
-    assert.deepEqual(Chain.summaryOf(attempt), { links: 7, score: 28, rescued: false, full: true, done: true });
+    assert.deepEqual(Chain.summaryOf(attempt), { links: 7, score: 28, rescued: false, extra: false, full: true, done: true });
     assert.equal(Chain.nextLink(attempt), -1);
     assert.deepEqual(Chain.xpFor(Chain.summaryOf(attempt)), { total: 66, parts: [{ label: 'za body v Řetězovce dne', xp: 56 }, { label: 'za celý řetěz', xp: 10 }] });
     assert.ok(Chain.validSummary(Chain.summaryOf(attempt)));
@@ -345,23 +345,117 @@ test('hra: článek k dává k bodů, celý řetěz 28; Záchrana jednou (0 bod�
     step = Chain.answer(attempt, right(attempt));
     assert.equal(step.outcome, 'saved');
     attempt = step.attempt;
-    assert.deepEqual(Chain.summaryOf(attempt), { links: 3, score: 3, rescued: true, full: false, done: false });
+    assert.deepEqual(Chain.summaryOf(attempt), { links: 3, score: 3, rescued: true, extra: false, full: false, done: false });
     // Druhá chyba: Záchrana už není, řetěz se přetrhne
     step = Chain.answer(attempt, 'x3b');
     assert.equal(step.outcome, 'broken');
-    assert.deepEqual(Chain.summaryOf(step.attempt), { links: 3, score: 3, rescued: true, full: false, done: true });
+    assert.deepEqual(Chain.summaryOf(step.attempt), { links: 3, score: 3, rescued: true, extra: false, full: false, done: true });
     assert.ok(Chain.validSummary(Chain.summaryOf(step.attempt)));
     assert.equal(Chain.shareGrid(step.attempt.results), '🔗🔗🛟💥');
 
     // Ukončit řetěz místo Záchrany; Záchrana, která nevyšla
     let stopped = Chain.answer(Chain.newAttempt('2026-11-12', 'host', tiny()), 'x0c').attempt;
     stopped = Chain.giveUp(stopped);
-    assert.deepEqual(Chain.summaryOf(stopped), { links: 0, score: 0, rescued: false, full: false, done: true });
+    assert.deepEqual(Chain.summaryOf(stopped), { links: 0, score: 0, rescued: false, extra: false, full: false, done: true });
     let lost = Chain.useRescue(Chain.answer(Chain.newAttempt('2026-11-12', 'host', tiny()), 'x0c').attempt);
     const wrongRescue = Chain.currentAsk(lost).rescue.options.find(option => option.id !== right(lost)).id;
     const outcome = Chain.answer(lost, wrongRescue);
     assert.equal(outcome.outcome, 'lost');
-    assert.deepEqual(Chain.summaryOf(outcome.attempt), { links: 0, score: 0, rescued: true, full: false, done: true });
+    assert.deepEqual(Chain.summaryOf(outcome.attempt), { links: 0, score: 0, rescued: true, extra: false, full: false, done: true });
+});
+
+test('Záchrana navíc (pomůcka, blok 37): až po použité Záchraně, jednou za hru, ne v cvičné; zachráněný článek za 0 bodů', () => {
+    const wrong = (attempt) => { const ask = Chain.currentAsk(attempt); return (ask.rescue || ask.question).options.find(option => option.id !== right(attempt)).id; };
+    // Bez Záchrany navíc druhá chyba přetrhne (i s pomůckou, dokud je Záchrana nepoužitá, nabídne se nejdřív ona)
+    let attempt = Chain.newAttempt('2026-11-12', 'u-1', tiny());
+    attempt = Chain.answer(attempt, right(attempt)).attempt;
+    let step = Chain.answer(attempt, wrong(attempt), { extra: true });
+    assert.deepEqual([step.outcome, step.attempt.pending.extra], ['decide', undefined], 'nejdřív běžná Záchrana');
+    attempt = Chain.useRescue(step.attempt);
+    attempt = Chain.answer(attempt, right(attempt)).attempt;
+    attempt = Chain.answer(attempt, right(attempt)).attempt;
+    assert.equal(Chain.answer(attempt, wrong(attempt)).outcome, 'broken', 'bez pomůcky se přetrhne');
+    // S pomůckou: nabídka Záchrany navíc, záchranná otázka 4. článku a článek za 0 bodů
+    step = Chain.answer(attempt, wrong(attempt), { extra: true });
+    assert.equal(step.outcome, 'decide');
+    assert.deepEqual(step.attempt.pending, { k: 4, chosen: step.attempt.pending.chosen, phase: 'decide', extra: true });
+    assert.equal(Chain.giveUp(step.attempt).done, true, 'Ukončit jde i tady');
+    attempt = Chain.useRescue(step.attempt);
+    assert.deepEqual([attempt.extraUsed, attempt.pending.phase, Chain.currentAsk(attempt).rescue.text], [true, 'rescue', 'Záchrana 4?']);
+    step = Chain.answer(attempt, right(attempt));
+    assert.equal(step.outcome, 'saved');
+    attempt = step.attempt;
+    assert.deepEqual(attempt.results.map(row => [row.k, row.rescued, Boolean(row.extra), row.points]), [[1, false, false, 1], [2, true, false, 0], [3, false, false, 3], [4, true, true, 0]]);
+    const summary = Chain.summaryOf(attempt);
+    assert.deepEqual(summary, { links: 4, score: 4, rescued: true, extra: true, full: false, done: false });
+    assert.ok(Chain.validSummary(summary));
+    assert.equal(Chain.validSummary({ ...summary, extra: false }), false, 'bez Záchrany navíc by server body nepřijal');
+    // Třetí chyba: už nic, ani s pomůckou
+    step = Chain.answer(attempt, wrong(attempt), { extra: true });
+    assert.equal(step.outcome, 'broken');
+    assert.equal(Chain.shareGrid(step.attempt.results), '🔗🛟🔗🛟💥');
+    assert.equal(Chain.cardInput({ day: '2026-11-12', attempt: step.attempt, robe: 'zelena', url: 'u', appName: 'M' }).detail, '4/7 článků · se dvěma Záchranami');
+    // Záchrana navíc, která nevyšla
+    let first = Chain.useRescue(Chain.answer(Chain.newAttempt('2026-11-12', 'u-1', tiny()), 'x0a').attempt);
+    first = Chain.answer(first, right(first)).attempt;
+    const lost = Chain.answer(Chain.useRescue(Chain.answer(first, 'x1a', { extra: true }).attempt), 'y1a');
+    assert.equal(lost.outcome, 'lost');
+    assert.deepEqual(lost.attempt.results.map(row => [row.k, row.correct, row.rescued, Boolean(row.extra)]), [[1, true, true, false], [2, false, true, true]]);
+    assert.ok(Chain.validSummary(Chain.summaryOf(lost.attempt)));
+    // Cvičná řetězovka pomůcku nepoužívá
+    let practice = Chain.useRescue(Chain.answer(Chain.newAttempt('2026-11-12', 'host', tiny(), true), 'x0a').attempt);
+    practice = Chain.answer(practice, right(practice)).attempt;
+    assert.equal(Chain.answer(practice, 'x1a', { extra: true }).outcome, 'broken');
+
+    // Uložený stav: nabídka i rozehraná otázka Záchrany navíc přežijí, podvržený třetí zachráněný článek ne
+    const offered = Chain.parseState(JSON.parse(JSON.stringify({ attempt: Chain.answer(attempt, wrong(attempt), { extra: false }).attempt }))).attempt;
+    assert.equal(offered.done, true);
+    const before = Chain.answer(Chain.useRescue(Chain.answer(Chain.newAttempt('2026-11-12', 'u-1', tiny()), 'x0a').attempt), 'n1').attempt;
+    const pendingExtra = Chain.answer(before, 'x1a', { extra: true }).attempt;
+    assert.deepEqual(Chain.parseState(JSON.parse(JSON.stringify({ attempt: pendingExtra }))).attempt.pending, { k: 2, chosen: 'x1a', phase: 'decide', extra: true });
+    const inRescue = Chain.parseState(JSON.parse(JSON.stringify({ attempt: Chain.useRescue(pendingExtra) }))).attempt;
+    assert.deepEqual([inRescue.extraUsed, inRescue.pending.phase, inRescue.pending.extra], [true, 'rescue', true]);
+    assert.equal(Chain.parseState({ attempt: { ...pendingExtra, extraUsed: true } }).attempt.pending, null, 'použitá pomůcka se nenabídne znovu');
+    assert.equal(Chain.parseState({ attempt: { ...pendingExtra, rescueUsed: false, results: [{ k: 1, correct: true, rescued: false }] } }).attempt.pending, null, 'Záchrana navíc ne před Záchranou');
+    const saved = Chain.parseState(JSON.parse(JSON.stringify({ attempt }))).attempt;
+    assert.deepEqual([saved.rescueUsed, saved.extraUsed, saved.results[3].extra, Chain.summaryOf(saved).score], [true, true, true, 4]);
+    const forged = Chain.parseState({ attempt: { ...attempt, results: [...attempt.results, { k: 5, correct: true, rescued: true }] } }).attempt;
+    assert.equal(forged.results.length, 4, 'třetí zachráněný článek ne');
+
+    // Vykreslení: štítek Záchrany (+1, po použité Záchraně Záchrana navíc), panel s nabídkou, výsledek a okno článku
+    const fresh = Chain.newAttempt('2026-11-12', 'u-1', tiny());
+    assert.match(Chain.playHtml({ attempt: fresh, ask: Chain.currentAsk(fresh), phase: 'ask', extraReady: true }), /data-chain-rescue="ready" data-chain-extra="ready"[\s\S]*?\+1<\/span><span class="sr-only"> a Záchrana navíc/);
+    assert.doesNotMatch(Chain.playHtml({ attempt: fresh, ask: Chain.currentAsk(fresh), phase: 'ask' }), /data-chain-extra/);
+    assert.match(Chain.playHtml({ attempt: before, ask: Chain.currentAsk(before), phase: 'ask', extraReady: true }), /data-chain-rescue="extra"[^>]*><i data-lucide="shield-plus"[^>]*><\/i> Záchrana navíc/);
+    assert.match(Chain.playHtml({ attempt: before, ask: Chain.currentAsk(before), phase: 'ask' }), /data-chain-rescue="used"/);
+    const extraAsk = Chain.useRescue(pendingExtra);
+    assert.match(Chain.playHtml({ attempt: extraAsk, ask: Chain.currentAsk(extraAsk), phase: 'ask' }), /Záchrana navíc · za 0 bodů/);
+    const panel = Chain.decideHtml({ chosenName: 'A', extra: true, seal: '<span class="cq-item-seal"></span>' });
+    assert.match(panel, /data-chain-decide data-chain-decide-extra[\s\S]*Záchrana už je použitá, máš ale pomůcku Záchrana navíc[\s\S]*data-chain-extra-use[^>]*><span class="cq-item-seal"><\/span> Použít Záchranu navíc[\s\S]*Ukončit řetěz/);
+    assert.match(Chain.decideHtml({ chosenName: 'A', extra: true }), /Správnou odpověď uvidíš po Záchraně navíc, nebo když řetěz ukončíš\./);
+    assert.match(Chain.decideHtml({ chosenName: 'A', extra: true, correctName: 'B' }), /Správně bylo: <b data-chain-correct[^>]*>B<\/b>\./);
+    assert.match(Chain.resultHtml({ attempt: step.attempt, guest: true }, { uiArt: () => '', xpLine: () => '' }), /4\/7 článků · se dvěma Záchranami[\s\S]*4\. článek: Uzel 4, Záchrana navíc/);
+    assert.match(Chain.stepHtml(step.attempt, 4), /Zachráněno Záchranou navíc, za 0 bodů\./);
+    assert.match(Chain.stepHtml(step.attempt, 2), /Zachráněno Záchranou, za 0 bodů\./);
+    assert.match(Chain.stepHtml(lost.attempt, 2), /Záchrana navíc nevyšla, tady se řetěz přetrhl\./);
+    // Dlaždice: má-li hráč pomůcku, u nedohrané hry „Záchrana navíc ✓“
+    assert.equal(Chain.homeTile({ status: 'new', extra: true }).text, '7 článků · Záchrana navíc ✓');
+    assert.match(Chain.homeTile({ status: 'progress', step: 3, extra: true }).label, /, máš Záchranu navíc$/);
+    assert.equal(Chain.homeTile({ status: 'done', summary: { links: 5, score: 15 }, extra: true }).text, '15 bodů · 5/7');
+    // Zprávy o zisku (conquest.js ITEMS, grantNews): nová pomůcka i s milníkem, plná zásoba propadne
+    const C = require('../conquest.js');
+    assert.deepEqual([C.ITEMS.chain_rescue.name, C.ITEMS.chain_rescue.max, C.ITEMS.chain_rescue.icon], ['Záchrana navíc', 1, 'shield-plus']);
+    assert.ok(!C.ITEM_IDS.includes('chain_rescue'), 'pruh Pomůcky v Dobývání ji nemá');
+    assert.deepEqual(C.grantNews({ kind: 'chain_rescue', granted: true, count: 1 }), { kind: 'new', title: 'Nová pomůcka: Záchrana navíc', text: 'V Řetězovce dne zachrání řetěz ještě jednou, když už je Záchrana použitá.' });
+    assert.match(C.grantNews({ kind: 'chain_rescue', granted: true, count: 1, source: 'chain-days', at: 10 }).text, /^Za 10 dohraných Řetězovek dne\. /);
+    assert.match(C.grantNews({ kind: 'chain_rescue', granted: true, count: 1, source: 'chain-clean', at: 5 }).text, /^Za 5 celých řetězů bez Záchrany\. /);
+    assert.deepEqual(C.grantNews({ kind: 'chain_rescue', granted: false, full: true, count: 1 }), { kind: 'full', text: 'Záchranu navíc už máš. Víc než jednu mít nejde, tahle propadla.' });
+    assert.deepEqual(C.grantNews({ kind: 'chain_rescue', granted: true, already: true }), { kind: null });
+    // Okno Pomůcky v rozcestníku: Záchrana navíc krátkým řádkem, jen když ji databáze zná; ve hře ne
+    assert.match(C.itemsDialogHtml({ extra_move: 0, fifty: 1, chain_rescue: 1 }), /data-cq-item-card="chain_rescue"[\s\S]*Záchrana navíc[\s\S]*Do Řetězovky dne[\s\S]*1\/1/);
+    assert.doesNotMatch(C.itemsDialogHtml({ extra_move: 0, fifty: 1 }), /chain_rescue/);
+    assert.doesNotMatch(C.itemsDialogHtml({ extra_move: 0, fifty: 1, chain_rescue: 1 }, { game: true }), /chain_rescue/);
+    assert.match(C.itemSealHtml('chain_rescue', 'h-8 w-8'), /cq-item-seal cq-item-chain_rescue[\s\S]*data-lucide="shield-plus"[\s\S]*\+1/);
 });
 
 test('uložený stav: pokus se vyčistí (nesmysly pryč, body se přepočítají), cache řetězu dne a historie', () => {

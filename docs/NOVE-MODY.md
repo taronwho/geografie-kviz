@@ -136,7 +136,14 @@ Co ukáže obrazovka otázky (listopad 2026; Řetězovka, č. 6, má vlastní pr
   - jeden pokus za den, čas se nepočítá;
   - článek k dává k bodů, celý řetěz tedy 28 bodů;
   - špatná odpověď řetěz přetrhne a hra končí;
-  - jednou za hru můžeš použít **Záchranu**: místo špatné odpovědi dostaneš jinou otázku na stejný článek, za 0 bodů.
+  - jednou za hru můžeš použít **Záchranu**: místo špatné odpovědi dostaneš jinou otázku na stejný článek, za 0 bodů;
+  - pomůcka **Záchrana navíc** (schéma 37, nejvýš 1 v zásobě na serveru): když je Záchrana použitá a přijde další chyba, panel nabídne
+    „Použít Záchranu navíc“ (pečeť, do dodání obrázku č. 360 ikona `shield-plus`) – záchranná otázka toho článku, za 0 bodů. Server ji
+    ubere (`chain_use_rescue`, jednou za den) a pak přijme výsledek se dvěma zachráněnými články. Řetěz je pro všechny stejný. Získá se za
+    milníky Řetězovky (10/30/100/365 dohraných dní, 5/15/30/60 celých řetězů bez Záchrany), 12. stupeň Sezóny, společnou výhru nad Bossem
+    týdne a vzácně z Truhly Mudrlanta (5 %) nebo Zlaté truhly (20 %, jednou za týden). Cvičná řetězovka ji nepoužívá. Zásobu ukazuje
+    dlaždice („7 článků · Záchrana navíc ✓“), štítek Záchrany na kartě otázky („+1“, po použité Záchraně „Záchrana navíc“) a okno Pomůcky
+    v rozcestníku Dobývání.
 - **Kompatibilita**: nový generátor platí od `NEW_FROM` = 15. 11. 2026 (pražský čas). Dny před ním staví zmrazený původní generátor
   `chain-legacy.js` (v prohlížeči se načte jen tehdy), takže řetěz dne, který už někdo hrál, se po nasazení nezmění; uložené pokusy starých dnů
   (bez vysvětlení a fotky) se vykreslí jako dřív. `tests/chain-legacy-snapshot.json` hlídá, že se původní výstup nezměnil.

@@ -81,7 +81,7 @@ const backend = async (context, db) => {
             + (g.sieges || []).filter(s => s.status === 'open' && s.participants.some(p => p.user === me.id)).length; const penalty = g.penaltyPeriod !== undefined && g.penaltyPeriod === (g.periodNo || 0) ? 1 : 0;
             const extra = extraOf(g, me.id); return { period: g.periodNo || 0, base: g.actions, regions: 0, treasures: 0, loot: 0, penalty, extra, used, total: g.actions - penalty + extra, left: Math.max(0, g.actions - penalty + extra - used), period_ends_at: '2026-11-12T10:00:00Z' }; };
         // Pomůcky (blok 30), jen s db.items = { hráč: { extra_move, fifty } }: zásoba, co jde v této hře použít
-        const stock = () => (db.items ? { extra_move: 0, fifty: 0, ...(db.items[me.id] || {}), max: { extra_move: 1, fifty: 2 } } : null);
+        const stock = () => (db.items ? { extra_move: 0, fifty: 0, chain_rescue: 0, ...(db.items[me.id] || {}), max: { extra_move: 1, fifty: 2, chain_rescue: 1 } } : null);
         const gameItems = (g) => {
             if (!db.items) return {};
             const items = stock();
@@ -179,16 +179,17 @@ const backend = async (context, db) => {
         // Pomůcky (blok 30)
         if (name.startsWith('player_items') || name === 'conquest_use_extra' || name === 'conquest_use_fifty') {
             if (!db.items) return fail('Not found', 404);
-            const items = db.items[me.id] = { extra_move: 0, fifty: 0, ...(db.items[me.id] || {}) };
+            const items = db.items[me.id] = { extra_move: 0, fifty: 0, chain_rescue: 0, ...(db.items[me.id] || {}) };
             if (name === 'player_items_mine') return json(stock());
-            // Sezóna (5. stupeň Půl na půl, 15. Tah navíc) a truhla (db.chestLucky = los vyšel); plná zásoba nic nepřidá
+            // Sezóna (5. stupeň Půl na půl, 12. Záchrana navíc, 15. Tah navíc), truhla a Zlatá truhla (db.chestLucky = los vyšel; Zlatá truhla
+            // dává Záchranu navíc, blok 37); plná zásoba nic nepřidá
             if (name === 'player_items_claim') {
-                const kind = body.source === 'season' ? (/:15$/.test(body.key) ? 'extra_move' : 'fifty') : 'fifty';
-                if (body.source === 'chest' && !db.chestLucky) return json({ kind, granted: false, full: false, already: false, lucky: false, items: stock() });
-                const max = kind === 'extra_move' ? 1 : 2;
+                const kind = body.source === 'season' ? (/:15$/.test(body.key) ? 'extra_move' : /:12$/.test(body.key) ? 'chain_rescue' : 'fifty') : body.source === 'gold' ? 'chain_rescue' : 'fifty';
+                if ((body.source === 'chest' || body.source === 'gold') && !db.chestLucky) return json({ kind, granted: false, full: false, already: false, lucky: false, items: stock() });
+                const max = kind === 'fifty' ? 2 : 1;
                 if (items[kind] >= max) return json({ kind, granted: false, full: true, already: false, count: items[kind], max, items: stock() });
                 items[kind] += 1;
-                return json({ kind, granted: true, full: false, already: false, count: items[kind], max, ...(body.source === 'chest' ? { lucky: true } : {}), items: stock() });
+                return json({ kind, granted: true, full: false, already: false, count: items[kind], max, ...(body.source !== 'season' ? { lucky: true } : {}), items: stock() });
             }
             const g = find(body.game);
             if (name === 'conquest_use_extra') {
@@ -1092,6 +1093,8 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Pomůcky');
         const dialog = await bodyText(tab, '#dialog-overlay');
         assert.match(dialog, /Tah navíc\s*1\/1\s*O 1 tah víc v tomto kole\.[\s\S]*Jak získat: Poražený Boss týdne[\s\S]*Půl na půl\s*2\/2[\s\S]*Jak získat: Kvíz dne bez chyby/);
+        // Záchrana navíc do Řetězovky (blok 37): krátký řádek pod pomůckami do Dobývání
+        assert.match(dialog, /Záchrana navíc\s*Do Řetězovky dne: zachrání řetěz ještě jednou\.\s*0\/1/);
         assert.ok(await tab.evaluate(() => { const box = document.querySelector('#dialog-overlay > div'); const rect = box.getBoundingClientRect(); return box.scrollHeight - box.clientHeight <= 0 && rect.top >= 0 && rect.bottom <= 640; }), 'okno Pomůcky se vejde');
         await shot(tab, 'pomucky-okno-360');
         await tab.keyboard.press('Escape');
@@ -1275,7 +1278,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         await context.close();
     });
 
-    await t.test('pomůcky ze Sezóny a z Truhly na 360×640: 5. stupeň s pečetí Půl na půl na cestě a obřadem „Nová pomůcka do Dobývání“; v truhle navíc Půl na půl', async () => {
+    await t.test('pomůcky ze Sezóny a z Truhly na 360×640: 5. stupeň s pečetí Půl na půl na cestě a obřadem „Nová pomůcka do Dobývání“; v truhle navíc Půl na půl, ve Zlaté truhle Záchrana navíc', async () => {
         const db = newDb();
         db.items = { 'u-1': { extra_move: 0, fifty: 0 } };
         db.chestLucky = true;
@@ -1320,6 +1323,27 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         assert.equal(db.items['u-1'].fifty, 2);
         await tab.waitForTimeout(1300);
         await shot(tab, 'pomucky-truhla-360');
+        await tab.click('#chest-overlay [data-chest-close]');
+        // Zlatá truhla: vzácně Záchrana navíc do Řetězovky (blok 37, los na serveru, jednou za týden)
+        await tab.evaluate(() => {
+            localStorage.setItem('mudrlant.gold', JSON.stringify({ intro: true, ready: 1 }));
+            const button = document.createElement('button');
+            button.dataset.action = 'gold-chest';
+            button.id = 'test-gold-chest';
+            document.getElementById('app-content').appendChild(button);
+            button.click();
+            button.remove();
+        });
+        await tab.waitForSelector('#chest-overlay [data-chest-go]');
+        await tab.click('#chest-overlay [data-chest-go]');
+        await tab.waitForSelector('#chest-overlay [data-chest-pomucka]', { timeout: 10000 });
+        assert.deepEqual(db.calls.filter(call => call.name === 'player_items_claim').pop().body, { source: 'gold', key: 'gold:2026-W46' });
+        assert.match(await tab.textContent('[data-chest-pomucka]'), /A navíc pomůcka do Řetězovky: Záchrana navíc/);
+        assert.equal(await tab.locator('[data-chest-pomucka] .cq-item-chain_rescue').count(), 1, 'pečeť Záchrany navíc');
+        assert.equal(db.items['u-1'].chain_rescue, 1);
+        await tab.waitForTimeout(1300);
+        await shot(tab, 'pomucky-zlata-truhla-360');
+        await tab.click('#chest-overlay [data-chest-close]');
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();

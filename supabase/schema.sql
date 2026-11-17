@@ -1626,7 +1626,9 @@ begin
         -- Pomůcky do Dobývání (schéma 30): zásoba a odkud přišly
         'pomucky', jsonb_build_object(
             'zasoba', coalesce((select jsonb_agg(to_jsonb(i) order by i.kind) from public.player_items i where i.user_id = uid), '[]'::jsonb),
-            'ziskane', coalesce((select jsonb_agg(to_jsonb(x) order by x.at) from public.player_item_grants x where x.user_id = uid), '[]'::jsonb)),
+            'ziskane', coalesce((select jsonb_agg(to_jsonb(x) order by x.at) from public.player_item_grants x where x.user_id = uid), '[]'::jsonb),
+            -- Použitá Záchrana navíc v Řetězovce (schéma 37)
+            'pouzite', coalesce((select jsonb_agg(to_jsonb(u) order by u.at) from public.player_item_uses u where u.user_id = uid), '[]'::jsonb)),
         -- Pozvi kamarády (schéma 32): můj kód přítele, kdo mě pozval, koho jsem pozval a vyzvednuté odměny (prestiž a vítězný efekt jsou v profilu)
         'pozvanky', jsonb_build_object(
             'kod', (select c.code from public.referral_codes c where c.user_id = uid),
@@ -3989,7 +3991,7 @@ $$;
 -- kteří to zkusili. Jen jednou za týden (bonus_claimed), nejvýš 12 týdnů zpět. xp = kolik XP si aplikace má připsat (0 = nic).
 create or replace function public.boss_claim_bonus(for_week date) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare uid uuid := auth.uid(); t timestamptz := public.boss_now(); r public.boss_results; players integer; beaten integer; reached boolean;
+declare uid uuid := auth.uid(); t timestamptz := public.boss_now(); r public.boss_results; players integer; beaten integer; reached boolean; item jsonb;
 begin
     if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
     if for_week is null or extract(isodow from for_week) <> 1 or for_week >= public.boss_week(t - interval '30 minutes') or for_week < public.boss_week(t) - 84 then
@@ -4002,7 +4004,12 @@ begin
     if r.bonus_claimed then return jsonb_build_object('week', for_week, 'played', true, 'reached', reached, 'claimed', true, 'xp', 0); end if;
     if not reached then return jsonb_build_object('week', for_week, 'played', true, 'reached', false, 'claimed', false, 'xp', 0); end if;
     update public.boss_results set bonus_claimed = true, updated_at = t where user_id = uid and week = for_week;
-    return jsonb_build_object('week', for_week, 'played', true, 'reached', true, 'claimed', true, 'xp', 50);
+    -- Společný cíl splněný: k XP i pomůcka Záchrana navíc do Řetězovky (blok 37, klíč bossbonus:<týden>; s plnou zásobou nic): item
+    if to_regprocedure('public.chain_use_rescue(date)') is not null then
+        item := public.player_item_grant(uid, 'chain_rescue', 'bossbonus:' || for_week, false);
+    end if;
+    return jsonb_build_object('week', for_week, 'played', true, 'reached', true, 'claimed', true, 'xp', 50)
+        || case when item is not null then jsonb_build_object('item', item) else '{}'::jsonb end;
 end;
 $$;
 
@@ -5941,7 +5948,8 @@ grant execute on function public.dev_conquest_add_bots(uuid, integer), public.de
 -- Každý den (pražský čas) stejný řetěz sedmi otázek pro všechny: odpověď na jednu je začátkem další (chain.js ho sestaví z dat témat,
 -- server otázky nezná). Článek k dává k bodů (celý řetěz 28), špatná odpověď řetěz přetrhne, jednou za hru Záchrana (jiná otázka na stejný
 -- článek za 0 bodů). Jeden řádek na hráče a den: první odeslaný výsledek platí, další se jen vrátí. Body a články musí sedět: bez Záchrany
--- přesně 1 + 2 + … + články, se Záchranou o jeden zachráněný článek méně (nebo stejně, když Záchrana nevyšla). Tabulku hráč jen čte
+-- přesně 1 + 2 + … + články, se Záchranou o jeden zachráněný článek méně (nebo stejně, když Záchrana nevyšla), s pomůckou Záchrana navíc
+-- (blok 37, extra_rescue: použitá ten den přes chain_use_rescue) o dva zachráněné články méně. Tabulku hráč jen čte
 -- (svůj řádek); zapisuje jen chain_submit. Pořadí dne (chain_day_stats) za posledních 30 dní: hráči, podíl celých řetězů, nejlepší
 -- výsledek, moje místo a nejlepší hráči (jen veřejné údaje profilu).
 create table if not exists public.chain_results (
@@ -5953,11 +5961,13 @@ create table if not exists public.chain_results (
     created_at timestamptz not null default now(),
     primary key (user_id, day)
 );
+-- Hráč ten den použil pomůcku Záchrana navíc (blok 37): druhý zachráněný článek
+alter table public.chain_results add column if not exists extra_rescue boolean not null default false;
 alter table public.chain_results drop constraint if exists chain_results_values;
 alter table public.chain_results add constraint chain_results_values check (
     links between 0 and 7 and score between 0 and 28
-    and ((not rescued and score = links * (links + 1) / 2)
-        or (rescued and score between links * (links + 1) / 2 - links and links * (links + 1) / 2)));
+    and ((not rescued and not extra_rescue and score = links * (links + 1) / 2)
+        or (rescued and score between links * (links + 1) / 2 - case when extra_rescue then greatest(links, 2 * links - 1) else links end and links * (links + 1) / 2)));
 create index if not exists chain_results_day on public.chain_results (day, score desc, created_at);
 alter table public.chain_results enable row level security;
 drop policy if exists "řetězovka: vlastní řádky" on public.chain_results;
@@ -5971,33 +5981,48 @@ language sql stable set search_path = public as $$
     select (public.mystery_now() at time zone 'Europe/Prague')::date
 $$;
 
--- Výsledek a místo hráče v pořadí dne jako JSON (místo = počet lepších + 1, stejné body = stejné místo)
+-- Výsledek a místo hráče v pořadí dne jako JSON (místo = počet lepších + 1, stejné body = stejné místo); extra: true jen s použitou
+-- Záchranou navíc (blok 37)
 create or replace function public.chain_json(r public.chain_results) returns jsonb
 language sql stable set search_path = public as $$
     select case when r.user_id is null then null else jsonb_build_object('day', r.day, 'links', r.links, 'score', r.score, 'rescued', r.rescued,
-        'rank', 1 + (select count(*) from public.chain_results o where o.day = r.day and o.score > r.score)) end
+        'rank', 1 + (select count(*) from public.chain_results o where o.day = r.day and o.score > r.score))
+        || case when r.extra_rescue then jsonb_build_object('extra', true) else '{}'::jsonb end end
 $$;
 
 -- Výsledek dne: for_day = den řetězu (dnešek, nebo včerejšek, když se hra dohrála těsně před půlnocí a odesílá se až po ní).
 -- Odeslání podruhé (jiné zařízení, ztracená odpověď) nic nezmění a vrátí uložený výsledek. Nově uložený celý řetěz (7 článků) dá pomůcku
 -- Půl na půl do Dobývání, nejvýš jednou za ISO týden (blok 30, klíč chain:<RRRR-Wtt>; s plnou zásobou se zkusí znovu): výsledek má navíc item.
+-- Záchrana navíc (blok 37): druhý zachráněný článek (body o dva články méně) projde, jen když ji hráč ten den opravdu použil (player_item_uses,
+-- klíč chain:<den>); starší aplikace posílá stejné čtyři údaje a dva zachráněné články nikdy nemá. Nově uložený výsledek, který dorovná
+-- milník Řetězovky (dohrané dny 10, 30, 100, 365; celé řetězy bez Záchrany 5, 15, 30, 60), dá Záchranu navíc: výsledek má rescue_item.
 create or replace function public.chain_submit(for_day date, links integer, score integer, rescued boolean) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare uid uuid := auth.uid(); d date := public.chain_today(); r public.chain_results; tri integer; fresh boolean := false; item jsonb;
+declare uid uuid := auth.uid(); d date := public.chain_today(); r public.chain_results; tri integer; fresh boolean := false; item jsonb; rescue_item jsonb;
+    extra boolean := false;
 begin
     if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
     if for_day is null or for_day > d or for_day < d - 1 then raise exception 'Tahle Řetězovka už skončila.' using errcode = '22023'; end if;
     if links is null or score is null or rescued is null or links < 0 or links > 7 then raise exception 'Neplatný výsledek.' using errcode = '22023'; end if;
     tri := links * (links + 1) / 2;
-    if (not rescued and score <> tri) or (rescued and (score < tri - links or score > tri)) then raise exception 'Neplatný výsledek.' using errcode = '22023'; end if;
-    insert into public.chain_results (day, user_id, links, score, rescued) values (for_day, uid, links, score, rescued)
+    if rescued and to_regclass('public.player_item_uses') is not null then
+        extra := exists (select 1 from public.player_item_uses u where u.user_id = uid and u.key = 'chain:' || for_day);
+    end if;
+    if (not rescued and score <> tri) or (rescued and (score > tri or score < tri - case when extra then greatest(links, 2 * links - 1) else links end)) then
+        raise exception 'Neplatný výsledek.' using errcode = '22023';
+    end if;
+    insert into public.chain_results (day, user_id, links, score, rescued, extra_rescue) values (for_day, uid, links, score, rescued, extra)
     on conflict (user_id, day) do nothing
     returning true into fresh;
     select * into r from public.chain_results c where c.user_id = uid and c.day = for_day;
     if coalesce(fresh, false) and r.links = 7 and to_regprocedure('public.player_item_grant(uuid, text, text, boolean)') is not null then
         item := public.player_item_grant(uid, 'fifty', 'chain:' || public.player_items_week(for_day), true);
     end if;
-    return public.chain_json(r) || case when item is not null then jsonb_build_object('item', item) else '{}'::jsonb end;
+    if coalesce(fresh, false) and to_regprocedure('public.chain_rescue_milestone(uuid)') is not null then
+        rescue_item := public.chain_rescue_milestone(uid);
+    end if;
+    return public.chain_json(r) || case when item is not null then jsonb_build_object('item', item) else '{}'::jsonb end
+        || case when rescue_item is not null then jsonb_build_object('rescue_item', rescue_item) else '{}'::jsonb end;
 end;
 $$;
 
@@ -6875,8 +6900,9 @@ create table if not exists public.player_items (
     primary key (user_id, kind)
 );
 alter table public.player_items drop constraint if exists player_items_values;
-alter table public.player_items add constraint player_items_values check (kind in ('extra_move', 'fifty') and count >= 0
-    and count <= case kind when 'extra_move' then 1 else 2 end);
+-- Záchrana navíc do Řetězovky ('chain_rescue', nejvýš 1) přibyla v bloku 37
+alter table public.player_items add constraint player_items_values check (kind in ('extra_move', 'fifty', 'chain_rescue') and count >= 0
+    and count <= case kind when 'fifty' then 2 else 1 end);
 -- Odkud pomůcky přišly: jeden řádek na hráče a klíč zdroje; granted = false: pomůcka nepřibyla (plná zásoba, nebo v truhle nevyšel los)
 create table if not exists public.player_item_grants (
     user_id uuid not null references public.profiles (id) on delete cascade,
@@ -6887,8 +6913,10 @@ create table if not exists public.player_item_grants (
     primary key (user_id, key)
 );
 alter table public.player_item_grants drop constraint if exists player_item_grants_values;
-alter table public.player_item_grants add constraint player_item_grants_values check (kind in ('extra_move', 'fifty')
-    and key ~ '^(boss:\d{4}-\d{2}-\d{2}|daily:\d{4}-W\d{2}|chain:\d{4}-W\d{2}|chest:\d{4}-W\d{2}|season:\d{4}-\d{2}:(5|15)|conquest:[0-9a-f-]{36})$');
+-- Klíče Záchrany navíc (blok 37): gold:<RRRR-Wtt> (Zlatá truhla), bossbonus:<týden> (společný cíl Bosse), season:<RRRR-MM>:12,
+-- chain-days:<počet> a chain-clean:<počet> (milníky Řetězovky dne)
+alter table public.player_item_grants add constraint player_item_grants_values check (kind in ('extra_move', 'fifty', 'chain_rescue')
+    and key ~ '^(boss:\d{4}-\d{2}-\d{2}|bossbonus:\d{4}-\d{2}-\d{2}|daily:\d{4}-W\d{2}|chain:\d{4}-W\d{2}|chest:\d{4}-W\d{2}|gold:\d{4}-W\d{2}|season:\d{4}-\d{2}:(5|12|15)|conquest:[0-9a-f-]{36}|chain-days:\d{1,3}|chain-clean:\d{1,3})$');
 alter table public.player_items enable row level security;
 alter table public.player_item_grants enable row level security;
 drop policy if exists "pomůcky: vlastní řádky" on public.player_items;
@@ -6909,15 +6937,16 @@ $$;
 -- ISO týden dne jako text klíče: „2026-W46“
 create or replace function public.player_items_week(d date) returns text
 language sql immutable as $$ select to_char(d, 'IYYY-"W"IW') $$;
--- Strop zásoby: Tah navíc 1, Půl na půl 2 (stejně conquest.js ITEMS), jiný druh null
+-- Strop zásoby: Tah navíc 1, Půl na půl 2, Záchrana navíc 1 (blok 37; stejně conquest.js ITEMS), jiný druh null
 create or replace function public.player_item_cap(item text) returns integer
-language sql immutable as $$ select case item when 'extra_move' then 1 when 'fifty' then 2 end $$;
--- Zásoba hráče: { extra_move, fifty, max: { extra_move, fifty } }
+language sql immutable as $$ select case item when 'extra_move' then 1 when 'fifty' then 2 when 'chain_rescue' then 1 end $$;
+-- Zásoba hráče: { extra_move, fifty, chain_rescue, max: { extra_move, fifty, chain_rescue } }
 create or replace function public.player_items_json(uid uuid) returns jsonb
 language sql stable set search_path = public as $$
     select jsonb_build_object('extra_move', coalesce((select i.count from public.player_items i where i.user_id = uid and i.kind = 'extra_move'), 0),
         'fifty', coalesce((select i.count from public.player_items i where i.user_id = uid and i.kind = 'fifty'), 0),
-        'max', jsonb_build_object('extra_move', public.player_item_cap('extra_move'), 'fifty', public.player_item_cap('fifty')))
+        'chain_rescue', coalesce((select i.count from public.player_items i where i.user_id = uid and i.kind = 'chain_rescue'), 0),
+        'max', jsonb_build_object('extra_move', public.player_item_cap('extra_move'), 'fifty', public.player_item_cap('fifty'), 'chain_rescue', public.player_item_cap('chain_rescue')))
 $$;
 -- Pomůcka ze zdroje key (volají ji jen funkce serveru): jednou za klíč. Vrací { kind, granted (přibyla), full (zásoba už byla plná),
 -- already (klíč už byl použitý: granted říká, jak to tehdy dopadlo), count (zásoba teď), max }, u bota a neznámého druhu null.
@@ -6944,9 +6973,12 @@ begin
     return jsonb_build_object('kind', item, 'granted', true, 'full', false, 'already', false, 'count', have + 1, 'max', cap);
 end;
 $$;
--- Los Truhly Mudrlanta: 5 % (50 z 1000), pevně daný hráčem a týdnem (opakované volání nic nezmění)
+-- Los truhly: číslo 0–999 pevně dané hráčem a klíčem (týdnem), opakované volání nic nezmění. Truhla Mudrlanta: pod 50 (5 %) Půl na půl,
+-- 50–99 (dalších 5 %) Záchrana navíc (blok 37); Zlatá truhla: pod 200 (20 %) Záchrana navíc (blok 37)
+create or replace function public.player_item_roll(uid uuid, grant_key text) returns integer
+language sql immutable as $$ select ('x' || substr(md5(uid::text || '|' || grant_key), 1, 6))::bit(24)::integer % 1000 $$;
 create or replace function public.player_item_lucky(uid uuid, grant_key text) returns boolean
-language sql immutable as $$ select (('x' || substr(md5(uid::text || '|' || grant_key), 1, 6))::bit(24)::integer % 1000) < 50 $$;
+language sql immutable as $$ select public.player_item_roll(uid, grant_key) < 50 $$;
 
 -- Moje zásoba pomůcek
 create or replace function public.player_items_mine() returns jsonb
@@ -6958,37 +6990,42 @@ begin
 end;
 $$;
 
--- Pomůcka ze zdroje, který počítá aplikace: source 'season' (key season:<RRRR-MM>:<stupeň>: 5. stupeň Půl na půl, 15. stupeň Tah navíc;
--- jen tento a minulý měsíc podle Prahy) nebo 'chest' (key chest:<RRRR-Wtt>, tento nebo minulý týden; los 5 % dělá server, jednou za týden).
+-- Pomůcka ze zdroje, který počítá aplikace: source 'season' (key season:<RRRR-MM>:<stupeň>: 5. stupeň Půl na půl, 12. stupeň Záchrana navíc
+-- (blok 37), 15. stupeň Tah navíc; jen tento a minulý měsíc podle Prahy), 'chest' (Truhla Mudrlanta, key chest:<RRRR-Wtt>, tento nebo
+-- minulý týden; los dělá server, jednou za týden: 5 % Půl na půl, dalších 5 % Záchrana navíc) nebo 'gold' (Zlatá truhla, blok 37: key
+-- gold:<RRRR-Wtt>, nejvýš jednou za týden, 20 % Záchrana navíc).
 -- Vrací výsledek player_item_grant (u truhly bez štěstí { kind, granted: false, lucky: false }) a zásobu (items).
 create or replace function public.player_items_claim(source text, key text) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare uid uuid := auth.uid(); t timestamptz := public.player_items_now(); today date := (public.player_items_now() at time zone 'Europe/Prague')::date;
-    m text[]; item text; result jsonb; prev public.player_item_grants;
+    m text[]; item text; result jsonb; prev public.player_item_grants; roll integer;
 begin
     if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
     if public.dev_is_bot(uid) then raise exception 'Boti pomůcky nedostávají.' using errcode = '42501'; end if;
     if source = 'season' then
-        m := regexp_match(coalesce(key, ''), '^season:(\d{4}-\d{2}):(5|15)$');
-        if m is null then raise exception 'Pomůcku dává jen 5. a 15. stupeň sezóny.' using errcode = '22023'; end if;
+        m := regexp_match(coalesce(key, ''), '^season:(\d{4}-\d{2}):(5|12|15)$');
+        if m is null then raise exception 'Pomůcku dává jen 5., 12. a 15. stupeň sezóny.' using errcode = '22023'; end if;
         if m[1] not in (to_char(today, 'YYYY-MM'), to_char(today - interval '1 month', 'YYYY-MM')) then
             raise exception 'Tahle sezóna už skončila.' using errcode = '22023';
         end if;
-        item := case m[2] when '5' then 'fifty' else 'extra_move' end;
+        item := case m[2] when '5' then 'fifty' when '12' then 'chain_rescue' else 'extra_move' end;
         result := public.player_item_grant(uid, item, key, false);
-    elsif source = 'chest' then
-        if coalesce(key, '') not in ('chest:' || public.player_items_week(today), 'chest:' || public.player_items_week(today - 7)) then
+    elsif source in ('chest', 'gold') then
+        if coalesce(key, '') not in (source || ':' || public.player_items_week(today), source || ':' || public.player_items_week(today - 7)) then
             raise exception 'Truhla patří k jinému týdnu.' using errcode = '22023';
         end if;
         perform 1 from public.profiles p where p.id = uid for update;
         select * into prev from public.player_item_grants x where x.user_id = uid and x.key = player_items_claim.key;
+        roll := public.player_item_roll(uid, key);
+        item := case when source = 'chest' and roll < 50 then 'fifty' when source = 'chest' and roll < 100 then 'chain_rescue'
+            when source = 'gold' and roll < 200 then 'chain_rescue' end;
         if prev.user_id is not null then
-            result := jsonb_build_object('kind', prev.kind, 'granted', prev.granted, 'already', true, 'lucky', prev.granted);
-        elsif not public.player_item_lucky(uid, key) then
-            insert into public.player_item_grants (user_id, key, kind, granted, at) values (uid, key, 'fifty', false, t);
-            result := jsonb_build_object('kind', 'fifty', 'granted', false, 'full', false, 'already', false, 'lucky', false);
+            result := jsonb_build_object('kind', prev.kind, 'granted', prev.granted, 'already', true, 'lucky', item is not null);
+        elsif item is null then
+            insert into public.player_item_grants (user_id, key, kind, granted, at) values (uid, key, case source when 'gold' then 'chain_rescue' else 'fifty' end, false, t);
+            result := jsonb_build_object('kind', case source when 'gold' then 'chain_rescue' else 'fifty' end, 'granted', false, 'full', false, 'already', false, 'lucky', false);
         else
-            result := public.player_item_grant(uid, 'fifty', key, false) || jsonb_build_object('lucky', true);
+            result := public.player_item_grant(uid, item, key, false) || jsonb_build_object('lucky', true);
         end if;
     else
         raise exception 'Neznámý zdroj pomůcky.' using errcode = '22023';
@@ -7123,7 +7160,7 @@ $$;
 
 -- Oprávnění: hráč volá jen svou zásobu, pomůcku ze sezóny či truhly a použití pomůcek ve hře (anon nic); pomocné funkce jen interně
 revoke all on function public.player_items_now(), public.player_items_week(date), public.player_item_cap(text), public.player_items_json(uuid),
-    public.player_item_grant(uuid, text, text, boolean), public.player_item_lucky(uuid, text), public.conquest_extra_block(public.conquest_games, uuid),
+    public.player_item_grant(uuid, text, text, boolean), public.player_item_roll(uuid, text), public.player_item_lucky(uuid, text), public.conquest_extra_block(public.conquest_games, uuid),
     public.conquest_items_json(public.conquest_games, uuid) from public, anon, authenticated;
 revoke all on function public.player_items_mine(), public.player_items_claim(text, text), public.conquest_use_extra(uuid), public.conquest_use_fifty(uuid, uuid, text)
     from public, anon;
@@ -8289,6 +8326,87 @@ revoke all on function public.chain_badge_counts() from public, anon;
 grant execute on function public.chain_badge_counts() to authenticated;
 -- ===== 36: Odznaky Řetězovky dne — KONEC BLOKU =====
 
+-- ===== 37: Pomůcka Záchrana navíc do Řetězovky — ZAČÁTEK BLOKU =====
+-- Záchrana navíc ('chain_rescue', nejvýš 1; zásoba v player_items jako pomůcky do Dobývání, blok 30): v Řetězovce dne, když hráč už
+-- použil svou Záchranu a znovu odpoví špatně, řetěz se nepřetrhne a dostane záchrannou otázku toho článku (za 0 bodů). Řetěz dne je pro
+-- všechny stejný, mění se jen to, kolik článků hráč zvládne. Použití: chain_use_rescue(den) ubere zásobu a zapíše player_item_uses
+-- (klíč chain:<den>, jednou za den; opakované volání téhož dne nic dalšího neubere). chain_submit pak přijme body se dvěma zachráněnými
+-- články (chain_results.extra_rescue). Cvičná řetězovka pomůcky nepoužívá.
+-- Odkud (player_item_grants, každý klíč jednou; s plnou zásobou propadne): milníky Řetězovky dne v chain_submit (chain_rescue_milestone:
+-- dohrané dny 10, 30, 100, 365 a celé řetězy bez Záchrany 5, 15, 30, 60, jako stupně odznaků; počítá se z chain_results, dá se nejvyšší
+-- dosažený milník, nižší se přeskočí), 12. stupeň Sezóny Mudrlanta (season:<RRRR-MM>:12), Truhla Mudrlanta (5 % ze stejného losu jako
+-- Půl na půl, chest:<týden>), Zlatá truhla (20 %, nejvýš jednou za týden, gold:<týden>) a společný cíl Bosse týdne (boss_claim_bonus,
+-- bossbonus:<týden>). Boti nic.
+create table if not exists public.player_item_uses (
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    key text not null,
+    kind text not null,
+    at timestamptz not null default now(),
+    primary key (user_id, key)
+);
+alter table public.player_item_uses drop constraint if exists player_item_uses_values;
+alter table public.player_item_uses add constraint player_item_uses_values check (kind = 'chain_rescue' and key ~ '^chain:\d{4}-\d{2}-\d{2}$');
+alter table public.player_item_uses enable row level security;
+drop policy if exists "pomůcky: vlastní použití" on public.player_item_uses;
+create policy "pomůcky: vlastní použití" on public.player_item_uses for select to authenticated using (user_id = auth.uid());
+revoke all on public.player_item_uses from public, anon, authenticated;
+grant select on public.player_item_uses to authenticated;
+
+-- Milník Řetězovky dne po nově uloženém výsledku (volá chain_submit): nejvyšší dosažený milník dohraných dnů a celých řetězů bez Záchrany,
+-- který ještě nedal Záchranu navíc. Vrací zisk (player_item_grant s at = milník a source = 'chain-days' | 'chain-clean'), nebo null.
+-- Když dorazí oba milníky naráz, vrátí ten, který pomůcku dal (druhý se zapíše jako plná zásoba).
+create or replace function public.chain_rescue_milestone(uid uuid) returns jsonb
+language plpgsql set search_path = public as $$
+declare days integer; clean integer; m integer; got jsonb; result jsonb;
+begin
+    if uid is null or public.dev_is_bot(uid) then return null; end if;
+    select count(*), count(*) filter (where c.links = 7 and not c.rescued) into days, clean from public.chain_results c where c.user_id = uid;
+    select max(x) into m from unnest(array[10, 30, 100, 365]) x where x <= days;
+    if m is not null then
+        got := public.player_item_grant(uid, 'chain_rescue', 'chain-days:' || m, false);
+        if got is not null and not (got ->> 'already')::boolean then result := got || jsonb_build_object('source', 'chain-days', 'at', m); end if;
+    end if;
+    select max(x) into m from unnest(array[5, 15, 30, 60]) x where x <= clean;
+    if m is not null then
+        got := public.player_item_grant(uid, 'chain_rescue', 'chain-clean:' || m, false);
+        if got is not null and not (got ->> 'already')::boolean and (result is null or ((got ->> 'granted')::boolean and not (result ->> 'granted')::boolean)) then
+            result := got || jsonb_build_object('source', 'chain-clean', 'at', m);
+        end if;
+    end if;
+    return result;
+end;
+$$;
+
+-- Použití Záchrany navíc v Řetězovce dne for_day (dnešek, nebo včerejšek těsně po půlnoci): jen před odesláním výsledku dne, jednou za den.
+-- Opakované volání téhož dne (ztracená odpověď, druhé zařízení) vrátí used s already a zásobu neubere. Vrací { used, already, items }.
+create or replace function public.chain_use_rescue(for_day date) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); d date := public.chain_today(); t timestamptz := public.player_items_now(); have integer; use_key text := 'chain:' || for_day;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if public.dev_is_bot(uid) then raise exception 'Boti pomůcky nepoužívají.' using errcode = '42501'; end if;
+    if for_day is null or for_day > d or for_day < d - 1 then raise exception 'Tahle Řetězovka už skončila.' using errcode = '22023'; end if;
+    -- Řádek zásoby zamčený: souběžná použití téhož hráče jdou po sobě
+    insert into public.player_items (user_id, kind, count, updated_at) values (uid, 'chain_rescue', 0, t) on conflict (user_id, kind) do nothing;
+    select i.count into have from public.player_items i where i.user_id = uid and i.kind = 'chain_rescue' for update;
+    if exists (select 1 from public.player_item_uses u where u.user_id = uid and u.key = use_key) then
+        return jsonb_build_object('used', true, 'already', true, 'items', public.player_items_json(uid));
+    end if;
+    if exists (select 1 from public.chain_results c where c.user_id = uid and c.day = for_day) then
+        raise exception 'Řetězovku dne už máš dohranou.' using errcode = 'P0001';
+    end if;
+    if have < 1 then raise exception 'Záchranu navíc teď nemáš.' using errcode = 'P0001'; end if;
+    update public.player_items set count = count - 1, updated_at = t where user_id = uid and kind = 'chain_rescue';
+    insert into public.player_item_uses (user_id, key, kind, at) values (uid, use_key, 'chain_rescue', t);
+    return jsonb_build_object('used', true, 'already', false, 'items', public.player_items_json(uid));
+end;
+$$;
+
+revoke all on function public.chain_rescue_milestone(uuid) from public, anon, authenticated;
+revoke all on function public.chain_use_rescue(date) from public, anon;
+grant execute on function public.chain_use_rescue(date) to authenticated;
+-- ===== 37: Pomůcka Záchrana navíc do Řetězovky — KONEC BLOKU =====
+
 -- ===== Verze schématu =====
 -- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.
 -- Aplikace ho po přihlášení porovná a správci (dev_admins nebo vývojářský režim) ukáže v Nastavení, že má schéma spustit znovu;
@@ -8375,7 +8493,12 @@ grant execute on function public.chain_badge_counts() to authenticated;
 -- 36: Odznaky Řetězovky dne (retezovka-*, retezovka-cela-* v badge_catalog() a badge_tiers()), chain_badge_counts() (dohrané dny a celé
 --     řetězy bez Záchrany z chain_results pro dorovnání počítadel), Pavouk pletař za odznak retezovka-10 místo turnaj-postupy-5 (unlock_catalog_more);
 --     check_unlocks pustí jiné barvy postavičky, kterou profil už má (i když se mezitím změnilo, čím se odemyká), a správci (dev_admins) cokoli.
+-- 37: Pomůcka Záchrana navíc do Řetězovky ('chain_rescue', nejvýš 1, v player_items, player_item_cap a player_items_json): použití
+--     chain_use_rescue (player_item_uses, klíč chain:<den>), chain_results.extra_rescue a chain_submit se dvěma zachráněnými články,
+--     chain_json s extra; zisk za milníky Řetězovky (chain_rescue_milestone v chain_submit: rescue_item), 12. stupeň Sezóny, Truhlu
+--     Mudrlanta (player_item_roll) a Zlatou truhlu (player_items_claim 'gold') a společný cíl Bosse (boss_claim_bonus: item);
+--     export_my_data má v 'pomucky' i 'pouzite'.
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 36 $$;
+language sql immutable as $$ select 37 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

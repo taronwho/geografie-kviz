@@ -7,7 +7,8 @@
 // státě“ –, co bylo mezi možnostmi nebo v textu dřívější otázky, návrat k uzlu), má nejvýš dva zeměpisné skoky (odpověď stát, město, region)
 // a nikdy dva po sobě, střídá obory a rozcestníky (Francie, Londýn, Louvre) se v řetězu dne do týdne neopakují.
 // Řetězovka dne: 7 článků stejných pro všechny (semínko = pražský den), článek k dává k bodů (celý řetěz 28), špatná odpověď řetěz
-// přetrhne, jednou za hru Záchrana (jiná otázka na stejný článek, za 0 bodů). Cvičná řetězovka: náhodný řetěz bez bodů a statistik.
+// přetrhne, jednou za hru Záchrana (jiná otázka na stejný článek, za 0 bodů). Kdo má pomůcku Záchrana navíc (zásoba na serveru, blok 37),
+// zachrání po použité Záchraně ještě jeden článek. Cvičná řetězovka: náhodný řetěz bez bodů, statistik a pomůcek.
 // Dny před NEW_FROM staví původní generátor (chain-legacy.js), ať se řetěz dne, který už někdo hrál, nezmění.
 // U otázky je fotka a krátký zakrytý úvod z Wikipedie o předchozí odpovědi (app.js chainSubject, bez sítě se hraje bez nich), po odpovědi
 // jednovětné vysvětlení vazby. Čistá logika bez DOMu a sítě (graf, řetěz, body, uložený stav, sdílení) a vykreslení obrazovek jako HTML;
@@ -1620,19 +1621,25 @@
     };
 
     // --- Hra: pokus a body ---
-    // Pokus: { day, owner, practice, chain, results: [{ k, correct, rescued, points, chosen }], pending: null | { k, chosen, phase: 'decide' | 'rescue' },
-    // rescueUsed, done, synced, xp, rank }. Článek k (1–7) dává k bodů, článek zachráněný Záchranou 0.
-    const newAttempt = (day, owner, chain, practice = false) => ({ day, owner: owner || 'host', practice: Boolean(practice), chain, results: [], pending: null, rescueUsed: false, done: false, synced: false, xp: null, rank: null });
+    // Pokus: { day, owner, practice, chain, results: [{ k, correct, rescued, extra, points, chosen }], pending: null | { k, chosen, phase: 'decide' | 'rescue', extra },
+    // rescueUsed, extraUsed, done, synced, xp, rank }. Článek k (1–7) dává k bodů, článek zachráněný Záchranou 0. extra = Záchrana navíc
+    // (pomůcka, blok 37): nabídne se jen po použité Záchraně, jen jednou za hru a ne v cvičné řetězovce; řádek, který zachránila, má extra.
+    const newAttempt = (day, owner, chain, practice = false) => ({ day, owner: owner || 'host', practice: Boolean(practice), chain, results: [], pending: null, rescueUsed: false, extraUsed: false, done: false, synced: false, xp: null, rank: null });
     const nextLink = (attempt) => (attempt.done ? -1 : attempt.results.filter(row => row.correct).length + 1);
     const summaryOf = (attempt) => {
         const results = (attempt && attempt.results) || [];
         const links = results.filter(row => row.correct).length;
-        return { links, score: results.reduce((sum, row) => sum + (row.correct ? row.points : 0), 0), rescued: Boolean(attempt && attempt.rescueUsed), full: links >= LINKS, done: Boolean(attempt && attempt.done) };
+        return { links, score: results.reduce((sum, row) => sum + (row.correct ? row.points : 0), 0), rescued: Boolean(attempt && attempt.rescueUsed),
+            extra: Boolean(attempt && attempt.rescueUsed && attempt.extraUsed), full: links >= LINKS, done: Boolean(attempt && attempt.done) };
     };
     const triangle = (n) => n * (n + 1) / 2;
-    // Rozsahy jako na serveru (chain_submit): bez záchrany přesně 1 + 2 + … + články, se záchranou nejvýš o jeden článek méně
-    const validSummary = ({ links, score, rescued }) => Number.isInteger(links) && links >= 0 && links <= LINKS && Number.isInteger(score)
-        && (rescued ? score >= triangle(links) - links && score <= triangle(links) : score === triangle(links));
+    // Rozsahy jako na serveru (chain_submit): bez záchrany přesně 1 + 2 + … + články, se záchranou nejvýš o jeden článek méně, se Záchranou
+    // navíc (extra; server ji pustí, jen když ji hráč ten den použil) nejvýš o dva články méně
+    const validSummary = ({ links, score, rescued, extra = false }) => Number.isInteger(links) && links >= 0 && links <= LINKS && Number.isInteger(score)
+        && (rescued ? score >= triangle(links) - (extra ? Math.max(links, 2 * links - 1) : links) && score <= triangle(links) : score === triangle(links));
+    // Jde po chybě na článku nabídnout Záchranu navíc? Jen po použité Záchraně, jednou za hru, ne v cvičné a jen u článku se záchrannou otázkou;
+    // have = hráč pomůcku má (zásobu ze serveru zná ovladač)
+    const extraOffer = (attempt, question, have) => Boolean(have && attempt && !attempt.practice && attempt.rescueUsed && !attempt.extraUsed && question && question.rescue);
     // Otázka, na kterou se teď odpovídá: { question (článek), rescue (otázka záchrany nebo null), k }
     const currentAsk = (attempt) => {
         const k = nextLink(attempt);
@@ -1642,14 +1649,15 @@
         const rescue = attempt.pending && attempt.pending.phase === 'rescue' ? rescueOptions(question, attempt.pending.chosen, `${attempt.chain.seed}:zachrana`) : null;
         return { k, question, rescue };
     };
-    // Odpověď (id zvolené možnosti): vrátí { attempt, outcome: 'right' | 'decide' | 'broken' | 'saved' | 'lost' }
-    const answer = (attempt, chosenId) => {
+    // Odpověď (id zvolené možnosti): vrátí { attempt, outcome: 'right' | 'decide' | 'broken' | 'saved' | 'lost' }. extra = hráč má Záchranu
+    // navíc (po použité Záchraně se pak špatná odpověď nepřetrhne hned, ale nabídne ji: decide s pending.extra)
+    const answer = (attempt, chosenId, { extra = false } = {}) => {
         const ask = currentAsk(attempt);
         if (!ask || (attempt.pending && attempt.pending.phase === 'decide')) return { attempt, outcome: null };
         const next = { ...attempt, results: [...attempt.results] };
         if (ask.rescue) {
             const right = ask.rescue.options[ask.rescue.answer].id === chosenId;
-            next.results.push({ k: ask.k, correct: right, rescued: true, points: 0, chosen: chosenId });
+            next.results.push({ k: ask.k, correct: right, rescued: true, ...(attempt.pending && attempt.pending.extra ? { extra: true } : {}), points: 0, chosen: chosenId });
             next.pending = null;
             if (!right || ask.k >= LINKS) next.done = true;
             return { attempt: next, outcome: right ? 'saved' : 'lost' };
@@ -1664,13 +1672,21 @@
             next.pending = { k: ask.k, chosen: chosenId, phase: 'decide' };
             return { attempt: next, outcome: 'decide' };
         }
+        if (extraOffer(attempt, ask.question, extra)) {
+            next.pending = { k: ask.k, chosen: chosenId, phase: 'decide', extra: true };
+            return { attempt: next, outcome: 'decide' };
+        }
         next.results.push({ k: ask.k, correct: false, rescued: false, points: 0, chosen: chosenId });
         next.done = true;
         return { attempt: next, outcome: 'broken' };
     };
-    // Záchrana po špatné odpovědi: jiná otázka na stejný článek (za 0 bodů); Ukončit = řetěz se přetrhne
-    const useRescue = (attempt) => (attempt.pending && attempt.pending.phase === 'decide' && !attempt.rescueUsed
-        ? { ...attempt, rescueUsed: true, pending: { ...attempt.pending, phase: 'rescue' } } : attempt);
+    // Záchrana po špatné odpovědi: jiná otázka na stejný článek (za 0 bodů); Ukončit = řetěz se přetrhne. U nabídky Záchrany navíc
+    // (pending.extra) se spotřebuje pomůcka (extraUsed; ovladač ji předtím použije na serveru)
+    const useRescue = (attempt) => {
+        if (!attempt.pending || attempt.pending.phase !== 'decide') return attempt;
+        if (attempt.pending.extra) return attempt.rescueUsed && !attempt.extraUsed ? { ...attempt, extraUsed: true, pending: { ...attempt.pending, phase: 'rescue' } } : attempt;
+        return attempt.rescueUsed ? attempt : { ...attempt, rescueUsed: true, pending: { ...attempt.pending, phase: 'rescue' } };
+    };
     const giveUp = (attempt) => {
         if (!attempt.pending || attempt.pending.phase !== 'decide') return attempt;
         return { ...attempt, pending: null, done: true, results: [...attempt.results, { k: attempt.pending.k, correct: false, rescued: false, points: 0, chosen: attempt.pending.chosen }] };
@@ -1683,19 +1699,21 @@
     };
 
     // --- Sdílení ---
-    // 🔗 za každý článek, 🛟 za článek zachráněný Záchranou, 💥 za přetržený článek (zbytek se nevypisuje)
+    // 🔗 za každý článek, 🛟 za článek zachráněný Záchranou (i Záchranou navíc), 💥 za přetržený článek (zbytek se nevypisuje)
     const shareGrid = (results) => (results || []).map(row => (row.correct ? (row.rescued ? '🛟' : '🔗') : '💥')).join('');
     const shareText = ({ appName = 'Mudrlant', day, attempt, url = '' }) => {
         const summary = summaryOf(attempt);
         return [`${appName} · Řetězovka ${formatDay(day)} ${shareGrid(attempt.results)}`.trim(), pointsWord(summary.score), url].filter(Boolean).join(' · ');
     };
+    // Dovětek k počtu článků: se Záchranou, se dvěma Záchranami (Záchrana navíc)
+    const rescueNote = (summary) => (summary.rescued ? (summary.extra ? ' · se dvěma Záchranami' : ' · se Záchranou') : '');
     const poseFor = (summary) => (summary.full ? 'vitez' : summary.links >= 5 ? 'oslava' : summary.links >= 3 ? 'radost' : 'premysleni');
     // Karta obrázku (share-card.js): mřížka = články (správně, přetržený, nedohraný)
     const cardInput = ({ day, attempt, rank = null, robe, url, appName }) => {
         const summary = summaryOf(attempt);
         const grid = Array.from({ length: LINKS }, (_, i) => { const row = attempt.results.find(entry => entry.k === i + 1); return row ? row.correct : null; });
         return {
-            kicker: 'Řetězovka dne', headline: pointsWord(summary.score), detail: `${summary.links}/${LINKS} článků${summary.rescued ? ' · se Záchranou' : ''}`,
+            kicker: 'Řetězovka dne', headline: pointsWord(summary.score), detail: `${summary.links}/${LINKS} článků${rescueNote(summary)}`,
             grid, note: rank && rank.rank ? `${rank.rank}. místo z ${rank.players}` : summary.full ? 'Celý řetěz!' : 'Dáš celý řetěz?',
             day, robe, pose: poseFor(summary), url, appName
         };
@@ -1747,18 +1765,28 @@
             const k = whole(row.k, LINKS);
             if (k !== results.filter(entry => entry.correct).length + 1) break;
             const correct = Boolean(row.correct);
-            results.push({ k, correct, rescued: Boolean(row.rescued), points: correct && !row.rescued ? k : 0, chosen: typeof row.chosen === 'string' ? row.chosen.slice(0, 80) : '' });
+            // Nejvýš dva zachráněné články; druhý je vždy Záchranou navíc
+            const rescued = Boolean(row.rescued);
+            const before = results.filter(entry => entry.rescued).length;
+            if (rescued && before >= 2) break;
+            results.push({ k, correct, rescued, ...(rescued && before === 1 ? { extra: true } : {}), points: correct && !rescued ? k : 0, chosen: typeof row.chosen === 'string' ? row.chosen.slice(0, 80) : '' });
             if (!correct) break;
         }
         const broken = results.some(row => !row.correct);
         const rescueUsed = Boolean(raw.rescueUsed) || results.some(row => row.rescued);
-        const pending = !broken && raw.pending && typeof raw.pending === 'object' && whole(raw.pending.k, LINKS) === results.filter(row => row.correct).length + 1
-            && (raw.pending.phase === 'decide' || raw.pending.phase === 'rescue') ? { k: whole(raw.pending.k, LINKS), chosen: String(raw.pending.chosen || '').slice(0, 80), phase: raw.pending.phase } : null;
+        const extraUsed = rescueUsed && (raw.extraUsed === true || results.some(row => row.extra));
+        let pending = !broken && raw.pending && typeof raw.pending === 'object' && whole(raw.pending.k, LINKS) === results.filter(row => row.correct).length + 1
+            && (raw.pending.phase === 'decide' || raw.pending.phase === 'rescue')
+            ? { k: whole(raw.pending.k, LINKS), chosen: String(raw.pending.chosen || '').slice(0, 80), phase: raw.pending.phase, ...(raw.pending.extra === true ? { extra: true } : {}) } : null;
+        // Nabídka jen dokud jde použít: Záchrana před použitou Záchranou, Záchrana navíc po ní a jen jednou; rozehraná otázka Záchrany
+        // navíc jen s použitou pomůckou
+        if (pending && pending.phase === 'decide' && (pending.extra ? !rescueUsed || extraUsed : rescueUsed)) pending = null;
+        if (pending && pending.phase === 'rescue' && pending.extra && !extraUsed) pending = null;
         const xp = raw.xp && Number.isFinite(raw.xp.total) && Array.isArray(raw.xp.parts)
             ? { total: whole(raw.xp.total, 1000), parts: raw.xp.parts.filter(part => part && typeof part.label === 'string' && Number.isFinite(part.xp)).map(part => ({ label: part.label.slice(0, 80), xp: whole(part.xp, 1000) })) } : null;
         return {
             day: raw.day, owner: typeof raw.owner === 'string' && raw.owner ? raw.owner.slice(0, 64) : 'host', practice: false, chain, results,
-            pending: pending && !(pending.phase === 'decide' && rescueUsed) ? pending : null, rescueUsed,
+            pending, rescueUsed, extraUsed,
             done: broken || results.filter(row => row.correct).length >= LINKS, synced: Boolean(raw.synced), xp,
             rank: raw.rank && Number.isInteger(raw.rank.rank) && raw.rank.rank > 0 ? { rank: raw.rank.rank, players: whole(raw.rank.players, 1e7) } : null
         };
@@ -1845,14 +1873,16 @@
         return `Řetěz: ${summary.links} z ${LINKS} článků${attempt.results.some(row => !row.correct) ? ', přetržený' : ''}`;
     };
 
-    // Dlaždice na úvodu (vykreslí app.js specialTile): krátký stav, celý v popisku pro čtečku
-    const homeTile = ({ status = 'new', step = 1, summary = null, rank = null }) => {
+    // Dlaždice na úvodu (vykreslí app.js specialTile): krátký stav, celý v popisku pro čtečku; extra = hráč má pomůcku Záchrana navíc
+    // (u nedohrané hry se připíše „Záchrana navíc ✓“)
+    const homeTile = ({ status = 'new', step = 1, summary = null, rank = null, extra = false }) => {
         if (status === 'done' && summary) {
             return { text: rank ? `${pointsWord(summary.score)} · ${rank}.` : `${pointsWord(summary.score)} · ${summary.links}/${LINKS}`, fresh: false,
                 label: `Řetězovka dne: ${pointsWord(summary.score)}, ${summary.links} z ${LINKS} článků${rank ? `, ${rank}. místo` : ''}` };
         }
-        if (status === 'progress') return { text: `Článek ${step}/${LINKS}`, fresh: false, label: `Řetězovka dne: rozehráno, článek ${step} z ${LINKS}` };
-        return { text: `${LINKS} článků`, fresh: true, label: `Řetězovka dne: ${LINKS} článků, odpověď je začátkem další otázky` };
+        const more = extra ? { text: ' · Záchrana navíc ✓', label: ', máš Záchranu navíc' } : { text: '', label: '' };
+        if (status === 'progress') return { text: `Článek ${step}/${LINKS}${more.text}`, fresh: false, label: `Řetězovka dne: rozehráno, článek ${step} z ${LINKS}${more.label}` };
+        return { text: `${LINKS} článků${more.text}`, fresh: true, label: `Řetězovka dne: ${LINKS} článků, odpověď je začátkem další otázky${more.label}` };
     };
 
     // Úvod (poprvé): co Řetězovka je a pravidla
@@ -1897,9 +1927,17 @@
         </ol>`;
     // Vodoznak v kartě otázky: dva velké zlaté články v rohu (jen ozdoba)
     const WATERMARK = '<svg aria-hidden="true" viewBox="0 0 120 70" class="chain-watermark pointer-events-none absolute -bottom-3 -right-4 h-24 w-40"><rect x="6" y="14" width="70" height="40" rx="20"/><rect x="48" y="27" width="66" height="14" rx="7"/></svg>';
-    const rescueChip = (attempt) => (attempt.rescueUsed
-        ? '<span data-chain-rescue="used" class="flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold text-slate-500 ring-1 ring-slate-200 dark:text-slate-400 dark:ring-slate-700"><i data-lucide="shield-check" class="h-3.5 w-3.5"></i> Záchrana použita</span>'
-        : '<span data-chain-rescue="ready" class="flex shrink-0 items-center gap-1 rounded-full bg-gold-100 px-2 py-0.5 text-[11px] font-black text-gold-900 ring-1 ring-gold-300 dark:bg-gold-900/60 dark:text-gold-100 dark:ring-gold-700"><i data-lucide="shield-check" class="h-3.5 w-3.5"></i> Záchrana</span>');
+    // Štítek Záchrany v záhlaví karty; extra = hráč má Záchranu navíc a jde ji v této hře použít (k připravené Záchraně „+1“, po použité
+    // Záchraně štítek Záchrana navíc)
+    const EXTRA_ICON = 'shield-plus';
+    const rescueChip = (attempt, extra = false) => {
+        if (!attempt.rescueUsed) {
+            return `<span data-chain-rescue="ready"${extra ? ' data-chain-extra="ready"' : ''} class="flex shrink-0 items-center gap-1 rounded-full bg-gold-100 px-2 py-0.5 text-[11px] font-black text-gold-900 ring-1 ring-gold-300 dark:bg-gold-900/60 dark:text-gold-100 dark:ring-gold-700"><i data-lucide="shield-check" class="h-3.5 w-3.5"></i> Záchrana${extra
+                ? '<span class="chain-extra-plus -mr-1 ml-0.5 rounded-full px-1 text-[10px] font-black leading-[1.35]" aria-hidden="true">+1</span><span class="sr-only"> a Záchrana navíc</span>' : ''}</span>`;
+        }
+        if (extra) return `<span data-chain-rescue="extra" class="chain-extra-chip flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-black"><i data-lucide="${EXTRA_ICON}" class="h-3.5 w-3.5"></i> Záchrana navíc</span>`;
+        return '<span data-chain-rescue="used" class="flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold text-slate-500 ring-1 ring-slate-200 dark:text-slate-400 dark:ring-slate-700"><i data-lucide="shield-check" class="h-3.5 w-3.5"></i> Záchrana použita</span>';
+    };
     // Předchozí odpověď (podmět otázky) na kartě: fotka z Commons, krátký zakrytý úvod z Wikipedie a po odpovědi vysvětlení vazby.
     // subject = { image, text } z app.js (chainSubject; bez sítě nic nebo jen popis z dat), explain = věta po odpovědi
     const subjectHtml = (from, subject, explain) => {
@@ -1920,16 +1958,18 @@
         const summary = summaryOf(attempt);
         const k = ask ? ask.k : Math.min(LINKS, summary.links + 1);
         const rescue = ask && ask.rescue;
+        // Záchranná otázka Záchrany navíc (pomůcka, blok 37)
+        const extra = Boolean(rescue && attempt.pending && attempt.pending.extra);
         const source = rescue || (ask ? ask.question : null);
         const subject = source ? subjectHtml(source.from, view.subject, view.explain && source.explain ? source.explain : '') : '';
         return `
                 <section id="chain-question" class="chain-card relative flex min-h-[6rem] flex-1 flex-col gap-1.5 overflow-hidden rounded-[1.4rem] bg-white p-3 shadow-sm ring-1 ${rescue ? 'ring-2 ring-gold-500 dark:ring-gold-400' : 'ring-slate-200/70 dark:ring-slate-700/70'} dark:bg-slate-800/70">
                     <div class="flex items-center justify-between gap-2">
                         <p class="flex min-w-0 items-center gap-1.5 text-[11px] font-black uppercase tracking-widest ${rescue ? 'text-gold-800 dark:text-gold-300' : 'text-slate-500 dark:text-slate-400'}">
-                            <i data-lucide="${rescue ? 'shield-check' : iconFor(source ? source.from.kind : '')}" class="h-3.5 w-3.5 shrink-0"></i>
-                            <span>${rescue ? 'Záchrana · za 0 bodů' : view.practice ? `Článek ${k}` : `Článek ${k} · za ${pointsWord(k)}`}</span>
+                            <i data-lucide="${extra ? EXTRA_ICON : rescue ? 'shield-check' : iconFor(source ? source.from.kind : '')}" class="h-3.5 w-3.5 shrink-0"></i>
+                            <span>${extra ? 'Záchrana navíc · za 0 bodů' : rescue ? 'Záchrana · za 0 bodů' : view.practice ? `Článek ${k}` : `Článek ${k} · za ${pointsWord(k)}`}</span>
                         </p>
-                        ${rescue ? '' : rescueChip(attempt)}
+                        ${rescue ? '' : rescueChip(attempt, Boolean(view.extraReady))}
                     </div>
                     ${subject}
                     <div class="relative flex ${subject ? 'shrink-0' : 'flex-1'} items-center"><h2 data-chain-text class="${subject ? 'text-[17px] short:text-[15.5px]' : 'text-[18px] short:text-[16.5px]'} font-black leading-snug text-slate-900 dark:text-white">${esc(source ? source.text : '')}</h2></div>
@@ -1968,11 +2008,16 @@
     const revealableAnswer = (question) => (question && question.rescue && !question.rescue.same ? question.options[question.answer].name : '');
     // correctName = správná odpověď, když ji jde ukázat hned (Záchrana se ptá jinak); u Záchrany se stejnou odpovědí (rescue.same)
     // by ji prozradila, ukáže se až po Záchraně (v cestě řetězu) nebo po ukončení
-    const decideHtml = ({ chosenName, practice, correctName = '' }) => `
-        <div data-chain-decide role="alert" class="chain-panel-in flex flex-col gap-2 rounded-[1.4rem] bg-white p-3 shadow-sm ring-2 ring-rose-300 dark:bg-slate-800 dark:ring-rose-700">
+    // extra = nabídka pomůcky Záchrana navíc (Záchrana už je použitá; seal = pečeť pomůcky z app.js, jinak ikona)
+    const decideHtml = ({ chosenName, practice, correctName = '', extra = false, seal = '' }) => `
+        <div data-chain-decide${extra ? ' data-chain-decide-extra' : ''} role="alert" class="chain-panel-in flex flex-col gap-2 rounded-[1.4rem] bg-white p-3 shadow-sm ring-2 ring-rose-300 dark:bg-slate-800 dark:ring-rose-700">
             <p class="flex items-center gap-2 text-base font-black text-rose-700 dark:text-rose-300"><i data-lucide="zap" class="h-5 w-5"></i> Řetěz praská!</p>
-            <p class="text-[13px] font-semibold leading-snug text-slate-700 dark:text-slate-200">„${esc(chosenName)}“ to není.${correctName ? ` Správně bylo: <b data-chain-correct class="text-slate-900 dark:text-white">${esc(correctName)}</b>.` : ' Správnou odpověď uvidíš po Záchraně, nebo když řetěz ukončíš.'} Máš ale jednu Záchranu: dostaneš jinou otázku na stejný článek. Když ji zodpovíš, řetěz drží dál${practice ? '' : ', článek je ale za 0 bodů'}.</p>
-            <button type="button" data-action="chain-rescue" class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-gold-700 px-4 py-3 text-base font-black text-white"><i data-lucide="shield-check" class="h-5 w-5"></i> Použít Záchranu</button>
+            <p class="text-[13px] font-semibold leading-snug text-slate-700 dark:text-slate-200">„${esc(chosenName)}“ to není.${correctName ? ` Správně bylo: <b data-chain-correct class="text-slate-900 dark:text-white">${esc(correctName)}</b>.` : ` Správnou odpověď uvidíš po ${extra ? 'Záchraně navíc' : 'Záchraně'}, nebo když řetěz ukončíš.`} ${extra
+        ? 'Záchrana už je použitá, máš ale pomůcku Záchrana navíc: dostaneš jinou otázku na stejný článek. Když ji zodpovíš, řetěz drží dál, článek je ale za 0 bodů.'
+        : `Máš ale jednu Záchranu: dostaneš jinou otázku na stejný článek. Když ji zodpovíš, řetěz drží dál${practice ? '' : ', článek je ale za 0 bodů'}.`}</p>
+            ${extra
+        ? `<button type="button" data-action="chain-rescue" data-chain-extra-use class="chain-extra-use flex w-full items-center justify-center gap-2 rounded-2xl btn-3d px-4 py-2.5 text-base font-black disabled:opacity-60">${seal || `<i data-lucide="${EXTRA_ICON}" class="h-5 w-5"></i>`} Použít Záchranu navíc</button>`
+        : '<button type="button" data-action="chain-rescue" class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-gold-700 px-4 py-3 text-base font-black text-white"><i data-lucide="shield-check" class="h-5 w-5"></i> Použít Záchranu</button>'}
             <button type="button" data-action="chain-giveup" class="${SECONDARY} w-full"><i data-lucide="x" class="h-4 w-4 shrink-0"></i> Ukončit řetěz</button>
         </div>`;
     // firstName = správná odpověď původní otázky, když Záchrana měla jinou (jinak ji ukazuje correctName)
@@ -1990,9 +2035,10 @@
         const rows = attempt.chain.questions.map((question, i) => {
             const row = attempt.results.find(entry => entry.k === i + 1);
             const state = row ? (row.correct ? (row.rescued ? 'rescued' : 'done') : 'broken') : 'todo';
-            const points = !row ? '' : row.correct ? (row.rescued ? 'Záchrana' : `+${row.points}`) : '💥';
+            const saved = row && row.extra ? 'Záchrana navíc' : 'Záchrana';
+            const points = !row ? '' : row.correct ? (row.rescued ? saved : `+${row.points}`) : '💥';
             const tone = state === 'broken' ? 'text-rose-700 dark:text-rose-300' : state === 'todo' ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-slate-100';
-            const label = `${i + 1}. článek: ${question.to.name}${state === 'broken' ? ', tady se řetěz přetrhl' : state === 'todo' ? ', nedohráno' : state === 'rescued' ? ', Záchrana' : `, ${pointsWord(row.points)}`}`;
+            const label = `${i + 1}. článek: ${question.to.name}${state === 'broken' ? ', tady se řetěz přetrhl' : state === 'todo' ? ', nedohráno' : state === 'rescued' ? `, ${saved}` : `, ${pointsWord(row.points)}`}`;
             return `<li><button type="button" data-action="chain-step" data-k="${i + 1}" aria-label="${esc(label)}" class="flex min-h-[1.9rem] w-full items-center gap-2 rounded-xl px-1.5 text-left short:min-h-[1.75rem]">
                 <span aria-hidden="true" class="chain-dot chain-dot-${state} flex h-[1.4rem] w-[1.4rem] shrink-0 items-center justify-center rounded-full text-[11px] font-black">${i + 1}</span>
                 <span class="min-w-0 flex-1 text-[13.5px] font-bold leading-tight ${tone}">${esc(question.to.name)}</span>
@@ -2024,7 +2070,7 @@
         const summary = summaryOf(attempt);
         const kicker = view.practice ? 'Cvičná řetězovka' : `Řetězovka dne · ${formatDay(attempt.day)}`;
         const headline = view.practice ? `${summary.links}/${LINKS} článků` : pointsWord(summary.score);
-        const detail = view.practice ? (summary.full ? 'Celý řetěz!' : 'Řetěz se přetrhl') : `${summary.links}/${LINKS} článků${summary.rescued ? ' · se Záchranou' : ''}`;
+        const detail = view.practice ? (summary.full ? 'Celý řetěz!' : 'Řetěz se přetrhl') : `${summary.links}/${LINKS} článků${rescueNote(summary)}`;
         const round = 'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white ring-1 ring-white/25 transition-transform active:scale-95';
         return `
             <div id="chain-result" data-chain-full="${summary.full}" class="fade-in flex min-h-full w-full flex-col gap-2 bg-slate-50 p-3 pb-4 dark:bg-slate-900">
@@ -2066,7 +2112,8 @@
             const wrong = item.id === (wrongPick || (row && row.rescued ? '' : chosen && chosen !== correct.id ? chosen : ''));
             return `<li class="flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-[14px] font-bold ${right ? 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-200 dark:ring-emerald-700' : wrong ? 'bg-rose-50 text-rose-800 ring-1 ring-rose-300 dark:bg-rose-950/50 dark:text-rose-200 dark:ring-rose-700' : 'text-slate-700 dark:text-slate-200'}"><i data-lucide="${right ? 'check' : wrong ? 'x' : 'minus'}" class="h-4 w-4 shrink-0"></i>${esc(item.name)}</li>`;
         };
-        const verdict = !row ? 'Na tenhle článek už nedošlo.' : row.rescued ? (row.correct ? 'Zachráněno Záchranou, za 0 bodů.' : 'Záchrana nevyšla, tady se řetěz přetrhl.') : row.correct ? `Správně, ${pointsWord(row.points)}.` : 'Tady se řetěz přetrhl.';
+        const saved = row && row.extra ? 'Záchrana navíc' : 'Záchrana';
+        const verdict = !row ? 'Na tenhle článek už nedošlo.' : row.rescued ? (row.correct ? `Zachráněno ${row.extra ? 'Záchranou navíc' : 'Záchranou'}, za 0 bodů.` : `${saved} nevyšla, tady se řetěz přetrhl.`) : row.correct ? `Správně, ${pointsWord(row.points)}.` : 'Tady se řetěz přetrhl.';
         return `
             <div data-chain-step="${k}" class="flex flex-col gap-2.5">
                 <p class="${LABEL}">${esc(question.from.name)} → ${esc(question.to.name)}</p>
@@ -2094,7 +2141,9 @@
     // deps = { appContent, setScreen, getScreen, renderHome, renderIcons, updateControlsUI, closePlaceInfo, showToast, showDialog, closeDialog,
     // uiArt, specialTile, avatarHtml, xpLine, meRow, loadTopic, loadCountries, readJson, writeJson, signedUser, social, auth, startLogin,
     // shareCard, shareImageCounted, robeNow, appUrl, appName, awardXp, sound, isLoading, loadExtra (data/retezovka.json), loadScript (chain-legacy.js
-    // pro dny před NEW_FROM), chainSubject ({ source, later, photo } → { image, text }: fotka a zakrytý úvod předchozí odpovědi) }
+    // pro dny před NEW_FROM), chainSubject ({ source, later, photo } → { image, text }: fotka a zakrytý úvod předchozí odpovědi),
+    // pomůcka Záchrana navíc (blok 37): rescueStock (zásoba, null = nevíme), loadItems (načte zásobu), useRescueItem (den → použití na serveru,
+    // null = databáze ji nezná), dropRescueItem (zásoba je prázdná), itemSeal (třídy → pečeť), itemGranted (zisk za milník Řetězovky) }
     // Měření (scripts/measure-denni.mjs): úsek jako performance.measure „mudrlant:<název>“
     const perfNow = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
     const perfSpan = (name, start) => { try { performance.measure(`mudrlant:${name}`, { start, end: perfNow() }); } catch (e) { /* bez Performance API */ } };
@@ -2116,6 +2165,10 @@
         const load = () => parseState(deps.readJson(KEY));
         const save = (state) => deps.writeJson(KEY, state);
         const ownerOk = (entry) => entry && (entry.owner === 'host' || (user() && entry.owner === user().id));
+        // Záchrana navíc: hráč ji má (zásoba ze serveru) a jde ji v tomto pokusu použít (přihlášený vlastník dnešní hry, ne cvičná, ještě nepoužitá)
+        const extraHeld = () => Boolean(ranked() && deps.rescueStock && (deps.rescueStock() || 0) > 0);
+        const extraReady = (entry = attempt) => Boolean(entry && !entry.practice && !entry.extraUsed && extraHeld() && entry.owner === user().id);
+        const extraSeal = (cls = 'h-7 w-7 -my-1') => (deps.itemSeal ? deps.itemSeal(cls) : '');
         // Dnešní pokus tohoto hráče (host = pokus zařízení; přihlášený si hostovský převezme)
         const todayAttempt = (state = load()) => (state.attempt && state.attempt.day === today() && ownerOk(state.attempt) ? state.attempt : null);
         const store = (entry) => {
@@ -2234,18 +2287,35 @@
         };
         const homeTileHtml = () => {
             const view = homeView();
-            const tile = homeTile(view);
+            const tile = homeTile({ ...view, extra: view.status !== 'done' && extraHeld() });
             return deps.specialTile({ id: 'chain-card', action: 'chain-open', art: ART.tile, title: 'Řetězovka', text: tile.text, label: tile.label,
                 dot: tile.fresh ? 'data-chain-new' : '', attrs: `data-chain-status="${view.status}"`, done: view.status === 'done', cta: view.status === 'progress' ? 'Hrát dál' : 'Hrát' });
         };
         // Řádky dnešních výzev překresluje app.js společně (zvýrazněný řádek a počet hotových závisí na všech)
         const paintTile = () => { if (deps.getScreen() === 'home' && deps.paintHome) deps.paintHome(); };
-        // Přihlášený hráč bez dnešního pokusu v zařízení: nedohrál Řetězovku jinde? (jednou za den a spuštění)
+        // Přihlášený hráč bez dnešního pokusu v zařízení: nedohrál Řetězovku jinde? (jednou za den a spuštění). K tomu zásoba pomůcek
+        // (Záchrana navíc na dlaždici)
+        let itemsChecked = false;
         const refresh = async () => {
+            if (ranked() && !itemsChecked && deps.loadItems) {
+                itemsChecked = true;
+                deps.loadItems().then(() => paintTile()).catch(() => { itemsChecked = false; });
+            }
             if (!ranked() || todayAttempt() || checked === today()) return;
             checked = today();
             await loadStats(today());
             paintTile();
+        };
+        // Zásoba pomůcek při otevření Řetězovky (mohla přibýt jinde): štítek Záchrany na kartě otázky se překreslí
+        const loadExtra = () => {
+            if (!ranked() || !deps.loadItems) return;
+            deps.loadItems().then(() => {
+                if (!current || !current.full || deps.getScreen() !== 'chain' || current.full.phase !== 'ask') return;
+                const ready = extraReady();
+                if (ready === Boolean(current.full.extraReady)) return;
+                current.full = { ...current.full, extraReady: ready };
+                paintCard();
+            }).catch(() => null);
         };
 
         // --- Statistiky dne ---
@@ -2265,8 +2335,10 @@
                 if (saved === null) return; // databáze Řetězovku nezná
                 entry.synced = true;
                 store(entry);
-                // Celý řetěz: pomůcka Půl na půl do Dobývání (blok 30, nejvýš jednou za týden; oslavu udělá app.js)
+                // Celý řetěz: pomůcka Půl na půl do Dobývání (blok 30, nejvýš jednou za týden; oslavu udělá app.js); milník Řetězovky:
+                // Záchrana navíc (blok 37, s plnou zásobou jen zpráva)
                 if (saved && saved.item && deps.itemGranted) deps.itemGranted(saved.item);
+                if (saved && saved.rescue_item && deps.itemGranted) deps.itemGranted(saved.rescue_item);
             } catch (error) { /* bez spojení: zkusí se při dalším otevření */ }
         };
 
@@ -2281,6 +2353,7 @@
                 let entry = todayAttempt();
                 if (entry && user() && entry.owner === 'host') { entry.owner = user().id; entry.synced = false; store(entry); }
                 if (entry && entry.done) { attempt = entry; finish(); return; }
+                loadExtra();
                 show(loadingHtml(helpers()));
                 // Přihlášený: dohrál Řetězovku dnes jinde? Pak se ukáže jen výsledek ze serveru
                 if (!entry && ranked()) {
@@ -2307,14 +2380,23 @@
                 opening = false;
             }
         };
-        // Výsledek dohraný na jiném zařízení: známe jen počet článků, body a Záchranu – články se doplní podle nich
+        // Výsledek dohraný na jiném zařízení: známe jen počet článků, body a Záchranu – články se doplní podle nich. Se Záchranou navíc
+        // (me.extra) můžou chybět body dvou článků: rozdělí se na dva zachráněné články (přesné pořadí server nezná)
         const fromServer = (day, chain, me) => {
             const entry = newAttempt(day, user().id, chain);
             const links = Math.max(0, Math.min(LINKS, me.links || 0));
-            const rescuedAt = me.rescued ? triangle(links) - (me.score || 0) : 0;
-            for (let k = 1; k <= links; k++) entry.results.push({ k, correct: true, rescued: k === rescuedAt, points: k === rescuedAt ? 0 : k, chosen: '' });
-            if (links < LINKS) entry.results.push({ k: links + 1, correct: false, rescued: Boolean(me.rescued) && !rescuedAt, points: 0, chosen: '' });
+            const missing = me.rescued ? Math.max(0, triangle(links) - (me.score || 0)) : 0;
+            const saved = [];
+            if (missing > links && me.extra) { const second = Math.min(links, missing - 1); saved.push(missing - second, second); } else if (missing) saved.push(missing);
+            for (let k = 1; k <= links; k++) {
+                const rescued = saved.includes(k);
+                entry.results.push({ k, correct: true, rescued, ...(rescued && saved.indexOf(k) === 1 ? { extra: true } : {}), points: rescued ? 0 : k, chosen: '' });
+            }
+            // Přetržený článek: nevyšla Záchrana (dosud nepoužitá body neubrala), nebo Záchrana navíc po zachráněném článku
+            const lostRescue = Boolean(me.rescued) && (saved.length === 0 || (me.extra && saved.length === 1));
+            if (links < LINKS) entry.results.push({ k: links + 1, correct: false, rescued: lostRescue, ...(lostRescue && saved.length ? { extra: true } : {}), points: 0, chosen: '' });
             entry.rescueUsed = Boolean(me.rescued);
+            entry.extraUsed = Boolean(me.rescued && me.extra);
             entry.done = true;
             entry.synced = true;
             entry.xp = null;
@@ -2331,11 +2413,14 @@
             if (attempt.pending && attempt.pending.phase === 'decide') {
                 const ask = currentAsk(attempt);
                 const chosen = ask.question.options.find(option => option.id === attempt.pending.chosen);
-                renderPlay({ phase: 'decide', ask, marks: { chosen: attempt.pending.chosen, right: false }, panel: decideHtml({ chosenName: chosen ? chosen.name : '', practice: attempt.practice, correctName: revealableAnswer(ask.question) }) });
+                renderPlay({ phase: 'decide', ask, marks: { chosen: attempt.pending.chosen, right: false }, panel: decidePanel(ask, chosen ? chosen.name : '') });
                 return;
             }
             renderPlay({ phase: 'ask' });
         };
+        // Panel rozhodnutí po chybě: Záchrana, nebo (s pending.extra) pomůcka Záchrana navíc s pečetí
+        const decidePanel = (ask, chosenName) => decideHtml({ chosenName, practice: attempt.practice, correctName: revealableAnswer(ask.question),
+            extra: Boolean(attempt.pending && attempt.pending.extra), seal: extraSeal() });
         const startPractice = async () => {
             if (opening || busy) return;
             stopTimers();
@@ -2406,7 +2491,7 @@
             if (!attempt) return;
             // Otázka na obrazovce: po odpovědi ta zodpovězená (view.ask), jinak další v řadě
             const ask = view.ask || (attempt.done ? null : currentAsk(attempt));
-            const full = { practice: Boolean(attempt.practice), attempt, fresh: -1, ...view, ask };
+            const full = { practice: Boolean(attempt.practice), attempt, fresh: -1, extraReady: extraReady(), ...view, ask };
             current = { ask, full };
             full.subject = ask ? subjects.get(subjectKey(ask)) || null : null;
             deps.setScreen('chain');
@@ -2457,7 +2542,7 @@
             if (busy || !attempt || attempt.done || deps.getScreen() !== 'chain') return;
             const ask = currentAsk(attempt);
             if (!ask || (attempt.pending && attempt.pending.phase === 'decide')) return;
-            const { attempt: next, outcome } = answer(attempt, id);
+            const { attempt: next, outcome } = answer(attempt, id, { extra: extraReady() });
             if (!outcome) return;
             attempt = next;
             store(attempt);
@@ -2478,7 +2563,7 @@
             if (deps.sound) { deps.sound.play('wrong'); deps.sound.vibrate('wrong'); }
             if (outcome === 'decide') {
                 renderPlay({ phase: 'wrong', ask, marks: { chosen: id, right: false }, shake: true });
-                later(here(() => renderPlay({ phase: 'decide', ask, panel: decideHtml({ chosenName: optionName(ask, id), practice: attempt.practice, correctName: revealableAnswer(ask.question) }) })), pause(900));
+                later(here(() => renderPlay({ phase: 'decide', ask, panel: decidePanel(ask, optionName(ask, id)) })), pause(900));
                 return;
             }
             // Přetržený řetěz: správná odpověď (u záchrany ta záchranné otázky a u jiné záchranné otázky i ta původní) se ukáže
@@ -2488,9 +2573,43 @@
         };
         const rescue = () => {
             if (busy || !attempt || !attempt.pending || attempt.pending.phase !== 'decide') return;
+            if (attempt.pending.extra) { rescueExtra(); return; }
             attempt = useRescue(attempt);
             store(attempt);
             renderPlay({ phase: 'ask', focus: true });
+        };
+        // Záchrana navíc: nejdřív se použije na serveru (ubere zásobu, jednou za den), pak záchranná otázka. Bez spojení zůstane nabídka;
+        // když pomůcka chybí (použitá jinde) nebo ji databáze nezná, řetěz se přetrhne jako po Ukončit
+        const rescueExtra = async () => {
+            const entry = attempt;
+            const button = deps.appContent.querySelector('[data-chain-extra-use]');
+            if (button) button.disabled = true;
+            busy = true;
+            let res;
+            try { res = deps.useRescueItem ? await deps.useRescueItem(entry.day) : null; } catch (error) {
+                busy = false;
+                if (attempt !== entry || deps.getScreen() !== 'chain') return;
+                if (error && error.status >= 400 && error.status < 500 && error.status !== 401) {
+                    if (deps.dropRescueItem && /nemáš/.test(error.message || '')) deps.dropRescueItem();
+                    deps.showToast(error.message || 'Záchranu navíc teď použít nejde.');
+                    stop();
+                    return;
+                }
+                deps.showToast((error && error.message) || 'Záchranu navíc se nepodařilo použít. Zkus to znovu.');
+                const again = deps.appContent.querySelector('[data-chain-extra-use]');
+                if (again) again.disabled = false;
+                return;
+            }
+            busy = false;
+            if (attempt !== entry) return;
+            if (!res || !res.used) {
+                deps.showToast('Záchranu navíc teď použít nejde.');
+                if (deps.getScreen() === 'chain') stop();
+                return;
+            }
+            attempt = useRescue(attempt);
+            store(attempt);
+            if (deps.getScreen() === 'chain') renderPlay({ phase: 'ask', focus: true });
         };
         const stop = () => {
             if (busy || !attempt || !attempt.pending || attempt.pending.phase !== 'decide') return;

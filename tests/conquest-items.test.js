@@ -33,8 +33,9 @@ const QUESTION = { kind: 'capital', prompt: 'Které město je hlavním městem R
 
 test('pravidla: strop a názvy stejné jako na serveru; Půl na půl jen u 4 textových nebo obrázkových možností; odebere vždy dvě špatné', () => {
     const schema = fs.readFileSync(path.join(ROOT, 'supabase', 'schema.sql'), 'utf8');
-    assert.match(schema, /player_item_cap\(item text\) returns integer\s+language sql immutable as \$\$ select case item when 'extra_move' then 1 when 'fifty' then 2 end \$\$;/);
-    assert.deepEqual(C.ITEM_IDS, ['extra_move', 'fifty']);
+    assert.match(schema, /player_item_cap\(item text\) returns integer\s+language sql immutable as \$\$ select case item when 'extra_move' then 1 when 'fifty' then 2 when 'chain_rescue' then 1 end \$\$;/);
+    assert.deepEqual(C.ITEM_IDS, ['extra_move', 'fifty'], 'Záchrana navíc (blok 37) patří do Řetězovky, ne do pruhu Dobývání');
+    assert.deepEqual([C.ITEMS.chain_rescue.max, C.ITEMS.chain_rescue.name, C.ITEMS.chain_rescue.place], [1, 'Záchrana navíc', 'chain']);
     assert.deepEqual([C.ITEMS.extra_move.max, C.ITEMS.fifty.max], [1, 2]);
     assert.deepEqual([C.ITEMS.extra_move.name, C.ITEMS.fifty.name], ['Tah navíc', 'Půl na půl']);
     // Server odmítá stejné druhy otázek (conquest_use_fifty)
@@ -199,14 +200,15 @@ test('social.js: zásoba, zisk ze sezóny a truhly, Tah navíc a Půl na půl; z
         return [400, { message: 'neznámé' }];
     });
     try {
-        assert.deepEqual(await Social.playerItemsMine(), { extra_move: 1, fifty: 1, max: { extra_move: 1, fifty: 2 } }, 'strop i v aplikaci');
+        // Bez chain_rescue v odpovědi = databáze bez bloku 37 (Záchrana navíc se nenabídne)
+        assert.deepEqual(await Social.playerItemsMine(), { extra_move: 1, fifty: 1, max: { extra_move: 1, fifty: 2, chain_rescue: 1 } }, 'strop i v aplikaci');
         const claimed = await Social.playerItemsClaim('season', 'season:2026-11:5');
         assert.deepEqual(calls.pop(), { name: 'player_items_claim', body: { source: 'season', key: 'season:2026-11:5' } });
-        assert.deepEqual(claimed, { kind: 'fifty', granted: true, full: false, already: false, count: 1, max: 2, lucky: true, items: { extra_move: 0, fifty: 1, max: { extra_move: 1, fifty: 2 } } });
+        assert.deepEqual(claimed, { kind: 'fifty', granted: true, full: false, already: false, count: 1, max: 2, lucky: true, items: { extra_move: 0, fifty: 1, max: { extra_move: 1, fifty: 2, chain_rescue: 1 } } });
         const used = await Social.conquestUseExtra(GAME);
         assert.deepEqual(calls.pop(), { name: 'conquest_use_extra', body: { game: GAME } });
-        assert.deepEqual(used.items, { extra_move: 0, fifty: 1, max: { extra_move: 1, fifty: 2 }, extra_used: true, fifty_used: false, can_extra: false, extra_block: 'Tah navíc jde v jedné hře použít jen jednou.' });
-        assert.deepEqual(await Social.conquestUseFifty(GAME, { target: 'Q40' }), { removed: null, items: { extra_move: 0, fifty: 0, max: { extra_move: 1, fifty: 2 } }, fifty_used: true });
+        assert.deepEqual(used.items, { extra_move: 0, fifty: 1, max: { extra_move: 1, fifty: 2, chain_rescue: 1 }, extra_used: true, fifty_used: false, can_extra: false, extra_block: 'Tah navíc jde v jedné hře použít jen jednou.' });
+        assert.deepEqual(await Social.conquestUseFifty(GAME, { target: 'Q40' }), { removed: null, items: { extra_move: 0, fifty: 0, max: { extra_move: 1, fifty: 2, chain_rescue: 1 } }, fifty_used: true });
         assert.deepEqual(calls.pop().body, { game: GAME, siege: null, target: 'Q40' });
         assert.deepEqual((await Social.conquestUseFifty(GAME, { siege: SIEGE })).removed, [3, 0]);
         assert.deepEqual(calls.pop().body, { game: GAME, siege: SIEGE, target: null });

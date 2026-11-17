@@ -147,6 +147,94 @@ test('SQL: Řetězovka dne', { skip: !available && 'PostgreSQL není dostupný' 
         q(`delete from chain_results where user_id = '${F}' and day < '2026-11-10'`);
     });
 
+    await t.test('Záchrana navíc (blok 37): použití jednou za den před odesláním, dva zachráněné články jen s použitou pomůckou', () => {
+        const DAY2 = '2026-11-14';
+        const now = at('13:00', DAY2);
+        const [G, H, I] = [51, 52, 53].map(id);
+        q([G, H, I].map((uid, i) => `insert into auth.users (id, email) values ('${uid}', 'r${i}@example.com');`).join('\n'));
+        const use = (uid, day = DAY2) => as(uid, `select chain_use_rescue('${day}');`, now);
+        const stock = (uid, count) => q(`insert into player_items (user_id, kind, count) values ('${uid}', 'chain_rescue', ${count}) on conflict (user_id, kind) do update set count = excluded.count`);
+        const have = (uid) => json(as(uid, 'select player_items_mine();', now)).chain_rescue;
+        denied(as(null, `select chain_use_rescue('${DAY2}');`, now), /Přihlas se/);
+        denied(as(null, `select chain_use_rescue('${DAY2}');`, now, 'anon'), /permission denied/);
+        denied(use(G), /Záchranu navíc teď nemáš\./);
+        stock(G, 1);
+        denied(use(G, '2026-11-16'), /už skončila/, 'zítřek');
+        denied(use(G, '2026-11-12'), /už skončila/, 'předevčírem');
+        const used = json(use(G));
+        assert.deepEqual([used.used, used.already, used.items.chain_rescue], [true, false, 0]);
+        assert.deepEqual([json(use(G)).already, have(G)], [true, 0], 'podruhé téhož dne nic neubere (ztracená odpověď, druhé zařízení)');
+        // Body se dvěma zachráněnými články (5 článků, Záchrana na 2. a 4.: 15 − 6 = 9) projdou jen s použitou pomůckou
+        for (const [links, score] of [[5, 9], [5, 6], [3, 1], [1, 0]]) assert.ok(Chain.validSummary({ links, score, rescued: true, extra: true }), `chain.js: ${links}/${score} se Záchranou navíc`);
+        for (const [links, score] of [[5, 9], [5, 6]]) assert.equal(Chain.validSummary({ links, score, rescued: true }), false, `chain.js: ${links}/${score} jen se Záchranou`);
+        for (const [links, score] of [[5, 5], [5, 16], [3, 0]]) assert.equal(Chain.validSummary({ links, score, rescued: true, extra: true }), false, `chain.js: ${links}/${score} ani se Záchranou navíc`);
+        stock(H, 1);
+        denied(submit(H, 5, 9, true, now, DAY2), /Neplatný výsledek/, 'bez použité Záchrany navíc');
+        denied(submit(G, 5, 5, true, now, DAY2), /Neplatný výsledek/, 'víc než dva zachráněné články');
+        denied(submit(G, 5, 9, false, now, DAY2), /Neplatný výsledek/, 'bez Záchrany');
+        assert.deepEqual(json(submit(G, 5, 9, true, now, DAY2)), { day: DAY2, links: 5, score: 9, rescued: true, extra: true, rank: 1 });
+        assert.equal(q(`select extra_rescue from chain_results where user_id = '${G}' and day = '${DAY2}'`), 't');
+        assert.deepEqual(json(as(G, `select chain_day_stats('${DAY2}');`, now)).me, { day: DAY2, links: 5, score: 9, rescued: true, extra: true, rank: 1 });
+        // S použitou pomůckou platí i jedna Záchrana (druhá nevyšla): extra se zapíše, protože ji hráč ten den použil
+        stock(I, 1);
+        ok(use(I));
+        assert.equal(json(submit(I, 3, 4, true, now, DAY2)).extra, true);
+        // Po odeslání výsledku dne už použít nejde (H výsledek nemá, má ale pomůcku: zkusí to po odeslání)
+        ok(submit(H, 2, 3, false, now, DAY2));
+        denied(use(H), /Řetězovku dne už máš dohranou\./);
+        assert.equal(have(H), 1);
+        // Kontrola v tabulce: dva zachráněné články jen s extra_rescue, extra_rescue jen se Záchranou
+        denied(psql(dbName, `insert into chain_results (day, user_id, links, score, rescued) values ('2026-11-01', '${G}', 5, 9, true)`), /chain_results_values/);
+        denied(psql(dbName, `insert into chain_results (day, user_id, links, score, rescued, extra_rescue) values ('2026-11-01', '${G}', 3, 6, false, true)`), /chain_results_values/);
+        denied(psql(dbName, `insert into chain_results (day, user_id, links, score, rescued, extra_rescue) values ('2026-11-01', '${G}', 5, 5, true, true)`), /chain_results_values/);
+        // Starší aplikace volá stejnou funkci se čtyřmi údaji (jediná verze chain_submit)
+        assert.equal(q(`select count(*) from pg_proc where proname = 'chain_submit'`), '1');
+        // Export: použitá pomůcka (jen vlastní)
+        const exported = json(as(G, 'select export_my_data();', now));
+        assert.deepEqual(exported.pomucky.pouzite.map(row => [row.key, row.kind]), [[`chain:${DAY2}`, 'chain_rescue']]);
+        assert.equal(exported.retezovka.find(row => row.day === DAY2).extra_rescue, true);
+    });
+
+    await t.test('Záchrana navíc za milníky Řetězovky (blok 37): dohrané dny 10, 30, 100, 365 a celé řetězy bez Záchrany 5, 15, 30, 60', () => {
+        const DAY3 = '2026-11-20';
+        const now = at('13:00', DAY3);
+        const [M, N, O, P] = [61, 62, 63, 64].map(id);
+        q([M, N, O, P].map((uid, i) => `insert into auth.users (id, email) values ('${uid}', 'm${i}@example.com');`).join('\n'));
+        // Dřívější dny přímo do tabulky: days = počet dní, clean = z nich celé řetězy bez Záchrany
+        const past = (uid, days, clean) => q(`insert into chain_results (day, user_id, links, score, rescued)
+            select date '2026-09-01' + n, '${uid}', case when n < ${clean} then 7 else 2 end, case when n < ${clean} then 28 else 3 end, false from generate_series(0, ${days - 1}) n`);
+        const pickItem = (item) => item && [item.kind, item.granted, item.full, item.source, item.at];
+        // M: 9 dní, desátý dá Záchranu navíc; jedenáctý už ne
+        past(M, 9, 0);
+        assert.deepEqual(pickItem(json(submit(M, 2, 3, false, now, DAY3)).rescue_item), ['chain_rescue', true, false, 'chain-days', 10]);
+        assert.equal(json(submit(M, 2, 3, false, at('13:00', '2026-11-21'), '2026-11-21')).rescue_item, undefined, 'jedenáctý den nic');
+        // N: 4 celé řetězy bez Záchrany, pátý dá Záchranu navíc (k tomu Půl na půl za celý řetěz)
+        past(N, 4, 4);
+        const n = json(submit(N, 7, 28, false, now, DAY3));
+        assert.deepEqual(pickItem(n.rescue_item), ['chain_rescue', true, false, 'chain-clean', 5]);
+        assert.equal(n.item.kind, 'fifty');
+        // Se Záchranou se celý řetěz do milníku nepočítá
+        past(O, 4, 4);
+        assert.equal(json(submit(O, 7, 22, true, now, DAY3)).rescue_item, undefined);
+        // P: oba milníky naráz (10. den a 5. čistý řetěz): jedna pomůcka, druhý milník propadne; s plnou zásobou propadne (full)
+        past(P, 9, 4);
+        const both = json(submit(P, 7, 28, false, now, DAY3)).rescue_item;
+        assert.deepEqual([both.granted, both.count], [true, 1]);
+        assert.equal(q(`select string_agg(key || '=' || granted, ',' order by key) from player_item_grants where user_id = '${P}' and kind = 'chain_rescue'`), 'chain-clean:5=false,chain-days:10=true');
+        // Hráč, který milníky přeskočil (dny z doby před pomůckou): dostane jen ten nejvyšší a nižší už ne
+        const Q = id(65);
+        q(`insert into auth.users (id, email) values ('${Q}', 'q@example.com');`);
+        past(Q, 40, 0);
+        assert.deepEqual(pickItem(json(submit(Q, 1, 1, false, now, DAY3)).rescue_item), ['chain_rescue', true, false, 'chain-days', 30]);
+        assert.equal(q(`select count(*) from player_item_grants where user_id = '${Q}'`), '1');
+        // Plná zásoba: milník propadne a aplikace řekne „už ji máš“
+        const R = id(66);
+        q(`insert into auth.users (id, email) values ('${R}', 'r@example.com');`);
+        past(R, 9, 0);
+        q(`insert into player_items (user_id, kind, count) values ('${R}', 'chain_rescue', 1)`);
+        assert.deepEqual(pickItem(json(submit(R, 2, 3, false, now, DAY3)).rescue_item), ['chain_rescue', false, true, 'chain-days', 10]);
+    });
+
     await t.test('export dat obsahuje Řetězovku (jen vlastní) a smazání účtu ji smaže', () => {
         const exported = json(as(A, 'select export_my_data();', at('21:00')));
         assert.equal(exported.retezovka.length, 1);

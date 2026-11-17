@@ -1352,6 +1352,19 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
     .chain-dot-broken { background: #4c0519; color: #fecdd3; }
     .chain-dot-todo { color: #9d9a95; box-shadow: inset 0 0 0 1.5px #41454a; }
 }
+/* Pomůcka Záchrana navíc (blok 37): tyrkysová jako zachráněný článek – štítek v záhlaví karty, „+1“ u Záchrany, tlačítko v panelu
+   rozhodnutí a pečeť (conquest.js itemSealHtml, cq-item-chain_rescue) */
+.chain-extra-chip { background: #ccfbf1; color: #134e4a; box-shadow: inset 0 0 0 1px #5eead4; }
+.chain-extra-plus { background: #0f766e; color: #f0fdfa; }
+.chain-extra-use { background-color: #0f766e; color: #fff; }
+.cq-item-chain_rescue { background: radial-gradient(circle at 34% 28%, #f0fdfa 0, #b5f0e4 38%, #4fbfae 78%, #1f7f74 100%); color: #0d3b37;
+    box-shadow: inset 0 0 0 1.5px rgb(15 80 74 / 0.7), inset 0 0 0 3.5px rgb(240 253 250 / 0.55), 0 2px 4px -1px rgb(10 40 37 / 0.45); }
+.cq-item-chain_rescue .cq-item-mark { background: #134e4a; }
+@media (prefers-color-scheme: dark) {
+    .chain-extra-chip { background: rgb(19 78 74 / 0.75); color: #ccfbf1; box-shadow: inset 0 0 0 1px #0f766e; }
+    .chain-extra-plus { background: #5eead4; color: #134e4a; }
+    .chain-extra-use { background-color: #0f766e; }
+}
 /* Vodoznak karty otázky: obrys dvou článků řetězu */
 .chain-watermark rect { fill: none; stroke: #d69725; stroke-width: 9; opacity: 0.13; }
 @media (prefers-color-scheme: dark) { .chain-watermark rect { stroke: #efc55c; opacity: 0.1; } }

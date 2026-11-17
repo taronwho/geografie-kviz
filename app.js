@@ -104,7 +104,9 @@
     // 35 = Další postavičky (č. 317–340) v kontrole odemčení na serveru (unlock_catalog_more; se starší databází je server nezná a uloží je volně).
     // 36 = Odznaky Řetězovky dne (retezovka-*, retezovka-cela-*) v katalogu odznaků, chain_badge_counts (dorovnání počítadel podle serveru)
     // a Pavouk pletař za odznak retezovka-10 (se starší databází se odznaky Řetězovky do účtu neuloží a počítadla zůstanou jen ze zařízení).
-    const REQUIRED_SCHEMA = 36;
+    // 37 = Pomůcka Záchrana navíc do Řetězovky (zásoba chain_rescue, chain_use_rescue, chain_submit se dvěma zachráněnými články; zisk za
+    // milníky Řetězovky, 12. stupeň Sezóny, Truhlu Mudrlanta, Zlatou truhlu a společný cíl Bosse; se starší databází se nenabídne).
+    const REQUIRED_SCHEMA = 37;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -4735,6 +4737,19 @@
         if (!grant || !grant.kind) return;
         itemStock = { ...(itemStock || {}), [grant.kind]: grant.count };
     };
+    const itemName = (kind) => (window.MudrlantConquest && window.MudrlantConquest.ITEMS[kind] ? window.MudrlantConquest.ITEMS[kind].name : 'Půl na půl');
+    // Zásoba ze serveru (player_items_mine): chain_rescue = null, když ji databáze nezná (bez bloku 37: Záchrana navíc se nenabídne)
+    const setItemStock = (items) => {
+        if (!items) return;
+        itemStock = { extra_move: items.extra_move, fifty: items.fifty, chain_rescue: typeof items.chain_rescue === 'number' ? items.chain_rescue : null };
+    };
+    // Načtení zásoby (Řetězovka: Záchrana navíc); vrací zásobu, nebo null (host, starší databáze, bez spojení)
+    const refreshItemStock = async () => {
+        if (!itemsClaimable() || !Social.playerItemsMine) return null;
+        const items = await Social.playerItemsMine().catch(() => null);
+        setItemStock(items);
+        return items;
+    };
     // Zisk pomůcky: nová = oslava „Nová pomůcka do Dobývání“ s pečetí, plná zásoba = krátká zpráva; už započítaný zdroj nic
     const celebrateItem = (grant) => {
         const Conquest = window.MudrlantConquest;
@@ -5272,19 +5287,23 @@
         overlay.className = 'chest-overlay fade-in fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto px-4 pb-4';
         let opened = null;
         let opening = false;
-        // Truhla Mudrlanta (ne Zlatá): vzácně (5 %, nejvýš jednou za týden) i pomůcka Půl na půl do Dobývání; o los se řekne server
+        // Vzácně i pomůcka; o los se řekne server (nejvýš jednou za týden): Truhla Mudrlanta 5 % Půl na půl do Dobývání a 5 % Záchrana navíc
+        // do Řetězovky, Zlatá truhla 20 % Záchrana navíc (blok 37)
         let bonus = null;
         const askBonus = () => {
-            if (gold || bonus || !itemsClaimable()) return;
-            const key = `chest:${Rewards.isoWeek(Season ? Season.pragueDay() : DailyQuiz.pragueDay())}`;
-            bonus = Social.playerItemsClaim('chest', key).catch(() => null);
+            if (bonus || !itemsClaimable()) return;
+            const source = gold ? 'gold' : 'chest';
+            const key = `${source}:${Rewards.isoWeek(Season ? Season.pragueDay() : DailyQuiz.pragueDay())}`;
+            bonus = Social.playerItemsClaim(source, key).catch(() => null);
         };
         const showBonus = () => {
             if (!bonus) return;
             bonus.then(grant => {
+                // Záchrana navíc s plnou zásobou propadne: krátká zpráva (blok 37)
+                if (grant && grant.full && !grant.already && grant.kind === 'chain_rescue') { celebrateItem(grant); return; }
                 if (!grant || !grant.granted || grant.already || !opened || !overlay.isConnected) return;
                 noteItemStock(grant);
-                opened = { ...opened, pomucka: { kind: grant.kind, name: window.MudrlantConquest ? window.MudrlantConquest.ITEMS[grant.kind].name : 'Půl na půl' } };
+                opened = { ...opened, pomucka: { kind: grant.kind, name: itemName(grant.kind), place: grant.kind === 'chain_rescue' ? 'do Řetězovky' : 'do Dobývání' } };
                 paint();
                 if (Sound) Sound.play('badge');
             });
@@ -5739,7 +5758,7 @@
                 openSeason.loading = false;
                 if (!items) return;
                 const before = JSON.stringify(seasonPomucky());
-                itemStock = { extra_move: items.extra_move, fifty: items.fifty };
+                setItemStock(items);
                 const overlay = document.getElementById('dialog-overlay');
                 if (before !== JSON.stringify(seasonPomucky()) && overlay && overlay.dataset.title === `Sezóna ${Season.label(view.id)}`) openSeason(selected);
             }).catch(() => { openSeason.loading = false; });
@@ -12000,6 +12019,8 @@
             awardBossProgress({ xp: { total: result.xp, parts: [{ label: 'za společnou výhru nad bossem', xp: result.xp }] } });
             showCelebration('oslava', 'Společná výhra!', `${boss.name} padl pod náporem hráčů: +${result.xp} XP pro každého, kdo to zkusil`, 'badge', uiArt(Boss.artFor(boss.id, 4), 'h-20 w-20 -my-4 drop-shadow-lg').replace('<img src=', '<img data-keep src='));
         }
+        // Společná výhra dá i pomůcku Záchrana navíc do Řetězovky (blok 37; s plnou zásobou jen zpráva)
+        if (result.item) celebrateItem(result.item);
     };
     // XP, počítadla (souboje, výhry, den hraní) a odznaky (emblém bosse přes x.bosses v badgeContext)
     const awardBossProgress = ({ xp = null, fought = false, won = false } = {}) => {
@@ -12645,8 +12666,18 @@
             appContent, setScreen: (name) => { screen = name; }, getScreen: () => screen, renderHome, renderIcons, updateControlsUI, closePlaceInfo, showToast, showDialog, closeDialog,
             uiArt, specialTile, paintHome: () => paintTab('dnes'), avatarHtml, xpLine, meRow: () => quizHelpers().meRow, loadTopic, loadCountries, readJson, writeJson, signedUser, social: Social, auth: Auth, startLogin,
             shareCard: ShareCard, shareImageCounted, robeNow, appUrl, appName: APP_NAME, sound: Sound, isLoading: () => isLoading,
-            // Celá Řetězovka: pomůcka Půl na půl do Dobývání (blok 30)
+            // Celá Řetězovka: pomůcka Půl na půl do Dobývání (blok 30); milník Řetězovky: Záchrana navíc (blok 37)
             itemGranted: (grant) => celebrateItem(grant),
+            // Pomůcka Záchrana navíc (blok 37): zásoba ze serveru (null = nevíme nebo databáze ji nezná), načtení, použití a pečeť
+            rescueStock: () => (itemStock && typeof itemStock.chain_rescue === 'number' ? itemStock.chain_rescue : null),
+            loadItems: () => refreshItemStock(),
+            useRescueItem: async (day) => {
+                const res = Social && Social.chainUseRescue ? await Social.chainUseRescue(day) : null;
+                if (res && res.items) setItemStock(res.items);
+                return res;
+            },
+            dropRescueItem: () => { if (itemStock) itemStock = { ...itemStock, chain_rescue: 0 }; },
+            itemSeal: (cls) => itemArt('chain_rescue', cls),
             // XP jednou za den a zařízení (chain.js to hlídá) a počítadla dohraných a celých řetězů (i bez Záchrany) pro odznaky Řetězovky
             awardXp: (xp, summary) => {
                 const before = loadProgress();
