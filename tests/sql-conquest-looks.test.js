@@ -48,10 +48,12 @@ const [A, B, D, E, ADMIN] = [1, 2, 4, 5, 6].map(id);
 const BOT = id(90);
 let LUCKY = null;
 const looks = (uid) => json(as(uid, 'select conquest_looks();'));
-const create = (uid, { map = 'evropa', players = 2, hours = 24, minutes = null, per = 'hour', actions = 5, colour = 'cervena', emblem = 'lev', pattern } = {}) =>
-    as(uid, `select conquest_create(${lit(map)}, ${players}, ${hours === null ? 'null' : hours}, ${lit(per)}, ${actions}, 'private', ${lit(colour)}, ${lit(emblem)}, ${minutes === null ? 'null' : minutes}${pattern === undefined ? '' : `, ${lit(pattern)}`});`);
-const join = (uid, code, { colour = 'modra', emblem = 'orel', pattern } = {}) =>
-    as(uid, `select conquest_join(null, ${lit(code)}, ${lit(colour)}, ${lit(emblem)}${pattern === undefined ? '' : `, ${lit(pattern)}`});`);
+// Nepovinné poslední parametry: výplň (pattern, blok 38) a sada hradů (castle, blok 40); bez nich volání postaru
+const tail = (pattern, castle) => (pattern === undefined && castle === undefined ? '' : `, ${lit(pattern === undefined ? null : pattern)}${castle === undefined ? '' : `, ${lit(castle)}`}`);
+const create = (uid, { map = 'evropa', players = 2, hours = 24, minutes = null, per = 'hour', actions = 5, colour = 'cervena', emblem = 'lev', pattern, castle } = {}) =>
+    as(uid, `select conquest_create(${lit(map)}, ${players}, ${hours === null ? 'null' : hours}, ${lit(per)}, ${actions}, 'private', ${lit(colour)}, ${lit(emblem)}, ${minutes === null ? 'null' : minutes}${tail(pattern, castle)});`);
+const join = (uid, code, { colour = 'modra', emblem = 'orel', pattern, castle } = {}) =>
+    as(uid, `select conquest_join(null, ${lit(code)}, ${lit(colour)}, ${lit(emblem)}${tail(pattern, castle)});`);
 const move = (uid, game, target, kind, source = null) => ok(as(uid, `select conquest_move(${lit(game)}, ${lit(target)}, ${lit(kind)}, true, ${lit(source)});`));
 const place = (game, territory, owner, { home = false } = {}) =>
     q(`update conquest_territories set owner = ${owner ? lit(owner) : 'null'}, level = 0, home = ${home}, treasure = false where game_id = ${lit(game)} and territory = ${lit(territory)}`);
@@ -75,10 +77,12 @@ test('SQL: výplně území a vzácné znaky v Dobývání', { skip: !available 
     q(`insert into auth.users (id, email, raw_user_meta_data) values ('${BOT}', 'bot-${BOT}@bots.invalid', '{"full_name": "Bot Adam"}')`);
     q(`insert into dev_admins (user_id) values ('${ADMIN}')`);
 
-    await t.test('katalog odpovídá conquest.js (pořadí, statistika a hranice); seznamy vzorů a vzácných znaků', () => {
+    await t.test('katalog odpovídá conquest.js (pořadí, statistika a hranice); seznamy vzorů, vzácných znaků a sad hradů', () => {
         const rows = q(`select string_agg(kind || '|' || item || '|' || stat || '|' || need, ',' order by kind desc, ord) from conquest_look_catalog()`).split(',');
-        const js = [...C.PATTERNS.map(p => `pattern|${p.id}|${p.stat}|${p.need}`), ...C.RARE_EMBLEMS.map(e => `emblem|${e.id}|${e.stat}|${e.need}`)];
+        const js = [...C.PATTERNS.map(p => `pattern|${p.id}|${p.stat}|${p.need}`), ...C.RARE_EMBLEMS.map(e => `emblem|${e.id}|${e.stat}|${e.need}`),
+            ...C.CASTLE_SETS.map(c => `castle|${c.id}|${c.stat}|${c.need}`)];
         assert.deepEqual(rows, js);
+        assert.equal(q('select array_to_string(conquest_castles(), \',\')'), C.CASTLE_SETS.map(c => c.id).join(','));
         assert.equal(q('select array_to_string(conquest_patterns(), \',\')'), C.PATTERNS.map(p => p.id).join(','));
         assert.equal(q('select array_to_string(conquest_rare_emblems(), \',\')'), C.RARE_EMBLEMS.map(e => e.id).join(','));
         assert.equal(q('select count(*) from conquest_links where sea'), '58', 'námořní spoje oběma směry na čtyřech mapách');
@@ -95,22 +99,25 @@ test('SQL: výplně území a vzácné znaky v Dobývání', { skip: !available 
         denied(as(A, `insert into conquest_looks (user_id, kind, item) values ('${A}', 'pattern', 'duha');`), /permission denied/, 'zápis jen přes funkce');
         denied(as(A, `update conquest_looks set seen_at = now();`), /permission denied/);
         const can = (role, fn) => q(`select has_function_privilege('${role}', 'public.${fn}', 'execute')`);
-        for (const fn of ['conquest_looks()', 'conquest_looks_seen(timestamp with time zone)', 'conquest_create(text, integer, integer, text, integer, text, text, text, integer, text)',
-            'conquest_join(uuid, text, text, text, text)', 'conquest_set_look(uuid, text, text, text)']) {
+        for (const fn of ['conquest_looks()', 'conquest_looks_seen(timestamp with time zone)', 'conquest_create(text, integer, integer, text, integer, text, text, text, integer, text, text)',
+            'conquest_join(uuid, text, text, text, text, text)', 'conquest_set_look(uuid, text, text, text, text)']) {
             assert.deepEqual([can('authenticated', fn), can('anon', fn), can('public', fn)], ['t', 'f', 'f'], fn);
         }
         for (const fn of ['conquest_look_stats(uuid)', 'conquest_looks_json(uuid)', 'conquest_look_owned(uuid, text, text)', 'conquest_check_style(uuid, text, text)',
-            'conquest_chest_pattern(uuid, text)', 'conquest_look_catalog()', 'conquest_rare_emblems()', 'conquest_patterns()', 'conquest_add_player(public.conquest_games, uuid, text, text, text)']) {
+            'conquest_chest_pattern(uuid, text)', 'conquest_look_catalog()', 'conquest_rare_emblems()', 'conquest_patterns()', 'conquest_add_player(public.conquest_games, uuid, text, text, text, text)',
+            'conquest_castles()', 'conquest_check_castle(uuid, text)']) {
             assert.deepEqual([can('authenticated', fn), can('anon', fn), can('public', fn)], ['f', 'f', 'f'], fn);
         }
         for (const old of ['conquest_join(uuid, text, text, text)', 'conquest_set_look(uuid, text, text)', 'conquest_create(text, integer, integer, text, integer, text, text, text, integer)',
-            'conquest_add_player(public.conquest_games, uuid, text, text)']) {
+            'conquest_add_player(public.conquest_games, uuid, text, text)', 'conquest_join(uuid, text, text, text, text)', 'conquest_set_look(uuid, text, text, text)',
+            'conquest_create(text, integer, integer, text, integer, text, text, text, integer, text)', 'conquest_add_player(public.conquest_games, uuid, text, text, text)']) {
             assert.equal(q(`select to_regprocedure('public.${old}') is null`), 't', `stará podoba ${old} zmizela`);
         }
         denied(as(null, 'select conquest_looks();', 'anon'), null, 'anon nic');
         denied(as(null, 'select conquest_looks();'), /Přihlas se/);
         denied(as(A, `select conquest_look_stats('${A}');`), /permission denied/);
-        assert.deepEqual(JSON.parse(q(`select conquest_looks_json('${BOT}')`)), { patterns: [], emblems: [], new: [], stats: {} });
+        assert.deepEqual(JSON.parse(q(`select conquest_looks_json('${BOT}')`)), { patterns: [], emblems: [], castles: [], new: [], stats: {} });
+        assert.deepEqual([mine.castles, mine.stats.home_fortress, mine.stats.season15], [[], 0, 0], 'sady hradů (blok 40)');
         assert.equal(q(`select conquest_look_stats('${BOT}')`), '{}');
     });
 
@@ -255,6 +262,75 @@ test('SQL: výplně území a vzácné znaky v Dobývání', { skip: !available 
         // Vzor drží i kontrola v tabulce
         const bad = psql(dbName, `update conquest_players set pattern = 'Špatně!' where game_id = ${lit(game.id)} and user_id = '${E}'`);
         assert.match(bad.stderr, /conquest_players_pattern/);
+    });
+
+    await t.test('sady hradů (blok 40): Pevnost na domově 10×, 25 bitev, 15. stupeň Sezóny ve 3 sezónách; volba jen odemčené (správce cokoli), víc hráčů se stejnou sadou, souhrn všem', () => {
+        clock = '2026-11-15T10:00:00Z';
+        const [F, G] = [7, 8].map(id);
+        q(`insert into auth.users (id, email) values ('${F}', 'f@example.com'), ('${G}', 'g@example.com')`);
+        denied(create(F, { castle: 'goticky' }), /Tenhle hrad ještě nemáš\. Vyber jiný\./);
+        denied(create(F, { castle: 'vezovy' }), /Vyber hrad z nabídky\./);
+        denied(create(F, { pattern: null, castle: 'Gotický!' }), /Vyber hrad z nabídky/);
+        assert.deepEqual(looks(F).castles, []);
+        // Pevnost na domovském hradu ve skutečné hře: tři opevnění domova (Palisáda, Hradba, Pevnost), počítá se jen Pevnost
+        const game = twoPlayerGame(F, G, 'evropa', 'Q142', 'Q28');
+        for (let i = 0; i < 3; i++) move(F, game.id, 'Q142', 'fortify');
+        assert.equal(q(`select level from conquest_territories where game_id = ${lit(game.id)} and territory = 'Q142'`), '3');
+        move(G, game.id, 'Q28', 'fortify');
+        assert.deepEqual([looks(F).stats.home_fortress, looks(G).stats.home_fortress], [1, 0]);
+        // Dalších 8 Pevností z dřívějších her (zapsané rovnou do kroniky) a nepovedený pokus (nepočítá se): 9 z 10, ještě nic
+        const fortify = (uid, count, result = 'fortify') => q(`insert into conquest_moves (game_id, user_id, period, kind, territory, success, result, level)
+            select ${lit(game.id)}, '${uid}', 1, 'fortify', 'Q142', ${result === 'fortify'}, '${result}', 3 from generate_series(1, ${count})`);
+        fortify(F, 8);
+        fortify(F, 1, 'fail');
+        assert.deepEqual([looks(F).stats.home_fortress, looks(F).castles], [9, []]);
+        fortify(F, 1);
+        const unlocked = looks(F);
+        assert.deepEqual([unlocked.stats.home_fortress, unlocked.castles], [10, ['goticky']]);
+        assert.deepEqual(unlocked.new.filter(n => n.kind === 'castle').map(n => n.item), ['goticky'], 'nový hrad se ohlásí');
+        // 25 vyhraných bitev (dobytí nebo pobořené opevnění) = Orientální palác
+        const battles = (count) => q(`insert into conquest_moves (game_id, user_id, period, kind, territory, source, success, result, level)
+            select ${lit(game.id)}, '${G}', 1, 'attack', 'Q142', 'Q28', true, case when i % 2 = 0 then 'capture' else 'breach' end, 0 from generate_series(1, ${count}) i`);
+        battles(23);
+        assert.deepEqual([looks(G).stats.battles, looks(G).castles], [23, []]);
+        battles(2);
+        assert.deepEqual(looks(G).castles, ['orientalni']);
+        // 15. stupeň Sezóny ve 3 různých sezónách (jiné stupně se nepočítají) = Japonský hrad
+        q(`insert into player_item_grants (user_id, key, kind, granted) values ('${F}', 'season:2026-01:15', 'extra_move', true), ('${F}', 'season:2026-05:15', 'extra_move', false),
+            ('${F}', 'season:2026-05:5', 'fifty', true), ('${F}', 'season:2026-06:8', 'revive', true)`);
+        assert.deepEqual([looks(F).stats.season15, looks(F).castles], [2, ['goticky']]);
+        q(`insert into player_item_grants (user_id, key, kind, granted) values ('${F}', 'season:2026-09:15', 'extra_move', false)`);
+        assert.deepEqual([looks(F).stats.season15, looks(F).castles], [3, ['goticky', 'japonsky']], 'v pořadí nabídky');
+        // Odemčené zůstane, i když hra s Pevnostmi zmizí
+        q(`delete from conquest_games where id = ${lit(game.id)}`);
+        assert.deepEqual([looks(F).stats.home_fortress, looks(F).castles], [0, ['goticky', 'japonsky']]);
+        // Volba: založení s odemčenou sadou, souhrn ji ukáže; cizí zamčená ne; stejnou sadu smí mít víc hráčů (správce cokoli)
+        const lobby = json(create(F, { castle: 'goticky', emblem: 'lev', players: 4 }));
+        assert.deepEqual([lobby.players[0].castle, lobby.players[0].pattern], ['goticky', null]);
+        denied(join(G, lobby.code, { castle: 'goticky' }), /Tenhle hrad ještě nemáš/);
+        const joined = json(join(G, lobby.code, { castle: 'orientalni' }));
+        assert.equal(joined.players.find(p => p.id === G).castle, 'orientalni');
+        const admin = json(join(ADMIN, lobby.code, { colour: 'zelena', pattern: 'brokat', castle: 'goticky' }));
+        assert.deepEqual(admin.players.filter(p => p.castle === 'goticky').map(p => p.id).sort(), [F, ADMIN].sort(), 'sada není jedinečná');
+        assert.equal(looks(ADMIN).castles.length, 0, 'správce vidí jen opravdu odemčené');
+        // Ostatní hráči vidí sadu v lobby i ve stavu hry
+        assert.equal(json(as(G, `select conquest_state(${lit(lobby.id)});`)).players.find(p => p.id === F).castle, 'goticky');
+        assert.equal(json(as(G, 'select conquest_lobby();')).mine.find(g => g.id === lobby.id).players.find(p => p.id === F).castle, 'goticky');
+        // Změna vzhledu: jiná odemčená sada, zamčená ne, null = základní; volání bez sady (starší aplikace) nechá základní hrad
+        const setLook = (uid, colour, castle) => as(uid, `select conquest_set_look(${lit(lobby.id)}, ${lit(colour)}, 'lev', null${castle === undefined ? '' : `, ${lit(castle)}`});`);
+        assert.equal(json(setLook(F, 'cervena', 'japonsky')).players.find(p => p.me).castle, 'japonsky');
+        denied(setLook(F, 'cervena', 'orientalni'), /Tenhle hrad ještě nemáš/);
+        denied(setLook(F, 'cervena', 'neznamy'), /Vyber hrad z nabídky/);
+        assert.equal(json(setLook(F, 'cervena', null)).players.find(p => p.me).castle, null);
+        assert.equal(json(setLook(F, 'cervena', '')).players.find(p => p.me).castle, null, 'prázdná = základní');
+        json(setLook(G, 'modra', 'orientalni'));
+        assert.equal(json(setLook(G, 'modra')).players.find(p => p.me).castle, null);
+        // Pravidlo v tabulce
+        const bad = psql(dbName, `update conquest_players set castle = 'Špatně!' where game_id = ${lit(lobby.id)} and user_id = '${F}'`);
+        assert.match(bad.stderr, /conquest_players_castle/);
+        // Bot sadu nemá a nic neodemyká
+        assert.deepEqual(JSON.parse(q(`select conquest_looks_json('${BOT}')`)).castles, []);
+        q(`delete from conquest_games where id = ${lit(lobby.id)}`);
     });
 
     await t.test('export a smazání účtu', () => {

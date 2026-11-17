@@ -108,7 +108,7 @@
     // milníky Řetězovky, 12. stupeň Sezóny, Truhlu Mudrlanta, Zlatou truhlu a společný cíl Bosse; se starší databází se nenabídne).
     // 39 = Dobývání: pomůcka Vzkříšení místo automatického Návratu do hry (conquest_use_revive, ochrana 60 s, zásoba revive; zisk startovní,
     // za započítanou hru, sérii Kvízu dne, 8. stupeň Sezóny a truhly; se starší databází se hráč bez území vrátí sám jako dřív).
-    const REQUIRED_SCHEMA = 39;
+    const REQUIRED_SCHEMA = 40;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;

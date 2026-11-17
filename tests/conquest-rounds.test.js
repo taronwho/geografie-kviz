@@ -166,7 +166,7 @@ test('schema.sql: blok 26 před verzí schématu, verze 26 i v app.js; Chci dal�
     assert.match(schema, /revoke all on public\.conquest_round_marks from public, anon, authenticated;/);
     assert.match(schema, /grant execute on function public\.conquest_round_ready\(uuid, boolean\) to authenticated;/);
     assert.match(schema, /drop function if exists public\.conquest_create\(text, integer, integer, text, integer, text, text, text\);/, 'stará podoba založení se maže');
-    assert.match(schema, /grant execute on function [^;]*public\.conquest_create\(text, integer, integer, text, integer, text, text, text, integer, text\)/, 'založení s minutes a vzorem (blok 38)');
+    assert.match(schema, /grant execute on function [^;]*public\.conquest_create\(text, integer, integer, text, integer, text, text, text, integer, text, text\)/, 'založení s minutes, vzorem (blok 38) a sadou hradů (blok 40)');
     for (const name of ['conquest_round_json', 'conquest_round_done', 'conquest_round_player_done', 'conquest_round_countdown', 'conquest_minutes', 'conquest_period_start', 'conquest_period_end']) {
         assert.doesNotMatch(schema, new RegExp(`grant [^;]*${name}\\(`), `${name} jen interně`);
     }
