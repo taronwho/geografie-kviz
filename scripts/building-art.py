@@ -25,7 +25,28 @@ BUILDINGS = {
     'palisada': {'roof': [[(64, 30), (132, 33), (163, 76), (100, 86)], [(62, 29), (68, 34), (38, 80), (27, 79)]], 'flags': [(104, 5, 133, 28)]},
     'hradba': {'roof': None, 'flags': [], 'flag_from': 'pevnost'},
     'pevnost': {'roof': None, 'flags': [(95, 6, 142, 32)]},
+    # Sady hradů (č. 297–308): domovský hrad stupeň 0–3; opevnění ostatních území (č. 362–367): 1 = palisáda, 2 = hradba
+    'hrad-goticky-0': {'roof': 'blue', 'flags': [(93, 8, 117, 27)]},
+    'hrad-goticky-1': {'roof': 'blue', 'flags': [(93, 8, 116, 27)]},
+    'hrad-goticky-2': {'roof': 'blue', 'flags': [(93, 9, 116, 27), (22, 92, 35, 101), (168, 92, 181, 101)]},
+    'hrad-goticky-3': {'roof': 'blue', 'flags': [(96, 7, 130, 26), (74, 44, 84, 52), (116, 45, 125, 52), (44, 47, 56, 56), (145, 47, 157, 56), (24, 89, 36, 99), (167, 90, 180, 99)]},
+    'opevneni-goticky-1': {'roof': 'blue', 'flags': [(93, 9, 116, 27)]},
+    'opevneni-goticky-2': {'roof': 'blue', 'flags': [(94, 8, 117, 27)]},
+    'hrad-orientalni-0': {'roof': 'blue', 'flags': [(96, 4, 121, 22)]},
+    'hrad-orientalni-1': {'roof': 'blue', 'flags': [(96, 4, 121, 22)]},
+    'hrad-orientalni-2': {'roof': 'blue', 'flags': [(96, 7, 121, 24), (20, 82, 35, 94), (168, 82, 185, 94)]},
+    'hrad-orientalni-3': {'roof': 'blue', 'flags': [(96, 6, 124, 31), (45, 20, 59, 32), (142, 20, 158, 32), (16, 82, 36, 96), (169, 82, 186, 96)]},
+    'opevneni-orientalni-1': {'roof': 'blue', 'flags': [(96, 4, 121, 23)]},
+    'opevneni-orientalni-2': {'roof': 'blue', 'flags': [(146, 4, 171, 23)]},
+    'hrad-japonsky-0': {'roof': 'blue', 'flags': [(145, 94, 173, 158)]},
+    'hrad-japonsky-1': {'roof': 'blue', 'flags': [(145, 94, 174, 154)]},
+    'hrad-japonsky-2': {'roof': 'blue', 'flags': [(7, 93, 26, 136), (143, 93, 167, 153)]},
+    'hrad-japonsky-3': {'roof': 'blue', 'flags': [(94, 3, 134, 23), (30, 73, 45, 102), (6, 94, 26, 139), (149, 72, 166, 99), (144, 96, 163, 154)]},
+    'opevneni-japonsky-1': {'roof': 'blue', 'flags': [(155, 26, 186, 102)]},
+    # Nízká hradba: posunout dolů na zem (spodní okraj 184 jako ostatní stavby), praporek v posunutých souřadnicích
+    'opevneni-japonsky-2': {'roof': 'blue', 'flags': [(142, 97, 167, 156)], 'ground': True},
 }
+SETS = ('goticky', 'orientalni', 'japonsky')
 # Vlajka pevnosti s žerdí (bez cimbuří pod ní): výřez z pevnosti, žerď v x = POLE_X výřezu
 FLAG_CROP = (86, 0, 146, 37)
 FLAG_BOX = (98, 6, 142, 32)
@@ -79,6 +100,13 @@ def with_flag(base, donor):
     box = (FLAG_BOX[0] - FLAG_CROP[0] + ox, FLAG_BOX[1] - FLAG_CROP[1] + oy, FLAG_BOX[2] - FLAG_CROP[0] + ox, FLAG_BOX[3] - FLAG_CROP[1] + oy)
     return out, box
 
+def on_ground(im, bottom=184):
+    # Obsah ikony posune dolů, ať stojí na stejné čáře jako ostatní stavby
+    box = im.getchannel('A').getbbox()
+    out = Image.new('RGBA', im.size, (0, 0, 0, 0))
+    out.paste(im, (0, max(0, bottom - box[3])), im)
+    return out
+
 def tint_layer(im, roof, flags):
     rgb, alpha, sat, lum = channels(im)
     h, w = lum.shape
@@ -115,6 +143,7 @@ def main(wanted):
     for name, spec in BUILDINGS.items():
         if wanted and name not in wanted: continue
         im = base_of(name)
+        if spec.get('ground'): im = on_ground(im)
         flags = list(spec['flags'])
         if spec.get('flag_from'):
             im, box = with_flag(im, base_of(spec['flag_from']))

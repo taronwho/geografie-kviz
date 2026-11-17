@@ -95,10 +95,10 @@
     // Vzkříšení (blok 39) vrátí do hry hráče, kterému nezbylo žádné území (místo automatického Návratu do hry); jde použít pokaždé, když
     // hráč přijde o všechno, a bez značky (mark prázdná).
     const ITEMS = {
-        extra_move: { id: 'extra_move', name: 'Tah navíc', max: 1, icon: 'zap', mark: '+1', art: null, // č. 309 tah-navic
+        extra_move: { id: 'extra_move', name: 'Tah navíc', max: 1, icon: 'zap', mark: '+1', art: 'tah-navic', // č. 309 tah-navic
             what: 'O 1 tah víc v tomto kole. Jednou za hru, ne v posledním kole.',
             how: 'Poražený Boss týdne (první výhra v týdnu) a 15. stupeň Sezóny Mudrlanta.' },
-        fifty: { id: 'fifty', name: 'Půl na půl', max: 2, icon: 'scale', mark: '½', art: null, // č. 310 pul-na-pul
+        fifty: { id: 'fifty', name: 'Půl na půl', max: 2, icon: 'scale', mark: '½', art: 'pul-na-pul', // č. 310 pul-na-pul
             what: 'U otázky se 4 možnostmi odebere dvě špatné. Jednou za hru, i v bitvě.',
             how: 'Kvíz dne bez chyby a celá Řetězovka (obojí jednou za týden), výhra v Dobývání, 5. stupeň Sezóny Mudrlanta a vzácně Truhla Mudrlanta.' },
         chain_rescue: { id: 'chain_rescue', name: 'Záchrana navíc', max: 1, icon: 'shield-plus', mark: '+1', art: 'zachrana-navic', place: 'chain', // č. 360 zachrana-navic
