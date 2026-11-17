@@ -2672,6 +2672,9 @@
         timeAnswered: 0,
         // Tajemná otázka dne (mystery.js): vyřešené dny
         mysterySolved: 0,
+        // Řetězovka dne (chain.js): dohrané dny, celé řetězy (7 článků) a celé řetězy bez Záchrany (jednou za den; po přihlášení aspoň tolik,
+        // kolik jich zná server, chain_badge_counts ve schema.sql blok 36)
+        chainDone: 0, chainFull: 0, chainClean: 0,
         // Zlatá otázka (gold.js): správně zodpovězené zlaté otázky
         goldCorrect: 0,
         // Boss týdne (boss.js): dohrané souboje a týdny s výhrou
@@ -2809,6 +2812,15 @@
     // Tajemná otázka dne (mystery.js): vyřešené tajemné otázky (jednou za den)
     addGroup('detektiv', 'Detektiv', 'telescope', (c) => c.mysterySolved, (g) => g === 1 ? 'Vyřeš svou první Tajemnou otázku dne.' : `Vyřeš ${g} Tajemných otázek dne.`,
         [T(1, 'Detektiv', 'detektiv'), T(7, 'Bystrý detektiv'), T(30, 'Mistr detektiv'), T(100, 'Slavný detektiv'), T(365, 'Legenda detektivů')]);
+    // Řetězovka dne (chain.js): dohrané dny (jedna hra za den, cvičná se nepočítá) a celé řetězy bez Záchrany. Hodnota je větší z počítadla
+    // a z historie Řetězovky v zařízení (x.chain = { days, clean }, chain.js badgeCounts), takže se započítají i dny odehrané před odznaky;
+    // po přihlášení se počítadla dorovnají podle serveru (všechna zařízení). Symbol do dodání č. 358 a 359 je sova se řetězem (chain.js ART.badge).
+    const chainCount = (key) => (c, x) => Math.max(number(c[key === 'days' ? 'chainDone' : 'chainClean']), number(x && x.chain ? x.chain[key] : 0));
+    addGroup('retezovka', 'Řetězovka dne', 'network', chainCount('days'), (g) => `Dohraj ${g} ${g < 5 ? 'Řetězovky' : 'Řetězovek'} dne.`,
+        [T(3, 'Řetízek', 'retezovka'), T(10, 'Kovář řetězů'), T(30, 'Mistr řetězů'), T(100, 'Pán řetězů'), T(365, 'Nekonečný řetěz')]);
+    addGroup('retezovka-cela', 'Celý řetěz bez Záchrany', 'shield-check', chainCount('clean'),
+        (g) => g === 1 ? 'Celá Řetězovka dne (všech 7 článků) bez Záchrany.' : `${g}× celá Řetězovka dne (všech 7 článků) bez Záchrany.`,
+        [T(1, 'Pevný řetěz', 'retezovka-cela'), T(5, 'Ocelový řetěz'), T(15, 'Kovaný řetěz'), T(30, 'Zlatý řetěz'), T(60, 'Nezlomný řetěz')]);
     // Zlatá otázka (gold.js): správně zodpovězené zlaté otázky
     addGroup('zlatokop', 'Zlatokop', 'pickaxe', (c) => c.goldCorrect, (g) => `${g} správně zodpovězených zlatých otázek.`,
         [T(10, 'Zlatokop I'), T(50, 'Zlatokop II'), T(100, 'Zlatokop III')]);

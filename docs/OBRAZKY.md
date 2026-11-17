@@ -2888,7 +2888,7 @@ Ve výběru obrázku jsou v tomto pořadí (zhruba od nejsnazší), zamčené uk
 | 321 | Vydra plavkyně | `vydra` | odznak Nezdolný (`preziti-35`, Přežití: 35 otázek) | Čepice, Voda |
 | 329 | Hroch potápěč | `hroch` | odznak Hlubinný průzkum (`tezke-50`, 50 správných těžších otázek) | Hroch, Šnorchl |
 | 325 | Lama rocker | `lama` | odznak Hudebník (`tema-hudba-100`, 100 správných odpovědí v Hudbě) | Kytara, Bunda |
-| 334 | Pavouk pletař | `pavouk` | odznak Pětkrát dál (`turnaj-postupy-5`, 5 vyhraných zápasů v turnajích) | Pavouk, Šála |
+| 334 | Pavouk pletař | `pavouk` | odznak Kovář řetězů (`retezovka-10`, 10 dohraných Řetězovek dne; do schématu 36 za `turnaj-postupy-5`) | Pavouk, Šála |
 | 333 | Kráva kovbojka | `krava` | odznak Vojevůdce (`dobyvatel-3`, 3 vyhrané hry Dobývání) | Klobouk, Šátek |
 | 340 | Velbloud cestovatel | `velbl` | emblém Přemožitel Kapitána (`boss-kapitan`, Boss týdne Kapitán Mudrlant) | Klobouk, Batoh |
 | 327 | Kapybara v lázních | `kapyba` | Truhla Mudrlanta (jen z truhly, řadí se jako úroveň 15), stupně Sezóny Mudrlanta a Zlatá truhla | Voda a pára, Ručník |
@@ -2896,8 +2896,13 @@ Ve výběru obrázku jsou v tomto pořadí (zhruba od nejsnazší), zamčené uk
 | 336 | Kosatka komorník | `kosatk` | Pozvi kamarády: 3 kamarádi (odměna `pritel-3`) | Motýlek |
 | 331 | Avokádo jogín | `avokad` | první prestiž po úrovni 100 | Lotos, Slupka |
 
-Řetězovka dne zatím žádné odznaky nemá, proto za ni postavička není (přibude s odznakem Řetězovky). Kosatka a Avokádo jsou bonus: Album
+Pavouk pletař (pletení: očko za očkem, jako řetěz) patří od schématu 36 k odznakům Řetězovky dne (`retezovka-10`); kdo ho dřív odemkl za 5 vyhraných
+zápasů v turnajích a má ho v profilu, o něj nepřijde. Turnaje dávají dál Křečka, Pásovce, Narvala a Želvu. Kosatka a Avokádo jsou bonus: Album
 sbírky je ukáže, až je hráč má, a do procent je nepočítá (jako rámečky Přátelský a Prestižní).
+
+Plán pro postavičky, které teprve přijdou (č. 339 a 341–357: krab, mrak, ponožka, drsňáci, strašidelné), až dorazí obrázky:
+
+- Řetězovka 30: další postavička z č. 341+ (odznak Mistr řetězů, `retezovka-30`, 30 dohraných Řetězovek dne).
 
 #### 317. `avatar-vacice-goth.png` – Vačice gothička – ✅ dodáno, zapojeno (`vacice`, úroveň 10)
 
@@ -3035,7 +3040,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A black-and-white spotted cow wearing a big brown cowboy hat and a red bandana around its neck, a brass cowbell, swinging a rope lasso above its head, chewing a blade of grass with a cheeky grin. Colors: black and white spots, saddle brown, bandana red, brass. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 334. `avatar-pavouk-pletar.png` – Pavouk pletař – ✅ dodáno, zapojeno (`pavouk`, odznak Pětkrát dál)
+#### 334. `avatar-pavouk-pletar.png` – Pavouk pletař – ✅ dodáno, zapojeno (`pavouk`, odznak Kovář řetězů)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -3229,6 +3234,30 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 ```text
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A mischievous black cat witch with huge glowing green eyes and a wide sly grin, a tall crooked purple witch hat with a moon-shaped buckle, a tiny bubbling cauldron steam swirl and a sparkle at the tip of its curled tail. Colors: black fur, glowing green eyes, purple hat, gold moon buckle. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
+
+## 27. Odznaky Řetězovky dne (č. 358–359)
+
+Symboly dvou skupin odznaků Řetězovky dne (Můj postup → Všechny odznaky): Řetězovka dne (dohrané dny) a Celý řetěz bez Záchrany. Stejný styl
+jako ostatní symboly odznaků (oddíl 3 a 6), bez kolečka medaile. **Stav: zatím zástupný obrázek** – obě skupiny ukazují sovu se zlatým řetězem
+(`retezovka.webp`, č. 212; `chain.js` `ART.badge`). Až symboly dorazí, uložím je do `branding/ikony/`, spustím
+`python3 scripts/topic-icons.py odznak-retezovka odznak-retezovka-cela` a přidám skupiny do `BADGE_ART` v `app.js` a `sw.js`.
+
+#### 358. `odznak-retezovka.png` – Řetězovka dne – čeká na dodání
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A short shiny golden chain of four big chunky oval links curving in a gentle arc, the last link just clicking into the others with a small bright sparkle, a tiny cream tear-off calendar page hanging from the first link. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 359. `odznak-retezovka-cela.png` – Celý řetěz bez Záchrany – čeká na dodání
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu) a hotový `odznak-retezovka.png` (č. 358, vzor řetězu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A closed ring of seven big chunky polished golden chain links forming a perfect circle, with a small golden star shining in the middle of the ring and a few tiny sparkles around it. If a second image of a golden chain is attached, keep exactly its link shape and color. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
 ## Co udělám po dodání
 
 1. Uložím soubory do `branding/ikony/`, vyříznu pozadí (`python3 scripts/topic-icons.py …`) a u sov vyrobím barvy obleku (`python3 scripts/owl-robes.py`).

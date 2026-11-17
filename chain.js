@@ -25,8 +25,11 @@
         tile: 'retezovka', // č. 212 sova se zlatým řetězem (dlaždice na úvodu, úvod Řetězovky, tip)
         intro: 'retezovka', // č. 212
         full: 'sova-vitez', // celý řetěz
-        broken: 'sova-smutek' // přetržený řetěz (články řetězu č. 213 a 214 kreslí linkSvg z icons/retez)
+        broken: 'sova-smutek', // přetržený řetěz (články řetězu č. 213 a 214 kreslí linkSvg z icons/retez)
+        badge: 'retezovka' // symbol odznaků Řetězovky (quiz-core.js skupiny BADGE_GROUPS); do dodání č. 358 a 359 sova se řetězem (č. 212)
     };
+    // Skupiny odznaků Řetězovky (quiz-core.js): dohrané dny a celé řetězy bez Záchrany
+    const BADGE_GROUPS = ['retezovka', 'retezovka-cela'];
     const LINKS = 7;
     const MAX_SCORE = LINKS * (LINKS + 1) / 2;
     const KEY = 'mudrlant.chain';
@@ -1775,6 +1778,12 @@
         state.cache = raw.cache && typeof raw.cache === 'object' && isDay(raw.cache.day) && raw.cache.chain ? { day: raw.cache.day, chain: raw.cache.chain } : null;
         return state;
     };
+    // Odznaky Řetězovky z historie v zařízení (parseState: posledních HISTORY_DAYS dní): dohrané dny a celé řetězy bez Záchrany.
+    // Dny ze serveru (dohrané na jiném zařízení) se do historie nezapíšou, dokud je hráč v tomto zařízení neotevře.
+    const badgeCounts = (state) => {
+        const rows = Object.values((state && state.days) || {});
+        return { days: rows.length, clean: rows.filter(row => row.links >= LINKS && !row.rescued).length };
+    };
 
     // --- Vykreslení (HTML; h = pomocné funkce z app.js: uiArt, avatarHtml, xpLine) ---
     const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
@@ -2591,6 +2600,7 @@
         fromCountry, inCountry, ofCountry, nationalitiesIn, buildGraph, buildQuestion, buildRescue, rescueOptions, pickDistractors, generate, dailyChain, practiceChain, edgesFrom, chainIds,
         isLegacyDay, legacy, legacyDailyChain, subjectText, maskShare,
         newAttempt, nextLink, summaryOf, validSummary, currentAsk, answer, useRescue, giveUp, xpFor, shareGrid, shareText, poseFor, cardInput, parseState, cleanAttempt, cleanChain,
+        BADGE_GROUPS, badgeCounts,
         iconFor, linkSvg, stripStates, homeTile, introHtml, loadingHtml, pathHtml, playHtml, cardHtml, subjectHtml, decideHtml, brokenHtml, resultHtml, statsHtml, stepHtml, rankingHtml,
         createController
     };

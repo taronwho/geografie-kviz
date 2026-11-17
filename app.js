@@ -40,6 +40,8 @@
     const PhotoBlob = window.MudrlantPhotoBlob || null;
     // Boss týdne (boss.js): souboj s bossem na úvodu (řada Výzvy); bez skriptu se dlaždice nevykreslí
     const Boss = window.MudrlantBoss || null;
+    // Řetězovka dne (chain.js): napojení je níž („Řetězovka dne“); tady kvůli odznakům Řetězovky (badgeContext, symbol medaile)
+    const Chain = window.MudrlantChain || null;
     // Motivace (blok 32): tematické víkendy, prestiž po úrovni 100 a Pozvi kamarády
     const Weekend = window.MudrlantWeekend || null;
     const Prestige = window.MudrlantPrestige || null;
@@ -100,7 +102,9 @@
     // 34 = Hlasování o speciálním turnaji hráči vidí, jen když ho správce zveřejní (témata vybírá sám ve vývojářských nástrojích,
     // dev_tournament_poll_set; se starší databází se hlasování neukáže vůbec).
     // 35 = Další postavičky (č. 317–340) v kontrole odemčení na serveru (unlock_catalog_more; se starší databází je server nezná a uloží je volně).
-    const REQUIRED_SCHEMA = 35;
+    // 36 = Odznaky Řetězovky dne (retezovka-*, retezovka-cela-*) v katalogu odznaků, chain_badge_counts (dorovnání počítadel podle serveru)
+    // a Pavouk pletař za odznak retezovka-10 (se starší databází se odznaky Řetězovky do účtu neuloží a počítadla zůstanou jen ze zařízení).
+    const REQUIRED_SCHEMA = 36;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -4602,7 +4606,9 @@
             // Album sbírky: procenta celé sbírky a sekcí pro odznaky Sběratel (album.js)
             album: albumBadgeContext(progress),
             // Boss týdne: poražení bossové pro emblémy boss-<id> (boss.js)
-            bosses: Boss ? Boss.emblemsOf(Boss.parseState(readJson(Boss.KEY))) : {}
+            bosses: Boss ? Boss.emblemsOf(Boss.parseState(readJson(Boss.KEY))) : {},
+            // Řetězovka dne: dohrané dny a celé řetězy bez Záchrany z historie v zařízení (chain.js badgeCounts)
+            chain: Chain ? Chain.badgeCounts(Chain.parseState(readJson(Chain.KEY))) : null
         };
     };
     // Získané odznaky podle počítadel; vrátí názvy nově získaných (a uloží je s dnešním dnem)
@@ -4922,6 +4928,27 @@
             if (!sameRemote) await Social.saveProgress(user.id, { xp: merged.xp, badges: compact });
         } catch (error) { /* bez účtu nebo bez nových sloupců se postup jen drží v zařízení */ } finally { syncingProgress = false; }
         syncRewards();
+        syncChainCounts();
+    };
+    // Odznaky Řetězovky (blok 36): po prvním sloučení postupu v tomto spuštění se počítadla dorovnají podle serveru (dny a celé řetězy bez
+    // Záchrany ze všech zařízení, i ze dnů před odznaky). Vezme se větší číslo (jako u turnajů), takže hry bez účtu v zařízení zůstanou.
+    let chainCountsFor = null;
+    const syncChainCounts = async () => {
+        const user = signedUser();
+        if (!user || !Social || !Social.chainBadgeCounts || !Chain || devActive() || chainCountsFor === user.id) return;
+        chainCountsFor = user.id;
+        let remote = null;
+        try { remote = await Social.chainBadgeCounts(); } catch (error) { chainCountsFor = null; return; }
+        if (!remote || !signedUser() || signedUser().id !== user.id) return;
+        const progress = loadProgress();
+        if (remote.days <= progress.counters.chainDone && remote.clean <= progress.counters.chainClean) return;
+        progress.counters.chainDone = Math.max(progress.counters.chainDone, remote.days);
+        progress.counters.chainClean = Math.max(progress.counters.chainClean, remote.clean);
+        const titles = grantBadges(progress);
+        saveProgress(progress);
+        const level = levelProgress(progress.xp).level;
+        announce(level, level, titles);
+        if (titles.length) { applyLook(); updateControlsUI(); syncProgress(); }
     };
     // --- Týdenní cíle (goals.js): tři cíle na týden, postup z počítadel rozdílem od snímku na začátku týdne ---
     const goalMetrics = (progress) => {
@@ -9338,7 +9365,9 @@
         // Odznaky Zlatokop: symbol z gold.js (ART.badge, do dodání č. 211 zástupný obrázek)
         : Gold && group === Gold.BADGE_GROUP ? Gold.ART.badge
         // Kamarádské sázky: zástupný obrázek z bets.js (ART.badges), než přijde vlastní symbol
-        : Bets && Bets.ART.badges[group] ? Bets.ART.badges[group] : null;
+        : Bets && Bets.ART.badges[group] ? Bets.ART.badges[group]
+        // Řetězovka dne: symbol z chain.js (ART.badge: do dodání č. 358 a 359 sova se řetězem)
+        : Chain && Chain.BADGE_GROUPS.includes(group) ? Chain.ART.badge : null;
     // Nezískaný odznak ukazuje svou ikonu zašedlou a ztlumenou, přes ni malý zámek v rohu
     const medalHtml = (badge, earned, size = 'h-11 w-11', iconSize = 'h-5 w-5') => {
         const dim = earned ? '' : ' opacity-50 grayscale';
@@ -12576,7 +12605,7 @@
     // --- Řetězovka dne (chain.js): odpověď je začátkem další otázky, 7 článků stejných pro všechny, Záchrana, cvičná řetězovka ---
     // Graf vazeb, řetěz, body, obrazovky i klepnutí má chain.js; sem patří jen napojení na zbytek aplikace (data témat, server, XP).
     // Přihlášenému se výsledek dne zapíše na server (social.js chainSubmit, blok „21: Řetězovka“ ve schema.sql) a ukáže se pořadí dne.
-    const Chain = window.MudrlantChain || null;
+    // (Chain = window.MudrlantChain je nahoře u ostatních modulů.)
     // Vazby z Wikidat, které data témat nemají (rodiště, manželé, učitelé, nástupci…; scripts/build-retezovka.mjs)
     const loadChainExtra = memoizeBy(() => fetchJson(Chain ? Chain.EXTRA_FILE : 'data/retezovka.json'));
     // Skript, který se načte až podle potřeby (chain-legacy.js: původní generátor pro řetězy dnů před chain.js NEW_FROM)
@@ -12618,12 +12647,13 @@
             shareCard: ShareCard, shareImageCounted, robeNow, appUrl, appName: APP_NAME, sound: Sound, isLoading: () => isLoading,
             // Celá Řetězovka: pomůcka Půl na půl do Dobývání (blok 30)
             itemGranted: (grant) => celebrateItem(grant),
-            // XP jednou za den a zařízení (chain.js to hlídá) a počítadla dohraných a celých řetězů
+            // XP jednou za den a zařízení (chain.js to hlídá) a počítadla dohraných a celých řetězů (i bez Záchrany) pro odznaky Řetězovky
             awardXp: (xp, summary) => {
                 const before = loadProgress();
                 const progress = { ...before, xp: before.xp + xp.total };
                 progress.counters.chainDone = (progress.counters.chainDone || 0) + 1;
                 if (summary.full) progress.counters.chainFull = (progress.counters.chainFull || 0) + 1;
+                if (summary.full && !summary.rescued) progress.counters.chainClean = (progress.counters.chainClean || 0) + 1;
                 const titles = grantBadges(progress);
                 saveProgress(progress);
                 announce(levelProgress(before.xp).level, levelProgress(progress.xp).level, titles);

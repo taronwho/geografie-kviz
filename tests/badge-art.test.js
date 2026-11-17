@@ -24,9 +24,18 @@ test('symboly odznaků: skupiny, obrázky, zdroje a mezipaměť', () => {
     const betArt = require('../bets.js').ART.badges;
     assert.ok(fs.existsSync(path.join(ROOT, 'icons', 'topics', `${Gold.ART.badge}.webp`)), `symbol Zlatokopa ${Gold.ART.badge}.webp`);
     assert.ok(sw.includes(`'${Gold.ART.badge}'`), 'symbol Zlatokopa je v mezipaměti');
+    // Řetězovka dne: do dodání symbolů č. 358 a 359 (docs/OBRAZKY.md oddíl 27) sova se řetězem z chain.js (ART.badge), už v mezipaměti
+    const Chain = require('../chain.js');
+    assert.deepEqual(Chain.BADGE_GROUPS.filter(id => !groups.has(id)), [], 'skupiny Řetězovky existují');
+    assert.deepEqual(core.BADGE_GROUPS.filter(group => group.id.startsWith('retezovka')).map(group => group.id), Chain.BADGE_GROUPS, 'chain.js zná všechny skupiny Řetězovky');
+    assert.ok(fs.existsSync(path.join(ROOT, 'icons', 'topics', `${Chain.ART.badge}.webp`)), `symbol Řetězovky ${Chain.ART.badge}.webp`);
+    assert.ok(sw.includes(`'${Chain.ART.badge}'`), 'symbol Řetězovky je v mezipaměti');
+    assert.match(app, /Chain && Chain\.BADGE_GROUPS\.includes\(group\) \? Chain\.ART\.badge/, 'app.js ukáže symbol Řetězovky');
+    const prompts = fs.readFileSync(path.join(ROOT, 'docs', 'OBRAZKY.md'), 'utf8');
+    for (const id of Chain.BADGE_GROUPS) assert.match(prompts, new RegExp(`\\. \`odznak-${id}\\.png\` – .+ – čeká na dodání`), `prompt odznak-${id}.png`);
     // Skupiny, jejichž obrázek se teprve kreslí (docs/NOVE-MODY.md): do dodání mají čárovou ikonu
     const PENDING_ART = new Set([]);
-    const missing = core.BADGE_GROUPS.filter(group => !group.topic && !art.includes(group.id) && !PENDING_ART.has(group.id) && !/^(tema|zbehly)-/.test(group.id) && !album(group) && !betArt[group.id] && group.id !== Gold.BADGE_GROUP && !core.isBossBadge(group.id)).map(group => group.id);
+    const missing = core.BADGE_GROUPS.filter(group => !group.topic && !art.includes(group.id) && !PENDING_ART.has(group.id) && !/^(tema|zbehly)-/.test(group.id) && !album(group) && !betArt[group.id] && group.id !== Gold.BADGE_GROUP && !core.isBossBadge(group.id) && !Chain.BADGE_GROUPS.includes(group.id)).map(group => group.id);
     assert.deepEqual(missing, [], 'každá skupina (kromě témat, alba a bossů) má symbol');
     // Emblémy bossů týdne: portrét bosse (boss.js ART, do dodání ilustrací zástupná sova) existuje
     const Boss = require('../boss.js');

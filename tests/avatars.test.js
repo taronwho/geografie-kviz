@@ -266,7 +266,7 @@ const NEW = {
     vacice: { level: 10 }, spisov: { level: 17 }, pstros: { badge: 'tema-sport-25' }, koala: { badge: 'bleskovka-12' }, toust: { badge: 'dnes-50' },
     krokod: { badge: 'chyby-50' }, brokol: { badge: 'tydenni-cile-5' }, netopy: { badge: 'detektiv-7' }, plamak: { badge: 'kviz-perfekt-5' }, vajko: { badge: 'sazkar' },
     pizza: { badge: 'vyhry-5' }, jezek: { badge: 'sberatel-50', album: true }, zirafa: { level: 31 }, vydra: { badge: 'preziti-35' }, hroch: { badge: 'tezke-50' },
-    lama: { badge: 'tema-hudba-100' }, pavouk: { badge: 'turnaj-postupy-5' }, krava: { badge: 'dobyvatel-3' }, velbl: { badge: 'boss-kapitan' },
+    lama: { badge: 'tema-hudba-100' }, pavouk: { badge: 'retezovka-10' }, krava: { badge: 'dobyvatel-3' }, velbl: { badge: 'boss-kapitan' },
     kapyba: { chest: 15 }, zmrzl: { rare: true }, kosatk: { referral: ['pritel-3'] }, avokad: { prestige: 1 }
 };
 
