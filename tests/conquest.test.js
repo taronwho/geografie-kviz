@@ -55,6 +55,53 @@ test('barvy a znaky: 9 co nejodlišnějších barev a 24 znaků, shodné se serv
     assert.equal(new Set(C.EMBLEMS.map(e => e.name)).size, 24);
 });
 
+test('odemykání vzorů a vzácných znaků (blok 38): katalog shodný se serverem, okno Barva a znak se záložkou Vzor, zamčené se zámkem a postupem, oznámení', () => {
+    // Katalog conquest_look_catalog() v schema.sql: (kind, item, stat, need, ord) ve stejném pořadí jako conquest.js
+    const block = /function public\.conquest_look_catalog\(\)[\s\S]*?\$\$;/.exec(schema)[0];
+    const rows = [...block.matchAll(/\('(pattern|emblem)', '([a-z-]+)', '([a-z_0-9]+)', (\d+), (\d+)\)/g)].map(m => `${m[1]}|${m[2]}|${m[3]}|${m[4]}`);
+    assert.deepEqual(rows, [...C.PATTERNS.map(p => `pattern|${p.id}|${p.stat}|${p.need}`), ...C.RARE_EMBLEMS.map(e => `emblem|${e.id}|${e.stat}|${e.need}`)]);
+    const list = (name) => /select array\[([^\]]+)\]/.exec(new RegExp(`function public\\.${name}\\(\\) returns text\\[\\][\\s\\S]*?\\$\\$;`).exec(schema)[0])[1].match(/'([a-z-]+)'/g).map(v => v.slice(1, -1));
+    assert.deepEqual(list('conquest_patterns'), C.PATTERNS.map(p => p.id));
+    assert.deepEqual(list('conquest_rare_emblems'), C.RARE_EMBLEMS.map(e => e.id));
+    for (const item of [...C.PATTERNS, ...C.RARE_EMBLEMS]) assert.ok(item.how && item.how.length > 8 && item.need >= 1, item.id);
+    // Smí se použít: základní znak vždy, vzácný a vzor jen odemčené; bez looks (starší databáze) nic navíc
+    const looks = { patterns: ['plameny'], emblems: ['sfinga'], new: [{ kind: 'pattern', item: 'plameny', at: '2026-11-12T10:00:00Z' }, { kind: 'emblem', item: 'neznamy', at: null }], stats: { battles: 12, games: 3, sea: 7 } };
+    assert.deepEqual([C.emblemAllowed(null, 'lev'), C.emblemAllowed(null, 'sfinga'), C.emblemAllowed(looks, 'sfinga'), C.emblemAllowed(looks, 'gryf')], [true, false, true, false]);
+    assert.deepEqual([C.patternAllowed(null, null), C.patternAllowed(null, 'plameny'), C.patternAllowed(looks, 'plameny'), C.patternAllowed(looks, 'duha')], [true, false, true, false]);
+    assert.deepEqual(C.lookProgress(looks, C.PATTERN_BY_ID.sachovnice), { have: 3, need: 5 });
+    assert.deepEqual(C.lookProgress(looks, C.PATTERN_BY_ID.plameny), { have: 10, need: 10 }, 'nad hranici se nepočítá');
+    assert.equal(C.lookHowText(looks, C.RARE_EMBLEM_BY_ID.kraken), 'Dobuď 40 území přes námořní cestu (7/40)');
+    assert.equal(C.lookHowText(looks, C.RARE_EMBLEM_BY_ID.gryf), 'Vyhraj na mapě Evropa', 'jedno splnění bez čísel');
+    const news = C.lookNews(looks);
+    assert.deepEqual(news.map(n => [n.kind, n.id, n.title]), [['pattern', 'plameny', 'Nový vzor praporce']], 'neznámé vypadne');
+    assert.equal(news[0].text, 'Plameny. Najdeš ho v okně Barva a znak.');
+    assert.match(C.lookNewsArt(news[0], 'modra', 'lev'), /icons\/vzory\/plameny\.webp/);
+    assert.match(C.lookNewsArt({ kind: 'emblem', id: 'sfinga' }, 'modra', 'lev'), /icons\/znaky\/sfinga\.webp/);
+    // Okno: starší databáze jen Barva a Znak se základními znaky
+    const old = C.lookHtml({ color: 'modra', emblem: 'vlk', tab: 'emblem' });
+    assert.equal((old.match(/data-cq-look-tab=/g) || []).length, 2);
+    assert.doesNotMatch(old, /data-cq-rare|data-cq-locked|data-cq-look-info/);
+    // S looks: záložka Vzor; znaky 24 + 12 vzácných, zamčené se zámkem (11), klepnutí na zamčený ukáže, jak ho získat
+    const emblems = C.lookHtml({ color: 'modra', emblem: 'sfinga', tab: 'emblem', looks });
+    assert.equal((emblems.match(/data-cq-look-tab=/g) || []).length, 3);
+    assert.equal((emblems.match(/data-cq-emblem=/g) || []).length, 36);
+    assert.equal((emblems.match(/data-cq-locked="emblem"/g) || []).length, 11);
+    assert.match(emblems, /data-cq-emblem="sfinga" class="cq-stamp relative/, 'odemčený bez zámku');
+    assert.match(emblems, /aria-label="Gryf \(zamčený\)"/);
+    assert.match(emblems, /Vzácný znak <b>Sfinga<\/b>/);
+    const info = C.lookHtml({ color: 'modra', emblem: 'lev', tab: 'emblem', looks, info: { kind: 'emblem', id: 'kraken' } });
+    assert.match(info, /data-cq-look-info[^>]*><i data-lucide="lock"[^>]*><\/i><span class="min-w-0"><b>Kraken<\/b> · Dobuď 40 území přes námořní cestu \(7\/40\)/);
+    // Vzory: Bez vzoru + 12, zamčené se zámkem, vybraný v náhledu i v nadpisu
+    const patterns = C.lookHtml({ color: 'modra', emblem: 'lev', pattern: 'plameny', tab: 'pattern', looks, info: { kind: 'pattern', id: 'sachovnice' } });
+    assert.equal((patterns.match(/data-cq-pattern=/g) || []).length, 13);
+    assert.equal((patterns.match(/data-cq-locked="pattern"/g) || []).length, 11);
+    assert.match(patterns, /aria-checked="true" aria-label="Plameny"/);
+    assert.match(patterns, /Modrá · Lev · Plameny/);
+    assert.match(patterns, /<b>Šachovnice<\/b> · Dohraj 5 her v Dobývání \(3\/5\)/);
+    assert.match(C.lookHtml({ color: 'modra', emblem: 'lev', tab: 'pattern', looks }), /aria-checked="true" aria-label="Bez vzoru"/);
+    for (const html of [old, emblems, info, patterns]) assert.doesNotMatch(html, /style=|undefined|NaN/);
+});
+
 test('vzory praporců a vzácné znaky (č. 278–296): obrázky existují, masky a textury se vykreslí bez inline stylů, každé SVG s vlastními id', () => {
     // 12 vzorů a 12 vzácných znaků podle docs/ODMENY-DOBYVANI.md, id se nekryjí se základními znaky
     assert.equal(C.PATTERNS.length, 12);

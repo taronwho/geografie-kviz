@@ -1182,9 +1182,10 @@
         invites: 'Pozvánky do Dobývání zatím nejdou (databáze potřebuje nejnovější schema.sql).',
         sieges: 'Bitvy o území zatím nejdou (databáze potřebuje nejnovější schema.sql).',
         rounds: 'Rychlé hry a další kolo zatím nejdou (databáze potřebuje nejnovější schema.sql).',
-        items: 'Pomůcky do Dobývání zatím nejdou (databáze potřebuje nejnovější schema.sql).'
+        items: 'Pomůcky do Dobývání zatím nejdou (databáze potřebuje nejnovější schema.sql).',
+        looks: 'Vzory praporců a vzácné znaky zatím nejdou (databáze potřebuje nejnovější schema.sql).'
     };
-    const partMissing = { invites: false, sieges: false, rounds: false, items: false };
+    const partMissing = { invites: false, sieges: false, rounds: false, items: false, looks: false };
     const conquestCall = async (name, body, fallback, part = null) => {
         if (conquestMissing) throw new SocialError(CONQUEST_MISSING, 404);
         if (part && partMissing[part]) throw new SocialError(PART_MISSING[part], 404);
@@ -1212,20 +1213,36 @@
     // items = moje pomůcky v této hře (blok 30, cleanGameItems; jen stav hry, jinak null)
     const conquestGame = (value) => (value && typeof value === 'object' && isUuid(value.id) ? { ...value, players: Array.isArray(value.players) ? value.players.filter(row => row && row.id) : [],
         invited: Array.isArray(value.invited) ? value.invited.filter(row => row && row.id) : [], round: conquestRound(value.round), items: cleanGameItems(value.items) } : null);
-    // { open: [hra], mine: [hra s budget, owners, claimed], items: zásoba pomůcek (blok 30, cleanItems; starší databáze null) }
+    // Vzory praporců a vzácné znaky (blok 38): { patterns: [id], emblems: [id] (odemčené), new: [{ kind, item, at }] (ještě neohlášené),
+    // stats: { klíč: číslo } (postup) }; databáze bez bloku 38 null (nabídka jen barev a základních znaků)
+    const LOOK_ID = /^[a-z][a-z-]{1,23}$/;
+    const cleanLooks = (value) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+        const ids = (list) => [...new Set((Array.isArray(list) ? list : []).filter(id => typeof id === 'string' && LOOK_ID.test(id)))].slice(0, 40);
+        const stats = {};
+        if (value.stats && typeof value.stats === 'object') for (const [key, count] of Object.entries(value.stats)) if (/^[a-z_0-9]{1,24}$/.test(key)) stats[key] = wholeNumber(count, 1000000);
+        return { patterns: ids(value.patterns), emblems: ids(value.emblems), stats,
+            new: (Array.isArray(value.new) ? value.new : []).filter(row => row && (row.kind === 'pattern' || row.kind === 'emblem') && typeof row.item === 'string' && LOOK_ID.test(row.item))
+                .slice(0, 30).map(row => ({ kind: row.kind, item: row.item, at: row.at ? String(row.at) : null })) };
+    };
+    // { open: [hra], mine: [hra s budget, owners, claimed], items: zásoba pomůcek (blok 30, cleanItems; starší databáze null),
+    // looks: vzory a vzácné znaky (blok 38, cleanLooks; starší databáze null) }
     const conquestLobby = async () => {
         const data = (await conquestCall('conquest_lobby', {}, 'Hry se nepodařilo načíst. Zkontroluj připojení.')) || {};
         return { open: (Array.isArray(data.open) ? data.open : []).map(conquestGame).filter(Boolean), mine: (Array.isArray(data.mine) ? data.mine : []).map(conquestGame).filter(Boolean),
-            items: cleanItems(data.items) };
+            items: cleanItems(data.items), looks: cleanLooks(data.looks) };
     };
+    // Vzor praporce a vzácný znak se posílají jen s databází, která je zná (blok 38): pattern_id jen, když hráč vzor vybral (aplikace
+    // ho nabídne jen s looks z lobby), takže starší databáze dostane volání postaru
+    const withPattern = (body, pattern) => (pattern ? { ...body, pattern_id: conquestText(pattern) } : body);
     // Založení: období (period) 'day' nebo 'hour' s délkou v hodinách (hours), rychlá hra s kolem 'min10' nebo 'min5' s délkou v minutách
     // (minutes, blok 26; jinak null). Databáze bez bloku 26 (404): obyčejná hra se založí postaru (bez minutes), rychlá hra nejde.
-    const conquestCreate = async ({ map, players, hours, minutes = null, period, actions, visibility, color, emblem }) => {
-        const body = {
+    const conquestCreate = async ({ map, players, hours, minutes = null, period, actions, visibility, color, emblem, pattern = null }) => {
+        const body = withPattern({
             map_id: conquestText(map), players: wholeNumber(players, 8), hours: wholeNumber(hours, 168), per: conquestText(period, 8), actions_per: wholeNumber(actions, 10),
             vis: conquestText(visibility, 8), colour: conquestText(color), emblem_id: conquestText(emblem),
             minutes: minutes === null || minutes === undefined || minutes === '' ? null : wholeNumber(minutes, 10080)
-        };
+        }, pattern);
         const fallback = 'Hru se nepodařilo založit. Zkus to znovu.';
         try { return conquestGame(await conquestCall('conquest_create', body, fallback, 'rounds')); } catch (error) {
             if (!(error instanceof SocialError) || error.status !== 404 || !partMissing.rounds || body.minutes !== null) throw error;
@@ -1234,11 +1251,17 @@
             return conquestGame(await conquestCall('conquest_create', older, fallback));
         }
     };
-    // Přidání: veřejná hra podle id, soukromá kódem
-    const conquestJoin = async ({ game = null, code = '', color, emblem }) => conquestGame(await conquestCall('conquest_join', {
+    // Přidání: veřejná hra podle id, soukromá kódem; pattern = vzor praporce (blok 38) nebo null
+    const conquestJoin = async ({ game = null, code = '', color, emblem, pattern = null }) => conquestGame(await conquestCall('conquest_join', withPattern({
         game: game ? conquestId(game) : null, join_code: conquestText(code, 12), colour: conquestText(color), emblem_id: conquestText(emblem)
-    }, 'Přidat se do hry se nepodařilo. Zkus to znovu.'));
-    const conquestSetLook = async (game, color, emblem) => conquestGame(await conquestCall('conquest_set_look', { game: conquestId(game), colour: conquestText(color), emblem_id: conquestText(emblem) }, 'Barvu a znak se nepodařilo uložit.'));
+    }, pattern), 'Přidat se do hry se nepodařilo. Zkus to znovu.'));
+    // Změna vzhledu v lobby; withLooks = databáze zná vzory (blok 38): pak se pattern_id posílá vždy (null = bez vzoru), jinak postaru
+    const conquestSetLook = async (game, color, emblem, pattern = null, withLooks = false) => conquestGame(await conquestCall('conquest_set_look', {
+        game: conquestId(game), colour: conquestText(color), emblem_id: conquestText(emblem), ...(withLooks || pattern ? { pattern_id: pattern ? conquestText(pattern) : null } : {})
+    }, 'Barvu a znak se nepodařilo uložit.'));
+    // Vzory a vzácné znaky (blok 38): stav (cleanLooks) a ohlášení nových do času upto (čas posledního ukázaného)
+    const conquestLooks = async () => cleanLooks(await conquestCall('conquest_looks', {}, 'Vzory se nepodařilo načíst.', 'looks'));
+    const conquestLooksSeen = (upto) => conquestCall('conquest_looks_seen', { upto: upto ? String(upto).slice(0, 40) : null }, 'Nepodařilo se.', 'looks');
     const conquestReady = async (game, ready) => conquestGame(await conquestCall('conquest_ready', { game: conquestId(game), is_ready: Boolean(ready) }, 'Nepodařilo se. Zkus to znovu.'));
     const conquestLeave = (game) => conquestCall('conquest_leave', { game: conquestId(game) }, 'Odejít ze hry se nepodařilo. Zkus to znovu.');
     const conquestState = async (game) => {
@@ -1261,11 +1284,11 @@
     const devConquestAddBots = async (game, count) => conquestGame(await devConquest('dev_conquest_add_bots', { game: conquestId(game), how_many: Math.max(1, wholeNumber(count, 7)) }));
     const devConquestBotsPlay = async (game) => wholeNumber(await devConquest('dev_conquest_bots_play', { game: conquestId(game) }), 1000);
     const devConquestNextPeriod = async (game) => conquestGame(await devConquest('dev_conquest_next_period', { game: conquestId(game) }));
-    // item = pomůcka Půl na půl za výhru (blok 30, jen s claimed_now; cleanItemGrant)
+    // item = pomůcka Půl na půl za výhru (blok 30, jen s claimed_now; cleanItemGrant); looks = vzory a vzácné znaky po hře (blok 38, cleanLooks)
     const conquestClaim = async (game) => {
         const data = (await conquestCall('conquest_claim', { game: conquestId(game) }, 'Výsledek se nepodařilo načíst.')) || {};
         return { place: wholeNumber(data.place, 8) || null, players: wholeNumber(data.players, 8), score: wholeNumber(data.score, 1000), eligible: data.eligible === true, claimed_now: data.claimed_now === true,
-            ...(data.item ? { item: cleanItemGrant(data.item) } : {}) };
+            ...(data.item ? { item: cleanItemGrant(data.item) } : {}), ...(data.looks ? { looks: cleanLooks(data.looks) } : {}) };
     };
     // Pozvánky přátel do hry (blok 24): pozvat (vrací souhrn hry s pozvanými), moje čekající pozvánky, odmítnout
     const conquestInvite = async (game, friends) => {
@@ -1382,7 +1405,8 @@
     const playerItemsClaim = async (source, key) => {
         const data = (await itemsCall('player_items_claim', { source: conquestText(source, 12), key: conquestText(key, 40) }, 'Pomůcku se nepodařilo vyzvednout.')) || {};
         const grant = cleanItemGrant(data);
-        return grant ? { ...grant, items: cleanItems(data.items) } : null;
+        // Truhla Mudrlanta se vzácným vzorem praporce Duha (blok 38)
+        return grant ? { ...grant, items: cleanItems(data.items), ...(data.pattern === 'duha' ? { pattern: 'duha' } : {}) } : null;
     };
     // Tah navíc v běžící hře (jednou za hru, ne v posledním kole): vrací stav hry (conquestState) s used
     const conquestUseExtra = async (game) => conquestGame(await itemsCall('conquest_use_extra', { game: conquestId(game) }, 'Tah navíc se nepodařilo použít. Zkus to znovu.'));
@@ -1451,7 +1475,7 @@
         // Boss týdne (schéma 21)
         bossSubmit, bossWeekStats, bossClaimBonus,
         // Dobývání (schéma 21)
-        conquestLobby, conquestCreate, conquestJoin, conquestSetLook, conquestReady, conquestLeave, conquestState, conquestMove, conquestClaim,
+        conquestLobby, conquestCreate, conquestJoin, conquestSetLook, conquestLooks, conquestLooksSeen, cleanLooks, conquestReady, conquestLeave, conquestState, conquestMove, conquestClaim,
         // Pozvánky přátel do Dobývání (blok 24)
         conquestInvite, conquestInvitesMine, conquestDeclineInvite,
         // Bitvy o území v Dobývání (blok 25)

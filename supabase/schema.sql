@@ -1629,6 +1629,8 @@ begin
             'ziskane', coalesce((select jsonb_agg(to_jsonb(x) order by x.at) from public.player_item_grants x where x.user_id = uid), '[]'::jsonb),
             -- Použitá Záchrana navíc v Řetězovce (schéma 37)
             'pouzite', coalesce((select jsonb_agg(to_jsonb(u) order by u.at) from public.player_item_uses u where u.user_id = uid), '[]'::jsonb)),
+        -- Vzory praporců a vzácné znaky do Dobývání (schéma 38): co hráč odemkl a kdy to aplikace ohlásila
+        'dobyvani_vzhled', coalesce((select jsonb_agg(to_jsonb(l) order by l.unlocked_at, l.kind, l.item) from public.conquest_looks l where l.user_id = uid), '[]'::jsonb),
         -- Pozvi kamarády (schéma 32): můj kód přítele, kdo mě pozval, koho jsem pozval a vyzvednuté odměny (prestiž a vítězný efekt jsou v profilu)
         'pozvanky', jsonb_build_object(
             'kod', (select c.code from public.referral_codes c where c.user_id = uid),
@@ -4055,6 +4057,8 @@ create table if not exists public.conquest_links (
     b text not null,
     primary key (map, a, b)
 );
+-- Námořní spoj (blok 38: vzor Vlnky a znak Kraken za území dobytá přes moře); nastavuje ho vygenerovaná část níže
+alter table public.conquest_links add column if not exists sea boolean not null default false;
 
 create table if not exists public.conquest_games (
     id uuid primary key default gen_random_uuid(),
@@ -4119,6 +4123,11 @@ alter table public.conquest_players add constraint conquest_players_values check
 create unique index if not exists conquest_players_color_key on public.conquest_players (game_id, color);
 create unique index if not exists conquest_players_seat_key on public.conquest_players (game_id, seat);
 create index if not exists conquest_players_user_idx on public.conquest_players (user_id);
+-- Vzor praporce hráče v této hře (blok 38: odemčený vzor z conquest_look_catalog, jinak null = bez vzoru). Sloupec je tady, protože ho čte
+-- conquest_summary (funkce v SQL se kontroluje už při vytvoření)
+alter table public.conquest_players add column if not exists pattern text;
+alter table public.conquest_players drop constraint if exists conquest_players_pattern;
+alter table public.conquest_players add constraint conquest_players_pattern check (pattern is null or pattern ~ '^[a-z][a-z-]{1,23}$');
 
 create table if not exists public.conquest_territories (
     game_id uuid not null references public.conquest_games (id) on delete cascade,
@@ -4162,6 +4171,8 @@ alter table public.conquest_moves add constraint conquest_moves_values check (ki
     and ((kind = 'extra') = (result = 'extra')) and (territory is not null or kind = 'extra'));
 create index if not exists conquest_moves_game_idx on public.conquest_moves (game_id, id);
 create index if not exists conquest_moves_user_idx on public.conquest_moves (game_id, user_id, period);
+-- Statistiky hráče napříč hrami (blok 38: vyhrané bitvy a území přes moře pro odemčení vzorů a znaků)
+create index if not exists conquest_moves_player_idx on public.conquest_moves (user_id, kind, result);
 
 -- dobyvani:data:start (vygenerováno: node scripts/build-dobyvani.js, ručně neupravovat)
 delete from public.conquest_links where map not in ('evropa', 'afrika', 'asie', 'amerika', 'cesko');
@@ -4395,6 +4406,7 @@ insert into public.conquest_links (map, a, b) values
     ('evropa', 'Q43', 'Q219'),
     ('evropa', 'Q43', 'Q229'),
     ('evropa', 'Q43', 'Q41');
+update public.conquest_links set sea = true where map = 'evropa' and (a, b) in (values ('Q145', 'Q189'), ('Q189', 'Q145'), ('Q189', 'Q20'), ('Q20', 'Q189'), ('Q20', 'Q35'), ('Q35', 'Q20'), ('Q34', 'Q35'), ('Q35', 'Q34'), ('Q191', 'Q33'), ('Q33', 'Q191'), ('Q142', 'Q145'), ('Q145', 'Q142'), ('Q222', 'Q38'), ('Q38', 'Q222'), ('Q229', 'Q41'), ('Q41', 'Q229'), ('Q229', 'Q43'), ('Q43', 'Q229'));
 -- Mapa Afrika: 49 území, 9 regionů
 insert into public.conquest_maps (id, title, territories, treasures, max_players) values ('afrika', 'Afrika', 49, 5, 8)
     on conflict (id) do update set title = excluded.title, territories = excluded.territories, treasures = excluded.treasures, max_players = excluded.max_players;
@@ -4665,6 +4677,7 @@ insert into public.conquest_links (map, a, b) values
     ('afrika', 'Q1029', 'Q953'),
     ('afrika', 'Q1029', 'Q954'),
     ('afrika', 'Q1019', 'Q1029');
+update public.conquest_links set sea = true where map = 'afrika' and (a, b) in (values ('Q1019', 'Q1029'), ('Q1029', 'Q1019'));
 -- Mapa Asie: 45 území, 9 regionů
 insert into public.conquest_maps (id, title, territories, treasures, max_players) values ('asie', 'Asie', 45, 5, 8)
     on conflict (id) do update set title = excluded.title, territories = excluded.territories, treasures = excluded.treasures, max_players = excluded.max_players;
@@ -4893,6 +4906,7 @@ insert into public.conquest_links (map, a, b) values
     ('asie', 'Q252', 'Q833'),
     ('asie', 'Q574', 'Q252'),
     ('asie', 'Q928', 'Q833');
+update public.conquest_links set sea = true where map = 'asie' and (a, b) in (values ('Q846', 'Q878'), ('Q878', 'Q846'), ('Q794', 'Q851'), ('Q851', 'Q794'), ('Q794', 'Q842'), ('Q842', 'Q794'), ('Q794', 'Q878'), ('Q878', 'Q794'), ('Q159', 'Q17'), ('Q17', 'Q159'), ('Q668', 'Q854'), ('Q854', 'Q668'), ('Q148', 'Q865'), ('Q865', 'Q148'), ('Q17', 'Q884'), ('Q884', 'Q17'), ('Q833', 'Q928'), ('Q928', 'Q833'));
 -- Mapa Amerika: 28 území, 6 regionů
 insert into public.conquest_maps (id, title, territories, treasures, max_players) values ('amerika', 'Amerika', 28, 3, 8)
     on conflict (id) do update set title = excluded.title, territories = excluded.territories, treasures = excluded.treasures, max_players = excluded.max_players;
@@ -5020,6 +5034,7 @@ insert into public.conquest_links (map, a, b) values
     ('amerika', 'Q733', 'Q155'),
     ('amerika', 'Q733', 'Q414'),
     ('amerika', 'Q733', 'Q750');
+update public.conquest_links set sea = true where map = 'amerika' and (a, b) in (values ('Q30', 'Q778'), ('Q778', 'Q30'), ('Q792', 'Q811'), ('Q811', 'Q792'), ('Q241', 'Q30'), ('Q30', 'Q241'), ('Q241', 'Q96'), ('Q96', 'Q241'), ('Q241', 'Q778'), ('Q778', 'Q241'), ('Q241', 'Q766'), ('Q766', 'Q241'), ('Q241', 'Q790'), ('Q790', 'Q241'), ('Q766', 'Q790'), ('Q790', 'Q766'), ('Q717', 'Q754'), ('Q754', 'Q717'), ('Q734', 'Q754'), ('Q754', 'Q734'));
 -- Mapa Česko: 14 území, 6 regionů
 insert into public.conquest_maps (id, title, territories, treasures, max_players) values ('cesko', 'Česko', 14, 1, 6)
     on conflict (id) do update set title = excluded.title, territories = excluded.territories, treasures = excluded.treasures, max_players = excluded.max_players;
@@ -5150,11 +5165,12 @@ language sql immutable as $$
             ('afrika-7d', 'afrika', 8, 168, null, 'day', 5), ('blesk-20m', 'evropa', 4, null, 20, 'min5', 5))
         v (preset, map, max_players, hours, minutes, period, actions)
 $$;
+-- Vzácné znaky (conquest_rare_emblems, blok 38) projdou jen jako platné id; jestli je hráč má odemčené, hlídá conquest_check_style
 create or replace function public.conquest_check_look(colour text, emblem_id text) returns void
 language plpgsql immutable set search_path = public as $$
 begin
     if colour is null or not (colour = any (public.conquest_colors())) then raise exception 'Vyber barvu z nabídky.' using errcode = '22023'; end if;
-    if emblem_id is null or not (emblem_id = any (public.conquest_emblems())) then raise exception 'Vyber znak z nabídky.' using errcode = '22023'; end if;
+    if emblem_id is null or not (emblem_id = any (public.conquest_emblems() || public.conquest_rare_emblems())) then raise exception 'Vyber znak z nabídky.' using errcode = '22023'; end if;
 end;
 $$;
 -- Kód hry: 6 znaků bez zaměnitelných (jako kód skupiny)
@@ -5382,7 +5398,8 @@ begin
             and not exists (select 1 from public.conquest_players c where c.game_id = g.id and c.user_id = i.user_id)), '[]'::jsonb);
 end;
 $$;
--- Souhrn hry: nastavení, hráči (veřejné údaje profilu, barva hry flag_color, znak, připravenost, body, místo); kód soukromé hry jen hráčům;
+-- Souhrn hry: nastavení, hráči (veřejné údaje profilu, barva hry flag_color, znak, vzor praporce pattern z bloku 38, připravenost, body, místo);
+-- kód soukromé hry jen hráčům;
 -- invited = čekající pozvaní přátelé (jen hráčům, conquest_invited_json). Délka hry: minutes u každé hry (blok 26), hours jen u her
 -- na hodiny a dny (u rychlé hry na minuty null).
 create or replace function public.conquest_summary(g public.conquest_games, uid uuid) returns jsonb
@@ -5391,8 +5408,8 @@ language sql stable set search_path = public as $$
         'visibility', g.visibility, 'preset', g.preset, 'status', g.status, 'created_at', g.created_at, 'started_at', g.started_at, 'ends_at', g.ends_at,
         'mine', exists (select 1 from public.conquest_players c where c.game_id = g.id and c.user_id = uid), 'creator', g.creator is not null and g.creator = uid,
         'code', case when g.visibility = 'public' or exists (select 1 from public.conquest_players c where c.game_id = g.id and c.user_id = uid) then g.code end,
-        'players', coalesce((select jsonb_agg(public.group_player_json(p) || jsonb_build_object('seat', c.seat, 'flag_color', c.color, 'emblem', c.emblem, 'ready', c.ready,
-                'score', c.score, 'score_at', c.score_at, 'place', c.place, 'me', c.user_id = uid) order by c.seat)
+        'players', coalesce((select jsonb_agg(public.group_player_json(p) || jsonb_build_object('seat', c.seat, 'flag_color', c.color, 'emblem', c.emblem, 'pattern', c.pattern,
+                'ready', c.ready, 'score', c.score, 'score_at', c.score_at, 'place', c.place, 'me', c.user_id = uid) order by c.seat)
             from public.conquest_players c join public.profiles p on p.id = c.user_id where c.game_id = g.id), '[]'::jsonb),
         'invited', public.conquest_invited_json(g, uid))
 $$;
@@ -5416,17 +5433,21 @@ create or replace function public.conquest_active_count(uid uuid) returns intege
 language sql stable set search_path = public as $$
     select count(*)::integer from public.conquest_players c join public.conquest_games g on g.id = c.game_id where c.user_id = uid and g.status in ('lobby', 'running')
 $$;
--- Hráč do hry (zámek hry drží volající): nejnižší volné místo, kontrola barvy, plná hra začne
-create or replace function public.conquest_add_player(g public.conquest_games, uid uuid, colour text, emblem_id text) returns void
+-- Hráč do hry (zámek hry drží volající): nejnižší volné místo, kontrola barvy, znaku a vzoru (vzácný znak a vzor jen odemčený, blok 38),
+-- plná hra začne. Dřívější podoba bez vzoru se maže (volání se čtyřmi parametry jde dál, vzor je pak null).
+drop function if exists public.conquest_add_player(public.conquest_games, uuid, text, text);
+create or replace function public.conquest_add_player(g public.conquest_games, uid uuid, colour text, emblem_id text, pattern_id text default null) returns void
 language plpgsql set search_path = public as $$
 declare seat_no integer;
 begin
     perform public.conquest_check_look(colour, emblem_id);
+    if to_regprocedure('public.conquest_check_style(uuid, text, text)') is not null then perform public.conquest_check_style(uid, emblem_id, pattern_id);
+    elsif pattern_id is not null or not (emblem_id = any (public.conquest_emblems())) then raise exception 'Vyber znak z nabídky.' using errcode = '22023'; end if;
     if (select count(*) from public.conquest_players where game_id = g.id) >= g.max_players then raise exception 'Hra je už plná.' using errcode = 'P0001'; end if;
     if exists (select 1 from public.conquest_players where game_id = g.id and color = colour) then raise exception 'Tuhle barvu už má jiný hráč. Vyber jinou.' using errcode = '22023'; end if;
     if public.conquest_active_count(uid) >= 6 then raise exception 'Hrát můžeš nejvýš 6 her najednou. Nejdřív nějakou dohraj, nebo z lobby odejdi.' using errcode = 'P0001'; end if;
     select min(s) into seat_no from generate_series(0, 7) s where s not in (select c.seat from public.conquest_players c where c.game_id = g.id);
-    insert into public.conquest_players (game_id, user_id, seat, color, emblem, joined_at) values (g.id, uid, seat_no, colour, emblem_id, public.conquest_now());
+    insert into public.conquest_players (game_id, user_id, seat, color, emblem, pattern, joined_at) values (g.id, uid, seat_no, colour, emblem_id, nullif(pattern_id, ''), public.conquest_now());
     if (select count(*) from public.conquest_players where game_id = g.id) >= g.max_players then perform public.conquest_start(g.id); end if;
 end;
 $$;
@@ -5443,6 +5464,8 @@ begin
     return jsonb_build_object(
         -- Zásoba pomůcek (Tah navíc, Půl na půl; blok 30), dokud blok 30 neproběhl null
         'items', case when to_regprocedure('public.player_items_json(uuid)') is not null then public.player_items_json(uid) end,
+        -- Vzory praporců a vzácné znaky (blok 38: co hráč má, nově odemčené, postup), dokud blok 38 neproběhl null
+        'looks', case when to_regprocedure('public.conquest_looks_json(uuid)') is not null then public.conquest_looks_json(uid) end,
         'open', coalesce((select jsonb_agg(public.conquest_summary(x, uid) order by x.preset is null, (select count(*) from public.conquest_players c where c.game_id = x.id) desc, x.created_at desc)
             from public.conquest_games x where x.id in (select y.id from public.conquest_games y where y.status = 'lobby' and y.visibility = 'public'
                 order by y.preset is null, y.created_at desc limit 40)), '[]'::jsonb),
@@ -5457,9 +5480,11 @@ $$;
 -- Založení hry: zakladatel je hned jejím hráčem. Období (per) den nebo hodina: délka v hodinách (hours); rychlá hra s obdobím 10 nebo
 -- 5 minut (blok 26): délka v minutách (minutes, nepovinný parametr navíc, starší volání s osmi parametry funguje dál) a aspoň 3 kola.
 -- Dřívější podoba s osmi parametry se maže, ať PostgREST volání se jmény parametrů nenajde dvě funkce.
+-- Vzor praporce (pattern_id, blok 38) je nepovinný poslední parametr; podoba bez něj se maže stejně.
 drop function if exists public.conquest_create(text, integer, integer, text, integer, text, text, text);
+drop function if exists public.conquest_create(text, integer, integer, text, integer, text, text, text, integer);
 create or replace function public.conquest_create(map_id text, players integer, hours integer, per text, actions_per integer, vis text, colour text, emblem_id text,
-    minutes integer default null) returns jsonb
+    minutes integer default null, pattern_id text default null) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare uid uuid := auth.uid(); m public.conquest_maps; g public.conquest_games; fast boolean := per in ('min10', 'min5');
 begin
@@ -5486,15 +5511,16 @@ begin
     insert into public.conquest_games (creator, map, max_players, duration_hours, duration_minutes, period, actions, visibility, code, created_at)
     values (uid, m.id, players, case when fast then null else hours end, case when fast then minutes end, per, actions_per, vis, public.conquest_new_code(), public.conquest_now())
     returning * into g;
-    perform public.conquest_add_player(g, uid, colour, emblem_id);
+    perform public.conquest_add_player(g, uid, colour, emblem_id, pattern_id);
     select * into g from public.conquest_games where id = g.id;
     return public.conquest_summary(g, uid);
 end;
 $$;
 
 -- Přidání do hry: veřejné podle id, soukromé (i veřejné) kódem, soukromé i podle id, když má hráč čekající pozvánku (blok 24);
--- kdo už ve hře je, dostane souhrn beze změny. Přidáním pozvánka do hry zmizí (i odmítnutá).
-create or replace function public.conquest_join(game uuid, join_code text, colour text, emblem_id text) returns jsonb
+-- kdo už ve hře je, dostane souhrn beze změny. Přidáním pozvánka do hry zmizí (i odmítnutá). Vzor praporce (pattern_id, blok 38) nepovinný.
+drop function if exists public.conquest_join(uuid, text, text, text);
+create or replace function public.conquest_join(game uuid, join_code text, colour text, emblem_id text, pattern_id text default null) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare uid uuid := auth.uid(); g public.conquest_games; c text := upper(regexp_replace(coalesce(join_code, ''), '[\s-]', '', 'g')); invites boolean := to_regclass('public.conquest_invites') is not null;
     invited boolean := false;
@@ -5511,25 +5537,28 @@ begin
     if exists (select 1 from public.conquest_players p where p.game_id = g.id and p.user_id = uid) then return public.conquest_summary(g, uid); end if;
     if g.status <> 'lobby' then raise exception 'Tahle hra už začala. Vyber jinou, nebo založ vlastní.' using errcode = 'P0001'; end if;
     if g.creator is not null and public.is_blocked(g.creator, uid) then raise exception 'Do téhle hry se přidat nemůžeš.' using errcode = 'P0001'; end if;
-    perform public.conquest_add_player(g, uid, colour, emblem_id);
+    perform public.conquest_add_player(g, uid, colour, emblem_id, pattern_id);
     if invites then delete from public.conquest_invites where game_id = g.id and user_id = uid; end if;
     select * into g from public.conquest_games where id = g.id;
     return public.conquest_summary(g, uid);
 end;
 $$;
 
--- Jiná barva nebo znak (jen před začátkem hry)
-create or replace function public.conquest_set_look(game uuid, colour text, emblem_id text) returns jsonb
+-- Jiná barva, znak nebo vzor praporce (jen před začátkem hry; vzor null = bez vzoru, blok 38)
+drop function if exists public.conquest_set_look(uuid, text, text);
+create or replace function public.conquest_set_look(game uuid, colour text, emblem_id text, pattern_id text default null) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare uid uuid := auth.uid(); g public.conquest_games;
 begin
     if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
     perform public.conquest_check_look(colour, emblem_id);
+    if to_regprocedure('public.conquest_check_style(uuid, text, text)') is not null then perform public.conquest_check_style(uid, emblem_id, pattern_id);
+    elsif pattern_id is not null or not (emblem_id = any (public.conquest_emblems())) then raise exception 'Vyber znak z nabídky.' using errcode = '22023'; end if;
     select * into g from public.conquest_games where id = game for update;
     if g.id is null or not exists (select 1 from public.conquest_players p where p.game_id = game and p.user_id = uid) then raise exception 'Tuhle hru nehraješ.' using errcode = '42501'; end if;
     if g.status <> 'lobby' then raise exception 'Barvu a znak jde změnit jen před začátkem hry.' using errcode = 'P0001'; end if;
     if exists (select 1 from public.conquest_players p where p.game_id = game and p.color = colour and p.user_id <> uid) then raise exception 'Tuhle barvu už má jiný hráč. Vyber jinou.' using errcode = '22023'; end if;
-    update public.conquest_players set color = colour, emblem = emblem_id where game_id = game and user_id = uid;
+    update public.conquest_players set color = colour, emblem = emblem_id, pattern = nullif(pattern_id, '') where game_id = game and user_id = uid;
     return public.conquest_summary(g, uid);
 end;
 $$;
@@ -5719,7 +5748,8 @@ $$;
 
 -- Výsledek po konci: moje místo, počet hráčů a jestli hra odměnu dává (aspoň 3 hráči, nebo hra aspoň na den; aspoň 3 vlastní tahy
 -- a aspoň 1 bod). claimed_now je true jen jednou: jen tehdy si aplikace odměnu připíše (conquest.js rewardFor) a jen tehdy item = pomůcka
--- Půl na půl za výhru (blok 30: { kind, granted, full, count, max }; full = zásoba už byla plná), jinak bez item.
+-- Půl na půl za výhru (blok 30: { kind, granted, full, count, max }; full = zásoba už byla plná), jinak bez item. looks = vzory a znaky
+-- (blok 38, conquest_looks_json: i nově odemčené touto hrou), dokud blok 38 neproběhl bez looks.
 create or replace function public.conquest_claim(game uuid) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare uid uuid := auth.uid(); g public.conquest_games; me public.conquest_players; total integer; moves integer; eligible boolean; fresh boolean; item jsonb;
@@ -5741,7 +5771,8 @@ begin
             into item from public.player_item_grants x where x.user_id = uid and x.key = 'conquest:' || game;
     end if;
     return jsonb_build_object('place', me.place, 'players', total, 'score', me.score, 'moves', moves, 'eligible', eligible, 'claimed_now', fresh)
-        || case when item is not null then jsonb_build_object('item', item) else '{}'::jsonb end;
+        || case when item is not null then jsonb_build_object('item', item) else '{}'::jsonb end
+        || case when to_regprocedure('public.conquest_looks_json(uuid)') is not null then jsonb_build_object('looks', public.conquest_looks_json(uid)) else '{}'::jsonb end;
 end;
 $$;
 
@@ -5751,14 +5782,14 @@ revoke all on function public.conquest_now(), public.conquest_colors(), public.c
     public.conquest_minutes(public.conquest_games), public.conquest_period_start(public.conquest_games, integer), public.conquest_period_end(public.conquest_games, integer),
     public.conquest_rescore(uuid, uuid), public.conquest_far_territory(uuid, text), public.conquest_start(uuid), public.conquest_finish(uuid), public.conquest_respawn(uuid),
     public.conquest_housekeep(uuid), public.conquest_budget(uuid, uuid), public.conquest_invited_json(public.conquest_games, uuid), public.conquest_summary(public.conquest_games, uuid), public.conquest_ensure_lobbies(),
-    public.conquest_active_count(uuid), public.conquest_add_player(public.conquest_games, uuid, text, text), public.conquest_move_json(public.conquest_moves),
+    public.conquest_active_count(uuid), public.conquest_add_player(public.conquest_games, uuid, text, text, text), public.conquest_move_json(public.conquest_moves),
     public.conquest_besieged(uuid), public.conquest_attack_check(public.conquest_games, uuid, text, text), public.conquest_attack_apply(uuid, uuid, text, text, integer, boolean)
     from public, anon, authenticated;
-revoke all on function public.conquest_is_player(uuid), public.conquest_is_open(uuid), public.conquest_lobby(), public.conquest_create(text, integer, integer, text, integer, text, text, text, integer),
-    public.conquest_join(uuid, text, text, text), public.conquest_set_look(uuid, text, text), public.conquest_ready(uuid, boolean), public.conquest_leave(uuid),
+revoke all on function public.conquest_is_player(uuid), public.conquest_is_open(uuid), public.conquest_lobby(), public.conquest_create(text, integer, integer, text, integer, text, text, text, integer, text),
+    public.conquest_join(uuid, text, text, text, text), public.conquest_set_look(uuid, text, text, text), public.conquest_ready(uuid, boolean), public.conquest_leave(uuid),
     public.conquest_state(uuid), public.conquest_move(uuid, text, text, boolean, text), public.conquest_claim(uuid) from public, anon;
-grant execute on function public.conquest_is_player(uuid), public.conquest_is_open(uuid), public.conquest_lobby(), public.conquest_create(text, integer, integer, text, integer, text, text, text, integer),
-    public.conquest_join(uuid, text, text, text), public.conquest_set_look(uuid, text, text), public.conquest_ready(uuid, boolean), public.conquest_leave(uuid),
+grant execute on function public.conquest_is_player(uuid), public.conquest_is_open(uuid), public.conquest_lobby(), public.conquest_create(text, integer, integer, text, integer, text, text, text, integer, text),
+    public.conquest_join(uuid, text, text, text, text), public.conquest_set_look(uuid, text, text, text), public.conquest_ready(uuid, boolean), public.conquest_leave(uuid),
     public.conquest_state(uuid), public.conquest_move(uuid, text, text, boolean, text), public.conquest_claim(uuid) to authenticated;
 -- ===== 21: Dobývání — KONEC BLOKU =====
 
@@ -6994,7 +7025,8 @@ $$;
 -- (blok 37), 15. stupeň Tah navíc; jen tento a minulý měsíc podle Prahy), 'chest' (Truhla Mudrlanta, key chest:<RRRR-Wtt>, tento nebo
 -- minulý týden; los dělá server, jednou za týden: 5 % Půl na půl, dalších 5 % Záchrana navíc) nebo 'gold' (Zlatá truhla, blok 37: key
 -- gold:<RRRR-Wtt>, nejvýš jednou za týden, 20 % Záchrana navíc).
--- Vrací výsledek player_item_grant (u truhly bez štěstí { kind, granted: false, lucky: false }) a zásobu (items).
+-- Vrací výsledek player_item_grant (u truhly bez štěstí { kind, granted: false, lucky: false }) a zásobu (items); truhla se vzácným vzorem
+-- Duha (blok 38, conquest_chest_pattern) navíc pattern: 'duha'.
 create or replace function public.player_items_claim(source text, key text) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare uid uuid := auth.uid(); t timestamptz := public.player_items_now(); today date := (public.player_items_now() at time zone 'Europe/Prague')::date;
@@ -7026,6 +7058,11 @@ begin
             result := jsonb_build_object('kind', case source when 'gold' then 'chain_rescue' else 'fifty' end, 'granted', false, 'full', false, 'already', false, 'lucky', false);
         else
             result := public.player_item_grant(uid, item, key, false) || jsonb_build_object('lucky', true);
+        end if;
+        -- Vzácnost do Dobývání (blok 38): los 100–129 = vzor praporce Duha; odemkne se hned (conquest_looks_json)
+        if source = 'chest' and to_regprocedure('public.conquest_chest_pattern(uuid, text)') is not null and public.conquest_chest_pattern(uid, key) then
+            perform public.conquest_looks_json(uid);
+            result := result || jsonb_build_object('pattern', 'duha');
         end if;
     else
         raise exception 'Neznámý zdroj pomůcky.' using errcode = '22023';
@@ -8407,6 +8444,183 @@ revoke all on function public.chain_use_rescue(date) from public, anon;
 grant execute on function public.chain_use_rescue(date) to authenticated;
 -- ===== 37: Pomůcka Záchrana navíc do Řetězovky — KONEC BLOKU =====
 
+-- ===== 38: Dobývání – vzory praporců a vzácné znaky — ZAČÁTEK BLOKU =====
+-- Odměny vzhledu do Dobývání (docs/ODMENY-DOBYVANI.md oddíly 1, 2 a 8): 12 vzorů praporce (conquest_players.pattern) a 12 vzácných znaků
+-- (conquest_players.emblem z conquest_rare_emblems). Odemykají se podle statistik hráče, které server spočítá z dat, která už má
+-- (conquest_look_stats), takže platí i zpětně za dřívější hry a výsledky: dohrané hry Dobývání (počítá se hra, ve které měl hráč aspoň
+-- 3 vlastní tahy a aspoň 1 bod a která měla aspoň 3 hráče nebo trvala aspoň den, stejně jako odměna v conquest_claim), vyhrané bitvy
+-- (útok, který dobyl území nebo pobořil opevnění, i v bitvě o území), území dobytá přes námořní spoj (conquest_links.sea), Boss týdne
+-- (boss_results), Kvíz dne (nejdelší série dní z daily_quiz_results, nebo odznak série), Řetězovka (celé řetězy 7 z 7 z chain_results,
+-- nebo odznak), Zlatá otázka (odznaky zlatokop-*, víc server neví), 15. stupeň Sezóny Mudrlanta v zimě (prosinec–únor; zdroj pomůcky
+-- season:<RRRR-MM>:15 v player_item_grants), vzácnost z Truhly Mudrlanta (los truhly chest:<týden> 100–129 z 1000, tj. 3 %, nezávislý
+-- na losu pomůcky; player_items_claim ji ohlásí jako pattern) a úroveň z XP v účtu.
+-- Co hráč odemkl, se zapíše do conquest_looks (i když by se data později změnila, odemčené zůstane); seen_at = kdy ho aplikace ohlásila
+-- (okno „Nový vzor praporce“), do té doby je v looks.new. Zápis dělá conquest_looks_json (volá ho conquest_lobby, conquest_claim
+-- a conquest_looks). Volbu hlídá conquest_check_style: vzácný znak a vzor jen odemčené (správci v dev_admins cokoli). Boti nic neodemykají.
+-- Katalog (stat = klíč statistiky, need = kolik) odpovídá conquest.js PATTERNS a RARE_EMBLEMS (hlídá tests/conquest.test.js a tests/sql-conquest-looks.test.js).
+create or replace function public.conquest_rare_emblems() returns text[]
+language sql immutable as $$ select array['gryf', 'sfinga', 'cinsky-drak', 'orel-belohlavy', 'dvouocasy-lev', 'pegas', 'fenix', 'kraken', 'jednorozec',
+    'dvouhlavy-orel', 'svatovaclavska-koruna', 'sova-mudrlant']::text[] $$;
+create or replace function public.conquest_patterns() returns text[]
+language sql immutable as $$ select array['sachovnice', 'pokosy', 'vlnky', 'hermelin', 'plameny', 'mramor', 'hvezdna-noc', 'listi', 'led', 'zlato', 'brokat', 'duha']::text[] $$;
+-- Katalog odemykání: kind ('pattern' | 'emblem'), item, stat (klíč v conquest_look_stats), need (od kolika), ord (pořadí v nabídce)
+create or replace function public.conquest_look_catalog() returns table (kind text, item text, stat text, need integer, ord integer)
+language sql immutable as $$
+    select * from (values
+        ('pattern', 'sachovnice', 'games', 5, 1), ('pattern', 'pokosy', 'regions', 10, 2), ('pattern', 'vlnky', 'sea', 15, 3),
+        ('pattern', 'hermelin', 'wins4', 1, 4), ('pattern', 'plameny', 'battles', 10, 5), ('pattern', 'mramor', 'boss', 4, 6),
+        ('pattern', 'hvezdna-noc', 'daily_streak', 30, 7), ('pattern', 'listi', 'chains', 15, 8), ('pattern', 'led', 'winter15', 1, 9),
+        ('pattern', 'zlato', 'gold', 10, 10), ('pattern', 'brokat', 'wins', 10, 11), ('pattern', 'duha', 'chest', 1, 12),
+        ('emblem', 'gryf', 'win_evropa', 1, 1), ('emblem', 'sfinga', 'win_afrika', 1, 2), ('emblem', 'cinsky-drak', 'win_asie', 1, 3),
+        ('emblem', 'orel-belohlavy', 'win_amerika', 1, 4), ('emblem', 'dvouocasy-lev', 'win_cesko', 1, 5), ('emblem', 'pegas', 'win_blesk', 1, 6),
+        ('emblem', 'fenix', 'win_comeback', 1, 7), ('emblem', 'kraken', 'sea', 40, 8), ('emblem', 'jednorozec', 'safe_home', 5, 9),
+        ('emblem', 'dvouhlavy-orel', 'battles', 50, 10), ('emblem', 'svatovaclavska-koruna', 'wins', 25, 11), ('emblem', 'sova-mudrlant', 'level', 50, 12)
+    ) as t (kind, item, stat, need, ord);
+$$;
+
+create table if not exists public.conquest_looks (
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    kind text not null,
+    item text not null,
+    unlocked_at timestamptz not null default now(),
+    seen_at timestamptz,
+    primary key (user_id, kind, item)
+);
+alter table public.conquest_looks drop constraint if exists conquest_looks_values;
+alter table public.conquest_looks add constraint conquest_looks_values check (kind in ('pattern', 'emblem') and item ~ '^[a-z][a-z-]{1,23}$');
+alter table public.conquest_looks enable row level security;
+drop policy if exists "dobývání vzhled: vlastní řádky" on public.conquest_looks;
+create policy "dobývání vzhled: vlastní řádky" on public.conquest_looks for select to authenticated using (user_id = auth.uid());
+revoke all on public.conquest_looks from public, anon, authenticated;
+grant select on public.conquest_looks to authenticated;
+
+-- Vzácnost z Truhly Mudrlanta: los truhly (player_item_roll, stejný jako u pomůcky) 100–129 z 1000 = vzor Duha
+create or replace function public.conquest_chest_pattern(uid uuid, grant_key text) returns boolean
+language sql immutable as $$ select grant_key like 'chest:%' and public.player_item_roll(uid, grant_key) between 100 and 129 $$;
+
+-- Statistiky hráče pro odemykání (jen z dat serveru, tedy i zpětně). Bot nebo neznámý hráč {}.
+create or replace function public.conquest_look_stats(uid uuid) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare p public.profiles; games jsonb; streak integer;
+begin
+    select * into p from public.profiles where id = uid;
+    if p.id is null or public.dev_is_bot(uid) then return '{}'::jsonb; end if;
+    with played as (
+        select g.id, g.map, coalesce(g.duration_minutes, g.duration_hours * 60) as minutes, c.place,
+            (select count(*) from public.conquest_players o where o.game_id = g.id) as players
+        from public.conquest_players c join public.conquest_games g on g.id = c.game_id
+        where c.user_id = uid and g.status = 'finished' and c.score > 0
+            and (select count(*) from public.conquest_moves m where m.game_id = g.id and m.user_id = uid and m.kind in ('attack', 'fortify')) >= 3
+    ), counted as (
+        select x.*,
+            exists (select 1 from public.conquest_moves m where m.game_id = x.id and m.user_id = uid and m.kind = 'respawn') as comeback,
+            exists (select 1 from public.conquest_moves m where m.game_id = x.id and m.victim = uid and m.home and m.result = 'capture') as lost_home
+        from played x where x.players >= 3 or x.minutes >= 24 * 60
+    )
+    select jsonb_build_object('games', count(*), 'wins', count(*) filter (where place = 1), 'wins4', count(*) filter (where place = 1 and players >= 4),
+            'win_evropa', count(*) filter (where place = 1 and map = 'evropa'), 'win_afrika', count(*) filter (where place = 1 and map = 'afrika'),
+            'win_asie', count(*) filter (where place = 1 and map = 'asie'), 'win_amerika', count(*) filter (where place = 1 and map = 'amerika'),
+            'win_cesko', count(*) filter (where place = 1 and map = 'cesko'), 'win_blesk', count(*) filter (where place = 1 and minutes = 20),
+            'win_comeback', count(*) filter (where place = 1 and comeback), 'safe_home', count(*) filter (where not lost_home),
+            'regions', coalesce(sum(public.conquest_regions_owned(id, map, uid)), 0))
+        into games from counted;
+    -- Nejdelší série dní v Kvízu dne (dny po sobě s pokusem)
+    select coalesce(max(n), 0) into streak from (
+        select count(*) as n from (select d.day - (row_number() over (order by d.day))::integer as grp from public.daily_quiz_results d where d.user_id = uid) x group by grp
+    ) y;
+    return games || jsonb_build_object(
+        'battles', (select count(*) from public.conquest_moves m where m.user_id = uid and m.kind = 'attack' and m.result in ('capture', 'breach')),
+        'sea', (select count(*) from public.conquest_moves m join public.conquest_games g on g.id = m.game_id
+            join public.conquest_links l on l.map = g.map and l.a = m.source and l.b = m.territory and l.sea
+            where m.user_id = uid and m.kind = 'attack' and m.result = 'capture'),
+        'boss', (select count(*) from public.boss_results b where b.user_id = uid and b.defeated),
+        'daily_streak', greatest(streak, case when public.badge_owned(p.badges, 'kviz-serie-100') then 100 when public.badge_owned(p.badges, 'kviz-serie-30') then 30 else 0 end),
+        'chains', greatest((select count(*) from public.chain_results r where r.user_id = uid and r.links = 7)::integer,
+            case when public.badge_owned(p.badges, 'retezovka-cela-15') then 15 when public.badge_owned(p.badges, 'retezovka-cela-5') then 5 else 0 end),
+        'gold', case when public.badge_owned(p.badges, 'zlatokop-100') then 100 when public.badge_owned(p.badges, 'zlatokop-50') then 50
+            when public.badge_owned(p.badges, 'zlatokop-10') then 10 else 0 end,
+        'winter15', case when exists (select 1 from public.player_item_grants x where x.user_id = uid and x.key ~ '^season:\d{4}-(12|01|02):15$') then 1 else 0 end,
+        'chest', case when exists (select 1 from public.player_item_grants x where x.user_id = uid and public.conquest_chest_pattern(uid, x.key)) then 1 else 0 end,
+        'level', public.level_of_xp(p.xp));
+end;
+$$;
+
+-- Odemčení podle statistik (zápis do conquest_looks) a stav pro aplikaci: { patterns: [id], emblems: [id] (odemčené v pořadí nabídky),
+-- new: [{ kind, item, at }] (odemčené, ale ještě neohlášené), stats: { klíč: číslo } (postup „3/10“) }. Správce (dev_admins) má v nabídce
+-- všechno, do tabulky se mu ale zapíše jen opravdu odemčené.
+create or replace function public.conquest_looks_json(uid uuid) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare stats jsonb; admin boolean;
+begin
+    if uid is null or public.dev_is_bot(uid) then
+        return jsonb_build_object('patterns', '[]'::jsonb, 'emblems', '[]'::jsonb, 'new', '[]'::jsonb, 'stats', '{}'::jsonb);
+    end if;
+    stats := public.conquest_look_stats(uid);
+    insert into public.conquest_looks (user_id, kind, item, unlocked_at)
+    select uid, c.kind, c.item, public.conquest_now() from public.conquest_look_catalog() c where coalesce((stats ->> c.stat)::integer, 0) >= c.need
+    on conflict do nothing;
+    admin := exists (select 1 from public.dev_admins d where d.user_id = uid);
+    return jsonb_build_object(
+        'patterns', coalesce((select jsonb_agg(c.item order by c.ord) from public.conquest_look_catalog() c where c.kind = 'pattern'
+            and (admin or exists (select 1 from public.conquest_looks l where l.user_id = uid and l.kind = c.kind and l.item = c.item))), '[]'::jsonb),
+        'emblems', coalesce((select jsonb_agg(c.item order by c.ord) from public.conquest_look_catalog() c where c.kind = 'emblem'
+            and (admin or exists (select 1 from public.conquest_looks l where l.user_id = uid and l.kind = c.kind and l.item = c.item))), '[]'::jsonb),
+        'new', coalesce((select jsonb_agg(jsonb_build_object('kind', l.kind, 'item', l.item, 'at', l.unlocked_at) order by l.unlocked_at, l.kind desc, c.ord)
+            from public.conquest_looks l join public.conquest_look_catalog() c on c.kind = l.kind and c.item = l.item
+            where l.user_id = uid and l.seen_at is null), '[]'::jsonb),
+        'stats', stats);
+end;
+$$;
+-- Má hráč vzor nebo vzácný znak? (zapsaný v conquest_looks, správce cokoli; nezapsaný se napřed zkusí odemknout podle statistik)
+create or replace function public.conquest_look_owned(uid uuid, look_kind text, look_item text) returns boolean
+language plpgsql set search_path = public as $$
+begin
+    if uid is null or look_item is null then return false; end if;
+    if exists (select 1 from public.dev_admins d where d.user_id = uid) then return true; end if;
+    if exists (select 1 from public.conquest_looks l where l.user_id = uid and l.kind = look_kind and l.item = look_item) then return true; end if;
+    perform public.conquest_looks_json(uid);
+    return exists (select 1 from public.conquest_looks l where l.user_id = uid and l.kind = look_kind and l.item = look_item);
+end;
+$$;
+-- Kontrola volby při založení, přidání a změně vzhledu (conquest_add_player, conquest_set_look): vzácný znak a vzor jen odemčené
+create or replace function public.conquest_check_style(uid uuid, emblem_id text, pattern_id text) returns void
+language plpgsql set search_path = public as $$
+begin
+    if emblem_id = any (public.conquest_rare_emblems()) and not public.conquest_look_owned(uid, 'emblem', emblem_id) then
+        raise exception 'Tenhle vzácný znak ještě nemáš. Vyber jiný.' using errcode = '22023';
+    end if;
+    if coalesce(pattern_id, '') = '' then return; end if;
+    if not (pattern_id = any (public.conquest_patterns())) then raise exception 'Vyber vzor praporce z nabídky.' using errcode = '22023'; end if;
+    if not public.conquest_look_owned(uid, 'pattern', pattern_id) then raise exception 'Tenhle vzor praporce ještě nemáš. Vyber jiný.' using errcode = '22023'; end if;
+end;
+$$;
+
+-- Moje vzory a vzácné znaky (conquest_looks_json) a ohlášení nově odemčených: seen(upto) označí jako ohlášené vše odemčené do času upto
+-- (aplikace pošle čas posledního, které ukázala; co přibude mezitím, ohlásí příště)
+create or replace function public.conquest_looks() returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid();
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    return public.conquest_looks_json(uid);
+end;
+$$;
+create or replace function public.conquest_looks_seen(upto timestamptz) returns void
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid();
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    update public.conquest_looks set seen_at = public.conquest_now() where user_id = uid and seen_at is null and unlocked_at <= coalesce(upto, public.conquest_now());
+end;
+$$;
+
+revoke all on function public.conquest_rare_emblems(), public.conquest_patterns(), public.conquest_look_catalog(), public.conquest_chest_pattern(uuid, text),
+    public.conquest_look_stats(uuid), public.conquest_looks_json(uuid), public.conquest_look_owned(uuid, text, text), public.conquest_check_style(uuid, text, text)
+    from public, anon, authenticated;
+revoke all on function public.conquest_looks(), public.conquest_looks_seen(timestamptz) from public, anon;
+grant execute on function public.conquest_looks(), public.conquest_looks_seen(timestamptz) to authenticated;
+-- ===== 38: Dobývání – vzory praporců a vzácné znaky — KONEC BLOKU =====
+
 -- ===== Verze schématu =====
 -- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.
 -- Aplikace ho po přihlášení porovná a správci (dev_admins nebo vývojářský režim) ukáže v Nastavení, že má schéma spustit znovu;
@@ -8498,7 +8712,14 @@ grant execute on function public.chain_use_rescue(date) to authenticated;
 --     chain_json s extra; zisk za milníky Řetězovky (chain_rescue_milestone v chain_submit: rescue_item), 12. stupeň Sezóny, Truhlu
 --     Mudrlanta (player_item_roll) a Zlatou truhlu (player_items_claim 'gold') a společný cíl Bosse (boss_claim_bonus: item);
 --     export_my_data má v 'pomucky' i 'pouzite'.
+-- 38: Dobývání – vzory praporců a vzácné znaky: conquest_players.pattern, conquest_links.sea (námořní spoje z vygenerované části),
+--     conquest_looks (odemčené a ohlášené), conquest_look_catalog, conquest_rare_emblems, conquest_patterns, conquest_look_stats (statistiky
+--     z dohraných her, bitev, území přes moře, Bosse týdne, Kvízu dne, Řetězovky, odznaků Zlaté otázky, zimní Sezóny, Truhly a úrovně;
+--     i zpětně), conquest_looks_json, conquest_look_owned, conquest_check_style, conquest_chest_pattern; RPC conquest_looks a conquest_looks_seen;
+--     conquest_create, conquest_join a conquest_set_look s nepovinným pattern_id (vzácný znak a vzor jen odemčené), conquest_add_player
+--     s pattern_id, conquest_summary s pattern, conquest_lobby a conquest_claim s looks, player_items_claim u truhly s pattern (Duha);
+--     export_my_data má i 'dobyvani_vzhled'.
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 37 $$;
+language sql immutable as $$ select 38 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;
