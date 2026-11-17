@@ -2543,9 +2543,13 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 
 ## 24. Dobývání – odměny: vzory praporců, vzácné znaky, sady hradů a pomůcky (č. 278–310)
 
-Celý návrh odměn je v docs/ODMENY-DOBYVANI.md (pomůcky v oddílu Pomůcky). Vzory (č. 278–284) jsou bezešvé textury: šedé se v aplikaci násobí barvou hráče, dvě barevné (Brokát, Duha) se použijí jak jsou. Znaky (č. 285–296) jsou černé siluety na bílém, skript z nich udělá masku, která se tiskne do pečeti a na praporec. Sady hradů (č. 297–308) jsou čtyři stupně domovského hradu jiného stylu; generujte je postupně a ke každému dalšímu stupni přiložte předchozí, ať jde vidět, že je to tentýž hrad.
+Celý návrh odměn je v docs/ODMENY-DOBYVANI.md (pomůcky v oddílu Pomůcky). Vzory (č. 278–284) jsou bezešvé textury: šedé se v aplikaci násobí barvou hráče, dvě barevné (Brokát, Duha) se použijí jak jsou. Znaky (č. 285–296) jsou černé siluety na bílém, skript z nich udělá masku, která se tiskne do pečeti a na praporec.
 
-#### 278. `vzor-hvezdna-noc.png` – Vzor praporce Hvězdná noc (šedá textura) – čeká na dodání
+**Stav:** vzory č. 278–284 a znaky č. 285–296 jsou dodané a zapojené: `python3 scripts/conquest-art.py vzory znaky` z nich udělá bezešvé dlaždice `icons/vzory/<id>.webp` (512 × 512, šedé srovnané pro násobení barvou hráče) a masky `icons/znaky/<id>.webp` a `<id>-obrys.webp` (256 × 256, bílá s průhledností); conquest.js je kreslí (`PATTERNS`, `RARE_EMBLEMS`) na praporci, pečeti i vlaječkách na mapě. Vybrat je hráč zatím nemůže (odemykání a volba vzoru na serveru, docs/ODMENY-DOBYVANI.md oddíl 8, ještě nejsou). Duha (č. 282) není na horním a dolním okraji bezešvá (pruhy na sebe nenavazují); aplikace dlaždici na praporci ani pečeti neopakuje, při opakování by šev byl vidět.
+
+Sady hradů (č. 297–308) jsou čtyři stupně domovského hradu jiného stylu; generujte je postupně a ke každému dalšímu stupni přiložte předchozí, ať jde vidět, že je to tentýž hrad.
+
+#### 278. `vzor-hvezdna-noc.png` – Vzor praporce Hvězdná noc (šedá textura) – ✅ dodáno, zapojeno (icons/vzory, conquest.js PATTERNS)
 
 Kam: vzor (látka) praporce, pečeti a vlaječek hráče v Dobývání (Kvíz dne: série 30 dní; docs/ODMENY-DOBYVANI.md). Šedá textura se násobí barvou hráče, barevná se použije jak je. Přiložit: nic (textura)
 
@@ -2553,7 +2557,7 @@ Kam: vzor (látka) praporce, pečeti a vlaječek hráče v Dobývání (Kvíz dn
 Seamless tileable square texture, 1024 × 1024 px, the edges must tile perfectly in both directions (no visible seams when repeated). Grayscale only: from white to medium grey, no pure black areas and no color at all, because the app multiplies it with the player's color. Soft hand-painted look that fits an old parchment map, gentle shading, even density over the whole tile (no big empty areas, no focal point). No text, no letters, no numbers, no logo, no watermark, no border, no vignette. Subject: a night sky full of small five-pointed and four-pointed stars of different sizes, a few thin dotted constellation lines and tiny swirls of stardust, drawn in light grey on a slightly darker grey background. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 279. `vzor-plameny.png` – Vzor praporce Plameny (šedá textura) – čeká na dodání
+#### 279. `vzor-plameny.png` – Vzor praporce Plameny (šedá textura) – ✅ dodáno, zapojeno (icons/vzory, conquest.js PATTERNS)
 
 Kam: vzor (látka) praporce, pečeti a vlaječek hráče v Dobývání (10 vyhraných bitev; docs/ODMENY-DOBYVANI.md). Šedá textura se násobí barvou hráče, barevná se použije jak je. Přiložit: nic (textura)
 
@@ -2561,7 +2565,7 @@ Kam: vzor (látka) praporce, pečeti a vlaječek hráče v Dobývání (10 vyhra
 Seamless tileable square texture, 1024 × 1024 px, the edges must tile perfectly in both directions (no visible seams when repeated). Grayscale only: from white to medium grey, no pure black areas and no color at all, because the app multiplies it with the player's color. Soft hand-painted look that fits an old parchment map, gentle shading, even density over the whole tile (no big empty areas, no focal point). No text, no letters, no numbers, no logo, no watermark, no border, no vignette. Subject: rows of stylized heraldic flames, like embroidered fabric on a medieval banner, alternating light and medium grey tongues of fire with soft inner highlights. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 280. `vzor-mramor.png` – Vzor praporce Mramor (šedá textura) – čeká na dodání
+#### 280. `vzor-mramor.png` – Vzor praporce Mramor (šedá textura) – ✅ dodáno, zapojeno (icons/vzory, conquest.js PATTERNS)
 
 Kam: vzor (látka) praporce, pečeti a vlaječek hráče v Dobývání (Boss týdne 4×; docs/ODMENY-DOBYVANI.md). Šedá textura se násobí barvou hráče, barevná se použije jak je. Přiložit: nic (textura)
 
@@ -2569,7 +2573,7 @@ Kam: vzor (látka) praporce, pečeti a vlaječek hráče v Dobývání (Boss tý
 Seamless tileable square texture, 1024 × 1024 px, the edges must tile perfectly in both directions (no visible seams when repeated). Grayscale only: from white to medium grey, no pure black areas and no color at all, because the app multiplies it with the player's color. Soft hand-painted look that fits an old parchment map, gentle shading, even density over the whole tile (no big empty areas, no focal point). No text, no letters, no numbers, no logo, no watermark, no border, no vignette. Subject: polished white marble with soft grey veins running diagonally, subtle cloudy patches, elegant and calm. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 281. `vzor-brokat.png` – Vzor praporce Zlatý brokát (barevná textura) – čeká na dodání
+#### 281. `vzor-brokat.png` – Vzor praporce Zlatý brokát (barevná textura) – ✅ dodáno, zapojeno (icons/vzory, conquest.js PATTERNS)
 
 Kam: vzor (látka) praporce, pečeti a vlaječek hráče v Dobývání (10 výher; docs/ODMENY-DOBYVANI.md). Šedá textura se násobí barvou hráče, barevná se použije jak je. Přiložit: nic (textura)
 
@@ -2577,7 +2581,7 @@ Kam: vzor (látka) praporce, pečeti a vlaječek hráče v Dobývání (10 výhe
 Seamless tileable square texture, 1024 × 1024 px, the edges must tile perfectly in both directions (no visible seams when repeated). Rich but not neon colors, soft hand-painted look that fits an old parchment map, gentle shading, even density over the whole tile (no big empty areas, no focal point). No text, no letters, no numbers, no logo, no watermark, no border, no vignette. Subject: rich royal brocade fabric: deep burgundy silk with an ornate golden damask pattern of pomegranates and acanthus leaves woven in shiny gold thread, slight fabric weave visible. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 282. `vzor-duha.png` – Vzor praporce Duha (barevná textura) – čeká na dodání
+#### 282. `vzor-duha.png` – Vzor praporce Duha (barevná textura) – ✅ dodáno, zapojeno (icons/vzory, conquest.js PATTERNS)
 
 Kam: vzor (látka) praporce, pečeti a vlaječek hráče v Dobývání (vzácnost z Truhly Mudrlanta, 3× Šampion sezóny; docs/ODMENY-DOBYVANI.md). Šedá textura se násobí barvou hráče, barevná se použije jak je. Přiložit: nic (textura)
 
@@ -2585,7 +2589,7 @@ Kam: vzor (látka) praporce, pečeti a vlaječek hráče v Dobývání (vzácnos
 Seamless tileable square texture, 1024 × 1024 px, the edges must tile perfectly in both directions (no visible seams when repeated). Rich but not neon colors, soft hand-painted look that fits an old parchment map, gentle shading, even density over the whole tile (no big empty areas, no focal point). No text, no letters, no numbers, no logo, no watermark, no border, no vignette. Subject: soft rainbow fabric: diagonal bands of red, orange, yellow, green, blue and violet that blend gently into each other, painted with watercolor texture and a subtle silk sheen, pastel-rich (not neon). Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 283. `vzor-listi.png` – Vzor praporce Listí (šedá textura) – čeká na dodání
+#### 283. `vzor-listi.png` – Vzor praporce Listí (šedá textura) – ✅ dodáno, zapojeno (icons/vzory, conquest.js PATTERNS)
 
 Kam: vzor (látka) praporce, pečeti a vlaječek hráče v Dobývání (Řetězovka 25 článků; docs/ODMENY-DOBYVANI.md). Šedá textura se násobí barvou hráče, barevná se použije jak je. Přiložit: nic (textura)
 
@@ -2593,7 +2597,7 @@ Kam: vzor (látka) praporce, pečeti a vlaječek hráče v Dobývání (Řetězo
 Seamless tileable square texture, 1024 × 1024 px, the edges must tile perfectly in both directions (no visible seams when repeated). Grayscale only: from white to medium grey, no pure black areas and no color at all, because the app multiplies it with the player's color. Soft hand-painted look that fits an old parchment map, gentle shading, even density over the whole tile (no big empty areas, no focal point). No text, no letters, no numbers, no logo, no watermark, no border, no vignette. Subject: a dense pattern of oak leaves and a few acorns overlapping each other, drawn like a woodcut / embroidered textile, light grey leaves with medium grey veins. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 284. `vzor-led.png` – Vzor praporce Ledové krystaly (šedá textura) – čeká na dodání
+#### 284. `vzor-led.png` – Vzor praporce Ledové krystaly (šedá textura) – ✅ dodáno, zapojeno (icons/vzory, conquest.js PATTERNS)
 
 Kam: vzor (látka) praporce, pečeti a vlaječek hráče v Dobývání (zimní sezóna, 15. stupeň; docs/ODMENY-DOBYVANI.md). Šedá textura se násobí barvou hráče, barevná se použije jak je. Přiložit: nic (textura)
 
@@ -2601,7 +2605,7 @@ Kam: vzor (látka) praporce, pečeti a vlaječek hráče v Dobývání (zimní s
 Seamless tileable square texture, 1024 × 1024 px, the edges must tile perfectly in both directions (no visible seams when repeated). Grayscale only: from white to medium grey, no pure black areas and no color at all, because the app multiplies it with the player's color. Soft hand-painted look that fits an old parchment map, gentle shading, even density over the whole tile (no big empty areas, no focal point). No text, no letters, no numbers, no logo, no watermark, no border, no vignette. Subject: frost flowers and ice crystals on a window pane, delicate branching feathery frost patterns and small six-pointed snowflakes, light grey and white. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 285. `znak-gryf.png` – Vzácný znak Gryf – čeká na dodání
+#### 285. `znak-gryf.png` – Vzácný znak Gryf – ✅ dodáno, zapojeno (maska icons/znaky, conquest.js RARE_EMBLEMS)
 
 Kam: vzácný znak hráče v Dobývání (výhra na mapě Evropa; docs/ODMENY-DOBYVANI.md): silueta se převede na masku a tiskne do pečeti a na praporec v barvě hráče. Přiložit: nic (silueta)
 
@@ -2609,7 +2613,7 @@ Kam: vzácný znak hráče v Dobývání (výhra na mapě Evropa; docs/ODMENY-DO
 Heraldic emblem as ONE flat solid black silhouette on a pure white background, square 1024 × 1024 px, centered, filling about 80 % of the frame. Crisp clean edges, no gradients, no grey, no colored outline, no texture, no shadow, no shield or frame around it. Only a few small white negative-space cuts inside the silhouette (eye, wing feathers, mane or tail strands) so that it stays readable as a tiny 24 px wax-seal stamp. Classic medieval heraldry style, bold, simple and elegant. No text, no letters, no numbers, no logo, no watermark. Subject: a griffin rampant (eagle head, wings raised, lion body and tail), side view facing left. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 286. `znak-sfinga.png` – Vzácný znak Sfinga – čeká na dodání
+#### 286. `znak-sfinga.png` – Vzácný znak Sfinga – ✅ dodáno, zapojeno (maska icons/znaky, conquest.js RARE_EMBLEMS)
 
 Kam: vzácný znak hráče v Dobývání (výhra na mapě Afrika; docs/ODMENY-DOBYVANI.md): silueta se převede na masku a tiskne do pečeti a na praporec v barvě hráče. Přiložit: nic (silueta)
 
@@ -2617,7 +2621,7 @@ Kam: vzácný znak hráče v Dobývání (výhra na mapě Afrika; docs/ODMENY-DO
 Heraldic emblem as ONE flat solid black silhouette on a pure white background, square 1024 × 1024 px, centered, filling about 80 % of the frame. Crisp clean edges, no gradients, no grey, no colored outline, no texture, no shadow, no shield or frame around it. Only a few small white negative-space cuts inside the silhouette (eye, wing feathers, mane or tail strands) so that it stays readable as a tiny 24 px wax-seal stamp. Classic medieval heraldry style, bold, simple and elegant. No text, no letters, no numbers, no logo, no watermark. Subject: an Egyptian sphinx lying in profile with the classic nemes headdress, calm and proud. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 287. `znak-cinsky-drak.png` – Vzácný znak Čínský drak – čeká na dodání
+#### 287. `znak-cinsky-drak.png` – Vzácný znak Čínský drak – ✅ dodáno, zapojeno (maska icons/znaky, conquest.js RARE_EMBLEMS)
 
 Kam: vzácný znak hráče v Dobývání (výhra na mapě Asie; docs/ODMENY-DOBYVANI.md): silueta se převede na masku a tiskne do pečeti a na praporec v barvě hráče. Přiložit: nic (silueta)
 
@@ -2625,7 +2629,7 @@ Kam: vzácný znak hráče v Dobývání (výhra na mapě Asie; docs/ODMENY-DOBY
 Heraldic emblem as ONE flat solid black silhouette on a pure white background, square 1024 × 1024 px, centered, filling about 80 % of the frame. Crisp clean edges, no gradients, no grey, no colored outline, no texture, no shadow, no shield or frame around it. Only a few small white negative-space cuts inside the silhouette (eye, wing feathers, mane or tail strands) so that it stays readable as a tiny 24 px wax-seal stamp. Classic medieval heraldry style, bold, simple and elegant. No text, no letters, no numbers, no logo, no watermark. Subject: a coiled Chinese dragon with long whiskers, serpentine body forming an S curve, small claws and a flaming pearl. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 288. `znak-orel-belohlavy.png` – Vzácný znak Orel bělohlavý – čeká na dodání
+#### 288. `znak-orel-belohlavy.png` – Vzácný znak Orel bělohlavý – ✅ dodáno, zapojeno (maska icons/znaky, conquest.js RARE_EMBLEMS)
 
 Kam: vzácný znak hráče v Dobývání (výhra na mapě Amerika; docs/ODMENY-DOBYVANI.md): silueta se převede na masku a tiskne do pečeti a na praporec v barvě hráče. Přiložit: nic (silueta)
 
@@ -2633,7 +2637,7 @@ Kam: vzácný znak hráče v Dobývání (výhra na mapě Amerika; docs/ODMENY-D
 Heraldic emblem as ONE flat solid black silhouette on a pure white background, square 1024 × 1024 px, centered, filling about 80 % of the frame. Crisp clean edges, no gradients, no grey, no colored outline, no texture, no shadow, no shield or frame around it. Only a few small white negative-space cuts inside the silhouette (eye, wing feathers, mane or tail strands) so that it stays readable as a tiny 24 px wax-seal stamp. Classic medieval heraldry style, bold, simple and elegant. No text, no letters, no numbers, no logo, no watermark. Subject: a bald eagle with spread wings and head turned to the side, heraldic displayed pose. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 289. `znak-dvouocasy-lev.png` – Vzácný znak Dvouocasý lev – čeká na dodání
+#### 289. `znak-dvouocasy-lev.png` – Vzácný znak Dvouocasý lev – ✅ dodáno, zapojeno (maska icons/znaky, conquest.js RARE_EMBLEMS)
 
 Kam: vzácný znak hráče v Dobývání (výhra na mapě Česko; docs/ODMENY-DOBYVANI.md): silueta se převede na masku a tiskne do pečeti a na praporec v barvě hráče. Přiložit: nic (silueta)
 
@@ -2641,7 +2645,7 @@ Kam: vzácný znak hráče v Dobývání (výhra na mapě Česko; docs/ODMENY-DO
 Heraldic emblem as ONE flat solid black silhouette on a pure white background, square 1024 × 1024 px, centered, filling about 80 % of the frame. Crisp clean edges, no gradients, no grey, no colored outline, no texture, no shadow, no shield or frame around it. Only a few small white negative-space cuts inside the silhouette (eye, wing feathers, mane or tail strands) so that it stays readable as a tiny 24 px wax-seal stamp. Classic medieval heraldry style, bold, simple and elegant. No text, no letters, no numbers, no logo, no watermark. Subject: a rampant lion with a double crossed tail (the Bohemian lion) and a small crown, facing left. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 290. `znak-pegas.png` – Vzácný znak Pegas – čeká na dodání
+#### 290. `znak-pegas.png` – Vzácný znak Pegas – ✅ dodáno, zapojeno (maska icons/znaky, conquest.js RARE_EMBLEMS)
 
 Kam: vzácný znak hráče v Dobývání (výhra v Blesku; docs/ODMENY-DOBYVANI.md): silueta se převede na masku a tiskne do pečeti a na praporec v barvě hráče. Přiložit: nic (silueta)
 
@@ -2649,7 +2653,7 @@ Kam: vzácný znak hráče v Dobývání (výhra v Blesku; docs/ODMENY-DOBYVANI.
 Heraldic emblem as ONE flat solid black silhouette on a pure white background, square 1024 × 1024 px, centered, filling about 80 % of the frame. Crisp clean edges, no gradients, no grey, no colored outline, no texture, no shadow, no shield or frame around it. Only a few small white negative-space cuts inside the silhouette (eye, wing feathers, mane or tail strands) so that it stays readable as a tiny 24 px wax-seal stamp. Classic medieval heraldry style, bold, simple and elegant. No text, no letters, no numbers, no logo, no watermark. Subject: a winged horse (Pegasus) rearing up with wings spread wide, side view facing left. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 291. `znak-fenix.png` – Vzácný znak Fénix – čeká na dodání
+#### 291. `znak-fenix.png` – Vzácný znak Fénix – ✅ dodáno, zapojeno (maska icons/znaky, conquest.js RARE_EMBLEMS)
 
 Kam: vzácný znak hráče v Dobývání (výhra po Návratu do hry; docs/ODMENY-DOBYVANI.md): silueta se převede na masku a tiskne do pečeti a na praporec v barvě hráče. Přiložit: nic (silueta)
 
@@ -2657,7 +2661,7 @@ Kam: vzácný znak hráče v Dobývání (výhra po Návratu do hry; docs/ODMENY
 Heraldic emblem as ONE flat solid black silhouette on a pure white background, square 1024 × 1024 px, centered, filling about 80 % of the frame. Crisp clean edges, no gradients, no grey, no colored outline, no texture, no shadow, no shield or frame around it. Only a few small white negative-space cuts inside the silhouette (eye, wing feathers, mane or tail strands) so that it stays readable as a tiny 24 px wax-seal stamp. Classic medieval heraldry style, bold, simple and elegant. No text, no letters, no numbers, no logo, no watermark. Subject: a phoenix rising from stylized flames, wings spread up, long flowing tail feathers. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 292. `znak-kraken.png` – Vzácný znak Kraken – čeká na dodání
+#### 292. `znak-kraken.png` – Vzácný znak Kraken – ✅ dodáno, zapojeno (maska icons/znaky, conquest.js RARE_EMBLEMS)
 
 Kam: vzácný znak hráče v Dobývání (40 území přes moře; docs/ODMENY-DOBYVANI.md): silueta se převede na masku a tiskne do pečeti a na praporec v barvě hráče. Přiložit: nic (silueta)
 
@@ -2665,7 +2669,7 @@ Kam: vzácný znak hráče v Dobývání (40 území přes moře; docs/ODMENY-DO
 Heraldic emblem as ONE flat solid black silhouette on a pure white background, square 1024 × 1024 px, centered, filling about 80 % of the frame. Crisp clean edges, no gradients, no grey, no colored outline, no texture, no shadow, no shield or frame around it. Only a few small white negative-space cuts inside the silhouette (eye, wing feathers, mane or tail strands) so that it stays readable as a tiny 24 px wax-seal stamp. Classic medieval heraldry style, bold, simple and elegant. No text, no letters, no numbers, no logo, no watermark. Subject: a giant kraken / octopus with curling tentacles arranged symmetrically around its head. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 293. `znak-jednorozec.png` – Vzácný znak Jednorožec – čeká na dodání
+#### 293. `znak-jednorozec.png` – Vzácný znak Jednorožec – ✅ dodáno, zapojeno (maska icons/znaky, conquest.js RARE_EMBLEMS)
 
 Kam: vzácný znak hráče v Dobývání (5 her bez ztráty domovského hradu; docs/ODMENY-DOBYVANI.md): silueta se převede na masku a tiskne do pečeti a na praporec v barvě hráče. Přiložit: nic (silueta)
 
@@ -2673,7 +2677,7 @@ Kam: vzácný znak hráče v Dobývání (5 her bez ztráty domovského hradu; d
 Heraldic emblem as ONE flat solid black silhouette on a pure white background, square 1024 × 1024 px, centered, filling about 80 % of the frame. Crisp clean edges, no gradients, no grey, no colored outline, no texture, no shadow, no shield or frame around it. Only a few small white negative-space cuts inside the silhouette (eye, wing feathers, mane or tail strands) so that it stays readable as a tiny 24 px wax-seal stamp. Classic medieval heraldry style, bold, simple and elegant. No text, no letters, no numbers, no logo, no watermark. Subject: a rearing unicorn with a long spiral horn and flowing mane, side view facing left. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 294. `znak-dvouhlavy-orel.png` – Vzácný znak Dvouhlavý orel – čeká na dodání
+#### 294. `znak-dvouhlavy-orel.png` – Vzácný znak Dvouhlavý orel – ✅ dodáno, zapojeno (maska icons/znaky, conquest.js RARE_EMBLEMS)
 
 Kam: vzácný znak hráče v Dobývání (50 vyhraných bitev; docs/ODMENY-DOBYVANI.md): silueta se převede na masku a tiskne do pečeti a na praporec v barvě hráče. Přiložit: nic (silueta)
 
@@ -2681,7 +2685,7 @@ Kam: vzácný znak hráče v Dobývání (50 vyhraných bitev; docs/ODMENY-DOBYV
 Heraldic emblem as ONE flat solid black silhouette on a pure white background, square 1024 × 1024 px, centered, filling about 80 % of the frame. Crisp clean edges, no gradients, no grey, no colored outline, no texture, no shadow, no shield or frame around it. Only a few small white negative-space cuts inside the silhouette (eye, wing feathers, mane or tail strands) so that it stays readable as a tiny 24 px wax-seal stamp. Classic medieval heraldry style, bold, simple and elegant. No text, no letters, no numbers, no logo, no watermark. Subject: a double-headed eagle displayed with spread wings, heads turned outward, small crowns. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 295. `znak-svatovaclavska-koruna.png` – Vzácný znak Svatováclavská koruna – čeká na dodání
+#### 295. `znak-svatovaclavska-koruna.png` – Vzácný znak Svatováclavská koruna – ✅ dodáno, zapojeno (maska icons/znaky, conquest.js RARE_EMBLEMS)
 
 Kam: vzácný znak hráče v Dobývání (25 výher; docs/ODMENY-DOBYVANI.md): silueta se převede na masku a tiskne do pečeti a na praporec v barvě hráče. Přiložit: nic (silueta)
 
@@ -2689,7 +2693,7 @@ Kam: vzácný znak hráče v Dobývání (25 výher; docs/ODMENY-DOBYVANI.md): s
 Heraldic emblem as ONE flat solid black silhouette on a pure white background, square 1024 × 1024 px, centered, filling about 80 % of the frame. Crisp clean edges, no gradients, no grey, no colored outline, no texture, no shadow, no shield or frame around it. Only a few small white negative-space cuts inside the silhouette (eye, wing feathers, mane or tail strands) so that it stays readable as a tiny 24 px wax-seal stamp. Classic medieval heraldry style, bold, simple and elegant. No text, no letters, no numbers, no logo, no watermark. Subject: the Czech royal crown of Saint Wenceslas: a closed crown with four fleur-de-lis lilies on the band, crossed arches and a small cross on top. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 296. `znak-sova-mudrlant.png` – Vzácný znak Sova Mudrlant – čeká na dodání
+#### 296. `znak-sova-mudrlant.png` – Vzácný znak Sova Mudrlant – ✅ dodáno, zapojeno (maska icons/znaky, conquest.js RARE_EMBLEMS)
 
 Kam: vzácný znak hráče v Dobývání (úroveň 50; docs/ODMENY-DOBYVANI.md): silueta se převede na masku a tiskne do pečeti a na praporec v barvě hráče. Přiložit: nic (silueta)
 
