@@ -67,7 +67,7 @@ const backend = async (context, db) => {
         const fail = (message, status = 400) => json({ code: 'P0001', message }, status);
         const find = (id) => db.games.find(g => g.id === id);
         const mapOf = (g) => MAPS[g.map];
-        const players = (g) => g.players.map(p => ({ ...db.profiles[p.user], seat: p.seat, flag_color: p.flag_color, emblem: p.emblem, ready: p.ready, score: p.score || 0, score_at: p.score_at || null, place: p.place || null, me: p.user === me.id }));
+        const players = (g) => g.players.map(p => ({ ...db.profiles[p.user], seat: p.seat, flag_color: p.flag_color, emblem: p.emblem, pattern: p.pattern || null, ready: p.ready, score: p.score || 0, score_at: p.score_at || null, place: p.place || null, me: p.user === me.id }));
         // Pozvánky (blok 24): db.invites = [{ game, user, by, declined }]; čekající pozvané vidí jen hráči hry v lobby
         const waiting = (g) => (db.invites || []).filter(i => i.game === g.id && !i.declined && !g.players.some(p => p.user === i.user));
         const summary = (g) => ({ id: g.id, map: g.map, max_players: g.max_players, hours: g.hours, ...(g.minutes ? { minutes: g.minutes } : {}), period: g.period, actions: g.actions, visibility: g.visibility, preset: g.preset, status: g.status,
@@ -185,7 +185,8 @@ const backend = async (context, db) => {
             // dává Záchranu navíc, blok 37); plná zásoba nic nepřidá
             if (name === 'player_items_claim') {
                 const kind = body.source === 'season' ? (/:15$/.test(body.key) ? 'extra_move' : /:12$/.test(body.key) ? 'chain_rescue' : 'fifty') : body.source === 'gold' ? 'chain_rescue' : 'fifty';
-                if ((body.source === 'chest' || body.source === 'gold') && !db.chestLucky) return json({ kind, granted: false, full: false, already: false, lucky: false, items: stock() });
+                // Truhla se vzácným vzorem Duha (blok 38, db.chestPattern): los 100–129, tedy jen bez pomůcky
+                if ((body.source === 'chest' || body.source === 'gold') && !db.chestLucky) return json({ kind, granted: false, full: false, already: false, lucky: false, ...(body.source === 'chest' && db.chestPattern ? { pattern: 'duha' } : {}), items: stock() });
                 const max = kind === 'fifty' ? 2 : 1;
                 if (items[kind] >= max) return json({ kind, granted: false, full: true, already: false, count: items[kind], max, items: stock() });
                 items[kind] += 1;
@@ -216,13 +217,14 @@ const backend = async (context, db) => {
             return json({ removed, items: stock(), fifty_used: true });
         }
         if (name === 'conquest_lobby') {
-            return json({ ...(db.items ? { items: stock() } : {}), open: db.games.filter(g => g.status === 'lobby' && g.visibility === 'public').map(summary),
+            // Vzory a vzácné znaky (blok 38): db.looks = { patterns, emblems, new, stats }, bez nich starší databáze
+            return json({ ...(db.items ? { items: stock() } : {}), ...(db.looks ? { looks: db.looks } : {}), open: db.games.filter(g => g.status === 'lobby' && g.visibility === 'public').map(summary),
                 mine: db.games.filter(g => mine(g)).map(g => ({ ...summary(g), budget: g.status === 'running' ? budget(g) : null, claimed: Boolean(mine(g).claimed),
                     owners: g.territories ? Object.fromEntries(g.territories.filter(t => t.o).map(t => [t.t, g.players.find(p => p.user === t.o).seat])) : null })) });
         }
         if (name === 'conquest_create') {
             const g = { id: uuid(db.seq++), creator: me.id, map: body.map_id, max_players: body.players, hours: body.hours, period: body.per, actions: body.actions_per, visibility: body.vis, code: 'NEW234', preset: null, status: 'lobby', created_at: NOW,
-                players: [{ user: me.id, seat: 0, flag_color: body.colour, emblem: body.emblem_id, ready: false }] };
+                players: [{ user: me.id, seat: 0, flag_color: body.colour, emblem: body.emblem_id, pattern: body.pattern_id || null, ready: false }] };
             db.games.push(g);
             // Druhý hráč se hned přidá a chce hrát
             if (db.autoJoin) g.players.push({ user: 'u-2', seat: 1, flag_color: 'cervena', emblem: 'orel', ready: true });
@@ -253,7 +255,7 @@ const backend = async (context, db) => {
             if (!body.join_code && g.visibility === 'private' && !(db.invites || []).some(i => i.game === g.id && i.user === me.id && !i.declined)) return fail('Hra s tímhle kódem není. Zkontroluj ho.');
             db.invites = (db.invites || []).filter(i => !(i.game === g.id && i.user === me.id));
             if (g.players.some(p => p.flag_color === body.colour)) return fail('Tuhle barvu už má jiný hráč. Vyber jinou.');
-            g.players.push({ user: me.id, seat: g.players.length, flag_color: body.colour, emblem: body.emblem_id, ready: false });
+            g.players.push({ user: me.id, seat: g.players.length, flag_color: body.colour, emblem: body.emblem_id, pattern: body.pattern_id || null, ready: false });
             if (g.players.length >= g.max_players) start(g);
             return json(summary(g));
         }
@@ -263,7 +265,8 @@ const backend = async (context, db) => {
             if (g.players.length >= 2 && g.players.every(p => p.ready)) start(g);
             return json(summary(g));
         }
-        if (name === 'conquest_set_look') { const g = find(body.game); Object.assign(mine(g), { flag_color: body.colour, emblem: body.emblem_id }); return json(summary(g)); }
+        if (name === 'conquest_set_look') { const g = find(body.game); Object.assign(mine(g), { flag_color: body.colour, emblem: body.emblem_id, ...('pattern_id' in body ? { pattern: body.pattern_id } : {}) }); return json(summary(g)); }
+        if (name === 'conquest_looks_seen') { if (db.looks) db.looks = { ...db.looks, new: [] }; return route.fulfill({ status: 204, body: '' }); }
         if (name === 'conquest_leave') { const g = find(body.game); g.players = g.players.filter(p => p.user !== me.id); return route.fulfill({ status: 204, body: '' }); }
         if (name === 'conquest_state') return json(state(find(body.game)));
         if (name === 'conquest_pulse') {
@@ -527,6 +530,114 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         await context.close();
     });
 
+    for (const { width, height, colorScheme } of [{ width: 360, height: 640, colorScheme: 'light' }, { width: 390, height: 780, colorScheme: 'dark' }]) {
+        await t.test(`výplně území a vzácné znaky na ${width}×${height} (${colorScheme === 'dark' ? 'tmavý' : 'světlý'} režim): oslava nově odemčeného, okno se záložkou Výplň a zamčenými, volba se pošle a ukáže; barevná výplň jiného hráče nejde`, async () => {
+            const db = newDb();
+            // V otevřené Rychlé hře má Eva Mistr Duhu (barevná výplň jen jednou ve hře)
+            db.games[0].players[0].pattern = 'duha';
+            db.looks = { patterns: ['plameny', 'brokat', 'duha'], emblems: ['sfinga'], new: [{ kind: 'pattern', item: 'brokat', at: NOW }], stats: { games: 3, battles: 12, sea: 7, wins: 10 } };
+            const { context, tab, log } = await start(db, { viewport: { width, height }, colorScheme });
+            await tab.click('#conquest-card');
+            await tab.waitForSelector('#conquest-hub');
+            // Nově odemčená výplň: oslava se vzorkem území a server ji dostane jako ohlášenou
+            await tab.waitForFunction(() => /Nová výplň území/.test((document.getElementById('celebration') || {}).textContent || ''));
+            assert.match(await tab.textContent('#celebration'), /Zlatý brokát\. Najdeš ji v okně Barva a znak/);
+            assert.ok(await tab.locator('#celebration svg image[href="icons/vzory/brokat.webp"]').count() >= 1, 'vzorek území se vzorem');
+            await tab.waitForTimeout(700);
+            await shot(tab, `vzor-oslava-${width}-${colorScheme}`);
+            await tab.click('#celebration');
+            await tab.waitForFunction(() => !document.getElementById('celebration'));
+            assert.ok(db.calls.some(call => call.name === 'conquest_looks_seen' && call.body.upto === NOW), 'ohlášeno do času odemčení');
+            // Založit hru: okno Barva a znak se třemi záložkami
+            await tab.click('[role="tab"][data-cq-tab="create"]');
+            await tab.click('[data-cq="look"]');
+            await tab.waitForSelector('[data-cq-look]');
+            assert.equal(await tab.locator('[data-cq-look-tab]').count(), 3);
+            const fit = () => tab.evaluate((h) => { const box = document.querySelector('#dialog-overlay > div'); const rect = box.getBoundingClientRect(); return { over: box.scrollHeight - box.clientHeight, top: rect.top, bottom: rect.bottom, ok: rect.top >= 0 && rect.bottom <= h }; }, height);
+            await tab.click('[data-cq-color="modra"]');
+            await tab.click('[data-cq-look-tab="emblem"]');
+            assert.equal(await tab.locator('[data-cq-rare] [data-cq-emblem]').count(), 12);
+            assert.equal(await tab.locator('[data-cq-rare] [data-cq-locked]').count(), 11);
+            // Zamčený: jen ukáže, jak ho získat (a postup), výběr se nezmění
+            await tab.click('[data-cq-emblem="kraken"]');
+            await tab.waitForFunction(() => /Kraken · Dobuď 40 území přes námořní cestu \(7\/40\)/.test(document.querySelector('[data-cq-look-info]').textContent));
+            assert.equal(await tab.getAttribute('[data-cq-emblem="kraken"]', 'aria-checked'), 'false');
+            await tab.click('[data-cq-emblem="sfinga"]');
+            await tab.waitForSelector('[data-cq-emblem="sfinga"][aria-checked="true"]');
+            let box = await fit();
+            assert.ok(box.over <= 0 && box.ok, `Znak se vejde: ${JSON.stringify(box)}`);
+            await shot(tab, `vzor-znaky-${width}-${colorScheme}`);
+            await tab.click('[data-cq-look-tab="pattern"]');
+            assert.equal(await tab.locator('[data-cq-pattern]').count(), 13);
+            await tab.click('[data-cq-pattern="vlnky"]');
+            await tab.waitForFunction(() => /Vlnky · Dobuď 15 území přes námořní cestu \(7\/15\)/.test(document.querySelector('[data-cq-look-info]').textContent));
+            await tab.click('[data-cq-pattern="plameny"]');
+            await tab.waitForSelector('[data-cq-pattern="plameny"][aria-checked="true"]');
+            assert.match(await tab.textContent('[data-cq-look] .cq-ledger-title'), /Modrá · Sfinga · Plameny/);
+            box = await fit();
+            assert.ok(box.over <= 0 && box.ok, `Vzor se vejde: ${JSON.stringify(box)}`);
+            assert.equal(await tab.locator('[data-cq-patterns] svg path[d^="M0 0H30"]').count(), 0, 'vzorky území, ne praporky');
+            await shot(tab, `vzor-vzory-${width}-${colorScheme}`);
+            await tab.click('[data-cq-look-tab="color"]');
+            box = await fit();
+            assert.ok(box.over <= 0 && box.ok, `Barva se vejde: ${JSON.stringify(box)}`);
+            await shot(tab, `vzor-barvy-${width}-${colorScheme}`);
+            await tab.click('[data-cq="look-done"]');
+            await tab.waitForFunction(() => !document.getElementById('dialog-overlay'));
+            assert.match(await tab.textContent('[data-cq="look"]'), /Modrá · Sfinga · Plameny/);
+            assert.equal(await tab.locator('[data-cq="look"] svg image[href^="icons/vzory/"]').count(), 0, 'praporec bez výplně');
+            assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 }, 'formulář se vejde');
+            await tab.click('[data-cq-form] button[type="submit"]');
+            await tab.waitForSelector('[data-cq-lobby-detail]');
+            const create = db.calls.find(call => call.name === 'conquest_create').body;
+            assert.deepEqual([create.emblem_id, create.pattern_id, create.colour], ['sfinga', 'plameny', 'modra']);
+            // Lobby: vlastní praporec se vzácným znakem (výplň je jen na mapě)
+            assert.equal(await tab.locator('[data-cq-lobby-detail] svg image[href^="icons/vzory/"]').count(), 0);
+            assert.ok(await tab.locator('[data-cq-lobby-detail] svg image[href="icons/znaky/sfinga.webp"]').count() >= 1);
+            await shot(tab, `vzor-lobby-${width}-${colorScheme}`);
+            // Volba se pamatuje (prefs v zařízení)
+            assert.deepEqual(await tab.evaluate(() => { const p = JSON.parse(localStorage.getItem('mudrlant.conquest')); return [p.emblem, p.pattern]; }), ['sfinga', 'plameny']);
+            // Přidání do Rychlé hry, kde Duhu má jiný hráč: v okně je zašedlá a nejde vybrat
+            await tab.click('[role="tab"][data-cq-tab="lobby"]');
+            await tab.click(`[data-cq-join="${uuid(1)}"]`);
+            await tab.waitForSelector('[data-cq-look]');
+            await tab.click('[data-cq-look-tab="pattern"]');
+            await tab.waitForSelector('[data-cq-pattern="duha"][disabled][data-cq-taken="pattern"]');
+            assert.match(await tab.getAttribute('[data-cq-pattern="duha"]', 'aria-label'), /Duha \(má jiný hráč\)/);
+            assert.match(await tab.textContent('[data-cq-look-info]'), /Plameny|Duha už má jiný hráč/);
+            await tab.click('[data-cq-pattern="duha"]', { force: true });
+            assert.equal(await tab.getAttribute('[data-cq-pattern="duha"]', 'aria-checked'), 'false', 'obsazenou výplň vybrat nejde');
+            await shot(tab, `vypln-obsazena-${width}-${colorScheme}`);
+            await tab.keyboard.press('Escape');
+            assert.deepEqual(log.errors, []);
+            assert.deepEqual(log.csp, []);
+            await context.close();
+        });
+    }
+
+    await t.test('starší databáze bez vzorů: okno Barva a znak jen se dvěma záložkami a základními znaky, uložený vzácný znak a vzor se nepošlou', async () => {
+        const db = newDb();
+        const { context, tab, log } = await start(db, { storage: { 'mudrlant.conquest': JSON.stringify({ color: 'modra', emblem: 'sfinga', pattern: 'plameny' }) } });
+        await tab.click('#conquest-card');
+        await tab.waitForSelector('#conquest-hub');
+        await tab.waitForFunction(() => /Zatím nehraješ žádnou hru/.test(document.getElementById('conquest-hub').textContent));
+        await tab.click('[role="tab"][data-cq-tab="create"]');
+        assert.match(await tab.textContent('[data-cq="look"]'), /Modrá · Lev/, 'vzácný znak bez databáze nejde');
+        await tab.click('[data-cq="look"]');
+        await tab.waitForSelector('[data-cq-look]');
+        assert.equal(await tab.locator('[data-cq-look-tab]').count(), 2);
+        await tab.click('[data-cq-look-tab="emblem"]');
+        assert.equal(await tab.locator('[data-cq-emblem]').count(), 24);
+        await tab.click('[data-cq="look-done"]');
+        await tab.click('[data-cq-form] button[type="submit"]');
+        await tab.waitForSelector('[data-cq-lobby-detail]');
+        const create = db.calls.find(call => call.name === 'conquest_create').body;
+        assert.equal('pattern_id' in create, false);
+        assert.equal(create.emblem_id, 'lev');
+        assert.deepEqual(log.errors, []);
+        await context.close();
+    });
+
     await t.test('vývojář: boti do lobby (+1 bot, Doplnit boty), plná hra začne; ve hře Boti odehrají tahy a Další období; bez vývojářského režimu lišta není', async () => {
         const db = newDb();
         const { context, tab, log } = await start(db, { storage: { 'mudrlant.dev': '1' } });
@@ -628,6 +739,56 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         g.players.forEach(p => { p.score = g.territories.filter(x => x.o === p.user).length; p.score_at = NOW; });
         return db;
     };
+    // Výplně území (blok 38): hra se třemi hráči a různými výplněmi; snímky do UZEMI_DIR (dobyvani-art/uzemi)
+    const UZEMI = process.env.UZEMI_DIR || '';
+    const uzemiShot = async (tab, name) => { if (UZEMI) await tab.screenshot({ path: path.join(UZEMI, `${name}.png`) }); };
+    for (const [width, height, colorScheme] of [[360, 640, 'light'], [360, 640, 'dark'], [390, 780, 'light'], [390, 780, 'dark']]) {
+        await t.test(`výplň území na mapě ${width}×${height} (${colorScheme === 'dark' ? 'tmavý' : 'světlý'} režim): jeden vzor na hráče, šedé předbarvené (blob:), barevná s lemem, vlaječky jen barva, popisky a značky čitelné`, async () => {
+            const db = running();
+            const g = db.games[0];
+            g.players.push({ user: 'u-3', seat: 2, flag_color: 'zelena', emblem: 'jednorozec', ready: true });
+            const fills = { 'u-1': 'plameny', 'u-2': 'duha', 'u-3': 'listi' };
+            g.players.forEach(p => { p.pattern = fills[p.user]; });
+            g.players[0].emblem = 'sfinga';
+            const owners = ['u-1', 'u-2', 'u-3', null];
+            g.territories = MAPS.evropa.t.map((item, i) => ({ t: item.id, o: owners[i % 4], l: i % 9 === 0 && owners[i % 4] ? 1 : 0, h: ['Q213', 'Q20', 'Q29'].includes(item.id), p: false }));
+            for (const [t, o] of [['Q213', 'u-1'], ['Q20', 'u-2'], ['Q29', 'u-3']]) Object.assign(g.territories.find(x => x.t === t), { o, h: true });
+            g.players.forEach(p => { p.score = g.territories.filter(x => x.o === p.user).length; });
+            const { context, tab, log } = await start(db, { viewport: { width, height }, colorScheme });
+            await tab.waitForFunction(() => /Tahy 5\/5/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
+            await tab.click('#conquest-wait [data-action="conquest-play"]');
+            await tab.waitForSelector('#conquest-game [data-cq-map] svg');
+            // Tři hráči se vzorem = tři <pattern>; šedé (Plameny, Listí) dostanou předbarvenou dlaždici blob: (bez filtru), Duha jak je
+            await tab.waitForFunction(() => [...document.querySelectorAll('[data-cq-map] pattern[id^="cq-fill-"] image')].filter(img => img.getAttribute('href').startsWith('blob:')).length === 2, null, { timeout: 10000 });
+            assert.equal(await tab.locator('[data-cq-map] pattern[id^="cq-fill-"]').count(), 3);
+            assert.equal(await tab.locator('[data-cq-map] filter[id^="cq-fill-"]').count(), 0, 'bez filtru po předbarvení');
+            assert.equal(await tab.locator('[data-cq-map] pattern[id^="cq-fill-"] image[href="icons/vzory/duha.webp"]').count(), 1);
+            const owned = g.territories.filter(x => x.o).length;
+            assert.equal(await tab.locator('[data-cq-map] .cq-wash-fill').count(), owned, 'každé obsazené území ve výplni');
+            assert.equal(await tab.locator('[data-cq-map] .cq-band-strong').count(), g.territories.filter(x => x.o === 'u-2').length, 'Duha s lemem v barvě hráče');
+            // Vlaječky na mapě: jen barva a znak (vzácný znak ano), žádná výplň
+            assert.equal(await tab.locator('[data-cq-map] .cq-marks image[href^="icons/vzory/"], [data-cq-map] .cq-marks image[href^="blob:"]').count(), 0);
+            assert.ok(await tab.locator('[data-cq-map] .cq-marks image[href="icons/znaky/sfinga.webp"]').count() >= 1);
+            assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+            await tab.waitForTimeout(300);
+            await uzemiShot(tab, `mapa-${width}x${height}-${colorScheme}`);
+            // Přiblížení: vzor v měřítku mapy, popisek území nad výplní čitelný
+            const map = await tab.$('[data-cq-map]');
+            const rect = await map.boundingBox();
+            await tab.mouse.move(rect.x + rect.width * 0.5, rect.y + rect.height * 0.55);
+            await tab.mouse.wheel(0, -900);
+            await tab.waitForSelector('[data-cq="zoom-reset"].flex');
+            await tapTerritory(tab, 'Q183');
+            await tab.waitForTimeout(400);
+            const label = await labelBox(tab, 'Q183');
+            assert.ok(label.shown && label.inside, `popisek Německa ${JSON.stringify(label)}`);
+            await uzemiShot(tab, `priblizeni-${width}x${height}-${colorScheme}`);
+            assert.deepEqual(log.errors, []);
+            assert.deepEqual(log.csp, [], 'blob: dlaždice projde CSP (img-src blob:)');
+            await context.close();
+        });
+    }
+
     for (const [width, height, colorScheme] of [[360, 640, 'light'], [390, 780, 'dark']]) {
         await t.test(`hra ${width}×${height} (${colorScheme === 'dark' ? 'tmavý' : 'světlý'} režim): mapa bez posouvání, útok s otázkou a dobytím, pobourání hradby, opevnění, odražený útok, přiblížení, kronika`, async () => {
             const db = running();
@@ -1343,6 +1504,27 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         assert.equal(db.items['u-1'].chain_rescue, 1);
         await tab.waitForTimeout(1300);
         await shot(tab, 'pomucky-zlata-truhla-360');
+        await tab.click('#chest-overlay [data-chest-close]');
+        // Další Truhla Mudrlanta bez pomůcky, ale se vzácným vzorem praporce Duha (blok 38, los na serveru)
+        db.chestLucky = false;
+        db.chestPattern = true;
+        await tab.evaluate(() => {
+            const state = JSON.parse(localStorage.getItem('mudrlant.rewards'));
+            state.ready = ['2026-11-09'];
+            localStorage.setItem('mudrlant.rewards', JSON.stringify(state));
+        });
+        await tab.reload();
+        await tab.waitForSelector('[data-chest-ready]', { timeout: 15000 });
+        await tab.click('[data-chest-ready]');
+        await tab.waitForSelector('#chest-overlay [data-chest-go]');
+        await tab.click('#chest-overlay [data-chest-go]');
+        await tab.waitForSelector('#chest-overlay [data-chest-pattern]', { timeout: 10000 });
+        assert.match(await tab.textContent('[data-chest-pattern]'), /A navíc vzácná výplň území do Dobývání: Duha/);
+        assert.equal(await tab.locator('[data-chest-pattern] svg image[href="icons/vzory/duha.webp"]').count(), 1, 'vzorek území ve výplni Duha');
+        assert.equal(await tab.locator('#chest-overlay [data-chest-pomucka]').count(), 0);
+        await tab.waitForTimeout(1300);
+        assert.ok(await tab.evaluate(() => { const card = document.querySelector('#chest-overlay [data-chest-card]').getBoundingClientRect(); return card.top >= 0 && card.bottom <= window.innerHeight; }), 'truhla se vzorem se vejde');
+        await shot(tab, 'vzor-truhla-duha-360');
         await tab.click('#chest-overlay [data-chest-close]');
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);

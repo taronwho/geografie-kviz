@@ -55,7 +55,64 @@ test('barvy a znaky: 9 co nejodlišnějších barev a 24 znaků, shodné se serv
     assert.equal(new Set(C.EMBLEMS.map(e => e.name)).size, 24);
 });
 
-test('vzory praporců a vzácné znaky (č. 278–296): obrázky existují, masky a textury se vykreslí bez inline stylů, každé SVG s vlastními id', () => {
+test('odemykání výplní území a vzácných znaků (blok 38): katalog shodný se serverem, okno Barva a znak se záložkou Výplň, zamčené se zámkem a postupem, obsazené barevné výplně, oznámení', () => {
+    // Katalog conquest_look_catalog() v schema.sql: (kind, item, stat, need, ord) ve stejném pořadí jako conquest.js
+    const block = /function public\.conquest_look_catalog\(\)[\s\S]*?\$\$;/.exec(schema)[0];
+    const rows = [...block.matchAll(/\('(pattern|emblem)', '([a-z-]+)', '([a-z_0-9]+)', (\d+), (\d+)\)/g)].map(m => `${m[1]}|${m[2]}|${m[3]}|${m[4]}`);
+    assert.deepEqual(rows, [...C.PATTERNS.map(p => `pattern|${p.id}|${p.stat}|${p.need}`), ...C.RARE_EMBLEMS.map(e => `emblem|${e.id}|${e.stat}|${e.need}`)]);
+    const list = (name) => /select array\[([^\]]+)\]/.exec(new RegExp(`function public\\.${name}\\(\\) returns text\\[\\][\\s\\S]*?\\$\\$;`).exec(schema)[0])[1].match(/'([a-z-]+)'/g).map(v => v.slice(1, -1));
+    assert.deepEqual(list('conquest_patterns'), C.PATTERNS.map(p => p.id));
+    assert.deepEqual(list('conquest_rare_emblems'), C.RARE_EMBLEMS.map(e => e.id));
+    for (const item of [...C.PATTERNS, ...C.RARE_EMBLEMS]) assert.ok(item.how && item.how.length > 8 && item.need >= 1, item.id);
+    // Smí se použít: základní znak vždy, vzácný a vzor jen odemčené; bez looks (starší databáze) nic navíc
+    const looks = { patterns: ['plameny'], emblems: ['sfinga'], new: [{ kind: 'pattern', item: 'plameny', at: '2026-11-12T10:00:00Z' }, { kind: 'emblem', item: 'neznamy', at: null }], stats: { battles: 12, games: 3, sea: 7 } };
+    assert.deepEqual([C.emblemAllowed(null, 'lev'), C.emblemAllowed(null, 'sfinga'), C.emblemAllowed(looks, 'sfinga'), C.emblemAllowed(looks, 'gryf')], [true, false, true, false]);
+    assert.deepEqual([C.patternAllowed(null, null), C.patternAllowed(null, 'plameny'), C.patternAllowed(looks, 'plameny'), C.patternAllowed(looks, 'duha')], [true, false, true, false]);
+    assert.deepEqual(C.lookProgress(looks, C.PATTERN_BY_ID.sachovnice), { have: 3, need: 5 });
+    assert.deepEqual(C.lookProgress(looks, C.PATTERN_BY_ID.plameny), { have: 10, need: 10 }, 'nad hranici se nepočítá');
+    assert.equal(C.lookHowText(looks, C.RARE_EMBLEM_BY_ID.kraken), 'Dobuď 40 území přes námořní cestu (7/40)');
+    assert.equal(C.lookHowText(looks, C.RARE_EMBLEM_BY_ID.gryf), 'Vyhraj na mapě Evropa', 'jedno splnění bez čísel');
+    const news = C.lookNews(looks);
+    assert.deepEqual(news.map(n => [n.kind, n.id, n.title]), [['pattern', 'plameny', 'Nová výplň území']], 'neznámé vypadne');
+    assert.deepEqual(C.COLORED_PATTERNS, ['hermelin', 'zlato', 'brokat', 'duha']);
+    const colored = /select array\[([^\]]+)\]/.exec(/function public\.conquest_colored_patterns\(\)[\s\S]*?\$\$;/.exec(schema)[0])[1].match(/'([a-z-]+)'/g).map(v => v.slice(1, -1));
+    assert.deepEqual(colored, C.COLORED_PATTERNS, 'barevné výplně shodné se serverem');
+    assert.equal(news[0].text, 'Plameny. Najdeš ji v okně Barva a znak.');
+    assert.match(C.lookNewsArt(news[0], 'modra', 'lev'), /icons\/vzory\/plameny\.webp/);
+    assert.doesNotMatch(C.lookNewsArt(news[0], 'modra', 'lev'), /M0 0H30L24 11L30 22H0Z/, 'vzorek území, ne praporec');
+    assert.match(C.lookNewsArt({ kind: 'emblem', id: 'sfinga' }, 'modra', 'lev'), /icons\/znaky\/sfinga\.webp/);
+    // Okno: starší databáze jen Barva a Znak se základními znaky
+    const old = C.lookHtml({ color: 'modra', emblem: 'vlk', tab: 'emblem' });
+    assert.equal((old.match(/data-cq-look-tab=/g) || []).length, 2);
+    assert.doesNotMatch(old, /data-cq-rare|data-cq-locked|data-cq-look-info/);
+    // S looks: záložka Vzor; znaky 24 + 12 vzácných, zamčené se zámkem (11), klepnutí na zamčený ukáže, jak ho získat
+    const emblems = C.lookHtml({ color: 'modra', emblem: 'sfinga', tab: 'emblem', looks });
+    assert.equal((emblems.match(/data-cq-look-tab=/g) || []).length, 3);
+    assert.equal((emblems.match(/data-cq-emblem=/g) || []).length, 36);
+    assert.equal((emblems.match(/data-cq-locked="emblem"/g) || []).length, 11);
+    assert.match(emblems, /data-cq-emblem="sfinga" class="cq-stamp relative/, 'odemčený bez zámku');
+    assert.match(emblems, /aria-label="Gryf \(zamčený\)"/);
+    assert.match(emblems, /Vzácný znak <b>Sfinga<\/b>/);
+    const info = C.lookHtml({ color: 'modra', emblem: 'lev', tab: 'emblem', looks, info: { kind: 'emblem', id: 'kraken' } });
+    assert.match(info, /data-cq-look-info[^>]*><i data-lucide="lock"[^>]*><\/i><span class="min-w-0"><b>Kraken<\/b> · Dobuď 40 území přes námořní cestu \(7\/40\)/);
+    // Výplně: Jen barva + 12 vzorků území, zamčené se zámkem, vybraná v náhledu i v nadpisu
+    const patterns = C.lookHtml({ color: 'modra', emblem: 'lev', pattern: 'plameny', tab: 'pattern', looks, info: { kind: 'pattern', id: 'sachovnice' } });
+    assert.match(patterns, /data-cq-look-tab="pattern"[^>]*><i data-lucide="brush"[^>]*><\/i>Výplň</);
+    assert.doesNotMatch(patterns.split('data-cq-patterns')[1], /M0 0H30L24 11L30 22H0Z/, 'vzorky území, ne praporky');
+    assert.equal((patterns.match(/data-cq-pattern=/g) || []).length, 13);
+    assert.equal((patterns.match(/data-cq-locked="pattern"/g) || []).length, 11);
+    assert.match(patterns, /aria-checked="true" aria-label="Plameny"/);
+    assert.match(patterns, /Modrá · Lev · Plameny/);
+    assert.match(patterns, /<b>Šachovnice<\/b> · Dohraj 5 her v Dobývání \(3\/5\)/);
+    assert.match(C.lookHtml({ color: 'modra', emblem: 'lev', tab: 'pattern', looks }), /aria-checked="true" aria-label="Jen barva"/);
+    // Barevnou výplň, kterou ve hře má jiný hráč, vybrat nejde
+    const takenHtml = C.lookHtml({ color: 'modra', emblem: 'lev', tab: 'pattern', looks: { ...looks, patterns: ['plameny', 'duha'] }, takenPatterns: ['duha'] });
+    assert.match(takenHtml, /aria-label="Duha \(má jiný hráč\)" title="Duha – už má jiný hráč" data-cq-pattern="duha" disabled data-cq-taken="pattern"/);
+    assert.match(takenHtml, /Duha už má jiný hráč\./);
+    for (const html of [old, emblems, info, patterns]) assert.doesNotMatch(html, /style=|undefined|NaN/);
+});
+
+test('výplně území a vzácné znaky (č. 278–296): obrázky existují, masky a výplně se vykreslí bez inline stylů, každé SVG s vlastními id; praporec a pečeť bez výplně', () => {
     // 12 vzorů a 12 vzácných znaků podle docs/ODMENY-DOBYVANI.md, id se nekryjí se základními znaky
     assert.equal(C.PATTERNS.length, 12);
     assert.equal(C.RARE_EMBLEMS.length, 12);
@@ -86,27 +143,58 @@ test('vzory praporců a vzácné znaky (č. 278–296): obrázky existují, mask
     for (const emblem of C.RARE_EMBLEMS.filter(e => !e.art)) assert.equal(emblem.draw('#fff'), C.emblemOf(emblem.fallback).draw('#fff'));
     for (const pattern of C.PATTERNS) {
         if (pattern.art) webp(`icons/${pattern.art}.webp`);
+        assert.ok(pattern.mapTile >= 20 && pattern.mapTile <= 300, `${pattern.id}: dlaždice na mapě`);
         for (const color of ['cervena', 'zluta', 'cerna']) {
-            const flag = C.pennantSvg(color, 'lev', 'h-6 w-8', pattern.id);
-            const id = flag.match(/<pattern id="([^"]+)"/)[1];
-            assert.match(flag, new RegExp(`<path d="M0 0H30L24 11L30 22H0Z" fill="url\\(#${id}\\)"`), `${pattern.id}: praporec ve vzoru`);
-            if (pattern.art) assert.ok(flag.includes(`href="icons/${pattern.art}.webp"`));
-            // Šedý vzor se násobí barvou hráče (filtr), barevný má lem v barvě hráče
-            if (pattern.art && !pattern.colored) assert.match(flag, new RegExp(`<filter id="${id}f"[^>]*><feColorMatrix`));
-            if (pattern.colored) assert.ok(flag.includes(`stroke="${C.colorOf(color).hex}" stroke-width="2.6"`), `${pattern.id}: lem v barvě hráče`);
-            const seal = C.sealSvg(color, 'sfinga', 'h-10 w-10', pattern.id);
-            assert.match(seal, /<circle cx="24.1" cy="24.3" r="11.5" fill="url\(#cqv\w+\)"\/>/);
-            assert.doesNotMatch(flag + seal, /style=|undefined|NaN/);
+            const swatch = C.fillSwatchSvg(color, pattern.id);
+            const id = swatch.match(/<pattern id="([^"]+)"/)[1];
+            assert.match(swatch, new RegExp(`fill="url\\(#${id}\\)"`), `${pattern.id}: vzorek území ve výplni`);
+            if (pattern.art) assert.ok(swatch.includes(`href="icons/${pattern.art}.webp"`));
+            // Šedý vzor se násobí barvou hráče (filtr na dlaždici), barevný má sytý lem v barvě hráče
+            if (pattern.art && !pattern.colored) assert.match(swatch, new RegExp(`<filter id="${id}f"[^>]*><feColorMatrix`));
+            if (pattern.colored) assert.ok(swatch.includes(`stroke="${C.colorOf(color).hex}" stroke-width="6"`), `${pattern.id}: lem v barvě hráče`);
+            assert.doesNotMatch(swatch, /style=|undefined|NaN/);
         }
     }
-    // Bez vzoru (a s neznámým vzorem) se praporec kreslí jako dřív
-    assert.equal(C.pennantSvg('modra', 'lev', 'h-6 w-8', 'neznamy'), C.pennantSvg('modra', 'lev'));
-    assert.equal(C.sealSvg('modra', 'lev', 'h-14 w-14', null), C.sealSvg('modra', 'lev'));
-    // Mapa: vlaječka majitele nese jeho vzor a vzácný znak
+    // Praporec a pečeť zůstávají v barvě hráče (vzácný znak ano, výplň ne)
+    assert.equal(C.pennantSvg('modra', 'lev', 'h-6 w-8', 'plameny'), C.pennantSvg('modra', 'lev'));
+    assert.equal(C.sealSvg('modra', 'lev', 'h-14 w-14', 'plameny'), C.sealSvg('modra', 'lev'));
+    assert.match(C.fillSwatchSvg('modra', null), /fill="#2152d0" fill-opacity="0.55"/, 'bez výplně jen barva');
+    // Mapa: území hráče se vzorem mají výplň z jednoho <pattern> na hráče (šrafa odpadá), vlaječka jen barvu a vzácný znak; bez vzoru jako dřív
     const state = sampleState();
     state.players[1] = { ...state.players[1], emblem: 'kraken', pattern: 'led' };
-    const svg = C.mapSvg(maps.evropa, C.viewOf(state, maps.evropa, 'A'));
-    assert.ok(svg.includes('icons/znaky/kraken.webp') && svg.includes('icons/vzory/led.webp'));
+    const view = C.viewOf(state, maps.evropa, 'A');
+    const svg = C.mapSvg(maps.evropa, view);
+    assert.ok(svg.includes('icons/znaky/kraken.webp'));
+    assert.equal((svg.match(/<pattern id="cq-fill-/g) || []).length, 1, 'jeden pattern na hráče se vzorem');
+    assert.equal((svg.match(/<filter id="cq-fill-1f"/g) || []).length, 1, 'filtr jen na dlaždici');
+    assert.match(svg, /<pattern id="cq-fill-1" x="0.00" y="0.00" width="130" height="130" patternUnits="userSpaceOnUse"><image href="icons\/vzory\/led\.webp"/);
+    const owned = state.territories.filter(row => row.o === 'B').map(row => row.t);
+    for (const t of owned) {
+        assert.match(svg, new RegExp(`<path class="cq-wash cq-wash-fill" data-wash="${t}" d="[^"]+" fill="url\\(#cq-fill-1\\)"/>`), `${t}: výplň`);
+        assert.doesNotMatch(svg, new RegExp(`data-hatch="${t}"`), `${t}: bez šrafy`);
+    }
+    for (const t of state.territories.filter(row => row.o === 'A').map(row => row.t)) {
+        assert.match(svg, new RegExp(`<path class="cq-wash" data-wash="${t}" d="[^"]+" fill="#d7263d"/>`), `${t}: bez vzoru barva`);
+        assert.match(svg, new RegExp(`data-hatch="${t}"`));
+    }
+    assert.doesNotMatch(svg, /cq-band-strong/, 'šedý vzor: lem jako dřív');
+    // Předbarvená dlaždice z aplikace (blob:) místo filtru
+    const tiled = C.mapSvg(maps.evropa, { ...view, tiles: { [C.tileKey('led', 'modra')]: 'blob:https://geo.test/abc' } });
+    assert.match(tiled, /<pattern id="cq-fill-1"[^>]*><image href="blob:https:\/\/geo\.test\/abc" width="130" height="130" preserveAspectRatio="none"\/><\/pattern>/);
+    assert.doesNotMatch(tiled, /<filter id="cq-fill-1f"/);
+    // Barevná výplň: obrázek jak je a sytý lem v barvě hráče
+    state.players[1] = { ...state.players[1], pattern: 'duha' };
+    const rainbow = C.mapSvg(maps.evropa, C.viewOf(state, maps.evropa, 'A'));
+    assert.match(rainbow, /<pattern id="cq-fill-1"[^>]*><image href="icons\/vzory\/duha\.webp" width="180" height="180" preserveAspectRatio="none"\/><\/pattern>/);
+    assert.match(rainbow, /class="cq-band cq-band-strong" data-band="Q183" d="[^"]+" stroke="#2152d0"/);
+    // Koeficienty předbarvení odpovídají filtru
+    assert.equal(C.patternTintRows('modra', C.PATTERN_BY_ID.led.pop).map(([a, b]) => `${a.toFixed(3)} 0 0 0 ${b.toFixed(3)}`).join(' ') + ' 0 0 0 1 0', /values="([^"]+)"/.exec(svg.slice(svg.indexOf('<filter id="cq-fill-1f"')))[1]);
+    // Náhled mapy v seznamu her: výplň i tam
+    const thumb = C.thumbSvg(maps.evropa, { Q183: 1, Q213: 0 }, { 0: 'cervena', 1: 'modra' }, 'h-12 w-14', { 1: 'plameny' });
+    assert.match(thumb, /<defs><filter id="(cqf\w+)f"[\s\S]*<pattern id="\1"/);
+    assert.match(thumb, /class="cq-thumb-owned" fill="url\(#cqf\w+\)"/);
+    assert.match(thumb, /class="cq-thumb-owned" fill="#d7263d"/);
+    assert.doesNotMatch(thumb, /style=|undefined|NaN/);
 });
 
 test('mapy: data jsou aktuální (scripts/build-dobyvani.js --check), včetně sousedství a regionů v schema.sql', () => {

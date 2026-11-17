@@ -106,7 +106,7 @@
     // a Pavouk pletař za odznak retezovka-10 (se starší databází se odznaky Řetězovky do účtu neuloží a počítadla zůstanou jen ze zařízení).
     // 37 = Pomůcka Záchrana navíc do Řetězovky (zásoba chain_rescue, chain_use_rescue, chain_submit se dvěma zachráněnými články; zisk za
     // milníky Řetězovky, 12. stupeň Sezóny, Truhlu Mudrlanta, Zlatou truhlu a společný cíl Bosse; se starší databází se nenabídne).
-    const REQUIRED_SCHEMA = 37;
+    const REQUIRED_SCHEMA = 38;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -4759,6 +4759,16 @@
         if (news.kind === 'new') showCelebration('vitez', news.title, news.text, 'badge', itemArt(grant.kind, 'h-16 w-16 -my-2 drop-shadow-lg'));
         else if (news.kind === 'full') showToast(news.text);
     };
+    // Výplně území a vzácné znaky do Dobývání (blok 38, conquest.js lookNews): každý nový vlastní oslavou (nejvýš tři, víc jedním souhrnem)
+    const celebrateLooks = (news, look = {}) => {
+        const Conquest = window.MudrlantConquest;
+        if (!Conquest || !Array.isArray(news) || !news.length) return;
+        const color = look.color || 'cervena';
+        const emblem = look.emblem || 'lev';
+        const shown = news.length > 3 ? [] : news;
+        shown.forEach(entry => showCelebration('vitez', entry.title, entry.text, 'badge', Conquest.lookNewsArt(entry, color, emblem, 'h-16 w-20 -my-2 drop-shadow-lg')));
+        if (!shown.length) showCelebration('vitez', 'Nové odměny do Dobývání', `${news.map(entry => entry.name).join(', ')}. Vybereš je v okně Barva a znak.`, 'badge', Conquest.lookNewsArt(news[0], color, emblem, 'h-16 w-20 -my-2 drop-shadow-lg'));
+    };
     // Po delší pauze sova uvítá hráče zpátky (jednou za spuštění)
     const welcomeBack = () => {
         const last = loadProgress().counters.lastDay;
@@ -5260,7 +5270,14 @@
         const goldRow = appContent.querySelector('[data-gold-result]');
         if (goldRow) { goldRow.remove(); if (screen === 'mode') renderModeScreen(); else paintGold(); }
     };
-    const chestHelpers = () => ({ frameClass: (id) => (window.MudrlantLookFrames ? window.MudrlantLookFrames.frameClass(id) : ''), itemArt });
+    const chestHelpers = () => ({ frameClass: (id) => (window.MudrlantLookFrames ? window.MudrlantLookFrames.frameClass(id) : ''), itemArt,
+        // Vzorek výplně území (vzácnost z truhly, blok 38) v barvě z poslední volby v Dobývání
+        patternArt: (id, cls) => {
+            const Conquest = window.MudrlantConquest;
+            if (!Conquest) return '';
+            const prefs = readJson('mudrlant.conquest') || {};
+            return Conquest.fillSwatchSvg(Conquest.COLOR_BY_ID[prefs.color] ? prefs.color : 'cervena', id, cls);
+        } });
     // Pomůcky ze Sezóny a z Truhly Mudrlanta jdou jen přihlášenému a jen s databází, která je zná (blok 30)
     const itemsClaimable = () => Boolean(signedUser() && Social && Social.playerItemsClaim && !(Social.conquestItemsMissing && Social.conquestItemsMissing()));
     // Nasazení věci z truhly (talár, téma, rámeček, doplněk do jeho místa); barva doplňků se volí v Nastavení. Do účtu (rámeček,
@@ -5299,6 +5316,11 @@
         const showBonus = () => {
             if (!bonus) return;
             bonus.then(grant => {
+                // Vzácná výplň území Duha do Dobývání (blok 38): řádek v truhle, jen při prvním otevření
+                if (grant && grant.pattern && !grant.already && opened && overlay.isConnected) {
+                    opened = { ...opened, pattern: { id: grant.pattern, name: 'Duha' } };
+                    paint();
+                }
                 // Záchrana navíc s plnou zásobou propadne: krátká zpráva (blok 37)
                 if (grant && grant.full && !grant.already && grant.kind === 'chain_rescue') { celebrateItem(grant); return; }
                 if (!grant || !grant.granted || grant.already || !opened || !overlay.isConnected) return;
@@ -14485,6 +14507,8 @@
             share: (payload) => ShareCard ? ShareCard.shareText(payload, { toast: showToast, copied: 'Odkaz na hru zkopírován', failed: 'Kopírování se nepodařilo' }) : null,
             // Výhra: pomůcka Půl na půl (blok 30)
             itemGranted: (grant) => celebrateItem(grant),
+            // Nově odemčené výplně území a vzácné znaky (blok 38): oslava se vzorkem území nebo pečetí v barvě a znaku hráče
+            looksUnlocked: (news, look) => celebrateLooks(news, look),
             sound: (name) => { if (Sound) Sound.play(name); },
             touchTip,
             // Vývojářský režim: lišta s boty (boti do lobby, jejich tahy hned, další období; server pustí jen účet z dev_admins)

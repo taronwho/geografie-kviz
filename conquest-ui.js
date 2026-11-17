@@ -114,6 +114,7 @@
                     const [data, invites] = await Promise.all([Social.conquestLobby(), loadInvites()]);
                     data.invites = invites;
                     lobby = data;
+                    fitLooks();
                     lobbyAt = Date.now();
                     lobbyError = '';
                     await Promise.all([...new Set([...data.mine, ...data.open, ...invites].map(game => game.map))].map(id => ensureMap(id).catch(() => null)));
@@ -125,6 +126,26 @@
                 return lobby;
             })();
             return lobbyLoading;
+        };
+        // Výplně území a vzácné znaky (blok 38): looks z lobby (null = databáze bez bloku 38: jen barvy a základní znaky)
+        const looksNow = () => (lobby && lobby.looks) || null;
+        // Vybraný vzácný znak a vzor jen odemčené (jinak výchozí), aby server volbu nepřijal se starým zámkem
+        const fitLooks = () => {
+            if (!lobby) return;
+            const looks = looksNow();
+            if (!C.emblemAllowed(looks, draft.emblem)) draft.emblem = 'lev';
+            if (!looks || !C.patternAllowed(looks, draft.pattern)) draft.pattern = null;
+        };
+        // Oznámení nově odemčených (oslava v app.js) jednou: server si pamatuje ohlášené do času posledního ukázaného (conquest_looks_seen)
+        const announced = new Set();
+        const announceLooks = (looks) => {
+            if (!looks || !deps.looksUnlocked) return;
+            const news = C.lookNews(looks).filter(entry => !announced.has(`${entry.kind}:${entry.id}`));
+            if (!news.length) return;
+            news.forEach(entry => announced.add(`${entry.kind}:${entry.id}`));
+            deps.looksUnlocked(news, { color: draft.color, emblem: draft.emblem });
+            const upto = news.map(entry => entry.at).filter(Boolean).sort().pop();
+            if (Social.conquestLooksSeen) Social.conquestLooksSeen(upto || null).catch(() => {});
         };
         const findGame = (id) => (lobby ? [...lobby.mine, ...lobby.open].find(game => game.id === id) : null) || null;
         const findInvite = (id) => ((lobby && lobby.invites) || []).find(invite => invite.id === id) || null;
@@ -209,7 +230,9 @@
         const draft = {
             map: 'evropa', hours: 72, players: 4, actions: 5, period: 'day', visibility: 'public',
             ...(prefs.draft || {}),
-            color: C.COLOR_BY_ID[prefs.color] ? prefs.color : 'cervena', emblem: C.EMBLEM_BY_ID[prefs.emblem] ? prefs.emblem : 'lev'
+            color: C.COLOR_BY_ID[prefs.color] ? prefs.color : 'cervena', emblem: C.EMBLEM_BY_ID[prefs.emblem] || C.RARE_EMBLEM_BY_ID[prefs.emblem] ? prefs.emblem : 'lev',
+            // Výplň území (vzor, blok 38); vzácný znak i výplň platí, jen když je hráč podle serveru má (fitLooks po načtení lobby)
+            pattern: C.PATTERN_BY_ID[prefs.pattern] ? prefs.pattern : null
         };
         if (!C.MAP_BY_ID[draft.map]) draft.map = 'evropa';
         // Tempo: délka kola a hry v minutách (dřívější volba v hodinách se převede); neplatná kombinace = výchozí délka pro to kolo
@@ -251,6 +274,7 @@
             renderHub();
             paintCard();
             schedule();
+            if (active() && ui.kind === 'hub') announceLooks(looksNow());
         };
         const openLobby = (id) => {
             ui.kind = 'lobby';
@@ -262,39 +286,57 @@
             schedule();
         };
 
-        // Barva a znak (okno): obsazené barvy hry nejdou; onDone({ color, emblem })
-        const pickLook = ({ taken = [], title = 'Barva a znak', onDone }) => {
+        // Barva, znak a výplň území (okno): obsazené barvy a barevné výplně hry nejdou, zamčený vzácný znak nebo výplň jen ukáže, jak je získat;
+        // onDone({ color, emblem, pattern })
+        const pickLook = ({ taken = [], takenPatterns = [], title = 'Barva a znak', onDone }) => {
             const free = C.COLORS.find(color => !taken.includes(color.id));
-            const state = { color: taken.includes(draft.color) ? (free ? free.id : draft.color) : draft.color, emblem: draft.emblem, tab: 'color', error: '' };
-            const render = () => deps.showDialog(title, C.lookHtml({ ...state, taken }), {
+            const looks = looksNow();
+            const state = { color: taken.includes(draft.color) ? (free ? free.id : draft.color) : draft.color, emblem: C.emblemAllowed(looks, draft.emblem) ? draft.emblem : 'lev',
+                pattern: looks && C.patternAllowed(looks, draft.pattern) && !takenPatterns.includes(draft.pattern) ? draft.pattern : null, tab: 'color', error: '', info: null };
+            const render = () => deps.showDialog(title, C.lookHtml({ ...state, taken, takenPatterns, looks }), {
                 onClick: (event) => {
                     const tab = event.target.closest('[data-cq-look-tab]');
-                    if (tab) { state.tab = tab.dataset.cqLookTab === 'emblem' ? 'emblem' : 'color'; render(); return; }
+                    if (tab) { state.tab = ['emblem', 'pattern'].includes(tab.dataset.cqLookTab) ? tab.dataset.cqLookTab : 'color'; state.info = null; render(); return; }
                     const color = event.target.closest('[data-cq-color]');
                     if (color && !color.disabled) { state.color = color.dataset.cqColor; render(); return; }
                     const emblem = event.target.closest('[data-cq-emblem]');
-                    if (emblem) { state.emblem = emblem.dataset.cqEmblem; render(); return; }
+                    if (emblem) {
+                        if (emblem.dataset.cqLocked) state.info = { kind: 'emblem', id: emblem.dataset.cqEmblem };
+                        else { state.emblem = emblem.dataset.cqEmblem; state.info = null; }
+                        render();
+                        return;
+                    }
+                    const pattern = event.target.closest('[data-cq-pattern]');
+                    if (pattern && !pattern.disabled) {
+                        if (pattern.dataset.cqLocked) state.info = { kind: 'pattern', id: pattern.dataset.cqPattern };
+                        else { state.pattern = pattern.dataset.cqPattern || null; state.info = null; }
+                        render();
+                        return;
+                    }
                     if (event.target.closest('[data-cq="look-done"]')) {
                         draft.color = state.color;
                         draft.emblem = state.emblem;
-                        writePrefs({ color: state.color, emblem: state.emblem });
+                        draft.pattern = state.pattern;
+                        writePrefs({ color: state.color, emblem: state.emblem, pattern: state.pattern });
                         deps.closeDialog();
-                        onDone({ color: state.color, emblem: state.emblem });
+                        onDone({ color: state.color, emblem: state.emblem, pattern: state.pattern });
                     }
                 }
             });
             render();
         };
         const takenColors = (found, meId) => (found ? found.players.filter(player => !player.me && player.id !== meId).map(player => player.flag_color) : []);
+        // Barevné výplně území, které ve hře má jiný hráč (blok 38: jen jednou ve hře)
+        const takenFills = (found) => (found ? found.players.filter(player => !player.me && C.COLORED_PATTERNS.includes(player.pattern)).map(player => player.pattern) : []);
 
         // Přidání: veřejná hra podle id, soukromá kódem, s pozvánkou od přítele podle id (i soukromá)
         const joinGame = ({ id = null, code = '' }) => {
             const found = id ? findGame(id) || findInvite(id) : null;
             pickLook({
-                taken: takenColors(found), title: 'Tvoje barva a znak',
-                onDone: async ({ color, emblem }) => {
+                taken: takenColors(found), takenPatterns: takenFills(found), title: 'Tvoje barva a znak',
+                onDone: async ({ color, emblem, pattern }) => {
                     try {
-                        const joined = await Social.conquestJoin({ game: id, code, color, emblem });
+                        const joined = await Social.conquestJoin({ game: id, code, color, emblem, pattern: looksNow() ? pattern : null });
                         dropInvite(joined.id);
                         upsertMine(joined);
                         if (!lobby) await loadLobby();
@@ -486,7 +528,7 @@
                 const players = Math.min(draft.players, data ? data.maxPlayers : C.MAX_PLAYERS);
                 // Rychlé hry (kola po 5 a 10 minutách) mají délku v minutách, ostatní v hodinách
                 const fast = draft.minutes < 360;
-                let created = await Social.conquestCreate({ map: draft.map, players, hours: fast ? null : draft.minutes / 60, minutes: fast ? draft.minutes : null, period: draft.period, actions: draft.actions, visibility: draft.visibility, color: draft.color, emblem: draft.emblem });
+                let created = await Social.conquestCreate({ map: draft.map, players, hours: fast ? null : draft.minutes / 60, minutes: fast ? draft.minutes : null, period: draft.period, actions: draft.actions, visibility: draft.visibility, color: draft.color, emblem: draft.emblem, pattern: looksNow() ? draft.pattern : null });
                 // Vybraní přátelé dostanou pozvánku hned po založení; když se to nepovede, hra zůstane a pozvat jde z jejího detailu
                 const friends = ui.invites.map(friend => friend.id).slice(0, players - 1);
                 let invited = 0;
@@ -553,9 +595,9 @@
             const found = findGame(ui.gameId);
             if (!found) return;
             pickLook({
-                taken: takenColors(found),
-                onDone: async ({ color, emblem }) => {
-                    try { upsertMine(await Social.conquestSetLook(found.id, color, emblem)); } catch (error) { ui.error = errorText(error, 'Barvu a znak se nepodařilo uložit.'); }
+                taken: takenColors(found), takenPatterns: takenFills(found),
+                onDone: async ({ color, emblem, pattern }) => {
+                    try { upsertMine(await Social.conquestSetLook(found.id, color, emblem, looksNow() ? pattern : null, Boolean(looksNow()))); } catch (error) { ui.error = errorText(error, 'Barvu a znak se nepodařilo uložit.'); }
                     renderHub();
                 }
             });
@@ -576,11 +618,60 @@
                     if (reward.xp || reward.badge) deps.award({ ...reward, place: result.place });
                     // Pomůcka Půl na půl za výhru (blok 30)
                     if (result.item) { noteStock(result.item.kind, result.item.count); if (deps.itemGranted) deps.itemGranted(result.item); }
+                    // Vzory a vzácné znaky odemčené touto hrou (blok 38)
+                    if (result.looks) { if (lobby) lobby.looks = result.looks; announceLooks(result.looks); }
                     if (game && game.id === id && game.view.finished) showResult();
                 }
             } catch (error) { claiming.delete(id); }
         };
-        const viewFor = (state, data) => C.viewOf(state, data, (deps.signedUser() || {}).id);
+        // Výplně území (blok 38): šedý vzor v barvě hráče se předbarví jednou v canvasu (stejné koeficienty jako filtr patternTint) a mapa
+        // pak dlaždici bere jako obrázek blob: bez filtru (rychlejší posouvání a přibližování na telefonu). Do hotové dlaždice kreslí mapa
+        // vzor filtrem na dlaždici; po předbarvení se mapa překreslí. tiles = { 'vzor|barva': url } (sdílené všemi pohledy)
+        const tiles = {};
+        const tinting = new Set();
+        const TILE = 256;
+        const tintTile = async (pattern, colorId) => {
+            const img = new root.Image();
+            img.src = C.patternUrl(pattern);
+            await img.decode();
+            const canvas = doc.createElement('canvas');
+            canvas.width = TILE;
+            canvas.height = TILE;
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            ctx.drawImage(img, 0, 0, TILE, TILE);
+            const image = ctx.getImageData(0, 0, TILE, TILE);
+            const rows = C.patternTintRows(colorId, pattern.pop || 0);
+            const px = image.data;
+            for (let i = 0; i < px.length; i += 4) {
+                const t = px[i] / 255;
+                for (let k = 0; k < 3; k++) px[i + k] = Math.max(0, Math.min(255, Math.round((rows[k][0] * t + rows[k][1]) * 255)));
+            }
+            ctx.putImageData(image, 0, 0);
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+            if (!blob) throw new Error('canvas');
+            return root.URL.createObjectURL(blob);
+        };
+        const ensureTiles = (view) => {
+            if (!view || !doc || typeof root.Image !== 'function' || !root.URL || !root.URL.createObjectURL) return;
+            for (const player of view.players) {
+                const pattern = C.patternOf(player.pattern);
+                if (!pattern || !pattern.art || pattern.colored) continue;
+                const key = C.tileKey(pattern.id, player.flag_color);
+                if (tiles[key] || tinting.has(key)) continue;
+                tinting.add(key);
+                tintTile(pattern, player.flag_color).then(url => {
+                    tiles[key] = url;
+                    // Mapa se překreslí, jen když se zrovna nehraje tah (otázka, bitva); jinak dlaždici vezme příští překreslení
+                    if (game && ui.kind === 'game' && !game.move && active()) repaintMap();
+                }).catch(() => { /* zůstane filtr na dlaždici */ });
+            }
+        };
+        const viewFor = (state, data) => {
+            const view = C.viewOf(state, data, (deps.signedUser() || {}).id);
+            view.tiles = tiles;
+            ensureTiles(view);
+            return view;
+        };
         const openGame = async (id) => {
             if (!deps.signedUser()) { deps.login(); return; }
             stopGame();
@@ -1764,7 +1855,7 @@
             const title = me ? 'Vítězství!' : winners.length > 1 ? 'Vítězové tažení' : 'Vítěz tažení';
             const names = winners.map(player => (player.me ? 'Ty' : player.display_name || 'Hráč')).join(', ');
             wrap.insertAdjacentHTML('beforeend', `<div data-cq-finale class="cq-finale-banner pointer-events-none absolute inset-x-0 top-[12%] flex flex-col items-center px-3" role="status">
-                ${me ? `<img src="icons/topics/${C.ART.victory || 'sova-vitez'}.webp" alt="" class="cq-finale-owl h-24 w-24 object-contain">` : `<span class="cq-finale-flag relative flex h-20 w-24 items-center justify-center">${C.ART.laurel ? `<img src="icons/topics/${C.ART.laurel}.webp" alt="" class="absolute inset-0 h-full w-full object-contain">` : ''}<span class="relative -mt-2">${C.pennantSvg(winner.flag_color, winner.emblem, 'h-10 w-[3.4rem]', winner.pattern)}</span></span>`}
+                ${me ? `<img src="icons/topics/${C.ART.victory || 'sova-vitez'}.webp" alt="" class="cq-finale-owl h-24 w-24 object-contain">` : `<span class="cq-finale-flag relative flex h-20 w-24 items-center justify-center">${C.ART.laurel ? `<img src="icons/topics/${C.ART.laurel}.webp" alt="" class="absolute inset-0 h-full w-full object-contain">` : ''}<span class="relative -mt-2">${C.pennantSvg(winner.flag_color, winner.emblem, 'h-10 w-[3.4rem]')}</span></span>`}
                 <div class="cq-finale-scroll cq-cartouche-art aspect-[29/10] h-20 max-w-full px-[15%] pt-[4px] flex flex-col items-center justify-center text-center"><span class="cq-cartouche-title cq-cartouche-big">${esc(title)}</span><span class="max-w-full truncate text-[10.5px] font-bold leading-[1.2] text-amber-900/85">${esc(names)} · ${esc(C.pointsWord(winner.score))}</span></div>
                 ${Array.from({ length: 10 }, () => '<i class="cq-finale-spark" aria-hidden="true"></i>').join('')}</div>`);
             wrap.querySelectorAll('.cq-finale-spark').forEach((spark, i) => {

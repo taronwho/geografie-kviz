@@ -2541,65 +2541,65 @@ Kam: domovské území opevněné naplno (Pevnost) na mapě Dobývání (`icons/
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 32 px map icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. The second attached image is the same castle at its basic level: keep exactly the same castle in the middle (same central keep with the slate-blue cone roof, the two round towers, the wooden gate, the golden flag with a white star, same three-quarter front view, same colors and line style); only add the fortifications described here around and in front of it, so the castle visibly grows from level to level. The whole group stands on the same flat ground line at the bottom (no grass, no ground patch) and fills the frame a bit more than the basic castle. Subject: LEVEL 3 of 3 (the maximum): the castle has become a mighty citadel: a double ring of tall crenellated stone walls with four big round towers with slate-blue cone roofs, a massive gatehouse with an iron-banded gate, the central keep raised one storey higher with a golden crown-shaped top, a large golden banner with a white star on the keep and golden pennants on all towers, a few warm lit windows. Grand, proud and clearly the strongest of the three levels, while it is still recognizably the same castle. Colors: warm grey stone, slate blue roofs, wood brown, gold. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-## 24. Dobývání – odměny: vzory praporců, vzácné znaky, sady hradů a pomůcky (č. 278–310)
+## 24. Dobývání – odměny: výplně území (vzory), vzácné znaky, sady hradů a pomůcky (č. 278–310)
 
 Celý návrh odměn je v docs/ODMENY-DOBYVANI.md (pomůcky v oddílu Pomůcky). Vzory (č. 278–284) jsou bezešvé textury: šedé se v aplikaci násobí barvou hráče, dvě barevné (Brokát, Duha) se použijí jak jsou. Znaky (č. 285–296) jsou černé siluety na bílém, skript z nich udělá masku, která se tiskne do pečeti a na praporec.
 
-**Stav:** vzory č. 278–284 a znaky č. 285–296 jsou dodané a zapojené: `python3 scripts/conquest-art.py vzory znaky` z nich udělá bezešvé dlaždice `icons/vzory/<id>.webp` (512 × 512, šedé srovnané pro násobení barvou hráče) a masky `icons/znaky/<id>.webp` a `<id>-obrys.webp` (256 × 256, bílá s průhledností); conquest.js je kreslí (`PATTERNS`, `RARE_EMBLEMS`) na praporci, pečeti i vlaječkách na mapě. Vybrat je hráč zatím nemůže (odemykání a volba vzoru na serveru, docs/ODMENY-DOBYVANI.md oddíl 8, ještě nejsou). Duha (č. 282) není na horním a dolním okraji bezešvá (pruhy na sebe nenavazují); aplikace dlaždici na praporci ani pečeti neopakuje, při opakování by šev byl vidět.
+**Stav:** vzory č. 278–284 a znaky č. 285–296 jsou dodané a zapojené: `python3 scripts/conquest-art.py vzory znaky` z nich udělá bezešvé dlaždice `icons/vzory/<id>.webp` (512 × 512, šedé srovnané pro násobení barvou hráče) a masky `icons/znaky/<id>.webp` a `<id>-obrys.webp` (256 × 256, bílá s průhledností); conquest.js jimi vyplní území hráče na mapě (`PATTERNS`) a znaky tiskne na praporec, pečeť i vlaječky (`RARE_EMBLEMS`). Hráč je odemyká v Dobývání a ostatních módech a vybírá v okně Barva a znak (schéma 38, docs/ODMENY-DOBYVANI.md). Duha (č. 282) není na horním a dolním okraji bezešvá (pruhy na sebe nenavazují); na mapě se dlaždice opakuje (180 jednotek, tedy jen pár opakování přes celou mapu), takže šev je při přiblížení vidět – doporučuji Duhu vygenerovat znovu jako opravdu bezešvou.
 
 Sady hradů (č. 297–308) jsou čtyři stupně domovského hradu jiného stylu; generujte je postupně a ke každému dalšímu stupni přiložte předchozí, ať jde vidět, že je to tentýž hrad.
 
-#### 278. `vzor-hvezdna-noc.png` – Vzor praporce Hvězdná noc (šedá textura) – ✅ dodáno, zapojeno (icons/vzory, conquest.js PATTERNS)
+#### 278. `vzor-hvezdna-noc.png` – Výplň území Hvězdná noc (šedá textura) – ✅ dodáno, zapojeno (icons/vzory, conquest.js PATTERNS)
 
-Kam: vzor (látka) praporce, pečeti a vlaječek hráče v Dobývání (Kvíz dne: série 30 dní; docs/ODMENY-DOBYVANI.md). Šedá textura se násobí barvou hráče, barevná se použije jak je. Přiložit: nic (textura)
+Kam: výplň území hráče na mapě Dobývání (Kvíz dne: série 30 dní; docs/ODMENY-DOBYVANI.md). Šedá textura se násobí barvou hráče, barevná se použije jak je. Přiložit: nic (textura)
 
 ```text
 Seamless tileable square texture, 1024 × 1024 px, the edges must tile perfectly in both directions (no visible seams when repeated). Grayscale only: from white to medium grey, no pure black areas and no color at all, because the app multiplies it with the player's color. Soft hand-painted look that fits an old parchment map, gentle shading, even density over the whole tile (no big empty areas, no focal point). No text, no letters, no numbers, no logo, no watermark, no border, no vignette. Subject: a night sky full of small five-pointed and four-pointed stars of different sizes, a few thin dotted constellation lines and tiny swirls of stardust, drawn in light grey on a slightly darker grey background. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 279. `vzor-plameny.png` – Vzor praporce Plameny (šedá textura) – ✅ dodáno, zapojeno (icons/vzory, conquest.js PATTERNS)
+#### 279. `vzor-plameny.png` – Výplň území Plameny (šedá textura) – ✅ dodáno, zapojeno (icons/vzory, conquest.js PATTERNS)
 
-Kam: vzor (látka) praporce, pečeti a vlaječek hráče v Dobývání (10 vyhraných bitev; docs/ODMENY-DOBYVANI.md). Šedá textura se násobí barvou hráče, barevná se použije jak je. Přiložit: nic (textura)
+Kam: výplň území hráče na mapě Dobývání (10 vyhraných bitev; docs/ODMENY-DOBYVANI.md). Šedá textura se násobí barvou hráče, barevná se použije jak je. Přiložit: nic (textura)
 
 ```text
 Seamless tileable square texture, 1024 × 1024 px, the edges must tile perfectly in both directions (no visible seams when repeated). Grayscale only: from white to medium grey, no pure black areas and no color at all, because the app multiplies it with the player's color. Soft hand-painted look that fits an old parchment map, gentle shading, even density over the whole tile (no big empty areas, no focal point). No text, no letters, no numbers, no logo, no watermark, no border, no vignette. Subject: rows of stylized heraldic flames, like embroidered fabric on a medieval banner, alternating light and medium grey tongues of fire with soft inner highlights. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 280. `vzor-mramor.png` – Vzor praporce Mramor (šedá textura) – ✅ dodáno, zapojeno (icons/vzory, conquest.js PATTERNS)
+#### 280. `vzor-mramor.png` – Výplň území Mramor (šedá textura) – ✅ dodáno, zapojeno (icons/vzory, conquest.js PATTERNS)
 
-Kam: vzor (látka) praporce, pečeti a vlaječek hráče v Dobývání (Boss týdne 4×; docs/ODMENY-DOBYVANI.md). Šedá textura se násobí barvou hráče, barevná se použije jak je. Přiložit: nic (textura)
+Kam: výplň území hráče na mapě Dobývání (Boss týdne 4×; docs/ODMENY-DOBYVANI.md). Šedá textura se násobí barvou hráče, barevná se použije jak je. Přiložit: nic (textura)
 
 ```text
 Seamless tileable square texture, 1024 × 1024 px, the edges must tile perfectly in both directions (no visible seams when repeated). Grayscale only: from white to medium grey, no pure black areas and no color at all, because the app multiplies it with the player's color. Soft hand-painted look that fits an old parchment map, gentle shading, even density over the whole tile (no big empty areas, no focal point). No text, no letters, no numbers, no logo, no watermark, no border, no vignette. Subject: polished white marble with soft grey veins running diagonally, subtle cloudy patches, elegant and calm. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 281. `vzor-brokat.png` – Vzor praporce Zlatý brokát (barevná textura) – ✅ dodáno, zapojeno (icons/vzory, conquest.js PATTERNS)
+#### 281. `vzor-brokat.png` – Výplň území Zlatý brokát (barevná textura) – ✅ dodáno, zapojeno (icons/vzory, conquest.js PATTERNS)
 
-Kam: vzor (látka) praporce, pečeti a vlaječek hráče v Dobývání (10 výher; docs/ODMENY-DOBYVANI.md). Šedá textura se násobí barvou hráče, barevná se použije jak je. Přiložit: nic (textura)
+Kam: výplň území hráče na mapě Dobývání (10 výher; docs/ODMENY-DOBYVANI.md). Šedá textura se násobí barvou hráče, barevná se použije jak je. Přiložit: nic (textura)
 
 ```text
 Seamless tileable square texture, 1024 × 1024 px, the edges must tile perfectly in both directions (no visible seams when repeated). Rich but not neon colors, soft hand-painted look that fits an old parchment map, gentle shading, even density over the whole tile (no big empty areas, no focal point). No text, no letters, no numbers, no logo, no watermark, no border, no vignette. Subject: rich royal brocade fabric: deep burgundy silk with an ornate golden damask pattern of pomegranates and acanthus leaves woven in shiny gold thread, slight fabric weave visible. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 282. `vzor-duha.png` – Vzor praporce Duha (barevná textura) – ✅ dodáno, zapojeno (icons/vzory, conquest.js PATTERNS)
+#### 282. `vzor-duha.png` – Výplň území Duha (barevná textura) – ✅ dodáno, zapojeno (icons/vzory, conquest.js PATTERNS)
 
-Kam: vzor (látka) praporce, pečeti a vlaječek hráče v Dobývání (vzácnost z Truhly Mudrlanta, 3× Šampion sezóny; docs/ODMENY-DOBYVANI.md). Šedá textura se násobí barvou hráče, barevná se použije jak je. Přiložit: nic (textura)
+Kam: výplň území hráče na mapě Dobývání (vzácnost z Truhly Mudrlanta, 3× Šampion sezóny; docs/ODMENY-DOBYVANI.md). Šedá textura se násobí barvou hráče, barevná se použije jak je. Přiložit: nic (textura)
 
 ```text
 Seamless tileable square texture, 1024 × 1024 px, the edges must tile perfectly in both directions (no visible seams when repeated). Rich but not neon colors, soft hand-painted look that fits an old parchment map, gentle shading, even density over the whole tile (no big empty areas, no focal point). No text, no letters, no numbers, no logo, no watermark, no border, no vignette. Subject: soft rainbow fabric: diagonal bands of red, orange, yellow, green, blue and violet that blend gently into each other, painted with watercolor texture and a subtle silk sheen, pastel-rich (not neon). Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 283. `vzor-listi.png` – Vzor praporce Listí (šedá textura) – ✅ dodáno, zapojeno (icons/vzory, conquest.js PATTERNS)
+#### 283. `vzor-listi.png` – Výplň území Listí (šedá textura) – ✅ dodáno, zapojeno (icons/vzory, conquest.js PATTERNS)
 
-Kam: vzor (látka) praporce, pečeti a vlaječek hráče v Dobývání (Řetězovka 25 článků; docs/ODMENY-DOBYVANI.md). Šedá textura se násobí barvou hráče, barevná se použije jak je. Přiložit: nic (textura)
+Kam: výplň území hráče na mapě Dobývání (Řetězovka 25 článků; docs/ODMENY-DOBYVANI.md). Šedá textura se násobí barvou hráče, barevná se použije jak je. Přiložit: nic (textura)
 
 ```text
 Seamless tileable square texture, 1024 × 1024 px, the edges must tile perfectly in both directions (no visible seams when repeated). Grayscale only: from white to medium grey, no pure black areas and no color at all, because the app multiplies it with the player's color. Soft hand-painted look that fits an old parchment map, gentle shading, even density over the whole tile (no big empty areas, no focal point). No text, no letters, no numbers, no logo, no watermark, no border, no vignette. Subject: a dense pattern of oak leaves and a few acorns overlapping each other, drawn like a woodcut / embroidered textile, light grey leaves with medium grey veins. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 284. `vzor-led.png` – Vzor praporce Ledové krystaly (šedá textura) – ✅ dodáno, zapojeno (icons/vzory, conquest.js PATTERNS)
+#### 284. `vzor-led.png` – Výplň území Ledové krystaly (šedá textura) – ✅ dodáno, zapojeno (icons/vzory, conquest.js PATTERNS)
 
-Kam: vzor (látka) praporce, pečeti a vlaječek hráče v Dobývání (zimní sezóna, 15. stupeň; docs/ODMENY-DOBYVANI.md). Šedá textura se násobí barvou hráče, barevná se použije jak je. Přiložit: nic (textura)
+Kam: výplň území hráče na mapě Dobývání (zimní sezóna, 15. stupeň; docs/ODMENY-DOBYVANI.md). Šedá textura se násobí barvou hráče, barevná se použije jak je. Přiložit: nic (textura)
 
 ```text
 Seamless tileable square texture, 1024 × 1024 px, the edges must tile perfectly in both directions (no visible seams when repeated). Grayscale only: from white to medium grey, no pure black areas and no color at all, because the app multiplies it with the player's color. Soft hand-painted look that fits an old parchment map, gentle shading, even density over the whole tile (no big empty areas, no focal point). No text, no letters, no numbers, no logo, no watermark, no border, no vignette. Subject: frost flowers and ice crystals on a window pane, delicate branching feathery frost patterns and small six-pointed snowflakes, light grey and white. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1

@@ -243,21 +243,22 @@
     // --- Vzácné znaky (docs/ODMENY-DOBYVANI.md oddíl 2, obrázky č. 285–296): černé siluety převedené na masku (scripts/conquest-art.py
     // → icons/znaky/<art>.webp, bílá s průhledností, a <art>-obrys.webp pro podklad na barevném vzoru). Tisknou se jednou barvou jako
     // kresby výš (SVG <mask> s obrázkem, barva je výplň obdélníku, takže jde i currentColor). art: null = obrázek ještě nedorazil, kreslí se
-    // základní znak fallback. Vybrat je zatím nejde (server je v conquest_emblems nemá, odemykání odměn ještě není), vykreslí se ale všude.
+    // základní znak fallback. stat a need = kdy se odemkne (statistika ze serveru, supabase/schema.sql conquest_look_catalog, blok 38);
+    // vybrat jde jen odemčený (lookHtml, server conquest_check_style).
     const RARE_EMBLEMS = [
-        ['gryf', 'Gryf', 'Vyhraj na mapě Evropa', 'gryf', 'drak'],
-        ['sfinga', 'Sfinga', 'Vyhraj na mapě Afrika', 'sfinga', 'lev'],
-        ['cinsky-drak', 'Čínský drak', 'Vyhraj na mapě Asie', 'cinsky-drak', 'drak'],
-        ['orel-belohlavy', 'Orel bělohlavý', 'Vyhraj na mapě Amerika', 'orel-belohlavy', 'orel'],
-        ['dvouocasy-lev', 'Dvouocasý lev', 'Vyhraj na mapě Česko', 'dvouocasy-lev', 'lev'],
-        ['pegas', 'Pegas', 'Vyhraj Blesk (hru na 20 minut)', 'pegas', 'blesk'],
-        ['fenix', 'Fénix', 'Vyhraj hru po Návratu do hry', 'fenix', 'plamen'],
-        ['kraken', 'Kraken', 'Dobuď 40 území přes námořní cestu', 'kraken', 'kotva'],
-        ['jednorozec', 'Jednorožec', '5 her bez ztráty domovského hradu', 'jednorozec', 'hvezda'],
-        ['dvouhlavy-orel', 'Dvouhlavý orel', 'Vyhraj 50 bitev o území', 'dvouhlavy-orel', 'orel'],
-        ['svatovaclavska-koruna', 'Svatováclavská koruna', 'Vyhraj 25 her', 'svatovaclavska-koruna', 'koruna'],
-        ['sova-mudrlant', 'Sova Mudrlant', 'Dosáhni úrovně 50', 'sova-mudrlant', 'sova']
-    ].map(([id, name, how, art, fallback]) => ({ id, name, how, art, fallback, rare: true }));
+        ['gryf', 'Gryf', 'Vyhraj na mapě Evropa', 'gryf', 'drak', 'win_evropa', 1],
+        ['sfinga', 'Sfinga', 'Vyhraj na mapě Afrika', 'sfinga', 'lev', 'win_afrika', 1],
+        ['cinsky-drak', 'Čínský drak', 'Vyhraj na mapě Asie', 'cinsky-drak', 'drak', 'win_asie', 1],
+        ['orel-belohlavy', 'Orel bělohlavý', 'Vyhraj na mapě Amerika', 'orel-belohlavy', 'orel', 'win_amerika', 1],
+        ['dvouocasy-lev', 'Dvouocasý lev', 'Vyhraj na mapě Česko', 'dvouocasy-lev', 'lev', 'win_cesko', 1],
+        ['pegas', 'Pegas', 'Vyhraj Blesk (hru na 20 minut)', 'pegas', 'blesk', 'win_blesk', 1],
+        ['fenix', 'Fénix', 'Vyhraj hru po Návratu do hry', 'fenix', 'plamen', 'win_comeback', 1],
+        ['kraken', 'Kraken', 'Dobuď 40 území přes námořní cestu', 'kraken', 'kotva', 'sea', 40],
+        ['jednorozec', 'Jednorožec', 'Dohraj 5 her bez ztráty domovského hradu', 'jednorozec', 'hvezda', 'safe_home', 5],
+        ['dvouhlavy-orel', 'Dvouhlavý orel', 'Vyhraj 50 bitev o území', 'dvouhlavy-orel', 'orel', 'battles', 50],
+        ['svatovaclavska-koruna', 'Svatováclavská koruna', 'Vyhraj 25 her', 'svatovaclavska-koruna', 'koruna', 'wins', 25],
+        ['sova-mudrlant', 'Sova Mudrlant', 'Dosáhni úrovně 50', 'sova-mudrlant', 'sova', 'level', 50]
+    ].map(([id, name, how, art, fallback, stat, need]) => ({ id, name, how, art, fallback, stat, need, rare: true }));
     const emblemMask = (file) => (c) => {
         const id = nextUid('cqm');
         return `<mask id="${id}" maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24"><image href="${file}" width="24" height="24"/></mask>`
@@ -273,52 +274,73 @@
     const RARE_EMBLEM_BY_ID = Object.fromEntries(RARE_EMBLEMS.map(emblem => [emblem.id, emblem]));
     const emblemOf = (id) => EMBLEM_BY_ID[id] || RARE_EMBLEM_BY_ID[id] || EMBLEMS[0];
 
-    // --- Vzory praporců (docs/ODMENY-DOBYVANI.md oddíl 1): látka praporce, pečeti a vlaječek na mapě. Šedé textury (č. 278–284,
-    // scripts/conquest-art.py → icons/vzory/<id>.webp, bezešvé 512 × 512) se násobí barvou hráče, takže území i praporec mají pořád jeho
-    // barvu; barevné (colored: Zlatý brokát, Duha, Zlatá fólie, Hermelín) se použijí jak jsou a barva hráče zůstane v lemu praporce
-    // a v obrysu znaku. Šachovnice, Pokosy, Vlnky a Hermelín jsou kresby SVG (tile = celá dlaždice). tile: velikost dlaždice v jednotkách
-    // praporce (30 × 22); dlaždice obrázku je větší než praporec a vystředěná, takže na praporci ani pečeti není šev ani opakování.
-    // Vybrat je zatím nejde (odemykání a volba vzoru na serveru ještě nejsou); hráč s polem pattern se vykreslí ve vzoru.
+    // --- Výplně území (vzory, docs/ODMENY-DOBYVANI.md oddíl 1): čím hráč vyplní svá území na mapě Dobývání. Šedé textury (č. 278–284,
+    // scripts/conquest-art.py → icons/vzory/<id>.webp, bezešvé 512 × 512) se násobí barvou hráče, takže území mají pořád jeho barvu;
+    // barevné (colored: Zlatý brokát, Duha, Zlatá fólie, Hermelín) se použijí jak jsou a barvu hráče nese sytý lem podél hranice území.
+    // Šachovnice, Pokosy, Vlnky a Hermelín jsou kresby SVG (draw(t) = celá dlaždice o straně t). tile: dlaždice ve vzorku v okně Barva a znak
+    // (jednotky vzorku 48 × 36), mapTile: dlaždice na mapě v jednotkách mapy (mapa má asi 1000 jednotek na šířku), aby motiv byl vidět
+    // od celé mapy po přiblížení. Praporec, pečeť a vlaječky zůstávají v barvě hráče.
+    // stat a need = kdy se vzor odemkne (blok 38, conquest_look_catalog); hráč s polem pattern (conquest_players.pattern) se vykreslí ve vzoru.
     const PATTERNS = [
-        { id: 'sachovnice', name: 'Šachovnice', how: 'Dohraj 5 her v Dobývání', tile: 12,
+        { id: 'sachovnice', name: 'Šachovnice', how: 'Dohraj 5 her v Dobývání', stat: 'games', need: 5, tile: 12, mapTile: 22,
             draw: (t) => `<path d="M0 0H${t / 2}V${t / 2}H0ZM${t / 2} ${t / 2}H${t}V${t}H${t / 2}Z" fill="#000000" fill-opacity="0.24"/>` },
-        { id: 'pokosy', name: 'Pokosy', how: 'Získej celkem 10 celých regionů', tile: 10,
+        { id: 'pokosy', name: 'Pokosy', how: 'Drž na konci her celkem 10 celých regionů', stat: 'regions', need: 10, tile: 10, mapTile: 20,
             draw: (t) => `<path d="M0 ${t}L${t} 0M${-t / 2} ${t / 2}L${t / 2} ${-t / 2}M${t / 2} ${t * 1.5}L${t * 1.5} ${t / 2}" stroke="#000000" stroke-opacity="0.24" stroke-width="${t / 4}"/>` },
-        { id: 'vlnky', name: 'Vlnky', how: 'Dobuď 15 území přes námořní cestu', tile: 12,
+        { id: 'vlnky', name: 'Vlnky', how: 'Dobuď 15 území přes námořní cestu', stat: 'sea', need: 15, tile: 12, mapTile: 26,
             draw: (t) => `<path d="M0 ${t * 0.3}q${t / 4} ${-t / 5} ${t / 2} 0t${t / 2} 0M0 ${t * 0.8}q${t / 4} ${-t / 5} ${t / 2} 0t${t / 2} 0" fill="none" stroke="#ffffff" stroke-opacity="0.55" stroke-width="${t / 12}" stroke-linecap="round"/>` },
-        { id: 'hermelin', name: 'Hermelín', how: 'Vyhraj hru se 4 a více hráči', tile: 12, colored: true,
+        { id: 'hermelin', name: 'Hermelín', how: 'Vyhraj hru se 4 a více hráči', stat: 'wins4', need: 1, tile: 12, mapTile: 26, colored: true,
             draw: (t) => `<rect width="${t}" height="${t}" fill="#fbf7ec"/>${[[t * 0.25, t * 0.2], [t * 0.75, t * 0.7]].map(([x, y]) => `<path d="M${x} ${y}l${-t / 10} ${t / 4}l${t / 10} ${-t / 14}l${t / 10} ${t / 14}Z" fill="#1d1712"/><circle cx="${x}" cy="${y}" r="${t / 22}" fill="#1d1712"/><circle cx="${x - t / 14}" cy="${y - t / 14}" r="${t / 28}" fill="#1d1712"/><circle cx="${x + t / 14}" cy="${y - t / 14}" r="${t / 28}" fill="#1d1712"/>`).join('')}` },
-        { id: 'plameny', name: 'Plameny', how: 'Vyhraj 10 bitev o území', art: 'vzory/plameny', tile: 70 },
-        { id: 'mramor', name: 'Mramor', how: 'Poraz Bosse týdne 4×', art: 'vzory/mramor', tile: 56 },
-        { id: 'hvezdna-noc', name: 'Hvězdná noc', how: 'Série 30 dní v Kvízu dne', art: 'vzory/hvezdna-noc', tile: 60, pop: 0.9 },
-        { id: 'listi', name: 'Listí', how: 'Řetězovka: řetěz aspoň 25 článků', art: 'vzory/listi', tile: 80 },
-        { id: 'led', name: 'Ledové krystaly', how: 'Zimní sezóna, 15. stupeň', art: 'vzory/led', tile: 70, pop: 0.5 },
-        { id: 'zlato', name: 'Zlatá fólie', how: 'Zlatá otázka: 10 střípků', art: 'textury/textura-zlato', tile: 40, colored: true },
-        { id: 'brokat', name: 'Zlatý brokát', how: 'Vyhraj 10 her v Dobývání', art: 'vzory/brokat', tile: 34, colored: true },
-        { id: 'duha', name: 'Duha', how: 'Vzácnost z Truhly Mudrlanta / 3× Šampion sezóny', art: 'vzory/duha', tile: 40, colored: true }
+        { id: 'plameny', name: 'Plameny', how: 'Vyhraj 10 bitev o území', stat: 'battles', need: 10, art: 'vzory/plameny', tile: 70, mapTile: 110 },
+        { id: 'mramor', name: 'Mramor', how: 'Poraz Bosse týdne 4×', stat: 'boss', need: 4, art: 'vzory/mramor', tile: 56, mapTile: 150 },
+        { id: 'hvezdna-noc', name: 'Hvězdná noc', how: 'Série 30 dní v Kvízu dne', stat: 'daily_streak', need: 30, art: 'vzory/hvezdna-noc', tile: 60, mapTile: 120, pop: 0.9 },
+        { id: 'listi', name: 'Listí', how: 'Řetězovka: 15 celých řetězů (7 z 7)', stat: 'chains', need: 15, art: 'vzory/listi', tile: 80, mapTile: 140 },
+        { id: 'led', name: 'Ledové krystaly', how: 'Zimní Sezóna Mudrlanta (prosinec–únor): 15. stupeň', stat: 'winter15', need: 1, art: 'vzory/led', tile: 70, mapTile: 130, pop: 0.5 },
+        { id: 'zlato', name: 'Zlatá fólie', how: 'Zlatá otázka: 10 správně zodpovězených (odznak Zlatokop)', stat: 'gold', need: 10, art: 'textury/textura-zlato', tile: 40, mapTile: 110, colored: true },
+        { id: 'brokat', name: 'Zlatý brokát', how: 'Vyhraj 10 her v Dobývání', stat: 'wins', need: 10, art: 'vzory/brokat', tile: 34, mapTile: 90, colored: true },
+        { id: 'duha', name: 'Duha', how: 'Vzácnost z Truhly Mudrlanta', stat: 'chest', need: 1, art: 'vzory/duha', tile: 40, mapTile: 180, colored: true }
     ];
     const PATTERN_BY_ID = Object.fromEntries(PATTERNS.map(pattern => [pattern.id, pattern]));
+    // Barevné výplně (nebarví se barvou hráče) smí mít ve hře jen jeden hráč (server conquest_colored_patterns, conquest_check_fill)
+    const COLORED_PATTERNS = PATTERNS.filter(pattern => pattern.colored).map(pattern => pattern.id);
     const patternOf = (id) => (id && PATTERN_BY_ID[id]) || null;
     const patternUrl = (pattern) => `icons/${pattern.art}.webp`;
     // Násobení šedé textury barvou hráče (feColorMatrix; vstup je šedý, R = G = B = t). Medián textury je kolem 0,85, proto barva o desetinu
     // světlejší, ať praporec nevyjde tmavší než území. Na černé by násobení nebylo vidět: tam kresba zesvětluje (c + 0,5 · (1 − t)).
     // pop: světla vzoru (hvězdy, jinovatka) navíc zesvětlí k bílé (lineárně kolem jasu 0,8: a = c · 1,12 + pop, b = −0,8 · pop)
-    const patternTint = (colorId, pop = 0) => {
+    const patternTint = (colorId, pop = 0) => patternTintRows(colorId, pop).map(([a, b]) => `${a.toFixed(3)} 0 0 0 ${b.toFixed(3)}`).join(' ') + ' 0 0 0 1 0';
+    // Koeficienty patternTint jako čísla: [[a, b] pro R, G, B] (out = a · t + b); conquest-ui.js podle nich předbarví dlaždici v canvasu
+    const patternTintRows = (colorId, pop = 0) => {
         const hex = colorOf(colorId).hex;
         const rgb = hexRgb(hex).map(value => value / 255);
-        const rows = luminance(hex) < 0.03 ? rgb.map(c => [-0.5, c + 0.5]) : rgb.map(c => [Math.min(1.3, c * 1.12) + pop, -0.8 * pop]);
-        return rows.map(([a, b]) => `${a.toFixed(3)} 0 0 0 ${b.toFixed(3)}`).join(' ') + ' 0 0 0 1 0';
+        return luminance(hex) < 0.03 ? rgb.map(c => [-0.5, c + 0.5]) : rgb.map(c => [Math.min(1.3, c * 1.12) + pop, -0.8 * pop]);
     };
-    // <pattern> (a filtr) pro vzor v barvě hráče; dlaždice size vystředěná na bod (cx, cy)
-    const patternDefs = (id, pattern, colorId, size, cx, cy) => {
-        const at = `x="${(cx - size / 2).toFixed(2)}" y="${(cy - size / 2).toFixed(2)}" width="${size}" height="${size}" patternUnits="userSpaceOnUse"`;
+    // Klíč předbarvené dlaždice (šedý vzor v barvě hráče): conquest-ui.js ji vyrobí jednou (canvas → blob:) a pošle v tiles
+    const tileKey = (patternId, colorId) => `${patternId}|${colorOf(colorId).id}`;
+    // <pattern> pro výplň v barvě hráče; dlaždice size s počátkem v (x, y). Šedý vzor: předbarvená dlaždice z tiles (bez filtru), jinak
+    // obrázek s jedním filtrem na dlaždici (ne na každém území); barevný jak je; kresba SVG na podkladu barvy hráče (barevná bez něj).
+    const patternDefs = (id, pattern, colorId, size, x = 0, y = 0, tiles = null) => {
+        const at = `x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${size}" height="${size}" patternUnits="userSpaceOnUse"`;
         if (!pattern.art) {
-            const base = pattern.colored ? '' : `<rect width="${pattern.tile}" height="${pattern.tile}" fill="${colorOf(colorId).hex}"/>`;
-            return `<pattern id="${id}" width="${pattern.tile}" height="${pattern.tile}" patternUnits="userSpaceOnUse">${base}${pattern.draw(pattern.tile)}</pattern>`;
+            const base = pattern.colored ? '' : `<rect width="${size}" height="${size}" fill="${colorOf(colorId).hex}"/>`;
+            return `<pattern id="${id}" ${at}>${base}${pattern.draw(size)}</pattern>`;
         }
         if (pattern.colored) return `<pattern id="${id}" ${at}><image href="${patternUrl(pattern)}" width="${size}" height="${size}" preserveAspectRatio="none"/></pattern>`;
+        const ready = tiles && tiles[tileKey(pattern.id, colorId)];
+        if (ready) return `<pattern id="${id}" ${at}><image href="${ready}" width="${size}" height="${size}" preserveAspectRatio="none"/></pattern>`;
         return `<filter id="${id}f" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="${patternTint(colorId, pattern.pop || 0)}"/></filter>`
             + `<pattern id="${id}" ${at}><image href="${patternUrl(pattern)}" width="${size}" height="${size}" preserveAspectRatio="none" filter="url(#${id}f)"/></pattern>`;
+    };
+    // Vzorek výplně území (okno Barva a znak, oslava, truhla): kus „státu“ na pergamenu vyplněný jako na mapě – výplň (nebo barva),
+    // sytý lem barvy podél hranice a inkoustový obrys
+    const SWATCH = 'M5 9.5C7.5 4.5 13 5.8 16.5 3.4C20.5 0.8 25 4.6 29.5 3.2C34.5 1.6 39.5 3.6 41.6 8.2C44 13 41.2 16.6 43.4 21.4C45.6 26.4 41.6 31.6 36 31.4C31 31.2 28 34.4 22.6 33.2C17 32 14 34.2 9.4 31.4C4.6 28.4 6.4 23.4 4.2 19.6C2 15.8 3 13.4 5 9.5Z';
+    const fillSwatchSvg = (colorId, patternId, cls = 'h-9 w-12') => {
+        const color = colorOf(colorId);
+        const vzor = patternOf(patternId);
+        const id = nextUid('cqs');
+        const fill = vzor ? `url(#${id})` : color.hex;
+        return `<svg viewBox="0 0 48 36" class="${cls} shrink-0" aria-hidden="true" focusable="false"><defs>${vzor ? patternDefs(id, vzor, colorId, vzor.colored || !vzor.art ? vzor.tile : 34, 0, 0) : ''}<clipPath id="${id}c"><path d="${SWATCH}"/></clipPath></defs>`
+            + `<path d="${SWATCH}" fill="${fill}" fill-opacity="${vzor ? 0.9 : 0.55}"/><path d="${SWATCH}" fill="none" stroke="${color.hex}" stroke-width="${vzor && vzor.colored ? 6 : 4}" stroke-opacity="${vzor && vzor.colored ? 0.9 : 0.6}" clip-path="url(#${id}c)"/>`
+            + `<path d="${SWATCH}" fill="none" stroke="${inkOf(colorId)}" stroke-width="1.2" stroke-linejoin="round"/></svg>`;
     };
 
     // --- Pomocné ---
@@ -2044,25 +2066,13 @@
     // --- Vlaječka hráče se znakem (SVG): na mapě i v HTML ---
     // Praporec 0–30 × 0–22 (cíp vpravo), znak uprostřed
     const PENNANT = 'M0 0H30L24 11L30 22H0Z';
-    // Lem barevného vzoru: vnitřní obrys praporce v barvě hráče (praporec je celý ve vzoru, hráče pozná podle lemu a obrysu znaku)
-    const PENNANT_HEM = 'M1.9 1.9H26.9L21.9 11L26.9 20.1H1.9Z';
-    const pennantGroup = (colorId, emblemId, { ink = true, pattern = null } = {}) => {
+    const pennantGroup = (colorId, emblemId, { ink = true } = {}) => {
         const color = colorOf(colorId);
-        const emblem = emblemOf(emblemId);
-        const vzor = patternOf(pattern);
-        const edge = ink ? ` stroke="${inkOf(colorId)}" stroke-width="1.6" stroke-linejoin="round"` : '';
-        if (!vzor) return `<path d="${PENNANT}" fill="${color.hex}"${edge}/>`
-            + `<g transform="translate(3.6 1.6) scale(0.78)">${emblem.draw(emblemInk(colorId))}</g>`;
-        const id = nextUid('cqv');
-        const hem = vzor.colored ? `<path d="${PENNANT_HEM}" fill="none" stroke="${color.hex}" stroke-width="2.6" stroke-linejoin="round"/>` : '';
-        // Na barevném vzoru znak v barvě hráče s obrysem: tmavý nebo světlý podle barvy (emblemInk) na podkladu v barvě hráče
-        const mark = vzor.colored ? emblem.halo(color.hex) + emblem.draw(emblemInk(colorId)) : emblem.draw(emblemInk(colorId));
-        // Na barevném vzoru je znak o kousek menší (stejný střed), ať je kolem obrysu vidět látka
-        return `<defs>${patternDefs(id, vzor, colorId, vzor.tile, 14, 11)}</defs><path d="${PENNANT}" fill="url(#${id})"${edge}/>${hem}`
-            + `<g transform="${vzor.colored ? 'translate(4.56 2.56) scale(0.7)' : 'translate(3.6 1.6) scale(0.78)'}">${mark}</g>`;
+        return `<path d="${PENNANT}" fill="${color.hex}"${ink ? ` stroke="${inkOf(colorId)}" stroke-width="1.6" stroke-linejoin="round"` : ''}/>`
+            + `<g transform="translate(3.6 1.6) scale(0.78)">${emblemOf(emblemId).draw(emblemInk(colorId))}</g>`;
     };
-    // Vlaječka jako samostatný obrázek v HTML (seznamy hráčů, lobby, výběr); pattern = vzor praporce (PATTERNS) nebo nic
-    const pennantSvg = (colorId, emblemId, cls = 'h-6 w-8', pattern = null) => `<svg viewBox="-1 -1 32 24" class="${cls} shrink-0" aria-hidden="true" focusable="false">${pennantGroup(colorId, emblemId, { pattern })}</svg>`;
+    // Vlaječka jako samostatný obrázek v HTML (seznamy hráčů, lobby, výběr)
+    const pennantSvg = (colorId, emblemId, cls = 'h-6 w-8') => `<svg viewBox="-1 -1 32 24" class="${cls} shrink-0" aria-hidden="true" focusable="false">${pennantGroup(colorId, emblemId)}</svg>`;
     // Znak samotný (výběr znaku)
     const emblemSvg = (emblemId, color = 'currentColor', cls = 'h-6 w-6') => `<svg viewBox="0 0 24 24" class="${cls}" aria-hidden="true" focusable="false">${emblemOf(emblemId).draw(color)}</svg>`;
 
@@ -2133,6 +2143,15 @@
         const tile = Math.round(Math.max(w, h) / 3);
         if (ART.sea) defs.push(`<pattern id="${prefix}-seatex" width="${tile}" height="${tile}" patternUnits="userSpaceOnUse"><image href="icons/textury/${ART.sea}.webp" width="${tile}" height="${tile}" class="cq-seatex"/></pattern>`);
         players.forEach(player => defs.push(hatchPattern(player.seat, player.flag_color, prefix)));
+        // Výplň území (blok 38): jeden <pattern> na hráče se vzorem; předbarvené dlaždice z conquest-ui.js (view.tiles), jinak filtr na dlaždici
+        const tiles = opts.tiles || (view && view.tiles) || null;
+        const filled = new Map();
+        players.forEach(player => {
+            const vzor = patternOf(player.pattern);
+            if (!vzor) return;
+            filled.set(player.seat, vzor);
+            defs.push(patternDefs(`${prefix}-fill-${player.seat}`, vzor, player.flag_color, vzor.mapTile, 0, 0, tiles));
+        });
         [...new Set(players.map(player => colorOf(player.flag_color).id))].forEach(colorId => defs.push(buildingTint(colorId)));
         const kraje = MAP_BY_ID[data.id] && MAP_BY_ID[data.id].kraje;
         // U krajů je „mořem“ cizina kolem Česka (pozadí dat je celý výřez)
@@ -2160,9 +2179,12 @@
             const info = view ? view.owners.get(item.id) : null;
             const owner = info && info.owner ? view.byId.get(info.owner) : null;
             if (owner) {
+                // Se vzorem: výplň místo lazury (šrafa odpadá, vzor je sám rozlišením); u barevných vzorů sytější lem v barvě hráče
+                const vzor = filled.get(owner.seat);
                 defs.push(`<clipPath id="${prefix}-in-${item.id}"><path d="${item.d}"/></clipPath>`);
-                washes.push(`<path class="cq-wash" data-wash="${item.id}" d="${item.d}" fill="${owner.color.hex}"/><path class="cq-band" data-band="${item.id}" d="${item.d}" stroke="${owner.color.hex}" clip-path="url(#${prefix}-in-${item.id})"/>`);
-                hatches.push(`<path data-hatch="${item.id}" d="${item.d}" fill="url(#${prefix}-hatch-${owner.seat})"/>`);
+                washes.push(`<path class="cq-wash${vzor ? ' cq-wash-fill' : ''}" data-wash="${item.id}" d="${item.d}" fill="${vzor ? `url(#${prefix}-fill-${owner.seat})` : owner.color.hex}"/>`
+                    + `<path class="cq-band${vzor && vzor.colored ? ' cq-band-strong' : ''}" data-band="${item.id}" d="${item.d}" stroke="${owner.color.hex}" clip-path="url(#${prefix}-in-${item.id})"/>`);
+                if (!vzor) hatches.push(`<path data-hatch="${item.id}" d="${item.d}" fill="url(#${prefix}-hatch-${owner.seat})"/>`);
                 inks.push(`<path class="cq-ink${owner.me ? ' cq-ink-me' : ''}" data-ink="${item.id}" d="${item.d}" stroke="${inkOf(owner.flag_color)}"/>`);
             }
         }
@@ -2231,7 +2253,7 @@
         if (info.treasure && !owner) inner += `<g class="cq-icon cq-treasure" data-icon="treasure" transform="${iconAt(ICON_SCALE.treasure, -0.5)}">${iconMarkup('treasure')}</g>`;
         if (view.sieges && view.sieges.has(item.id)) inner += siegeBadge(view.sieges.get(item.id), view, icon);
         if (owner) inner += `<g class="cq-pin" data-pin="${item.id}" transform="translate(${icon ? -MARK * 0.55 : -MARK * 0.1} 0)"><path d="M0 2V${-MARK * 1.25}" stroke="#3b2a1a" stroke-width="1.6" stroke-linecap="round"/><circle cx="0" cy="${-MARK * 1.25}" r="1.6" fill="#c9a227"/>`
-            + `<g transform="translate(0.8 ${-MARK * 1.22}) scale(${(MARK * 0.75 / 30).toFixed(3)})">${pennantGroup(owner.flag_color, owner.emblem, { pattern: owner.pattern })}</g></g>`;
+            + `<g transform="translate(0.8 ${-MARK * 1.22}) scale(${(MARK * 0.75 / 30).toFixed(3)})">${pennantGroup(owner.flag_color, owner.emblem)}</g></g>`;
         return `<g class="cq-mark" data-mark="${item.id}" transform="translate(${x} ${y})"><g class="cq-mark-scale">${inner}</g></g>`;
     };
     // Bitva na území: pečeť se zkříženými meči nad značkou (pulzující kruh) a pod ní praporky účastníků (nejvýš 4)
@@ -2239,7 +2261,7 @@
     const siegeBadge = (siege, view, icon) => {
         const flags = siege.participants.slice(0, 4).map((player, i) => {
             const known = view.byId.get(player.id) || player;
-            return `<g transform="translate(${(i * 7 - (Math.min(siege.participants.length, 4) - 1) * 3.5 - 4).toFixed(1)} 6.5) scale(0.27)">${pennantGroup(known.flag_color, known.emblem, { pattern: known.pattern })}</g>`;
+            return `<g transform="translate(${(i * 7 - (Math.min(siege.participants.length, 4) - 1) * 3.5 - 4).toFixed(1)} 6.5) scale(0.27)">${pennantGroup(known.flag_color, known.emblem)}</g>`;
         }).join('');
         return `<g class="cq-siege-badge" data-siege="${siege.territory}" transform="translate(${icon ? (MARK * 0.62).toFixed(1) : (MARK * 0.3).toFixed(1)} ${(-MARK * 1.55).toFixed(1)})">`
             + `<circle class="cq-siege-pulse" r="9.5"/><circle class="cq-siege-seal" r="8.5"/>`
@@ -2248,13 +2270,22 @@
     // Úroveň opevnění domovského hradu: kamínky pod hradem
     const levelPips = (level) => Array.from({ length: level }, (_, i) => `<rect x="${7 + i * 3.6}" y="23" width="2.8" height="2.8" rx="0.6" fill="#c9a227" stroke="#3d3428" stroke-width="0.6"/>`).join('');
     // Malá mapa (náhled hry): území podle majitelů (owners = { území: místo hráče }); highlightSeat = moje barva výrazně
-    const thumbSvg = (data, owners = {}, seatColors = {}, cls = 'h-12 w-14') => {
+    // seatPatterns = { pořadí: vzor } – výplň území jako na mapě (dlaždice větší, ať je v malém náhledu vidět)
+    const thumbSvg = (data, owners = {}, seatColors = {}, cls = 'h-12 w-14', seatPatterns = {}) => {
+        const defs = [];
+        const ids = {};
+        for (const [seat, patternId] of Object.entries(seatPatterns || {})) {
+            const vzor = patternOf(patternId);
+            if (!vzor || !seatColors[seat]) continue;
+            ids[seat] = nextUid('cqf');
+            defs.push(patternDefs(ids[seat], vzor, seatColors[seat], Math.round(vzor.mapTile * 2.2)));
+        }
         const parts = data.t.map(item => {
             const seat = owners[item.id];
             const color = seat !== undefined && seatColors[seat] ? colorOf(seatColors[seat]).hex : null;
-            return `<path d="${item.d}" class="${color ? 'cq-thumb-owned' : 'cq-thumb-land'}"${color ? ` fill="${color}"` : ''}/>`;
+            return `<path d="${item.d}" class="${color ? 'cq-thumb-owned' : 'cq-thumb-land'}"${color ? ` fill="${ids[seat] ? `url(#${ids[seat]})` : color}"` : ''}/>`;
         });
-        return `<svg viewBox="0 0 ${data.w} ${data.h}" class="${cls} cq-thumb" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false"><path class="cq-thumb-bg" d="${data.land}"/>${parts.join('')}</svg>`;
+        return `<svg viewBox="0 0 ${data.w} ${data.h}" class="${cls} cq-thumb" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">${defs.length ? `<defs>${defs.join('')}</defs>` : ''}<path class="cq-thumb-bg" d="${data.land}"/>${parts.join('')}</svg>`;
     };
 
     // --- HTML ---
@@ -2351,7 +2382,7 @@
     };
     // „½“ u hráče, který v bitvě použil Půl na půl (účastníci, čekání, výsledek)
     const halfBadge = (player) => (player && player.fifty ? '<span class="cq-half-badge flex h-4 shrink-0 items-center rounded-full px-1 text-[10.5px] font-black leading-none" title="Pomůcka Půl na půl" aria-label="s pomůckou Půl na půl">½</span>' : '');
-    const playerDots = (game) => `<span class="flex -space-x-1">${(game.players || []).map(player => `<span title="${esc(player.display_name)}" class="flex h-6 w-6 items-center justify-center rounded-full bg-white ring-1 ring-slate-200 dark:bg-slate-700 dark:ring-slate-600">${pennantSvg(player.flag_color, player.emblem, 'h-4 w-5', player.pattern)}</span>`).join('')}</span>`;
+    const playerDots = (game) => `<span class="flex -space-x-1">${(game.players || []).map(player => `<span title="${esc(player.display_name)}" class="flex h-6 w-6 items-center justify-center rounded-full bg-white ring-1 ring-slate-200 dark:bg-slate-700 dark:ring-slate-600">${pennantSvg(player.flag_color, player.emblem, 'h-4 w-5')}</span>`).join('')}</span>`;
 
     // --- Pozvánky přátel (blok 24 ve schema.sql) ---
     // Obrázek hráče: app.js předá avatarHtml (postavička, sova, rámeček, barva); bez něj (testy) emoji v kolečku
@@ -2389,12 +2420,13 @@
             const data = maps[first.map];
             const meSeat = (first.players.find(player => player.me) || {}).seat;
             const seatColors = Object.fromEntries(first.players.map(player => [player.seat, player.flag_color]));
+            const seatPatterns = Object.fromEntries(first.players.filter(player => player.pattern).map(player => [player.seat, player.pattern]));
             const budget = first.budget || { left: 0, total: first.actions };
             const more = running.length > 1 ? ` · +${running.length - 1}` : '';
             const row = `<button type="button" data-action="conquest-open" class="flex min-w-0 flex-1 items-center gap-2.5 text-left" aria-label="Otevřít Dobývání">
-                    <span class="cq-thumb-frame flex h-12 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl">${data ? thumbSvg(data, first.owners || {}, seatColors) : art(ART.card, 'h-10 w-10')}</span>
+                    <span class="cq-thumb-frame flex h-12 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl">${data ? thumbSvg(data, first.owners || {}, seatColors, 'h-12 w-14', seatPatterns) : art(ART.card, 'h-10 w-10')}</span>
                     ${head}<span class="truncate text-[11.5px] font-bold text-slate-600 dark:text-slate-300">${esc(mapTitle(first.map))} · zbývá ${esc(timeLeft((parseTime(first.ends_at) || now) - now))}${esc(more)}</span>
-                    <span class="flex items-center gap-1 text-[11.5px] font-black text-brand-800 dark:text-gold-200" data-conquest-moves>${meSeat !== undefined ? pennantSvg(first.players.find(p => p.me).flag_color, first.players.find(p => p.me).emblem, 'h-3.5 w-4', first.players.find(p => p.me).pattern) : ''}Tahy ${budget.left}/${budget.total}</span></span>
+                    <span class="flex items-center gap-1 text-[11.5px] font-black text-brand-800 dark:text-gold-200" data-conquest-moves>${meSeat !== undefined ? pennantSvg(first.players.find(p => p.me).flag_color, first.players.find(p => p.me).emblem, 'h-3.5 w-4') : ''}Tahy ${budget.left}/${budget.total}</span></span>
                 </button>
                 <button type="button" data-action="conquest-play" data-game="${esc(first.id)}" data-cta class="${HOME_CTA}"><i data-lucide="play" class="h-4 w-4 shrink-0"></i><span data-cta-label class="min-w-0 flex-1 text-center">Hrát</span></button>`;
             if (!invite) return `<div id="conquest-card" class="flex items-center gap-2.5 ${HOME_CARD} cq-card-paper p-2 pr-3 max-[379px]:pr-2.5">${row}</div>`;
@@ -2469,6 +2501,7 @@
     const gameRowHtml = (game, { maps = {}, now = Date.now(), mine = false } = {}) => {
         const data = maps[game.map];
         const seatColors = Object.fromEntries((game.players || []).map(player => [player.seat, player.flag_color]));
+        const seatPatterns = Object.fromEntries((game.players || []).filter(player => player.pattern).map(player => [player.seat, player.pattern]));
         const me = (game.players || []).find(player => player.me);
         let status = '';
         let button = '';
@@ -2486,7 +2519,7 @@
             button = `<button type="button" data-cq-play="${esc(game.id)}" class="${LIGHT_BUTTON} shrink-0"><i data-lucide="trophy" class="h-4 w-4"></i>Výsledky</button>`;
         }
         return `<li data-cq-game="${esc(game.id)}" class="flex items-center gap-2 ${CARD} p-1.5">
-            <span class="cq-thumb-frame flex h-12 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl">${data ? thumbSvg(data, game.owners || {}, seatColors) : ''}</span>
+            <span class="cq-thumb-frame flex h-12 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl">${data ? thumbSvg(data, game.owners || {}, seatColors, 'h-12 w-14', seatPatterns) : ''}</span>
             <span class="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span class="flex min-w-0 items-center gap-1.5"><span class="truncate text-[14px] font-black leading-tight text-slate-800 dark:text-slate-100">${esc(mapTitle(game.map))}</span>${game.preset ? chip(PRESET_NAMES[game.preset] || 'Rychlá hra', 'zap') : ''}${game.visibility === 'private' ? '<i data-lucide="lock" class="h-3.5 w-3.5 shrink-0 text-slate-400"></i>' : ''}</span>
                 <span class="truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${esc(game.status === 'lobby' ? `${minutesLabel(gameMinutes(game))} · ${actionsLabel(game.actions, game.period)}` : status)}</span>
@@ -2564,7 +2597,7 @@
     const field = (label, inner, extra = '') => `<div class="flex min-w-0 flex-col gap-0.5 ${extra}"><span class="px-1 text-[10px] font-black uppercase leading-3 tracking-widest text-slate-500 dark:text-slate-400">${esc(label)}</span>${inner}</div>`;
     // Řádek-tlačítko formuláře (popisek a hodnota); half = polovina šířky vedle Pozvat přátele (bez tužky, popisek se zkrátí)
     const pickRow = (action, icon, label, value, half) => `<button type="button" data-cq="${action}" class="cq-pick flex min-h-[2.75rem] min-w-0 items-center gap-2 ${CARD} ${half ? 'px-2' : 'px-2.5'} text-left">${icon}<span class="min-w-0 flex-1"><span class="block truncate text-[10px] font-black uppercase leading-3 ${half ? 'tracking-wider' : 'tracking-widest'} text-slate-500 dark:text-slate-400">${esc(label)}</span><span class="block truncate text-[13px] font-bold text-slate-700 dark:text-slate-200">${esc(value)}</span></span>${half ? '' : '<i data-lucide="pencil" class="h-4 w-4 text-brand-700 dark:text-cream"></i>'}</button>`;
-    const lookRow = (draft, half) => pickRow('look', pennantSvg(draft.color, draft.emblem, 'h-7 w-9', draft.pattern), 'Barva a znak', `${colorOf(draft.color).name} · ${emblemOf(draft.emblem).name}`, half);
+    const lookRow = (draft, half) => pickRow('look', pennantSvg(draft.color, draft.emblem, 'h-7 w-9'), 'Barva a znak', `${colorOf(draft.color).name} · ${emblemOf(draft.emblem).name}${patternOf(draft.pattern) ? ` · ${patternOf(draft.pattern).name}` : ''}`, half);
     const inviteRow = (invites, avatar) => pickRow('invite-pick', invites.length ? avatarStack(invites, avatar)
         : '<span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gold-100 text-gold-800 dark:bg-gold-900/40 dark:text-gold-200"><i data-lucide="user-plus" class="h-4 w-4"></i></span>',
         invites.length ? `Pozvánky (${invites.length})` : 'Pozvat přátele', invites.length ? invites.map(friend => shortName(friend.display_name)).join(', ') : 'Zatím nikoho', true);
@@ -2642,43 +2675,81 @@
     };
     // Pečeť z obrázku (č. 265): šedý vosk se přebarví násobením barvou hráče (feColorMatrix, světlejší o pětinu, aby šedý vosk nebyl
     // tmavší než barva) a do vtlačeného kruhu (poloměr asi 0,23 strany) se vytiskne znak. Bez obrázku SVG kresba výš.
-    // Se vzorem (pattern) je vtlačený kruh (střed 24,1 / 24,3, poloměr 11,7) vyplněný látkou vzoru; na barevném vzoru je znak v barvě
-    // hráče s obrysem jako na praporci, na šedém vtlačený jako bez vzoru.
-    const SEAL_FIELD = { cx: 24.1, cy: 24.3, r: 11.5 };
-    const sealSvg = (colorId, emblemId, cls = 'h-14 w-14', pattern = null) => {
+    const sealSvg = (colorId, emblemId, cls = 'h-14 w-14') => {
         if (!ART.seal) return sealDrawn(colorId, emblemId, cls);
         const color = colorOf(colorId);
         const hex = color.hex;
         const [r, g, b] = hexRgb(hex).map(value => Math.min(1.4, value / 255 * 1.22).toFixed(3));
         const emblem = emblemOf(emblemId);
         const deep = mix(hex, '#000000', 0.55), light = mix(hex, '#ffffff', 0.45);
-        const vzor = patternOf(pattern);
-        let field = '';
-        let mark = `<g transform="translate(15.6 16.2) scale(0.7)">${emblem.draw(light)}</g><g transform="translate(15.6 15.6) scale(0.7)">${emblem.draw(deep)}</g>`;
-        if (vzor) {
-            const id = nextUid('cqv');
-            const { cx, cy, r: radius } = SEAL_FIELD;
-            field = `<defs>${patternDefs(id, vzor, colorId, vzor.tile * 0.8, cx, cy)}</defs><circle cx="${cx}" cy="${cy}" r="${radius}" fill="url(#${id})"/>`
-                + `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="none" stroke="${deep}" stroke-opacity="0.55" stroke-width="0.8"/>`;
-            if (vzor.colored) mark = `<g transform="translate(15.6 15.6) scale(0.7)">${emblem.halo(hex)}${emblem.draw(emblemInk(colorId))}</g>`;
-        }
         return `<svg viewBox="0 0 48 48" class="${cls}" aria-hidden="true" focusable="false"><defs><filter id="cqt-${color.id}" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="${r} 0 0 0 0 0 ${g} 0 0 0 0 0 ${b} 0 0 0 0 0 1 0"/></filter></defs>`
-            + `<image href="${artUrl(ART.seal)}" x="0" y="0" width="48" height="48" filter="url(#cqt-${color.id})"/>${field}${mark}</svg>`;
+            + `<image href="${artUrl(ART.seal)}" x="0" y="0" width="48" height="48" filter="url(#cqt-${color.id})"/>`
+            + `<g transform="translate(15.6 16.2) scale(0.7)">${emblem.draw(light)}</g><g transform="translate(15.6 15.6) scale(0.7)">${emblem.draw(deep)}</g></svg>`;
     };
-    // Okno Barva a znak ve stylu map Dobývání: pergamen, náhled praporce s pečetí, přepínač Barva / Znak jako kožené záložky.
-    // Barvy jako voskové pečeti 3 × 3 (obsazené jiným hráčem zašedlé a nejdou), znaky jako razítka na pergamenu 6 × 4
-    const lookHtml = ({ color, emblem, pattern = null, taken = [], tab = 'color', error = '' }) => `
-        <div class="cq-look cq-card-paper flex flex-col gap-2 rounded-2xl p-2.5" data-cq-look>
-            <div class="flex items-center justify-center gap-3">${pennantSvg(color, emblem, 'h-12 w-16', pattern)}<span class="flex flex-col"><span class="cq-ledger-title text-[16px]">${esc(colorOf(color).name)} · ${esc(emblemOf(emblem).name)}</span><span class="text-[11.5px] font-semibold text-amber-900/75 dark:text-gold-200/80">Takhle tě uvidí ostatní na mapě</span></span></div>
-            <div role="tablist" class="cq-look-tabs flex gap-1 rounded-xl p-1">${[['color', 'Barva', 'palette'], ['emblem', 'Znak', 'shield']].map(([id, label, icon]) => `<button type="button" role="tab" aria-selected="${tab === id}" data-cq-look-tab="${id}" class="cq-look-tab flex min-h-[2.5rem] flex-1 items-center justify-center gap-1.5 rounded-lg text-[13px] font-black"><i data-lucide="${icon}" class="h-4 w-4"></i>${label}</button>`).join('')}</div>
-            ${tab === 'color' ? `<div role="radiogroup" aria-label="Barva" class="grid grid-cols-3 gap-1">${COLORS.map(item => {
+    // Výplně území a vzácné znaky (blok 38): looks = { patterns, emblems (odemčené id), new, stats } ze serveru, null = databáze bez bloku 38
+    // (nabídka jen barev a základních znaků). Zamčené věci jsou v nabídce zašedlé se zámkem; klepnutí na ně ukáže jen „Jak získat“ s postupem
+    // (info = { kind, id } posledního klepnutí na zamčenou věc).
+    const lookItem = (kind, id) => (kind === 'pattern' ? PATTERN_BY_ID[id] : RARE_EMBLEM_BY_ID[id]) || null;
+    const lookOwned = (looks, kind, id) => Boolean(looks && Array.isArray(kind === 'pattern' ? looks.patterns : looks.emblems) && (kind === 'pattern' ? looks.patterns : looks.emblems).includes(id));
+    const emblemAllowed = (looks, id) => Boolean(EMBLEM_BY_ID[id]) || lookOwned(looks, 'emblem', id);
+    const patternAllowed = (looks, id) => !id || lookOwned(looks, 'pattern', id);
+    // Postup k odemčení: { have (nejvýš need), need }; u věcí na jedno splnění (need 1) bez čísel
+    const lookProgress = (looks, item) => ({ have: Math.min(item.need, Math.max(0, Math.floor(Number(looks && looks.stats ? looks.stats[item.stat] : 0) || 0))), need: item.need });
+    const lookHowText = (looks, item) => {
+        const { have, need } = lookProgress(looks, item);
+        return `${item.how}${need > 1 ? ` (${have}/${need})` : ''}`;
+    };
+    // Nově odemčené (looks.new) jako oznámení: { kind, id, title, name, text } (neznámé položky vypadnou); vzor = výplň území
+    const lookNews = (looks) => (looks && Array.isArray(looks.new) ? looks.new : []).map(entry => {
+        const item = entry && lookItem(entry.kind, entry.item);
+        if (!item) return null;
+        const pattern = entry.kind === 'pattern';
+        return { kind: entry.kind, id: item.id, at: entry.at || null, name: item.name, title: pattern ? 'Nová výplň území' : 'Nový vzácný znak',
+            text: `${item.name}. Najdeš ${pattern ? 'ji' : 'ho'} v okně Barva a znak.` };
+    }).filter(Boolean);
+    // Obrázek oznámení: výplň na vzorku území v barvě hráče, vzácný znak v pečeti
+    const lookNewsArt = (news, color, emblem, cls = 'h-16 w-20') => (news.kind === 'pattern' ? fillSwatchSvg(color, news.id, cls) : sealSvg(color, news.id, 'h-16 w-16'));
+    const lockMark = '<i data-lucide="lock" class="cq-seal-lock absolute bottom-0.5 right-0.5 h-3 w-3"></i>';
+    // Okno Barva a znak ve stylu map Dobývání: pergamen, náhled praporce (a výplně území), přepínač Barva / Znak / Výplň jako kožené záložky.
+    // Barvy jako voskové pečeti 3 × 3 (obsazené jiným hráčem zašedlé a nejdou), znaky jako razítka na pergamenu 6 × 4 a pod nimi vzácné znaky
+    // 6 × 2, výplně území jako vzorky 5 × 3 (první Jen barva)
+    // takenPatterns = barevné výplně, které ve hře už má jiný hráč (jen jednou ve hře, blok 38): zašedlé a nejdou
+    const lookHtml = ({ color, emblem, pattern = null, taken = [], takenPatterns = [], tab = 'color', error = '', looks = null, info = null }) => {
+        const tabs = [['color', 'Barva', 'palette'], ['emblem', 'Znak', 'shield'], ...(looks ? [['pattern', 'Výplň', 'brush']] : [])];
+        const current = looks && tab === 'pattern' ? 'pattern' : tab === 'emblem' ? 'emblem' : 'color';
+        const vzor = patternOf(pattern);
+        const infoItem = info && lookItem(info.kind, info.id);
+        const infoLine = (text, locked) => `<p data-cq-look-info class="flex min-h-[2.1rem] items-center gap-1.5 text-[12px] font-semibold leading-snug text-amber-900/85 dark:text-gold-200/85" role="status">${locked ? '<i data-lucide="lock" class="h-3.5 w-3.5 shrink-0"></i>' : '<i data-lucide="sparkles" class="h-3.5 w-3.5 shrink-0"></i>'}<span class="min-w-0">${text}</span></p>`;
+        const lockedInfo = (kind) => (infoItem && info.kind === kind ? infoLine(`<b>${esc(infoItem.name)}</b> · ${esc(lookHowText(looks, infoItem))}`, true) : '');
+        let body;
+        if (current === 'color') {
+            body = `<div role="radiogroup" aria-label="Barva" class="grid grid-cols-3 gap-1">${COLORS.map(item => {
                 const off = taken.includes(item.id) && item.id !== color;
-                return `<button type="button" role="radio" aria-checked="${item.id === color}" aria-label="${esc(item.name)}${off ? ' (má jiný hráč)' : ''}" data-cq-color="${item.id}" ${off ? 'disabled' : ''} class="cq-seal-pick relative flex h-[4.25rem] items-center justify-center rounded-xl">${sealSvg(item.id, emblem, 'h-14 w-14', pattern)}${off ? '<i data-lucide="lock" class="cq-seal-lock absolute bottom-1 right-2 h-4 w-4"></i>' : ''}</button>`;
-            }).join('')}</div>`
-            : `<div role="radiogroup" aria-label="Znak" class="grid grid-cols-6 gap-1">${EMBLEMS.map(item => `<button type="button" role="radio" aria-checked="${item.id === emblem}" aria-label="${esc(item.name)}" title="${esc(item.name)}" data-cq-emblem="${item.id}" class="cq-stamp flex h-11 items-center justify-center rounded-lg">${item.id === emblem ? sealSvg(color, item.id, 'h-10 w-10', pattern) : emblemSvg(item.id, 'currentColor', 'h-6 w-6 text-[#5a3416] dark:text-[#e2cfa4]')}</button>`).join('')}</div>`}
+                return `<button type="button" role="radio" aria-checked="${item.id === color}" aria-label="${esc(item.name)}${off ? ' (má jiný hráč)' : ''}" data-cq-color="${item.id}" ${off ? 'disabled' : ''} class="cq-seal-pick relative flex h-[4.25rem] items-center justify-center rounded-xl">${sealSvg(item.id, emblem, 'h-14 w-14')}${off ? '<i data-lucide="lock" class="cq-seal-lock absolute bottom-1 right-2 h-4 w-4"></i>' : ''}</button>`;
+            }).join('')}</div>`;
+        } else if (current === 'emblem') {
+            const stamp = (item, locked) => `<button type="button" role="radio" aria-checked="${item.id === emblem}" aria-label="${esc(item.name)}${locked ? ' (zamčený)' : ''}" title="${esc(item.name)}" data-cq-emblem="${item.id}"${locked ? ' data-cq-locked="emblem"' : ''} class="cq-stamp${locked ? ' cq-look-locked' : ''} relative flex ${looks ? 'h-9' : 'h-11'} items-center justify-center rounded-lg">${item.id === emblem ? sealSvg(color, item.id, looks ? 'h-8 w-8' : 'h-10 w-10') : emblemSvg(item.id, 'currentColor', 'h-6 w-6 text-[#5a3416] dark:text-[#e2cfa4]')}${locked ? lockMark : ''}</button>`;
+            body = `<div role="radiogroup" aria-label="Znak" class="flex flex-col gap-1"><div class="grid grid-cols-6 gap-1">${EMBLEMS.map(item => stamp(item, false)).join('')}</div>`
+                + (looks ? `<p class="cq-ledger-title mt-0.5 text-[12px]">Vzácné znaky</p><div class="grid grid-cols-6 gap-1" data-cq-rare>${RARE_EMBLEMS.map(item => stamp(item, !lookOwned(looks, 'emblem', item.id))).join('')}</div>` : '')
+                + '</div>'
+                + (looks ? (lockedInfo('emblem') || (RARE_EMBLEM_BY_ID[emblem] ? infoLine(`Vzácný znak <b>${esc(emblemOf(emblem).name)}</b>`, false) : infoLine('Vzácné znaky získáš za výhry a úspěchy v Dobývání.', false))) : '');
+        } else {
+            const swatch = (id, name, locked) => {
+                const off = !locked && Boolean(id) && takenPatterns.includes(id) && id !== (vzor ? vzor.id : null);
+                return `<button type="button" role="radio" aria-checked="${(id || null) === (vzor ? vzor.id : null)}" aria-label="${esc(name)}${locked ? ' (zamčená)' : off ? ' (má jiný hráč)' : ''}" title="${esc(name)}${off ? ' – už má jiný hráč' : ''}" data-cq-pattern="${id}"${locked ? ' data-cq-locked="pattern"' : ''}${off ? ' disabled data-cq-taken="pattern"' : ''} class="cq-stamp${locked || off ? ' cq-look-locked' : ''} relative flex h-12 items-center justify-center rounded-lg">${fillSwatchSvg(color, id || null, 'h-9 w-12')}${locked || off ? lockMark : ''}</button>`;
+            };
+            body = `<div role="radiogroup" aria-label="Výplň území" class="grid grid-cols-5 gap-1" data-cq-patterns>${swatch('', 'Jen barva', false)}${PATTERNS.map(item => swatch(item.id, item.name, !lookOwned(looks, 'pattern', item.id))).join('')}</div>`
+                + (lockedInfo('pattern') || infoLine(vzor ? `Výplň území <b>${esc(vzor.name)}</b>` : takenPatterns.some(id => PATTERN_BY_ID[id]) ? `${esc(takenPatterns.map(id => PATTERN_BY_ID[id]).filter(Boolean).map(item => item.name).join(', '))} už má jiný hráč.` : 'Výplně území získáš v Dobývání i v ostatních módech.', false));
+        }
+        return `
+        <div class="cq-look cq-card-paper flex flex-col gap-2 rounded-2xl p-2.5" data-cq-look>
+            <div class="flex items-center justify-center gap-3">${vzor ? fillSwatchSvg(color, vzor.id, 'h-12 w-16') : ''}${pennantSvg(color, emblem, 'h-12 w-16')}<span class="flex min-w-0 flex-col"><span class="cq-ledger-title text-[16px] leading-tight">${esc(colorOf(color).name)} · ${esc(emblemOf(emblem).name)}${vzor ? ` · ${esc(vzor.name)}` : ''}</span><span class="text-[11.5px] font-semibold text-amber-900/75 dark:text-gold-200/80">Takhle tě uvidí ostatní na mapě</span></span></div>
+            <div role="tablist" class="cq-look-tabs flex gap-1 rounded-xl p-1">${tabs.map(([id, label, icon]) => `<button type="button" role="tab" aria-selected="${current === id}" data-cq-look-tab="${id}" class="cq-look-tab flex min-h-[2.5rem] flex-1 items-center justify-center gap-1.5 rounded-lg text-[13px] font-black"><i data-lucide="${icon}" class="h-4 w-4"></i>${label}</button>`).join('')}</div>
+            ${body}
             <button type="button" data-cq="look-done" class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="check" class="h-5 w-5"></i> Hotovo</button>
             ${error ? `<p class="text-[13px] font-semibold text-rose-700 dark:text-rose-400" role="status">${esc(error)}</p>` : ''}
         </div>`;
+    };
 
     // Okno Pozvat přátele ve stylu map Dobývání (pergamen jako okno Barva a znak): seznam přátel s obrázkem a jménem, víc jich jde vybrat
     // (seznam se posouvá uvnitř okna), kdo už hraje nebo pozvánku má, je zašedlý; dole Pozvat (N). friends = přijatí přátelé
@@ -2733,7 +2804,7 @@
         const me = (game.players || []).find(player => player.me);
         const draw = avatarFn(avatar);
         const rows = (game.players || []).map(player => `<li class="flex items-center gap-2 rounded-2xl bg-white p-1.5 pr-2.5 shadow-sm dark:bg-slate-800 ${player.me ? 'ring-2 ring-brand-600 dark:ring-brand-400' : ''}">
-                ${pennantSvg(player.flag_color, player.emblem, 'h-7 w-9', player.pattern)}<span class="min-w-0 flex-1 truncate text-[13.5px] font-bold text-slate-800 dark:text-slate-100">${esc(player.display_name || 'Hráč')}${player.me ? ' (ty)' : ''}</span>
+                ${pennantSvg(player.flag_color, player.emblem, 'h-7 w-9')}<span class="min-w-0 flex-1 truncate text-[13.5px] font-bold text-slate-800 dark:text-slate-100">${esc(player.display_name || 'Hráč')}${player.me ? ' (ty)' : ''}</span>
                 <span class="flex shrink-0 items-center gap-1 text-[11.5px] font-black ${player.ready ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400'}"><i data-lucide="${player.ready ? 'circle-check' : 'clock'}" class="h-4 w-4"></i>${player.ready ? 'Chce hrát' : 'Čeká'}</span></li>`).join('');
         const invitedRows = (me ? game.invited || [] : []).map(friend => `<li data-cq-invited="${esc(friend.id)}" class="flex items-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 p-0.5 pl-1.5 pr-2 dark:border-slate-600">
                 <span class="flex w-9 shrink-0 justify-center opacity-60 grayscale">${draw(friend, 'h-6 w-6 text-xs')}</span><span class="min-w-0 flex-1 truncate text-[13.5px] font-bold text-slate-500 dark:text-slate-400">${esc(friend.display_name || 'Hráč')}</span>
@@ -2862,11 +2933,11 @@
             const bar = `<span class="cq-bar mt-0.5 block h-1 overflow-hidden rounded-full" aria-hidden="true"><svg viewBox="0 0 100 1" preserveAspectRatio="none" class="block h-full w-full"><rect width="${count ? Math.max(2, share) : 0}" height="1" fill="${player.color.hex}"/></svg></span>`;
             const label = `${player.place}. ${name}: ${pointsWord(player.score)}, ${territoriesWord(count)}${regions ? `, ${regionsWord(regions)}` : ''}`;
             if (compact) {
-                return `<li class="cq-rank-row${player.me ? ' cq-rank-me' : ''} flex min-w-0 items-center gap-1.5 rounded-lg px-1 py-0.5" aria-label="${esc(label)}">${medal}${pennantSvg(player.flag_color, player.emblem, 'h-4 w-5 shrink-0', player.pattern)}
+                return `<li class="cq-rank-row${player.me ? ' cq-rank-me' : ''} flex min-w-0 items-center gap-1.5 rounded-lg px-1 py-0.5" aria-label="${esc(label)}">${medal}${pennantSvg(player.flag_color, player.emblem, 'h-4 w-5 shrink-0')}
                     <span class="min-w-0 flex-1"><span class="flex items-center gap-1"><span class="min-w-0 flex-1 truncate text-[12px] font-bold text-slate-800 dark:text-slate-100">${esc(name)}</span>${movesChip(view, player, true)}<b class="shrink-0 text-[13px] font-black text-slate-900 dark:text-white">${player.score}</b></span>${bar}</span></li>`;
             }
             const detail = `${territoriesWord(count)}${regions ? ` · ${regionsWord(regions)}` : ''}`;
-            return `<li class="cq-rank-row${player.me ? ' cq-rank-me' : ''} flex min-w-0 items-center gap-2 rounded-xl px-1.5 py-1 short:py-0.5" aria-label="${esc(label)}">${medal}${pennantSvg(player.flag_color, player.emblem, 'h-5 w-[1.6rem] shrink-0', player.pattern)}
+            return `<li class="cq-rank-row${player.me ? ' cq-rank-me' : ''} flex min-w-0 items-center gap-2 rounded-xl px-1.5 py-1 short:py-0.5" aria-label="${esc(label)}">${medal}${pennantSvg(player.flag_color, player.emblem, 'h-5 w-[1.6rem] shrink-0')}
                 <span class="min-w-0 flex-1"><span class="flex items-center gap-1.5"><span class="min-w-0 truncate text-[13.5px] font-black text-slate-800 dark:text-slate-100">${esc(name)}</span><span class="min-w-0 flex-1 truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${esc(detail)}</span>${movesChip(view, player)}</span>${bar}</span>
                 <span class="flex w-9 shrink-0 flex-col items-end leading-none"><b class="text-[17px] font-black text-slate-900 dark:text-white">${player.score}</b><span class="mt-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-500 short:hidden dark:text-slate-400">${esc(pointsWord(player.score).replace(/^\d+ /, ''))}</span></span></li>`;
         }).join('');
@@ -2883,7 +2954,7 @@
         const rows = items.map(item => `<span class="cq-feed-row flex min-w-0 shrink-0 items-center gap-2 py-1 short:py-[3px]">
                 <span class="cq-tone cq-tone-${item.tone} flex h-6 w-6 shrink-0 items-center justify-center rounded-full short:h-5 short:w-5"><i data-lucide="${item.icon}" class="h-3.5 w-3.5"></i></span>
                 <span class="min-w-0 flex-1 leading-tight short:flex short:items-baseline short:gap-1"><b class="block truncate text-[12.5px] font-black text-slate-900 short:max-w-[60%] short:shrink-0 dark:text-white">${esc(item.title)}</b><span class="block truncate text-[11.5px] font-semibold text-slate-600 short:min-w-0 short:flex-1 dark:text-slate-300">${esc(item.text)}</span></span>
-                <span class="flex min-w-0 max-w-[45%] shrink-0 flex-col items-end leading-tight short:flex-row short:items-center short:gap-1.5">${item.actor ? `<span class="flex min-w-0 max-w-full items-center gap-1 text-[11.5px] font-bold text-slate-700 dark:text-slate-200"><span class="min-w-0 truncate">${esc(item.actor.me ? 'ty' : item.actor.display_name)}</span>${pennantSvg(item.actor.flag_color, item.actor.emblem, 'h-3 w-4', item.actor.pattern)}</span>` : ''}
+                <span class="flex min-w-0 max-w-[45%] shrink-0 flex-col items-end leading-tight short:flex-row short:items-center short:gap-1.5">${item.actor ? `<span class="flex min-w-0 max-w-full items-center gap-1 text-[11.5px] font-bold text-slate-700 dark:text-slate-200"><span class="min-w-0 truncate">${esc(item.actor.me ? 'ty' : item.actor.display_name)}</span>${pennantSvg(item.actor.flag_color, item.actor.emblem, 'h-3 w-4')}</span>` : ''}
                     <span class="text-[10.5px] font-semibold tabular-nums text-slate-400 dark:text-slate-500">${esc(agoLabel(item.at, now))}</span></span></span>`).join('');
         return `${head}<span class="cq-feed-list flex min-h-0 w-full flex-1 flex-col overflow-hidden">${rows}</span>`;
     };
@@ -2903,7 +2974,7 @@
     // Místní čas (ms) ze serverového času: offset = čas serveru − čas zařízení
     const localTime = (value, offset = 0) => { const time = parseTime(value); return time === null ? null : time - offset; };
     const fighterName = (view, player) => { const known = view.byId.get(player.id) || player; return known.me || player.me ? 'ty' : known.display_name || 'Hráč'; };
-    const fighterFlag = (view, player, cls = 'h-3.5 w-[1.15rem]') => { const known = view.byId.get(player.id) || player; return pennantSvg(known.flag_color, known.emblem, cls, known.pattern); };
+    const fighterFlag = (view, player, cls = 'h-3.5 w-[1.15rem]') => { const known = view.byId.get(player.id) || player; return pennantSvg(known.flag_color, known.emblem, cls); };
     const seconds = (ms) => `${(Math.max(0, ms) / 1000).toLocaleString('cs-CZ', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s`;
     const RISK_TEXT = 'Riskantní: všichni dostanou stejnou otázku a 60 s. Území získá nejrychlejší správná odpověď. Kdo odpoví správně, ale pomaleji, nezíská nic a tah ztratí.';
     // Okno bitvy v listu území: kdo bojuje, kolik zbývá na přidání, Přidat se do bitvy (s varováním), nebo proč to nejde
@@ -2942,7 +3013,7 @@
         const from = source && sources.includes(source) ? source : sources[0];
         const levelName = info.level ? LEVELS[info.level].name : 'Bez opevnění';
         const facts = [
-            `<span class="flex items-center gap-1">${owner ? pennantSvg(owner.flag_color, owner.emblem, 'h-4 w-5', owner.pattern) : '<i data-lucide="map-pin" class="h-4 w-4"></i>'}${esc(owner ? (owner.me ? 'Tvoje území' : owner.display_name) : 'Neutrální území')}</span>`,
+            `<span class="flex items-center gap-1">${owner ? pennantSvg(owner.flag_color, owner.emblem, 'h-4 w-5') : '<i data-lucide="map-pin" class="h-4 w-4"></i>'}${esc(owner ? (owner.me ? 'Tvoje území' : owner.display_name) : 'Neutrální území')}</span>`,
             `<span class="flex items-center gap-1"><i data-lucide="${info.home ? 'castle' : 'shield'}" class="h-4 w-4"></i>${esc(info.home ? `Domov · ${levelName}` : levelName)}</span>`,
             region ? `<span class="flex items-center gap-1" data-cq-region><i data-lucide="map" class="h-4 w-4"></i>${esc(regionLine(view, region, regionOwner))}</span>` : '',
             info.treasure && !owner ? '<span class="flex items-center gap-1 text-amber-700 dark:text-amber-300"><i data-lucide="gem" class="h-4 w-4"></i>Poklad: +1 tah</span>' : ''
@@ -3113,7 +3184,7 @@
         const people = `<ul class="cq-round-players grid ${players.length > 4 ? 'grid-cols-4' : `grid-cols-${Math.max(2, players.length)}`} gap-1.5" aria-label="Hráči">${players.map(player => {
             const on = ready.has(player.id) || next !== null;
             return `<li class="flex min-w-0 flex-col items-center gap-0.5" data-cq-round-player="${esc(player.id)}">
-                <span class="relative">${avatarFn(avatar)(player, 'h-11 w-11 text-xl')}<span class="absolute -bottom-1 -left-1">${pennantSvg(player.flag_color, player.emblem, 'h-3.5 w-[1.15rem]', player.pattern)}</span>
+                <span class="relative">${avatarFn(avatar)(player, 'h-11 w-11 text-xl')}<span class="absolute -bottom-1 -left-1">${pennantSvg(player.flag_color, player.emblem, 'h-3.5 w-[1.15rem]')}</span>
                     <span class="cq-tick ${on ? 'cq-tick-on' : 'cq-tick-off'} absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-md" aria-label="${on ? 'chce další kolo' : 'zatím ne'}">${on ? '<i data-lucide="check" class="h-3.5 w-3.5"></i>' : ''}</span></span>
                 <span class="max-w-full truncate text-[11.5px] font-black leading-tight">${esc(player.me ? 'Ty' : player.display_name || 'Hráč')}</span></li>`;
         }).join('')}</ul>`;
@@ -3186,7 +3257,7 @@
         return `<ol class="flex flex-col gap-1">${items.map(item => `<li class="flex items-center gap-2 rounded-xl bg-white px-2 py-1.5 shadow-sm dark:bg-slate-800">
             <i data-lucide="${item.icon}" class="h-4 w-4 shrink-0 ${TONES[item.tone] || ''}"></i>
             <span class="min-w-0 flex-1"><span class="block truncate text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">${esc(item.title)}: ${esc(item.text)}</span>
-            <span class="flex items-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">${item.actor ? `${esc(item.actor.me ? 'ty' : item.actor.display_name)}${pennantSvg(item.actor.flag_color, item.actor.emblem, 'h-3 w-4', item.actor.pattern)}` : ''}${item.victim && item.victim !== item.actor ? ` · dosud ${esc(item.victim.me ? 'ty' : item.victim.display_name)}` : ''}${item.at ? ` · ${esc(clock(item.at))}` : ''}</span></span></li>`).join('')}</ol>`;
+            <span class="flex items-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">${item.actor ? `${esc(item.actor.me ? 'ty' : item.actor.display_name)}${pennantSvg(item.actor.flag_color, item.actor.emblem, 'h-3 w-4')}` : ''}${item.victim && item.victim !== item.actor ? ` · dosud ${esc(item.victim.me ? 'ty' : item.victim.display_name)}` : ''}${item.at ? ` · ${esc(clock(item.at))}` : ''}</span></span></li>`).join('')}</ol>`;
     };
     const clock = (at) => {
         const time = parseTime(at);
@@ -3215,7 +3286,7 @@
             if (!player) return '<span class="flex-1"></span>';
             const height = ['h-14', 'h-[4.75rem]', 'h-10'][slot];
             const first = player.place === 1;
-            const flag = `<span class="relative flex h-16 w-16 items-end justify-center">${first ? (ART.laurel ? `<img src="${artUrl(ART.laurel)}" alt="" class="cq-laurel-art">` : LAUREL) : ''}<svg viewBox="0 0 40 52" class="relative h-14 w-11" aria-hidden="true" focusable="false"><path d="M4 2V50" stroke="#4a2f16" stroke-width="2.4" stroke-linecap="round"/><circle cx="4" cy="2.5" r="2.4" fill="#d69725" stroke="#7a461b" stroke-width="0.8"/><g class="cq-wave" transform="translate(5 4) scale(1.05)">${pennantGroup(player.flag_color, player.emblem, { pattern: player.pattern })}</g></svg></span>`;
+            const flag = `<span class="relative flex h-16 w-16 items-end justify-center">${first ? (ART.laurel ? `<img src="${artUrl(ART.laurel)}" alt="" class="cq-laurel-art">` : LAUREL) : ''}<svg viewBox="0 0 40 52" class="relative h-14 w-11" aria-hidden="true" focusable="false"><path d="M4 2V50" stroke="#4a2f16" stroke-width="2.4" stroke-linecap="round"/><circle cx="4" cy="2.5" r="2.4" fill="#d69725" stroke="#7a461b" stroke-width="0.8"/><g class="cq-wave" transform="translate(5 4) scale(1.05)">${pennantGroup(player.flag_color, player.emblem)}</g></svg></span>`;
             return `<div class="cq-podium-step flex min-w-0 flex-1 flex-col items-center" data-place="${player.place}">${flag}
                 <span class="cq-ledger-title max-w-full truncate text-[13px]">${esc(player.me ? 'Ty' : player.display_name || 'Hráč')}</span>
                 <span class="text-[11px] font-black text-amber-900/80 dark:text-gold-200/80">${esc(pointsWord(player.score))}</span>
@@ -3281,7 +3352,8 @@
 
     return {
         ART, MAPS, MAP_BY_ID, DURATIONS, PERIODS, PERIOD_MINUTES, LENGTHS, TEMPOS, tempoOf, defaultMinutes, minutesLabel, gameMinutes, roundLabel, MIN_PLAYERS, MAX_PLAYERS, MAX_ACTIONS, MAX_GAMES, MAX_OWN_LOBBIES, REGION_POINTS, LEVELS, REWARD_XP,
-        COLORS, COLOR_BY_ID, EMBLEMS, EMBLEM_BY_ID, RARE_EMBLEMS, PATTERNS, patternOf, emblemArtUrl, patternUrl, colorOf, emblemOf, inkOf, emblemInk, luminance, maxLevel, rewardFor,
+        COLORS, COLOR_BY_ID, EMBLEMS, EMBLEM_BY_ID, RARE_EMBLEMS, RARE_EMBLEM_BY_ID, PATTERNS, PATTERN_BY_ID, patternOf, emblemArtUrl, patternUrl, colorOf, emblemOf,
+        lookItem, lookOwned, emblemAllowed, patternAllowed, lookProgress, lookHowText, lookNews, lookNewsArt, fillSwatchSvg, patternTintRows, tileKey, COLORED_PATTERNS, inkOf, emblemInk, luminance, maxLevel, rewardFor,
         durationLabel, periodLabel, actionsLabel, timeLeft, movesWord, pointsWord, playersWord, territoriesWord, regionsWord, nextPeriodAt, agoLabel, periodLine,
         budgetTitle, budgetInnerHtml, periodStartText, PENALTY_TEXT,
         indexMap, parseRings, pointInRings, spansAt, labelSpot, labelMax, labelAt, labelFit, project, territoryAt, isAdjacent, viewOf, rank, sourcesFor, actionsFor,
