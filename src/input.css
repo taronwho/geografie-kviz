@@ -1049,6 +1049,10 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 .cq-neat-inner { fill: none; stroke: #5b3a1e; stroke-opacity: 0.55; stroke-width: 0.8; vector-effect: non-scaling-stroke; }
 .cq-washes { mix-blend-mode: multiply; }
 .cq-wash { fill-opacity: 0.46; }
+/* Bílá barva hráče: krycí lazura (násobením by na pergamenu nebyla vidět) */
+.cq-washes.cq-washes-light { mix-blend-mode: normal; }
+.cq-washes-light .cq-wash { fill-opacity: 0.74; }
+.cq-washes-light .cq-band { stroke-opacity: 0.9; }
 /* Pruh barvy podél hranice uvnitř území (polovina tahu je za hranicí a ořízne ji obrys území) */
 .cq-band { fill: none; stroke-width: 9; stroke-opacity: 0.62; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 /* Výplň území vzorem hráče (blok 38): sytější než lazura, ať je vzor vidět; u barevných vzorů (Brokát, Duha, Zlatá fólie, Hermelín) nese

@@ -23,8 +23,8 @@ const loadAllTopics = () => (allTopics = allTopics || Object.fromEntries(ALL_TOP
 const schema = fs.readFileSync(path.join(ROOT, 'supabase', 'schema.sql'), 'utf8');
 const sqlList = (name) => [...new RegExp(`function public\\.${name}\\(\\) returns text\\[\\]\\s+language sql immutable as \\$\\$ select array\\[([^\\]]+)\\]`).exec(schema)[1].matchAll(/'([a-z]+)'/g)].map(m => m[1]);
 
-test('barvy a znaky: 9 co nejodlišnějších barev a 24 znaků, shodné se serverem, platné kresby a barvy', () => {
-    assert.equal(C.COLORS.length, 9);
+test('barvy a znaky: 12 co nejodlišnějších barev a 24 znaků, shodné se serverem, platné kresby a barvy', () => {
+    assert.equal(C.COLORS.length, 12);
     assert.equal(C.EMBLEMS.length, 24);
     assert.deepEqual(C.COLORS.map(c => c.id), sqlList('conquest_colors'));
     assert.deepEqual(C.EMBLEMS.map(e => e.id), sqlList('conquest_emblems'));
@@ -51,7 +51,7 @@ test('barvy a znaky: 9 co nejodlišnějších barev a 24 znaků, shodné se serv
         assert.ok(markup.length > 40 && !/NaN|undefined/.test(markup), emblem.id);
         assert.doesNotMatch(markup, /style=/);
     }
-    assert.equal(new Set(C.COLORS.map(c => c.name)).size, 9);
+    assert.equal(new Set(C.COLORS.map(c => c.name)).size, 12);
     assert.equal(new Set(C.EMBLEMS.map(e => e.name)).size, 24);
 });
 
@@ -1445,4 +1445,26 @@ test('Dobývání: název území uprostřed a celý uvnitř (labelSpot, labelMa
     const lux = evropa.t.find(t => t.n === 'Lucembursko');
     const small = C.labelFit(lux, C.parseRings(lux.d), 11 * 0.56, 7, 18);
     assert.ok(!small.inside && small.size === 7 && Math.abs(small.x - lux.a[0]) < 6);
+});
+
+test('bílá barva hráče: krycí lazura mimo násobení (na pergamenu by nebyla vidět), tmavší inkoust okraje; ostatní barvy násobením', () => {
+    assert.equal(C.isLight('bila'), true);
+    for (const id of C.COLORS.map(c => c.id).filter(id => id !== 'bila')) assert.equal(C.isLight(id), false, id);
+    const light = C.inkOf('bila'), dark = C.inkOf('zluta');
+    assert.ok(C.luminance(light) < 0.2, `inkoust bílé je dost tmavý (${light})`);
+    assert.ok(C.luminance(dark) > 0.1);
+    const state = sampleState();
+    state.players[1] = { ...state.players[1], flag_color: 'bila' };
+    const svg = C.mapSvg(maps.evropa, C.viewOf(state, maps.evropa, 'A'));
+    const group = /<g class="cq-washes cq-washes-light"[^>]*>([\s\S]*?)<\/g>/.exec(svg);
+    assert.ok(group, 'skupina krycí lazury');
+    const owned = state.territories.filter(row => row.o === 'B').map(row => row.t);
+    for (const t of owned) {
+        assert.ok(group[1].includes(`data-wash="${t}"`), `${t}: bílé území v krycí skupině`);
+        assert.ok(svg.includes(`data-ink="${t}" d="`) && new RegExp(`data-ink="${t}" d="[^"]+" stroke="${light}"`).test(svg), `${t}: tmavší inkoust`);
+    }
+    for (const t of state.territories.filter(row => row.o === 'A').map(row => row.t)) assert.ok(!group[1].includes(`data-wash="${t}"`), `${t}: červená násobením`);
+    // Bez bílého hráče žádná krycí skupina
+    assert.doesNotMatch(C.mapSvg(maps.evropa, C.viewOf(sampleState(), maps.evropa, 'A')), /cq-washes-light/);
+    assert.match(fs.readFileSync(path.join(ROOT, 'src', 'input.css'), 'utf8'), /\.cq-washes\.cq-washes-light \{ mix-blend-mode: normal; \}/);
 });
