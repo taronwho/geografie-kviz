@@ -222,13 +222,18 @@ test('Řetězovka dne v prohlížeči', { skip: !chromium && 'Playwright není n
         assert.match(await compact(tab, '[data-chain-status]'), /^2\/7 · 3 body$/);
         assert.equal(await tab.$$eval('[data-chain-strip] .chain-link-done', links => links.length), 2);
 
-        // Špatně na 3. článku: rozhodnutí o Záchraně (neprozradí správnou odpověď)
+        // Špatně na 3. článku: rozhodnutí o Záchraně (správnou odpověď ukáže hned, jen když se Záchrana ptá na jinou odpověď)
         ask = await answers(tab);
         await choose(tab, ask.wrong);
         await tab.waitForSelector('[data-chain-decide]');
         const wrongName = chain.questions[2].options.find(option => option.id === ask.wrong).name;
         assert.match(await compact(tab, '[data-chain-decide]'), new RegExp(`Řetěz praská! „${wrongName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}“ to není`));
-        assert.ok(!(await compact(tab, '#chain-screen')).includes(`Správně bylo`));
+        const third = chain.questions[2];
+        if (third.rescue && !third.rescue.same) assert.ok((await compact(tab, '[data-chain-decide]')).includes(`Správně bylo: ${third.options[third.answer].name}.`), 'správná odpověď hned');
+        else {
+            assert.ok(!(await compact(tab, '#chain-screen')).includes(`Správně bylo`), 'Záchrana se stejnou odpovědí ji neprozradí');
+            assert.ok((await compact(tab, '[data-chain-decide]')).includes('Správnou odpověď uvidíš po Záchraně'));
+        }
         assert.ok(await tab.$('[data-chain-strip] .chain-link-broken'), 'článek praská');
         assert.deepEqual((await store(tab)).attempt.pending, { k: 3, chosen: ask.wrong, phase: 'decide' });
         await fitsScreen(tab, 'rozhodnutí o Záchraně');
