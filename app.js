@@ -16,7 +16,7 @@
         buildHints: CoreBuildHints, planRound
     } = window.MudrlantCore;
     // Sestavení otázky z textu s jednoznačností (quiz-core.js composeRound): rozlišující údaj, výměna nesprávných možností
-    const { composeRound } = window.MudrlantCore;
+    const { composeRound, MASK_RULES_FROM } = window.MudrlantCore;
     const Visuals = window.MudrlantVisuals;
     // Opakování karet (review.js) a týdenní cíle (goals.js); bez skriptu se jen nezobrazí
     const Review = window.MudrlantReview || null;
@@ -613,7 +613,9 @@
         // možností, otázka se jménem; quiz-core.js composeRound) – společně s audity
         const composed = composeRound({ item, ctx, question, special: Boolean(special), fetched: fetchedText, fallback: fallbackText(item), stableChoices,
             stableSwaps: (options.mode || mode) === 'challenge', shown, rng, photoUrl, describeVisual, photoMasks, textPhotos: ctx.textPhotos || new Set(),
-            swaps: uniqueSwapsNow(options), fixed: Boolean(options.wrong), plain: Boolean(options.plain) });
+            swaps: uniqueSwapsNow(options), fixed: Boolean(options.wrong), plain: Boolean(options.plain),
+            // Den otázky před MASK_RULES_FROM: možnosti denních módů se vyberou se zakrýváním jako dřív (dnešní sada zůstane stejná)
+            legacyChoices: String(options.day || getDayKey()) < MASK_RULES_FROM });
         question = composed.question;
         const { conflict, ambiguous, typeLabel } = composed;
         const { text, questionText, moreText, origin } = composed.texts;
@@ -6456,7 +6458,7 @@
                 if (!picked.item) throw new Error('Není z čeho vybírat');
                 // Číselná otázka, když ji výběr naplánoval (bez popisu z Wikipedie, takže chudý popis se jí netýká)
                 data = (picked.numeric && Numeric && Numeric.buildRound(picked.numeric, picked.ctx)) || (picked.time && TimeQ && TimeQ.buildRound(picked.time, picked.ctx))
-                    || await timed('sestaveni', createRoundData(picked.item, picked.ctx, picked.rng, { map: Boolean(picked.map), stableChoices: Boolean(picked.stable) }));
+                    || await timed('sestaveni', createRoundData(picked.item, picked.ctx, picked.rng, { map: Boolean(picked.map), stableChoices: Boolean(picked.stable), day: picked.dailyDate }));
                 // Chudý popis: vybere se jiná otázka (u dnešní otázky další určená položka), nejvýš třikrát; pak se vezme, co je
                 // (výzva ne: všichni hráči musí dostat stejné otázky, i když se někomu Wikipedie nenačte)
                 // Dnešní otázky od DAILY_STABLE_FROM také ne (picked.stable): výměna by závisela na tom, jestli se hráči načetla Wikipedie
@@ -6594,7 +6596,7 @@
             const picked = await dailyPicker(topicId, today)(0);
             if (picked.frozen) return playableSnapshot(picked.frozen) ? upgradeRoundData(picked.frozen) : null;
             if (!picked.item) return null;
-            const built = await createRoundData(picked.item, picked.ctx, picked.rng, { mode: 'daily', stableChoices: Boolean(picked.stable) });
+            const built = await createRoundData(picked.item, picked.ctx, picked.rng, { mode: 'daily', stableChoices: Boolean(picked.stable), day: picked.dailyDate });
             return (await settleSnapshot(picked.snapshotSeed, built)).data;
         })().catch(error => { console.error(error); return null; });
         dailyPrepared = { key, promise };
@@ -11344,7 +11346,7 @@
             const picked = await quizPick(attempt, index);
             if (picked.frozen) return playableSnapshot(picked.frozen) ? upgradeRoundData(picked.frozen) : null;
             if (!picked.item) return null;
-            const built = (picked.time && TimeQ && TimeQ.buildRound(picked.time, picked.ctx)) || await createRoundData(picked.item, picked.ctx, picked.rng, { mode: 'quiz', stableChoices: Boolean(picked.stable) });
+            const built = (picked.time && TimeQ && TimeQ.buildRound(picked.time, picked.ctx)) || await createRoundData(picked.item, picked.ctx, picked.rng, { mode: 'quiz', stableChoices: Boolean(picked.stable), day: attempt.day });
             return (await settleSnapshot(picked.snapshotSeed, built)).data;
         })().catch(error => { console.error(error); return null; });
         quizPrepared = { key, promise };
@@ -11557,7 +11559,7 @@
         } else {
             ({ ctx, item } = await mysteryPick(day));
             if (!item) throw new Error('Tajemná otázka nemá položku');
-            const built = await createRoundData(item, ctx, createSeededRandom(Mystery.seedFor(day)), { plain: true, year: Number(day.slice(0, 4)), stableChoices: day >= DAILY_STABLE_FROM });
+            const built = await createRoundData(item, ctx, createSeededRandom(Mystery.seedFor(day)), { plain: true, year: Number(day.slice(0, 4)), stableChoices: day >= DAILY_STABLE_FROM, day });
             data = (await settleSnapshot(seed, built)).data;
             if (data.id !== item.q) item = ctx.byId.get(data.id) || { q: data.id, n: data.name };
         }
@@ -12211,7 +12213,7 @@
         const typed = Boss.isTyped(slot);
         let fallback = null;
         for (let tries = 0; tries < Math.min(6, ordered.length); tries++) {
-            const data = await createRoundData(ordered[tries], ctx, createSeededRandom(Boss.questionSeed(open.week, open.n, slot, tries)), { stableChoices: stable });
+            const data = await createRoundData(ordered[tries], ctx, createSeededRandom(Boss.questionSeed(open.week, open.n, slot, tries)), { stableChoices: stable, day: open.week });
             const choices = data && data.question && Array.isArray(data.question.choices) ? data.question.choices : [];
             const playable = choices.length >= 2 && choices.filter(choice => choice && choice.correct).length === 1;
             const typeable = !typed || Boolean(data.question.match) || (Array.isArray(data.question.accepted) && data.question.accepted.length > 0);

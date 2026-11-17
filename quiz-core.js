@@ -241,6 +241,18 @@
         'al', 'el', 'ad', 'as', 'ar', 'az', 'ibn', 'bin', 'ben', 'von', 'van', 'zu', 'den', 'ten', 'ter', 'dos', 'do', 'y']);
     // Římská číslice (Karel IV.) – zakrytá by v textu schovala i čísla jiných panovníků a nic by nepřidala
     const isRomanNumeral = (word) => /^[IVXLC]+\.?$/.test(word);
+    // Pravidla zakrývání od MASK_RULES_FROM: slovo správné možnosti, které ji mezi možnostmi odliší, se zakryje ve všech tvarech
+    // (i obecné slovo tématu: syntéza u Chemické syntézy mezi Fotosyntézou a Elektrolýzou; i 2. pád množného čísla s vloženým e:
+    // kukaček u Kukačky obecné), slovo oboru (chemická, chemie, chemik) a obecná slova jen v celém názvu, a nečitelný popis (aspoň
+    // MAX_DESCRIPTION_MASKS zakrytých míst) se nahradí. Výběr možností denních módů (composeRound s legacyChoices: dny před
+    // MASK_RULES_FROM) se počítá postaru (withLegacyMasking), aby se dnešní sada nezměnila; text, který hráč vidí, je už nový.
+    const MASK_RULES_FROM = '2026-11-18';
+    let legacyMasking = false;
+    const withLegacyMasking = (legacy, run) => {
+        if (!legacy || legacyMasking) return run();
+        legacyMasking = true;
+        try { return run(); } finally { legacyMasking = false; }
+    };
     const STEM_ALTERNATIONS = [
         [/h$/iu, 'z'], [/h$/iu, 'ž'], [/g$/iu, 'z'], [/g$/iu, 'ž'], [/ch$/iu, 'š'], [/k$/iu, 'c'], [/k$/iu, 'č'],
         [/r$/iu, 'ř'], [/ň$/iu, 'n'], [/ť$/iu, 't'], [/ď$/iu, 'd']
@@ -256,6 +268,15 @@
     // Sněžka → Sněžk/Sněžc, Hradec → Hradc, Plzeň → Plzn
     // Přídavná jména, která se z názvu nedají odvodit pravidlem (Kypr → kyperský, Bosna → bosenský)
     const SPECIAL_STEMS = { kypr: ['Kyper'], bosna: ['Bosen'], mauritius: ['Mauricij', 'Mauric'], 'srí': ['Srílan'], lanka: ['Lansk'] };
+    // Kmen s vloženým e (2. pád množného čísla podstatných jmen na -ka, -la, -na, -ra, -ko, -lo, -no, -ce…): kukačka → kukaček,
+    // jehla → jehel, okno → oken, sestra → sester, číslo → čísel. Jen slovo zakončené samohláskou s kmenem od minLength písmen, který končí
+    // souhláskou a jednou z k, l, n, r, m, c (Brno ani Praha ne); null = slovo takový tvar nemá. Pravidla od MASK_RULES_FROM.
+    const fleetingStem = (word, minLength = 4) => {
+        if (legacyMasking) return null;
+        const bare = String(word || '').replace(/[aeiouyáéěíóúůý]$/iu, '');
+        if (bare === word || bare.length < minLength || !/[^aeiouyáéěíóúůý\s\-][klnrmc]$/iu.test(bare) || /(?:ch|ck|sk)$/iu.test(bare)) return null;
+        return `${bare.slice(0, -1)}e${bare.slice(-1)}`;
+    };
     const getWordStems = (word) => {
         const stems = new Set([word.replace(/[aeiouyáéěíóúůý]$/iu, ''), word.replace(/[aeiouyáéěíóúůý]+$/iu, '')]);
         // Rody a národy v množném čísle: Přemyslovci → Přemyslovec, přemyslovský; Lucemburkové → Lucemburk, Lucemburků
@@ -300,6 +321,9 @@
         for (const stem of [...stems]) {
             if (stem.length >= 5) stems.add(stem.replace(/e([^aeiouyáéěíóúůý])$/iu, '$1'));
         }
+        // Vložené e ve 2. pádě množného čísla: kukačka → kukaček, matka → matek, okno → oken, sestra → sester (jen kmen od čtyř písmen)
+        const fleeting = fleetingStem(word);
+        if (fleeting) stems.add(fleeting);
         for (const stem of [...stems]) {
             stems.add(stem.replace(/[áéíóúůýÁÉÍÓÚÝ]/g, ch => SHORT_VOWELS[ch]));
         }
@@ -351,7 +375,8 @@
     // „heap out of memory“ při překladu výrazu po ~3 000 otázkách), na jednu otázku jich stačí desítky
     const CENSOR_CACHE_SIZE = 400;
     const censorPatternsFor = (phrase) => {
-        const cached = censorPatterns.get(phrase);
+        const key = `${legacyMasking ? 'legacy' : 'v2'}|${phrase}`;
+        const cached = censorPatterns.get(key);
         if (cached) return cached;
         // Dvojtečka, středník a uvozovky ve slovech neruší (Pán prstenů: Návrat krále – „prstenů:“ jinak kmen nenajde)
         const words = stripBrackets(phrase).trim().split(/[\s,\-–:;!?„“”"…\/]+/).filter(Boolean);
@@ -365,7 +390,7 @@
             shortCapitals.length ? new RegExp(NOT_LETTER_BEFORE + '(?:' + shortCapitals.map(escapeRegExp).join('|') + ')' + NOT_LETTER_AFTER, 'gu') : null
         ].filter(Boolean);
         if (censorPatterns.size >= CENSOR_CACHE_SIZE) censorPatterns.clear();
-        censorPatterns.set(phrase, patterns);
+        censorPatterns.set(key, patterns);
         return patterns;
     };
     // Vzory mají příznak g: replace() začíná vždy od začátku textu, takže sdílený výraz nevadí
@@ -526,15 +551,42 @@
         return lowercase(original).filter(word => (left.get(word) || 0) > 0 ? (left.set(word, left.get(word) - 1), false) : true).length;
     };
     const isNonsense = (original, censored, maxShare) => censoredShare(censored) > maxShare && maskedCommonWords(original, censored) >= 1;
-    const chooseDescription = (description, more, censor, { maxShare = MAX_CENSORED_SHARE, minWords = 14, startOk = () => true } = {}) => {
-        if (!description || !more || !isNonsense(description, censor(description), maxShare)) return { description, more };
-        const sentences = splitSentences(`${description} ${more}`);
+    // Čitelnost popisu po zakrytí (od MASK_RULES_FROM): popis s aspoň MAX_DESCRIPTION_MASKS zakrytými místy, nebo s aspoň dvěma, které
+    // tvoří víc než MAX_READABLE_MASK_SHARE slov („[***] má dva významy: [***] reakce a obor [***]“), je nepoužitelný: nahradí ho jiné
+    // věty úvodu (chooseDescription), jinak krátký popis z Wikidat, jinak nic (otázka je chudá: trénink vezme jinou položku, denní módy
+    // ukážou fakta a rozlišující údaj). Jedno zakryté místo (podmět „[***] je řeka.“) je běžné a nevadí.
+    const MAX_DESCRIPTION_MASKS = 4;
+    const MAX_READABLE_MASK_SHARE = 0.2;
+    const maskCount = (text) => (String(text || '').match(/\[\*\*\*\]/g) || []).length;
+    const tooManyMasks = (text, maxMasks = MAX_DESCRIPTION_MASKS) => {
+        if (legacyMasking || !text) return false;
+        const marks = maskCount(text);
+        return marks >= maxMasks || (marks >= 2 && censoredShare(text) > MAX_READABLE_MASK_SHARE);
+    };
+    const MIN_PREFIX_WORDS = 5;
+    const chooseDescription = (description, more, censor, { maxShare = MAX_CENSORED_SHARE, minWords = 14, startOk = () => true, unreadable = () => false } = {}) => {
+        const first = description ? censor(description) : '';
+        // Nečitelný popis (unreadable) se zkusí nahradit i jeho vlastními dalšími větami, když další věty úvodu nejsou
+        const bad = unreadable(first);
+        if (!description || (!more && !bad) || !(bad || isNonsense(description, first, maxShare))) return { description, more };
+        const sentences = splitSentences(`${description} ${more || ''}`.trim());
+        // Nečitelný popis: nejdřív nejdelší čitelný začátek úvodu (úvodní věta „[***] je nejdelší řeka v Polsku.“ bez dalších vět
+        // s dalšími [***]), aspoň MIN_PREFIX_WORDS skutečných slov; zbytek přejde do dalších vět
+        if (bad) {
+            for (let end = Math.min(sentences.length - 1, 3); end >= 1; end--) {
+                const window = sentences.slice(0, end).join(' ');
+                const censored = censor(window);
+                if (!isNonsense(window, censored, maxShare) && !unreadable(censored) && countRealWords(censored) >= MIN_PREFIX_WORDS) {
+                    return { description: window, more: sentences.slice(end).join(' ') };
+                }
+            }
+        }
         for (let start = 1; start < sentences.length; start++) {
             if (!startOk(sentences[start])) continue;
             for (let end = start + 1; end <= Math.min(sentences.length, start + 3); end++) {
                 const window = sentences.slice(start, end).join(' ');
                 const censored = censor(window);
-                if (!isNonsense(window, censored, maxShare) && censoredShare(censored) <= maxShare && countRealWords(censored) >= minWords) {
+                if (!isNonsense(window, censored, maxShare) && censoredShare(censored) <= maxShare && !unreadable(censored) && countRealWords(censored) >= minWords) {
                     return { description: window, more: sentences.slice(end).join(' ') };
                 }
             }
@@ -906,6 +958,8 @@
     // Přivlastňovací a přídavná jména velkým písmenem (Nobelovu cenu, Americký) nejsou součást jména
     // Tituly a druhy děl na začátku věty (Prezident [***], Kniha [***]) nejsou součást jména
     const NOT_NAME_START = /^(?:Prezident|Král|Královna|Císař|Papež|Sir|Lord|Lady|Doktor|Dr|Profesor|Pan|Paní|Hrabě|Kníže|Car|Generál|Kapitán|Kniha|Román|Film|Báseň|Bitva|Skladatel|Spisovatel|Malíř|Herec|Režisér|Chemik|Fyzik|Architekt|Zpěvák|Sv|St|Svatý|Svatá|Saint|Sankt|Santa|San|Rod|Rodina|Skupina|Kapela)$/u;
+    // Sloveso na začátku věty („Je katedrálou [***]…“) jménem není (od MASK_RULES_FROM)
+    const SENTENCE_VERB = /^(?:Je|Jsou|Byl|Byla|Bylo|Byli|Byly|Bude|Budou|Má|Mají|Měl|Měla|Mělo)$/u;
     const ADJECTIVE_LIKE = /(?:ov[áaéeuúyoůí]|ův|[sc]k[ýáéíou]|ní|ný|ná|né)$/u;
     // Je odpověď jméno osoby (dvě až čtyři slova velkým písmenem, případně s předložkou: Edgar Allan Poe, Leonardo da Vinci)?
     const isPersonName = (name) => {
@@ -941,7 +995,7 @@
             result = result.replace(/(^|[.!?]\s+)((?:(?:\[\*\*\*\]|\p{Lu}[\p{L}'’.\-]*|de|da|di|del|della|van|von|der|le|la|bin|ibn)(?:[  ]+|(?=,)))+)/gu, (match, start, head) => {
                 if (!head.includes('[***]')) return match;
                 return start + head.replace(LETTER_RUN, word => /^\p{Lu}/u.test(word) && word.length >= 2 && !isRomanNumeral(word) && !ADJECTIVE_LIKE.test(word) && !NOT_NAME_START.test(word)
-                    && !keepKeys.has(foldKeys(word)[0]) ? '[***]' : word);
+                    && !(!legacyMasking && SENTENCE_VERB.test(word)) && !keepKeys.has(foldKeys(word)[0]) ? '[***]' : word);
             });
         }
         return mergeCensored(result);
@@ -978,6 +1032,50 @@
         const kept = words.filter(word => !isGenericWord(word, extra));
         return kept.length ? kept.join(' ') : name;
     }).join(', ');
+    // Slovo oboru (chemie, chemický, chemik, biologický, fyzikální, historický, sportovní…): v otázce tématu, kde jsou všechny možnosti
+    // z téhož oboru, nic neprozradí. Ve víceslovném názvu (Chemická syntéza) se proto samo nezakrývá – jen jako součást celého názvu –
+    // a nezakrývají se ani slova od něj odvozená (chemie, chemii, chemik u Chemické syntézy). Kořen a nejvýš šest dalších písmen
+    // (chemiluminiscence slovem oboru není). Pravidla od MASK_RULES_FROM.
+    const FIELD_ROOTS = ['chemi', 'biolog', 'fyzik', 'geolog', 'histor', 'mytolog', 'literar', 'literatur', 'hudeb', 'sport', 'film', 'architekt',
+        'umelec', 'zemepis', 'geograf', 'matemat', 'astronom', 'botani', 'zoolog'];
+    const isFieldWord = (word) => {
+        if (legacyMasking) return false;
+        const folded = foldPlain(String(word || ''));
+        return FIELD_ROOTS.some(root => folded.startsWith(root) && folded.length - root.length <= 6);
+    };
+    // Celý víceslovný název ve všech tvarech slov (chemická syntéza, chemické syntézy, chemickou syntézou) jedním blokem
+    const phrasePatterns = new Map();
+    const phrasePatternFor = (name) => {
+        if (phrasePatterns.has(name)) return phrasePatterns.get(name);
+        const words = stripBrackets(String(name || '')).trim().split(/\s+/).filter(Boolean);
+        const part = (word) => {
+            const stems = word.length >= 3 ? getWordStems(word).filter(stem => stem.length >= 3) : [];
+            return `(?:${[...stems.map(stem => `${escapeRegExp(stem)}\\p{L}*`), escapeRegExp(word)].join('|')})`;
+        };
+        const pattern = words.length >= 2 ? new RegExp(NOT_LETTER_BEFORE + words.map(part).join('[\\s\\u00a0\\-–]+') + NOT_LETTER_AFTER, 'giu') : null;
+        if (phrasePatterns.size >= CENSOR_CACHE_SIZE) phrasePatterns.clear();
+        phrasePatterns.set(name, pattern);
+        return pattern;
+    };
+    const censorPhrases = (text, names) => names.reduce((result, name) => { const pattern = phrasePatternFor(name); return pattern ? result.replace(pattern, '[***]') : result; }, String(text ?? ''));
+    // Zakrytí názvu položky: celý název ve všech tvarech a z jednotlivých slov jen ta, která něco prozradí (ne obecná slova názvu
+    // ani slova oboru). Název jen z obecných slov a slov oboru (Chemická syntéza) se zakryje jen celý – „chemická reakce“ i „obor
+    // chemie“ zůstanou čitelné; výrazné slovo (syntéza mezi jinými reakcemi) zakryje až sealAnswerWords podle možností otázky.
+    // Jednoslovný název (Oxidace) celý vždy. Před MASK_RULES_FROM jako dřív (specificWords: bez výrazných slov celý název po slovech).
+    const censorItemName = (text, names, extra = null) => {
+        const list = names.filter(Boolean);
+        if (legacyMasking) return censorName(text, specificWords(list, extra));
+        const words = list.map(name => {
+            const parts = name.split(/\s+/).filter(Boolean);
+            return parts.length < 2 ? name : parts.filter(word => !isGenericWord(word, extra) && !isFieldWord(word)).join(' ');
+        }).filter(Boolean);
+        return censorName(censorPhrases(text, list), words.join(', '));
+    };
+    // Víceslovný název jen z obecných slov a slov oboru: v textu se hledá jen celý (censorItemName), ne po slovech
+    const onlyGenericWords = (name, extra = null) => {
+        const parts = stripBrackets(String(name || '')).split(/\s+/).filter(word => /\p{L}/u.test(word));
+        return !legacyMasking && parts.length >= 2 && parts.every(word => isGenericWord(word, extra) || isFieldWord(word) || CENSOR_SKIP_WORDS.has(word.toLowerCase()) || JOINING_WORDS.includes(word.toLowerCase()));
+    };
     // Obecné slovo názvu hned vedle zakryté části zmizí s ní („[***] park“ u Jurského parku, „Národní park [***]“) –
     // samostatně („je národní park v…“) zůstane
     const absorbGenericWords = (text, names, mark = '[***]', extra = null) => {
@@ -993,7 +1091,8 @@
     // Přezdívka nebo rodné jméno, které začíná stejně jako jméno (Bert a Berthold u Bertolta Brechta); obecné slovo názvu
     // (Stadion u Městského stadionu) přezdívkou není, ani když stojí na začátku věty velkým písmenem
     const hideNicknames = (text, item, extra = null) => {
-        const roots = [item.n, displayName(item.t || '')].join(' ').split(/[\s\-–,.]+/).filter(word => word.length >= 5 && !isGenericWord(word, extra))
+        const roots = [item.n, displayName(item.t || '')].join(' ').split(/[\s\-–,.]+/).filter(word => word.length >= 5 && !isGenericWord(word, extra)
+            && !(isFieldWord(word) && /\s/.test(String(item.n || '').trim())))
             .map(word => normalizeAnswer(word).slice(0, 4));
         return mergeCensored(text.replace(/(?<![\p{L}\p{N}])\p{Lu}\p{L}{3,}/gu, word => roots.includes(normalizeAnswer(word).slice(0, 4)) ? '[***]' : word));
     };
@@ -1029,7 +1128,7 @@
         const aliases = ctx.topic.nameAliases ? ctx.topic.nameAliases(item, ctx) : [];
         const names = [item.n, displayName(item.t), ...aliases];
         const extra = genericWordsOf(ctx);
-        return hideNicknames(mergeCensored(absorbGenericWords(censorName(text, specificWords(names, extra)), names, '[***]', extra)), item, extra);
+        return hideNicknames(mergeCensored(absorbGenericWords(censorItemName(text, names, extra), names, '[***]', extra)), item, extra);
     };
     // Co je odpověď na otázku: u otázky na název název položky, jeho titulek a další názvy (vědecký název druhu je schválně
     // poslední nápovědou), u ostatních druhů všechny přijímané odpovědi (autor, režisér, stát…); století, značky a vzorce
@@ -1280,46 +1379,90 @@
             return plural.includes(folded) || stems.some(stem => folded.startsWith(stem) && ADJECTIVE_ENDING.test(folded.slice(stem.length))) ? '[***]' : word;
         }));
     };
-    // Poslední pojistka: slovo správné možnosti (nebo další podoby jejího názvu), které žádná nesprávná možnost nemá (Poznani u
-    // Městského stadionu v Poznani), v textu nezůstane. Obecná slova, předložky a slova, která hráč vidí v zadání, ano; malá slova
-    // názvu jen celá a od pěti písmen (přívlastek „pes“ v názvu filmu běžné slovo nezakryje). aliases = už vybraná slova dalších
-    // názvů (aliasWords)
-    const sealAnswerWords = (text, choices, { aliases = [], isGeneric = () => false, isType = isGeneric, keep = [] } = {}) => {
-        const value = String(text || '');
+    // Slova správné možnosti, která ji mezi možnostmi odliší (nemá je žádná nesprávná možnost, nejsou předložky ani vidět v zadání
+    // a ve víceslovném názvu nejsou slovem oboru: chemická u Chemické syntézy). capital = velkým písmenem; proper = vlastní jméno
+    // (ne první slovo názvu psaného jako věta: Kukačka obecná, Chemická syntéza – to je obyčejné slovo, přivlastňovací Ohmův zákon
+    // ano); common = obyčejné slovo, které se od MASK_RULES_FROM hledá ve všech tvarech pádu a přídavného jména (i obecné slovo tématu:
+    // syntéza, most; ne běžná slova jako velký, nový). null = otázka nemá jednu správnou možnost.
+    const POSSESSIVE_WORD = /(?:ův|ova|ovo|ovy|ovu|in|ina|ino|iny)$/u;
+    // Běžná slova, která text používá i bez souvislosti s názvem (velký, nový, starý, severní, hlavní, obecně, národní): ve všech
+    // tvarech se nehledají. Barvy ano – „zelenou barvu kůže“ u Leguána zeleného mezi jinými leguány odpověď prozradí
+    const EVERYDAY_WORD = /^(?:velk|velik|mal[yaeo]|nov[yaeo]|star[yaeo]|horn|doln|severn|jizn|vychodn|zapadn|stredn|narodn|hlavn|svat|lidov|prvn|druh|tret|krasn|svobodn|kralovsk|cisarsk|statn|mestsk|spojen|obecn|republi|federac|svaz|kniha|vlajk|znak)/u;
+    const answerWordTargets = (choices, { keep = [] } = {}) => {
         const correct = (choices || []).filter(choice => choice.correct);
-        if (!value || correct.length !== 1) return value;
+        if (correct.length !== 1) return null;
         const wrong = choiceWordTokens(choices.filter(choice => !choice.correct));
         const none = new Set();
         const keepKeys = wordKeySet(keep);
-        const distinct = [...new Set(stripBrackets(String(correct[0].label || '')).split(LABEL_WORDS))].filter(word => !/\d/.test(word) && word.length >= 3
+        const labelWords = stripBrackets(String(correct[0].label || '')).split(LABEL_WORDS).filter(word => /[\p{L}\p{N}]/u.test(word));
+        const multi = labelWords.length > 1;
+        const sentenceCase = !legacyMasking && multi && labelWords.slice(1).every(word => !/^\p{Lu}/u.test(word));
+        return [...new Set(labelWords)].filter(word => !/\d/.test(word) && word.length >= 3
             && !CENSOR_SKIP_WORDS.has(word.toLowerCase()) && !JOINING_WORDS.includes(word.toLowerCase()) && !isRomanNumeral(word) && !keepKeys.has(foldKeys(word)[0])
-            && !relatesToAnswer(word, wrong, none));
+            && !relatesToAnswer(word, wrong, none) && !(multi && isFieldWord(word))).map(word => {
+            const capital = /^\p{Lu}/u.test(word);
+            const proper = capital && !(sentenceCase && word === labelWords[0] && !POSSESSIVE_WORD.test(word));
+            const common = !legacyMasking && !proper && word.length >= 4 && !EVERYDAY_WORD.test(foldPlain(word));
+            return { word, capital, proper, common };
+        });
+    };
+    // Tvary obyčejného slova (bez diakritiky): pád a přídavné jméno ze základu (syntéza → syntézy, syntéz, syntézou; obecná → obecného),
+    // střídání souhlásky před e, i (kukačka → kukačce, Praha → Praze, moucha → mouše) a vložené e (kukaček, matek, oken)
+    const COMMON_TAIL = /^(?:a|e|i|o|u|y|ou|em|um|ech|ach|ich|ami|emi|ovi|eho|emu|ych|ym|ymi|iho|imu|im|imi)?$/;
+    const COMMON_ALTERNATIONS = [[/k$/, 'c'], [/h$/, 'z'], [/g$/, 'z'], [/ch$/, 's']];
+    const commonForms = (word) => {
+        const folded = foldPlain(word);
+        const forms = new Set([folded]);
+        const base = folded.replace(CASE_TAIL, '');
+        if (base.length >= 3 && base !== folded) {
+            forms.add(base);
+            for (const [pattern, replacement] of COMMON_ALTERNATIONS) if (pattern.test(base)) forms.add(base.replace(pattern, replacement));
+        }
+        // Obyčejné slovo se hledá jen celým tvarem, proto i krátký kmen: okno → oken
+        const fleeting = fleetingStem(word, 3);
+        if (fleeting) forms.add(foldPlain(fleeting));
+        return [...forms].filter(form => form.length >= 3);
+    };
+    const isCommonForm = (word, bases) => { const folded = foldPlain(word); return bases.some(base => folded.startsWith(base) && COMMON_TAIL.test(folded.slice(base.length))); };
+    const maskCommonForms = (text, words, keepKeys = new Set()) => {
+        const bases = words.flatMap(commonForms);
+        if (!bases.length) return text;
+        return mergeCensored(String(text).replace(LETTER_RUN, word => word.length >= 3 && !keepKeys.has(foldKeys(word)[0]) && isCommonForm(word, bases) ? '[***]' : word));
+    };
+    // Poslední pojistka: slovo správné možnosti (nebo další podoby jejího názvu), které žádná nesprávná možnost nemá (Poznani u
+    // Městského stadionu v Poznani), v textu nezůstane. Předložky, slova oboru a slova, která hráč vidí v zadání, ano; malá slova
+    // názvu jen celá a od pěti písmen (přívlastek „pes“ v názvu filmu běžné slovo nezakryje). aliases = už vybraná slova dalších
+    // názvů (aliasWords). Od MASK_RULES_FROM i obyčejná a obecná slova, která možnost odliší, ve všech tvarech (answerWordTargets: common)
+    const sealAnswerWords = (text, choices, { aliases = [], isGeneric = () => false, isType = isGeneric, keep = [] } = {}) => {
+        const value = String(text || '');
+        const targets = value ? answerWordTargets(choices, { keep }) : null;
+        if (!targets) return value;
+        const keepKeys = wordKeySet(keep);
         // Slova názvu jako všude (maskLeaks): jména velkým písmenem, malá slova od šesti písmen (ne obecná slova tématu: velký, lyžování,
         // napětí); k tomu jiné pády jmen (v Poznani → Poznaň, nad Rýnem → Rýna) a místo z přídavného jména (japonský → Japonska)
-        const words = distinct.filter(word => !isGeneric(word) && (/^\p{Lu}/u.test(word) || word.length >= 6));
-        const forms = distinct.filter(word => !isType(word) && (/^\p{Lu}/u.test(word) || /[sc]k[ýáé]$/u.test(word)));
+        const words = targets.filter(({ word, capital }) => !isGeneric(word) && (capital || word.length >= 6)).map(target => target.word);
+        const forms = targets.filter(({ word, capital }) => !isType(word) && (capital || /[sc]k[ýáé]$/u.test(word))).map(target => target.word);
         const label = maskWordForms(words.length ? maskLeaks(value, words, { isGeneric, keep, runs: false }) : value, forms, { isGeneric: isType, keepKeys, lower: ADJECTIVE_TAIL });
-        const named = maskWordForms(label, aliases.filter(word => !isAdjectiveWord(word)), { isGeneric, keepKeys });
+        const common = maskCommonForms(label, targets.filter(target => target.common).map(target => target.word), keepKeys);
+        const named = maskWordForms(common, aliases.filter(word => !isAdjectiveWord(word)), { isGeneric, keepKeys });
         return maskAdjectiveForms(named, aliases.filter(isAdjectiveWord), { isGeneric, keepKeys });
     };
     // Nezávislá kontrola po zakrytí (Dobývání: completeQuestion): slova textu, která jsou tvarem výrazného slova správné možnosti
     // (nemá ho žádná nesprávná možnost, není obecné ani vidět v zadání; jména velkým písmenem, malá slova od šesti písmen jako
     // u sealAnswerWords). Shoda bez diakritiky celá, nebo základ slova (bez pádové koncovky) a koncovka pádu či přídavného jména
     // (Poznani → Poznań, nad Rýnem → Rýna, v Kolíně → kolínského, poznaňští); jméno malým písmenem jen jako přídavné jméno
-    // (poznat u Poznaně ne). Vrátí nalezená slova; prázdné pole = text odpověď neprozradí.
+    // (poznat u Poznaně ne). Od MASK_RULES_FROM i tvary obyčejných slov, která možnost odliší (syntéz, kukaček; answerWordTargets).
+    // Vrátí nalezená slova; prázdné pole = text odpověď neprozradí.
     const PLURAL_ADJECTIVE_TAIL = /^(?:sti|ste|cti|cte)$/;
     const answerWordsLeft = (text, choices, { isGeneric = () => false, keep = [] } = {}) => {
         const value = String(text || '');
-        const correct = (choices || []).filter(choice => choice.correct);
-        if (!value || correct.length !== 1) return [];
-        const wrong = choiceWordTokens(choices.filter(choice => !choice.correct));
-        const none = new Set();
+        const all = value ? answerWordTargets(choices, { keep }) : null;
+        if (!all) return [];
         const keepKeys = wordKeySet(keep);
-        const targets = [...new Set(stripBrackets(String(correct[0].label || '')).split(LABEL_WORDS))].filter(word => !/\d/.test(word) && word.length >= 3
-            && (/^\p{Lu}/u.test(word) || word.length >= 6) && !CENSOR_SKIP_WORDS.has(word.toLowerCase()) && !JOINING_WORDS.includes(word.toLowerCase())
-            && !isRomanNumeral(word) && !isGeneric(word) && !GENERIC_NAME_WORDS.has(word.toLocaleLowerCase('cs')) && !keepKeys.has(foldKeys(word)[0])
-            && !relatesToAnswer(word, wrong, none)).map(word => ({ forms: baseForms(word), proper: /^\p{Lu}/u.test(word) }));
-        if (!targets.length) return [];
+        const targets = all.filter(({ word, capital }) => (capital || word.length >= 6) && !isGeneric(word) && !GENERIC_NAME_WORDS.has(word.toLocaleLowerCase('cs')))
+            .map(({ word, capital }) => ({ forms: baseForms(word), proper: capital }));
+        const common = all.filter(target => target.common).flatMap(target => commonForms(target.word));
+        if (!targets.length && !common.length) return [];
         const tailOk = (tail, base, capital, proper) => {
             const adjective = tail.length > 0 && (ADJECTIVE_TAIL.test(tail) || PLURAL_ADJECTIVE_TAIL.test(tail));
             if (!adjective && !NAME_TAIL.test(tail)) return false;
@@ -1333,7 +1476,8 @@
             if (word.length < 3 || keepKeys.has(foldKeys(word)[0])) continue;
             const folded = foldPlain(word);
             const capital = /^\p{Lu}/u.test(word);
-            if (targets.some(target => target.forms.some(base => folded.startsWith(base) && tailOk(folded.slice(base.length), base, capital, target.proper)))) found.push(word);
+            if (targets.some(target => target.forms.some(base => folded.startsWith(base) && tailOk(folded.slice(base.length), base, capital, target.proper)))
+                || (common.length && isCommonForm(word, common))) found.push(word);
         }
         return found;
     };
@@ -1374,7 +1518,9 @@
         const hidden = hideOtherChoices(subject ? subject.text : shown.text, question, ctx, [item.ty, category.one].filter(Boolean).join(' '));
         const censored = mergeCensored(censorForItem(question.type, hidden, item, ctx).replaceAll(CHOICE_MARK, '[***]'));
         const keepWords = [question.title, question.showName ? item.n : '', item.ty, ...(ctx.topic.keepWords ? ctx.topic.keepWords(question.type, item, ctx) : []), ...keep];
-        const masked = maskLeaks(censored, names, { isGeneric, keep: keepWords, runs: names.some(isPersonName) });
+        // Název jen z obecných slov a slov oboru (Chemická syntéza) zakrylo celé zakrytí názvu; po slovech (chemie, chemik) ne
+        const leakNames = names.filter(name => !onlyGenericWords(name, extra));
+        const masked = maskLeaks(censored, leakNames, { isGeneric: (word) => isGeneric(word) || isFieldWord(word), keep: keepWords, runs: names.some(isPersonName) });
         const sealed = sealStructure(mergeCensored(swallowAliases(named ? hideNicknameRuns(masked) : masked)), question);
         // Pojistka: obecná podstatná jména druhu (stadion, liga) zůstanou, přívlastek názvu (japonský u Velekraba japonského) ne
         const isType = (word) => GENERIC_NAME_WORDS.has(word.toLocaleLowerCase('cs')) || (isGeneric(word) && !/[ýáéí]$/u.test(word));
@@ -1401,7 +1547,8 @@
         return answerWordsLeft(value, question.choices, { isGeneric: (word) => isGenericWord(word, extra), keep }).length ? '' : value;
     };
     // extend: false = bez prodloužení obecného popisu (audit jednoznačnosti: stav „před“)
-    const buildQuestionTexts = (item, ctx, question, fetched, { special = false, extend = true } = {}) => {
+    // short = krátký popis z Wikidat ({ description, fallback: true }), který nahradí nečitelný popis z článku (tooManyMasks)
+    const buildQuestionTexts = (item, ctx, question, fetched, { special = false, extend = true, short = null } = {}) => {
         if (ctx.topic.withholdText && ctx.topic.withholdText(question.type, item, ctx)) {
             return { text: fetched, questionText: '', moreText: '', origin: 'withheld' };
         }
@@ -1413,24 +1560,33 @@
         const extra = genericWordsOf(ctx);
         const subject = named && !fetched.fallback ? leadSubject(fetched.description, [...answerNamesFor(question, item, ctx), ...parenthesised], { isGeneric: (word) => isGenericWord(word, extra), label }) : null;
         const aliases = [...parenthesised, ...(subject ? subject.aliases : [])];
-        const censorText =(value) => hideAnswer(value, question, item, ctx, { aliases, lead: !fetched.fallback && value === fetched.description });
+        // Úvodní věta je i začátek popisu, který chooseDescription zkrátil (nečitelný zbytek přešel do dalších vět)
+        const isLead = (value) => value === fetched.description || (!legacyMasking && Boolean(value) && String(fetched.description || '').startsWith(value));
+        const censorText = (value) => hideAnswer(value, question, item, ctx, { aliases, lead: !fetched.fallback && isLead(value) });
         const text = fetched.fallback ? fetched
-            : { ...fetched, ...chooseDescription(fetched.description, fetched.more, censorText, { startOk: sentence => !OUT_OF_CONTEXT.test(sentence) }) };
+            : { ...fetched, ...chooseDescription(fetched.description, fetched.more, censorText, { startOk: sentence => !OUT_OF_CONTEXT.test(sentence), unreadable: (value) => tooManyMasks(value) }) };
         const leakFree = (value) => leakFreeText(value, question, item, ctx);
         let questionText = leakFree(censorText(text.description));
+        let origin = fetched.fallback ? 'fallback' : 'article';
         if (!fetched.fallback && censoredShare(questionText) > MAX_USABLE_CENSORED_SHARE) questionText = '';
+        // Nečitelný popis (samé [***]) ani jiné věty úvodu nepomohly: krátký popis z Wikidat, když je čitelný, jinak žádný (otázka je chudá)
+        if (tooManyMasks(questionText)) {
+            const shortText = !fetched.fallback && short && short.description ? leakFree(hideAnswer(short.description, question, item, ctx)) : '';
+            questionText = shortText && !tooManyMasks(shortText) ? shortText : '';
+            if (shortText && questionText) origin = 'fallback';
+        }
         // Obecný popis („[***] byl český herec, komik a dramatik.“) prodlouží další věty úvodu, dokud nepřijde konkrétní údaj
         // (rok, číslo, jméno, název díla); věty, které popis převzal, už v nápovědě Další věty nejsou. Jen u otázky na název bez
         // obrázku (u obrázku je popis až nápovědou)
         let rest = text.more || '';
         const shownImage = ctx.topic.questionImage ? ctx.topic.questionImage(item, ctx, question.type) : null;
-        if (extend && named && !special && !shownImage && !fetched.fallback && questionText && rest && !isSpecificText(questionText)) {
+        if (extend && named && !special && !shownImage && origin === 'article' && questionText && rest && !isSpecificText(questionText)) {
             const sentences = splitSentences(rest);
             let extended = questionText;
             let taken = 0;
             while (taken < Math.min(2, sentences.length)) {
                 const next = leakFree(censorText(sentences[taken]));
-                if (!next || censoredShare(next) > MAX_USABLE_CENSORED_SHARE || `${extended} ${next}`.length > MAX_EXTENDED_LENGTH) break;
+                if (!next || censoredShare(next) > MAX_USABLE_CENSORED_SHARE || `${extended} ${next}`.length > MAX_EXTENDED_LENGTH || tooManyMasks(`${extended} ${next}`)) break;
                 extended = `${extended} ${next}`;
                 taken += 1;
                 if (isSpecificText(next)) break;
@@ -1440,8 +1596,10 @@
                 rest = sentences.slice(taken).join(' ');
             }
         }
-        const moreText = special || !rest ? '' : leakFree(censorText(stripFactSentences(rest, ctx.topic.facts(item, ctx, question.type))));
-        return { text, questionText, moreText, origin: fetched.fallback ? 'fallback' : 'article' };
+        const more = special || !rest ? '' : leakFree(censorText(stripFactSentences(rest, ctx.topic.facts(item, ctx, question.type))));
+        // Další věty, ve kterých zakrytá místa tvoří víc než MAX_READABLE_MASK_SHARE slov, nápovědou nejsou (počet míst v delším textu nevadí)
+        const moreText = tooManyMasks(more, Infinity) ? '' : more;
+        return { text, questionText, moreText, origin };
     };
     // Prozrazuje fakt odpověď (nebo začíná stejným kořenem jako ona)? Takový fakt se jako nápověda nenabídne.
     // Zkratka v odpovědi rozepsaná ve faktu: kometa C/2022 E3 (ZTF) a objevitel Zwicky Transient Facility
@@ -3402,11 +3560,14 @@
     // viditelný popis, shared = hodnoty faktů, které mají všechny možnosti (nic mezi nimi nerozliší);
     // describeVisual(spec) → { name, icon } nebo null (neznámý druh obrázku)
     const buildHints = (plan, { photoUrl = null, visibleText = '', known = '', shared = new Set(), answers = [], textPhotos = new Set(), omit = [], rootCheck = false,
-        extraGeneric = null, photoMasks = {}, describeVisual = () => null } = {}) => {
+        extraGeneric = null, photoMasks = {}, describeVisual = () => null, choices = null } = {}) => {
         // Fakt prozradí odpověď i tehdy, když obsahuje kterýkoli její tvar nebo začíná stejným kořenem jako jméno
         // (Těží se z něj: antimon u Antimonitu); společná kontrola s popisem (factRevealsAnswer)
         const rootNames = rootCheck && answers.length ? specificWords(answers, extraGeneric) : '';
         const revealsAnswer = (fact) => factRevealsAnswer(fact, answers, { isGeneric: (word) => isGenericWord(word, extraGeneric), rootNames });
+        // Fakt s výrazným slovem správné možnosti (choices: možnosti otázky na název; stejná kontrola jako popis, answerWordsLeft) se
+        // nenabídne – od MASK_RULES_FROM, dřív se nekontroloval (výběr možností denních módů podle nápověd se nemění)
+        const choiceWordIn = (fact) => !legacyMasking && Boolean(choices) && answerWordsLeft(String(fact.value), choices, { isGeneric: (word) => isGenericWord(word, extraGeneric) }).length > 0;
         const hints = [];
         // Co už hráč viděl: zadání, známé věci a obsah všech dřívějších nápověd (text, další věty, fakta, roky na ose)
         let shownBefore = '';
@@ -3433,7 +3594,7 @@
             if (step.kind === 'facts') {
                 // omit = jména nesprávných možností (Sourozenci: Chiméra, Hydra u Kerberose by je vyřadili)
                 const facts = dropChoiceNames(dropKnownFacts(step.facts || [], seen()), omit)
-                    .filter(fact => !shared.has(String(fact.value)) && !revealsAnswer(fact));
+                    .filter(fact => !shared.has(String(fact.value)) && !revealsAnswer(fact) && !choiceWordIn(fact));
                 // extra = vlastní nápověda tématu; po odpovědi se ukáže i mezi fakty
                 if (facts.length) hint = { kind: 'facts', facts, label: step.label || 'čísla a fakta', icon: step.icon || 'info', extra: Boolean(step.label) };
             }
@@ -3490,7 +3651,7 @@
             // Fotka, kterou otázka ukazuje hned, už nápovědou není; fotka s napsanou odpovědí také ne
             photoUrl: (shown && shown.file === item.im) || textPhotos.has(item.im) ? null : photoUrl,
             visibleText, known, shared, answers: answerNamesFor(question, item, ctx), textPhotos, photoMasks, describeVisual,
-            rootCheck: question.type === 'name', extraGeneric: genericWordsOf(ctx),
+            rootCheck: question.type === 'name', extraGeneric: genericWordsOf(ctx), choices: question.type === 'name' && !question.showName && !question.match ? question.choices : null,
             omit: question.match ? [] : (question.choices || []).filter(choice => !choice.correct).map(choice => choice.label)
         }).map(hint => hint.kind === 'visual' && hint.spec.type === 'map' ? { ...hint, spec: fitMapToChoices(hint.spec, question, ctx) } : hint)
             .filter(hint => !(hint.kind === 'visual' && !hint.spec));
@@ -3534,15 +3695,27 @@
     // v úvodu z Wikipedie se pak jen zakryje; stableSwaps (výzvy) = jen výměna podle něj. Možnosti tak nezávisí na tom, jestli se hráči
     // Wikipedie načetla. Rozlišující údaj (jen zobrazení) se vybírá podle textu, který hráč opravdu vidí.
     const composeRound = ({ item, ctx, question, special = false, fetched, fallback = null, stableChoices = false, stableSwaps = false, shown = null, rng = Math.random,
-        photoUrl = null, describeVisual = () => null, photoMasks = {}, textPhotos = new Set(), swaps = true, fixed = false, plain = false, unique = true }) => {
+        photoUrl = null, describeVisual = () => null, photoMasks = {}, textPhotos = new Set(), swaps = true, fixed = false, plain = false, unique = true, legacyChoices = false }) => {
         const { topic } = ctx;
         const category = (topic.categories || []).find(entry => entry.key === item.c) || { one: topic.words.one };
         let isSpecial = Boolean(special);
         const stableText = fallback || { description: item.d ? `${item.d.charAt(0).toUpperCase()}${item.d.slice(1)}.` : '', funFacts: [], more: '', fallback: true };
-        const build = (source) => buildQuestionTexts(item, ctx, question, source, { special: isSpecial, extend: unique });
+        const build = (source) => buildQuestionTexts(item, ctx, question, source, { special: isSpecial, extend: unique, short: stableText });
         const choiceSource = stableChoices ? stableText : fetched;
-        let texts = build(choiceSource);
+        let texts = null;
         let conflict = false;
+        let swapped = false;
+        let swapList = [];
+        let converted = false;
+        // Typ položky („obec ve Španělsku“, „král“) nesmí prozradit odpověď
+        const typeLabelOf = () => (item.ty && !hideAnswer(item.ty, question, { ...item, ty: '' }, ctx).includes('[***]') ? item.ty : category.one);
+        // Rozlišující údaj smí být i dva údaje spolu (A vyvrací část možností, B zbytek): radši dva údaje než snazší možnosti
+        const planOf = (source) => planRound({ item, ctx, question, texts: { questionText: source.questionText, moreText: source.moreText, origin: source.origin },
+            typeLabel: typeLabelOf(), shown, special: isSpecial, photoUrl, describeVisual, photoMasks, textPhotos, unique, cluePair: true });
+        // Možnosti denních módů (stableChoices, stableSwaps) pro den před MASK_RULES_FROM (legacyChoices: app.js podle dne otázky) se
+        // vybírají se zakrýváním jako dřív, aby se dnešní sada nezměnila; text, který hráč uvidí (níže), už se zakryje novými pravidly
+        withLegacyMasking(Boolean(legacyChoices) && (stableChoices || stableSwaps), () => {
+        texts = build(choiceSource);
         for (let attempt = 0; attempt <= 3; attempt++) {
             const seen = [texts.questionText, texts.moreText].filter(Boolean).join(' ');
             if (!(question.choices || []).some(choice => choiceConflict(choice, { question, item, ctx, text: seen }))) { conflict = false; break; }
@@ -3552,14 +3725,6 @@
             question = replaced;
             texts = build(choiceSource);
         }
-        // Typ položky („obec ve Španělsku“, „král“) nesmí prozradit odpověď
-        const typeLabelOf = () => (item.ty && !hideAnswer(item.ty, question, { ...item, ty: '' }, ctx).includes('[***]') ? item.ty : category.one);
-        // Rozlišující údaj smí být i dva údaje spolu (A vyvrací část možností, B zbytek): radši dva údaje než snazší možnosti
-        const planOf = (source) => planRound({ item, ctx, question, texts: { questionText: source.questionText, moreText: source.moreText, origin: source.origin },
-            typeLabel: typeLabelOf(), shown, special: isSpecial, photoUrl, describeVisual, photoMasks, textPhotos, unique, cluePair: true });
-        let swapped = false;
-        let swapList = [];
-        let converted = false;
         if (unique && swaps && !isSpecial) {
             const decideSource = stableChoices || stableSwaps ? stableText : fetched;
             let decideTexts = build(decideSource);
@@ -3595,6 +3760,7 @@
             }
             trySwap(3);
         }
+        });
         texts = build(fetched);
         // Denní módy: jméno nesprávné možnosti v úvodu z Wikipedie se jen zakryje (možnosti se podle něj neměnily)
         if (stableChoices && !fixed) {
@@ -3630,7 +3796,7 @@
         getDayKey, pragueDayKey, itemsAsOf, dailyPick, hashText, fuzzyTwins, shiftDayKey, formatDayKey, createSeededRandom, pickRandom, pickWeighted, shuffle,
         ELEMENT_FAMILIES, elementFamily, periodicPosition,
         maskLeaks, findLeaks, answerTokens, foldKeys, isPersonName, genericWordsOf, isGenericWord, specificWords, absorbGenericWords, hideNicknames, CHOICE_MARK, hideOtherChoices,
-        censorForItem, answerNamesOf, answerNamesFor, hideAnswer, leadSubject, leadAliases, aliasWords, sealAnswerWords, answerWordsLeft, leakFreeText, OUT_OF_CONTEXT, buildQuestionTexts, factRevealsAnswer, GENERIC_NAME_WORDS,
+        censorForItem, censorItemName, isFieldWord, MASK_RULES_FROM, withLegacyMasking, tooManyMasks, MAX_DESCRIPTION_MASKS, MAX_READABLE_MASK_SHARE, answerNamesOf, answerNamesFor, hideAnswer, leadSubject, leadAliases, aliasWords, sealAnswerWords, answerWordsLeft, leakFreeText, OUT_OF_CONTEXT, buildQuestionTexts, factRevealsAnswer, GENERIC_NAME_WORDS,
         JOINING_WORDS, distinctiveTokens, structureLeaks, sealStructure, contentWords, newWords, addsInformation, commonChoiceText,
         choicePoints, choicesView, fitMapToChoices, FIT_SHARE, WORLD_MIN_SPAN, buildHints, planRound, MIN_DESCRIPTION_WORDS, MIN_EXCERPT_WORDS,
         composeRound, swapSimilar, clueFactsOf, contradicts, identifyAnswer, clueFor, pickClue, clueCandidates, uniqueChoices, uniqueInfo, needsUniqueness, wrongItemsOf, isSpecificText, parseClueFact,

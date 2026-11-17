@@ -434,7 +434,7 @@
                 const generic = core.genericWordsOf(ctx);
                 const qualifier = qualifierOf(item);
                 const hidden = qualifier ? core.maskLeaks(core.censorName(text, qualifier), [qualifier]) : text;
-                const censored = core.hideNicknames(core.mergeCensored(core.absorbGenericWords(core.censorName(hidden, core.specificWords(names, generic)), names, '[***]', generic)), item, generic);
+                const censored = core.hideNicknames(core.mergeCensored(core.absorbGenericWords(core.censorItemName(hidden, names, generic), names, '[***]', generic)), item, generic);
                 return core.maskLeaks(censored, names);
             }
             return null;
