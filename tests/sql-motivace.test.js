@@ -253,6 +253,12 @@ test('SQL: motivace (pozvánky, reakce, kontrola odemčení, prestiž, vitrína)
         q(`update profiles set xp = 3200 where id = '${D}'`);
         assert.equal(tryAvatar(D, 'vacice3'), 'vacice3', 'úroveň 10');
         assert.equal(tryAvatar(D, 'spisov'), 'vacice3', 'Mýval spisovatel až od úrovně 17');
+        // Správce (dev_admins) si uloží i zamčenou: vývojářské nástroje odemykají jen v zařízení
+        q(`insert into dev_admins (user_id) values ('${D}') on conflict do nothing`);
+        assert.equal(tryAvatar(D, 'velbl'), 'velbl', 'správce bez kontroly');
+        q(`delete from dev_admins where user_id = '${D}'`);
+        assert.equal(tryAvatar(D, 'spisov'), 'velbl', 'bez správce zase kontrola');
+        q(`update profiles set avatar = 'vacice3' where id = '${D}'`);
         assert.equal(tryAvatar(D, 'pstros1'), 'vacice3', 'Pštros fotbalista za odznak');
         q(`update profiles set badges = array['tema-sport-100'] where id = '${D}'`);
         assert.equal(tryAvatar(D, 'pstros1'), 'pstros1', 'vyšší stupeň odznaku stačí');

@@ -2067,6 +2067,14 @@
             if (Social.customHue(meDraft.color) !== null && myProfile.color !== meDraft.color) myProfile = { ...myProfile, color: meDraft.color };
             if (meDraft.owl && !myProfile.owl) myProfile = { ...myProfile, owl: owlText };
             meNote = 'Uloženo.';
+            // Server postavičku nepovolil (kontrola odemčení podle účtu: úroveň a odznaky v účtu, ne zkušební postup v zařízení):
+            // profil zůstal s dřívějším obrázkem, hráč se to dozví
+            const wantedAvatar = !meDraft.owl && Look && Look.avatarCode ? Look.avatarCode(meDraft.avatar) : null;
+            if (wantedAvatar && myProfile.avatar && myProfile.avatar !== wantedAvatar) {
+                const item = Look.avatarItem(wantedAvatar);
+                meNote = `${item ? item.title : 'Postavička'} se neuložila: podle účtu ji ještě nemáš odemčenou. Ostatní je uloženo.`;
+                meDraft.avatar = myProfile.avatar;
+            }
             meDirty = false;
             updateProfileButton();
             paintChallenges();
@@ -13192,6 +13200,51 @@
         });
         renderIcons(document.getElementById('dialog-overlay'));
     };
+    // --- Novinka: jednorázové okno chvíli po otevření aplikace (každá novinka jen jednou, pamatuje se v zařízení) ---
+    // Ukáže se na úvodní obrazovce, až nic jiného neběží (tutoriál, hra, jiné okno, oslava; pushOfferBlocked). Automatické testy
+    // (navigator.webdriver) ho vidí jen s mudrlant.newsTest, ať nepřekáží v ostatních scénářích.
+    const NEWS_KEY = 'mudrlant.news';
+    const NEWS = { id: 'postavicky-2026-11', avatars: ['vacice', 'pizza', 'krokod', 'koala'] };
+    const NEWS_DELAY = 4000;
+    const newsSeen = () => { const seen = readJson(NEWS_KEY); return Array.isArray(seen) && seen.includes(NEWS.id); };
+    const markNewsSeen = () => { const seen = readJson(NEWS_KEY); writeJson(NEWS_KEY, [...new Set([...(Array.isArray(seen) ? seen : []), NEWS.id])].slice(-20)); };
+    const newsAllowed = () => {
+        try { if (navigator.webdriver && !localStorage.getItem('mudrlant.newsTest')) return false; } catch (error) { return false; }
+        return Boolean(Look) && !newsSeen();
+    };
+    const openNews = () => {
+        if (!newsAllowed() || pushOfferBlocked() || screen !== 'home') return false;
+        markNewsSeen();
+        const user = signedUser();
+        const faces = NEWS.avatars.map(id => `<span class="grid h-14 w-14 place-items-center rounded-full bg-slate-100 dark:bg-slate-700/70">${avatarArt(id, 'h-[86%] w-[86%]')}</span>`).join('');
+        showDialog('Nové postavičky', `
+            <div id="news-dialog" data-news="${escapeHtml(NEWS.id)}" class="flex flex-col gap-3">
+                <div class="flex items-center justify-center gap-2">${faces}</div>
+                <p class="text-sm font-semibold leading-snug text-slate-700 dark:text-slate-200">Na profilový obrázek přibylo 23 nových postaviček: Vačice gothička, Pizza superhrdina, Krokodýl zubař, Koala ninja a další. Odemkneš je úrovněmi, odznaky z různých částí hry, v truhle, za pozvané kamarády i za prestiž.</p>
+                ${user ? '' : '<p class="text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">Profilový obrázek mají přihlášení hráči.</p>'}
+                <button type="button" data-news-go class="${PRIMARY_BUTTON}">${user ? 'Prohlédnout postavičky' : 'Přihlásit se'}</button>
+                <button type="button" data-close class="self-center rounded-xl px-3 py-2 text-[13px] font-bold text-slate-600 dark:text-slate-300">Teď ne</button>
+            </div>`, {
+            onClick: (event) => {
+                if (!event.target.closest('[data-news-go]')) return;
+                closeDialog();
+                if (!signedUser()) { openLoginDialog(); return; }
+                openSettings('', null, 'profile');
+                pictureGroup = 'postavicky';
+                touchTip('characters');
+                openSettings('', '[data-pic-group="postavicky"]', 'profile');
+            }
+        });
+        renderIcons(document.getElementById('dialog-overlay'));
+        return true;
+    };
+    // Po otevření aplikace: počká NEWS_DELAY a pak, dokud něco jiného běží, zkouší znovu (nejvýš 3 minuty, pak až příště)
+    const scheduleNews = () => {
+        if (!newsAllowed()) return;
+        const until = Date.now() + 180000;
+        const attempt = () => { if (!newsAllowed() || openNews() || Date.now() > until) return; setTimeout(attempt, 3000); };
+        setTimeout(attempt, NEWS_DELAY);
+    };
     const closeTournamentOffer = () => { if (document.getElementById('tournament-offer')) closeDialog(); };
     const openTournamentOffer = (source) => {
         if (!tournamentOffer || document.getElementById('dialog-overlay')) return;
@@ -14828,6 +14881,8 @@
         // Po obnovení připojení se dopošlou odpovědi z dohraných her (rozehraná hra počká na svůj konec)
         window.addEventListener('online', () => { if (screen !== 'round') flushAnswerStats(); });
         Auth.init().then(state => {
+            // Novinka (jednorázové okno) chvíli po otevření, až nic jiného neběží
+            scheduleNews();
             if (!state.user && invite) openChallenge(invite);
             // Odkaz do skupiny: přihlášený se rovnou přidá (náhled a Přidat se), nepřihlášený se nejdřív přihlásí
             else if (groupInvite && GroupsUI) GroupsUI.openJoin(groupInvite);

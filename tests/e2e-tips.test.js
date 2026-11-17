@@ -33,16 +33,18 @@ test('tipy od Mudrlanta', { skip: !chromium && 'Playwright není nainstalovaný'
     const origin = `http://127.0.0.1:${server.address().port}`;
     const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
     t.after(async () => { await browser.close(); server.close(); });
-    const open = async ({ viewport = { width: 390, height: 780 }, colorScheme = 'light', dev = false } = {}) => {
+    const open = async ({ viewport = { width: 390, height: 780 }, colorScheme = 'light', dev = false, news = false } = {}) => {
         const context = await browser.newContext({ serviceWorkers: 'block', viewport, colorScheme });
-        await context.addInitScript((devOn) => {
+        await context.addInitScript(([devOn, newsOn]) => {
             if (sessionStorage.getItem('seeded')) return;
             sessionStorage.setItem('seeded', '1');
             localStorage.setItem('mudrlant.account', JSON.stringify('host'));
             localStorage.setItem('mudrlant.variant', 'choices');
             localStorage.setItem('mudrlant.tutorial', JSON.stringify({ how: 'done' }));
             if (devOn) localStorage.setItem('mudrlant.dev', '1');
-        }, dev);
+            // Novinka po otevření aplikace se v automatických testech ukáže jen na požádání
+            if (newsOn) localStorage.setItem('mudrlant.newsTest', '1');
+        }, [dev, news]);
         const tab = await context.newPage();
         const problems = [];
         tab.on('pageerror', error => problems.push(error.message));
@@ -144,4 +146,25 @@ test('tipy od Mudrlanta', { skip: !chromium && 'Playwright není nainstalovaný'
         assert.deepEqual(problems, []);
         await context.close();
     });
+
+    for (const [width, height, colorScheme] of [[360, 640, 'dark'], [390, 780, 'light']]) {
+        await t.test(`novinka Nové postavičky ${width}×${height}: jednou chvíli po otevření, vejde se, příště už ne`, async () => {
+            const { context, tab, problems } = await open({ viewport: { width, height }, colorScheme, news: true });
+            await tab.waitForSelector('#news-dialog', { timeout: 15000 });
+            assert.match(await tab.textContent('#news-dialog'), /23 nových postaviček/);
+            assert.match(await tab.textContent('#news-dialog [data-news-go]'), /Přihlásit se/, 'host se nejdřív přihlásí');
+            await tab.waitForFunction(() => [...document.querySelectorAll('#news-dialog img')].every(img => img.complete && img.naturalWidth > 0));
+            assert.equal(await tab.evaluate(() => { const box = document.querySelector('#dialog-overlay > div'); return box.scrollHeight <= box.clientHeight + 1 && box.getBoundingClientRect().bottom <= window.innerHeight + 1; }), true, 'okno bez posouvání');
+            if (process.env.SCREENSHOT_DIR) await tab.screenshot({ path: require('path').join(process.env.SCREENSHOT_DIR, `novinka-${width}.png`) });
+            assert.deepEqual(await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.news'))), ['postavicky-2026-11']);
+            await tab.click('#news-dialog [data-close]');
+            await tab.waitForSelector('#news-dialog', { state: 'detached' });
+            await tab.reload();
+            await nav.waitForHome(tab);
+            await tab.waitForTimeout(6000);
+            assert.equal(await tab.locator('#news-dialog').count(), 0, 'podruhé se neukáže');
+            assert.deepEqual(problems, []);
+            await context.close();
+        });
+    }
 });

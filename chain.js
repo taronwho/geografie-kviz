@@ -1955,17 +1955,23 @@
             </div>`;
     };
     // Panel po špatné odpovědi: rozhodnutí o Záchraně, nebo přetržený řetěz se správnou odpovědí
-    const decideHtml = ({ chosenName, practice }) => `
+    // Správná odpověď článku, kterou jde ukázat hned po chybě: jen když se Záchrana ptá na jinou odpověď (bez Záchrany ji ukáže brokenHtml)
+    const revealableAnswer = (question) => (question && question.rescue && !question.rescue.same ? question.options[question.answer].name : '');
+    // correctName = správná odpověď, když ji jde ukázat hned (Záchrana se ptá jinak); u Záchrany se stejnou odpovědí (rescue.same)
+    // by ji prozradila, ukáže se až po Záchraně (v cestě řetězu) nebo po ukončení
+    const decideHtml = ({ chosenName, practice, correctName = '' }) => `
         <div data-chain-decide role="alert" class="chain-panel-in flex flex-col gap-2 rounded-[1.4rem] bg-white p-3 shadow-sm ring-2 ring-rose-300 dark:bg-slate-800 dark:ring-rose-700">
             <p class="flex items-center gap-2 text-base font-black text-rose-700 dark:text-rose-300"><i data-lucide="zap" class="h-5 w-5"></i> Řetěz praská!</p>
-            <p class="text-[13px] font-semibold leading-snug text-slate-700 dark:text-slate-200">„${esc(chosenName)}“ to není. Máš ale jednu Záchranu: dostaneš jinou otázku na stejný článek. Když ji zodpovíš, řetěz drží dál${practice ? '' : ', článek je ale za 0 bodů'}.</p>
+            <p class="text-[13px] font-semibold leading-snug text-slate-700 dark:text-slate-200">„${esc(chosenName)}“ to není.${correctName ? ` Správně bylo: <b data-chain-correct class="text-slate-900 dark:text-white">${esc(correctName)}</b>.` : ' Správnou odpověď uvidíš po Záchraně, nebo když řetěz ukončíš.'} Máš ale jednu Záchranu: dostaneš jinou otázku na stejný článek. Když ji zodpovíš, řetěz drží dál${practice ? '' : ', článek je ale za 0 bodů'}.</p>
             <button type="button" data-action="chain-rescue" class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-gold-700 px-4 py-3 text-base font-black text-white"><i data-lucide="shield-check" class="h-5 w-5"></i> Použít Záchranu</button>
             <button type="button" data-action="chain-giveup" class="${SECONDARY} w-full"><i data-lucide="x" class="h-4 w-4 shrink-0"></i> Ukončit řetěz</button>
         </div>`;
-    const brokenHtml = ({ correctName, k, practice, explain = '' }) => `
+    // firstName = správná odpověď původní otázky, když Záchrana měla jinou (jinak ji ukazuje correctName)
+    const brokenHtml = ({ correctName, k, practice, explain = '', firstName = '' }) => `
         <div data-chain-broken role="alert" class="chain-panel-in flex flex-col gap-2 rounded-[1.4rem] bg-white p-3 shadow-sm ring-2 ring-rose-300 dark:bg-slate-800 dark:ring-rose-700">
             <p class="flex items-center gap-2 text-base font-black text-rose-700 dark:text-rose-300"><i data-lucide="zap" class="h-5 w-5"></i> Řetěz se přetrhl na ${k}. článku</p>
             <p class="text-[13.5px] font-semibold leading-snug text-slate-700 dark:text-slate-200">Správně bylo: <b class="text-slate-900 dark:text-white">${esc(correctName)}</b></p>
+            ${firstName && firstName !== correctName ? `<p data-chain-first class="text-[12.5px] font-semibold leading-snug text-slate-600 dark:text-slate-300">U původní otázky: <b class="text-slate-900 dark:text-white">${esc(firstName)}</b></p>` : ''}
             ${explain ? `<p data-chain-explain class="text-[12.5px] font-semibold leading-snug text-slate-600 dark:text-slate-300">${esc(explain)}</p>` : ''}
             <button type="button" data-action="chain-result" class="${PRIMARY}"><i data-lucide="list-ordered" class="h-5 w-5"></i> ${practice ? 'Celý řetěz' : 'Výsledek'}</button>
         </div>`;
@@ -2316,7 +2322,7 @@
             if (attempt.pending && attempt.pending.phase === 'decide') {
                 const ask = currentAsk(attempt);
                 const chosen = ask.question.options.find(option => option.id === attempt.pending.chosen);
-                renderPlay({ phase: 'decide', ask, marks: { chosen: attempt.pending.chosen, right: false }, panel: decideHtml({ chosenName: chosen ? chosen.name : '', practice: attempt.practice }) });
+                renderPlay({ phase: 'decide', ask, marks: { chosen: attempt.pending.chosen, right: false }, panel: decideHtml({ chosenName: chosen ? chosen.name : '', practice: attempt.practice, correctName: revealableAnswer(ask.question) }) });
                 return;
             }
             renderPlay({ phase: 'ask' });
@@ -2463,12 +2469,13 @@
             if (deps.sound) { deps.sound.play('wrong'); deps.sound.vibrate('wrong'); }
             if (outcome === 'decide') {
                 renderPlay({ phase: 'wrong', ask, marks: { chosen: id, right: false }, shake: true });
-                later(here(() => renderPlay({ phase: 'decide', ask, panel: decideHtml({ chosenName: optionName(ask, id), practice: attempt.practice }) })), pause(900));
+                later(here(() => renderPlay({ phase: 'decide', ask, panel: decideHtml({ chosenName: optionName(ask, id), practice: attempt.practice, correctName: revealableAnswer(ask.question) }) })), pause(900));
                 return;
             }
-            // Přetržený řetěz: správná odpověď (u záchrany ta záchranné otázky) se ukáže
+            // Přetržený řetěz: správná odpověď (u záchrany ta záchranné otázky a u jiné záchranné otázky i ta původní) se ukáže
             renderPlay({ phase: 'broken', ask, marks: { chosen: id, right: false, reveal: correctId }, shake: true });
-            later(here(() => renderPlay({ phase: 'broken', ask, panel: brokenHtml({ correctName: optionName(ask, correctId), k: ask.k, practice: attempt.practice, explain: (ask.rescue || ask.question).explain || '' }) })), pause(1400));
+            const firstName = ask.rescue ? ask.question.options[ask.question.answer].name : '';
+            later(here(() => renderPlay({ phase: 'broken', ask, panel: brokenHtml({ correctName: optionName(ask, correctId), k: ask.k, practice: attempt.practice, explain: (ask.rescue || ask.question).explain || '', firstName }) })), pause(1400));
         };
         const rescue = () => {
             if (busy || !attempt || !attempt.pending || attempt.pending.phase !== 'decide') return;
