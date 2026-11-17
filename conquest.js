@@ -99,7 +99,7 @@
         fifty: { id: 'fifty', name: 'Půl na půl', max: 2, icon: 'scale', mark: '½', art: null, // č. 310 pul-na-pul
             what: 'U otázky se 4 možnostmi odebere dvě špatné. Jednou za hru, i v bitvě.',
             how: 'Kvíz dne bez chyby a celá Řetězovka (obojí jednou za týden), výhra v Dobývání, 5. stupeň Sezóny Mudrlanta a vzácně Truhla Mudrlanta.' },
-        chain_rescue: { id: 'chain_rescue', name: 'Záchrana navíc', max: 1, icon: 'shield-plus', mark: '+1', art: null, place: 'chain', // č. 360 zachrana-navic
+        chain_rescue: { id: 'chain_rescue', name: 'Záchrana navíc', max: 1, icon: 'shield-plus', mark: '+1', art: 'zachrana-navic', place: 'chain', // č. 360 zachrana-navic
             what: 'V Řetězovce dne zachrání řetěz ještě jednou, když už je Záchrana použitá: dostaneš jinou otázku na stejný článek, za 0 bodů.',
             how: 'Milníky Řetězovky dne (10, 30, 100 a 365 dohraných dní, 5, 15, 30 a 60 celých řetězů bez Záchrany), 12. stupeň Sezóny Mudrlanta, společná výhra nad Bossem týdne a vzácně Truhla Mudrlanta nebo Zlatá truhla.' }
     };

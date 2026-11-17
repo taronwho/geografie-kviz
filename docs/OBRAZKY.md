@@ -3260,12 +3260,11 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 
 ## 28. Pomůcka Záchrana navíc do Řetězovky (č. 360)
 
-Pečeť pomůcky Záchrana navíc (schéma 37): zachrání řetěz v Řetězovce dne ještě jednou, když už je Záchrana použitá. **Stav: zatím
-zástupná pečeť** – tyrkysová kulatá pečeť s ikonou štítu s plusem a „+1“ (conquest.js `ITEMS.chain_rescue`, `art: null`, styl
+Pečeť pomůcky Záchrana navíc (schéma 37): zachrání řetěz v Řetězovce dne ještě jednou, když už je Záchrana použitá. **Stav: dodáno a zapojeno** (dříve zástupná pečeť) – tyrkysová kulatá pečeť s ikonou štítu s plusem a „+1“ (conquest.js `ITEMS.chain_rescue`, `art: null`, styl
 `.cq-item-chain_rescue`). Až obrázek dorazí, uložím ho do `branding/ikony/`, spustím `python3 scripts/topic-icons.py zachrana-navic`,
 nastavím `art: 'zachrana-navic'` a přidám ho do `sw.js`.
 
-#### 360. `zachrana-navic.png` – Pomůcka Záchrana navíc – čeká na dodání
+#### 360. `zachrana-navic.png` – Pomůcka Záchrana navíc – ✅ dodáno, zapojeno
 
 Kam: pomůcka Záchrana navíc v Řetězovce dne (tlačítko „Použít Záchranu navíc“ v panelu po chybě, oslava „Nová pomůcka: Záchrana navíc“, 12. stupeň Sezóny, Truhla Mudrlanta a Zlatá truhla, okno Pomůcky v rozcestníku Dobývání). Zobrazí se jako kulatá pečeť velká 24–64 px, proto jednoduchý tvar. Do dodání pečeť s ikonou štítu s plusem a „+1“. Přiložit: `branding/sova-original.jpg` (vzor stylu), hotový `tah-navic.png` (č. 309, vzor velikosti a stylu pomůcek) a hotový `odznak-retezovka.png` (č. 358, vzor zlatého řetězu)
 
