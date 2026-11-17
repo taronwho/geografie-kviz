@@ -170,7 +170,7 @@ test('nápověda: záložka Pomůcky (obě pomůcky, jednou za hru, odkud), bez 
     const prompts = fs.readFileSync(path.join(ROOT, 'docs', 'OBRAZKY.md'), 'utf8');
     assert.match(prompts, /#### 309\. `tah-navic\.png`/);
     assert.match(prompts, /#### 310\. `pul-na-pul\.png`/);
-    assert.match(prompts, /#### 361\. `vzkriseni\.png` – Pomůcka Vzkříšení – čeká na dodání/);
+    assert.match(prompts, /#### 361\. `vzkriseni\.png` – Pomůcka Vzkříšení – ✅ dodáno, zapojeno/);
     assert.ok(C.ITEM_IDS.every(kind => C.ITEMS[kind].art === null || fs.existsSync(path.join(ROOT, 'icons', 'topics', `${C.ITEMS[kind].art}.webp`))));
 });
 
