@@ -685,7 +685,7 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 
 Všechno vlastní a nové: režimy Bleskovka, Přežití a Ukaž na mapě dostanou vlastní ilustrace (jejich odznaky zůstanou odznaky), Učení, Skupiny a Archiv turnajů obrázek místo ikonky a prázdné stavy (zatím žádné výzvy, nikdo tu není…) a okno upozornění vlastní pózy sovy. Pózy sovy dostanou barvy obleku jako ostatní sovy. **Stav: všechny č. 79–91 (i Chameleon č. 73) jsou dodané a zapojené.** Čekající sova č. 89 je druhá verze (se správnou čepicí Mudrlanta).
 
-### 79. `rezim-bleskovka.png` – Bleskovka (nová, jednodušší verze – čeká na dodání)
+### 79. `rezim-bleskovka.png` – Bleskovka (jednodušší verze) – ✅ dodáno, zapojeno
 
 Kam: výběr Co hrát, úvod a výsledek Bleskovky (odznak Bleskovka zůstane jen odznakem). Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -693,7 +693,7 @@ Kam: výběr Co hrát, úvod a výsledek Bleskovky (odznak Bleskovka zůstane je
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px button icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: A very simple, bold, chunky round golden quiz-show buzzer button seen slightly from above on a short teal base, with ONE big bright yellow lightning bolt across its top. No hand, no extra sparks, no speed lines, no small details. Must stay clearly readable as a tiny 28 px icon. Colors: gold, teal, bright yellow. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-### 80. `rezim-preziti.png` – Přežití (nová, jednodušší verze – čeká na dodání)
+### 80. `rezim-preziti.png` – Přežití (jednodušší verze) – ✅ dodáno, zapojeno
 
 Kam: výběr Co hrát, úvod a výsledek Přežití. Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
