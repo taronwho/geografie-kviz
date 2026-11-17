@@ -455,7 +455,8 @@ test('Záchrana navíc (pomůcka, blok 37): až po použité Záchraně, jednou 
     assert.match(C.itemsDialogHtml({ extra_move: 0, fifty: 1, chain_rescue: 1 }), /data-cq-item-card="chain_rescue"[\s\S]*Záchrana navíc[\s\S]*Do Řetězovky dne[\s\S]*1\/1/);
     assert.doesNotMatch(C.itemsDialogHtml({ extra_move: 0, fifty: 1 }), /chain_rescue/);
     assert.doesNotMatch(C.itemsDialogHtml({ extra_move: 0, fifty: 1, chain_rescue: 1 }, { game: true }), /chain_rescue/);
-    assert.match(C.itemSealHtml('chain_rescue', 'h-8 w-8'), /cq-item-seal cq-item-chain_rescue[\s\S]*data-lucide="shield-plus"[\s\S]*\+1/);
+    // Pečeť z obrázku č. 360 (icons/topics/zachrana-navic.webp) se značkou „+1“
+    assert.match(C.itemSealHtml('chain_rescue', 'h-8 w-8'), /cq-item-seal cq-item-chain_rescue[\s\S]*src="icons\/topics\/zachrana-navic\.webp"[\s\S]*\+1/);
 });
 
 test('uložený stav: pokus se vyčistí (nesmysly pryč, body se přepočítají), cache řetězu dne a historie', () => {
