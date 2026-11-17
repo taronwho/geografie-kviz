@@ -5,7 +5,9 @@
 // fakty nebo obrázkem přes celou obrazovku hry, ostatní ve spodním listu) a animace výsledku (šipka útoku, rozlití inkoustu z místa útoku,
 // zapíchnutí vlaječky, pobourání a stavba opevnění, poklad, zlatý obrys celého regionu, zlomená šipka), kronika tažení, přehrání
 // hry a stupně vítězů s odměnou. Pomůcky (blok 30): zásoba v rozcestníku a v okně Pomůcky (klepnutí na počítadlo tahů), Tah navíc
-// (nabídka, když tahy dojdou, s potvrzením) a Půl na půl (tlačítko ½ u otázky, dvě klepnutí). Při omezeném pohybu (prefers-reduced-motion)
+// (nabídka, když tahy dojdou, s potvrzením) a Půl na půl (tlačítko ½ u otázky, dvě klepnutí); Vzkříšení (blok 39): okno, když hráči nezbylo
+// žádné území, výběr území na mapě (zlatá záře platných, pruh se Zrušit), animace (zlatý ankh, vlny a rozlití barvy) a štít ochrany
+// s odpočtem 60 s na mapě i v listu území. Při omezeném pohybu (prefers-reduced-motion)
 // jsou čekání krátká a CSS animace vypnuté.
 // app.js předá pomocné funkce (createUI) a napojí obrazovku 'conquest', tlačítko Zpět, akce karty a odkaz …?dobyvani=KÓD.
 (function (root, factory) {
@@ -128,7 +130,13 @@
             return lobbyLoading;
         };
         // Výplně území a vzácné znaky (blok 38): looks z lobby (null = databáze bez bloku 38: jen barvy a základní znaky)
-        const looksNow = () => (lobby && lobby.looks) || null;
+        // Vývojářské „Odemknout úplně vše“ (deps.devAll) nabídne v tomto zařízení všechny výplně a vzácné znaky; server je správci
+        // (dev_admins) přijme, ostatním ne. Bez něj i správce vidí jen skutečně odemčené
+        const looksNow = () => {
+            const looks = (lobby && lobby.looks) || null;
+            if (!looks || !deps.devAll || !deps.devAll()) return looks;
+            return { ...looks, patterns: C.PATTERNS.map(item => item.id), emblems: C.RARE_EMBLEMS.map(item => item.id) };
+        };
         // Vybraný vzácný znak a vzor jen odemčené (jinak výchozí), aby server volbu nepřijal se starým zámkem
         const fitLooks = () => {
             if (!lobby) return;
@@ -167,7 +175,7 @@
             if (!info || !info.waits) return [];
             // Běžící hra bez tahů se do karty nedává: karta ukazuje první běžící hru, tak ať je to ta, ve které se dá hrát
             const input = homeInput();
-            const playable = (input.games || []).filter(game => game.status !== 'running' || (game.budget || { left: 0 }).left > 0);
+            const playable = (input.games || []).filter(game => game.status !== 'running' || C.movesLeft(game) > 0);
             return [C.homeCardHtml({ ...input, games: playable }).replace('id="conquest-card"', 'id="conquest-wait"')];
         };
         const paintCard = () => { if (deps.paintHome) deps.paintHome(); };
@@ -616,8 +624,9 @@
                     const reward = C.rewardFor(result);
                     rewards.set(id, reward);
                     if (reward.xp || reward.badge) deps.award({ ...reward, place: result.place });
-                    // Pomůcka Půl na půl za výhru (blok 30)
+                    // Pomůcka Půl na půl za výhru (blok 30) a Vzkříšení za započítanou hru s body (blok 39)
                     if (result.item) { noteStock(result.item.kind, result.item.count); if (deps.itemGranted) deps.itemGranted(result.item); }
+                    if (result.revive_item) { noteStock(result.revive_item.kind, result.revive_item.count); if (deps.itemGranted) deps.itemGranted(result.revive_item); }
                     // Vzory a vzácné znaky odemčené touto hrou (blok 38)
                     if (result.looks) { if (lobby) lobby.looks = result.looks; announceLooks(result.looks); }
                     if (game && game.id === id && game.view.finished) showResult();
@@ -666,9 +675,11 @@
                 }).catch(() => { /* zůstane filtr na dlaždici */ });
             }
         };
-        const viewFor = (state, data) => {
+        // offset = čas serveru − čas zařízení (ochrana po Vzkříšení, blok 39, je v čase serveru)
+        const viewFor = (state, data, offset = game ? game.offset : 0) => {
             const view = C.viewOf(state, data, (deps.signedUser() || {}).id);
             view.tiles = tiles;
+            view.offset = offset || 0;
             ensureTiles(view);
             return view;
         };
@@ -680,12 +691,15 @@
             deps.enter();
             app.innerHTML = `<div class="flex min-h-full flex-col items-center justify-center gap-3 p-6 text-center"><img src="icons/topics/${esc(C.ART.card)}.webp" alt="" class="bob h-20 w-20 object-contain"><p class="text-sm font-bold text-slate-600 dark:text-slate-300">Rozbaluji mapu…</p></div>`;
             try {
+                const sentAt = Date.now();
                 const state = await Social.conquestState(id);
+                const served = Date.parse(state.now || '');
+                const offset = Number.isFinite(served) ? served - (sentAt + Date.now()) / 2 : 0;
                 const data = await ensureMap(state.map);
                 if (!active() || ui.kind !== 'game' || ui.gameId !== id) return;
                 if (state.status === 'lobby') { upsertMine(state); openLobby(id); return; }
-                game = { id, state, data, view: viewFor(state, data), vb: null, selected: null, source: null, move: null,
-                    offset: 0, version: state.version || '', loadedAt: Date.now(), siegeKey: siegeKey(state.sieges),
+                game = { id, state, data, view: viewFor(state, data, offset), vb: null, selected: null, source: null, move: null,
+                    offset, version: state.version || '', loadedAt: Date.now(), siegeKey: siegeKey(state.sieges), revive: null,
                     // Bitvy, o kterých hráč už ví (při otevření hry ty, co už běží), a výsledky, které už viděl
                     seenSieges: new Set((state.sieges || []).map(siege => siege.id)), seenResults: new Set(),
                     // Kola, jejichž okno Další kolo hráč zavřel (dá se otevřít štítkem na mapě)
@@ -695,6 +709,7 @@
                 // Témata a zásoby otázek pro mapu se připraví hned (první otázka pak nečeká na jejich sestavení)
                 topics().then(loaded => { if (game && game.data === data) C.poolsOf(data, loaded); }).catch(() => null);
                 if (game.view.finished) { if (!state.claimed) claim(id); finale(); }
+                else checkRevive();
                 schedule();
             } catch (error) {
                 deps.showToast(errorText(error, 'Hru se nepodařilo načíst.'));
@@ -724,6 +739,7 @@
             if (game.selected) showSheet(game.selected);
             paintChips();
             paintRound();
+            paintRevive();
             startClock();
         };
         // Jen mapa a čísla (po tahu, při obnovení), bez přestavby celé obrazovky
@@ -742,13 +758,20 @@
             mountMap();
             highlight();
             paintChips();
+            paintRevive();
         };
         const setState = (state) => {
             game.state = state;
             game.view = viewFor(state, game.data);
             // (Záchrana navíc do Řetězovky, blok 37, zůstane v zásobě rozcestníku: okno Pomůcky ji ukazuje mimo hru)
             if (state.items && lobby) lobby.items = { ...(lobby.items || {}), extra_move: state.items.extra_move, fifty: state.items.fifty,
-                ...(typeof state.items.chain_rescue === 'number' ? { chain_rescue: state.items.chain_rescue } : {}), max: state.items.max };
+                ...(typeof state.items.chain_rescue === 'number' ? { chain_rescue: state.items.chain_rescue } : {}),
+                ...(typeof state.items.revive === 'number' ? { revive: state.items.revive } : {}), max: state.items.max };
+            // Výběr území pro Vzkříšení: platná území podle nového stavu; kdo už území má (třeba z jiného zařízení), výběr končí
+            if (game.revive) {
+                if (!C.reviveOn(game.view) || !C.outOfGame(game.view) || !state.items.can_revive) game.revive = null;
+                else game.revive = { targets: C.reviveTargets(game.view) };
+            }
             paintRound();
             const me = state.players.find(player => player.me);
             if (lobby && me) upsertMine({ ...state, budget: state.budget, owners: Object.fromEntries((state.territories || []).filter(row => row.o).map(row => [row.t, (state.players.find(p => p.id === row.o) || {}).seat])) });
@@ -965,6 +988,8 @@
             lastTap = { at: now, x: pointer.x, y: pointer.y };
             const hit = doc.elementFromPoint(pointer.x, pointer.y);
             const territory = hit && hit.closest ? hit.closest('[data-t]') : null;
+            // Výběr území pro Vzkříšení: klepnutí na území ho rovnou vybere (list území se neotevře)
+            if (territory && game.revive && !game.move) { reviveTap(territory.dataset.t); return; }
             if (territory && !(game.move && game.move.phase !== 'idle')) { selectTerritory(territory.dataset.t); fitLabel(territory.dataset.t); }
         };
 
@@ -1336,7 +1361,10 @@
         const ITEMS_TITLE = 'Pomůcky';
         const openItems = () => {
             const render = () => deps.showDialog(ITEMS_TITLE, C.itemsDialogHtml(itemsNow(), { game: Boolean(game && ui.kind === 'game' && game.view.running) }), {
-                onClick: (event) => { if (event.target.closest('[data-cq="extra-use"]')) confirmExtra(); }
+                onClick: (event) => {
+                    if (event.target.closest('[data-cq="extra-use"]')) confirmExtra();
+                    else if (event.target.closest('[data-cq="revive-use"]')) { deps.closeDialog(); startRevive(); }
+                }
             });
             render();
             // V rozcestníku čerstvá zásoba ze serveru (pomůcka mohla přibýt jinde, třeba za Bosse týdne)
@@ -1384,7 +1412,112 @@
                 reloadGame();
             } finally { extraBusy = false; }
         };
-        // Půl na půl u otázky: nabídka jen před odpovědí, u otázky se 4 možnostmi, když ji hráč má a v této hře ji ještě nepoužil.
+        // --- Vzkříšení (blok 39): hráči nezbylo žádné území ---
+        // Okno se ukáže samo jednou po každé ztrátě posledního území (klíč = tah, kterým padlo; při otevření hry i bez něj), jen když
+        // neběží tah, výběr ani jiné okno. Se Vzkříšením Použít → výběr území na mapě, bez něj jak ho získat. Pak zůstane štítek dole na mapě.
+        const reviveSeen = new Set();
+        const reviveKey = (view) => {
+            const lost = [...(view.state.moves || [])].reverse().find(entry => view.me && entry.v === view.me.id && ['capture', 'respawn'].includes(entry.r));
+            return `${view.state.id}:${lost ? lost.id : 0}`;
+        };
+        const checkRevive = () => {
+            if (!game || game.move || game.revive || replaying || !active() || ui.kind !== 'game' || !C.reviveOn(game.view) || !C.outOfGame(game.view)) return;
+            const key = reviveKey(game.view);
+            if (reviveSeen.has(key) || doc.getElementById('dialog-overlay')) return;
+            reviveSeen.add(key);
+            openReviveOffer();
+        };
+        const REVIVE_TITLE = 'Vzkříšení';
+        const openReviveOffer = () => {
+            if (!game || !C.reviveOn(game.view)) return;
+            deps.showDialog(REVIVE_TITLE, C.reviveOfferHtml(game.state.items), {
+                onClick: (event) => {
+                    if (event.target.closest('[data-cq="revive-start"]')) { deps.closeDialog(); startRevive(); }
+                    else if (event.target.closest('[data-cq="revive-later"]')) deps.closeDialog();
+                }
+            });
+        };
+        // Výběr území: mapa ztmavne, platná území zlatě září, nahoře pruh se Zrušit; klepnutí na území (reviveTap) ho vybere
+        const startRevive = () => {
+            if (!game || game.move || !C.reviveOn(game.view) || !game.state.items.can_revive) { if (game && C.reviveOn(game.view)) openReviveOffer(); return; }
+            stopFit();
+            closeSheet();
+            game.revive = { targets: C.reviveTargets(game.view) };
+            paintRevive();
+            paintChips();
+            sound('tick');
+        };
+        const stopRevive = () => { if (!game || !game.revive) return; game.revive = null; paintRevive(); paintChips(); };
+        const paintRevive = () => {
+            const bar = app.querySelector('[data-cq-revive]');
+            const layer = fx();
+            if (layer) layer.querySelectorAll('[data-cq-revive-layer], [data-cq-revive-target]').forEach(element => element.remove());
+            if (!bar || !game) return;
+            if (!game.revive || game.move) { bar.innerHTML = ''; return; }
+            bar.innerHTML = C.reviveBarHtml(game.revive.targets.size);
+            deps.renderIcons(bar);
+            if (layer) layer.insertAdjacentHTML('afterbegin', C.reviveLayerHtml(game.view, game.revive.targets));
+        };
+        const reviveTap = (id) => {
+            if (!game || !game.revive) return;
+            const why = C.reviveWhy(game.view, id);
+            if (why) { deps.showToast(why); shakeTerritory(id); setTimeout(() => { if (game && !game.move) { const layer = fx(); if (layer) layer.querySelectorAll('.cq-shake').forEach(element => element.remove()); } }, 700); return; }
+            useRevive(id);
+        };
+        let reviveBusy = false;
+        const useRevive = async (target) => {
+            if (!game || reviveBusy || game.move) return;
+            reviveBusy = true;
+            const id = game.id;
+            const me = game.view.me;
+            try {
+                const state = await serverCall(() => Social.conquestUseRevive(id, target));
+                if (!game || game.id !== id || !state) return;
+                game.revive = null;
+                paintRevive();
+                // Animace (tah běží: obnovování a oslavy počkají): zlatý ankh vystoupá, vlny a barva hráče se rozlije
+                game.move = { phase: 'revive', kind: 'revive', target };
+                paintChips();
+                await reviveFx(target, me);
+                clearFx();
+                game.move = null;
+                game.version = state.version || game.version;
+                game.loadedAt = Date.now();
+                setState(state);
+                repaintMap();
+                updateClock();
+                dropPin(target);
+                const shield = svg && svg.querySelector(`[data-shield="${target}"] .cq-shield-pop`);
+                if (shield) shield.classList.add('cq-shield-in');
+                sound('record');
+                banner(`Vzkříšení! ${game.view.index.byId.get(target).n} je tvoje, 60 s chráněné.`, C.ITEMS.revive.icon);
+                paintCard();
+            } catch (error) {
+                if (game) game.move = null;
+                deps.showToast(errorText(error, 'Vzkříšení se nepodařilo použít.'));
+                reloadGame();
+            } finally { reviveBusy = false; }
+        };
+        // Zlatý ankh nad územím vystoupá a rozzáří se, kolem běží tři vlny a pak se území přebarví barvou hráče (inkSpread)
+        const ANKH = '<ellipse cx="0" cy="-7" rx="4.2" ry="5.2"/><path d="M-8.5 0.5H8.5M0 -1.6V13"/>';
+        const reviveFx = async (id, player) => {
+            const layer = fx();
+            const item = game.view.index.byId.get(id);
+            if (!layer || !item) return;
+            const { w, h } = game.data;
+            const [x, y] = item.a;
+            // Ankh asi 48 px na displeji při každém přiblížení
+            const size = 48 * unitsPerPixel();
+            const [x0, y0, x1, y1] = item.b;
+            const reach = Math.max(size * 1.6, Math.min(Math.hypot(x1 - x0, y1 - y0) / 2, size * 4));
+            layer.insertAdjacentHTML('beforeend', `<rect class="cq-dimmer cq-dimmer-in" x="${-w}" y="${-h}" width="${w * 3}" height="${h * 3}"/><path class="cq-focus-line cq-revive-focus" d="${item.d}"/>`
+                + [0, 1, 2].map(i => `<circle class="cq-revive-ripple" data-ripple="${i}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${reach.toFixed(1)}"/>`).join('')
+                + `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${(size / 24).toFixed(3)})"><g class="cq-ankh-rise"><circle class="cq-ankh-glow" r="15"/><g class="cq-ankh-line">${ANKH}</g><g class="cq-ankh-gold">${ANKH}</g></g></g>`);
+            layer.querySelectorAll('.cq-revive-ripple').forEach((ring, i) => ring.style.setProperty('animation-delay', `${i * 0.28}s`));
+            await wait(650);
+            inkSpread(id, [x, y], player);
+            await wait(1250);
+        };
         // V bitvě vybere server dvě nesprávné možnosti (správnou aplikace nezná); jinak je vybere aplikace a server jen zapíše použití.
         const fiftyState = (move) => {
             if (!move || !move.question) return null;
@@ -1641,7 +1774,8 @@
             if (!holder || !game) return;
             const round = game.state.round;
             const html = game.move ? '' : C.siegeChipsHtml(game.view, { offset: game.offset, now: Date.now() })
-                + (round && game.roundHidden.has(round.period) ? C.roundChipHtml(game.view, round) : '') + C.extraChipHtml(game.view);
+                + (round && game.roundHidden.has(round.period) ? C.roundChipHtml(game.view, round) : '') + C.extraChipHtml(game.view)
+                + (game.revive ? '' : C.reviveChipHtml(game.view));
             if (holder.dataset.html === html) return;
             holder.dataset.html = html;
             holder.innerHTML = html;
@@ -1674,6 +1808,15 @@
                 if (left <= 0) expired = true;
             });
             if (expired && !game.move) paintChips();
+            // Ochrana po Vzkříšení (blok 39): sekundy na štítu a v listu území; po konci se mapa překreslí (štít zmizí, útok jde)
+            let unshielded = false;
+            app.querySelectorAll('[data-cq-shield-at]').forEach(element => {
+                const left = Number(element.dataset.cqShieldAt) - now;
+                const text = `${C.shieldSeconds(left)} s`;
+                if (element.textContent !== text) element.textContent = text;
+                if (left <= 0) unshielded = true;
+            });
+            if (unshielded && !game.move) { repaintMap(); if (game.selected) showSheet(game.selected); }
             countdownTick();
             // Rychlé hry: odpočet do dalšího kola po sekundách
             if (C.fastPeriod(game.state.period) && now - (game.clockAt || 0) >= 1000) { game.clockAt = now; updateClock(); }
@@ -1794,9 +1937,11 @@
                 const finishedNow = state.status === 'finished' && !game.view.finished;
                 const newPeriod = state.budget && game.state.budget && state.budget.period !== game.state.budget.period;
                 setState(state);
-                if (finishedNow) { renderGame(); claim(id); finale(); return; }
+                if (finishedNow) { game.revive = null; renderGame(); claim(id); finale(); return; }
                 if (changed) repaintMap();
+                else paintRevive();
                 updateClock();
+                checkRevive();
                 // Hra zůstala otevřená do dalšího období: nové tahy (a po ztrátě hradu o tah méně)
                 if (newPeriod) { penaltyNews(state); deps.showToast(C.periodStartText(state)); }
             } catch (error) { /* další pokus při příštím obnovení */ }
@@ -2014,6 +2159,8 @@
             else if (name === 'feed' && game) deps.showDialog('Kronika tažení', C.feedHtml(C.feedItems(game.state.moves || [], game.view)));
             else if (name === 'items') openItems();
             else if (name === 'extra-use') confirmExtra();
+            else if (name === 'revive-use' || name === 'revive-how') openReviveOffer();
+            else if (name === 'revive-cancel') stopRevive();
             else if (name === 'fifty') fiftyTap();
             else if (name === 'zoom-reset' && game) { stopFit(); game.vb = { x: 0, y: 0, w: game.data.w, h: game.data.h }; applyView(); }
             else if (name === 'sheet-close') closeSheet();
@@ -2087,6 +2234,7 @@
             }
             if (game && game.move) { if (game.move.phase === 'sending') return true; clearFx(); game.move = null; closeSheet(); return true; }
             if (replaying && game) { replaying++; setState(game.state); repaintMap(); return true; }
+            if (game && game.revive) { stopRevive(); return true; }
             if (game && sheet() && sheet().innerHTML) { closeSheet(); return true; }
             if (ui.kind === 'game' || ui.kind === 'lobby') { openHub('mine'); return true; }
             clearTimeout(timer);

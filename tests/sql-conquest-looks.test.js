@@ -123,10 +123,10 @@ test('SQL: výplně území a vzácné znaky v Dobývání', { skip: !available 
         assert.equal(game.players[0].pattern, null);
         denied(join(B, game.code, { emblem: 'gryf' }), /vzácný znak ještě nemáš/);
         denied(join(B, game.code, { pattern: 'duha' }), /výplň území ještě nemáš/);
-        // Správce má v nabídce všechno a smí to vybrat
+        // Správce vidí jen opravdu odemčené (jako běžný hráč; všechno mu nabídne až vývojářské „Odemknout úplně vše“), vybrat smí cokoli
         const admin = looks(ADMIN);
-        assert.equal(admin.patterns.length, 12);
-        assert.equal(admin.emblems.length, 12);
+        assert.equal(admin.patterns.length, 0);
+        assert.equal(admin.emblems.length, 0);
         assert.deepEqual(admin.new, [], 'správci se nic neohlašuje (nic opravdu neodemkl)');
         const joined = json(join(ADMIN, game.code, { emblem: 'kraken', pattern: 'brokat', colour: 'zelena' }));
         const row = joined.players.find(p => p.id === ADMIN);

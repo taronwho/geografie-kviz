@@ -97,19 +97,22 @@ test('SQL: pomůcky do Dobývání', { skip: !available && 'PostgreSQL není dos
             denied(as(A, `delete from ${table};`), /permission denied/);
         }
         const can = (role, fn) => q(`select has_function_privilege('${role}', 'public.${fn}', 'execute')`);
-        for (const fn of ['player_items_mine()', 'player_items_claim(text, text)', 'conquest_use_extra(uuid)', 'conquest_use_fifty(uuid, uuid, text)']) {
+        for (const fn of ['player_items_mine()', 'player_items_claim(text, text)', 'conquest_use_extra(uuid)', 'conquest_use_fifty(uuid, uuid, text)', 'conquest_use_revive(uuid, text)']) {
             assert.deepEqual([can('authenticated', fn), can('anon', fn), can('public', fn)], ['t', 'f', 'f'], fn);
         }
         for (const fn of ['player_items_now()', 'player_items_week(date)', 'player_item_cap(text)', 'player_items_json(uuid)', 'player_item_grant(uuid, text, text, boolean)',
-            'player_item_roll(uuid, text)', 'player_item_lucky(uuid, text)', 'conquest_extra_block(public.conquest_games, uuid)', 'conquest_items_json(public.conquest_games, uuid)']) {
+            'player_item_roll(uuid, text)', 'player_item_lucky(uuid, text)', 'conquest_extra_block(public.conquest_games, uuid)', 'conquest_items_json(public.conquest_games, uuid)',
+            'conquest_revive_shield()', 'conquest_revive_starter(uuid)', 'conquest_revive_streak(uuid, date)', 'conquest_revive_targets(public.conquest_games, uuid)',
+            'conquest_revive_block(public.conquest_games, uuid)', 'conquest_round_auto(public.conquest_games, uuid)']) {
             assert.deepEqual([can('authenticated', fn), can('anon', fn), can('public', fn)], ['f', 'f', 'f'], fn);
         }
         denied(as(A, `select player_item_grant('${A}', 'fifty', 'daily:2026-W46', false);`), /permission denied/, 'zisk jen ze serveru');
         for (const sql of ['select player_items_mine();', `select player_items_claim('season', 'season:2026-11:5');`, 'select * from player_items;']) denied(as(null, sql, 'anon'), null, sql);
         denied(as(null, 'select player_items_mine();'), /Přihlas se/);
-        assert.deepEqual(json(as(A, 'select player_items_mine();')), { extra_move: 0, fifty: 0, chain_rescue: 0, max: { extra_move: 1, fifty: 2, chain_rescue: 1 } });
-        // Strop: Tah navíc nejvýš 1, Půl na půl nejvýš 2 (ani správce databáze víc nezapíše)
-        for (const [kind, count] of [['extra_move', 2], ['fifty', 3], ['fifty', -1], ['chain_rescue', 2], ['jiny', 1]]) {
+        // Startovní Vzkříšení (blok 39) přijde s prvním načtením zásoby
+        assert.deepEqual(json(as(A, 'select player_items_mine();')), { extra_move: 0, fifty: 0, chain_rescue: 0, revive: 1, max: { extra_move: 1, fifty: 2, chain_rescue: 1, revive: 3 } });
+        // Strop: Tah navíc nejvýš 1, Půl na půl nejvýš 2, Vzkříšení nejvýš 3 (ani správce databáze víc nezapíše)
+        for (const [kind, count] of [['extra_move', 2], ['fifty', 3], ['fifty', -1], ['chain_rescue', 2], ['revive', 4], ['jiny', 1]]) {
             const r = psql(dbName, `insert into player_items (user_id, kind, count) values ('${E}', '${kind}', ${count})`);
             assert.notEqual(r.status, 0, `${kind} ${count}`);
             assert.match(r.stderr, /player_items_values/);
@@ -140,7 +143,7 @@ test('SQL: pomůcky do Dobývání', { skip: !available && 'PostgreSQL není dos
         const full = json(as(A, `select boss_submit('2026-11-16', 0, 700, true);`));
         assert.deepEqual(pick(full.item), ['extra_move', false, true, false, 1]);
         assert.deepEqual(mine(A), [1, 0]);
-        assert.equal(q(`select string_agg(key || '=' || granted, ',' order by key) from player_item_grants where user_id = '${A}'`), 'boss:2026-11-09=true,boss:2026-11-16=false');
+        assert.equal(q(`select string_agg(key || '=' || granted, ',' order by key) from player_item_grants where user_id = '${A}'`), 'boss:2026-11-09=true,boss:2026-11-16=false,starter=true');
     });
 
     await t.test('Kvíz dne bez chyby: Půl na půl nejvýš jednou za ISO týden; s plnou zásobou se v týdnu zkusí znovu; s chybou nic', () => {
@@ -166,7 +169,7 @@ test('SQL: pomůcky do Dobývání', { skip: !available && 'PostgreSQL není dos
         setStock(B, 'fifty', 1);
         assert.deepEqual(pick(play(B, '2026-11-24', '1111111111').item), ['fifty', true, false, false, 2]);
         assert.deepEqual(pick(play(B, '2026-11-25', '1111111111').item), ['fifty', true, false, true, 2], 'v týdnu jen jednou');
-        assert.equal(q(`select string_agg(key, ',' order by key) from player_item_grants where user_id = '${B}' and granted`), 'daily:2026-W46,daily:2026-W47,daily:2026-W48');
+        assert.equal(q(`select string_agg(key, ',' order by key) from player_item_grants where user_id = '${B}' and granted and kind = 'fifty'`), 'daily:2026-W46,daily:2026-W47,daily:2026-W48');
         // Mezi odpověďmi uprostřed kvízu pomůcka není
         today = '2026-11-12';
         json(as(C, 'select daily_quiz_start();'));
@@ -187,14 +190,14 @@ test('SQL: pomůcky do Dobývání', { skip: !available && 'PostgreSQL není dos
         clock = '2026-11-20T10:00:00Z';
         const r5 = json(claim(D, 'season', 'season:2026-11:5'));
         assert.deepEqual(pick(r5), ['fifty', true, false, false, 1]);
-        assert.deepEqual(r5.items, { extra_move: 0, fifty: 1, chain_rescue: 0, max: { extra_move: 1, fifty: 2, chain_rescue: 1 } });
+        assert.deepEqual(r5.items, { extra_move: 0, fifty: 1, chain_rescue: 0, revive: 0, max: { extra_move: 1, fifty: 2, chain_rescue: 1, revive: 3 } });
         assert.deepEqual(pick(json(claim(D, 'season', 'season:2026-11:5'))), ['fifty', true, false, true, 1], 'jednou za klíč (druhé zařízení dostane totéž)');
         assert.deepEqual(pick(json(claim(D, 'season', 'season:2026-11:15'))), ['extra_move', true, false, false, 1]);
         // Minulý měsíc ještě jde (dovybrání), starší ne; jiné stupně, tvary a zdroje ne
         assert.deepEqual(pick(json(claim(D, 'season', 'season:2026-10:5'))), ['fifty', true, false, false, 2]);
         denied(claim(D, 'season', 'season:2026-09:5'), /Tahle sezóna už skončila\./);
         denied(claim(D, 'season', 'season:2026-12:5'), /Tahle sezóna už skončila\./);
-        for (const key of ['season:2026-11:10', 'season:2026-11:20', 'season:2026-11', 'chest:2026-W47', null]) denied(claim(D, 'season', key), /Pomůcku dává jen 5\., 12\. a 15\. stupeň sezóny\./, String(key));
+        for (const key of ['season:2026-11:10', 'season:2026-11:20', 'season:2026-11', 'chest:2026-W47', null]) denied(claim(D, 'season', key), /Pomůcku dává jen 5\., 8\., 12\. a 15\. stupeň sezóny\./, String(key));
         denied(claim(D, 'boss', 'boss:2026-11-16'), /Neznámý zdroj pomůcky\./, 'Boss, Kvíz dne a Řetězovku počítá server sám');
         // Plno: 15. stupeň minulé sezóny nic nepřidá (aplikace dá běžnou věc) a později to už nezkusí znovu
         const full = json(claim(D, 'season', 'season:2026-10:15'));
@@ -218,8 +221,8 @@ test('SQL: pomůcky do Dobývání', { skip: !available && 'PostgreSQL není dos
         q(`insert into auth.users (id, email) select u, 'l' || u || '@example.com' from unnest(array[${users.map(lit).join(', ')}]::uuid[]) u`);
         const lucky = q(`select string_agg(u::text, ',') from unnest(array[${users.map(lit).join(', ')}]::uuid[]) u where player_item_lucky(u, '${week}')`).split(',').filter(Boolean);
         assert.ok(lucky.length >= 1 && lucky.length <= 20, `zhruba 5 %: ${lucky.length} ze 120`);
-        // Bez štěstí = ani Půl na půl (pod 50), ani Záchrana navíc (50–99, blok 37)
-        const unlucky = users.find(u => Number(q(`select player_item_roll('${u}', '${week}')`)) >= 100);
+        // Bez štěstí = ani Půl na půl (pod 50), ani Záchrana navíc (50–99, blok 37), ani Vzkříšení (130–229, blok 39)
+        const unlucky = users.find(u => Number(q(`select player_item_roll('${u}', '${week}')`)) >= 230);
         const no = json(claim(unlucky, 'chest', week));
         assert.deepEqual([no.granted, no.lucky, no.items.fifty], [false, false, 0]);
         assert.deepEqual([json(claim(unlucky, 'chest', week)).granted, json(claim(unlucky, 'chest', week)).already], [false, true], 'nový los nejde');
@@ -283,11 +286,11 @@ test('SQL: pomůcky do Dobývání', { skip: !available && 'PostgreSQL není dos
         setStock(B, 'extra_move', 0);
         denied(useExtra(B, g2.id), /Tah navíc teď nemáš\./);
         setStock(B, 'extra_move', 1);
-        // Bez území (čeká na Návrat do hry)
+        // Bez území (vrátit se jde jen Vzkříšením, blok 39)
         place(g2.id, 'Q36', null);
         place(g2.id, 'Q213', null);
         q(`update conquest_territories set owner = '${C}' where game_id = '${g2.id}' and territory = 'Q183'`);
-        assert.equal(state(B, g2.id).items.extra_block, 'Bez území Tah navíc použít nejde. Počkej na Návrat do hry.');
+        assert.equal(state(B, g2.id).items.extra_block, 'Bez území Tah navíc použít nejde. Vrátit se můžeš pomůckou Vzkříšení.');
         denied(useExtra(B, g2.id), /Bez území Tah navíc použít nejde\./);
         place(g2.id, 'Q213', B, { home: true });
         // Kolo dohrané, B chce další kolo, pak použije Tah navíc: značka zmizí a kolo zase není hotové
@@ -411,7 +414,7 @@ test('SQL: pomůcky do Dobývání', { skip: !available && 'PostgreSQL není dos
         assert.deepEqual([lazy.place, lazy.item], [1, undefined]);
         assert.deepEqual(mine(D)[1], 1);
         // Lobby ukáže zásobu
-        assert.deepEqual(json(as(D, 'select conquest_lobby();')).items, { extra_move: 0, fifty: 1, chain_rescue: 0, max: { extra_move: 1, fifty: 2, chain_rescue: 1 } });
+        assert.deepEqual(json(as(D, 'select conquest_lobby();')).items, { extra_move: 0, fifty: 1, chain_rescue: 0, revive: 1, max: { extra_move: 1, fifty: 2, chain_rescue: 1, revive: 3 } });
     });
 
     await t.test('Záchrana navíc (blok 37): 12. stupeň Sezóny, Truhla Mudrlanta 5 % ze stejného losu, Zlatá truhla 20 % jednou za týden; strop 1', () => {
@@ -444,7 +447,7 @@ test('SQL: pomůcky do Dobývání', { skip: !available && 'PostgreSQL není dos
         const g = json(claim(fresh, 'gold', gold));
         assert.deepEqual([g.kind, g.granted, g.lucky, g.items.chain_rescue], ['chain_rescue', true, true, 1]);
         assert.deepEqual([json(claim(fresh, 'gold', gold)).already, rescueOf(fresh)], [true, 1], 'druhá Zlatá truhla v týdnu nic');
-        const goldUnlucky = users.slice(1).find(u => roll(u, gold) >= 200);
+        const goldUnlucky = users.slice(1).find(u => roll(u, gold) >= 350);
         const n = json(claim(goldUnlucky, 'gold', gold));
         assert.deepEqual([n.kind, n.granted, n.lucky, n.items.chain_rescue], ['chain_rescue', false, false, 0]);
         // Plná zásoba: Zlatá truhla se štěstím nic nepřidá
@@ -465,11 +468,11 @@ test('SQL: pomůcky do Dobývání', { skip: !available && 'PostgreSQL není dos
 
     await t.test('export dat má pomůcky (zásoba a odkud přišly), smazání účtu je smaže', () => {
         const exported = json(as(B, 'select export_my_data();'));
-        assert.deepEqual(exported.pomucky.zasoba.map(row => [row.kind, row.count]).sort(), [['extra_move', mine(B)[0]], ['fifty', mine(B)[1]]]);
+        assert.deepEqual(exported.pomucky.zasoba.map(row => [row.kind, row.count]).sort(), [['extra_move', mine(B)[0]], ['fifty', mine(B)[1]], ['revive', 1]]);
         assert.ok(exported.pomucky.ziskane.some(row => row.key === 'daily:2026-W46' && row.granted));
         assert.ok(exported.pomucky.ziskane.every(row => row.user_id === B));
         assert.deepEqual(exported.pomucky.pouzite, [], 'použitá Záchrana navíc (blok 37; víc tests/sql-chain.test.js)');
-        assert.equal(last(ok(as(B, 'select count(*) from player_items;'))), '2', 'jen vlastní řádky');
+        assert.equal(last(ok(as(B, 'select count(*) from player_items;'))), '3', 'jen vlastní řádky');
         ok(as(B, 'select delete_my_account();'));
         assert.equal(q(`select count(*) from player_items where user_id = '${B}'`), '0');
         assert.equal(q(`select count(*) from player_item_grants where user_id = '${B}'`), '0');

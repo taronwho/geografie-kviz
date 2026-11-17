@@ -3,7 +3,8 @@
 // začátek hry), obrazovka hry (mapa se vejde na 360×640 bez posouvání, klepnutí na území, spodní list, otázka, dobytí, opevnění,
 // odražený útok, přiblížení, kronika tažení), konec hry (stupně vítězů, odměna jen jednou, přehrání), pomůcky (zásoba v rozcestníku,
 // okno Pomůcky, Půl na půl u otázky i v bitvě s „½“ u účastníků, Tah navíc z listu území, štítku i okna Kolo dohráno s potvrzením,
-// „+1“ u tahů a záznam v kronice), CSP bez chyb, tmavý režim.
+// „+1“ u tahů a záznam v kronice), Vzkříšení (blok 39: okno po ztrátě všech území, výběr území na mapě, animace, štít ochrany s odpočtem,
+// zašedlý útok u soupeře, kronika u obou; bez pomůcky Mimo hru; starší databáze Návrat do hry), CSP bez chyb, tmavý režim.
 // SCREENSHOT_DIR=/cesta uloží snímky (dobyvani-*.png). Potřebuje Playwright (viz tests/e2e.test.js), jinak se přeskočí.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -46,6 +47,8 @@ const newDb = () => ({
 });
 const HOMES = { evropa: ['Q213', 'Q20', 'Q29', 'Q41'], cesko: ['Q192697', 'Q191091', 'Q193307', 'Q46070'] };
 const NOW = '2026-11-11T10:00:00Z';
+// Konec ochrany po Vzkříšení (blok 39): 60 s po NOW (čas stránky stojí na NOW)
+const SHIELD_UNTIL = '2026-11-11T10:01:00Z';
 
 const backend = async (context, db) => {
     await context.route('**/config.js', route => route.fulfill({ contentType: 'text/javascript', body: CONFIG }));
@@ -81,7 +84,15 @@ const backend = async (context, db) => {
             + (g.sieges || []).filter(s => s.status === 'open' && s.participants.some(p => p.user === me.id)).length; const penalty = g.penaltyPeriod !== undefined && g.penaltyPeriod === (g.periodNo || 0) ? 1 : 0;
             const extra = extraOf(g, me.id); return { period: g.periodNo || 0, base: g.actions, regions: 0, treasures: 0, loot: 0, penalty, extra, used, total: g.actions - penalty + extra, left: Math.max(0, g.actions - penalty + extra - used), period_ends_at: '2026-11-12T10:00:00Z' }; };
         // Pomůcky (blok 30), jen s db.items = { hráč: { extra_move, fifty } }: zásoba, co jde v této hře použít
-        const stock = () => (db.items ? { extra_move: 0, fifty: 0, chain_rescue: 0, ...(db.items[me.id] || {}), max: { extra_move: 1, fifty: 2, chain_rescue: 1 } } : null);
+        // Vzkříšení (blok 39) jen s db.revive: zásoba revive, ve hře can_revive / revive_block / revive_used
+        const stock = () => (db.items ? { extra_move: 0, fifty: 0, chain_rescue: 0, ...(db.revive ? { revive: 0 } : {}), ...(db.items[me.id] || {}),
+            max: { extra_move: 1, fifty: 2, chain_rescue: 1, ...(db.revive ? { revive: 3 } : {}) } } : null);
+        const reviveInfo = (g, items) => {
+            if (!db.revive) return {};
+            const out = !g.territories.some(t => t.o === me.id);
+            const block = g.status !== 'running' ? 'Hra neběží.' : !out ? 'Vzkříšení jde použít, jen když ti nezbylo žádné území.' : (items.revive || 0) < 1 ? 'Vzkříšení teď nemáš.' : null;
+            return { can_revive: block === null, revive_block: block, revive_used: (g.moves || []).filter(m => m.u === me.id && m.k === 'revive').length };
+        };
         const gameItems = (g) => {
             if (!db.items) return {};
             const items = stock();
@@ -89,7 +100,7 @@ const backend = async (context, db) => {
             const last = Boolean(g.round && g.round.last);
             const block = g.status !== 'running' ? 'Hra neběží.' : extraUsed ? 'Tah navíc jde v jedné hře použít jen jednou.' : items.extra_move < 1 ? 'Tah navíc teď nemáš.'
                 : last ? 'V posledním kole hry Tah navíc použít nejde.' : null;
-            return { items: { ...items, extra_used: extraUsed, fifty_used: Boolean((g.fiftyUsed || {})[me.id]), can_extra: block === null, extra_block: block } };
+            return { items: { ...items, extra_used: extraUsed, fifty_used: Boolean((g.fiftyUsed || {})[me.id]), can_extra: block === null, extra_block: block, ...reviveInfo(g, items) } };
         };
         const rescore = (g) => g.players.forEach(p => { const score = g.territories.filter(t => t.o === p.user).length; if (score !== p.score) { p.score = score; p.score_at = NOW; } });
         const start = (g) => {
@@ -147,7 +158,7 @@ const backend = async (context, db) => {
         // Vývojářští boti (blok 22): do lobby (chtějí hrát, plná hra začne), jejich tahy hned (každý bot dobude jedno volné území), další období
         if (name === 'dev_conquest_add_bots') {
             const g = find(body.game);
-            const colours = ['zelena', 'zluta', 'fialova', 'oranzova', 'tyrkysova', 'ruzova', 'cerna'].filter(c => !g.players.some(p => p.flag_color === c));
+            const colours = ['bila', 'nebeska', 'hneda', 'zelena', 'zluta', 'fialova', 'oranzova', 'tyrkysova', 'ruzova', 'cerna'].filter(c => !g.players.some(p => p.flag_color === c));
             const count = Math.min(body.how_many, g.max_players - g.players.length);
             for (let i = 0; i < count; i++) {
                 const bot = `bot-${db.seq++}`;
@@ -177,7 +188,7 @@ const backend = async (context, db) => {
             return json(state(g));
         }
         // Pomůcky (blok 30)
-        if (name.startsWith('player_items') || name === 'conquest_use_extra' || name === 'conquest_use_fifty') {
+        if (name.startsWith('player_items') || name === 'conquest_use_extra' || name === 'conquest_use_fifty' || name === 'conquest_use_revive') {
             if (!db.items) return fail('Not found', 404);
             const items = db.items[me.id] = { extra_move: 0, fifty: 0, chain_rescue: 0, ...(db.items[me.id] || {}) };
             if (name === 'player_items_mine') return json(stock());
@@ -193,6 +204,23 @@ const backend = async (context, db) => {
                 return json({ kind, granted: true, full: false, already: false, count: items[kind], max, ...(body.source !== 'season' ? { lucky: true } : {}), items: stock() });
             }
             const g = find(body.game);
+            // Vzkříšení: jen bez území a se zásobou; cíl neutrální nebo cizí neopevněné, ne domovský hrad ani chráněné; ochrana do NOW + 60 s
+            if (name === 'conquest_use_revive') {
+                if (!db.revive) return fail('Not found', 404);
+                const info = gameItems(g).items;
+                if (!info.can_revive) return fail(info.revive_block);
+                const t = g.territories.find(x => x.t === body.target);
+                if (!t) return fail('Tohle území na mapě není.');
+                if (t.o && t.h) return fail('Domovský hrad Vzkříšením vzít nejde. Vyber volné nebo neopevněné území.');
+                if (t.o && t.l > 0) return fail('Opevněné území Vzkříšením vzít nejde. Vyber volné nebo neopevněné území.');
+                if (t.o && t.s) return fail('Území je chráněné po vzkříšení ještě 60 s.');
+                const victim = t.o;
+                g.moves.push({ id: db.seq++, u: me.id, k: 'revive', t: t.t, s: null, ok: true, r: 'respawn', v: victim, n: g.periodNo || 0, at: NOW, p: Boolean(t.p && !victim), h: false, l: 0 });
+                Object.assign(t, { o: me.id, l: 0, h: false, p: false, s: SHIELD_UNTIL });
+                items.revive -= 1;
+                rescore(g);
+                return json({ ...state(g), used: 'revive', territory: t.t, shield_until: SHIELD_UNTIL });
+            }
             if (name === 'conquest_use_extra') {
                 const info = gameItems(g).items;
                 if (!info.can_extra) return fail(info.extra_block);
@@ -291,6 +319,7 @@ const backend = async (context, db) => {
         }
         if (name === 'conquest_siege_begin') {
             const g = find(body.game);
+            if (g.territories.some(x => x.t === body.target && x.s && x.o !== me.id)) return fail('Území je chráněné po vzkříšení ještě 60 s.');
             if ((g.sieges || []).some(s => s.status === 'open' && s.territory === body.target)) return fail('Na území právě probíhá bitva. Můžeš se přidat.');
             const s = { id: uuid(db.seq++), territory: body.target, started_by: me.id, question: body.question, correct: body.correct, status: 'open', participants: [{ user: me.id, source: body.source }] };
             g.sieges = [...(g.sieges || []), s];
@@ -323,6 +352,7 @@ const backend = async (context, db) => {
         if (name === 'conquest_move') {
             const g = find(body.game);
             const t = g.territories.find(x => x.t === body.target);
+            if (body.move_kind === 'attack' && t.s && t.o !== me.id) return fail('Území je chráněné po vzkříšení ještě 60 s.');
             const forced = db.force.shift();
             const correct = forced ? forced !== 'fail' : body.is_correct;
             let r = 'fail';
@@ -1510,6 +1540,8 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         db.chestPattern = true;
         await tab.evaluate(() => {
             const state = JSON.parse(localStorage.getItem('mudrlant.rewards'));
+            // Truhla téhož týdne je už otevřená: vrátíme ji, aby čekala znovu (jinak by ji aplikace při načtení vyřadila)
+            delete state.chests['2026-11-09'];
             state.ready = ['2026-11-09'];
             localStorage.setItem('mudrlant.rewards', JSON.stringify(state));
         });
@@ -1529,6 +1561,155 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();
+    });
+
+    // Vzkříšení (blok 39): Jana (u-1) přišla o Česko (Petr ho drží neopevněné) i o Slovensko (Petr, Palisáda)
+    const fallen = ({ revive = 2, schema39 = true } = {}) => {
+        const db = running();
+        db.items = { 'u-1': { extra_move: 0, fifty: 0, revive } };
+        db.revive = schema39;
+        const g = db.games[0];
+        g.territories.forEach(t => { if (t.t === 'Q213') Object.assign(t, { o: 'u-2', h: false, l: 0 }); if (t.t === 'Q214') Object.assign(t, { o: 'u-2', l: 1 }); });
+        g.moves.push({ id: 3, u: 'u-2', k: 'attack', t: 'Q214', r: 'capture', v: 'u-1', n: 0, at: NOW, p: false, h: false, l: 0 },
+            { id: 4, u: 'u-2', k: 'attack', t: 'Q213', r: 'capture', v: 'u-1', n: 0, at: NOW, p: false, h: true, l: 0 },
+            { id: 5, u: 'u-2', k: 'fortify', t: 'Q214', r: 'fortify', n: 0, at: NOW, p: false, h: false, l: 1 });
+        g.players.forEach(p => { p.score = g.territories.filter(x => x.o === p.user).length; p.score_at = NOW; });
+        return db;
+    };
+    const openFromHub = async (tab, id) => {
+        await tab.click('#conquest-card');
+        await tab.waitForSelector(`[data-cq-play="${id}"]`);
+        await tab.click(`[data-cq-play="${id}"]`);
+        await tab.waitForSelector('#conquest-game [data-cq-map] svg');
+    };
+    const reviveDialogFits = (tab, height) => tab.evaluate((h) => { const box = document.querySelector('#dialog-overlay > div'); const rect = box.getBoundingClientRect(); return box.scrollHeight - box.clientHeight <= 0 && rect.top >= 0 && rect.bottom <= h; }, height);
+    for (const [width, height, colorScheme] of [[360, 640, 'light'], [390, 780, 'dark']]) {
+        const mode = colorScheme === 'dark' ? 'tmavy' : 'svetly';
+        await t.test(`Vzkříšení na ${width}×${height} (${colorScheme === 'dark' ? 'tmavý' : 'světlý'} režim): okno po ztrátě všech území, výběr území, animace, štít ochrany, kronika; soupeř vidí chráněné území se zašedlým útokem`, async () => {
+            const db = fallen();
+            const g = db.games[0];
+            const { context, tab, log } = await start(db, { viewport: { width, height }, colorScheme });
+            // Rozcestník: hra bez mých území nečeká na tah
+            await tab.click('#conquest-card');
+            await tab.waitForSelector(`[data-cq-game="${g.id}"]`);
+            assert.match(await bodyText(tab, `[data-cq-game="${g.id}"]`), /všechna tvá území padla\s*.*Mapa/);
+            assert.match(await bodyText(tab, '[data-cq-items]'), /Vzkříšení\s*2\/3/);
+            assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+            await tab.waitForTimeout(300);
+            await shot(tab, `vzkriseni-rozcestnik-${width}-${mode}`);
+            await tab.click(`[data-cq-play="${g.id}"]`);
+            // Okno se ukáže samo: Všechna tvá území padla, Použít Vzkříšení? Máš 2 ze 3
+            await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Vzkříšení', null, { timeout: 15000 });
+            const offer = await bodyText(tab, '#dialog-overlay');
+            assert.match(offer, /Všechna tvá území padla\.\s*Použít Vzkříšení\? Vybereš si volné nebo neopevněné území \(ne domovský hrad\)[\s\S]*Na 60 s bude chráněné před útoky\. Domovské nebude\.\s*Máš 2 ze 3\.\s*Použít\s*Teď ne/);
+            assert.doesNotMatch(offer, /\b(přišel|přišla)\b/);
+            assert.ok(await reviveDialogFits(tab, height), 'okno se vejde');
+            await tab.waitForTimeout(350);
+            await shot(tab, `vzkriseni-okno-${width}-${mode}`);
+            // Teď ne: zůstane štítek Vzkříšení dole na mapě, ten okno otevře znovu
+            await tab.click('[data-cq="revive-later"]');
+            await tab.waitForSelector('[data-cq-chips] [data-cq="revive-use"]');
+            assert.match(await bodyText(tab, '[data-cq-chips]'), /Vzkříšení 2\/3/);
+            await tab.click('[data-cq-chips] [data-cq="revive-use"]');
+            await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Vzkříšení');
+            await tab.click('[data-cq="revive-start"]');
+            // Výběr: pruh nahoře, zlatě září jen platná území; domovský hrad ani opevněné nejdou (hláška, bez volání serveru)
+            await tab.waitForSelector('[data-cq-revive-bar]');
+            assert.match(await bodyText(tab, '[data-cq-revive-bar]'), /Klepni na zářící území\s*\d+ území k výběru\s*Zrušit/);
+            const lit = await tab.evaluate(() => [...document.querySelectorAll('[data-cq-revive-target]')].map(path => path.dataset.cqReviveTarget));
+            assert.ok(lit.includes('Q213') && lit.includes('Q40') && !lit.includes('Q214') && !lit.includes('Q20') && !lit.includes('Q183'), lit.join(','));
+            assert.equal(await tab.locator('[data-cq-chips] [data-cq="revive-use"]').count(), 0, 'štítek během výběru zmizí');
+            assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+            await tab.waitForTimeout(400);
+            await shot(tab, `vzkriseni-vyber-${width}-${mode}`);
+            await tapTerritory(tab, 'Q214');
+            await tab.waitForFunction(() => /Opevněné území Vzkříšením vzít nejde/.test(document.body.textContent));
+            assert.equal(db.calls.filter(call => call.name === 'conquest_use_revive').length, 0);
+            assert.equal(await tab.locator('[data-cq-sheet] .cq-sheet').count(), 0, 'list území se při výběru neotevře');
+            // Česko (neopevněné, drží ho Petr): animace, přebarvení, štít 60 s (pauza, ať druhé klepnutí vedle není dvojité klepnutí)
+            await tab.waitForTimeout(450);
+            await tapTerritory(tab, 'Q213');
+            await tab.waitForSelector('.cq-ankh-rise');
+            assert.deepEqual(db.calls.filter(call => call.name === 'conquest_use_revive').pop().body, { game: g.id, target: 'Q213' });
+            await tab.waitForTimeout(550);
+            await shot(tab, `vzkriseni-animace-${width}-${mode}`);
+            await tab.waitForSelector('[data-shield="Q213"]', { timeout: 10000 });
+            await tab.waitForFunction(() => /Vzkříšení! Česko je tvoje, 60 s chráněné\./.test((document.querySelector('[data-cq-banner]') || {}).textContent || ''));
+            assert.equal((await tab.textContent('[data-shield="Q213"] [data-cq-shield-at]')).trim(), '60 s');
+            assert.equal(await tab.locator('[data-cq-revive-bar]').count(), 0, 'výběr skončil');
+            assert.equal(await tab.locator('[data-cq-chips] [data-cq="revive-use"]').count(), 0);
+            assert.match(await tab.textContent('[data-cq-budget]'), /5\/5/, 'tahy zůstaly');
+            assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+            await tab.waitForTimeout(700);
+            await shot(tab, `vzkriseni-ochrana-${width}-${mode}`);
+            // Kronika: Vzkříšení s praporcem, kdo o území přišel
+            assert.match(await bodyText(tab, '[data-cq-recent]'), /Česko\s*Vzkříšení\s*ty/);
+            await tab.click('#conquest-game button[aria-label="Kronika tažení"]');
+            await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Kronika tažení');
+            assert.match(await bodyText(tab, '#dialog-overlay'), /Česko: Vzkříšení ty · dosud Petr Svoboda/);
+            await shot(tab, `vzkriseni-kronika-${width}-${mode}`);
+            await tab.keyboard.press('Escape');
+            assert.deepEqual(log.errors, []);
+            assert.deepEqual(log.csp, []);
+            await context.close();
+            // Petr (u-2): Česko je chráněné – štít s odpočtem, zašedlé Zaútočit; v kronice „dosud ty“; po 60 s útok jde
+            const other = await start(db, { viewport: { width, height }, colorScheme, storage: login('tok-u2') });
+            await openFromHub(other.tab, g.id);
+            await other.tab.waitForSelector('[data-shield="Q213"]');
+            await tapTerritory(other.tab, 'Q213');
+            await other.tab.waitForSelector('[data-cq-sheet] [data-cq-shielded]');
+            assert.equal(await other.tab.locator('[data-cq-sheet] [data-cq-shielded]').isDisabled(), true);
+            assert.match(await bodyText(other.tab, '[data-cq-sheet]'), /Jana Nováková[\s\S]*Zaútočit\s*Území je chráněné po vzkříšení ještě 60 s\. Pak na něj půjde zaútočit\./);
+            assert.equal(await other.tab.locator('[data-cq-sheet] [data-cq="attack"]').count(), 0);
+            assert.deepEqual(await fits(other.tab), { vertical: 0, page: 0, content: 0 });
+            await other.tab.waitForTimeout(400);
+            await shot(other.tab, `vzkriseni-chranene-${width}-${mode}`);
+            await other.tab.clock.setFixedTime(new Date(Date.parse(NOW) + 45000));
+            await other.tab.waitForFunction(() => /ještě 15 s/.test(document.querySelector('[data-cq-sheet]').textContent));
+            await other.tab.clock.setFixedTime(new Date(Date.parse(NOW) + 61000));
+            await other.tab.waitForSelector('[data-cq-sheet] [data-cq="attack"]', { timeout: 5000 });
+            assert.equal(await other.tab.locator('[data-shield="Q213"]').count(), 0, 'štít zmizel');
+            await other.tab.click('[data-cq="sheet-close"]');
+            await other.tab.click('#conquest-game button[aria-label="Kronika tažení"]');
+            await other.tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Kronika tažení');
+            assert.match(await bodyText(other.tab, '#dialog-overlay'), /Česko: Vzkříšení Jana Nováková · dosud ty/);
+            assert.deepEqual(other.log.errors, []);
+            assert.deepEqual(other.log.csp, []);
+            await other.context.close();
+        });
+    }
+
+    await t.test('Vzkříšení: bez pomůcky Mimo hru (okno jak ji získat, štítek), omezený pohyb; starší databáze Návrat do hry bez okna', async () => {
+        const db = fallen({ revive: 0 });
+        const g = db.games[0];
+        const { context, tab, log } = await start(db, { reducedMotion: 'reduce' });
+        await openFromHub(tab, g.id);
+        await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Vzkříšení', null, { timeout: 15000 });
+        assert.match(await bodyText(tab, '#dialog-overlay'), /Všechna tvá území padla\.\s*Vzkříšení nemáš, hru teď jen sleduješ\. Když ho během hry získáš, můžeš se vrátit\.\s*Jak získat Vzkříšení: Jedno na začátek, dohraná započítaná hra Dobývání s body[\s\S]*Nejvýš 3\.\s*Rozumím/);
+        assert.ok(await reviveDialogFits(tab, 640));
+        await shot(tab, 'vzkriseni-bez-pomucky-360');
+        await tab.click('[data-cq="revive-later"]');
+        await tab.waitForSelector('[data-cq-chips] [data-cq="revive-how"]');
+        assert.match(await bodyText(tab, '[data-cq-chips]'), /Mimo hru · jak se vrátit/);
+        await tapTerritory(tab, 'Q40');
+        await tab.waitForSelector('[data-cq-sheet] .cq-sheet');
+        assert.match(await bodyText(tab, '[data-cq-sheet]'), /Všechna tvá území padla\. Bez Vzkříšení hru už jen sleduješ\./);
+        assert.equal(await tab.locator('[data-cq-sheet] [data-cq="revive-use"]').count(), 0);
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+        // Starší databáze (bez bloku 39): okno ani štítek nejsou, hráč čeká na Návrat do hry
+        const old = fallen({ schema39: false });
+        const page = await start(old);
+        await openFromHub(page.tab, old.games[0].id);
+        await tapTerritory(page.tab, 'Q40');
+        await page.tab.waitForSelector('[data-cq-sheet] .cq-sheet');
+        assert.match(await bodyText(page.tab, '[data-cq-sheet]'), /Nemáš žádné území\. V dalším období dostaneš nové\./);
+        assert.equal(await page.tab.locator('#dialog-overlay').count(), 0);
+        assert.equal(await page.tab.locator('[data-cq-chips] [data-cq^="revive"]').count(), 0);
+        assert.deepEqual(page.log.errors, []);
+        await page.context.close();
     });
 
     await t.test('Česko na 360×640: mapa krajů, hodinové tahy, otázka o kraji', async () => {
@@ -1763,7 +1944,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         await tab.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
         await promptTitle(tab);
         assert.match((await tab.textContent(`[data-cq-invite-prompt="${uuid(2)}"]`)).replace(/\s+/g, ' '), /Jana Nováková tě zve do Dobývání: Česko · Rychlá hra/);
-        assert.ok(await dialogFits(tab, 640));
+        assert.ok(await reviveDialogFits(tab, 640));
         await shot(tab, 'pozvanka-okno-navrat-360');
         await tab.click('#dialog-overlay [data-cq-prompt="decline"]');
         await toast(tab, /^Pozvánka odmítnuta\.$/);

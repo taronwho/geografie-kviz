@@ -142,7 +142,7 @@ test('zapojení v aplikaci: výzva a turnaj podle semínka, Kvíz dne a dnešní
     assert.match(app, /const challengeAllowsMaps = \(c\) => Boolean\(MapQuestion && c && \(c\.tournament \? c\.tournament\.maps === true : MapQuestion\.seedAllowsMaps\(c\.seed\)\)\);/);
     assert.match(app, /MapQuestion\.multiplayerDue\(seedText\) && MapQuestion\.candidate\(item, ctx\)/);
     assert.match(app, /mode === 'challenge' \? \(options\.map \? loadMapData\(\)\.then\(map => MapQuestion\.multiplayerQuestion\(item, ctx, map\)\)/);
-    assert.match(app, /createRoundData\(picked\.item, picked\.ctx, picked\.rng, \{ map: Boolean\(picked\.map\)(, stableChoices: Boolean\(picked\.stable\))? \}\)/);
+    assert.match(app, /createRoundData\(picked\.item, picked\.ctx, picked\.rng, \{ map: Boolean\(picked\.map\)(, stableChoices: Boolean\(picked\.stable\))?(, day: picked\.dailyDate)? \}\)/);
     assert.match(app, /maps: tournamentMaps\(tournament\)/);
     assert.match(app, /maps: tournamentMaps\(view\.tournament\)/);
     // Kvíz dne (mode 'quiz') a dnešní otázky (mode 'daily'): mapa jen ve výzvě a v tréninku

@@ -270,7 +270,7 @@
             const f = item.f || {};
             // Reakce a pojmy: obecná slova názvu (reakce, zákon, kyselina) se nezakrývají – zůstala by z věty kostra
             if (type === 'name' && (item.c === 'reakce' || item.c === 'pojmy') && ctx) {
-                return censorName(text, core.specificWords([item.n, displayName(item.t || '')], core.genericWordsOf(ctx)));
+                return core.censorItemName(text, [item.n, displayName(item.t || '')], core.genericWordsOf(ctx));
             }
             // Skupiny vitamínů (vitamín A) vzorec nemají
             const hideFormula = (value) => f.formula ? [f.formula, plainFormula(f.formula)].reduce((result, formula) => result.split(formula).join('[***]'), value) : value;
@@ -278,7 +278,8 @@
             if (type === 'symbol') return hideSymbol(plain, f.sym);
             if (type === 'formula') return hideFormula(plain);
             if (type !== 'name' || item.c === 'chemici') return null;
-            const withoutName = censorName(text, [item.n, displayName(item.t || '')].join(', '));
+            // Celý název a jeho výrazná slova (kyselina, sodný a další obecná slova látek jen v celém názvu; core.censorItemName)
+            const withoutName = ctx ? core.censorItemName(text, [item.n, displayName(item.t || '')], core.genericWordsOf(ctx)) : censorName(text, [item.n, displayName(item.t || '')].join(', '));
             return item.c === 'prvky' ? hideSymbol(withoutName, f.sym) : hideFormula(withoutName);
         },
 

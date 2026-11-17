@@ -52,7 +52,9 @@ const APP_SHELL = [
         // Řetězovka (chain.js ART a výsledek, č. 212 a 214: sova s řetězem, prasklý článek)
         'retezovka', 'clanek-prasknuty',
         // Pomůcka Záchrana navíc (conquest.js ITEMS.chain_rescue, č. 360)
-        'zachrana-navic'].map(id => `icons/topics/${id}.webp`),
+        'zachrana-navic',
+        // Pomůcka Vzkříšení (conquest.js ITEMS.revive, č. 361)
+        'vzkriseni'].map(id => `icons/topics/${id}.webp`),
     // Boss týdne (boss.js ART): čtyři stupně každého bosse a jeho aréna
     ...['kapitan', 'rytir', 'alchymista', 'amper', 'maestro', 'druid', 'olympan', 'reziser'].flatMap(id => [`boss-${id}`, `boss-${id}-zraneny`, `boss-${id}-vkoncich`, `boss-${id}-porazeny`, `arena-${id}`]).map(id => `icons/topics/${id}.webp`),
     // Stavby na mapě Dobývání (conquest.js BUILDINGS, scripts/building-art.py): základ a vrstva střech a vlaječek v barvě hráče

@@ -89,9 +89,11 @@
         // Poslední místo XP nedostane (ve hře dvou hráčů tedy jen vítěz)
         return { badge: place === 1, xp: place <= 3 && (place === 1 || place < players) ? REWARD_XP[place - 1] : 0 };
     };
-    // Pomůcky (blok 30 ve schema.sql): vzácné, do zásoby (strop max, stejně player_item_cap na serveru), každá jednou za hru.
-    // icon + mark = pečeť pomůcky z ikon Lucide (do dodání obrázků č. 309, 310 a 360 v docs/OBRAZKY.md, pak art = název souboru v icons/topics).
+    // Pomůcky (blok 30 ve schema.sql): vzácné, do zásoby (strop max, stejně player_item_cap na serveru); Tah navíc a Půl na půl jednou za hru.
+    // icon + mark = pečeť pomůcky z ikon Lucide (do dodání obrázků č. 309, 310 a 361 v docs/OBRAZKY.md, pak art = název souboru v icons/topics).
     // Záchrana navíc (blok 37) patří do Řetězovky dne (place 'chain', chain.js), ne do Dobývání: ITEM_IDS jsou jen pomůcky do Dobývání.
+    // Vzkříšení (blok 39) vrátí do hry hráče, kterému nezbylo žádné území (místo automatického Návratu do hry); jde použít pokaždé, když
+    // hráč přijde o všechno, a bez značky (mark prázdná).
     const ITEMS = {
         extra_move: { id: 'extra_move', name: 'Tah navíc', max: 1, icon: 'zap', mark: '+1', art: null, // č. 309 tah-navic
             what: 'O 1 tah víc v tomto kole. Jednou za hru, ne v posledním kole.',
@@ -101,9 +103,14 @@
             how: 'Kvíz dne bez chyby a celá Řetězovka (obojí jednou za týden), výhra v Dobývání, 5. stupeň Sezóny Mudrlanta a vzácně Truhla Mudrlanta.' },
         chain_rescue: { id: 'chain_rescue', name: 'Záchrana navíc', max: 1, icon: 'shield-plus', mark: '+1', art: 'zachrana-navic', place: 'chain', // č. 360 zachrana-navic
             what: 'V Řetězovce dne zachrání řetěz ještě jednou, když už je Záchrana použitá: dostaneš jinou otázku na stejný článek, za 0 bodů.',
-            how: 'Milníky Řetězovky dne (10, 30, 100 a 365 dohraných dní, 5, 15, 30 a 60 celých řetězů bez Záchrany), 12. stupeň Sezóny Mudrlanta, společná výhra nad Bossem týdne a vzácně Truhla Mudrlanta nebo Zlatá truhla.' }
+            how: 'Milníky Řetězovky dne (10, 30, 100 a 365 dohraných dní, 5, 15, 30 a 60 celých řetězů bez Záchrany), 12. stupeň Sezóny Mudrlanta, společná výhra nad Bossem týdne a vzácně Truhla Mudrlanta nebo Zlatá truhla.' },
+        revive: { id: 'revive', name: 'Vzkříšení', max: 3, icon: 'heart-pulse', mark: '', art: 'vzkriseni', // č. 361 vzkriseni
+            what: 'Když ti nezbude žádné území, vrátí tě do hry: vybereš si volné nebo neopevněné území (ne domovský hrad) a hraješ dál. Na 60 s je chráněné.',
+            how: 'Jedno na začátek, dohraná započítaná hra Dobývání s body, série Kvízu dne (7, 30, 100 a 365 dní), 8. stupeň Sezóny Mudrlanta a vzácně Truhla Mudrlanta nebo Zlatá truhla.' }
     };
     const ITEM_IDS = Object.keys(ITEMS).filter(kind => !ITEMS[kind].place);
+    // Pomůcky do Dobývání, které databáze zná: Vzkříšení jen se schématem 39 (zásoba má revive)
+    const itemIdsFor = (items) => ITEM_IDS.filter(kind => kind !== 'revive' || (items && typeof items.revive === 'number'));
     // Půl na půl jde u otázky se 4 textovými nebo obrázkovými možnostmi (ne mapa, letopočet ani odhad čísla; stejně kontroluje server v bitvě)
     const fiftyAllowed = (question) => Boolean(question && Array.isArray(question.choices) && question.choices.length === 4 && !['map', 'year', 'number'].includes(question.kind));
     // Dvě nesprávné možnosti k odebrání u otázky, kterou zná aplikace (bez bitvy): podle příznaku correct; rng = los (testy pevný)
@@ -121,7 +128,8 @@
     const stockLabel = (items, kind) => `${items ? items[kind] || 0 : 0} ${ITEMS[kind].max === 1 ? 'z' : 'ze'} ${ITEMS[kind].max}`;
     // Zisk pomůcky (Boss, Kvíz dne, Řetězovka, výhra, sezóna, truhla): co aplikace hráči řekne. { kind: 'new' | 'full' | null, title, text }
     // Záchrana navíc (blok 37): oslava „Nová pomůcka: Záchrana navíc“, u milníku Řetězovky (grant.source, grant.at) i za co
-    const MILESTONE_TEXT = { 'chain-days': (n) => `Za ${n} dohraných Řetězovek dne.`, 'chain-clean': (n) => `Za ${n} celých řetězů bez Záchrany.` };
+    const MILESTONE_TEXT = { 'chain-days': (n) => `Za ${n} dohraných Řetězovek dne.`, 'chain-clean': (n) => `Za ${n} celých řetězů bez Záchrany.`,
+        'daily-streak': (n) => `Za ${n} dní Kvízu dne v řadě.` };
     const grantNews = (grant) => {
         if (!grant || !ITEMS[grant.kind] || grant.already) return { kind: null };
         const item = ITEMS[grant.kind];
@@ -129,6 +137,13 @@
             const why = grant.source && MILESTONE_TEXT[grant.source] && grant.at ? `${MILESTONE_TEXT[grant.source](grant.at)} ` : '';
             if (grant.granted) return { kind: 'new', title: `Nová pomůcka: ${item.name}`, text: `${why}V Řetězovce dne zachrání řetěz ještě jednou, když už je Záchrana použitá.` };
             if (grant.full) return { kind: 'full', text: 'Záchranu navíc už máš. Víc než jednu mít nejde, tahle propadla.' };
+            return { kind: null };
+        }
+        // Vzkříšení (blok 39): u milníku Kvízu dne i za co
+        if (grant.kind === 'revive') {
+            const why = grant.source && MILESTONE_TEXT[grant.source] && grant.at ? ` ${MILESTONE_TEXT[grant.source](grant.at)}` : '';
+            if (grant.granted) return { kind: 'new', title: 'Nová pomůcka do Dobývání', text: `${item.name} (${grant.count}/${item.max}).${why} Vrátí tě do hry, když přijdeš o všechna území.` };
+            if (grant.full) return { kind: 'full', text: 'Vzkříšení už máš třikrát, víc jich mít nejde.' };
             return { kind: null };
         }
         if (grant.granted) return { kind: 'new', title: 'Nová pomůcka do Dobývání', text: `${item.name} (${grant.count}/${item.max})` };
@@ -141,15 +156,15 @@
     // Jen devět co nejodlišnějších barev (hráčů je nejvýš osm), aby se na mapě nepletly; speciální vzory můžou přibýt jako odměny
     const COLORS = [
         ['cervena', 'Červená', '#d7263d'], ['oranzova', 'Oranžová', '#ec7012'], ['zluta', 'Žlutá', '#f5cc12'], ['zelena', 'Zelená', '#2c9a3c'],
-        ['tyrkysova', 'Tyrkysová', '#0fa8b0'], ['modra', 'Modrá', '#2152d0'], ['fialova', 'Fialová', '#8530c4'], ['ruzova', 'Růžová', '#ec4fa3'],
-        ['cerna', 'Černá', '#262422']
+        ['tyrkysova', 'Tyrkysová', '#0fa8b0'], ['nebeska', 'Nebeská', '#7ec8f2'], ['modra', 'Modrá', '#2152d0'], ['fialova', 'Fialová', '#8530c4'],
+        ['ruzova', 'Růžová', '#ec4fa3'], ['hneda', 'Hnědá', '#7b4f2b'], ['bila', 'Bílá', '#f4f1ea'], ['cerna', 'Černá', '#262422']
     ].map(([id, name, hex]) => ({ id, name, hex }));
     // Barvy z dřívější nabídky: vybrat už nejdou, rozehrané hry je ale dál vykreslí
     const LEGACY_COLORS = [
         ['karminova', 'Karmínová', '#9e1b2c'], ['malinova', 'Malinová', '#b0207e'], ['cihlova', 'Cihlová', '#b8512e'], ['jantarova', 'Jantarová', '#d99a0b'],
         ['olivova', 'Olivová', '#7d8a22'], ['limetkova', 'Limetková', '#7cbf2a'], ['lesni', 'Lesní', '#1d6331'], ['smaragdova', 'Smaragdová', '#0aa37a'],
         ['petrolejova', 'Petrolejová', '#0d7280'], ['azurova', 'Azurová', '#2d97e6'], ['namornicka', 'Námořnická', '#1c2a6b'], ['indigova', 'Indigová', '#4b39b8'],
-        ['levandulova', 'Levandulová', '#9f84e6'], ['hneda', 'Hnědá', '#7b4f2b'], ['bridlicova', 'Břidlicová', '#4f5a68']
+        ['levandulova', 'Levandulová', '#9f84e6'], ['bridlicova', 'Břidlicová', '#4f5a68']
     ].map(([id, name, hex]) => ({ id, name, hex }));
     const COLOR_BY_ID = Object.fromEntries([...COLORS, ...LEGACY_COLORS].map(color => [color.id, color]));
     const hexRgb = (hex) => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
@@ -158,7 +173,9 @@
     const luminance = (hex) => { const [r, g, b] = hexRgb(hex).map(v => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
     // Inkoust (okraj vlastních území, vlaječka) a barva znaku na vlaječce (bílá, na světlé barvě tmavá)
     const colorOf = (id) => COLOR_BY_ID[id] || COLORS[0];
-    const inkOf = (id) => mix(colorOf(id).hex, '#1a1008', 0.38);
+    // Bílá: násobení pergamen nezmění, proto se kreslí krycí lazurou (isLight) a s tmavším inkoustem, ať je území i okraj vidět
+    const isLight = (id) => luminance(colorOf(id).hex) > 0.7;
+    const inkOf = (id) => mix(colorOf(id).hex, '#1a1008', isLight(id) ? 0.6 : 0.38);
     const emblemInk = (id) => (luminance(colorOf(id).hex) > 0.42 ? '#2a1d10' : '#ffffff');
 
     // --- Znaky (stejný seznam má server: conquest_emblems). Kresby 24 × 24 jednou barvou (c), čitelné i na malé vlaječce ---
@@ -252,7 +269,7 @@
         ['orel-belohlavy', 'Orel bělohlavý', 'Vyhraj na mapě Amerika', 'orel-belohlavy', 'orel', 'win_amerika', 1],
         ['dvouocasy-lev', 'Dvouocasý lev', 'Vyhraj na mapě Česko', 'dvouocasy-lev', 'lev', 'win_cesko', 1],
         ['pegas', 'Pegas', 'Vyhraj Blesk (hru na 20 minut)', 'pegas', 'blesk', 'win_blesk', 1],
-        ['fenix', 'Fénix', 'Vyhraj hru po Návratu do hry', 'fenix', 'plamen', 'win_comeback', 1],
+        ['fenix', 'Fénix', 'Vyhraj hru po Vzkříšení', 'fenix', 'plamen', 'win_comeback', 1],
         ['kraken', 'Kraken', 'Dobuď 40 území přes námořní cestu', 'kraken', 'kotva', 'sea', 40],
         ['jednorozec', 'Jednorožec', 'Dohraj 5 her bez ztráty domovského hradu', 'jednorozec', 'hvezda', 'safe_home', 5],
         ['dvouhlavy-orel', 'Dvouhlavý orel', 'Vyhraj 50 bitev o území', 'dvouhlavy-orel', 'orel', 'battles', 50],
@@ -529,7 +546,8 @@
         const byId = new Map(players.map(player => [player.id, player]));
         const me = players.find(player => player.me || player.id === meId) || null;
         const owners = new Map();
-        for (const row of state.territories || []) owners.set(row.t, { owner: row.o || null, level: row.l || 0, home: Boolean(row.h), treasure: Boolean(row.p) });
+        // s = konec ochrany po Vzkříšení (blok 39, čas serveru; jen dokud trvá)
+        for (const row of state.territories || []) owners.set(row.t, { owner: row.o || null, level: row.l || 0, home: Boolean(row.h), treasure: Boolean(row.p), shield: row.s || null });
         const ownerOf = (id) => (owners.get(id) || {}).owner || null;
         // Celé regiony podle hráčů
         const regionsOf = (playerId) => data.regions.filter(region => region.t.every(id => ownerOf(id) === playerId)).map(region => region.id);
@@ -542,11 +560,39 @@
         // Otevřené bitvy o území (blok 25; conquest_state a conquest_pulse: sieges). battles = databáze bitvy umí (jinak útok postaru).
         const sieges = new Map((Array.isArray(state.sieges) ? state.sieges : []).filter(siege => siege && siege.status !== 'resolved' && index.byId.has(siege.territory)).map(siege => [siege.territory, siege]));
         return { state, data, index, players, bySeat, byId, me, owners, ownerOf, regionsOf, territoriesOf, scoreOf, mine, targets, ranking, sieges, battles: Array.isArray(state.sieges),
-            running: state.status === 'running', finished: state.status === 'finished', budget: state.budget || null };
+            running: state.status === 'running', finished: state.status === 'finished', budget: state.budget || null, offset: 0 };
     };
-    // Pořadí: body, při shodě dřív dosažené (score_at), místa se sdílí při úplné shodě
+    // --- Vzkříšení (blok 39) ---
+    // Databáze Vzkříšení zná (stav hry má items.can_revive); jinak se hráč bez území vrátí sám (Návrat do hry do schématu 38)
+    const reviveOn = (view) => Boolean(view && view.state && view.state.items && typeof view.state.items.can_revive === 'boolean');
+    // Hráč běžící hry, kterému nezbylo žádné území
+    const outOfGame = (view) => Boolean(view && view.running && view.me && view.mine.size === 0);
+    // Kolik ms ještě trvá ochrana území po Vzkříšení (≤ 0 = netrvá); view.offset = čas serveru − čas zařízení (conquest-ui.js)
+    const shieldLeft = (view, id, now = Date.now()) => {
+        const info = view.owners.get(id);
+        const until = info && info.owner ? parseTime(info.shield) : null;
+        return until === null ? 0 : until - (view.offset || 0) - now;
+    };
+    const shieldSeconds = (ms) => Math.max(1, Math.ceil(ms / 1000));
+    // Proč na území Vzkříšení nejde (stejná pravidla jako server conquest_revive_targets a conquest_use_revive), nebo '' když jde
+    const reviveWhy = (view, id, now = Date.now()) => {
+        const info = view.owners.get(id);
+        if (!info) return 'Tohle území na mapě není.';
+        if (view.sieges && view.sieges.has(id)) return 'Na území právě probíhá bitva. Vyber jiné.';
+        if (!info.owner) return '';
+        if (view.me && info.owner === view.me.id) return 'Tohle území už je tvoje.';
+        if (info.home) return 'Domovský hrad Vzkříšením vzít nejde. Vyber volné nebo neopevněné území.';
+        if (info.level > 0) return 'Opevněné území Vzkříšením vzít nejde. Vyber volné nebo neopevněné území.';
+        const left = shieldLeft(view, id, now);
+        if (left > 0) return `Území je chráněné po vzkříšení ještě ${shieldSeconds(left)} s.`;
+        return '';
+    };
+    // Území, na která jde teď Vzkříšení použít (neutrální, nebo cizí neopevněné mimo domovské hrady, bitvy a chráněná území)
+    const reviveTargets = (view, now = Date.now()) => new Set(view.data.t.map(item => item.id).filter(id => !reviveWhy(view, id, now)));
+    // Pořadí: body, při shodě dřív dosažené (score_at), místa se sdílí při úplné shodě; hráči bez bodů (bez území, blok 39) podle toho,
+    // kdo vydržel déle (o poslední území přišel později), stejně jako conquest_finish
     const rank = (players) => {
-        const at = (player) => parseTime(player.score_at) ?? Infinity;
+        const at = (player) => { const time = parseTime(player.score_at) ?? Infinity; return player.score > 0 ? time : (time === Infinity ? Infinity : -time); };
         const sorted = [...players].sort((a, b) => b.score - a.score || at(a) - at(b) || a.seat - b.seat);
         return sorted.map(player => ({ ...player, place: player.place || 1 + sorted.filter(other => other.score > player.score || (other.score === player.score && at(other) < at(player))).length }));
     };
@@ -570,7 +616,16 @@
             if (info.level >= max) return { attack: false, fortify: false, reason: info.home ? 'Domovské území je opevněné naplno (Pevnost).' : 'Území je opevněné naplno (Hradba). Pevnost jde postavit jen na domovském území.' };
             return { attack: false, fortify: left > 0, reason: left > 0 ? '' : 'Tahy na tohle období už nemáš.', ...(left > 0 ? {} : { spent: true }) };
         }
-        if (!view.targets.has(id)) return { attack: false, fortify: false, reason: view.mine.size ? 'Útočit jde jen na území, které sousedí s tvým.' : 'Nemáš žádné území. V dalším období dostaneš nové.' };
+        if (!view.targets.has(id)) {
+            if (view.mine.size) return { attack: false, fortify: false, reason: 'Útočit jde jen na území, které sousedí s tvým.' };
+            // Bez území: do schématu 38 Návrat do hry v dalším období, od bloku 39 jen Vzkříšením
+            if (!reviveOn(view)) return { attack: false, fortify: false, reason: 'Nemáš žádné území. V dalším období dostaneš nové.' };
+            return { attack: false, fortify: false, out: true, reason: view.state.items.can_revive ? 'Všechna tvá území padla. Vrať se do hry pomůckou Vzkříšení.'
+                : view.state.items.revive ? `Všechna tvá území padla. ${view.state.items.revive_block || 'Vzkříšení teď použít nejde.'}` : 'Všechna tvá území padla. Bez Vzkříšení hru už jen sleduješ.' };
+        }
+        // Chráněné území po Vzkříšení (blok 39): 60 s na něj nikdo nezaútočí
+        const shielded = shieldLeft(view, id);
+        if (shielded > 0) return { attack: false, fortify: false, shielded: true, reason: `Území je chráněné po vzkříšení ještě ${shieldSeconds(shielded)} s.` };
         return { attack: left > 0, fortify: false, reason: left > 0 ? '' : 'Tahy na tohle období už nemáš.', ...(left > 0 ? {} : { spent: true }) };
     };
 
@@ -2001,6 +2056,8 @@
             if (move.r === 'home') items.push({ icon: 'flag', tone: 'neutral', title: name(t), text: 'Výprava začíná', actor });
             // Pomůcka Tah navíc (blok 30): bez území, kdo ji použil a v kterém kole
             else if (move.k === 'extra') items.push({ icon: ITEMS.extra_move.icon, tone: 'gold', title: ITEMS.extra_move.name, text: `+1 tah v ${(move.n || 0) + 1}. kole`, actor, item: 'extra_move' });
+            // Vzkříšení (blok 39): hráč bez území si vzal toto území (victim = kdo o něj přišel); respawn = Návrat do hry do schématu 38
+            else if (move.k === 'revive') items.push({ icon: ITEMS.revive.icon, tone: 'revive', title: name(t), text: 'Vzkříšení', actor, victim, item: 'revive' });
             else if (move.r === 'respawn') items.push({ icon: 'repeat', tone: 'neutral', title: name(t), text: 'Návrat do hry', actor });
             else if (move.r === 'capture') {
                 const word = PARTICIPLE[genderOf(t)][0];
@@ -2174,7 +2231,7 @@
         if (!opts.thumb && data.deco) ['compass', 'ship', 'monster'].forEach((kind, i) => { if (data.deco[i]) parts.push(decoMarkup(kind, data.deco[i])); });
         // Území: neutrální jen pergamen; obsazené jako ručně kolorovaná stará mapa: světlá lazura barvou hráče, sytý pruh barvy podél
         // hranice uvnitř území (ořezaný obrysem území), šrafa a inkoustová linka (vše násobením, pergamen prosvítá)
-        const washes = [], hatches = [], inks = [];
+        const washes = [], lights = [], hatches = [], inks = [];
         for (const item of data.t) {
             const info = view ? view.owners.get(item.id) : null;
             const owner = info && info.owner ? view.byId.get(info.owner) : null;
@@ -2182,7 +2239,7 @@
                 // Se vzorem: výplň místo lazury (šrafa odpadá, vzor je sám rozlišením); u barevných vzorů sytější lem v barvě hráče
                 const vzor = filled.get(owner.seat);
                 defs.push(`<clipPath id="${prefix}-in-${item.id}"><path d="${item.d}"/></clipPath>`);
-                washes.push(`<path class="cq-wash${vzor ? ' cq-wash-fill' : ''}" data-wash="${item.id}" d="${item.d}" fill="${vzor ? `url(#${prefix}-fill-${owner.seat})` : owner.color.hex}"/>`
+                (isLight(owner.flag_color) ? lights : washes).push(`<path class="cq-wash${vzor ? ' cq-wash-fill' : ''}" data-wash="${item.id}" d="${item.d}" fill="${vzor ? `url(#${prefix}-fill-${owner.seat})` : owner.color.hex}"/>`
                     + `<path class="cq-band${vzor && vzor.colored ? ' cq-band-strong' : ''}" data-band="${item.id}" d="${item.d}" stroke="${owner.color.hex}" clip-path="url(#${prefix}-in-${item.id})"/>`);
                 if (!vzor) hatches.push(`<path data-hatch="${item.id}" d="${item.d}" fill="url(#${prefix}-hatch-${owner.seat})"/>`);
                 inks.push(`<path class="cq-ink${owner.me ? ' cq-ink-me' : ''}" data-ink="${item.id}" d="${item.d}" stroke="${inkOf(owner.flag_color)}"/>`);
@@ -2191,14 +2248,16 @@
         // Akvarelová lazura (č. 264): šedá textura řídí, jak silně barva hráče na území drží (maska) – kde se v textuře barva slila
         // (tmavší skvrny), je lazura plná, jinde o čtvrtinu slabší; barva tak zůstane čistá a jen nerovnoměrná jako skutečný akvarel
         let aqua = '';
-        if (ART.watercolor && washes.length) {
+        if (ART.watercolor && (washes.length || lights.length)) {
             const tile = Math.round(Math.max(w, h) / 2.4);
             defs.push(`<pattern id="${prefix}-aqua" width="${tile}" height="${tile}" patternUnits="userSpaceOnUse"><image href="icons/textury/${ART.watercolor}.webp" width="${tile}" height="${tile}"/></pattern>`
                 + `<filter id="${prefix}-aqua-f" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="-1 0 0 0 1.75 -1 0 0 0 1.75 -1 0 0 0 1.75 0 0 0 1 0"/></filter>`
                 + `<mask id="${prefix}-aqua-m" maskUnits="userSpaceOnUse" x="0" y="0" width="${w}" height="${h}"><rect width="${w}" height="${h}" fill="url(#${prefix}-aqua)" filter="url(#${prefix}-aqua-f)"/></mask>`);
             aqua = ` mask="url(#${prefix}-aqua-m)"`;
         }
-        parts.push(`<g class="cq-washes" pointer-events="none"${aqua}>${washes.join('')}</g><g pointer-events="none">${hatches.join('')}</g>`);
+        parts.push(`<g class="cq-washes" pointer-events="none"${aqua}>${washes.join('')}</g>`
+            + (lights.length ? `<g class="cq-washes cq-washes-light" pointer-events="none"${aqua}>${lights.join('')}</g>` : '')
+            + `<g pointer-events="none">${hatches.join('')}</g>`);
         // Celé regiony: zlatá záře obrysu (pod hranicemi)
         if (view) for (const region of data.regions) {
             const owner = view.ownerOf(region.t[0]);
@@ -2252,8 +2311,11 @@
         if (icon) inner += `<g class="cq-icon" data-icon="${icon}" transform="${iconAt(ICON_SCALE[icon] || 1, -0.05)}">${iconMarkup(icon, owner ? owner.flag_color : null)}${icon === 'castle' && info.level ? levelPips(info.level) : ''}</g>`;
         if (info.treasure && !owner) inner += `<g class="cq-icon cq-treasure" data-icon="treasure" transform="${iconAt(ICON_SCALE.treasure, -0.5)}">${iconMarkup('treasure')}</g>`;
         if (view.sieges && view.sieges.has(item.id)) inner += siegeBadge(view.sieges.get(item.id), view, icon);
+        const shieldLeftMs = owner && info.shield && !(view.sieges && view.sieges.has(item.id)) ? shieldLeft(view, item.id) : 0;
         if (owner) inner += `<g class="cq-pin" data-pin="${item.id}" transform="translate(${icon ? -MARK * 0.55 : -MARK * 0.1} 0)"><path d="M0 2V${-MARK * 1.25}" stroke="#3b2a1a" stroke-width="1.6" stroke-linecap="round"/><circle cx="0" cy="${-MARK * 1.25}" r="1.6" fill="#c9a227"/>`
             + `<g transform="translate(0.8 ${-MARK * 1.22}) scale(${(MARK * 0.75 / 30).toFixed(3)})">${pennantGroup(owner.flag_color, owner.emblem)}</g></g>`;
+        // Štít ochrany po Vzkříšení nad vlaječkou (vpravo od žerdi), ať ho nic nepřekryje
+        if (shieldLeftMs > 0) inner += shieldBadge(item.id, Date.now() + shieldLeftMs, icon);
         return `<g class="cq-mark" data-mark="${item.id}" transform="translate(${x} ${y})"><g class="cq-mark-scale">${inner}</g></g>`;
     };
     // Bitva na území: pečeť se zkříženými meči nad značkou (pulzující kruh) a pod ní praporky účastníků (nejvýš 4)
@@ -2267,6 +2329,12 @@
             + `<circle class="cq-siege-pulse" r="9.5"/><circle class="cq-siege-seal" r="8.5"/>`
             + `<g class="cq-siege-swords" transform="translate(-6.6 -6.6) scale(0.55)">${SWORDS}</g>${flags}</g>`;
     };
+    // Ochrana po Vzkříšení (blok 39): modrozlatý štít nad značkou (pulzuje) a pod ním zbývající sekundy; conquest-ui.js je každou sekundu
+    // přepíše (data-cq-shield-at = místní čas konce v ms) a po konci ochrany mapu překreslí
+    const SHIELD_PATH = 'M0 -7.2L5.8 -5V-0.6C5.8 3.2 3.3 6 0 7.6C-3.3 6 -5.8 3.2 -5.8 -0.6V-5Z';
+    const shieldBadge = (id, until, icon) => `<g class="cq-shield-badge" data-shield="${id}" transform="translate(${icon ? (MARK * 0.95).toFixed(1) : (MARK * 0.85).toFixed(1)} ${(-MARK * 0.95).toFixed(1)})">`
+        + `<g class="cq-shield-pop"><circle class="cq-shield-pulse" r="10"/><circle class="cq-shield-seal" r="8.5"/><path class="cq-shield-icon" d="${SHIELD_PATH}"/>`
+        + `<text class="cq-shield-text" y="19" text-anchor="middle" data-cq-shield-at="${Math.round(until)}">${shieldSeconds(until - Date.now())} s</text></g></g>`;
     // Úroveň opevnění domovského hradu: kamínky pod hradem
     const levelPips = (level) => Array.from({ length: level }, (_, i) => `<rect x="${7 + i * 3.6}" y="23" width="2.8" height="2.8" rx="0.6" fill="#c9a227" stroke="#3d3428" stroke-width="0.6"/>`).join('');
     // Malá mapa (náhled hry): území podle majitelů (owners = { území: místo hráče }); highlightSeat = moje barva výrazně
@@ -2307,16 +2375,19 @@
         const item = ITEMS[kind];
         if (!item) return '';
         const face = item.art ? `<img src="${artUrl(item.art)}" alt="" class="h-full w-full object-contain">` : `<i data-lucide="${item.icon}" class="h-[52%] w-[52%]"></i>`;
-        return `<span class="cq-item-seal cq-item-${kind}${empty ? ' cq-item-empty' : ''} relative inline-flex ${cls} shrink-0 items-center justify-center rounded-full" aria-hidden="true">${face}<span class="cq-item-mark absolute -bottom-[3px] -right-[5px] rounded-full px-[3px] ${mark} font-black leading-[1.15]">${item.mark}</span></span>`;
+        const badge = item.mark ? `<span class="cq-item-mark absolute -bottom-[3px] -right-[5px] rounded-full px-[3px] ${mark} font-black leading-[1.15]">${item.mark}</span>` : '';
+        return `<span class="cq-item-seal cq-item-${kind}${empty ? ' cq-item-empty' : ''} relative inline-flex ${cls} shrink-0 items-center justify-center rounded-full" aria-hidden="true">${face}${badge}</span>`;
     };
-    // Pruh v rozcestníku (Moje hry): obě pomůcky a kolik jich je; klepnutí otevře okno Pomůcky (co dělají a jak je získat)
+    // Pruh v rozcestníku (Moje hry): pomůcky do Dobývání a kolik jich je; klepnutí otevře okno Pomůcky (co dělají a jak je získat).
+    // Se Vzkříšením (blok 39) tři, na úzkém displeji názvy zkrácené
     const itemsStripHtml = (items) => {
         if (!items) return '';
+        const kinds = itemIdsFor(items);
         const tile = (kind) => `<span class="flex min-w-0 items-center gap-1.5" data-cq-item="${kind}">${itemSealHtml(kind, 'h-7 w-7', { empty: !items[kind] })}<span class="flex min-w-0 flex-col leading-none"><span class="truncate text-[11px] font-black">${esc(ITEMS[kind].name)}</span><span class="mt-0.5 text-[12.5px] font-black tabular-nums">${stockText(items, kind)}</span></span></span>`;
-        const label = `Pomůcky: ${ITEM_IDS.map(kind => `${ITEMS[kind].name} ${stockLabel(items, kind)}`).join(', ')}. Co dělají a jak je získat`;
+        const label = `Pomůcky: ${kinds.map(kind => `${ITEMS[kind].name} ${stockLabel(items, kind)}`).join(', ')}. Co dělají a jak je získat`;
         return `<button type="button" data-cq="items" data-cq-items class="cq-items flex min-h-[2.75rem] w-full items-center gap-2 rounded-2xl px-2.5 py-1 text-left" aria-label="${esc(label)}">
-            <span class="cq-ledger-title shrink-0">Pomůcky</span>
-            <span class="flex min-w-0 flex-1 items-center justify-end gap-3">${ITEM_IDS.map(tile).join('')}</span>
+            <span class="cq-ledger-title shrink-0${kinds.length > 2 ? ' max-[400px]:hidden' : ''}">Pomůcky</span>
+            <span class="flex min-w-0 flex-1 items-center justify-end ${kinds.length > 2 ? 'gap-2' : 'gap-3'}">${kinds.map(tile).join('')}</span>
             <i data-lucide="info" class="h-4 w-4 shrink-0 opacity-70"></i></button>`;
     };
     // Okno Pomůcky: každá pomůcka s pečetí, zásobou, co dělá a jak ji získat; ve hře (game) i co jde použít teď (Tah navíc s tlačítkem,
@@ -2333,6 +2404,10 @@
             } else if (game && kind === 'fifty') {
                 status = have.fifty_used ? '<p class="cq-item-note">V této hře už je použitá.</p>'
                     : have.fifty ? '<p class="cq-item-note">Použiješ ji u otázky: tlačítko ½ vedle hvězdiček.</p>' : '';
+            } else if (game && kind === 'revive') {
+                status = have.can_revive ? `<button type="button" data-cq="revive-use" class="${GOLD_BUTTON} mt-1 w-full"><i data-lucide="${item.icon}" class="h-4 w-4"></i> Použít Vzkříšení</button>`
+                    : have.revive && have.revive_block && !/nezbylo žádné území/.test(have.revive_block) ? `<p class="cq-item-note">${esc(have.revive_block)}</p>`
+                        : have.revive ? '<p class="cq-item-note">Nabídne se samo, když přijdeš o všechna území.</p>' : '';
             }
             return `<li class="cq-item-card flex gap-2.5 rounded-2xl p-2" data-cq-item-card="${kind}">
                 ${itemSealHtml(kind, 'h-12 w-12', { empty: !have[kind], mark: 'text-[12px]' })}
@@ -2353,9 +2428,13 @@
                 <span class="shrink-0 text-[13px] font-black tabular-nums" aria-label="Máš ${stockLabel(have, kind)}">${stockText(have, kind)}</span></li>`;
         };
         const others = game ? [] : Object.keys(ITEMS).filter(kind => ITEMS[kind].place && typeof have[kind] === 'number');
+        const kinds = itemIdsFor(have);
+        const note = kinds.includes('revive')
+            ? `Pomůcky jsou vzácné. Tah navíc a Půl na půl jdou v jedné hře použít jen jednou. Najednou můžeš mít nejvýš ${ITEMS.extra_move.max} Tah navíc, ${ITEMS.fifty.max} Půl na půl a ${ITEMS.revive.max} Vzkříšení.`
+            : `Pomůcky jsou vzácné a každou jde v jedné hře použít jen jednou. Najednou můžeš mít nejvýš ${ITEMS.extra_move.max} Tah navíc a ${ITEMS.fifty.max} Půl na půl.`;
         return `<div class="flex flex-col gap-2" data-cq-items-dialog>
-            <ul class="flex flex-col gap-2">${ITEM_IDS.map(card).join('')}</ul>
-            <p class="px-1 text-[11.5px] font-semibold leading-snug text-slate-500 dark:text-slate-400">Pomůcky jsou vzácné a každou jde v jedné hře použít jen jednou. Najednou můžeš mít nejvýš ${ITEMS.extra_move.max} Tah navíc a ${ITEMS.fifty.max} Půl na půl.</p>
+            <ul class="flex flex-col gap-2">${kinds.map(card).join('')}</ul>
+            <p class="px-1 text-[11.5px] font-semibold leading-snug text-slate-500 dark:text-slate-400">${esc(note)}</p>
             ${others.length ? `<ul class="flex flex-col gap-2">${others.map(otherRow).join('')}</ul>` : ''}
         </div>`;
     };
@@ -2371,8 +2450,47 @@
     // Nabídka Tahu navíc, když hráči došly tahy (list území, okno Kolo dohráno): pečeť, název a zásoba
     const extraOfferHtml = (view, cls = '') => (extraReady(view) ? `<button type="button" data-cq="extra-use" class="cq-extra-offer flex min-h-[2.75rem] w-full items-center gap-2 rounded-xl px-2 py-1 text-left ${cls}">
             ${itemSealHtml('extra_move', 'h-8 w-8')}<span class="min-w-0 flex-1 leading-tight"><span class="block text-[13.5px] font-black">Použít Tah navíc</span><span class="block text-[11.5px] font-semibold opacity-80">+1 tah v tomto kole · máš ${stockLabel(view.state.items, 'extra_move')}</span></span><i data-lucide="chevron-right" class="h-4 w-4 shrink-0"></i></button>` : '');
+    // Nabídka Vzkříšení v listu území, když hráči nezbylo žádné území (blok 39)
+    const reviveRowHtml = (view) => (reviveOn(view) && outOfGame(view) && view.state.items.can_revive ? `<button type="button" data-cq="revive-use" class="cq-extra-offer flex min-h-[2.75rem] w-full items-center gap-2 rounded-xl px-2 py-1 text-left">
+            ${itemSealHtml('revive', 'h-8 w-8')}<span class="min-w-0 flex-1 leading-tight"><span class="block text-[13.5px] font-black">Použít Vzkříšení</span><span class="block text-[11.5px] font-semibold opacity-80">vyber si území na mapě · máš ${stockLabel(view.state.items, 'revive')}</span></span><i data-lucide="chevron-right" class="h-4 w-4 shrink-0"></i></button>` : '');
     // Štítek dole na mapě, když hráči došly tahy a Tah navíc jde použít
     const extraChipHtml = (view) => (extraReady(view) && view.budget && view.budget.left <= 0 ? `<button type="button" data-cq="extra-use" class="cq-extra-chip pointer-events-auto flex max-w-full items-center gap-1.5 rounded-full py-1 pl-1 pr-2.5 text-[12.5px] font-black">${itemSealHtml('extra_move', 'h-6 w-6', { mark: 'text-[8px]' })}<span class="min-w-0 truncate">Tah navíc</span></button>` : '');
+    // --- Vzkříšení (blok 39): okno po ztrátě všech území, výběr území na mapě, štítek dole na mapě ---
+    // Okno „Všechna tvá území padla“: se Vzkříšením nabídka (Použít → výběr území), bez něj jak ho získat; jinak proč teď nejde
+    const reviveOfferHtml = (items) => {
+        const have = items || {};
+        const head = `${itemSealHtml('revive', 'h-16 w-16', { empty: !have.revive })}<p class="text-[15px] font-black leading-snug text-slate-900 dark:text-white">Všechna tvá území padla.</p>`;
+        if (have.can_revive) {
+            return `<div class="flex flex-col items-center gap-2 text-center" data-cq-revive-offer>${head}
+                <p class="text-[13.5px] font-semibold leading-snug text-slate-700 dark:text-slate-200">Použít Vzkříšení? Vybereš si volné nebo neopevněné území (ne domovský hrad), dostaneš ho a hraješ dál se zbytkem tahů v kole. Na 60 s bude chráněné před útoky. Domovské nebude.</p>
+                <p class="text-[12px] font-bold text-slate-500 dark:text-slate-400">Máš ${stockLabel(have, 'revive')}.</p>
+                <div class="grid w-full grid-cols-2 gap-2"><button type="button" data-cq="revive-start" class="${GOLD_BUTTON} py-2.5"><i data-lucide="${ITEMS.revive.icon}" class="h-4 w-4"></i> Použít</button><button type="button" data-cq="revive-later" class="${LIGHT_BUTTON} py-2.5">Teď ne</button></div>
+            </div>`;
+        }
+        const why = have.revive ? (have.revive_block || 'Vzkříšení teď použít nejde.') : 'Vzkříšení nemáš, hru teď jen sleduješ. Když ho během hry získáš, můžeš se vrátit.';
+        return `<div class="flex flex-col items-center gap-2 text-center" data-cq-revive-none>${head}
+            <p class="text-[13.5px] font-semibold leading-snug text-slate-700 dark:text-slate-200">${esc(why)}</p>
+            <p class="cq-item-card w-full rounded-xl px-2.5 py-1.5 text-left text-[12px] font-semibold leading-snug"><b>Jak získat Vzkříšení:</b> ${esc(ITEMS.revive.how)} Nejvýš ${ITEMS.revive.max}.</p>
+            <button type="button" data-cq="revive-later" class="${LIGHT_BUTTON} w-full py-2.5">Rozumím</button>
+        </div>`;
+    };
+    // Výběr území: pruh nahoře na mapě (co dělat, Zrušit) a zlatá záře platných území (vrstva .cq-fx)
+    const reviveBarHtml = (count) => `<div class="cq-revive-bar pointer-events-auto flex max-w-full items-center gap-2 rounded-xl py-1 pl-1.5 pr-1" role="status" data-cq-revive-bar>
+            ${itemSealHtml('revive', 'h-7 w-7')}<span class="min-w-0 flex-1 text-[13px] font-black leading-tight">Klepni na zářící území<span class="block text-[11px] font-semibold opacity-80">${esc(territoriesWord(count))} k výběru</span></span>
+            <button type="button" data-cq="revive-cancel" class="flex h-9 shrink-0 items-center rounded-lg px-2.5 text-[12.5px] font-black cq-revive-cancel">Zrušit</button></div>`;
+    const reviveLayerHtml = (view, targets) => {
+        const { w, h } = view.data;
+        return `<rect class="cq-dimmer cq-dimmer-in" data-cq-revive-layer x="${-w}" y="${-h}" width="${w * 3}" height="${h * 3}"/>`
+            + [...targets].map(id => view.index.byId.get(id)).filter(Boolean).map(item => `<path class="cq-revive-target" data-cq-revive-target="${item.id}" d="${item.d}"/>`).join('');
+    };
+    // Štítek dole na mapě, když hráči nezbylo žádné území: Vzkříšení (jde použít), nebo Mimo hru (okno s tím, jak ho získat)
+    const reviveChipHtml = (view) => {
+        if (!reviveOn(view) || !outOfGame(view)) return '';
+        const items = view.state.items;
+        return items.can_revive
+            ? `<button type="button" data-cq="revive-use" class="cq-extra-chip cq-revive-chip pointer-events-auto flex max-w-full items-center gap-1.5 rounded-full py-1 pl-1 pr-2.5 text-[12.5px] font-black">${itemSealHtml('revive', 'h-6 w-6')}<span class="min-w-0 truncate">Vzkříšení ${stockText(items, 'revive')}</span></button>`
+            : `<button type="button" data-cq="revive-how" class="cq-out-chip pointer-events-auto flex max-w-full items-center gap-1.5 rounded-full py-1 pl-1 pr-2.5 text-[12.5px] font-black">${itemSealHtml('revive', 'h-6 w-6', { empty: true })}<span class="min-w-0 truncate">Mimo hru · jak se vrátit</span></button>`;
+    };
     // Tlačítko Půl na půl v záhlaví otázky: nabídka (offer), potvrzení (confirm: druhé klepnutí použije) nebo použito (used)
     const fiftyButtonHtml = (fifty) => {
         if (!fifty || !fifty.state) return '';
@@ -2400,6 +2518,12 @@
     const fromLine = (invite, cls) => (invite && invite.invited_by && invite.invited_by.display_name ? nameLine(invite, { before: 'Pozvánka od ', cls })
         : `<span class="truncate ${cls}">Pozvánka do hry</span>`);
 
+    // Moje hra v rozcestníku (lobby: owners = { území: místo hráče }), ve které mi nezbylo žádné území (blok 39), a kolik tahů v ní můžu hrát
+    const gameOut = (game) => {
+        const me = game && game.status === 'running' && game.owners && (game.players || []).find(player => player.me);
+        return Boolean(me) && !Object.values(game.owners).includes(me.seat);
+    };
+    const movesLeft = (game) => (gameOut(game) ? 0 : (game.budget || { left: 0 }).left);
     // Řádek Dobývání v části Čeká na tebe (záložka Soupeři): moje rozehraná hra (náhled, zbývá, tahy) nebo pozvánka do lobby; pozvánka od přítele (invites) jako
     // hlavní obsah karty, nebo s rozehranou hrou jako proužek pod ní, vždy s tlačítkem Přidat se (barva a znak, pak do hry)
     // Tlačítko akce v řádku na záložce Soupeři: stejná šířka, výška a rozložení jako ostatní tlačítka řádků (app.js CTA_BRAND)
@@ -2464,8 +2588,8 @@
         const running = (games || []).filter(game => game.status === 'running');
         const waiting = (games || []).filter(game => game.status === 'lobby');
         const count = (invites || []).length;
-        const movable = running.filter(game => (game.budget || { left: 0 }).left > 0).length;
-        const first = running.find(game => (game.budget || { left: 0 }).left > 0) || running[0];
+        const movable = running.filter(game => movesLeft(game) > 0).length;
+        const first = running.find(game => movesLeft(game) > 0) || running[0];
         let html;
         if (first) {
             const budget = first.budget || { left: 0, total: first.actions };
@@ -2507,8 +2631,9 @@
         let button = '';
         if (game.status === 'running') {
             const budget = game.budget || { left: 0, total: game.actions };
-            status = `Zbývá ${timeLeft((parseTime(game.ends_at) || now) - now)} · Tahy ${budget.left}/${budget.total}`;
-            button = `<button type="button" data-cq-play="${esc(game.id)}" class="${budget.left ? GOLD_BUTTON : LIGHT_BUTTON} shrink-0"><i data-lucide="${budget.left ? 'play' : 'map'}" class="h-4 w-4"></i>${budget.left ? 'Hrát' : 'Mapa'}</button>`;
+            const left = movesLeft(game);
+            status = `Zbývá ${timeLeft((parseTime(game.ends_at) || now) - now)} · ${gameOut(game) ? 'všechna tvá území padla' : `Tahy ${budget.left}/${budget.total}`}`;
+            button = `<button type="button" data-cq-play="${esc(game.id)}" class="${left ? GOLD_BUTTON : LIGHT_BUTTON} shrink-0"><i data-lucide="${left ? 'play' : 'map'}" class="h-4 w-4"></i>${left ? 'Hrát' : 'Mapa'}</button>`;
         } else if (game.status === 'lobby') {
             const ready = (game.players || []).filter(player => player.ready).length;
             status = mine ? `Čeká na hráče · připraveno ${ready}/${(game.players || []).length}` : `${playersWord((game.players || []).length)} z ${game.max_players}`;
@@ -2723,7 +2848,7 @@
         const lockedInfo = (kind) => (infoItem && info.kind === kind ? infoLine(`<b>${esc(infoItem.name)}</b> · ${esc(lookHowText(looks, infoItem))}`, true) : '');
         let body;
         if (current === 'color') {
-            body = `<div role="radiogroup" aria-label="Barva" class="grid grid-cols-3 gap-1">${COLORS.map(item => {
+            body = `<div role="radiogroup" aria-label="Barva" class="grid grid-cols-4 gap-1">${COLORS.map(item => {
                 const off = taken.includes(item.id) && item.id !== color;
                 return `<button type="button" role="radio" aria-checked="${item.id === color}" aria-label="${esc(item.name)}${off ? ' (má jiný hráč)' : ''}" data-cq-color="${item.id}" ${off ? 'disabled' : ''} class="cq-seal-pick relative flex h-[4.25rem] items-center justify-center rounded-xl">${sealSvg(item.id, emblem, 'h-14 w-14')}${off ? '<i data-lucide="lock" class="cq-seal-lock absolute bottom-1 right-2 h-4 w-4"></i>' : ''}</button>`;
             }).join('')}</div>`;
@@ -2858,6 +2983,7 @@
                 <div class="cq-vignette pointer-events-none absolute inset-0 rounded-2xl"></div>
                 <button type="button" data-cq="zoom-reset" class="absolute right-1.5 top-1.5 hidden h-10 w-10 items-center justify-center rounded-xl bg-white/90 text-slate-700 shadow ring-1 ring-black/10 dark:bg-slate-800/90 dark:text-slate-200" aria-label="Celá mapa"><i data-lucide="expand" class="h-4 w-4"></i></button>
                 <div data-cq-banner class="pointer-events-none absolute inset-x-0 top-2 flex justify-center px-2"></div>
+                <div data-cq-revive class="pointer-events-none absolute inset-x-0 top-1.5 z-10 flex justify-center px-1.5"></div>
                 <div data-cq-chips class="pointer-events-none absolute bottom-1.5 left-1.5 right-1.5 flex flex-col items-start gap-1">${view.sieges.size ? siegeChipsHtml(view, { now }) : ''}</div>
             </div>
             <div data-cq-round class="pointer-events-none absolute inset-0 z-30 hidden"></div>
@@ -3018,10 +3144,14 @@
             region ? `<span class="flex items-center gap-1" data-cq-region><i data-lucide="map" class="h-4 w-4"></i>${esc(regionLine(view, region, regionOwner))}</span>` : '',
             info.treasure && !owner ? '<span class="flex items-center gap-1 text-amber-700 dark:text-amber-300"><i data-lucide="gem" class="h-4 w-4"></i>Poklad: +1 tah</span>' : ''
         ].filter(Boolean).join('');
+        // Chráněné po Vzkříšení (blok 39): zašedlé Zaútočit a odpočet (conquest-ui.js přepisuje data-cq-shield-at)
+        const until = actions.shielded ? Math.round(now + shieldLeft(view, id, now)) : 0;
         const buttons = actions.fortify
             ? `<button type="button" data-cq="fortify" class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="castle" class="h-5 w-5"></i> Opevnit na ${esc(LEVELS[info.level + 1].acc)}</button>`
-            : actions.attack ? `<button type="button" data-cq="attack" data-source="${esc(from || '')}" class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="swords" class="h-5 w-5"></i> Zaútočit</button>` : '';
-        const hint = !buttons && actions.reason ? `<p class="text-[12.5px] font-semibold leading-snug text-slate-600 dark:text-slate-300">${esc(actions.reason)}</p>${actions.spent ? extraOfferHtml(view) : ''}` : '';
+            : actions.attack ? `<button type="button" data-cq="attack" data-source="${esc(from || '')}" class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="swords" class="h-5 w-5"></i> Zaútočit</button>`
+                : actions.shielded ? `<button type="button" disabled data-cq-shielded class="${LIGHT_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="shield" class="h-5 w-5"></i> Zaútočit</button>` : '';
+        const hint = actions.shielded ? `<p class="cq-shield-note flex items-center gap-1.5 text-[12.5px] font-semibold leading-snug"><i data-lucide="shield-check" class="h-4 w-4 shrink-0"></i><span>Území je chráněné po vzkříšení ještě <b data-cq-shield-at="${until}">${shieldSeconds(until - now)} s</b>. Pak na něj půjde zaútočit.</span></p>`
+            : !buttons && actions.reason ? `<p class="text-[12.5px] font-semibold leading-snug text-slate-600 dark:text-slate-300">${esc(actions.reason)}</p>${actions.spent ? extraOfferHtml(view) : ''}${actions.out ? reviveRowHtml(view) : ''}` : '';
         const harder = actions.attack && info.level ? `<p class="text-[11.5px] font-semibold text-slate-500 dark:text-slate-400">Opevněné území: správná odpověď opevnění jen pobourá o jednu úroveň, otázka je těžší.</p>` : '';
         const siege = view.sieges && view.sieges.get(id);
         const battle = siege ? siegeBoxHtml(view, id, siege, { offset, now }) : '';
@@ -3253,7 +3383,7 @@
     // Kronika tažení (okno)
     const feedHtml = (items, { avatarHtml = null } = {}) => {
         if (!items.length) return '<p class="py-4 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">Zatím se nic nestalo.</p>';
-        const TONES = { capture: 'text-rose-700 dark:text-rose-300', breach: 'text-orange-700 dark:text-orange-300', fortify: 'text-emerald-700 dark:text-emerald-300', defend: 'text-sky-700 dark:text-sky-300', gold: 'text-amber-700 dark:text-amber-300', neutral: 'text-slate-600 dark:text-slate-300' };
+        const TONES = { capture: 'text-rose-700 dark:text-rose-300', breach: 'text-orange-700 dark:text-orange-300', fortify: 'text-emerald-700 dark:text-emerald-300', defend: 'text-sky-700 dark:text-sky-300', gold: 'text-amber-700 dark:text-amber-300', revive: 'text-orange-600 dark:text-orange-300', neutral: 'text-slate-600 dark:text-slate-300' };
         return `<ol class="flex flex-col gap-1">${items.map(item => `<li class="flex items-center gap-2 rounded-xl bg-white px-2 py-1.5 shadow-sm dark:bg-slate-800">
             <i data-lucide="${item.icon}" class="h-4 w-4 shrink-0 ${TONES[item.tone] || ''}"></i>
             <span class="min-w-0 flex-1"><span class="block truncate text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">${esc(item.title)}: ${esc(item.text)}</span>
@@ -3329,14 +3459,15 @@
         konec: [
             ['Konec', 'Hra skončí po čase nastaveném při založení. Kolik zbývá, ukazuje nápis pod názvem mapy.'],
             ['Body', `1 bod za každé území, které na konci držíš, a ${REGION_POINTS} body navíc za každý celý region. Vyhrává, kdo má nejvíc bodů. Při shodě rozhoduje, kdo svého počtu bodů dosáhl dřív.`],
-            ['Návrat do hry', 'Když přijdeš o všechna území, dostaneš na začátku dalšího období nové domovské území a hraješ dál.'],
+            ['Vzkříšení', 'Když přijdeš o všechna území, sám se do hry nevrátíš. S pomůckou Vzkříšení si vybereš volné nebo neopevněné území (ne domovský hrad) a hraješ dál, 60 s je chráněné. Bez ní hru jen sleduješ.'],
             ['Odměny', `1. místo: odznak Dobyvatel a ${REWARD_XP[0]} XP, 2. místo: ${REWARD_XP[1]} XP, 3. místo: ${REWARD_XP[2]} XP. Poslední místo nedostane nic, ve hře dvou hráčů tedy dostane odměnu jen 1. místo. Odměny jsou jen ve hře aspoň 3 hráčů nebo ve hře, která trvá aspoň den, a jen když máš aspoň 3 vlastní tahy a aspoň 1 bod.`]
         ],
         pomucky: [
-            ['Pomůcky', `Vzácné pomůcky máš v zásobě: nejvýš ${ITEMS.extra_move.max} Tah navíc a ${ITEMS.fifty.max} Půl na půl. Každou jde v jedné hře použít jen jednou. Zásobu ukazuje rozcestník a klepnutí na počítadlo tahů.`],
-            ['Tah navíc', 'O 1 tah víc v tomto kole. Nabídne se, když ti tahy dojdou. V posledním kole hry ne. Všichni ho uvidí v kronice.'],
-            ['Půl na půl', 'Tlačítko ½ u otázky se 4 možnostmi odebere dvě špatné odpovědi. Jde i v bitvě, ostatní pak uvidí ½ u tvého jména.'],
-            ['Jak získat', 'Tah navíc: Boss týdne (první výhra v týdnu) a 15. stupeň Sezóny. Půl na půl: Kvíz dne bez chyby a celá Řetězovka (obojí jednou za týden), výhra v Dobývání, 5. stupeň Sezóny a vzácně Truhla Mudrlanta.']
+            ['Pomůcky', `V zásobě máš nejvýš ${ITEMS.extra_move.max} Tah navíc, ${ITEMS.fifty.max} Půl na půl a ${ITEMS.revive.max} Vzkříšení. Tah navíc a Půl na půl jdou v jedné hře použít jen jednou. Zásobu ukazuje rozcestník a počítadlo tahů.`],
+            ['Tah navíc', 'O 1 tah víc v tomto kole. Nabídne se, když ti tahy dojdou. V posledním kole hry ne.'],
+            ['Půl na půl', 'Tlačítko ½ u otázky se 4 možnostmi odebere dvě špatné odpovědi. Jde i v bitvě.'],
+            ['Vzkříšení', 'Nabídne se, když přijdeš o všechna území: vybereš si volné nebo neopevněné území a hraješ dál.'],
+            ['Jak získat', 'Tah navíc: Boss týdne a 15. stupeň Sezóny. Půl na půl: Kvíz dne bez chyby, celá Řetězovka, výhra v Dobývání, 5. stupeň Sezóny. Vzkříšení: jedno na začátek, dohraná hra s body, série Kvízu dne, 8. stupeň Sezóny. Vzácně i z truhel.']
         ]
     };
     const helpHtml = (tab = 'zaklady') => {
@@ -3353,13 +3484,15 @@
     return {
         ART, MAPS, MAP_BY_ID, DURATIONS, PERIODS, PERIOD_MINUTES, LENGTHS, TEMPOS, tempoOf, defaultMinutes, minutesLabel, gameMinutes, roundLabel, MIN_PLAYERS, MAX_PLAYERS, MAX_ACTIONS, MAX_GAMES, MAX_OWN_LOBBIES, REGION_POINTS, LEVELS, REWARD_XP,
         COLORS, COLOR_BY_ID, EMBLEMS, EMBLEM_BY_ID, RARE_EMBLEMS, RARE_EMBLEM_BY_ID, PATTERNS, PATTERN_BY_ID, patternOf, emblemArtUrl, patternUrl, colorOf, emblemOf,
-        lookItem, lookOwned, emblemAllowed, patternAllowed, lookProgress, lookHowText, lookNews, lookNewsArt, fillSwatchSvg, patternTintRows, tileKey, COLORED_PATTERNS, inkOf, emblemInk, luminance, maxLevel, rewardFor,
+        lookItem, lookOwned, emblemAllowed, patternAllowed, lookProgress, lookHowText, lookNews, lookNewsArt, fillSwatchSvg, patternTintRows, tileKey, COLORED_PATTERNS, inkOf, isLight, emblemInk, luminance, maxLevel, rewardFor,
         durationLabel, periodLabel, actionsLabel, timeLeft, movesWord, pointsWord, playersWord, territoriesWord, regionsWord, nextPeriodAt, agoLabel, periodLine,
         budgetTitle, budgetInnerHtml, periodStartText, PENALTY_TEXT,
         indexMap, parseRings, pointInRings, spansAt, labelSpot, labelMax, labelAt, labelFit, project, territoryAt, isAdjacent, viewOf, rank, sourcesFor, actionsFor,
         // Pomůcky (blok 30)
-        ITEMS, ITEM_IDS, fiftyAllowed, fiftyPick, stockText, stockLabel, grantNews, itemSealHtml, itemsStripHtml, itemsDialogHtml, extraConfirmHtml, extraReady, extraOfferHtml,
+        ITEMS, ITEM_IDS, itemIdsFor, fiftyAllowed, fiftyPick, stockText, stockLabel, grantNews, itemSealHtml, itemsStripHtml, itemsDialogHtml, extraConfirmHtml, extraReady, extraOfferHtml,
         extraChipHtml, fiftyButtonHtml, halfBadge,
+        // Vzkříšení (blok 39)
+        reviveOn, outOfGame, shieldLeft, shieldSeconds, reviveWhy, reviveTargets, reviveOfferHtml, reviveBarHtml, reviveLayerHtml, reviveChipHtml, reviveRowHtml, gameOut, movesLeft,
         buildQuestion, prepareQuestion, completeQuestion, isFullQuestion, moveTitle, accusativeOf, ROUND_TIMEOUT, formPlan, FORM_IDS, GROUPS, RELATIONAL_CAP, MUDRLANT_IDS, nearDuplicate,
         answerKey, familyPlan, kindsFor, placesOf, poolsOf, formsOf, FAMILY_IDS, FAMILY_DOMAIN, DOMAINS, FAMILY_CAP, flagUrl, flagFallback, THUMB, feedItems, replaySteps, capturedWord, hatchPattern, levelIcon, iconMarkup,
         pennantSvg, pennantGroup, emblemSvg, sealSvg, mapSvg, thumbSvg, marksFor, clockText, localTime, roundHtml, roundChipHtml, ROUND_COUNTDOWN, fastPeriod, battleWaitHtml, battleResultHtml, joinedHtml, fightersHtml, siegeChipsHtml, RISK_TEXT, homeCardHtml, homeTile, hubHtml, mineHtml, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,

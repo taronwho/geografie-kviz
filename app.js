@@ -16,7 +16,7 @@
         buildHints: CoreBuildHints, planRound
     } = window.MudrlantCore;
     // Sestavení otázky z textu s jednoznačností (quiz-core.js composeRound): rozlišující údaj, výměna nesprávných možností
-    const { composeRound } = window.MudrlantCore;
+    const { composeRound, MASK_RULES_FROM } = window.MudrlantCore;
     const Visuals = window.MudrlantVisuals;
     // Opakování karet (review.js) a týdenní cíle (goals.js); bez skriptu se jen nezobrazí
     const Review = window.MudrlantReview || null;
@@ -106,7 +106,9 @@
     // a Pavouk pletař za odznak retezovka-10 (se starší databází se odznaky Řetězovky do účtu neuloží a počítadla zůstanou jen ze zařízení).
     // 37 = Pomůcka Záchrana navíc do Řetězovky (zásoba chain_rescue, chain_use_rescue, chain_submit se dvěma zachráněnými články; zisk za
     // milníky Řetězovky, 12. stupeň Sezóny, Truhlu Mudrlanta, Zlatou truhlu a společný cíl Bosse; se starší databází se nenabídne).
-    const REQUIRED_SCHEMA = 38;
+    // 39 = Dobývání: pomůcka Vzkříšení místo automatického Návratu do hry (conquest_use_revive, ochrana 60 s, zásoba revive; zisk startovní,
+    // za započítanou hru, sérii Kvízu dne, 8. stupeň Sezóny a truhly; se starší databází se hráč bez území vrátí sám jako dřív).
+    const REQUIRED_SCHEMA = 39;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -611,7 +613,9 @@
         // možností, otázka se jménem; quiz-core.js composeRound) – společně s audity
         const composed = composeRound({ item, ctx, question, special: Boolean(special), fetched: fetchedText, fallback: fallbackText(item), stableChoices,
             stableSwaps: (options.mode || mode) === 'challenge', shown, rng, photoUrl, describeVisual, photoMasks, textPhotos: ctx.textPhotos || new Set(),
-            swaps: uniqueSwapsNow(options), fixed: Boolean(options.wrong), plain: Boolean(options.plain) });
+            swaps: uniqueSwapsNow(options), fixed: Boolean(options.wrong), plain: Boolean(options.plain),
+            // Den otázky před MASK_RULES_FROM: možnosti denních módů se vyberou se zakrýváním jako dřív (dnešní sada zůstane stejná)
+            legacyChoices: String(options.day || getDayKey()) < MASK_RULES_FROM });
         question = composed.question;
         const { conflict, ambiguous, typeLabel } = composed;
         const { text, questionText, moreText, origin } = composed.texts;
@@ -4738,10 +4742,12 @@
         itemStock = { ...(itemStock || {}), [grant.kind]: grant.count };
     };
     const itemName = (kind) => (window.MudrlantConquest && window.MudrlantConquest.ITEMS[kind] ? window.MudrlantConquest.ITEMS[kind].name : 'Půl na půl');
-    // Zásoba ze serveru (player_items_mine): chain_rescue = null, když ji databáze nezná (bez bloku 37: Záchrana navíc se nenabídne)
+    // Zásoba ze serveru (player_items_mine): chain_rescue = null, když ji databáze nezná (bez bloku 37: Záchrana navíc se nenabídne), revive
+    // stejně (bez bloku 39: Vzkříšení v Sezóně není)
     const setItemStock = (items) => {
         if (!items) return;
-        itemStock = { extra_move: items.extra_move, fifty: items.fifty, chain_rescue: typeof items.chain_rescue === 'number' ? items.chain_rescue : null };
+        itemStock = { extra_move: items.extra_move, fifty: items.fifty, chain_rescue: typeof items.chain_rescue === 'number' ? items.chain_rescue : null,
+            revive: typeof items.revive === 'number' ? items.revive : null };
     };
     // Načtení zásoby (Řetězovka: Záchrana navíc); vrací zásobu, nebo null (host, starší databáze, bez spojení)
     const refreshItemStock = async () => {
@@ -6452,7 +6458,7 @@
                 if (!picked.item) throw new Error('Není z čeho vybírat');
                 // Číselná otázka, když ji výběr naplánoval (bez popisu z Wikipedie, takže chudý popis se jí netýká)
                 data = (picked.numeric && Numeric && Numeric.buildRound(picked.numeric, picked.ctx)) || (picked.time && TimeQ && TimeQ.buildRound(picked.time, picked.ctx))
-                    || await timed('sestaveni', createRoundData(picked.item, picked.ctx, picked.rng, { map: Boolean(picked.map), stableChoices: Boolean(picked.stable) }));
+                    || await timed('sestaveni', createRoundData(picked.item, picked.ctx, picked.rng, { map: Boolean(picked.map), stableChoices: Boolean(picked.stable), day: picked.dailyDate }));
                 // Chudý popis: vybere se jiná otázka (u dnešní otázky další určená položka), nejvýš třikrát; pak se vezme, co je
                 // (výzva ne: všichni hráči musí dostat stejné otázky, i když se někomu Wikipedie nenačte)
                 // Dnešní otázky od DAILY_STABLE_FROM také ne (picked.stable): výměna by závisela na tom, jestli se hráči načetla Wikipedie
@@ -6590,7 +6596,7 @@
             const picked = await dailyPicker(topicId, today)(0);
             if (picked.frozen) return playableSnapshot(picked.frozen) ? upgradeRoundData(picked.frozen) : null;
             if (!picked.item) return null;
-            const built = await createRoundData(picked.item, picked.ctx, picked.rng, { mode: 'daily', stableChoices: Boolean(picked.stable) });
+            const built = await createRoundData(picked.item, picked.ctx, picked.rng, { mode: 'daily', stableChoices: Boolean(picked.stable), day: picked.dailyDate });
             return (await settleSnapshot(picked.snapshotSeed, built)).data;
         })().catch(error => { console.error(error); return null; });
         dailyPrepared = { key, promise };
@@ -11140,8 +11146,9 @@
                     const index = attempt.synced;
                     const state = await Social.dailyQuizAnswer(attempt.day, index, attempt.results[index]);
                     if (!state) return null;
-                    // Kvíz dne bez chyby: pomůcka Půl na půl do Dobývání (blok 30)
+                    // Kvíz dne bez chyby: pomůcka Půl na půl do Dobývání (blok 30); milník série: Vzkříšení (blok 39)
                     if (state.item) celebrateItem(state.item);
+                    if (state.revive_item) celebrateItem(state.revive_item);
                     if (!applyQuizServer(attempt, state) || attempt.synced <= index) return false;
                 }
                 return true;
@@ -11339,7 +11346,7 @@
             const picked = await quizPick(attempt, index);
             if (picked.frozen) return playableSnapshot(picked.frozen) ? upgradeRoundData(picked.frozen) : null;
             if (!picked.item) return null;
-            const built = (picked.time && TimeQ && TimeQ.buildRound(picked.time, picked.ctx)) || await createRoundData(picked.item, picked.ctx, picked.rng, { mode: 'quiz', stableChoices: Boolean(picked.stable) });
+            const built = (picked.time && TimeQ && TimeQ.buildRound(picked.time, picked.ctx)) || await createRoundData(picked.item, picked.ctx, picked.rng, { mode: 'quiz', stableChoices: Boolean(picked.stable), day: attempt.day });
             return (await settleSnapshot(picked.snapshotSeed, built)).data;
         })().catch(error => { console.error(error); return null; });
         quizPrepared = { key, promise };
@@ -11552,7 +11559,7 @@
         } else {
             ({ ctx, item } = await mysteryPick(day));
             if (!item) throw new Error('Tajemná otázka nemá položku');
-            const built = await createRoundData(item, ctx, createSeededRandom(Mystery.seedFor(day)), { plain: true, year: Number(day.slice(0, 4)), stableChoices: day >= DAILY_STABLE_FROM });
+            const built = await createRoundData(item, ctx, createSeededRandom(Mystery.seedFor(day)), { plain: true, year: Number(day.slice(0, 4)), stableChoices: day >= DAILY_STABLE_FROM, day });
             data = (await settleSnapshot(seed, built)).data;
             if (data.id !== item.q) item = ctx.byId.get(data.id) || { q: data.id, n: data.name };
         }
@@ -12206,7 +12213,7 @@
         const typed = Boss.isTyped(slot);
         let fallback = null;
         for (let tries = 0; tries < Math.min(6, ordered.length); tries++) {
-            const data = await createRoundData(ordered[tries], ctx, createSeededRandom(Boss.questionSeed(open.week, open.n, slot, tries)), { stableChoices: stable });
+            const data = await createRoundData(ordered[tries], ctx, createSeededRandom(Boss.questionSeed(open.week, open.n, slot, tries)), { stableChoices: stable, day: open.week });
             const choices = data && data.question && Array.isArray(data.question.choices) ? data.question.choices : [];
             const playable = choices.length >= 2 && choices.filter(choice => choice && choice.correct).length === 1;
             const typeable = !typed || Boolean(data.question.match) || (Array.isArray(data.question.accepted) && data.question.accepted.length > 0);
@@ -14480,6 +14487,8 @@
             // Okno s pozvánkou po otevření aplikace: jen na úvodu, ne přes jiné okno, oslavu, truhlu ani tutoriál
             canPrompt: () => screen === 'home' && !pushOfferBlocked() && !document.getElementById('chest-overlay') && !document.getElementById('season-overlay'),
             invitesChanged: () => paintChallenges(),
+            // Vývojářské „Odemknout úplně vše“: v Dobývání nabídne všechny výplně a vzácné znaky (server je přijme jen správci)
+            devAll: () => Boolean(Look && Look.devUnlockAll && Look.devUnlockAll()),
             // Dlaždice Dobývání a řádek „Čeká na tebe“ na záložce Soupeři se překreslí s ní
             paintHome: () => paintChallenges(),
             login: () => { if (Auth) startLogin(); },
