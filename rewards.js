@@ -71,8 +71,8 @@
     // --- Sezóna (season.js): { id: 'RRRR-MM', startXp, claimed: { stupeň: odměna } }, minulá sezóna navíc endXp ---
     // Odměna stupně: části spojené „+“: 'kategorie:id' (věc), 'freeze' (ochrana série), 'xp:N'
     const SEASON_ID = /^\d{4}-(?:0[1-9]|1[0-2])$/;
-    // pomucka:<druh> = pomůcka do Dobývání místo věci (season.js POMUCKA_TIERS, blok 30 ve schema.sql)
-    const SEASON_PART = '(?:freeze|xp:\\d{1,4}|pomucka:(?:fifty|extra_move|chain_rescue)|(?:accessories|colors|frames|robes|themes|avatars|titles):[a-z0-9-]{1,30})';
+    // pomucka:<druh> = pomůcka do Dobývání (Vzkříšení od bloku 39) nebo Řetězovky místo věci (season.js POMUCKA_TIERS, blok 30 ve schema.sql)
+    const SEASON_PART = '(?:freeze|xp:\\d{1,4}|pomucka:(?:fifty|extra_move|chain_rescue|revive)|(?:accessories|colors|frames|robes|themes|avatars|titles):[a-z0-9-]{1,30})';
     const SEASON_REWARD = new RegExp(`^${SEASON_PART}(?:\\+${SEASON_PART}){0,5}$`);
     const SEASON_TIERS = 20;
     const cleanSeason = (raw, past = false) => {
@@ -375,7 +375,7 @@
                 <p class="text-xs font-semibold leading-snug text-white/80">${esc(note || 'Všechny věci pro Mudrlanta už máš, tak aspoň body zkušeností.')}</p>
             </div>`) : '';
         const freeze = opened && opened.freeze ? `<p data-chest-freeze class="chest-show-2 relative z-10 flex items-center gap-1.5 rounded-xl bg-sky-500/20 px-3 py-1.5 text-xs font-black text-sky-100 ring-1 ring-sky-300/40">${freezeArt('h-6 w-6 -my-1')} A navíc ochrana série</p>` : '';
-        // Vzácně (los na serveru, blok 30 a 37) i pomůcka: opened.pomucka = { kind, name, place ('do Dobývání' | 'do Řetězovky') }; h.itemArt = pečeť
+        // Vzácně (los na serveru, blok 30, 37 a 39) i pomůcka: opened.pomucka = { kind, name, place ('do Dobývání' | 'do Řetězovky') }; h.itemArt = pečeť
         // pomůcky z app.js
         const pomucka = opened && opened.pomucka ? `<p data-chest-pomucka class="chest-show-2 relative z-10 flex items-center gap-1.5 rounded-xl bg-violet-500/25 px-3 py-1.5 text-xs font-black text-violet-50 ring-1 ring-violet-300/50">${h.itemArt ? h.itemArt(opened.pomucka.kind, 'h-6 w-6 -my-1') : ''} A navíc pomůcka ${esc(opened.pomucka.place || 'do Dobývání')}: ${esc(opened.pomucka.name)}</p>` : '';
         // Vzácnost do Dobývání (los na serveru, blok 38): opened.pattern = { id, name }; h.patternArt = vzorek výplně území z app.js

@@ -2655,7 +2655,7 @@ Heraldic emblem as ONE flat solid black silhouette on a pure white background, s
 
 #### 291. `znak-fenix.png` – Vzácný znak Fénix – ✅ dodáno, zapojeno (maska icons/znaky, conquest.js RARE_EMBLEMS)
 
-Kam: vzácný znak hráče v Dobývání (výhra po Návratu do hry; docs/ODMENY-DOBYVANI.md): silueta se převede na masku a tiskne do pečeti a na praporec v barvě hráče. Přiložit: nic (silueta)
+Kam: vzácný znak hráče v Dobývání (výhra po Vzkříšení, dřív po Návratu do hry; docs/ODMENY-DOBYVANI.md): silueta se převede na masku a tiskne do pečeti a na praporec v barvě hráče. Přiložit: nic (silueta)
 
 ```text
 Heraldic emblem as ONE flat solid black silhouette on a pure white background, square 1024 × 1024 px, centered, filling about 80 % of the frame. Crisp clean edges, no gradients, no grey, no colored outline, no texture, no shadow, no shield or frame around it. Only a few small white negative-space cuts inside the silhouette (eye, wing feathers, mane or tail strands) so that it stays readable as a tiny 24 px wax-seal stamp. Classic medieval heraldry style, bold, simple and elegant. No text, no letters, no numbers, no logo, no watermark. Subject: a phoenix rising from stylized flames, wings spread up, long flowing tail feathers. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
@@ -3274,6 +3274,21 @@ Kam: pomůcka Záchrana navíc v Řetězovce dne (tlačítko „Použít Záchra
 
 ```text
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 28 px icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. If a second image of a game item is attached, match its size and sticker style so the items look like a set; if an image of a golden chain is attached, keep exactly its link shape and color. Subject: A very simple, bold, chunky round life ring (lifebuoy) seen straight from the front, with only four wide alternating teal and cream segments and a big round hole in the middle, NO rope, no handles, no small details. One single large polished golden chain link hangs from the bottom of the ring through the hole. A large round golden coin with a big bold plus-cross shape overlaps the upper right edge of the ring (about a third of the ring's size). Nothing else, no sparkles. Must stay clearly readable as a tiny 24 px icon. Colors: teal, cream, warm gold. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+## 29. Pomůcka Vzkříšení do Dobývání (č. 361)
+
+Pečeť pomůcky Vzkříšení (schéma 39): když hráč v Dobývání přijde o všechna území, vrátí ho do hry na volné nebo neopevněné území.
+**Stav: zatím zástupná pečeť** – korálově zlatá kulatá pečeť s ikonou srdce s tepem, bez značky (conquest.js `ITEMS.revive`, `art: null`,
+styl `.cq-item-revive`). Až obrázek dorazí, uložím ho do `branding/ikony/`, spustím `python3 scripts/topic-icons.py vzkriseni`, nastavím
+`art: 'vzkriseni'` a přidám ho do `sw.js`.
+
+#### 361. `vzkriseni.png` – Pomůcka Vzkříšení – čeká na dodání
+
+Kam: pomůcka Vzkříšení v Dobývání (okno „Všechna tvá území padla“, štítek Vzkříšení dole na mapě, pruh výběru území, kronika, pruh Pomůcky v rozcestníku a okno Pomůcky, oslava „Nová pomůcka do Dobývání“, 8. stupeň Sezóny, Truhla Mudrlanta a Zlatá truhla). Zobrazí se jako kulatá pečeť velká 24–64 px, proto výrazná jednoduchá silueta. Do dodání pečeť s ikonou srdce s tepem. Přiložit: `branding/sova-original.jpg` (vzor stylu); volitelně hotový `zachrana-navic.png` (č. 360, vzor velikosti a stylu pečetí pomůcek)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 24 px icon (bold simple silhouette, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: A majestic, very bold golden Egyptian ankh standing upright, polished and glossy with a bright highlight, a large glowing turquoise gem set in the centre of its loop, two short stylized golden falcon wings spreading sideways from the crossbar, and behind it a round radiant burst of soft violet-and-turquoise magical light with a few short golden rays, as if the ankh is bringing something back to life. Keep the shapes chunky and simple. Colors: warm gold, turquoise, soft violet, cream. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
 ## Co udělám po dodání

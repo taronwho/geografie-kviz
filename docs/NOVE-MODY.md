@@ -351,7 +351,8 @@ Hra více hráčů o území na mapě. Hráči si hry sami zakládají a přidá
   - u krajů krajská města, místa, hrady a zámky, bitvy, kapely, kluby a sportoviště v kraji.
 - **Regiony** (jako kontinenty v Risku): celý region = zlatý obrys, +1 tah za období a +2 body na konci.
 - **Poklady**: 5 neutrálních území s truhličkou; dobytí = +1 tah hned.
-- **Domovské území**: každý začíná jedním (hrad). Kdo přijde o všechna území, dostane v dalším období nové neutrální („Návrat do hry“).
+- **Domovské území**: každý začíná jedním (hrad). Kdo přijde o všechna území, vrátí se jen pomůckou **Vzkříšení** (schéma 39: volné nebo
+  neopevněné území, ne domovské, 60 s chráněné; bez ní hru jen sleduje). Do schématu 38 dostal v dalším období nové neutrální („Návrat do hry“).
 - **Konec hry** (po uplynutí délky hry):
   - body = 1 za území a 2 za celý region;
   - přehrání průběhu na mapě a stupně vítězů;
