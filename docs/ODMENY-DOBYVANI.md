@@ -51,7 +51,7 @@ je jde tisknout do pečeti i na praporec v barvě hráče stejně jako dnešní 
 | Orel bělohlavý | Vyhraj na mapě Amerika |
 | Dvouocasý lev | Vyhraj na mapě Česko |
 | Pegas | Vyhraj Blesk (hru na 20 minut) |
-| Fénix | Vyhraj hru po Návratu do hry (v té hře ti chvíli nezbylo žádné území) |
+| Fénix | Vyhraj hru po Vzkříšení (v té hře ti chvíli nezbylo žádné území; do schématu 38 po Návratu do hry) |
 | Kraken | Dobuď 40 území přes námořní cestu |
 | Jednorožec | Dohraj 5 her bez ztráty domovského hradu |
 | Dvouhlavý orel | Vyhraj 50 bitev o území |
@@ -114,22 +114,33 @@ Body 1 a 2 pro vzory a vzácné znaky jsou hotové (schéma 38, docs/SUPABASE.md
 (`castle_set`) a efekty (`effect`) zatím ne – obrázky hradů nejsou dodané.
 
 
-1. Server: statistiky hráče v Dobývání (výhry podle mapy a tempa, bitvy, odražené útoky, regiony, území přes moře, hrady, Návrat do
+1. Server: statistiky hráče v Dobývání (výhry podle mapy a tempa, bitvy, odražené útoky, regiony, území přes moře, hrady, Vzkříšení / Návrat do
    hry a výhra, hry bez ztráty domova) – počítá conquest_finish a tahy; odemčené věci se uloží k profilu.
 2. Volba vzhledu ve hře: `conquest_players` dostane `pattern`, `castle_set`, `effect` (server ověří, že je hráč má odemčené).
 3. Vykreslení: výplň území v `mapSvg` (jeden `<pattern>` na hráče), vzácný znak v `pennantGroup` a `sealSvg`, hrad podle sady v `BUILDINGS`, efekty v conquest-ui.js.
 4. Obrázky: č. 278–308 v docs/OBRAZKY.md (oddíl 24) + skripty na textury, siluety znaků a sady hradů (building-art.py). Vzory a znaky (č. 278–296) jsou dodané a převedené (`scripts/conquest-art.py vzory znaky`); chybí hrady.
 
-## 9. Pomůcky (hotovo, schéma 30)
+## 9. Pomůcky (hotovo, schéma 30 a 39)
 
-Dvě vzácné pomůcky, které si hráč schovává do zásoby a použije v kterékoli hře Dobývání. Zásoba je na serveru (`player_items`), takže
+Tři vzácné pomůcky, které si hráč schovává do zásoby a použije v kterékoli hře Dobývání. Zásoba je na serveru (`player_items`), takže
 platí na všech zařízeních; odkud pomůcka přišla, zapisuje `player_item_grants` s klíčem zdroje, takže stejná událost nikdy nedá dvě.
-Obě jdou v jedné hře použít jen jednou. Boti je nedostávají ani nepoužívají.
+Tah navíc a Půl na půl jdou v jedné hře použít jen jednou, Vzkříšení pokaždé, když hráč přijde o všechna území. Boti je nedostávají
+ani nepoužívají.
 
 | Pomůcka | Co dělá | Nejvýš | Jak ji získat |
 |---|---|---|---|
 | **Tah navíc** (pečeť s bleskem a „+1“, obrázek č. 309) | +1 tah v tomto kole (období). Ne v posledním kole hry, ne během odpočtu do dalšího kola, ne bez území. Všichni ho uvidí: záznam „Tah navíc“ v kronice s praporcem a jménem hráče a zlaté „+1“ u jeho tahů v pořadí | 1 | **Boss týdne**: první výhra v ISO týdnu (`boss:<týden>`); **Sezóna Mudrlanta**: 15. stupeň (`season:<RRRR-MM>:15`) |
+| **Vzkříšení** (korálově zlatá pečeť, obrázek č. 361 se zlatým ankhem s křídly a tyrkysovým drahokamem; do dodání srdce s tepem, bez značky; schéma 39) | Nahrazuje automatický Návrat do hry. Jen když hráči v běžící hře nezbylo žádné území (kdykoli, i uprostřed kola). Vybere si neutrální území, nebo území jiného hráče bez opevnění, které není domovským hradem, není obléhané ani chráněné po jiném Vzkříšení. Území je jeho (úroveň 0, **ne domovské**), poklad na něm dá +1 tah, hraje dál se zbytkem tahů kola. Na **60 s je chráněné**: nikdo jiný na ně nezaútočí ani nezačne bitvu, boti ho vynechají, majitel opevnit smí. Kronika „Vzkříšení“ s praporcem hráče, dosavadní majitel tam vidí, že území ztratil | 3 | **Startovní** jedno pro každého (`starter`, jednou za účet, aby noví hráči nebyli hned po prvních hrách navždy venku); **dohraná započítaná hra Dobývání s body** (aspoň 3 hráči nebo hra na den a déle, aspoň 3 vlastní tahy a aspoň 1 bod, jednou za hru, `revive:<hra>`); **série Kvízu dne** 7, 30, 100 a 365 dní (jednou za milník, `daily-streak:<dny>`); **Sezóna Mudrlanta**: 8. stupeň (`season:<RRRR-MM>:8`); **Truhla Mudrlanta** 10 % (stejný týdenní los, `chest:<RRRR-Wtt>`) a **Zlatá truhla** 15 % (`gold:<RRRR-Wtt>`) |
 | **Půl na půl** (pečeť s váhami a „½“, obrázek č. 310) | U otázky se 4 textovými nebo obrázkovými možnostmi (ne mapa, letopočet ani odhad čísla) odebere před odpovědí dvě špatné. Jde i v bitvě: dvě nesprávné vybere server (správnou neprozradí) a ostatní účastníci vidí „½“ u jména hráče (v otázce, při čekání i ve výsledku bitvy) | 2 | **Kvíz dne bez chyby** (10 z 10, nejvýš jednou za ISO týden, `daily:<RRRR-Wtt>`); **Řetězovka**: celý řetěz 7 článků (nejvýš jednou za ISO týden, `chain:<RRRR-Wtt>`); **výhra ve hře Dobývání** (1. místo s aspoň 3 vlastními tahy, `conquest:<hra>`); **Sezóna Mudrlanta**: 5. stupeň (`season:<RRRR-MM>:5`); **Truhla Mudrlanta**: vzácně (5 %, los na serveru, nejvýš jednou za ISO týden, `chest:<RRRR-Wtt>`) |
+
+**Jak často Vzkříšení přijde**: aktivní hráč Dobývání dostane jedno skoro za každou dohranou hru s body (bez bodů, tedy právě vyřazený,
+nic), k tomu jednou za měsíc ze Sezóny, občas z truhly a z milníků Kvízu dne; příležitostný hráč má startovní a pak zhruba jedno za
+měsíc. Strop 3 drží, aby hráč nebyl nesmrtelný: kdo je vyřazen víckrát, zásobu rychle spotřebuje.
+
+**Vyřazení bez Vzkříšení** (schéma 39): hráč zůstane do konce hry mimo hru – hru sleduje, kolo za něj platí jako dohrané a „Chci další
+kolo“ za něj platí samo (jako za bota), upozornění na konec kola nedostane. Hra běží do svého konce jako dřív (nekončí dřív, protože
+Vzkříšení může přibýt i během hry, třeba za Kvíz dne, a hráč se pak vrátí). Pořadí: body, při shodě dřív dosažené; hráči s 0 body podle
+toho, kdo o poslední území přišel později. Odměnu (XP, odznak, Vzkříšení za hru) hráč s 0 body nedostane, stejně jako dřív.
 
 **Plná zásoba**: zdroj dá jen to, co dával dřív. Boss, Kvíz dne, Řetězovka a výhra jen řeknou „Tah navíc už máš, víc jich mít nejde“,
 nebo „Půl na půl už máš dvakrát, víc jich mít nejde“; Kvíz dne a Řetězovka to v tom týdnu zkusí znovu, až hráč pomůcku použije. Sezóna
@@ -137,15 +148,24 @@ dá na 5. a 15. stupni běžnou věc (stejným losem jako dřív) a Truhla jen s
 pomůcku nikdy.
 
 **Kde je hráč uvidí**
-- Rozcestník Dobývání (Moje hry): pergamenový pruh „Pomůcky“ se dvěma pečetěmi a zásobou („Tah navíc 1/1“, „Půl na půl 1/2“), klepnutím
-  okno Pomůcky (co dělají a „Jak získat“). Ve hře totéž okno klepnutím na počítadlo tahů, i s tím, co jde v té hře použít.
+- Rozcestník Dobývání (Moje hry): pergamenový pruh „Pomůcky“ s pečetěmi a zásobou („Tah navíc 1/1“, „Půl na půl 1/2“, „Vzkříšení 2/3“),
+  klepnutím okno Pomůcky (co dělají a „Jak získat“). Ve hře totéž okno klepnutím na počítadlo tahů, i s tím, co jde v té hře použít.
+  Hra, ve které hráči nezbylo žádné území, má v Mých hrách „všechna tvá území padla“ a tlačítko Mapa (nečeká na tah).
+- **Vzkříšení**: když hráč přijde o poslední území (i když se na hru jen podívá), vyskočí okno „Všechna tvá území padla. Použít
+  Vzkříšení?“ se zásobou (Použít / Teď ne); bez pomůcky „Vzkříšení nemáš, hru teď jen sleduješ“ a jak ho získat. Pak zůstane štítek
+  dole na mapě (Vzkříšení 2/3, nebo Mimo hru · jak se vrátit) a nabídka v listu území. Po Použít mapa ztmavne, platná území zlatě září
+  a nahoře je pruh „Klepni na zářící území“ se Zrušit; klepnutí na neplatné řekne proč. Po výběru zlatý ankh vystoupá, kolem běží vlny,
+  území se přebarví barvou hráče, zapíchne se vlaječka a banner „Vzkříšení! … je tvoje, 60 s chráněné.“ (při omezeném pohybu bez
+  animace). Chráněné území má na mapě modrý štít s odpočtem sekund; soupeř v listu území vidí zašedlé Zaútočit a „Území je chráněné po
+  vzkříšení ještě N s.“, po konci ochrany se mapa sama překreslí.
 - **Tah navíc** se nabídne, když hráči dojdou tahy: zlatý štítek „Tah navíc“ dole na mapě, řádek „Použít Tah navíc“ v listu území a v okně
   „Kolo N dohráno“. Použití se potvrdí v okně (vzácná pomůcka), pak zlatý banner, „+1“ u počítadla tahů a záznam v kronice.
 - **Půl na půl**: tlačítko „½ Půl na půl“ v záhlaví otázky vedle hvězd. První klepnutí se zeptá „Opravdu?“, druhé ji použije; dvě
   špatné možnosti se přeškrtnou a vypnou (krátká animace, bez ní při omezeném pohybu), v záhlaví zůstane „½ použito“.
 - Zisk: oslava „Nová pomůcka do Dobývání: Půl na půl (1/2)“ s pečetí pomůcky; v Sezóně obřad stupně s nadpisem „Nová pomůcka do
   Dobývání“ a pečetí i na cestě odměn (5. a 15. stupeň, dokud zásoba není plná); v Truhle řádek „A navíc pomůcka do Dobývání: Půl na půl“.
-- Nápověda Dobývání má záložku Pomůcky, Mudrlant tip `dobyvani-pomucky` je pro toho, kdo Dobývání už otevřel.
+- Nápověda Dobývání má záložku Pomůcky a v záložce Konec pravidlo Vzkříšení; Mudrlant tipy `dobyvani-pomucky` a `dobyvani-vzkriseni`
+  jsou pro toho, kdo Dobývání už otevřel.
 
 **Technicky** (blok „30: Dobývání – pomůcky“ ve schema.sql)
 - Tabulky `player_items` (hráč, druh, počet; strop v kontrole) a `player_item_grants` (hráč, klíč zdroje, druh, granted); hráč je jen čte.
@@ -157,5 +177,10 @@ pomůcku nikdy.
   `conquest_use_fifty(game, siege, target)` v bitvě vybere dvě nesprávné možnosti (`conquest_siege_players.fifty`, ostatním `fifty: true`),
   jinde jen zapíše použití (`conquest_players.fifty_at`). Zásobu vrací `player_items_mine`, `conquest_lobby` a `conquest_state` (`items`
   i s `can_extra` a `extra_block`, proč Tah navíc teď nejde).
-- Testy: `tests/sql-pomucky.test.js` (zisky, klíče a stropy, použití), `tests/conquest-items.test.js`, `tests/season.test.js`
-  (5. a 15. stupeň), `tests/e2e-conquest.test.js` (rozcestník, otázka, bitva, Kolo dohráno).
+- Vzkříšení (blok „39: Dobývání – pomůcka Vzkříšení“): `conquest_use_revive(game, target)`, `conquest_revive_targets`,
+  `conquest_revive_block`, ochrana `conquest_territories.shield_until` v `conquest_attack_check` a `conquest_bot_move`, zisky
+  `conquest_revive_starter`, `conquest_revive_streak` a `revive:<hra>` v `conquest_finish` (`conquest_claim`: `revive_item`); hráči bez území
+  chtějí další kolo sami (`conquest_round_auto`); `conquest_respawn` nic nedělá. Podrobnosti v docs/SUPABASE.md (schéma 39).
+- Testy: `tests/sql-pomucky.test.js` (zisky, klíče a stropy, použití), `tests/sql-vzkriseni.test.js` (Vzkříšení: zisky, cíle, ochrana,
+  boti, kolo, pořadí), `tests/conquest-items.test.js`, `tests/conquest-revive.test.js`, `tests/season.test.js` (5., 8. a 15. stupeň),
+  `tests/e2e-conquest.test.js` (rozcestník, otázka, bitva, Kolo dohráno, Vzkříšení).

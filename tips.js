@@ -112,6 +112,9 @@
         // Dobývání (schéma 30): pomůcky Tah navíc a Půl na půl a odkud se berou; pro toho, kdo Dobývání už otevřel
         { id: 'dobyvani-pomucky', icon: 'zap', art: 'dobyvani', multi: true, account: true, after: 20, title: 'Pomůcky do Dobývání', text: 'Za Bosse týdne a 15. stupeň Sezóny dostaneš Tah navíc: o tah víc v jednom kole. Kvíz dne bez chyby, celá Řetězovka nebo výhra v Dobývání dají Půl na půl: odebere dvě špatné odpovědi. Každou jde v jedné hře použít jen jednou.',
             action: { kind: 'conquest', label: 'Otevřít Dobývání' }, ready: (u) => Boolean(u.visited.conquest), used: () => false },
+        // Dobývání (schéma 39): Vzkříšení místo Návratu do hry; pro toho, kdo Dobývání už otevřel
+        { id: 'dobyvani-vzkriseni', icon: 'heart-pulse', art: 'dobyvani', multi: true, account: true, after: 20, title: 'Vzkříšení v Dobývání', text: 'Když v Dobývání přijdeš o všechna území, sám se už nevrátíš. Pomůcka Vzkříšení tě vrátí na volné nebo neopevněné území, které je pak 60 s chráněné. Jedno dostaneš hned, další za dohrané hry, sérii Kvízu dne a Sezónu.',
+            action: { kind: 'conquest', label: 'Otevřít Dobývání' }, ready: (u) => Boolean(u.visited.conquest), used: () => false },
         // Dobývání (schéma 38): výplně území a vzácné znaky a odkud se berou; pro toho, kdo Dobývání už otevřel
         { id: 'dobyvani-vzory', icon: 'brush', art: 'dobyvani', multi: true, account: true, after: 20, title: 'Výplně území a vzácné znaky', text: 'Vybarvi svá území v Dobývání vzorem: výplně území a vzácné znaky získáš za výhry, bitvy a území dobytá přes moře, ale i za Bosse týdne, sérii v Kvízu dne nebo celé Řetězovky. V okně Barva a znak uvidíš i zamčené a co k nim chybí.',
             action: { kind: 'conquest', label: 'Otevřít Dobývání' }, ready: (u) => Boolean(u.visited.conquest), used: () => false },

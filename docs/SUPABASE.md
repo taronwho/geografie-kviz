@@ -819,3 +819,35 @@ a základní znaky (bez záložky Vzor) a vše ostatní běží jako dřív; apl
   Souhrn hry (`conquest_summary`) má u hráčů `pattern`, takže výplň jejich území na mapě vidí všichni (i v náhledech map).
 - Export dat má `dobyvani_vzhled`; smazání účtu řádky smaže (cizí klíč na profil). Boti nic neodemykají.
 - Testy: `tests/sql-conquest-looks.test.js`, `tests/conquest-looks.test.js`, `tests/conquest.test.js` a `tests/e2e-conquest.test.js`.
+
+## Dobývání – pomůcka Vzkříšení místo Návratu do hry (schéma 39)
+
+**Po aktualizaci spusť znovu celý `supabase/schema.sql` (verze 39).** Dokud ho nespustíš, platí staré pravidlo: kdo přijde o všechna
+území, dostane na začátku dalšího období nové domovské území sám (Návrat do hry) a aplikace Vzkříšení nenabídne (zásoba ho nezná,
+stav hry nemá `items.can_revive`).
+
+- Druh pomůcky `revive` (nejvýš 3) ve stejné zásobě jako ostatní pomůcky (blok 30): `player_items`, `player_item_cap`, `player_items_json`
+  (`revive` a `max.revive`); `conquest_respawn` nic nedělá (nikdo, ani bot, se sám nevrací).
+- **Použití**: `conquest_use_revive(game, target)` pod zámkem hry, jen hráči běžící hry bez jediného území a se zásobou (kdykoli, i během
+  odpočtu do dalšího kola a v posledním kole). Cíl: neutrální území, nebo území jiného hráče na úrovni 0, které není domovským hradem,
+  není obléhané a není chráněné po jiném Vzkříšení (`conquest_revive_targets`; proč ne říká `conquest_revive_block` a chyby „Domovský hrad
+  Vzkříšením vzít nejde…“, „Opevněné území Vzkříšením vzít nejde…“, „Na území právě probíhá bitva…“). Území připadne hráči na úrovni 0
+  a není domovské (Pevnost na něm nejde), poklad na neutrálním území dá +1 tah v kole (`conquest_budget` počítá i result `respawn`).
+  Tah druhu `revive` s result `respawn` (přehrání ho bere jako změnu majitele), `victim` = dosavadní majitel; když to bylo jeho poslední
+  území, je mimo hru on. Vzkříšení tah nestojí, hráč hraje se zbytkem tahů kola. V jedné hře jde použít víckrát.
+- **Ochrana 60 s**: `conquest_territories.shield_until` (`conquest_revive_shield()`); `conquest_attack_check` (útok, začátek bitvy
+  i přidání) odmítne cizí útok „Území je chráněné po vzkříšení ještě N s.“, boti ho vynechají (`conquest_bot_move`), majitel opevnit smí,
+  dobytí ochranu smaže. `conquest_state` posílá u území `s` = konec ochrany, dokud trvá.
+- **Bez Vzkříšení mimo hru**: hráč bez území kolo dohrál (`conquest_round_player_done`) a další kolo chce sám jako bot
+  (`conquest_round_auto` v `conquest_round_json`, `conquest_round_ready` a upozorněních „Všichni dohráli kolo“). Hra běží do svého konce;
+  pořadí hráčů s 0 body: kdo o poslední území přišel později, je výš (`conquest_finish`). Upozornění na útoky říká „Všechna tvá území
+  padla. Vrátit se můžeš pomůckou Vzkříšení.“
+- **Zisk** (každý klíč jednou, s plnou zásobou propadne): startovní jedno (`starter`, `conquest_revive_starter` v `conquest_lobby`,
+  `conquest_state` a `player_items_mine`), dohraná započítaná hra s body (`revive:<hra>` v `conquest_finish`; aspoň 3 hráči nebo hra
+  na den a déle, aspoň 3 vlastní tahy a 1 bod; `conquest_claim` vrátí `revive_item`), milníky série Kvízu dne 7, 30, 100 a 365 dní
+  (`daily-streak:<dny>`, `conquest_revive_streak` v `daily_quiz_answer`, výsledek má `revive_item`), 8. stupeň Sezóny
+  (`season:<RRRR-MM>:8`), Truhla Mudrlanta (los 130–229 z 1000 = 10 %) a Zlatá truhla (200–349 = 15 %). Boti nic.
+- `conquest_state.items` má navíc `can_revive`, `revive_block` a `revive_used`; Fénix (`conquest_look_stats`, `win_comeback`) počítá i výhru
+  po Vzkříšení.
+- Testy: `tests/sql-vzkriseni.test.js`, `tests/sql-conquest.test.js`, `tests/sql-pomucky.test.js`, `tests/conquest-revive.test.js`,
+  `tests/conquest-items.test.js` a `tests/e2e-conquest.test.js`.

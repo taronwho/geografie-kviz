@@ -835,7 +835,9 @@
     const cleanQuizState = (row) => (row && typeof row === 'object' ? {
         day: cleanDay(row.day), started: Boolean(row.started), answered: wholeNumber(row.answered, 10), correct: wholeNumber(row.correct, 10), score: wholeNumber(row.score, 40),
         time_ms: wholeNumber(row.time_ms, 3000000), bitmap: wholeNumber(row.bitmap, 1023), finished: Boolean(row.finished), streak: wholeNumber(row.streak, 100000), best_streak: wholeNumber(row.best_streak, 100000),
-        ...(row.item ? { item: cleanItemGrant(row.item) } : {})
+        ...(row.item ? { item: cleanItemGrant(row.item) } : {}),
+        // Vzkříšení do Dobývání za milník série Kvízu dne (blok 39)
+        ...(row.revive_item ? { revive_item: cleanItemGrant(row.revive_item) } : {})
     } : null);
     const cleanQuizRow = (row) => ({
         rank: wholeNumber(row.rank, 10000000) || 1, id: String(row.id), display_name: String(row.display_name || 'Hráč'), avatar: row.avatar, color: row.color,
@@ -1183,9 +1185,10 @@
         sieges: 'Bitvy o území zatím nejdou (databáze potřebuje nejnovější schema.sql).',
         rounds: 'Rychlé hry a další kolo zatím nejdou (databáze potřebuje nejnovější schema.sql).',
         items: 'Pomůcky do Dobývání zatím nejdou (databáze potřebuje nejnovější schema.sql).',
-        looks: 'Výplně území a vzácné znaky zatím nejdou (databáze potřebuje nejnovější schema.sql).'
+        looks: 'Výplně území a vzácné znaky zatím nejdou (databáze potřebuje nejnovější schema.sql).',
+        revive: 'Vzkříšení zatím nejde (databáze potřebuje nejnovější schema.sql).'
     };
-    const partMissing = { invites: false, sieges: false, rounds: false, items: false, looks: false };
+    const partMissing = { invites: false, sieges: false, rounds: false, items: false, looks: false, revive: false };
     const conquestCall = async (name, body, fallback, part = null) => {
         if (conquestMissing) throw new SocialError(CONQUEST_MISSING, 404);
         if (part && partMissing[part]) throw new SocialError(PART_MISSING[part], 404);
@@ -1284,11 +1287,13 @@
     const devConquestAddBots = async (game, count) => conquestGame(await devConquest('dev_conquest_add_bots', { game: conquestId(game), how_many: Math.max(1, wholeNumber(count, 7)) }));
     const devConquestBotsPlay = async (game) => wholeNumber(await devConquest('dev_conquest_bots_play', { game: conquestId(game) }), 1000);
     const devConquestNextPeriod = async (game) => conquestGame(await devConquest('dev_conquest_next_period', { game: conquestId(game) }));
-    // item = pomůcka Půl na půl za výhru (blok 30, jen s claimed_now; cleanItemGrant); looks = vzory a vzácné znaky po hře (blok 38, cleanLooks)
+    // item = pomůcka Půl na půl za výhru (blok 30, jen s claimed_now; cleanItemGrant); looks = vzory a vzácné znaky po hře (blok 38, cleanLooks);
+    // revive_item = Vzkříšení za započítanou hru s body (blok 39)
     const conquestClaim = async (game) => {
         const data = (await conquestCall('conquest_claim', { game: conquestId(game) }, 'Výsledek se nepodařilo načíst.')) || {};
         return { place: wholeNumber(data.place, 8) || null, players: wholeNumber(data.players, 8), score: wholeNumber(data.score, 1000), eligible: data.eligible === true, claimed_now: data.claimed_now === true,
-            ...(data.item ? { item: cleanItemGrant(data.item) } : {}), ...(data.looks ? { looks: cleanLooks(data.looks) } : {}) };
+            ...(data.item ? { item: cleanItemGrant(data.item) } : {}), ...(data.revive_item ? { revive_item: cleanItemGrant(data.revive_item) } : {}),
+            ...(data.looks ? { looks: cleanLooks(data.looks) } : {}) };
     };
     // Pozvánky přátel do hry (blok 24): pozvat (vrací souhrn hry s pozvanými), moje čekající pozvánky, odmítnout
     const conquestInvite = async (game, friends) => {
@@ -1375,28 +1380,34 @@
     // běžící hry bez kola, do té doby false.
     const conquestRoundsMissing = () => partMissing.rounds;
 
-    // ===== Pomůcky (blok 30 a 37): Tah navíc (nejvýš 1) a Půl na půl (nejvýš 2) do Dobývání, Záchrana navíc (nejvýš 1) do Řetězovky =====
+    // ===== Pomůcky (blok 30, 37 a 39): Tah navíc (nejvýš 1), Půl na půl (nejvýš 2) a Vzkříšení (nejvýš 3) do Dobývání, Záchrana navíc (nejvýš 1)
+    // do Řetězovky =====
     // Zásoba je na serveru. Zisk za Bosse týdne, Kvíz dne bez chyby, celou Řetězovku, milníky Řetězovky a výhru v Dobývání vrací jejich funkce
     // jako item (rescue_item); Sezónu Mudrlanta, Truhlu Mudrlanta a Zlatou truhlu počítá aplikace a o pomůcku si řekne přes playerItemsClaim.
     // Databáze bez bloku 30 (404): chyba se status 404 a conquestItemsMissing() pak vrací true.
-    const ITEM_KINDS = ['extra_move', 'fifty', 'chain_rescue'];
-    const ITEM_MAX = { extra_move: 1, fifty: 2, chain_rescue: 1 };
-    // Zásoba { extra_move, fifty, chain_rescue, max }, nebo null; chain_rescue chybí, když ji databáze nezná (bez bloku 37)
+    const ITEM_KINDS = ['extra_move', 'fifty', 'chain_rescue', 'revive'];
+    const ITEM_MAX = { extra_move: 1, fifty: 2, chain_rescue: 1, revive: 3 };
+    // Zásoba { extra_move, fifty, chain_rescue, revive, max }, nebo null; chain_rescue chybí, když ji databáze nezná (bez bloku 37), revive
+    // bez bloku 39
     const cleanItems = (value) => (value && typeof value === 'object' && !Array.isArray(value)
         ? { extra_move: wholeNumber(value.extra_move, ITEM_MAX.extra_move), fifty: wholeNumber(value.fifty, ITEM_MAX.fifty),
-            ...(value.chain_rescue !== undefined && value.chain_rescue !== null ? { chain_rescue: wholeNumber(value.chain_rescue, ITEM_MAX.chain_rescue) } : {}), max: { ...ITEM_MAX } } : null);
-    // Pomůcky ve hře: zásoba a v této hře extra_used, fifty_used, can_extra (Tah navíc jde použít teď) a extra_block (proč ne, česky)
+            ...(value.chain_rescue !== undefined && value.chain_rescue !== null ? { chain_rescue: wholeNumber(value.chain_rescue, ITEM_MAX.chain_rescue) } : {}),
+            ...(value.revive !== undefined && value.revive !== null ? { revive: wholeNumber(value.revive, ITEM_MAX.revive) } : {}), max: { ...ITEM_MAX } } : null);
+    // Pomůcky ve hře: zásoba a v této hře extra_used, fifty_used, can_extra (Tah navíc jde použít teď) a extra_block (proč ne, česky);
+    // Vzkříšení (blok 39, jen když ho databáze zná): can_revive, revive_block (proč ne, česky) a revive_used
     const cleanGameItems = (value) => {
         const items = cleanItems(value);
         return items ? { ...items, extra_used: value.extra_used === true, fifty_used: value.fifty_used === true, can_extra: value.can_extra === true,
-            extra_block: typeof value.extra_block === 'string' ? value.extra_block.slice(0, 200) : null } : null;
+            extra_block: typeof value.extra_block === 'string' ? value.extra_block.slice(0, 200) : null,
+            ...(typeof value.can_revive === 'boolean' ? { can_revive: value.can_revive, revive_block: typeof value.revive_block === 'string' ? value.revive_block.slice(0, 200) : null,
+                revive_used: wholeNumber(value.revive_used, 1000) } : {}) } : null;
     };
     // Zisk pomůcky: { kind, granted (přibyla), full (zásoba už byla plná), already (zdroj už jednou započítaný), count, max, lucky (truhla),
     // source a at (milník Řetězovky: 'chain-days' | 'chain-clean' a počet, blok 37) }
     const cleanItemGrant = (value) => (value && typeof value === 'object' && ITEM_KINDS.includes(value.kind) ? {
         kind: value.kind, granted: value.granted === true, full: value.full === true, already: value.already === true,
         count: wholeNumber(value.count, ITEM_MAX[value.kind]), max: ITEM_MAX[value.kind], ...(typeof value.lucky === 'boolean' ? { lucky: value.lucky } : {}),
-        ...(value.source === 'chain-days' || value.source === 'chain-clean' ? { source: value.source, at: wholeNumber(value.at, 1000) } : {}) } : null);
+        ...(['chain-days', 'chain-clean', 'daily-streak'].includes(value.source) ? { source: value.source, at: wholeNumber(value.at, 1000) } : {}) } : null);
     const itemsCall = async (name, body, fallback) => conquestCall(name, body, fallback, 'items');
     // Moje zásoba pomůcek
     const playerItemsMine = async () => cleanItems(await itemsCall('player_items_mine', {}, 'Pomůcky se nepodařilo načíst.'));
@@ -1417,6 +1428,14 @@
             'Půl na půl se nepodařilo použít. Zkus to znovu.')) || {};
         const removed = Array.isArray(data.removed) ? data.removed.filter(index => Number.isInteger(index) && index >= 0 && index < 8).slice(0, 2) : null;
         return { removed: removed && removed.length === 2 ? removed : null, items: cleanItems(data.items), fifty_used: data.fifty_used === true };
+    };
+    // Vzkříšení (blok 39) na území target, když hráči nezbylo žádné území: stav hry (conquestState) s used, territory a shield_until
+    // (konec ochrany, čas serveru). Databáze bez bloku 39 (404): chyba se status 404
+    const conquestUseRevive = async (game, target) => {
+        const data = await conquestCall('conquest_use_revive', { game: conquestId(game), target: conquestText(target, 16) }, 'Vzkříšení se nepodařilo použít. Zkus to znovu.', 'revive');
+        const state = conquestGame(data);
+        return state ? { ...state, used: data.used === 'revive' ? 'revive' : null, territory: typeof data.territory === 'string' ? data.territory.slice(0, 16) : null,
+            shield_until: data.shield_until ? String(data.shield_until) : null } : null;
     };
     const conquestItemsMissing = () => partMissing.items;
 
@@ -1483,7 +1502,7 @@
         // Rychlé hry a další kolo v Dobývání (blok 26)
         conquestRoundReady, conquestRoundsMissing,
         // Pomůcky do Dobývání (blok 30)
-        ITEM_MAX, cleanItems, cleanItemGrant, playerItemsMine, playerItemsClaim, conquestUseExtra, conquestUseFifty, conquestItemsMissing,
+        ITEM_MAX, cleanItems, cleanItemGrant, playerItemsMine, playerItemsClaim, conquestUseExtra, conquestUseFifty, conquestUseRevive, conquestItemsMissing,
         // Vývojářští boti v Dobývání (blok 22)
         devConquestAddBots, devConquestBotsPlay, devConquestNextPeriod,
         // Řetězovka dne (blok 21) a Záchrana navíc (blok 37)

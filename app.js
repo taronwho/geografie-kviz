@@ -106,7 +106,9 @@
     // a Pavouk pletař za odznak retezovka-10 (se starší databází se odznaky Řetězovky do účtu neuloží a počítadla zůstanou jen ze zařízení).
     // 37 = Pomůcka Záchrana navíc do Řetězovky (zásoba chain_rescue, chain_use_rescue, chain_submit se dvěma zachráněnými články; zisk za
     // milníky Řetězovky, 12. stupeň Sezóny, Truhlu Mudrlanta, Zlatou truhlu a společný cíl Bosse; se starší databází se nenabídne).
-    const REQUIRED_SCHEMA = 38;
+    // 39 = Dobývání: pomůcka Vzkříšení místo automatického Návratu do hry (conquest_use_revive, ochrana 60 s, zásoba revive; zisk startovní,
+    // za započítanou hru, sérii Kvízu dne, 8. stupeň Sezóny a truhly; se starší databází se hráč bez území vrátí sám jako dřív).
+    const REQUIRED_SCHEMA = 39;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -4738,10 +4740,12 @@
         itemStock = { ...(itemStock || {}), [grant.kind]: grant.count };
     };
     const itemName = (kind) => (window.MudrlantConquest && window.MudrlantConquest.ITEMS[kind] ? window.MudrlantConquest.ITEMS[kind].name : 'Půl na půl');
-    // Zásoba ze serveru (player_items_mine): chain_rescue = null, když ji databáze nezná (bez bloku 37: Záchrana navíc se nenabídne)
+    // Zásoba ze serveru (player_items_mine): chain_rescue = null, když ji databáze nezná (bez bloku 37: Záchrana navíc se nenabídne), revive
+    // stejně (bez bloku 39: Vzkříšení v Sezóně není)
     const setItemStock = (items) => {
         if (!items) return;
-        itemStock = { extra_move: items.extra_move, fifty: items.fifty, chain_rescue: typeof items.chain_rescue === 'number' ? items.chain_rescue : null };
+        itemStock = { extra_move: items.extra_move, fifty: items.fifty, chain_rescue: typeof items.chain_rescue === 'number' ? items.chain_rescue : null,
+            revive: typeof items.revive === 'number' ? items.revive : null };
     };
     // Načtení zásoby (Řetězovka: Záchrana navíc); vrací zásobu, nebo null (host, starší databáze, bez spojení)
     const refreshItemStock = async () => {
@@ -11140,8 +11144,9 @@
                     const index = attempt.synced;
                     const state = await Social.dailyQuizAnswer(attempt.day, index, attempt.results[index]);
                     if (!state) return null;
-                    // Kvíz dne bez chyby: pomůcka Půl na půl do Dobývání (blok 30)
+                    // Kvíz dne bez chyby: pomůcka Půl na půl do Dobývání (blok 30); milník série: Vzkříšení (blok 39)
                     if (state.item) celebrateItem(state.item);
+                    if (state.revive_item) celebrateItem(state.revive_item);
                     if (!applyQuizServer(attempt, state) || attempt.synced <= index) return false;
                 }
                 return true;
