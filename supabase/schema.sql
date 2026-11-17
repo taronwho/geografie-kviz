@@ -8609,11 +8609,12 @@ end;
 $$;
 
 -- Odemčení podle statistik (zápis do conquest_looks) a stav pro aplikaci: { patterns: [id], emblems: [id] (odemčené v pořadí nabídky),
--- new: [{ kind, item, at }] (odemčené, ale ještě neohlášené), stats: { klíč: číslo } (postup „3/10“) }. Správce (dev_admins) má v nabídce
--- všechno, do tabulky se mu ale zapíše jen opravdu odemčené.
+-- new: [{ kind, item, at }] (odemčené, ale ještě neohlášené), stats: { klíč: číslo } (postup „3/10“) }. I správce (dev_admins) dostane jen
+-- opravdu odemčené (vidí hru jako běžný hráč); všechno mu nabídne až vývojářské „Odemknout úplně vše“ v aplikaci a conquest_check_style
+-- mu to přijme.
 create or replace function public.conquest_looks_json(uid uuid) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare stats jsonb; admin boolean;
+declare stats jsonb;
 begin
     if uid is null or public.dev_is_bot(uid) then
         return jsonb_build_object('patterns', '[]'::jsonb, 'emblems', '[]'::jsonb, 'new', '[]'::jsonb, 'stats', '{}'::jsonb);
@@ -8622,12 +8623,11 @@ begin
     insert into public.conquest_looks (user_id, kind, item, unlocked_at)
     select uid, c.kind, c.item, public.conquest_now() from public.conquest_look_catalog() c where coalesce((stats ->> c.stat)::integer, 0) >= c.need
     on conflict do nothing;
-    admin := exists (select 1 from public.dev_admins d where d.user_id = uid);
     return jsonb_build_object(
         'patterns', coalesce((select jsonb_agg(c.item order by c.ord) from public.conquest_look_catalog() c where c.kind = 'pattern'
-            and (admin or exists (select 1 from public.conquest_looks l where l.user_id = uid and l.kind = c.kind and l.item = c.item))), '[]'::jsonb),
+            and exists (select 1 from public.conquest_looks l where l.user_id = uid and l.kind = c.kind and l.item = c.item)), '[]'::jsonb),
         'emblems', coalesce((select jsonb_agg(c.item order by c.ord) from public.conquest_look_catalog() c where c.kind = 'emblem'
-            and (admin or exists (select 1 from public.conquest_looks l where l.user_id = uid and l.kind = c.kind and l.item = c.item))), '[]'::jsonb),
+            and exists (select 1 from public.conquest_looks l where l.user_id = uid and l.kind = c.kind and l.item = c.item)), '[]'::jsonb),
         'new', coalesce((select jsonb_agg(jsonb_build_object('kind', l.kind, 'item', l.item, 'at', l.unlocked_at) order by l.unlocked_at, l.kind desc, c.ord)
             from public.conquest_looks l join public.conquest_look_catalog() c on c.kind = l.kind and c.item = l.item
             where l.user_id = uid and l.seen_at is null), '[]'::jsonb),

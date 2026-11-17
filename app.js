@@ -14487,6 +14487,8 @@
             // Okno s pozvánkou po otevření aplikace: jen na úvodu, ne přes jiné okno, oslavu, truhlu ani tutoriál
             canPrompt: () => screen === 'home' && !pushOfferBlocked() && !document.getElementById('chest-overlay') && !document.getElementById('season-overlay'),
             invitesChanged: () => paintChallenges(),
+            // Vývojářské „Odemknout úplně vše“: v Dobývání nabídne všechny výplně a vzácné znaky (server je přijme jen správci)
+            devAll: () => Boolean(Look && Look.devUnlockAll && Look.devUnlockAll()),
             // Dlaždice Dobývání a řádek „Čeká na tebe“ na záložce Soupeři se překreslí s ní
             paintHome: () => paintChallenges(),
             login: () => { if (Auth) startLogin(); },

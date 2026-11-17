@@ -130,7 +130,13 @@
             return lobbyLoading;
         };
         // Výplně území a vzácné znaky (blok 38): looks z lobby (null = databáze bez bloku 38: jen barvy a základní znaky)
-        const looksNow = () => (lobby && lobby.looks) || null;
+        // Vývojářské „Odemknout úplně vše“ (deps.devAll) nabídne v tomto zařízení všechny výplně a vzácné znaky; server je správci
+        // (dev_admins) přijme, ostatním ne. Bez něj i správce vidí jen skutečně odemčené
+        const looksNow = () => {
+            const looks = (lobby && lobby.looks) || null;
+            if (!looks || !deps.devAll || !deps.devAll()) return looks;
+            return { ...looks, patterns: C.PATTERNS.map(item => item.id), emblems: C.RARE_EMBLEMS.map(item => item.id) };
+        };
         // Vybraný vzácný znak a vzor jen odemčené (jinak výchozí), aby server volbu nepřijal se starým zámkem
         const fitLooks = () => {
             if (!lobby) return;
