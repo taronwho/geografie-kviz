@@ -125,6 +125,28 @@ test('SQL: Řetězovka dne', { skip: !available && 'PostgreSQL není dostupný' 
         assert.equal(json(as(A, 'select chain_day_stats();', at('11:00', '2026-11-13'))).players, 0);
     });
 
+    await t.test('odznaky Řetězovky (blok 36): katalog a stupně, chain_badge_counts jen pro přihlášeného a jen vlastní dny', () => {
+        const Core = require('../quiz-core.js');
+        for (const id of Chain.BADGE_GROUPS) {
+            const tiers = Core.BADGE_GROUPS.find(group => group.id === id).badges.map(badge => badge.id);
+            assert.equal(q(`select count(*) from unnest(badge_catalog()) b where b = any (array['${tiers.join("', '")}'])`), String(tiers.length), `${id} v badge_catalog()`);
+            assert.equal(q(`select array_to_string(tiers, ',') from badge_tiers() where grp = '${id}'`), tiers.join(','), `${id} v badge_tiers()`);
+        }
+        assert.equal(q(`select badge_owned(array['retezovka-30'], 'retezovka-10')`), 't', 'vyšší stupeň má i nižší');
+        assert.equal(q(`select badge_owned(array['retezovka-cela-60'], 'retezovka-10')`), 'f', 'jiná skupina ne');
+        // Hráč F: dnešek (z odeslání výše) a tři dřívější dny – dva celé řetězy, z toho jeden se Záchranou
+        const before = json(as(F, 'select chain_badge_counts();'));
+        q(`insert into chain_results (day, user_id, links, score, rescued) values ('2026-11-01', '${F}', 7, 28, false), ('2026-11-02', '${F}', 7, 22, true), ('2026-11-03', '${F}', 2, 3, false)`);
+        const after = json(as(F, 'select chain_badge_counts();'));
+        assert.deepEqual([after.days - before.days, after.clean - before.clean], [3, 1]);
+        assert.equal(after.days, Number(q(`select count(*) from chain_results where user_id = '${F}'`)));
+        assert.equal(after.clean, Number(q(`select count(*) from chain_results where user_id = '${F}' and links = 7 and not rescued`)));
+        assert.deepEqual(json(as(id(99), 'select chain_badge_counts();')), { days: 0, clean: 0 }, 'bez her nuly');
+        denied(as(null, 'select chain_badge_counts();'), /Přihlas se/);
+        denied(as(null, 'select chain_badge_counts();', at('13:00'), 'anon'), /permission denied/, 'anon ne');
+        q(`delete from chain_results where user_id = '${F}' and day < '2026-11-10'`);
+    });
+
     await t.test('export dat obsahuje Řetězovku (jen vlastní) a smazání účtu ji smaže', () => {
         const exported = json(as(A, 'select export_my_data();', at('21:00')));
         assert.equal(exported.retezovka.length, 1);

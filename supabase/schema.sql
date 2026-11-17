@@ -336,7 +336,10 @@ language sql immutable set search_path = public as $$
         -- Schéma 21: Dobývání (vyhrané hry)
         'dobyvatel', 'dobyvatel-3', 'dobyvatel-10', 'dobyvatel-25', 'dobyvatel-50',
         -- Schéma 21: Kamarádské sázky (rozhodnuté sázky a vyhrané sázky v řadě)
-        'sazky-1', 'sazkar', 'sazky-15', 'sazky-30', 'sazky-60', 'sazky-v-rade-3', 'sazky-v-rade-5', 'sazky-v-rade-7', 'sazky-v-rade-10', 'sazky-v-rade-15'
+        'sazky-1', 'sazkar', 'sazky-15', 'sazky-30', 'sazky-60', 'sazky-v-rade-3', 'sazky-v-rade-5', 'sazky-v-rade-7', 'sazky-v-rade-10', 'sazky-v-rade-15',
+        -- Schéma 36: Řetězovka dne (dohrané dny a celé řetězy bez Záchrany)
+        'retezovka', 'retezovka-10', 'retezovka-30', 'retezovka-100', 'retezovka-365',
+        'retezovka-cela', 'retezovka-cela-5', 'retezovka-cela-15', 'retezovka-cela-30', 'retezovka-cela-60'
     ]::text[];
 $$;
 
@@ -7521,6 +7524,8 @@ language sql immutable set search_path = public as $$
         ('odhad', array['odhad-5', 'odhad-25', 'odhad-100', 'odhad-250', 'odhad-500']),
         ('serad', array['serad-5', 'serad-25', 'serad-100', 'serad-250', 'serad-500']),
         ('detektiv', array['detektiv', 'detektiv-7', 'detektiv-30', 'detektiv-100', 'detektiv-365']),
+        ('retezovka', array['retezovka', 'retezovka-10', 'retezovka-30', 'retezovka-100', 'retezovka-365']),
+        ('retezovka-cela', array['retezovka-cela', 'retezovka-cela-5', 'retezovka-cela-15', 'retezovka-cela-30', 'retezovka-cela-60']),
         ('zlatokop', array['zlatokop-10', 'zlatokop-50', 'zlatokop-100']),
         ('dobyvatel', array['dobyvatel', 'dobyvatel-3', 'dobyvatel-10', 'dobyvatel-25', 'dobyvatel-50']),
         ('sazky', array['sazky-1', 'sazkar', 'sazky-15', 'sazky-30', 'sazky-60']),
@@ -7941,7 +7946,9 @@ begin
     if new.frame is distinct from old.frame and new.frame ~ '^[a-z0-9-]{1,24}$' and new.frame <> 'zadny' and not public.unlock_ok(new, 'frames', new.frame) then new.frame := old.frame; end if;
     if new.title_pref is distinct from old.title_pref and new.title_pref ~ '^[a-z0-9-]{1,40}$' and not public.unlock_title_ok(new, new.title_pref) then new.title_pref := old.title_pref; end if;
     if new.owl is distinct from old.owl and new.owl ~ '^[a-z0-9=.;-]{1,200}$' then new.owl := public.unlock_owl(new, new.owl); end if;
-    if new.avatar is distinct from old.avatar and char_length(coalesce(new.avatar, '')) between 1 and 8 and not public.unlock_avatar_ok(new, new.avatar) then new.avatar := old.avatar; end if;
+    -- Obrázek: jen odemčená postavička; jiné barvy postavičky, kterou už profil má, projdou vždy (pravidlo odemčení se mohlo změnit, schéma 36)
+    if new.avatar is distinct from old.avatar and char_length(coalesce(new.avatar, '')) between 1 and 8 and not public.unlock_avatar_ok(new, new.avatar)
+        and not coalesce(substring(new.avatar from '^([a-z]{1,6})[0-9]{0,2}$') = substring(coalesce(old.avatar, '') from '^([a-z]{1,6})[0-9]{0,2}$'), false) then new.avatar := old.avatar; end if;
     if new.victory_fx is distinct from old.victory_fx and new.victory_fx ~ '^[a-z0-9-]{1,24}$' and not public.unlock_ok(new, 'fx', new.victory_fx) then new.victory_fx := old.victory_fx; end if;
     return new;
 end;
@@ -8242,6 +8249,8 @@ grant execute on function public.dev_tournament_poll_set(text[], boolean) to aut
 -- jako starší postavičky. Bez tohoto bloku je server nezná a pustí je jako základní emoji (neznámý obrázek = volně).
 -- Pravidla jako v bloku 32: úroveň z XP v účtu, odznak v účtu (i vyšší stupeň téže skupiny), 'gift' = jen dar z truhly (Kapybara v lázních
 -- z Truhly Mudrlanta a stupňů Sezóny, Zmrzlinový kornout vzácně z Truhly Mudrlanta a ze Zlaté truhly), pozvaní kamarádi a prestiž.
+-- Pavouk pletař se od schématu 36 odemyká odznakem Kovář řetězů (retezovka-10, Řetězovka dne) místo turnaj-postupy-5; kdo ho už má
+-- v profilu, o něj nepřijde (check_unlocks kontroluje jen změněný obrázek).
 -- Další postavičky (č. 339, 341–357) se připíšou sem na konec seznamu (a číslo verze schématu se zvýší). Shodu s look.js hlídá
 -- tests/motivace.test.js.
 create or replace function public.unlock_catalog_more() returns table (cat text, item text, rule text)
@@ -8251,12 +8260,34 @@ language sql immutable set search_path = public as $$
         ('avatars', 'toust', 'badge:dnes-50'), ('avatars', 'krokod', 'badge:chyby-50'), ('avatars', 'brokol', 'badge:tydenni-cile-5'), ('avatars', 'netopy', 'badge:detektiv-7'),
         ('avatars', 'plamak', 'badge:kviz-perfekt-5'), ('avatars', 'vajko', 'badge:sazkar'), ('avatars', 'pizza', 'badge:vyhry-5'), ('avatars', 'jezek', 'badge:sberatel-50'),
         ('avatars', 'zirafa', 'level:31'), ('avatars', 'vydra', 'badge:preziti-35'), ('avatars', 'hroch', 'badge:tezke-50'), ('avatars', 'lama', 'badge:tema-hudba-100'),
-        ('avatars', 'pavouk', 'badge:turnaj-postupy-5'), ('avatars', 'krava', 'badge:dobyvatel-3'), ('avatars', 'velbl', 'badge:boss-kapitan'), ('avatars', 'kapyba', 'gift'),
+        ('avatars', 'pavouk', 'badge:retezovka-10'), ('avatars', 'krava', 'badge:dobyvatel-3'), ('avatars', 'velbl', 'badge:boss-kapitan'), ('avatars', 'kapyba', 'gift'),
         ('avatars', 'zmrzl', 'gift'), ('avatars', 'kosatk', 'referral:pritel-3'), ('avatars', 'avokad', 'prestige:1')
     ) as t (cat, item, rule);
 $$;
 revoke all on function public.unlock_catalog_more() from public, anon, authenticated;
 -- ===== 35: Další postavičky (č. 317–340) — KONEC BLOKU =====
+
+-- ===== 36: Odznaky Řetězovky dne — ZAČÁTEK BLOKU =====
+-- Dvě skupiny odznaků Řetězovky (quiz-core.js BADGE_GROUPS): Řetězovka dne (retezovka = 3 dohrané dny, retezovka-10, -30, -100, -365)
+-- a Celý řetěz bez Záchrany (retezovka-cela = 1, retezovka-cela-5, -15, -30, -60). Stejně jako odznaky Detektiv je počítá zařízení
+-- (počítadla chainDone a chainClean, jedna hra za den) a server je jen přijme z katalogu: jsou v badge_catalog() a badge_tiers() výše.
+-- Pavouk pletař (blok 35, unlock_catalog_more) se odemyká odznakem retezovka-10. Kdo ho má v profilu z dřívějška (turnaj-postupy-5), o něj
+-- nepřijde a může ho i přebarvit: check_unlocks (blok 32) kontroluje jen změněný obrázek a jiné barvy téže postavičky pustí.
+-- chain_badge_counts(): kolik dní má hráč v chain_results (dohrané Řetězovky dne) a kolik z nich je celý řetěz (7 článků) bez Záchrany;
+-- aplikace podle toho po přihlášení dorovná počítadla (hry z jiných zařízení i ze dnů před odznaky, chain_results jsou od začátku módu).
+create or replace function public.chain_badge_counts() returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare uid uuid := auth.uid(); result jsonb;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    select jsonb_build_object('days', count(*), 'clean', count(*) filter (where c.links = 7 and not c.rescued)) into result
+    from public.chain_results c where c.user_id = uid;
+    return result;
+end;
+$$;
+revoke all on function public.chain_badge_counts() from public, anon;
+grant execute on function public.chain_badge_counts() to authenticated;
+-- ===== 36: Odznaky Řetězovky dne — KONEC BLOKU =====
 
 -- ===== Verze schématu =====
 -- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.
@@ -8341,7 +8372,10 @@ revoke all on function public.unlock_catalog_more() from public, anon, authentic
 -- 34: Hlasování o speciálním turnaji jen na pokyn správce (tournament_polls.visible, 2–4 témata; tournament_poll_state vrací skryté jen správci,
 --     tournament_vote jen ve zveřejněném; dev_tournament_poll_set: témata a zobrazení vybere správce).
 -- 35: Další postavičky (č. 317–340) v katalogu odemykání: unlock_catalog_more() (v bloku 32 prázdná, unlock_catalog() ji přidá za své řádky).
+-- 36: Odznaky Řetězovky dne (retezovka-*, retezovka-cela-* v badge_catalog() a badge_tiers()), chain_badge_counts() (dohrané dny a celé
+--     řetězy bez Záchrany z chain_results pro dorovnání počítadel), Pavouk pletař za odznak retezovka-10 místo turnaj-postupy-5 (unlock_catalog_more);
+--     check_unlocks pustí jiné barvy postavičky, kterou profil už má (i když se mezitím změnilo, čím se odemyká), a správci (dev_admins) cokoli.
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 35 $$;
+language sql immutable as $$ select 36 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

@@ -135,7 +135,7 @@
         { id: 'klokan', title: 'Klokan šampion', diploma: 'sport', parts: ['Dres a čelenka', 'Záře'], colors: [[1, 2, 3, 4, 5, 6, 7, 8], [1, 4, 5, 6, 7, 8, 9]] }
     ];
     // Další postavičky (docs/OBRAZKY.md oddíl 26, č. 317–340): odměny rozdělené do všech částí hry, ať je co získávat odevšad. Jen podmínky,
-    // které už katalog umí (a server ověří, schema.sql blok 35): úroveň, odznak (Kvíz dne, Bleskovka, Přežití, Tajemná otázka, Boss týdne,
+    // které už katalog umí (a server ověří, schema.sql blok 35): úroveň, odznak (Kvíz dne, Bleskovka, Přežití, Tajemná otázka, Řetězovka, Boss týdne,
     // turnaje, výzvy, sázky, Dobývání, týdenní cíle, odznaky témat, album sbírky…), chest (jen z Truhly Mudrlanta a stupňů Sezóny, číslo
     // = úroveň, podle které se v truhle řadí), rare (vzácný dárek z Truhly Mudrlanta a ze Zlaté truhly), referral a prestige (jako rámečky
     // PERK_FRAMES níž; bonus = album je ukáže, jen když je hráč má), album: true = odměna za Album sbírky samo (jako rámeček Sběratelský,
@@ -159,7 +159,7 @@
         { id: 'vydra', title: 'Vydra plavkyně', badge: 'preziti-35', parts: ['Čepice', 'Voda'], colors: [[1, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 7, 8, 9]] },
         { id: 'hroch', title: 'Hroch potápěč', badge: 'tezke-50', parts: ['Hroch', 'Šnorchl'], colors: [[1, 2, 3, 4, 5, 6, 8, 9], [4, 5, 6, 7, 8, 9]] },
         { id: 'lama', title: 'Lama rocker', badge: 'tema-hudba-100', parts: ['Kytara', 'Bunda'], colors: [[2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8]] },
-        { id: 'pavouk', title: 'Pavouk pletař', badge: 'turnaj-postupy-5', parts: ['Pavouk', 'Šála'], colors: [[2, 3, 4, 5, 6, 7, 8, 9], ALL] },
+        { id: 'pavouk', title: 'Pavouk pletař', badge: 'retezovka-10', parts: ['Pavouk', 'Šála'], colors: [[2, 3, 4, 5, 6, 7, 8, 9], ALL] },
         { id: 'krava', title: 'Kráva kovbojka', badge: 'dobyvatel-3', parts: ['Klobouk', 'Šátek'], colors: [ALL, [3, 4, 5, 6, 7, 8, 9]] },
         { id: 'velbl', title: 'Velbloud cestovatel', badge: 'boss-kapitan', parts: ['Klobouk', 'Batoh'], colors: [ALL, ALL] },
         { id: 'kapyba', title: 'Kapybara v lázních', chest: 15, parts: ['Voda a pára', 'Ručník'], colors: [[1, 2, 3, 4, 7, 8], ALL] },
