@@ -7936,6 +7936,8 @@ create or replace function public.check_unlocks() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
     if coalesce(current_setting('role', true), '') not in ('authenticated', 'anon') then return new; end if;
+    -- Správce (dev_admins) si smí uložit cokoli: vývojářské nástroje odemykají věci jen v zařízení (zkušební úroveň, odznaky, „Vše“)
+    if public.is_dev_admin() then return new; end if;
     if new.frame is distinct from old.frame and new.frame ~ '^[a-z0-9-]{1,24}$' and new.frame <> 'zadny' and not public.unlock_ok(new, 'frames', new.frame) then new.frame := old.frame; end if;
     if new.title_pref is distinct from old.title_pref and new.title_pref ~ '^[a-z0-9-]{1,40}$' and not public.unlock_title_ok(new, new.title_pref) then new.title_pref := old.title_pref; end if;
     if new.owl is distinct from old.owl and new.owl ~ '^[a-z0-9=.;-]{1,200}$' then new.owl := public.unlock_owl(new, new.owl); end if;

@@ -2067,6 +2067,14 @@
             if (Social.customHue(meDraft.color) !== null && myProfile.color !== meDraft.color) myProfile = { ...myProfile, color: meDraft.color };
             if (meDraft.owl && !myProfile.owl) myProfile = { ...myProfile, owl: owlText };
             meNote = 'Uloženo.';
+            // Server postavičku nepovolil (kontrola odemčení podle účtu: úroveň a odznaky v účtu, ne zkušební postup v zařízení):
+            // profil zůstal s dřívějším obrázkem, hráč se to dozví
+            const wantedAvatar = !meDraft.owl && Look && Look.avatarCode ? Look.avatarCode(meDraft.avatar) : null;
+            if (wantedAvatar && myProfile.avatar && myProfile.avatar !== wantedAvatar) {
+                const item = Look.avatarItem(wantedAvatar);
+                meNote = `${item ? item.title : 'Postavička'} se neuložila: podle účtu ji ještě nemáš odemčenou. Ostatní je uloženo.`;
+                meDraft.avatar = myProfile.avatar;
+            }
             meDirty = false;
             updateProfileButton();
             paintChallenges();
