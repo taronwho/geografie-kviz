@@ -67,7 +67,7 @@ const backend = async (context, db) => {
         const fail = (message, status = 400) => json({ code: 'P0001', message }, status);
         const find = (id) => db.games.find(g => g.id === id);
         const mapOf = (g) => MAPS[g.map];
-        const players = (g) => g.players.map(p => ({ ...db.profiles[p.user], seat: p.seat, flag_color: p.flag_color, emblem: p.emblem, ready: p.ready, score: p.score || 0, score_at: p.score_at || null, place: p.place || null, me: p.user === me.id }));
+        const players = (g) => g.players.map(p => ({ ...db.profiles[p.user], seat: p.seat, flag_color: p.flag_color, emblem: p.emblem, pattern: p.pattern || null, ready: p.ready, score: p.score || 0, score_at: p.score_at || null, place: p.place || null, me: p.user === me.id }));
         // Pozvánky (blok 24): db.invites = [{ game, user, by, declined }]; čekající pozvané vidí jen hráči hry v lobby
         const waiting = (g) => (db.invites || []).filter(i => i.game === g.id && !i.declined && !g.players.some(p => p.user === i.user));
         const summary = (g) => ({ id: g.id, map: g.map, max_players: g.max_players, hours: g.hours, ...(g.minutes ? { minutes: g.minutes } : {}), period: g.period, actions: g.actions, visibility: g.visibility, preset: g.preset, status: g.status,
@@ -185,7 +185,8 @@ const backend = async (context, db) => {
             // dává Záchranu navíc, blok 37); plná zásoba nic nepřidá
             if (name === 'player_items_claim') {
                 const kind = body.source === 'season' ? (/:15$/.test(body.key) ? 'extra_move' : /:12$/.test(body.key) ? 'chain_rescue' : 'fifty') : body.source === 'gold' ? 'chain_rescue' : 'fifty';
-                if ((body.source === 'chest' || body.source === 'gold') && !db.chestLucky) return json({ kind, granted: false, full: false, already: false, lucky: false, items: stock() });
+                // Truhla se vzácným vzorem Duha (blok 38, db.chestPattern): los 100–129, tedy jen bez pomůcky
+                if ((body.source === 'chest' || body.source === 'gold') && !db.chestLucky) return json({ kind, granted: false, full: false, already: false, lucky: false, ...(body.source === 'chest' && db.chestPattern ? { pattern: 'duha' } : {}), items: stock() });
                 const max = kind === 'fifty' ? 2 : 1;
                 if (items[kind] >= max) return json({ kind, granted: false, full: true, already: false, count: items[kind], max, items: stock() });
                 items[kind] += 1;
@@ -216,13 +217,14 @@ const backend = async (context, db) => {
             return json({ removed, items: stock(), fifty_used: true });
         }
         if (name === 'conquest_lobby') {
-            return json({ ...(db.items ? { items: stock() } : {}), open: db.games.filter(g => g.status === 'lobby' && g.visibility === 'public').map(summary),
+            // Vzory a vzácné znaky (blok 38): db.looks = { patterns, emblems, new, stats }, bez nich starší databáze
+            return json({ ...(db.items ? { items: stock() } : {}), ...(db.looks ? { looks: db.looks } : {}), open: db.games.filter(g => g.status === 'lobby' && g.visibility === 'public').map(summary),
                 mine: db.games.filter(g => mine(g)).map(g => ({ ...summary(g), budget: g.status === 'running' ? budget(g) : null, claimed: Boolean(mine(g).claimed),
                     owners: g.territories ? Object.fromEntries(g.territories.filter(t => t.o).map(t => [t.t, g.players.find(p => p.user === t.o).seat])) : null })) });
         }
         if (name === 'conquest_create') {
             const g = { id: uuid(db.seq++), creator: me.id, map: body.map_id, max_players: body.players, hours: body.hours, period: body.per, actions: body.actions_per, visibility: body.vis, code: 'NEW234', preset: null, status: 'lobby', created_at: NOW,
-                players: [{ user: me.id, seat: 0, flag_color: body.colour, emblem: body.emblem_id, ready: false }] };
+                players: [{ user: me.id, seat: 0, flag_color: body.colour, emblem: body.emblem_id, pattern: body.pattern_id || null, ready: false }] };
             db.games.push(g);
             // Druhý hráč se hned přidá a chce hrát
             if (db.autoJoin) g.players.push({ user: 'u-2', seat: 1, flag_color: 'cervena', emblem: 'orel', ready: true });
@@ -253,7 +255,7 @@ const backend = async (context, db) => {
             if (!body.join_code && g.visibility === 'private' && !(db.invites || []).some(i => i.game === g.id && i.user === me.id && !i.declined)) return fail('Hra s tímhle kódem není. Zkontroluj ho.');
             db.invites = (db.invites || []).filter(i => !(i.game === g.id && i.user === me.id));
             if (g.players.some(p => p.flag_color === body.colour)) return fail('Tuhle barvu už má jiný hráč. Vyber jinou.');
-            g.players.push({ user: me.id, seat: g.players.length, flag_color: body.colour, emblem: body.emblem_id, ready: false });
+            g.players.push({ user: me.id, seat: g.players.length, flag_color: body.colour, emblem: body.emblem_id, pattern: body.pattern_id || null, ready: false });
             if (g.players.length >= g.max_players) start(g);
             return json(summary(g));
         }
@@ -263,7 +265,8 @@ const backend = async (context, db) => {
             if (g.players.length >= 2 && g.players.every(p => p.ready)) start(g);
             return json(summary(g));
         }
-        if (name === 'conquest_set_look') { const g = find(body.game); Object.assign(mine(g), { flag_color: body.colour, emblem: body.emblem_id }); return json(summary(g)); }
+        if (name === 'conquest_set_look') { const g = find(body.game); Object.assign(mine(g), { flag_color: body.colour, emblem: body.emblem_id, ...('pattern_id' in body ? { pattern: body.pattern_id } : {}) }); return json(summary(g)); }
+        if (name === 'conquest_looks_seen') { if (db.looks) db.looks = { ...db.looks, new: [] }; return route.fulfill({ status: 204, body: '' }); }
         if (name === 'conquest_leave') { const g = find(body.game); g.players = g.players.filter(p => p.user !== me.id); return route.fulfill({ status: 204, body: '' }); }
         if (name === 'conquest_state') return json(state(find(body.game)));
         if (name === 'conquest_pulse') {
@@ -524,6 +527,98 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         assert.equal(await tab.locator('.cq-hit').count(), 14);
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    for (const { width, height, colorScheme } of [{ width: 360, height: 640, colorScheme: 'light' }, { width: 390, height: 780, colorScheme: 'dark' }]) {
+        await t.test(`vzory a vzácné znaky na ${width}×${height} (${colorScheme === 'dark' ? 'tmavý' : 'světlý'} režim): oslava nově odemčeného, okno se záložkou Vzor a zamčenými, volba se pošle a ukáže`, async () => {
+            const db = newDb();
+            db.looks = { patterns: ['plameny', 'brokat'], emblems: ['sfinga'], new: [{ kind: 'pattern', item: 'brokat', at: NOW }], stats: { games: 3, battles: 12, sea: 7, wins: 10 } };
+            const { context, tab, log } = await start(db, { viewport: { width, height }, colorScheme });
+            await tab.click('#conquest-card');
+            await tab.waitForSelector('#conquest-hub');
+            // Nově odemčený vzor: oslava s praporcem a server ho dostane jako ohlášený
+            await tab.waitForFunction(() => /Nový vzor praporce/.test((document.getElementById('celebration') || {}).textContent || ''));
+            assert.match(await tab.textContent('#celebration'), /Zlatý brokát/);
+            assert.ok(await tab.locator('#celebration svg image[href="icons/vzory/brokat.webp"]').count() >= 1, 'praporec se vzorem');
+            await tab.waitForTimeout(700);
+            await shot(tab, `vzor-oslava-${width}-${colorScheme}`);
+            await tab.click('#celebration');
+            await tab.waitForFunction(() => !document.getElementById('celebration'));
+            assert.ok(db.calls.some(call => call.name === 'conquest_looks_seen' && call.body.upto === NOW), 'ohlášeno do času odemčení');
+            // Založit hru: okno Barva a znak se třemi záložkami
+            await tab.click('[role="tab"][data-cq-tab="create"]');
+            await tab.click('[data-cq="look"]');
+            await tab.waitForSelector('[data-cq-look]');
+            assert.equal(await tab.locator('[data-cq-look-tab]').count(), 3);
+            const fit = () => tab.evaluate((h) => { const box = document.querySelector('#dialog-overlay > div'); const rect = box.getBoundingClientRect(); return { over: box.scrollHeight - box.clientHeight, top: rect.top, bottom: rect.bottom, ok: rect.top >= 0 && rect.bottom <= h }; }, height);
+            await tab.click('[data-cq-color="modra"]');
+            await tab.click('[data-cq-look-tab="emblem"]');
+            assert.equal(await tab.locator('[data-cq-rare] [data-cq-emblem]').count(), 12);
+            assert.equal(await tab.locator('[data-cq-rare] [data-cq-locked]').count(), 11);
+            // Zamčený: jen ukáže, jak ho získat (a postup), výběr se nezmění
+            await tab.click('[data-cq-emblem="kraken"]');
+            await tab.waitForFunction(() => /Kraken · Dobuď 40 území přes námořní cestu \(7\/40\)/.test(document.querySelector('[data-cq-look-info]').textContent));
+            assert.equal(await tab.getAttribute('[data-cq-emblem="kraken"]', 'aria-checked'), 'false');
+            await tab.click('[data-cq-emblem="sfinga"]');
+            await tab.waitForSelector('[data-cq-emblem="sfinga"][aria-checked="true"]');
+            let box = await fit();
+            assert.ok(box.over <= 0 && box.ok, `Znak se vejde: ${JSON.stringify(box)}`);
+            await shot(tab, `vzor-znaky-${width}-${colorScheme}`);
+            await tab.click('[data-cq-look-tab="pattern"]');
+            assert.equal(await tab.locator('[data-cq-pattern]').count(), 13);
+            await tab.click('[data-cq-pattern="vlnky"]');
+            await tab.waitForFunction(() => /Vlnky · Dobuď 15 území přes námořní cestu \(7\/15\)/.test(document.querySelector('[data-cq-look-info]').textContent));
+            await tab.click('[data-cq-pattern="plameny"]');
+            await tab.waitForSelector('[data-cq-pattern="plameny"][aria-checked="true"]');
+            assert.match(await tab.textContent('[data-cq-look] .cq-ledger-title'), /Modrá · Sfinga · Plameny/);
+            box = await fit();
+            assert.ok(box.over <= 0 && box.ok, `Vzor se vejde: ${JSON.stringify(box)}`);
+            await shot(tab, `vzor-vzory-${width}-${colorScheme}`);
+            await tab.click('[data-cq-look-tab="color"]');
+            box = await fit();
+            assert.ok(box.over <= 0 && box.ok, `Barva se vejde: ${JSON.stringify(box)}`);
+            await shot(tab, `vzor-barvy-${width}-${colorScheme}`);
+            await tab.click('[data-cq="look-done"]');
+            await tab.waitForFunction(() => !document.getElementById('dialog-overlay'));
+            assert.equal(await tab.locator('[data-cq="look"] svg image[href="icons/vzory/plameny.webp"]').count(), 1, 'praporec ve formuláři ve vzoru');
+            assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 }, 'formulář se vejde');
+            await tab.click('[data-cq-form] button[type="submit"]');
+            await tab.waitForSelector('[data-cq-lobby-detail]');
+            const create = db.calls.find(call => call.name === 'conquest_create').body;
+            assert.deepEqual([create.emblem_id, create.pattern_id, create.colour], ['sfinga', 'plameny', 'modra']);
+            // Lobby: vlastní praporec se vzorem a vzácným znakem
+            assert.ok(await tab.locator('[data-cq-lobby-detail] svg image[href="icons/vzory/plameny.webp"]').count() >= 1);
+            assert.ok(await tab.locator('[data-cq-lobby-detail] svg image[href="icons/znaky/sfinga.webp"]').count() >= 1);
+            await shot(tab, `vzor-lobby-${width}-${colorScheme}`);
+            // Volba se pamatuje (prefs v zařízení)
+            assert.deepEqual(await tab.evaluate(() => { const p = JSON.parse(localStorage.getItem('mudrlant.conquest')); return [p.emblem, p.pattern]; }), ['sfinga', 'plameny']);
+            assert.deepEqual(log.errors, []);
+            assert.deepEqual(log.csp, []);
+            await context.close();
+        });
+    }
+
+    await t.test('starší databáze bez vzorů: okno Barva a znak jen se dvěma záložkami a základními znaky, uložený vzácný znak a vzor se nepošlou', async () => {
+        const db = newDb();
+        const { context, tab, log } = await start(db, { storage: { 'mudrlant.conquest': JSON.stringify({ color: 'modra', emblem: 'sfinga', pattern: 'plameny' }) } });
+        await tab.click('#conquest-card');
+        await tab.waitForSelector('#conquest-hub');
+        await tab.waitForFunction(() => /Zatím nehraješ žádnou hru/.test(document.getElementById('conquest-hub').textContent));
+        await tab.click('[role="tab"][data-cq-tab="create"]');
+        assert.match(await tab.textContent('[data-cq="look"]'), /Modrá · Lev/, 'vzácný znak bez databáze nejde');
+        await tab.click('[data-cq="look"]');
+        await tab.waitForSelector('[data-cq-look]');
+        assert.equal(await tab.locator('[data-cq-look-tab]').count(), 2);
+        await tab.click('[data-cq-look-tab="emblem"]');
+        assert.equal(await tab.locator('[data-cq-emblem]').count(), 24);
+        await tab.click('[data-cq="look-done"]');
+        await tab.click('[data-cq-form] button[type="submit"]');
+        await tab.waitForSelector('[data-cq-lobby-detail]');
+        const create = db.calls.find(call => call.name === 'conquest_create').body;
+        assert.equal('pattern_id' in create, false);
+        assert.equal(create.emblem_id, 'lev');
+        assert.deepEqual(log.errors, []);
         await context.close();
     });
 
@@ -1343,6 +1438,27 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         assert.equal(db.items['u-1'].chain_rescue, 1);
         await tab.waitForTimeout(1300);
         await shot(tab, 'pomucky-zlata-truhla-360');
+        await tab.click('#chest-overlay [data-chest-close]');
+        // Další Truhla Mudrlanta bez pomůcky, ale se vzácným vzorem praporce Duha (blok 38, los na serveru)
+        db.chestLucky = false;
+        db.chestPattern = true;
+        await tab.evaluate(() => {
+            const state = JSON.parse(localStorage.getItem('mudrlant.rewards'));
+            state.ready = ['2026-11-09'];
+            localStorage.setItem('mudrlant.rewards', JSON.stringify(state));
+        });
+        await tab.reload();
+        await tab.waitForSelector('[data-chest-ready]', { timeout: 15000 });
+        await tab.click('[data-chest-ready]');
+        await tab.waitForSelector('#chest-overlay [data-chest-go]');
+        await tab.click('#chest-overlay [data-chest-go]');
+        await tab.waitForSelector('#chest-overlay [data-chest-pattern]', { timeout: 10000 });
+        assert.match(await tab.textContent('[data-chest-pattern]'), /A navíc vzácný vzor praporce do Dobývání: Duha/);
+        assert.equal(await tab.locator('[data-chest-pattern] svg image[href="icons/vzory/duha.webp"]').count(), 1, 'praporec ve vzoru Duha');
+        assert.equal(await tab.locator('#chest-overlay [data-chest-pomucka]').count(), 0);
+        await tab.waitForTimeout(1300);
+        assert.ok(await tab.evaluate(() => { const card = document.querySelector('#chest-overlay [data-chest-card]').getBoundingClientRect(); return card.top >= 0 && card.bottom <= window.innerHeight; }), 'truhla se vzorem se vejde');
+        await shot(tab, 'vzor-truhla-duha-360');
         await tab.click('#chest-overlay [data-chest-close]');
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);

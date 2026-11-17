@@ -444,6 +444,11 @@ const buildSql = (maps) => {
         lines.push(`delete from public.conquest_links where map = ${sqlText(map.id)};`);
         const pairs = map.t.flatMap(t => t.nb.map(other => `(${sqlText(map.id)}, ${sqlText(t.id)}, ${sqlText(other)})`));
         lines.push(`insert into public.conquest_links (map, a, b) values\n    ${pairs.join(',\n    ')};`);
+        // Námořní spoje (sloupec sea, blok 38: území dobytá přes moře) oběma směry
+        if (map.sea.length) {
+            const seaPairs = map.sea.flatMap(([a, b]) => [`(${sqlText(a)}, ${sqlText(b)})`, `(${sqlText(b)}, ${sqlText(a)})`]);
+            lines.push(`update public.conquest_links set sea = true where map = ${sqlText(map.id)} and (a, b) in (values ${seaPairs.join(', ')});`);
+        }
     }
     lines.push(SQL_END);
     return lines.join('\n');
