@@ -1139,6 +1139,99 @@ test('stavby: domovský hrad podle úrovně (č. 275–277), střechy a vlaječk
     assert.doesNotMatch(svg.match(/data-mark="Q36"[^]*?<\/g><\/g><\/g>/)[0], /<rect /);
 });
 
+test('sady hradů (blok 40, č. 297–308 a 362–367): katalog shodný se serverem, stavby podle sady majitele, obrázky existují, záložka Hrad, oznámení', () => {
+    // Katalog: řádky druhu 'castle' v conquest_look_catalog() a seznam conquest_castles() ve stejném pořadí jako conquest.js
+    const block = /function public\.conquest_look_catalog\(\)[\s\S]*?\$\$;/.exec(schema)[0];
+    const rows = [...block.matchAll(/\('castle', '([a-z-]+)', '([a-z_0-9]+)', (\d+), (\d+)\)/g)].map(m => `${m[1]}|${m[2]}|${m[3]}`);
+    assert.deepEqual(rows, C.CASTLE_SETS.map(set => `${set.id}|${set.stat}|${set.need}`));
+    assert.deepEqual(sqlList('conquest_castles'), C.CASTLE_SETS.map(set => set.id));
+    assert.deepEqual(C.CASTLE_SETS.map(set => [set.id, set.name, set.stat, set.need]), [
+        ['goticky', 'Gotický hrad', 'home_fortress', 10], ['orientalni', 'Orientální palác', 'battles', 25], ['japonsky', 'Japonský hrad', 'season15', 3]]);
+    for (const set of C.CASTLE_SETS) assert.doesNotMatch(set.how, /\b(získal|získala|vyhrál|vyhrála|postavil|postavila)\b/);
+    // Stavby: domov podle stupně a opevnění ostatních území (Palisáda, Hradba) ve stylu sady; Pevnost jen na domově; neznámá sada = základní
+    assert.deepEqual([0, 1, 2, 3].map(level => C.levelIcon(level, true, 'goticky')), ['castle-goticky', 'castle1-goticky', 'castle2-goticky', 'castle3-goticky']);
+    assert.deepEqual([0, 1, 2].map(level => C.levelIcon(level, false, 'japonsky')), ['', 'palisade-japonsky', 'wall-japonsky']);
+    assert.deepEqual([C.levelIcon(1, false, 'neznama'), C.levelIcon(3, true, null), C.levelIcon(2, false, undefined)], ['palisade', 'castle3', 'wall']);
+    const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+    const cached = sw.match(/\.\.\.\[([^\]]+)\]\.flatMap\(id => \[`icons\/stavby/)[1];
+    for (const set of C.CASTLE_SETS) {
+        const files = { [`castle-${set.id}`]: `hrad-${set.id}-0`, [`castle1-${set.id}`]: `hrad-${set.id}-1`, [`castle2-${set.id}`]: `hrad-${set.id}-2`, [`castle3-${set.id}`]: `hrad-${set.id}-3`,
+            [`palisade-${set.id}`]: `opevneni-${set.id}-1`, [`wall-${set.id}`]: `opevneni-${set.id}-2` };
+        for (const [kind, file] of Object.entries(files)) {
+            assert.equal(C.BUILDING_ART[kind], file, kind);
+            const markup = C.iconMarkup(kind, 'zelena');
+            assert.deepEqual([...markup.matchAll(/href="icons\/stavby\/([^"]+)\.webp"/g)].map(m => m[1]), [file, `${file}-barva`], kind);
+            assert.match(markup, /class="cq-tint"[^>]*filter="url\(#cqb-zelena\)"/);
+            assert.doesNotMatch(C.iconMarkup(kind), /cq-tint|filter=/, 'bez majitele původní barvy');
+            for (const name of [file, `${file}-barva`]) {
+                const head = fs.readFileSync(path.join(ROOT, 'icons', 'stavby', `${name}.webp`)).subarray(0, 12);
+                assert.equal(head.toString('ascii', 8, 12), 'WEBP', `${name}.webp`);
+            }
+            // Velikost na mapě jako základní stavba téhož stupně
+            const base = kind.replace(`-${set.id}`, '');
+            if (kind === 'wall-japonsky') assert.ok(C.ICON_SCALE[kind] > C.ICON_SCALE[base] && C.ICON_SCALE[kind] <= C.ICON_SCALE.castle3, 'nízká japonská hradba o kus větší');
+            else assert.equal(C.ICON_SCALE[kind], C.ICON_SCALE[base], kind);
+            // Sady jsou odměny jen některých hráčů: do mezipaměti až při použití (jako výplně a vzácné znaky)
+            assert.ok(!cached.includes(file), `${file} není v APP_SHELL`);
+        }
+    }
+    // Mapa: domov a opevněná území hráče se sadou v jejím stylu, soupeř bez sady základní; vrstva barvy majitele zůstává
+    const state = sampleState();
+    state.players = state.players.map(player => (player.id === 'A' ? { ...player, castle: 'orientalni' } : player));
+    const view = C.viewOf(state, maps.evropa, 'A');
+    const mine = (state.territories || []).filter(t => t.o === 'A');
+    const theirs = (state.territories || []).filter(t => t.o && t.o !== 'A');
+    assert.ok(mine.some(t => t.h) && theirs.some(t => t.h), 'oba hráči mají domov');
+    state.territories = state.territories.map(t => (t.o === 'A' && !t.h ? { ...t, l: 2 } : t.o === 'A' && t.h ? { ...t, l: 3 } : t));
+    const svg = C.mapSvg(maps.evropa, C.viewOf(state, maps.evropa, 'A'));
+    const homeA = mine.find(t => t.h).t;
+    const homeB = theirs.find(t => t.h).t;
+    const markOf = (id) => svg.match(new RegExp(`data-mark="${id}"[^]*?</g></g>`))[0];
+    assert.match(markOf(homeA), /data-icon="castle3-orientalni"[^]*?hrad-orientalni-3\.webp[^]*?hrad-orientalni-3-barva\.webp"[^>]*filter="url\(#cqb-/);
+    assert.doesNotMatch(markOf(homeA), /<rect /, 'bez kamínků úrovně');
+    const fortA = mine.find(t => !t.h);
+    if (fortA) assert.match(markOf(fortA.t), /data-icon="wall-orientalni"[^]*?opevneni-orientalni-2\.webp/);
+    assert.match(markOf(homeB), /data-icon="castle(\d)?"[^]*?hrad-domov/);
+    assert.doesNotMatch(svg, /\sstyle=|undefined|NaN/);
+    assert.ok(view.byId.get('A').castle === 'orientalni', 'sada hráče je v pohledu');
+    // Oznámení nového hradu: obrázek hradu s palisádou v barvě hráče
+    const looks = { patterns: [], emblems: [], castles: ['goticky'], stats: { home_fortress: 12, battles: 7, season15: 1 },
+        new: [{ kind: 'castle', item: 'goticky', at: '2026-11-15T10:00:00Z' }, { kind: 'castle', item: 'neznamy' }] };
+    const news = C.lookNews(looks);
+    assert.deepEqual(news.map(n => [n.kind, n.id, n.title, n.text]), [['castle', 'goticky', 'Nový hrad do Dobývání', 'Gotický hrad. Najdeš ho v okně Barva a znak na záložce Hrad.']]);
+    const art = C.lookNewsArt(news[0], 'modra', 'lev');
+    assert.match(art, /hrad-goticky-0\.webp[^]*hrad-goticky-0-barva\.webp/);
+    assert.match(art, /opevneni-goticky-1-barva\.webp/);
+    assert.match(art, /<filter id="(cqh\w+)"[^]*filter="url\(#\1\)"/, 'vlastní filtr barvy v každém náhledu');
+    // Smí se použít: bez sady vždy, sada jen odemčená; databáze bez bloku 40 (castles chybí) sady nezná
+    assert.deepEqual([C.castleAllowed(looks, null), C.castleAllowed(looks, 'goticky'), C.castleAllowed(looks, 'japonsky'), C.castlesOn(looks), C.castlesOn({ patterns: [] }), C.castlesOn(null)],
+        [true, true, false, true, false, false]);
+    assert.deepEqual(C.lookProgress(looks, C.CASTLE_SET_BY_ID.orientalni), { have: 7, need: 25 });
+    assert.equal(C.lookHowText(looks, C.CASTLE_SET_BY_ID.japonsky), 'Sezóna Mudrlanta: 15. stupeň ve 3 různých sezónách (1/3)');
+    // Okno: záložka Hrad jen s databází, která sady zná (4 záložky); Základní + 3 sady, zamčené se zámkem a postupem
+    assert.equal((C.lookHtml({ color: 'modra', emblem: 'lev', tab: 'castle', looks: { ...looks, castles: undefined } }).match(/data-cq-look-tab=/g) || []).length, 3);
+    const html = C.lookHtml({ color: 'modra', emblem: 'lev', castle: 'goticky', tab: 'castle', looks });
+    assert.equal((html.match(/data-cq-look-tab=/g) || []).length, 4);
+    assert.match(html, /data-cq-look-tab="castle"[^>]*><i data-lucide="castle"[^>]*><\/i>Hrad</);
+    assert.equal((html.match(/data-cq-castle=/g) || []).length, 4);
+    assert.equal((html.match(/data-cq-locked="castle"/g) || []).length, 2);
+    assert.match(html, /aria-checked="false" aria-label="Základní" title="Základní" data-cq-castle=""/);
+    assert.match(html, /aria-checked="true" aria-label="Gotický hrad" title="Gotický hrad" data-cq-castle="goticky" class="cq-stamp relative/);
+    assert.match(html, /aria-label="Orientální palác \(zamčený, 7 z 25\)"[^]*?<i data-lucide="lock" class="h-3 w-3"><\/i>7\/25/);
+    assert.match(html, /aria-label="Japonský hrad \(zamčený, 1 z 3\)"[^]*?1\/3/);
+    assert.match(html, /Sada <b>Gotický hrad<\/b>: domovský hrad i opevnění tvých území/);
+    // Náhled nahoře: území a na něm hrad ze sady
+    assert.match(html.split('role="tablist"')[0], /hrad-goticky-0\.webp/);
+    assert.doesNotMatch(C.lookHtml({ color: 'modra', emblem: 'lev', tab: 'castle', looks }).split('role="tablist"')[0], /icons\/stavby/, 'bez sady náhled jako dřív');
+    const info = C.lookHtml({ color: 'modra', emblem: 'lev', tab: 'castle', looks, info: { kind: 'castle', id: 'orientalni' } });
+    assert.match(info, /<b>Orientální palác<\/b> · Vyhraj 25 bitev o území \(7\/25\)/);
+    assert.match(C.lookHtml({ color: 'modra', emblem: 'lev', tab: 'castle', looks }), /aria-checked="true" aria-label="Základní"/);
+    assert.match(C.lookHtml({ color: 'modra', emblem: 'lev', tab: 'castle', looks }), /Sady hradů získáš v Dobývání a v Sezóně Mudrlanta\./);
+    for (const page of [html, info, art]) assert.doesNotMatch(page, /\sstyle=|undefined|NaN|\son[a-z]+=/i);
+    // Nápověda zmiňuje sady hradů u vzhledu
+    assert.match(C.helpHtml('zaklady'), /Vzhled:<\/b> Výplně území, vzácné znaky a sady hradů získáš za úspěchy a vybereš v okně Barva a znak\./);
+});
+
 // Doplněné otázky Mudrlanta (popis, fakta, obrázek) s obsahem jako z app.js conquestRound
 const fullQuestions = () => {
     const t = loadAllTopics();

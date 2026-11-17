@@ -1216,16 +1216,17 @@
     // items = moje pomůcky v této hře (blok 30, cleanGameItems; jen stav hry, jinak null)
     const conquestGame = (value) => (value && typeof value === 'object' && isUuid(value.id) ? { ...value, players: Array.isArray(value.players) ? value.players.filter(row => row && row.id) : [],
         invited: Array.isArray(value.invited) ? value.invited.filter(row => row && row.id) : [], round: conquestRound(value.round), items: cleanGameItems(value.items) } : null);
-    // Výplně území (vzory) a vzácné znaky (blok 38): { patterns: [id], emblems: [id] (odemčené), new: [{ kind, item, at }] (ještě neohlášené),
-    // stats: { klíč: číslo } (postup) }; databáze bez bloku 38 null (nabídka jen barev a základních znaků)
+    // Výplně území (vzory) a vzácné znaky (blok 38) a sady hradů (blok 40): { patterns: [id], emblems: [id], castles: [id] (odemčené; databáze
+    // bez bloku 40 castles null = bez záložky Hrad), new: [{ kind, item, at }] (ještě neohlášené), stats: { klíč: číslo } (postup) };
+    // databáze bez bloku 38 null (nabídka jen barev a základních znaků)
     const LOOK_ID = /^[a-z][a-z-]{1,23}$/;
     const cleanLooks = (value) => {
         if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
         const ids = (list) => [...new Set((Array.isArray(list) ? list : []).filter(id => typeof id === 'string' && LOOK_ID.test(id)))].slice(0, 40);
         const stats = {};
         if (value.stats && typeof value.stats === 'object') for (const [key, count] of Object.entries(value.stats)) if (/^[a-z_0-9]{1,24}$/.test(key)) stats[key] = wholeNumber(count, 1000000);
-        return { patterns: ids(value.patterns), emblems: ids(value.emblems), stats,
-            new: (Array.isArray(value.new) ? value.new : []).filter(row => row && (row.kind === 'pattern' || row.kind === 'emblem') && typeof row.item === 'string' && LOOK_ID.test(row.item))
+        return { patterns: ids(value.patterns), emblems: ids(value.emblems), castles: Array.isArray(value.castles) ? ids(value.castles) : null, stats,
+            new: (Array.isArray(value.new) ? value.new : []).filter(row => row && ['pattern', 'emblem', 'castle'].includes(row.kind) && typeof row.item === 'string' && LOOK_ID.test(row.item))
                 .slice(0, 30).map(row => ({ kind: row.kind, item: row.item, at: row.at ? String(row.at) : null })) };
     };
     // { open: [hra], mine: [hra s budget, owners, claimed], items: zásoba pomůcek (blok 30, cleanItems; starší databáze null),
@@ -1238,14 +1239,16 @@
     // Výplň území (vzor) a vzácný znak se posílají jen s databází, která je zná (blok 38): pattern_id jen, když hráč vzor vybral (aplikace
     // ho nabídne jen s looks z lobby), takže starší databáze dostane volání postaru
     const withPattern = (body, pattern) => (pattern ? { ...body, pattern_id: conquestText(pattern) } : body);
+    // Sada hradů (blok 40) stejně: castle_id jen vybraná (aplikace ji nabídne jen s looks.castles z lobby)
+    const withCastle = (body, castle) => (castle ? { ...body, castle_id: conquestText(castle) } : body);
     // Založení: období (period) 'day' nebo 'hour' s délkou v hodinách (hours), rychlá hra s kolem 'min10' nebo 'min5' s délkou v minutách
     // (minutes, blok 26; jinak null). Databáze bez bloku 26 (404): obyčejná hra se založí postaru (bez minutes), rychlá hra nejde.
-    const conquestCreate = async ({ map, players, hours, minutes = null, period, actions, visibility, color, emblem, pattern = null }) => {
-        const body = withPattern({
+    const conquestCreate = async ({ map, players, hours, minutes = null, period, actions, visibility, color, emblem, pattern = null, castle = null }) => {
+        const body = withCastle(withPattern({
             map_id: conquestText(map), players: wholeNumber(players, 8), hours: wholeNumber(hours, 168), per: conquestText(period, 8), actions_per: wholeNumber(actions, 10),
             vis: conquestText(visibility, 8), colour: conquestText(color), emblem_id: conquestText(emblem),
             minutes: minutes === null || minutes === undefined || minutes === '' ? null : wholeNumber(minutes, 10080)
-        }, pattern);
+        }, pattern), castle);
         const fallback = 'Hru se nepodařilo založit. Zkus to znovu.';
         try { return conquestGame(await conquestCall('conquest_create', body, fallback, 'rounds')); } catch (error) {
             if (!(error instanceof SocialError) || error.status !== 404 || !partMissing.rounds || body.minutes !== null) throw error;
@@ -1254,13 +1257,15 @@
             return conquestGame(await conquestCall('conquest_create', older, fallback));
         }
     };
-    // Přidání: veřejná hra podle id, soukromá kódem; pattern = výplň území (blok 38) nebo null
-    const conquestJoin = async ({ game = null, code = '', color, emblem, pattern = null }) => conquestGame(await conquestCall('conquest_join', withPattern({
+    // Přidání: veřejná hra podle id, soukromá kódem; pattern = výplň území (blok 38) nebo null, castle = sada hradů (blok 40) nebo null
+    const conquestJoin = async ({ game = null, code = '', color, emblem, pattern = null, castle = null }) => conquestGame(await conquestCall('conquest_join', withCastle(withPattern({
         game: game ? conquestId(game) : null, join_code: conquestText(code, 12), colour: conquestText(color), emblem_id: conquestText(emblem)
-    }, pattern), 'Přidat se do hry se nepodařilo. Zkus to znovu.'));
-    // Změna vzhledu v lobby; withLooks = databáze zná vzory (blok 38): pak se pattern_id posílá vždy (null = bez vzoru), jinak postaru
-    const conquestSetLook = async (game, color, emblem, pattern = null, withLooks = false) => conquestGame(await conquestCall('conquest_set_look', {
-        game: conquestId(game), colour: conquestText(color), emblem_id: conquestText(emblem), ...(withLooks || pattern ? { pattern_id: pattern ? conquestText(pattern) : null } : {})
+    }, pattern), castle), 'Přidat se do hry se nepodařilo. Zkus to znovu.'));
+    // Změna vzhledu v lobby; withLooks = databáze zná vzory (blok 38): pak se pattern_id posílá vždy (null = bez vzoru), jinak postaru;
+    // withCastles = databáze zná sady hradů (blok 40): castle_id vždy (null = základní hrad)
+    const conquestSetLook = async (game, color, emblem, pattern = null, withLooks = false, castle = null, withCastles = false) => conquestGame(await conquestCall('conquest_set_look', {
+        game: conquestId(game), colour: conquestText(color), emblem_id: conquestText(emblem), ...(withLooks || pattern ? { pattern_id: pattern ? conquestText(pattern) : null } : {}),
+        ...(withCastles || castle ? { castle_id: castle ? conquestText(castle) : null } : {})
     }, 'Barvu a znak se nepodařilo uložit.'));
     // Vzory a vzácné znaky (blok 38): stav (cleanLooks) a ohlášení nových do času upto (čas posledního ukázaného)
     const conquestLooks = async () => cleanLooks(await conquestCall('conquest_looks', {}, 'Vzory se nepodařilo načíst.', 'looks'));

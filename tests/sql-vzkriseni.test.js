@@ -90,7 +90,7 @@ test('SQL: pomůcka Vzkříšení', { skip: !available && 'PostgreSQL není dost
     q(`insert into auth.users (id, email, raw_user_meta_data) values ('${BOT}', 'bot-${BOT}@bots.invalid', '{"full_name": "Bot Adam"}')`);
 
     await t.test('zisk: startovní jednou, strop 3, 8. stupeň Sezóny, Truhla 10 % a Zlatá truhla 15 % ze stejného losu, milník série Kvízu dne; boti nic', () => {
-        assert.equal(q(`select schema_version()`), '39');
+        assert.ok(Number(q(`select schema_version()`)) >= 39);
         clock = '2026-11-20T10:00:00Z';
         // Startovní: první načtení zásoby (i lobby nebo stav hry), jen jednou
         assert.deepEqual([items(A).revive, items(A).max.revive], [1, 3]);

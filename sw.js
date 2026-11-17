@@ -66,7 +66,8 @@ const APP_SHELL = [
     // Bezešvé textury (zlatá fólie Zlaté otázky, pergamen a moře map Dobývání; č. 210, 232, 233)
     ...['textura-zlato', 'textura-pergamen', 'textura-pergamen-svetly', 'textura-more', 'textura-akvarel'].map(id => `icons/textury/${id}.webp`),
     // Výplně území a vzácné znaky Dobývání (icons/vzory, icons/znaky; conquest.js PATTERNS, RARE_EMBLEMS) tu nejsou: jsou to odměny
-    // jen některých hráčů (asi 0,6 MB), uloží se až při použití (networkFirst níže)
+    // jen některých hráčů (asi 0,6 MB), uloží se až při použití (networkFirst níže). Stejně sady hradů (icons/stavby/hrad-<sada>-*
+    // a opevneni-<sada>-*, conquest.js CASTLE_SETS, asi 0,26 MB): uloží se, až je hráč nebo soupeř na mapě poprvé má
     ...BADGE_ART.map(id => `icons/topics/odznak-${id}.webp`), ...AVATAR_ART.map(id => `icons/avatars/${id}.webp`), ...FRAME_ART.map(id => `icons/frames/${id}.webp`), 'icons/favicon-32.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'
 ];
 
