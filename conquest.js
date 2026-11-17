@@ -104,7 +104,7 @@
         chain_rescue: { id: 'chain_rescue', name: 'Záchrana navíc', max: 1, icon: 'shield-plus', mark: '+1', art: 'zachrana-navic', place: 'chain', // č. 360 zachrana-navic
             what: 'V Řetězovce dne zachrání řetěz ještě jednou, když už je Záchrana použitá: dostaneš jinou otázku na stejný článek, za 0 bodů.',
             how: 'Milníky Řetězovky dne (10, 30, 100 a 365 dohraných dní, 5, 15, 30 a 60 celých řetězů bez Záchrany), 12. stupeň Sezóny Mudrlanta, společná výhra nad Bossem týdne a vzácně Truhla Mudrlanta nebo Zlatá truhla.' },
-        revive: { id: 'revive', name: 'Vzkříšení', max: 3, icon: 'heart-pulse', mark: '', art: null, // č. 361 vzkriseni
+        revive: { id: 'revive', name: 'Vzkříšení', max: 3, icon: 'heart-pulse', mark: '', art: 'vzkriseni', // č. 361 vzkriseni
             what: 'Když ti nezbude žádné území, vrátí tě do hry: vybereš si volné nebo neopevněné území (ne domovský hrad) a hraješ dál. Na 60 s je chráněné.',
             how: 'Jedno na začátek, dohraná započítaná hra Dobývání s body, série Kvízu dne (7, 30, 100 a 365 dní), 8. stupeň Sezóny Mudrlanta a vzácně Truhla Mudrlanta nebo Zlatá truhla.' }
     };

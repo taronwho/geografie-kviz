@@ -3283,7 +3283,7 @@ Pečeť pomůcky Vzkříšení (schéma 39): když hráč v Dobývání přijde 
 styl `.cq-item-revive`). Až obrázek dorazí, uložím ho do `branding/ikony/`, spustím `python3 scripts/topic-icons.py vzkriseni`, nastavím
 `art: 'vzkriseni'` a přidám ho do `sw.js`.
 
-#### 361. `vzkriseni.png` – Pomůcka Vzkříšení – čeká na dodání
+#### 361. `vzkriseni.png` – Pomůcka Vzkříšení – ✅ dodáno, zapojeno
 
 Kam: pomůcka Vzkříšení v Dobývání (okno „Všechna tvá území padla“, štítek Vzkříšení dole na mapě, pruh výběru území, kronika, pruh Pomůcky v rozcestníku a okno Pomůcky, oslava „Nová pomůcka do Dobývání“, 8. stupeň Sezóny, Truhla Mudrlanta a Zlatá truhla). Zobrazí se jako kulatá pečeť velká 24–64 px, proto výrazná jednoduchá silueta. Do dodání pečeť s ikonou srdce s tepem. Přiložit: `branding/sova-original.jpg` (vzor stylu); volitelně hotový `zachrana-navic.png` (č. 360, vzor velikosti a stylu pečetí pomůcek)
 

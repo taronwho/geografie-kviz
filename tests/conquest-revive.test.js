@@ -145,7 +145,7 @@ test('zisk, pečeť a okno Pomůcky: Vzkříšení bez značky, nejvýš 3; ve h
     assert.deepEqual(C.grantNews({ kind: 'revive', granted: false, full: true, count: 3 }), { kind: 'full', text: 'Vzkříšení už máš třikrát, víc jich mít nejde.' });
     assert.deepEqual(C.grantNews({ kind: 'revive', granted: true, already: true }), { kind: null });
     const seal = C.itemSealHtml('revive');
-    assert.match(seal, /cq-item-seal cq-item-revive[\s\S]*data-lucide="heart-pulse"/);
+    assert.match(seal, /cq-item-seal cq-item-revive[\s\S]*src="icons\/topics\/vzkriseni\.webp"/);
     assert.doesNotMatch(seal, /cq-item-mark/, 'bez značky');
     const strip = C.itemsStripHtml({ extra_move: 1, fifty: 0, revive: 2 });
     assert.match(strip, /aria-label="Pomůcky: Tah navíc 1 z 1, Půl na půl 0 ze 2, Vzkříšení 2 ze 3\. Co dělají a jak je získat"/);
