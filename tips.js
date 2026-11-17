@@ -121,6 +121,9 @@
         // Řetězovka dne (chain.js); art = č. 212 retezovka (jako chain.js ART.tile)
         { id: 'retezovka', icon: 'trophy', art: 'retezovka', after: 7, title: 'Řetězovka dne', text: 'Mezi dnešními výzvami čeká Řetězovka: 7 otázek z různých oborů, odpověď na jednu je začátkem další. U otázky je fotka a pár vět o předchozí odpovědi. Článek 7 dává sedm bodů, špatná odpověď řetěz přetrhne, jednou za hru pomůže Záchrana.',
             action: { kind: 'chain', label: 'Zkusit Řetězovku' }, ready: (u) => u.chain, used: (u) => num(u.counters.chainDone) > 0 },
+        // Pomůcka Záchrana navíc do Řetězovky (schéma 37): pro přihlášené, kdo Řetězovku už pár dní hraje
+        { id: 'retezovka-zachrana', icon: 'shield-plus', art: 'retezovka', account: true, after: 25, title: 'Záchrana navíc', text: 'Když už je v Řetězovce Záchrana použitá a znovu odpovíš špatně, pomůcka Záchrana navíc podrží řetěz: dostaneš jinou otázku na stejný článek, za 0 bodů. Mít můžeš jen jednu. Získáš ji třeba za milníky Řetězovky nebo 12. stupeň Sezóny.',
+            action: { kind: 'chain', label: 'Do Řetězovky' }, ready: (u) => u.chain && num(u.counters.chainDone) >= 3, used: () => false },
         // Motivace (blok 32): tematické víkendy (weekend.js), prestiž (prestige.js), Pozvi kamarády (referral.js), reakce a vítězné efekty
         // (friends.js) a vlastní barva obleku od úrovně 20 (robe-color.js)
         { id: 'vikend', icon: 'calendar-days', after: 15, title: 'Tematické víkendy', text: 'Každý druhý víkend má jedno téma, třeba Víkend historie. Od pátku 18:00 do neděle 24:00 dávají otázky z něj dvojnásobek XP. Které téma to je, ukáže pruh na záložce Dnes.',

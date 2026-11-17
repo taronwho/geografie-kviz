@@ -75,7 +75,7 @@ const backend = async (context, db) => {
                     db.me = { attempts: attempts + 1, best: Math.max(db.me ? db.me.best : 0, body.damage) };
                     return json({ ...mine(), first_win: first });
                 }
-                if (name === 'boss_claim_bonus') return json({ week: body.for_week, played: true, reached: db.bonus.xp > 0, claimed: db.bonus.xp > 0, xp: db.bonus.xp });
+                if (name === 'boss_claim_bonus') return json({ week: body.for_week, played: true, reached: db.bonus.xp > 0, claimed: db.bonus.xp > 0, xp: db.bonus.xp, ...(db.bonus.item ? { item: db.bonus.item } : {}) });
             }
             return json({ code: 'PGRST202', message: 'Could not find the function' }, 404);
         }
@@ -124,7 +124,8 @@ const INSPECT = (() => {
 })();
 const audit = async (tab, scene) => {
     if (!INSPECT) return;
-    await tab.evaluate(() => { const card = document.getElementById('celebration'); if (card) card.remove(); });
+    // Oslava i krátký štítek během hry (#celebration-mini je záměrně zkrácený na dva řádky, celá karta přijde později)
+    await tab.evaluate(() => { for (const id of ['celebration', 'celebration-mini']) { const card = document.getElementById(id); if (card) card.remove(); } });
     const found = await tab.evaluate(`(${INSPECT})()`);
     for (const kind of Object.keys(found)) assert.deepEqual(found[kind], [], `${scene}: ${kind}`);
 };
@@ -558,8 +559,8 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         assert.deepEqual(log.csp, []);
         await context.close();
 
-        // Příští týden: společný bonus za minulý týden (jednou), boss Rytíř Mudrlant
-        db.bonus = { xp: 50 };
+        // Příští týden: společný bonus za minulý týden (jednou) i pomůcka Záchrana navíc do Řetězovky (blok 37), boss Rytíř Mudrlant
+        db.bonus = { xp: 50, item: { kind: 'chain_rescue', granted: true, full: false, already: false, count: 1, max: 1 } };
         // XP z účtu (falešný profil má 100) + společný bonus
         const xpBefore = 100;
         const later = await open(browser, login('tok-u1'), { viewport: { width: 390, height: 780 }, db, time: new Date('2026-11-16T09:00:00Z') });
@@ -570,6 +571,9 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         assert.equal((await progress(later.tab)).xp, xpBefore + 50);
         await later.tab.waitForSelector('#celebration');
         assert.match(await compact(later.tab, '#celebration'), /Společná výhra!/);
+        await later.tab.click('#celebration');
+        await later.tab.waitForFunction(() => /Nová pomůcka: Záchrana navíc/.test((document.getElementById('celebration') || {}).textContent || ''), null, { timeout: 15000 });
+        assert.equal(await later.tab.locator('#celebration .cq-item-chain_rescue').count(), 1, 'pečeť Záchrany navíc');
         assert.match(await compact(later.tab, '#boss-card'), /3 pokusy/);
         assert.match(await later.tab.getAttribute('#boss-card', 'aria-label'), /Rytíř Mudrlant/);
         await later.tab.reload();

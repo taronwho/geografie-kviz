@@ -90,16 +90,20 @@
         return { badge: place === 1, xp: place <= 3 && (place === 1 || place < players) ? REWARD_XP[place - 1] : 0 };
     };
     // Pomůcky (blok 30 ve schema.sql): vzácné, do zásoby (strop max, stejně player_item_cap na serveru), každá jednou za hru.
-    // icon + mark = pečeť pomůcky z ikon Lucide (do dodání obrázků č. 309 a 310 v docs/OBRAZKY.md, pak art = název souboru v icons/topics)
+    // icon + mark = pečeť pomůcky z ikon Lucide (do dodání obrázků č. 309, 310 a 360 v docs/OBRAZKY.md, pak art = název souboru v icons/topics).
+    // Záchrana navíc (blok 37) patří do Řetězovky dne (place 'chain', chain.js), ne do Dobývání: ITEM_IDS jsou jen pomůcky do Dobývání.
     const ITEMS = {
         extra_move: { id: 'extra_move', name: 'Tah navíc', max: 1, icon: 'zap', mark: '+1', art: null, // č. 309 tah-navic
             what: 'O 1 tah víc v tomto kole. Jednou za hru, ne v posledním kole.',
             how: 'Poražený Boss týdne (první výhra v týdnu) a 15. stupeň Sezóny Mudrlanta.' },
         fifty: { id: 'fifty', name: 'Půl na půl', max: 2, icon: 'scale', mark: '½', art: null, // č. 310 pul-na-pul
             what: 'U otázky se 4 možnostmi odebere dvě špatné. Jednou za hru, i v bitvě.',
-            how: 'Kvíz dne bez chyby a celá Řetězovka (obojí jednou za týden), výhra v Dobývání, 5. stupeň Sezóny Mudrlanta a vzácně Truhla Mudrlanta.' }
+            how: 'Kvíz dne bez chyby a celá Řetězovka (obojí jednou za týden), výhra v Dobývání, 5. stupeň Sezóny Mudrlanta a vzácně Truhla Mudrlanta.' },
+        chain_rescue: { id: 'chain_rescue', name: 'Záchrana navíc', max: 1, icon: 'shield-plus', mark: '+1', art: 'zachrana-navic', place: 'chain', // č. 360 zachrana-navic
+            what: 'V Řetězovce dne zachrání řetěz ještě jednou, když už je Záchrana použitá: dostaneš jinou otázku na stejný článek, za 0 bodů.',
+            how: 'Milníky Řetězovky dne (10, 30, 100 a 365 dohraných dní, 5, 15, 30 a 60 celých řetězů bez Záchrany), 12. stupeň Sezóny Mudrlanta, společná výhra nad Bossem týdne a vzácně Truhla Mudrlanta nebo Zlatá truhla.' }
     };
-    const ITEM_IDS = Object.keys(ITEMS);
+    const ITEM_IDS = Object.keys(ITEMS).filter(kind => !ITEMS[kind].place);
     // Půl na půl jde u otázky se 4 textovými nebo obrázkovými možnostmi (ne mapa, letopočet ani odhad čísla; stejně kontroluje server v bitvě)
     const fiftyAllowed = (question) => Boolean(question && Array.isArray(question.choices) && question.choices.length === 4 && !['map', 'year', 'number'].includes(question.kind));
     // Dvě nesprávné možnosti k odebrání u otázky, kterou zná aplikace (bez bitvy): podle příznaku correct; rng = los (testy pevný)
@@ -116,9 +120,17 @@
     const stockText = (items, kind) => `${items ? items[kind] || 0 : 0}/${ITEMS[kind].max}`;
     const stockLabel = (items, kind) => `${items ? items[kind] || 0 : 0} ${ITEMS[kind].max === 1 ? 'z' : 'ze'} ${ITEMS[kind].max}`;
     // Zisk pomůcky (Boss, Kvíz dne, Řetězovka, výhra, sezóna, truhla): co aplikace hráči řekne. { kind: 'new' | 'full' | null, title, text }
+    // Záchrana navíc (blok 37): oslava „Nová pomůcka: Záchrana navíc“, u milníku Řetězovky (grant.source, grant.at) i za co
+    const MILESTONE_TEXT = { 'chain-days': (n) => `Za ${n} dohraných Řetězovek dne.`, 'chain-clean': (n) => `Za ${n} celých řetězů bez Záchrany.` };
     const grantNews = (grant) => {
         if (!grant || !ITEMS[grant.kind] || grant.already) return { kind: null };
         const item = ITEMS[grant.kind];
+        if (grant.kind === 'chain_rescue') {
+            const why = grant.source && MILESTONE_TEXT[grant.source] && grant.at ? `${MILESTONE_TEXT[grant.source](grant.at)} ` : '';
+            if (grant.granted) return { kind: 'new', title: `Nová pomůcka: ${item.name}`, text: `${why}V Řetězovce dne zachrání řetěz ještě jednou, když už je Záchrana použitá.` };
+            if (grant.full) return { kind: 'full', text: 'Záchranu navíc už máš. Víc než jednu mít nejde, tahle propadla.' };
+            return { kind: null };
+        }
         if (grant.granted) return { kind: 'new', title: 'Nová pomůcka do Dobývání', text: `${item.name} (${grant.count}/${item.max})` };
         if (grant.full) return { kind: 'full', text: grant.kind === 'extra_move' ? 'Tah navíc už máš, víc jich mít nejde.' : 'Půl na půl už máš dvakrát, víc jich mít nejde.' };
         return { kind: null };
@@ -2203,9 +2215,20 @@
                     ${status}
                 </div></li>`;
         };
+        // Mimo hru (rozcestník) i pomůcky do jiných módů, které databáze zná (Záchrana navíc do Řetězovky, blok 37: items.chain_rescue):
+        // jen krátký řádek (pečeť, název, kam patří, zásoba), ať se okno vejde i na malý displej
+        const otherRow = (kind) => {
+            const item = ITEMS[kind];
+            return `<li class="cq-item-card flex items-center gap-2.5 rounded-2xl px-2 py-1.5" data-cq-item-card="${kind}">
+                ${itemSealHtml(kind, 'h-9 w-9', { empty: !have[kind], mark: 'text-[10px]' })}
+                <div class="min-w-0 flex-1 leading-tight"><b class="cq-ledger-title text-[14px]">${esc(item.name)}</b><span class="block text-[11.5px] font-semibold opacity-80">Do Řetězovky dne: zachrání řetěz ještě jednou.</span></div>
+                <span class="shrink-0 text-[13px] font-black tabular-nums" aria-label="Máš ${stockLabel(have, kind)}">${stockText(have, kind)}</span></li>`;
+        };
+        const others = game ? [] : Object.keys(ITEMS).filter(kind => ITEMS[kind].place && typeof have[kind] === 'number');
         return `<div class="flex flex-col gap-2" data-cq-items-dialog>
             <ul class="flex flex-col gap-2">${ITEM_IDS.map(card).join('')}</ul>
             <p class="px-1 text-[11.5px] font-semibold leading-snug text-slate-500 dark:text-slate-400">Pomůcky jsou vzácné a každou jde v jedné hře použít jen jednou. Najednou můžeš mít nejvýš ${ITEMS.extra_move.max} Tah navíc a ${ITEMS.fifty.max} Půl na půl.</p>
+            ${others.length ? `<ul class="flex flex-col gap-2">${others.map(otherRow).join('')}</ul>` : ''}
         </div>`;
     };
     // Potvrzení Tahu navíc (vzácná pomůcka: klepnutí a potvrzení)
