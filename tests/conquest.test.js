@@ -55,6 +55,60 @@ test('barvy a znaky: 9 co nejodlišnějších barev a 24 znaků, shodné se serv
     assert.equal(new Set(C.EMBLEMS.map(e => e.name)).size, 24);
 });
 
+test('vzory praporců a vzácné znaky (č. 278–296): obrázky existují, masky a textury se vykreslí bez inline stylů, každé SVG s vlastními id', () => {
+    // 12 vzorů a 12 vzácných znaků podle docs/ODMENY-DOBYVANI.md, id se nekryjí se základními znaky
+    assert.equal(C.PATTERNS.length, 12);
+    assert.equal(C.RARE_EMBLEMS.length, 12);
+    assert.equal(new Set(C.PATTERNS.map(p => p.id)).size, 12);
+    for (const emblem of C.RARE_EMBLEMS) assert.ok(!C.EMBLEMS.some(e => e.id === emblem.id), emblem.id);
+    // Všechny dodané obrázky jsou zapojené (každý zdroj v branding/ikony má svůj znak nebo vzor s obrázkem) a soubory existují
+    const delivered = fs.readdirSync(path.join(ROOT, 'branding', 'ikony')).filter(f => /^(znak|vzor)-.+\.png$/.test(f)).map(f => f.replace(/\.png$/, ''));
+    const wired = [...C.RARE_EMBLEMS.filter(e => e.art).map(e => `znak-${e.art}`), ...C.PATTERNS.filter(p => p.art && p.art.startsWith('vzory/')).map(p => `vzor-${p.art.slice(6)}`)];
+    assert.deepEqual([...delivered].sort(), [...wired].sort());
+    const webp = (rel) => {
+        const file = path.join(ROOT, rel);
+        assert.ok(fs.existsSync(file), `${rel} existuje`);
+        const head = fs.readFileSync(file).subarray(0, 12);
+        assert.equal(head.toString('ascii', 8, 12), 'WEBP', `${rel} je WebP`);
+    };
+    for (const emblem of C.RARE_EMBLEMS.filter(e => e.art)) {
+        webp(C.emblemArtUrl(emblem.art));
+        webp(C.emblemArtUrl(emblem.art, true));
+        const markup = emblem.draw('#123456');
+        assert.match(markup, new RegExp(`<mask id="(cqm\\w+)"[^>]*><image href="icons/znaky/${emblem.art}\\.webp"[^>]*/></mask><rect [^>]*fill="#123456" mask="url\\(#\\1\\)"/>`));
+        assert.match(emblem.halo('#654321'), new RegExp(`icons/znaky/${emblem.art}-obrys\\.webp`));
+        // Každé vykreslení má vlastní id masky (víc znaků na jedné stránce se nepomíchá)
+        assert.notEqual(emblem.draw('#fff').match(/id="([^"]+)"/)[1], emblem.draw('#fff').match(/id="([^"]+)"/)[1]);
+        assert.equal(C.emblemOf(emblem.id), emblem);
+        assert.doesNotMatch(C.pennantSvg('modra', emblem.id) + C.sealSvg('zluta', emblem.id) + C.emblemSvg(emblem.id), /style=|undefined|NaN/);
+    }
+    // Znak, jehož obrázek ještě nedorazil, se kreslí základním znakem
+    for (const emblem of C.RARE_EMBLEMS.filter(e => !e.art)) assert.equal(emblem.draw('#fff'), C.emblemOf(emblem.fallback).draw('#fff'));
+    for (const pattern of C.PATTERNS) {
+        if (pattern.art) webp(`icons/${pattern.art}.webp`);
+        for (const color of ['cervena', 'zluta', 'cerna']) {
+            const flag = C.pennantSvg(color, 'lev', 'h-6 w-8', pattern.id);
+            const id = flag.match(/<pattern id="([^"]+)"/)[1];
+            assert.match(flag, new RegExp(`<path d="M0 0H30L24 11L30 22H0Z" fill="url\\(#${id}\\)"`), `${pattern.id}: praporec ve vzoru`);
+            if (pattern.art) assert.ok(flag.includes(`href="icons/${pattern.art}.webp"`));
+            // Šedý vzor se násobí barvou hráče (filtr), barevný má lem v barvě hráče
+            if (pattern.art && !pattern.colored) assert.match(flag, new RegExp(`<filter id="${id}f"[^>]*><feColorMatrix`));
+            if (pattern.colored) assert.ok(flag.includes(`stroke="${C.colorOf(color).hex}" stroke-width="2.6"`), `${pattern.id}: lem v barvě hráče`);
+            const seal = C.sealSvg(color, 'sfinga', 'h-10 w-10', pattern.id);
+            assert.match(seal, /<circle cx="24.1" cy="24.3" r="11.5" fill="url\(#cqv\w+\)"\/>/);
+            assert.doesNotMatch(flag + seal, /style=|undefined|NaN/);
+        }
+    }
+    // Bez vzoru (a s neznámým vzorem) se praporec kreslí jako dřív
+    assert.equal(C.pennantSvg('modra', 'lev', 'h-6 w-8', 'neznamy'), C.pennantSvg('modra', 'lev'));
+    assert.equal(C.sealSvg('modra', 'lev', 'h-14 w-14', null), C.sealSvg('modra', 'lev'));
+    // Mapa: vlaječka majitele nese jeho vzor a vzácný znak
+    const state = sampleState();
+    state.players[1] = { ...state.players[1], emblem: 'kraken', pattern: 'led' };
+    const svg = C.mapSvg(maps.evropa, C.viewOf(state, maps.evropa, 'A'));
+    assert.ok(svg.includes('icons/znaky/kraken.webp') && svg.includes('icons/vzory/led.webp'));
+});
+
 test('mapy: data jsou aktuální (scripts/build-dobyvani.js --check), včetně sousedství a regionů v schema.sql', () => {
     const run = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'build-dobyvani.js'), '--check'], { encoding: 'utf8' });
     assert.equal(run.status, 0, run.stderr || run.stdout);
