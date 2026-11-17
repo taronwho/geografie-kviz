@@ -156,15 +156,15 @@
     // Jen devět co nejodlišnějších barev (hráčů je nejvýš osm), aby se na mapě nepletly; speciální vzory můžou přibýt jako odměny
     const COLORS = [
         ['cervena', 'Červená', '#d7263d'], ['oranzova', 'Oranžová', '#ec7012'], ['zluta', 'Žlutá', '#f5cc12'], ['zelena', 'Zelená', '#2c9a3c'],
-        ['tyrkysova', 'Tyrkysová', '#0fa8b0'], ['modra', 'Modrá', '#2152d0'], ['fialova', 'Fialová', '#8530c4'], ['ruzova', 'Růžová', '#ec4fa3'],
-        ['cerna', 'Černá', '#262422']
+        ['tyrkysova', 'Tyrkysová', '#0fa8b0'], ['nebeska', 'Nebeská', '#7ec8f2'], ['modra', 'Modrá', '#2152d0'], ['fialova', 'Fialová', '#8530c4'],
+        ['ruzova', 'Růžová', '#ec4fa3'], ['hneda', 'Hnědá', '#7b4f2b'], ['bila', 'Bílá', '#f4f1ea'], ['cerna', 'Černá', '#262422']
     ].map(([id, name, hex]) => ({ id, name, hex }));
     // Barvy z dřívější nabídky: vybrat už nejdou, rozehrané hry je ale dál vykreslí
     const LEGACY_COLORS = [
         ['karminova', 'Karmínová', '#9e1b2c'], ['malinova', 'Malinová', '#b0207e'], ['cihlova', 'Cihlová', '#b8512e'], ['jantarova', 'Jantarová', '#d99a0b'],
         ['olivova', 'Olivová', '#7d8a22'], ['limetkova', 'Limetková', '#7cbf2a'], ['lesni', 'Lesní', '#1d6331'], ['smaragdova', 'Smaragdová', '#0aa37a'],
         ['petrolejova', 'Petrolejová', '#0d7280'], ['azurova', 'Azurová', '#2d97e6'], ['namornicka', 'Námořnická', '#1c2a6b'], ['indigova', 'Indigová', '#4b39b8'],
-        ['levandulova', 'Levandulová', '#9f84e6'], ['hneda', 'Hnědá', '#7b4f2b'], ['bridlicova', 'Břidlicová', '#4f5a68']
+        ['levandulova', 'Levandulová', '#9f84e6'], ['bridlicova', 'Břidlicová', '#4f5a68']
     ].map(([id, name, hex]) => ({ id, name, hex }));
     const COLOR_BY_ID = Object.fromEntries([...COLORS, ...LEGACY_COLORS].map(color => [color.id, color]));
     const hexRgb = (hex) => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
@@ -173,7 +173,9 @@
     const luminance = (hex) => { const [r, g, b] = hexRgb(hex).map(v => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
     // Inkoust (okraj vlastních území, vlaječka) a barva znaku na vlaječce (bílá, na světlé barvě tmavá)
     const colorOf = (id) => COLOR_BY_ID[id] || COLORS[0];
-    const inkOf = (id) => mix(colorOf(id).hex, '#1a1008', 0.38);
+    // Bílá: násobení pergamen nezmění, proto se kreslí krycí lazurou (isLight) a s tmavším inkoustem, ať je území i okraj vidět
+    const isLight = (id) => luminance(colorOf(id).hex) > 0.7;
+    const inkOf = (id) => mix(colorOf(id).hex, '#1a1008', isLight(id) ? 0.6 : 0.38);
     const emblemInk = (id) => (luminance(colorOf(id).hex) > 0.42 ? '#2a1d10' : '#ffffff');
 
     // --- Znaky (stejný seznam má server: conquest_emblems). Kresby 24 × 24 jednou barvou (c), čitelné i na malé vlaječce ---
@@ -2229,7 +2231,7 @@
         if (!opts.thumb && data.deco) ['compass', 'ship', 'monster'].forEach((kind, i) => { if (data.deco[i]) parts.push(decoMarkup(kind, data.deco[i])); });
         // Území: neutrální jen pergamen; obsazené jako ručně kolorovaná stará mapa: světlá lazura barvou hráče, sytý pruh barvy podél
         // hranice uvnitř území (ořezaný obrysem území), šrafa a inkoustová linka (vše násobením, pergamen prosvítá)
-        const washes = [], hatches = [], inks = [];
+        const washes = [], lights = [], hatches = [], inks = [];
         for (const item of data.t) {
             const info = view ? view.owners.get(item.id) : null;
             const owner = info && info.owner ? view.byId.get(info.owner) : null;
@@ -2237,7 +2239,7 @@
                 // Se vzorem: výplň místo lazury (šrafa odpadá, vzor je sám rozlišením); u barevných vzorů sytější lem v barvě hráče
                 const vzor = filled.get(owner.seat);
                 defs.push(`<clipPath id="${prefix}-in-${item.id}"><path d="${item.d}"/></clipPath>`);
-                washes.push(`<path class="cq-wash${vzor ? ' cq-wash-fill' : ''}" data-wash="${item.id}" d="${item.d}" fill="${vzor ? `url(#${prefix}-fill-${owner.seat})` : owner.color.hex}"/>`
+                (isLight(owner.flag_color) ? lights : washes).push(`<path class="cq-wash${vzor ? ' cq-wash-fill' : ''}" data-wash="${item.id}" d="${item.d}" fill="${vzor ? `url(#${prefix}-fill-${owner.seat})` : owner.color.hex}"/>`
                     + `<path class="cq-band${vzor && vzor.colored ? ' cq-band-strong' : ''}" data-band="${item.id}" d="${item.d}" stroke="${owner.color.hex}" clip-path="url(#${prefix}-in-${item.id})"/>`);
                 if (!vzor) hatches.push(`<path data-hatch="${item.id}" d="${item.d}" fill="url(#${prefix}-hatch-${owner.seat})"/>`);
                 inks.push(`<path class="cq-ink${owner.me ? ' cq-ink-me' : ''}" data-ink="${item.id}" d="${item.d}" stroke="${inkOf(owner.flag_color)}"/>`);
@@ -2246,14 +2248,16 @@
         // Akvarelová lazura (č. 264): šedá textura řídí, jak silně barva hráče na území drží (maska) – kde se v textuře barva slila
         // (tmavší skvrny), je lazura plná, jinde o čtvrtinu slabší; barva tak zůstane čistá a jen nerovnoměrná jako skutečný akvarel
         let aqua = '';
-        if (ART.watercolor && washes.length) {
+        if (ART.watercolor && (washes.length || lights.length)) {
             const tile = Math.round(Math.max(w, h) / 2.4);
             defs.push(`<pattern id="${prefix}-aqua" width="${tile}" height="${tile}" patternUnits="userSpaceOnUse"><image href="icons/textury/${ART.watercolor}.webp" width="${tile}" height="${tile}"/></pattern>`
                 + `<filter id="${prefix}-aqua-f" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="-1 0 0 0 1.75 -1 0 0 0 1.75 -1 0 0 0 1.75 0 0 0 1 0"/></filter>`
                 + `<mask id="${prefix}-aqua-m" maskUnits="userSpaceOnUse" x="0" y="0" width="${w}" height="${h}"><rect width="${w}" height="${h}" fill="url(#${prefix}-aqua)" filter="url(#${prefix}-aqua-f)"/></mask>`);
             aqua = ` mask="url(#${prefix}-aqua-m)"`;
         }
-        parts.push(`<g class="cq-washes" pointer-events="none"${aqua}>${washes.join('')}</g><g pointer-events="none">${hatches.join('')}</g>`);
+        parts.push(`<g class="cq-washes" pointer-events="none"${aqua}>${washes.join('')}</g>`
+            + (lights.length ? `<g class="cq-washes cq-washes-light" pointer-events="none"${aqua}>${lights.join('')}</g>` : '')
+            + `<g pointer-events="none">${hatches.join('')}</g>`);
         // Celé regiony: zlatá záře obrysu (pod hranicemi)
         if (view) for (const region of data.regions) {
             const owner = view.ownerOf(region.t[0]);
@@ -2844,7 +2848,7 @@
         const lockedInfo = (kind) => (infoItem && info.kind === kind ? infoLine(`<b>${esc(infoItem.name)}</b> · ${esc(lookHowText(looks, infoItem))}`, true) : '');
         let body;
         if (current === 'color') {
-            body = `<div role="radiogroup" aria-label="Barva" class="grid grid-cols-3 gap-1">${COLORS.map(item => {
+            body = `<div role="radiogroup" aria-label="Barva" class="grid grid-cols-4 gap-1">${COLORS.map(item => {
                 const off = taken.includes(item.id) && item.id !== color;
                 return `<button type="button" role="radio" aria-checked="${item.id === color}" aria-label="${esc(item.name)}${off ? ' (má jiný hráč)' : ''}" data-cq-color="${item.id}" ${off ? 'disabled' : ''} class="cq-seal-pick relative flex h-[4.25rem] items-center justify-center rounded-xl">${sealSvg(item.id, emblem, 'h-14 w-14')}${off ? '<i data-lucide="lock" class="cq-seal-lock absolute bottom-1 right-2 h-4 w-4"></i>' : ''}</button>`;
             }).join('')}</div>`;
@@ -3480,7 +3484,7 @@
     return {
         ART, MAPS, MAP_BY_ID, DURATIONS, PERIODS, PERIOD_MINUTES, LENGTHS, TEMPOS, tempoOf, defaultMinutes, minutesLabel, gameMinutes, roundLabel, MIN_PLAYERS, MAX_PLAYERS, MAX_ACTIONS, MAX_GAMES, MAX_OWN_LOBBIES, REGION_POINTS, LEVELS, REWARD_XP,
         COLORS, COLOR_BY_ID, EMBLEMS, EMBLEM_BY_ID, RARE_EMBLEMS, RARE_EMBLEM_BY_ID, PATTERNS, PATTERN_BY_ID, patternOf, emblemArtUrl, patternUrl, colorOf, emblemOf,
-        lookItem, lookOwned, emblemAllowed, patternAllowed, lookProgress, lookHowText, lookNews, lookNewsArt, fillSwatchSvg, patternTintRows, tileKey, COLORED_PATTERNS, inkOf, emblemInk, luminance, maxLevel, rewardFor,
+        lookItem, lookOwned, emblemAllowed, patternAllowed, lookProgress, lookHowText, lookNews, lookNewsArt, fillSwatchSvg, patternTintRows, tileKey, COLORED_PATTERNS, inkOf, isLight, emblemInk, luminance, maxLevel, rewardFor,
         durationLabel, periodLabel, actionsLabel, timeLeft, movesWord, pointsWord, playersWord, territoriesWord, regionsWord, nextPeriodAt, agoLabel, periodLine,
         budgetTitle, budgetInnerHtml, periodStartText, PENALTY_TEXT,
         indexMap, parseRings, pointInRings, spansAt, labelSpot, labelMax, labelAt, labelFit, project, territoryAt, isAdjacent, viewOf, rank, sourcesFor, actionsFor,

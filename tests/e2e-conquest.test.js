@@ -158,7 +158,7 @@ const backend = async (context, db) => {
         // Vývojářští boti (blok 22): do lobby (chtějí hrát, plná hra začne), jejich tahy hned (každý bot dobude jedno volné území), další období
         if (name === 'dev_conquest_add_bots') {
             const g = find(body.game);
-            const colours = ['zelena', 'zluta', 'fialova', 'oranzova', 'tyrkysova', 'ruzova', 'cerna'].filter(c => !g.players.some(p => p.flag_color === c));
+            const colours = ['bila', 'nebeska', 'hneda', 'zelena', 'zluta', 'fialova', 'oranzova', 'tyrkysova', 'ruzova', 'cerna'].filter(c => !g.players.some(p => p.flag_color === c));
             const count = Math.min(body.how_many, g.max_players - g.players.length);
             for (let i = 0; i < count; i++) {
                 const bot = `bot-${db.seq++}`;
@@ -1540,6 +1540,8 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         db.chestPattern = true;
         await tab.evaluate(() => {
             const state = JSON.parse(localStorage.getItem('mudrlant.rewards'));
+            // Truhla téhož týdne je už otevřená: vrátíme ji, aby čekala znovu (jinak by ji aplikace při načtení vyřadila)
+            delete state.chests['2026-11-09'];
             state.ready = ['2026-11-09'];
             localStorage.setItem('mudrlant.rewards', JSON.stringify(state));
         });
