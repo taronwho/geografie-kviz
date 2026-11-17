@@ -17,6 +17,8 @@ Vzor je „látka“ praporce, pečeti a vlaječek na mapě. Barva hráče zůst
 vzor se přes ni položí (šedá textura vynásobená barvou, stejně jako dnes pečeť a střechy staveb). Dva vzory jsou vícebarevné
 (Duha, Zlatý brokát): praporec je celý ve vzoru, jen lem má barvu hráče.
 
+**Stav (vykreslení hotové, volba ještě ne):** všech 12 vzorů je v `conquest.js` `PATTERNS` (obrázky č. 278–284 v `icons/vzory/`, Zlatá fólie z `icons/textury/textura-zlato.webp`, Šachovnice, Pokosy, Vlnky a Hermelín jako kresby SVG). `pennantSvg`, `pennantGroup` (vlaječky na mapě) a `sealSvg` je kreslí, když hráč má pole `pattern`; barevné vzory (Brokát, Duha, Zlatá fólie, Hermelín) mají lem v barvě hráče a znak s obrysem v jeho barvě. Server pole `pattern` ani odemykání zatím nemá (oddíl 8).
+
 | Vzor | Jak vypadá | Jak ho získat |
 |---|---|---|
 | Šachovnice | heraldická šachovnice (kresba SVG) | Dohraj 5 her v Dobývání |
@@ -36,6 +38,8 @@ vzor se přes ni položí (šedá textura vynásobená barvou, stejně jako dnes
 
 Znak je dnes vektorová kresba ze 24 základních. Vzácné znaky budou černé siluety z obrázků (č. 285–296) převedené na masku, takže
 je jde tisknout do pečeti i na praporec v barvě hráče stejně jako dnešní znaky.
+
+**Stav (vykreslení hotové, volba ještě ne):** všech 12 znaků (č. 285–296, i Gryf) je v `conquest.js` `RARE_EMBLEMS` jako masky `icons/znaky/<id>.webp` a `<id>-obrys.webp` (`python3 scripts/conquest-art.py znaky`); `emblemOf` je zná, takže se vykreslí na praporci, pečeti i mapě. Do nabídky ve hře (`EMBLEMS`, server `conquest_emblems`) zatím nepatří, dokud nebude odemykání (oddíl 8).
 
 | Znak | Jak ho získat |
 |---|---|
@@ -105,7 +109,7 @@ bitev), Mořeplavec (100 území přes moře), Bleskový stratég (10 výher v B
    hry a výhra, hry bez ztráty domova) – počítá conquest_finish a tahy; odemčené věci se uloží k profilu.
 2. Volba vzhledu ve hře: `conquest_players` dostane `pattern`, `castle_set`, `effect` (server ověří, že je hráč má odemčené).
 3. Vykreslení: vzor v `pennantGroup` a `sealSvg` (maska praporce + textura), hrad podle sady v `BUILDINGS`, efekty v conquest-ui.js.
-4. Obrázky: č. 278–308 v docs/OBRAZKY.md (oddíl 24) + skripty na textury, siluety znaků a sady hradů (building-art.py).
+4. Obrázky: č. 278–308 v docs/OBRAZKY.md (oddíl 24) + skripty na textury, siluety znaků a sady hradů (building-art.py). Vzory a znaky (č. 278–296) jsou dodané a převedené (`scripts/conquest-art.py vzory znaky`), vykreslení v bodě 3 je hotové; chybí body 1 a 2 a hrady.
 
 ## 9. Pomůcky (hotovo, schéma 30)
 
