@@ -63,14 +63,24 @@ const backend = async (context, db) => {
             if (name === 'schema_version') return json(REQUIRED_SCHEMA);
             if (name === 'touch_seen') return route.fulfill({ status: 204, body: '' });
             if (name === 'friends_list' || name === 'weekly_leaderboard') return json([]);
+            if (name === 'player_items_mine' && db.items) { db.calls.push({ name, body }); return json(db.items); }
             if (/^chain_/.test(name)) {
                 db.calls.push({ name, body });
                 if (db.missing) return json({ code: 'PGRST202', message: 'Could not find the function' }, 404);
                 if (name === 'chain_submit') {
-                    if (!db.mine) db.mine = { links: body.links, score: body.score, rescued: body.rescued };
-                    return json({ day: body.for_day, ...db.mine, rank: 2 });
+                    const fresh = !db.mine;
+                    if (!db.mine) db.mine = { links: body.links, score: body.score, rescued: body.rescued, ...(db.rescueUsed && body.rescued ? { extra: true } : {}) };
+                    return json({ day: body.for_day, ...db.mine, rank: 2, ...(fresh && db.rescueItem ? { rescue_item: db.rescueItem } : {}) });
                 }
                 if (name === 'chain_day_stats') return json(statsOf(db));
+                // Záchrana navíc (blok 37): jednou za den, ubere zásobu; bez db.items jako starší databáze (404)
+                if (name === 'chain_use_rescue' && db.items) {
+                    if (db.rescueUsed) return json({ used: true, already: true, items: db.items });
+                    if (db.items.chain_rescue < 1) return json({ code: 'P0001', message: 'Záchranu navíc teď nemáš.' }, 400);
+                    db.items.chain_rescue -= 1;
+                    db.rescueUsed = true;
+                    return json({ used: true, already: false, items: db.items });
+                }
                 // Odznaky Řetězovky (blok 36): dny a celé řetězy bez Záchrany podle serveru; bez db.counts jako starší databáze (404)
                 if (name === 'chain_badge_counts' && db.counts) return json(db.counts);
             }
@@ -501,6 +511,124 @@ test('Řetězovka dne v prohlížeči', { skip: !chromium && 'Playwright není n
         await legacy.tab.click('[data-action="chain-result"]');
         await legacy.tab.waitForSelector('#chain-result');
         await legacy.tab.waitForFunction(() => /není k dispozici/.test(document.getElementById('chain-stats').textContent));
+        assert.deepEqual(legacy.log.errors, []);
+        await legacy.context.close();
+    });
+
+    await t.test('Záchrana navíc (blok 37): dlaždice a štítek se zásobou, nabídka po použité Záchraně, použití na serveru, dva zachráněné články, zisk za milník', async () => {
+        const db = newDb();
+        db.items = { extra_move: 0, fifty: 0, chain_rescue: 1, max: { extra_move: 1, fifty: 2, chain_rescue: 1 } };
+        db.rescueItem = { kind: 'chain_rescue', granted: true, full: false, already: false, count: 1, max: 1, source: 'chain-days', at: 10 };
+        const { context, tab, log } = await open(browser, { ...login, 'mudrlant.chain': JSON.stringify({ intro: true }) }, { db });
+        // Dlaždice: pomůcka v zásobě
+        await tab.waitForFunction(() => /Záchrana navíc ✓/.test((document.getElementById('chain-card') || {}).textContent || ''), null, { timeout: 20000 });
+        assert.equal(await compact(tab, '#chain-card'), 'Řetězovka 7 článků · Záchrana navíc ✓ Hrát');
+        await openChain(tab);
+        await nextQuestion(tab, 1);
+        const chain = (await store(tab)).attempt.chain;
+        const withRescue = chain.questions.map((question, i) => (question.rescue ? i + 1 : 0)).filter(Boolean);
+        assert.ok(withRescue.length >= 2, 'řetěz dne má aspoň dva články se Záchranou');
+        const [first, second] = withRescue;
+        const playTo = async (k) => {
+            for (let n = (await answers(tab)).k; n < k; n++) {
+                const ask = await answers(tab);
+                await choose(tab, ask.right);
+                await nextQuestion(tab, n + 1);
+            }
+        };
+        // Štítek Záchrany s „+1“; běžná Záchrana má přednost
+        await tab.waitForSelector('#chain-question [data-chain-extra="ready"]');
+        await playTo(first);
+        let ask = await answers(tab);
+        await choose(tab, ask.wrong);
+        await tab.waitForSelector('[data-chain-decide]');
+        assert.equal(await tab.$('[data-chain-decide-extra]'), null, 'nejdřív běžná Záchrana');
+        await tab.click('[data-action="chain-rescue"]');
+        await tab.waitForSelector('#chain-screen[data-chain-phase="ask"]');
+        ask = await answers(tab);
+        await choose(tab, ask.right);
+        await nextQuestion(tab, first + 1);
+        assert.match(await compact(tab, '#chain-question [data-chain-rescue="extra"]'), /^Záchrana navíc$/);
+        await playTo(second);
+        // Druhá chyba: nabídka Záchrany navíc s pečetí
+        ask = await answers(tab);
+        await choose(tab, ask.wrong);
+        await tab.waitForSelector('[data-chain-decide-extra]');
+        assert.match(await compact(tab, '[data-chain-decide]'), /Záchrana už je použitá, máš ale pomůcku Záchrana navíc: dostaneš jinou otázku na stejný článek\. Když ji zodpovíš, řetěz drží dál, článek je ale za 0 bodů\. (\+1 )?Použít Záchranu navíc Ukončit řetěz$/);
+        assert.ok(await tab.$('[data-chain-extra-use] .cq-item-seal.cq-item-chain_rescue'), 'pečeť pomůcky');
+        assert.deepEqual((await store(tab)).attempt.pending, { k: second, chosen: ask.wrong, phase: 'decide', extra: true });
+        await fitsScreen(tab, 'nabídka Záchrany navíc (360×640)');
+        await audit(tab, 'nabídka Záchrany navíc');
+        await shot(tab, 'zachrana-navic-praska-360x640-light');
+        const offerState = JSON.stringify(await store(tab));
+        assert.ok(!db.calls.some(call => call.name === 'chain_use_rescue'), 'pomůcka se použije až klepnutím');
+        await tab.click('[data-action="chain-rescue"]');
+        await tab.waitForSelector('#chain-screen[data-chain-phase="ask"]');
+        assert.deepEqual(db.calls.filter(call => call.name === 'chain_use_rescue').map(call => call.body), [{ for_day: TODAY }]);
+        assert.match(await compact(tab, '#chain-question'), /Záchrana navíc · za 0 bodů/i);
+        await fitsScreen(tab, 'otázka Záchrany navíc');
+        await audit(tab, 'otázka Záchrany navíc');
+        await shot(tab, 'zachrana-navic-otazka-360x640-light');
+        ask = await answers(tab);
+        await choose(tab, ask.right);
+        // Další chyba přetrhne (nebo celý řetěz)
+        if (second < 7) {
+            await nextQuestion(tab, second + 1);
+            assert.match(await compact(tab, '#chain-question [data-chain-rescue]'), /^Záchrana použita$/);
+            ask = await answers(tab);
+            await choose(tab, ask.wrong);
+            await tab.waitForSelector('[data-chain-broken]');
+            await tab.click('[data-action="chain-result"]');
+        }
+        await tab.waitForSelector('#chain-result');
+        const links = second;
+        for (let i = 0; i < 100 && !db.calls.some(call => call.name === 'chain_submit'); i++) await tab.waitForTimeout(100);
+        assert.deepEqual(db.calls.filter(call => call.name === 'chain_submit').map(call => call.body), [{ for_day: TODAY, links, score: links * (links + 1) / 2 - first - second, rescued: true }]);
+        assert.match(await compact(tab, '#chain-result'), new RegExp(`${links}/7 článků · se dvěma Záchranami`));
+        assert.match(await compact(tab, `[data-action="chain-step"][data-k="${second}"]`), /Záchrana navíc$/);
+        // Milník Řetězovky: nová Záchrana navíc (oslava)
+        await tab.waitForFunction(() => /Nová pomůcka: Záchrana navíc.*Za 10 dohraných Řetězovek dne/.test((document.getElementById('celebration') || {}).textContent || ''), null, { timeout: 15000 });
+        await tab.evaluate(() => { const card = document.getElementById('celebration'); if (card) card.remove(); });
+        await fitsScreen(tab, 'výsledek se Záchranou navíc');
+        await shot(tab, 'zachrana-navic-vysledek-360x640-light');
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+
+        // Nabídka na dalších velikostech a v tmavém režimu (rozehraná hra z uloženého stavu: rozhodnutí čeká)
+        for (const [viewport, colorScheme] of [[{ width: 360, height: 640 }, 'dark'], [{ width: 390, height: 780 }, 'light'], [{ width: 390, height: 780 }, 'dark']]) {
+            const again = newDb();
+            again.items = { extra_move: 0, fifty: 0, chain_rescue: 1 };
+            const view = await open(browser, { ...login, 'mudrlant.chain': offerState }, { db: again, viewport, colorScheme });
+            await openChain(view.tab);
+            await view.tab.waitForSelector('[data-chain-decide-extra]');
+            const tag = `${viewport.width}x${viewport.height}-${colorScheme}`;
+            await fitsScreen(view.tab, `nabídka Záchrany navíc ${tag}`);
+            await audit(view.tab, `nabídka Záchrany navíc ${tag}`);
+            await shot(view.tab, `zachrana-navic-praska-${tag}`);
+            assert.deepEqual(view.log.errors, []);
+            await view.context.close();
+        }
+
+        // Pomůcku mezitím použilo jiné zařízení (zásoba 0): zpráva a řetěz se přetrhne
+        const empty = newDb();
+        empty.items = { extra_move: 0, fifty: 0, chain_rescue: 0 };
+        const gone = await open(browser, { ...login, 'mudrlant.chain': offerState }, { db: empty });
+        await openChain(gone.tab);
+        await gone.tab.waitForSelector('[data-chain-decide-extra]');
+        await gone.tab.click('[data-action="chain-rescue"]');
+        await gone.tab.waitForSelector('[data-chain-broken]');
+        await gone.tab.waitForFunction(() => /Záchranu navíc teď nemáš\./.test(document.body.textContent));
+        assert.deepEqual(gone.log.errors, []);
+        await gone.context.close();
+
+        // Starší databáze (bez pomůcky): po použité Záchraně druhá chyba přetrhne, bez nabídky
+        const old = newDb();
+        const legacy = await open(browser, { ...login, 'mudrlant.chain': JSON.stringify({ intro: true }) }, { db: old });
+        assert.equal(await compact(legacy.tab, '#chain-card'), 'Řetězovka 7 článků Hrát');
+        await openChain(legacy.tab);
+        await nextQuestion(legacy.tab, 1);
+        assert.equal(await legacy.tab.$('#chain-question [data-chain-extra]'), null);
         assert.deepEqual(legacy.log.errors, []);
         await legacy.context.close();
     });

@@ -3258,6 +3258,21 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu) a hotový `odznak-retezovk
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A closed ring of seven big chunky polished golden chain links forming a perfect circle, with a small golden star shining in the middle of the ring and a few tiny sparkles around it. If a second image of a golden chain is attached, keep exactly its link shape and color. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
+## 28. Pomůcka Záchrana navíc do Řetězovky (č. 360)
+
+Pečeť pomůcky Záchrana navíc (schéma 37): zachrání řetěz v Řetězovce dne ještě jednou, když už je Záchrana použitá. **Stav: zatím
+zástupná pečeť** – tyrkysová kulatá pečeť s ikonou štítu s plusem a „+1“ (conquest.js `ITEMS.chain_rescue`, `art: null`, styl
+`.cq-item-chain_rescue`). Až obrázek dorazí, uložím ho do `branding/ikony/`, spustím `python3 scripts/topic-icons.py zachrana-navic`,
+nastavím `art: 'zachrana-navic'` a přidám ho do `sw.js`.
+
+#### 360. `zachrana-navic.png` – Pomůcka Záchrana navíc – čeká na dodání
+
+Kam: pomůcka Záchrana navíc v Řetězovce dne (tlačítko „Použít Záchranu navíc“ v panelu po chybě, oslava „Nová pomůcka: Záchrana navíc“, 12. stupeň Sezóny, Truhla Mudrlanta a Zlatá truhla, okno Pomůcky v rozcestníku Dobývání). Zobrazí se jako kulatá pečeť velká 24–64 px, proto jednoduchý tvar. Do dodání pečeť s ikonou štítu s plusem a „+1“. Přiložit: `branding/sova-original.jpg` (vzor stylu), hotový `tah-navic.png` (č. 309, vzor velikosti a stylu pomůcek) a hotový `odznak-retezovka.png` (č. 358, vzor zlatého řetězu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 28 px icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. If a second image of a game item is attached, match its size and sticker style so the items look like a set; if an image of a golden chain is attached, keep exactly its link shape and color. Subject: A chunky round life ring (lifebuoy) with four alternating teal and cream stripes and a thick rope looped around its outside, with one big polished golden chain link hooked through the ring so the ring holds the chain; a small round golden badge with a simple bold plus-cross shape sits on the upper right of the ring, and a few short golden sparkle lines around it suggest a bonus. Colors: teal, cream, warm gold, light brown rope. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
 ## Co udělám po dodání
 
 1. Uložím soubory do `branding/ikony/`, vyříznu pozadí (`python3 scripts/topic-icons.py …`) a u sov vyrobím barvy obleku (`python3 scripts/owl-robes.py`).

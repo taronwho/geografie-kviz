@@ -933,10 +933,12 @@
         return { week: cleanWeek(data.week), players: wholeNumber(data.players, 10000000), defeated: wholeNumber(data.defeated, 10000000), defeated_pct: wholeNumber(data.defeated_pct, 100),
             reached: data.reached === true, over: data.over === true, me: cleanBossMe(data.me) };
     });
-    // Společný bonus za skončený týden: { xp (kolik si připsat), reached, played, claimed }
+    // Společný bonus za skončený týden: { xp (kolik si připsat), reached, played, claimed, item (pomůcka Záchrana navíc, blok 37; cleanItemGrant) }
     const bossClaimBonus = (week) => guardBoss(async () => {
         const data = (await request('POST', 'rpc/boss_claim_bonus', { body: { for_week: cleanWeek(week) } })) || {};
-        return { week: cleanWeek(data.week), xp: Math.min(50, wholeNumber(data.xp, 50)), reached: data.reached === true, played: data.played === true, claimed: data.claimed === true };
+        const item = data.item ? cleanItemGrant(data.item) : null;
+        return { week: cleanWeek(data.week), xp: Math.min(50, wholeNumber(data.xp, 50)), reached: data.reached === true, played: data.played === true, claimed: data.claimed === true,
+            ...(item ? { item } : {}) };
     });
     // --- Řetězovka dne (blok 21 ve schema.sql, chain.js): odeslání výsledku dne a pořadí dne ---
     // Databáze bez funkcí (404): vrací se null a dál se o ně nežádá (hraje se jen v zařízení, bez pořadí); jiné chyby se vyhodí
@@ -948,14 +950,30 @@
             throw error;
         }
     };
-    // item = pomůcka Půl na půl za celý řetěz (blok 30, jen u nově uloženého výsledku; cleanItemGrant)
+    // item = pomůcka Půl na půl za celý řetěz (blok 30, jen u nově uloženého výsledku; cleanItemGrant), extra = hráč ten den použil Záchranu
+    // navíc, rescue_item = Záchrana navíc za milník Řetězovky (blok 37)
     const cleanChainMe = (row) => (row && typeof row === 'object'
         ? { links: wholeNumber(row.links, 7), score: wholeNumber(row.score, 28), rescued: row.rescued === true, rank: wholeNumber(row.rank, 10000000) || null,
-            ...(row.item ? { item: cleanItemGrant(row.item) } : {}) } : null);
-    // Výsledek dne (články, body, Záchrana); server přijme jen první výsledek dne a vrátí ten uložený
+            ...(row.extra === true ? { extra: true } : {}), ...(row.item ? { item: cleanItemGrant(row.item) } : {}), ...(row.rescue_item ? { rescue_item: cleanItemGrant(row.rescue_item) } : {}) } : null);
+    // Výsledek dne (články, body, Záchrana); server přijme jen první výsledek dne a vrátí ten uložený. Se Záchranou navíc (blok 37) se posílá
+    // totéž: že ji hráč ten den použil, ví server sám
     const chainSubmit = (day, links, score, rescued) => guardChain(async () => cleanChainMe(await request('POST', 'rpc/chain_submit', {
         body: { for_day: cleanDay(day), links: wholeNumber(links, 7), score: wholeNumber(score, 28), rescued: Boolean(rescued) }
     })));
+    // Pomůcka Záchrana navíc v Řetězovce dne (blok 37): { used, already (téhož dne už použitá), items (zásoba) }. Databáze bez bloku 37 (404):
+    // null a dál se o ni nežádá; „Záchranu navíc teď nemáš.“ a jiné zprávy serveru se vyhodí (status 400)
+    let chainRescueMissing = false;
+    const chainUseRescue = async (day) => {
+        if (chainRescueMissing) return null;
+        try {
+            const data = (await request('POST', 'rpc/chain_use_rescue', { body: { for_day: cleanDay(day) } })) || {};
+            return { used: data.used === true, already: data.already === true, items: cleanItems(data.items) };
+        } catch (error) {
+            if (error.status === 404) { chainRescueMissing = true; return null; }
+            if (error instanceof SocialError && error.status < 500 && error.status !== 401 && CZECH_MESSAGE.test(error.message)) throw error;
+            throw new SocialError('Záchranu navíc se nepodařilo použít. Zkus to znovu.', error && error.status);
+        }
+    };
     // Hráči dne, podíl celých řetězů, nejlepší výsledek, moje místo a nejlepší hráči (top)
     const chainDayStats = (day = null) => guardChain(async () => {
         const data = (await request('POST', 'rpc/chain_day_stats', { body: { for_day: cleanDay(day) } })) || {};
@@ -1334,30 +1352,33 @@
     // běžící hry bez kola, do té doby false.
     const conquestRoundsMissing = () => partMissing.rounds;
 
-    // ===== Pomůcky do Dobývání (blok 30): Tah navíc (nejvýš 1) a Půl na půl (nejvýš 2) =====
-    // Zásoba je na serveru. Zisk za Bosse týdne, Kvíz dne bez chyby, celou Řetězovku a výhru v Dobývání vrací jejich funkce jako item;
-    // Sezónu Mudrlanta a Truhlu Mudrlanta počítá aplikace a o pomůcku si řekne přes playerItemsClaim. Databáze bez bloku 30 (404):
-    // chyba se status 404 a conquestItemsMissing() pak vrací true.
-    const ITEM_KINDS = ['extra_move', 'fifty'];
-    const ITEM_MAX = { extra_move: 1, fifty: 2 };
-    // Zásoba { extra_move, fifty, max: { extra_move, fifty } }, nebo null
+    // ===== Pomůcky (blok 30 a 37): Tah navíc (nejvýš 1) a Půl na půl (nejvýš 2) do Dobývání, Záchrana navíc (nejvýš 1) do Řetězovky =====
+    // Zásoba je na serveru. Zisk za Bosse týdne, Kvíz dne bez chyby, celou Řetězovku, milníky Řetězovky a výhru v Dobývání vrací jejich funkce
+    // jako item (rescue_item); Sezónu Mudrlanta, Truhlu Mudrlanta a Zlatou truhlu počítá aplikace a o pomůcku si řekne přes playerItemsClaim.
+    // Databáze bez bloku 30 (404): chyba se status 404 a conquestItemsMissing() pak vrací true.
+    const ITEM_KINDS = ['extra_move', 'fifty', 'chain_rescue'];
+    const ITEM_MAX = { extra_move: 1, fifty: 2, chain_rescue: 1 };
+    // Zásoba { extra_move, fifty, chain_rescue, max }, nebo null; chain_rescue chybí, když ji databáze nezná (bez bloku 37)
     const cleanItems = (value) => (value && typeof value === 'object' && !Array.isArray(value)
-        ? { extra_move: wholeNumber(value.extra_move, ITEM_MAX.extra_move), fifty: wholeNumber(value.fifty, ITEM_MAX.fifty), max: { ...ITEM_MAX } } : null);
+        ? { extra_move: wholeNumber(value.extra_move, ITEM_MAX.extra_move), fifty: wholeNumber(value.fifty, ITEM_MAX.fifty),
+            ...(value.chain_rescue !== undefined && value.chain_rescue !== null ? { chain_rescue: wholeNumber(value.chain_rescue, ITEM_MAX.chain_rescue) } : {}), max: { ...ITEM_MAX } } : null);
     // Pomůcky ve hře: zásoba a v této hře extra_used, fifty_used, can_extra (Tah navíc jde použít teď) a extra_block (proč ne, česky)
     const cleanGameItems = (value) => {
         const items = cleanItems(value);
         return items ? { ...items, extra_used: value.extra_used === true, fifty_used: value.fifty_used === true, can_extra: value.can_extra === true,
             extra_block: typeof value.extra_block === 'string' ? value.extra_block.slice(0, 200) : null } : null;
     };
-    // Zisk pomůcky: { kind, granted (přibyla), full (zásoba už byla plná), already (zdroj už jednou započítaný), count, max, lucky (truhla) }
+    // Zisk pomůcky: { kind, granted (přibyla), full (zásoba už byla plná), already (zdroj už jednou započítaný), count, max, lucky (truhla),
+    // source a at (milník Řetězovky: 'chain-days' | 'chain-clean' a počet, blok 37) }
     const cleanItemGrant = (value) => (value && typeof value === 'object' && ITEM_KINDS.includes(value.kind) ? {
         kind: value.kind, granted: value.granted === true, full: value.full === true, already: value.already === true,
-        count: wholeNumber(value.count, ITEM_MAX[value.kind]), max: ITEM_MAX[value.kind], ...(typeof value.lucky === 'boolean' ? { lucky: value.lucky } : {}) } : null);
+        count: wholeNumber(value.count, ITEM_MAX[value.kind]), max: ITEM_MAX[value.kind], ...(typeof value.lucky === 'boolean' ? { lucky: value.lucky } : {}),
+        ...(value.source === 'chain-days' || value.source === 'chain-clean' ? { source: value.source, at: wholeNumber(value.at, 1000) } : {}) } : null);
     const itemsCall = async (name, body, fallback) => conquestCall(name, body, fallback, 'items');
     // Moje zásoba pomůcek
     const playerItemsMine = async () => cleanItems(await itemsCall('player_items_mine', {}, 'Pomůcky se nepodařilo načíst.'));
-    // Pomůcka ze Sezóny Mudrlanta (source 'season', key season:RRRR-MM:5 nebo :15) nebo z Truhly Mudrlanta (source 'chest', key chest:RRRR-Wtt;
-    // los dělá server): zisk (cleanItemGrant) a zásoba (items)
+    // Pomůcka ze Sezóny Mudrlanta (source 'season', key season:RRRR-MM:5, :12 nebo :15), z Truhly Mudrlanta (source 'chest', key chest:RRRR-Wtt)
+    // nebo ze Zlaté truhly (source 'gold', key gold:RRRR-Wtt, blok 37); los dělá server: zisk (cleanItemGrant) a zásoba (items)
     const playerItemsClaim = async (source, key) => {
         const data = (await itemsCall('player_items_claim', { source: conquestText(source, 12), key: conquestText(key, 40) }, 'Pomůcku se nepodařilo vyzvednout.')) || {};
         const grant = cleanItemGrant(data);
@@ -1441,8 +1462,8 @@
         ITEM_MAX, cleanItems, cleanItemGrant, playerItemsMine, playerItemsClaim, conquestUseExtra, conquestUseFifty, conquestItemsMissing,
         // Vývojářští boti v Dobývání (blok 22)
         devConquestAddBots, devConquestBotsPlay, devConquestNextPeriod,
-        // Řetězovka dne (blok 21)
-        chainSubmit, chainDayStats, chainBadgeCounts,
+        // Řetězovka dne (blok 21) a Záchrana navíc (blok 37)
+        chainSubmit, chainDayStats, chainBadgeCounts, chainUseRescue,
         // Motivace (blok 32): prestiž, pozvánky kamarádů, vítězný efekt
         getPrestige, prestigeUp, referralStatus, referralJoin, referralClaim, victoryFx, saveVictoryFx };
 });

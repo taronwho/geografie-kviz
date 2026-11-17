@@ -771,3 +771,26 @@ volně (neznámý obrázek bere jako základní emoji); všechno ostatní funguj
   v profilu, o něj nepřijde: `check_unlocks` kontroluje jen změněný obrázek a jiné barvy postavičky, kterou profil už má, pustí vždy
   (aplikace uložený obrázek také nezamyká). Kdo si mezitím vybere jiný obrázek, Pavouka znovu odemkne až odznakem Řetězovky.
 - Testy: `tests/sql-chain.test.js`, `tests/sql-motivace.test.js`, `tests/chain.test.js`, `tests/avatars.test.js` a `tests/badge-art.test.js`.
+
+## Pomůcka Záchrana navíc do Řetězovky (schéma 37)
+
+**Po aktualizaci spusť znovu celý `supabase/schema.sql` (verze 37).** Dokud ho nespustíš, aplikace Záchranu navíc nenabídne (zásoba ji
+nezná, `chain_use_rescue` chybí), 12. stupeň Sezóny dá běžnou věc a Řetězovka se hraje jako dřív s jednou Záchranou.
+
+- Druh pomůcky `chain_rescue` (nejvýš 1) ve stejné zásobě jako pomůcky do Dobývání (blok 30): `player_items`, `player_item_cap`,
+  `player_items_json` (`chain_rescue` a `max.chain_rescue`), zisky v `player_item_grants` s klíči níže.
+- **Použití** (blok 37): v Řetězovce dne po použité Záchraně a další chybě aplikace zavolá `chain_use_rescue(den)` – ubere zásobu a zapíše
+  `player_item_uses` (klíč `chain:<den>`, jednou za den, opakované volání vrátí `already` a nic neubere; po odeslání výsledku dne už nejde).
+  `chain_submit` (stále se čtyřmi parametry, starší aplikace funguje beze změny) pak přijme body se dvěma zachráněnými články
+  (o `max(články, 2 × články − 1)` méně), jen když použití ten den existuje; výsledek má `chain_results.extra_rescue` a `chain_json` vrací
+  `extra: true`. Řetěz dne je pro všechny stejný, mění se jen počet zvládnutých článků. Cvičná řetězovka pomůcku nepoužívá.
+- **Zisk** (každý klíč jednou, s plnou zásobou propadne a aplikace řekne „Záchranu navíc už máš…“):
+  - milníky Řetězovky v `chain_submit` (`chain_rescue_milestone`, výsledek má `rescue_item`): dohrané dny 10, 30, 100 a 365
+    (`chain-days:<n>`) a celé řetězy bez Záchrany 5, 15, 30 a 60 (`chain-clean:<n>`) podle `chain_results`; dá se nejvyšší dosažený
+    milník (kdo hrál už před pomůckou, dostane jednu za nejvyšší a nižší se přeskočí);
+  - 12. stupeň Sezóny Mudrlanta (`player_items_claim('season', 'season:<RRRR-MM>:12')`);
+  - Truhla Mudrlanta: stejný los jako Půl na půl (`player_item_roll`), 0–49 Půl na půl, 50–99 Záchrana navíc (`chest:<RRRR-Wtt>`);
+  - Zlatá truhla: `player_items_claim('gold', 'gold:<RRRR-Wtt>')`, 20 %, nejvýš jednou za týden;
+  - společný cíl Bosse týdne: `boss_claim_bonus` k 50 XP i `item` (`bossbonus:<týden>`).
+- Export dat má v `pomucky` i `pouzite` (použití z `player_item_uses`); smazání účtu je smaže (cizí klíč na profil).
+- Testy: `tests/sql-chain.test.js`, `tests/sql-pomucky.test.js`, `tests/sql-boss.test.js`, `tests/chain.test.js` a `tests/e2e-chain.test.js`.

@@ -72,7 +72,7 @@
     // Odměna stupně: části spojené „+“: 'kategorie:id' (věc), 'freeze' (ochrana série), 'xp:N'
     const SEASON_ID = /^\d{4}-(?:0[1-9]|1[0-2])$/;
     // pomucka:<druh> = pomůcka do Dobývání místo věci (season.js POMUCKA_TIERS, blok 30 ve schema.sql)
-    const SEASON_PART = '(?:freeze|xp:\\d{1,4}|pomucka:(?:fifty|extra_move)|(?:accessories|colors|frames|robes|themes|avatars|titles):[a-z0-9-]{1,30})';
+    const SEASON_PART = '(?:freeze|xp:\\d{1,4}|pomucka:(?:fifty|extra_move|chain_rescue)|(?:accessories|colors|frames|robes|themes|avatars|titles):[a-z0-9-]{1,30})';
     const SEASON_REWARD = new RegExp(`^${SEASON_PART}(?:\\+${SEASON_PART}){0,5}$`);
     const SEASON_TIERS = 20;
     const cleanSeason = (raw, past = false) => {
@@ -375,8 +375,9 @@
                 <p class="text-xs font-semibold leading-snug text-white/80">${esc(note || 'Všechny věci pro Mudrlanta už máš, tak aspoň body zkušeností.')}</p>
             </div>`) : '';
         const freeze = opened && opened.freeze ? `<p data-chest-freeze class="chest-show-2 relative z-10 flex items-center gap-1.5 rounded-xl bg-sky-500/20 px-3 py-1.5 text-xs font-black text-sky-100 ring-1 ring-sky-300/40">${freezeArt('h-6 w-6 -my-1')} A navíc ochrana série</p>` : '';
-        // Vzácně (los na serveru, blok 30) i pomůcka do Dobývání: opened.pomucka = { kind, name }; h.itemArt = pečeť pomůcky z app.js
-        const pomucka = opened && opened.pomucka ? `<p data-chest-pomucka class="chest-show-2 relative z-10 flex items-center gap-1.5 rounded-xl bg-violet-500/25 px-3 py-1.5 text-xs font-black text-violet-50 ring-1 ring-violet-300/50">${h.itemArt ? h.itemArt(opened.pomucka.kind, 'h-6 w-6 -my-1') : ''} A navíc pomůcka do Dobývání: ${esc(opened.pomucka.name)}</p>` : '';
+        // Vzácně (los na serveru, blok 30 a 37) i pomůcka: opened.pomucka = { kind, name, place ('do Dobývání' | 'do Řetězovky') }; h.itemArt = pečeť
+        // pomůcky z app.js
+        const pomucka = opened && opened.pomucka ? `<p data-chest-pomucka class="chest-show-2 relative z-10 flex items-center gap-1.5 rounded-xl bg-violet-500/25 px-3 py-1.5 text-xs font-black text-violet-50 ring-1 ring-violet-300/50">${h.itemArt ? h.itemArt(opened.pomucka.kind, 'h-6 w-6 -my-1') : ''} A navíc pomůcka ${esc(opened.pomucka.place || 'do Dobývání')}: ${esc(opened.pomucka.name)}</p>` : '';
         const actions = opened
             ? `<div class="chest-show-3 relative z-10 flex w-full gap-2">${opened.gift && opened.gift.category !== 'colors' ? `<button type="button" data-chest-wear class="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl btn-3d bg-gold-500 px-3 py-3 text-base font-black text-brand-950"><i data-lucide="sparkles" class="h-5 w-5"></i> ${opened.gift.category === 'themes' ? 'Použít' : 'Nasadit'}</button>` : ''}<button type="button" data-chest-close class="flex min-w-0 flex-1 items-center justify-center rounded-2xl bg-white/15 px-3 py-3 text-base font-bold text-white">${opened.gift && opened.gift.category !== 'colors' ? 'Později' : 'Super!'}</button></div>`
             : `<p class="chest-hint relative z-10 flex items-center gap-1.5 rounded-full bg-gold-400/15 px-3.5 py-1.5 text-sm font-black text-gold-200 ring-1 ring-gold-300/40"><i data-lucide="sparkles" class="h-4 w-4"></i> Klepni na truhlu</p>

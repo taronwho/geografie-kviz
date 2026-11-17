@@ -655,7 +655,9 @@
         const setState = (state) => {
             game.state = state;
             game.view = viewFor(state, game.data);
-            if (state.items && lobby) lobby.items = { extra_move: state.items.extra_move, fifty: state.items.fifty, max: state.items.max };
+            // (Záchrana navíc do Řetězovky, blok 37, zůstane v zásobě rozcestníku: okno Pomůcky ji ukazuje mimo hru)
+            if (state.items && lobby) lobby.items = { ...(lobby.items || {}), extra_move: state.items.extra_move, fifty: state.items.fifty,
+                ...(typeof state.items.chain_rescue === 'number' ? { chain_rescue: state.items.chain_rescue } : {}), max: state.items.max };
             paintRound();
             const me = state.players.find(player => player.me);
             if (lobby && me) upsertMine({ ...state, budget: state.budget, owners: Object.fromEntries((state.territories || []).filter(row => row.o).map(row => [row.t, (state.players.find(p => p.id === row.o) || {}).seat])) });

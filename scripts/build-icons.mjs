@@ -28,7 +28,9 @@ const ICONS = [
     // Odměny (rewards.js) a odznak Seřaď
     'list-ordered',
     // Archiv turnajů
-    'archive'
+    'archive',
+    // Pomůcka Záchrana navíc do Řetězovky (conquest.js ITEMS.chain_rescue, chain.js)
+    'shield-plus'
 ];
 
 const toPascalCase = (name) => name.replace(/(^|-)(\w)/g, (_, __, letter) => letter.toUpperCase());
