@@ -166,7 +166,7 @@ test('nápověda: záložka Pomůcky (obě pomůcky, jednou za hru, odkud), bez 
     assert.doesNotMatch(C.HELP_TABS.map(([id]) => C.helpHtml(id)).join(''), GENDERED);
     const icons = fs.readFileSync(path.join(ROOT, 'icons.js'), 'utf8');
     for (const name of [C.ITEMS.extra_move.icon, C.ITEMS.fifty.icon, C.ITEMS.revive.icon, 'shield', 'shield-check', 'info', 'chevron-right']) assert.ok(icons.includes(`"${name}":`), name);
-    // Obrázky pomůcek (č. 309 a 310) zatím nejsou: pečeť z ikony; prompty jsou v docs/OBRAZKY.md
+    // Obrázky pomůcek (č. 309 a 310) jsou dodané a zapojené; prompty jsou v docs/OBRAZKY.md
     const prompts = fs.readFileSync(path.join(ROOT, 'docs', 'OBRAZKY.md'), 'utf8');
     assert.match(prompts, /#### 309\. `tah-navic\.png`/);
     assert.match(prompts, /#### 310\. `pul-na-pul\.png`/);
