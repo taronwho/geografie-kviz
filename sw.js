@@ -85,9 +85,11 @@ const APP_SHELL = [
 ];
 
 self.addEventListener('install', (event) => {
-    // cache: 'reload' – soubory ze sítě, ne z mezipaměti prohlížeče (GitHub Pages je nechává platit 10 minut)
+    // cache: 'no-cache' – každý soubor se ověří u serveru (GitHub Pages je jinak nechává platit 10 minut), ale nezměněný soubor vrátí
+    // jen krátké 304 a vezme se z mezipaměti prohlížeče. Nová verze tak stahuje jen to, co se změnilo, ne celých ~25 MB (na mobilních
+    // datech se instalace dřív nestihla a v telefonu zůstávala stará verze)
     event.waitUntil(caches.open(CACHE_NAME)
-        .then(cache => cache.addAll(APP_SHELL.map(url => new Request(url, { cache: 'reload' }))))
+        .then(cache => cache.addAll(APP_SHELL.map(url => new Request(url, { cache: 'no-cache' }))))
         .then(() => self.skipWaiting()));
 });
 
