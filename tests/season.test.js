@@ -442,13 +442,13 @@ test('napojení a HTML: season.js v index.html, service workeru, nasazení a Tai
     assert.doesNotMatch(html, /\b(získal|vyzvedl|dosáhl|hrál) jsi\b/);
 });
 
-// Pomůcky do Dobývání (blok 30 ve schema.sql): 5. stupeň Půl na půl, 15. stupeň Tah navíc, když je server dá (přihlášený, zásoba není plná)
-test('pomůcky do Dobývání: 5. stupeň Půl na půl a 15. stupeň Tah navíc místo věci; bez nich (host, plná zásoba) stejná věc jako dřív', () => {
+// Pomůcky do Dobývání (blok 30 ve schema.sql): 5. stupeň 50/50, 15. stupeň Tah navíc, když je server dá (přihlášený, zásoba není plná)
+test('pomůcky do Dobývání: 5. stupeň 50/50 a 15. stupeň Tah navíc místo věci; bez nich (host, plná zásoba) stejná věc jako dřív', () => {
     const C = require('../conquest.js');
     assert.deepEqual(Season.POMUCKA_TIERS, { 5: 'fifty', 8: 'revive', 12: 'chain_rescue', 15: 'extra_move' });
     assert.deepEqual([Season.pomuckaOf(5), Season.pomuckaOf(8), Season.pomuckaOf(12), Season.pomuckaOf(15), Season.pomuckaOf(10), Season.pomuckaOf(4)], ['fifty', 'revive', 'chain_rescue', 'extra_move', null, null]);
     assert.deepEqual(Season.POMUCKA_NAMES, { fifty: C.ITEMS.fifty.name, extra_move: C.ITEMS.extra_move.name, chain_rescue: C.ITEMS.chain_rescue.name, revive: C.ITEMS.revive.name }, 'názvy jako v conquest.js ITEMS');
-    // Server přijme jen tyto stupně (player_items_claim) a dá tytéž druhy (12. stupeň Záchrana navíc do Řetězovky, blok 37; 8. Vzkříšení, blok 39)
+    // Server přijme jen tyto stupně (player_items_claim) a dá tytéž druhy (12. stupeň Záchrana navíc do Řetězovky, blok 37; 8. Ankh vzkříšení, blok 39)
     const schema = fs.readFileSync(path.join(ROOT, 'supabase', 'schema.sql'), 'utf8');
     assert.ok(schema.includes("'^season:(\\d{4}-\\d{2}):(5|8|12|15)$'"), 'klíč season:<RRRR-MM>:<5|8|12|15>');
     assert.match(schema, /item := case m\[2\] when '5' then 'fifty' when '8' then 'revive' when '12' then 'chain_rescue' else 'extra_move' end;/);
@@ -475,7 +475,7 @@ test('pomůcky do Dobývání: 5. stupeň Půl na půl a 15. stupeň Tah navíc 
     // Obřad stupně: „Nová pomůcka do Dobývání“, název a věta bez rodu; pečeť z app.js (h.itemArt)
     const h = { itemArt: (kind, cls) => `<span data-test-art="${kind}" class="${cls}"></span>` };
     const reveal = Season.revealHtml({ id: NOV, tier: 5, opened: fifty, h });
-    assert.match(reveal, /data-test-art="fifty"[\s\S]*Nová pomůcka do Dobývání<\/p>[\s\S]*data-season-item[^>]*>Půl na půl<\/p>[\s\S]*V otázce v Dobývání odebere dvě špatné odpovědi\. Zásobu najdeš v rozcestníku Dobývání\./);
+    assert.match(reveal, /data-test-art="fifty"[\s\S]*Nová pomůcka do Dobývání<\/p>[\s\S]*data-season-item[^>]*>50\/50<\/p>[\s\S]*V otázce v Dobývání odebere dvě špatné odpovědi\. Zásobu najdeš v rozcestníku Dobývání\./);
     assert.doesNotMatch(reveal, /data-season-wear/, 'nic k nasazení');
     assert.doesNotMatch(reveal, /\b(získal|získala|dostal|dostala|použil|použila)\b/);
     assert.match(Season.revealHtml({ id: NOV, tier: 15, opened: extra, h }), /Tah navíc[\s\S]*V Dobývání ti dá o 1 tah víc v jednom kole\./);
@@ -484,18 +484,18 @@ test('pomůcky do Dobývání: 5. stupeň Půl na půl a 15. stupeň Tah navíc 
     assert.deepEqual([rescue.parts, rescue.state.season.claimed[12]], [[{ pomucka: 'chain_rescue' }], 'pomucka:chain_rescue']);
     assert.ok(Rewards.SEASON_REWARD.test('pomucka:chain_rescue'));
     assert.match(Season.revealHtml({ id: NOV, tier: 12, opened: rescue, h }), /data-test-art="chain_rescue"[\s\S]*Nová pomůcka do Řetězovky<\/p>[\s\S]*Záchrana navíc[\s\S]*V Řetězovce dne zachrání řetěz ještě jednou, když už je Záchrana použitá\. Mít jde jen jednu\./);
-    // 8. stupeň: Vzkříšení do Dobývání (blok 39)
+    // 8. stupeň: Ankh vzkříšení do Dobývání (blok 39)
     const revive = Season.claim(started(1000), { tier: 8, ctx: ctx(), xp, today: '2026-11-20', user: 'u1', pomucka: 'revive' });
     assert.deepEqual([revive.parts, revive.state.season.claimed[8]], [[{ pomucka: 'revive' }], 'pomucka:revive']);
     assert.ok(Rewards.SEASON_REWARD.test('pomucka:revive'));
     assert.equal(Rewards.parse(JSON.parse(JSON.stringify(revive.state))).season.claimed[8], 'pomucka:revive');
-    assert.match(Season.revealHtml({ id: NOV, tier: 8, opened: revive, h }), /data-test-art="revive"[\s\S]*Nová pomůcka do Dobývání<\/p>[\s\S]*Vzkříšení[\s\S]*Když v Dobývání přijdeš o všechna území, vrátí tě do hry na volné nebo neopevněné území\. Mít jde nejvýš tři\./);
+    assert.match(Season.revealHtml({ id: NOV, tier: 8, opened: revive, h }), /data-test-art="revive"[\s\S]*Nová pomůcka do Dobývání<\/p>[\s\S]*Ankh vzkříšení[\s\S]*Když v Dobývání přijdeš o všechna území, vrátí tě do hry na volné nebo neopevněné území\. Mít jde nejvýš tři\./);
 });
 
 test('pomůcky na cestě sezóny: pečeť a text na 5. a 15. stupni jen přihlášenému a dokud zásoba není plná; vyzvednutý stupeň ukáže pomůcku', () => {
     assert.deepEqual(Season.pomuckyFor({ signedIn: false }), {}, 'host: běžné věci');
     assert.deepEqual(Season.pomuckyFor({ signedIn: true }), { 5: 'fifty', 8: 'revive', 12: 'chain_rescue', 15: 'extra_move' }, 'zásobu nevíme: platí');
-    assert.deepEqual(Season.pomuckyFor({ signedIn: true, stock: { fifty: 2, extra_move: 0, chain_rescue: 0, revive: 3 } }), { 12: 'chain_rescue', 15: 'extra_move' }, 'Půl na půl a Vzkříšení mají plno');
+    assert.deepEqual(Season.pomuckyFor({ signedIn: true, stock: { fifty: 2, extra_move: 0, chain_rescue: 0, revive: 3 } }), { 12: 'chain_rescue', 15: 'extra_move' }, '50/50 a Ankh vzkříšení mají plno');
     assert.deepEqual(Season.pomuckyFor({ signedIn: true, stock: { fifty: 1, extra_move: 1, chain_rescue: 1, revive: 2 } }), { 5: 'fifty', 8: 'revive' });
     assert.deepEqual(Season.pomuckyFor({ signedIn: true, stock: { fifty: 1, extra_move: 1, chain_rescue: null, revive: null } }), { 5: 'fifty' }, 'databáze bez bloku 37 a 39: na 8. a 12. stupni věc');
     assert.match(Season.pathHtml({ ...Season.info(Rewards.parse({ season: { id: NOV, startXp: 0, claimed: {} } }), { today: '2026-11-03', xp: 1500 }), pomucky: Season.pomuckyFor({ signedIn: true }) }, { selected: 12, h: {} }),
@@ -506,7 +506,7 @@ test('pomůcky na cestě sezóny: pečeť a text na 5. a 15. stupni jen přihlá
     const path15 = Season.pathHtml(view, { selected: 15, h });
     assert.match(path15, /data-season-tier="15"[^>]*aria-label="Stupeň 15: Pomůcka do Dobývání: Tah navíc \(s plnou zásobou věc pro Mudrlanta\), za [^"]+"[\s\S]*?data-season-pomucka="extra_move"/);
     assert.match(path15, /data-season-detail[^>]*><b>Stupeň 15:<\/b> Pomůcka do Dobývání: Tah navíc \(s plnou zásobou věc pro Mudrlanta\)\. Za /);
-    assert.match(Season.pathHtml(view, { selected: 5, h }), /data-season-tier="5"[^>]*aria-label="Stupeň 5: vyzvednuto – Půl na půl"[\s\S]*?data-test-art="fifty"[\s\S]*Vyzvednuto: Půl na půl \(pomůcka do Dobývání\)/);
+    assert.match(Season.pathHtml(view, { selected: 5, h }), /data-season-tier="5"[^>]*aria-label="Stupeň 5: vyzvednuto – 50\/50"[\s\S]*?data-test-art="fifty"[\s\S]*Vyzvednuto: 50\/50 \(pomůcka do Dobývání\)/);
     const host = Season.pathHtml({ ...view, pomucky: {} }, { selected: 15, h });
     assert.doesNotMatch(host, /data-season-pomucka/);
     assert.match(host, /<b>Stupeň 15:<\/b> Věc pro Mudrlanta, kterou ještě nemáš\./);

@@ -836,7 +836,7 @@
         day: cleanDay(row.day), started: Boolean(row.started), answered: wholeNumber(row.answered, 10), correct: wholeNumber(row.correct, 10), score: wholeNumber(row.score, 40),
         time_ms: wholeNumber(row.time_ms, 3000000), bitmap: wholeNumber(row.bitmap, 1023), finished: Boolean(row.finished), streak: wholeNumber(row.streak, 100000), best_streak: wholeNumber(row.best_streak, 100000),
         ...(row.item ? { item: cleanItemGrant(row.item) } : {}),
-        // Vzkříšení do Dobývání za milník série Kvízu dne (blok 39)
+        // Ankh vzkříšení do Dobývání za milník série Kvízu dne (blok 39)
         ...(row.revive_item ? { revive_item: cleanItemGrant(row.revive_item) } : {})
     } : null);
     const cleanQuizRow = (row) => ({
@@ -952,7 +952,7 @@
             throw error;
         }
     };
-    // item = pomůcka Půl na půl za celý řetěz (blok 30, jen u nově uloženého výsledku; cleanItemGrant), extra = hráč ten den použil Záchranu
+    // item = pomůcka 50/50 za celý řetěz (blok 30, jen u nově uloženého výsledku; cleanItemGrant), extra = hráč ten den použil Záchranu
     // navíc, rescue_item = Záchrana navíc za milník Řetězovky (blok 37)
     const cleanChainMe = (row) => (row && typeof row === 'object'
         ? { links: wholeNumber(row.links, 7), score: wholeNumber(row.score, 28), rescued: row.rescued === true, rank: wholeNumber(row.rank, 10000000) || null,
@@ -1186,7 +1186,7 @@
         rounds: 'Rychlé hry a další kolo zatím nejdou (databáze potřebuje nejnovější schema.sql).',
         items: 'Pomůcky do Dobývání zatím nejdou (databáze potřebuje nejnovější schema.sql).',
         looks: 'Výplně území a vzácné znaky zatím nejdou (databáze potřebuje nejnovější schema.sql).',
-        revive: 'Vzkříšení zatím nejde (databáze potřebuje nejnovější schema.sql).'
+        revive: 'Ankh vzkříšení zatím nejde (databáze potřebuje nejnovější schema.sql).'
     };
     const partMissing = { invites: false, sieges: false, rounds: false, items: false, looks: false, revive: false };
     const conquestCall = async (name, body, fallback, part = null) => {
@@ -1292,8 +1292,8 @@
     const devConquestAddBots = async (game, count) => conquestGame(await devConquest('dev_conquest_add_bots', { game: conquestId(game), how_many: Math.max(1, wholeNumber(count, 7)) }));
     const devConquestBotsPlay = async (game) => wholeNumber(await devConquest('dev_conquest_bots_play', { game: conquestId(game) }), 1000);
     const devConquestNextPeriod = async (game) => conquestGame(await devConquest('dev_conquest_next_period', { game: conquestId(game) }));
-    // item = pomůcka Půl na půl za výhru (blok 30, jen s claimed_now; cleanItemGrant); looks = vzory a vzácné znaky po hře (blok 38, cleanLooks);
-    // revive_item = Vzkříšení za započítanou hru s body (blok 39)
+    // item = pomůcka 50/50 za výhru (blok 30, jen s claimed_now; cleanItemGrant); looks = vzory a vzácné znaky po hře (blok 38, cleanLooks);
+    // revive_item = Ankh vzkříšení za započítanou hru s body (blok 39)
     const conquestClaim = async (game) => {
         const data = (await conquestCall('conquest_claim', { game: conquestId(game) }, 'Výsledek se nepodařilo načíst.')) || {};
         return { place: wholeNumber(data.place, 8) || null, players: wholeNumber(data.players, 8), score: wholeNumber(data.score, 1000), eligible: data.eligible === true, claimed_now: data.claimed_now === true,
@@ -1385,7 +1385,7 @@
     // běžící hry bez kola, do té doby false.
     const conquestRoundsMissing = () => partMissing.rounds;
 
-    // ===== Pomůcky (blok 30, 37 a 39): Tah navíc (nejvýš 1), Půl na půl (nejvýš 2) a Vzkříšení (nejvýš 3) do Dobývání, Záchrana navíc (nejvýš 1)
+    // ===== Pomůcky (blok 30, 37 a 39): Tah navíc (nejvýš 1), 50/50 (nejvýš 2) a Ankh vzkříšení (nejvýš 3) do Dobývání, Záchrana navíc (nejvýš 1)
     // do Řetězovky =====
     // Zásoba je na serveru. Zisk za Bosse týdne, Kvíz dne bez chyby, celou Řetězovku, milníky Řetězovky a výhru v Dobývání vrací jejich funkce
     // jako item (rescue_item); Sezónu Mudrlanta, Truhlu Mudrlanta a Zlatou truhlu počítá aplikace a o pomůcku si řekne přes playerItemsClaim.
@@ -1399,7 +1399,7 @@
             ...(value.chain_rescue !== undefined && value.chain_rescue !== null ? { chain_rescue: wholeNumber(value.chain_rescue, ITEM_MAX.chain_rescue) } : {}),
             ...(value.revive !== undefined && value.revive !== null ? { revive: wholeNumber(value.revive, ITEM_MAX.revive) } : {}), max: { ...ITEM_MAX } } : null);
     // Pomůcky ve hře: zásoba a v této hře extra_used, fifty_used, can_extra (Tah navíc jde použít teď) a extra_block (proč ne, česky);
-    // Vzkříšení (blok 39, jen když ho databáze zná): can_revive, revive_block (proč ne, česky) a revive_used
+    // Ankh vzkříšení (blok 39, jen když ho databáze zná): can_revive, revive_block (proč ne, česky) a revive_used
     const cleanGameItems = (value) => {
         const items = cleanItems(value);
         return items ? { ...items, extra_used: value.extra_used === true, fifty_used: value.fifty_used === true, can_extra: value.can_extra === true,
@@ -1426,18 +1426,18 @@
     };
     // Tah navíc v běžící hře (jednou za hru, ne v posledním kole): vrací stav hry (conquestState) s used
     const conquestUseExtra = async (game) => conquestGame(await itemsCall('conquest_use_extra', { game: conquestId(game) }, 'Tah navíc se nepodařilo použít. Zkus to znovu.'));
-    // Půl na půl u otázky (jednou za hru): siege = bitva (server vybere dvě nesprávné možnosti: removed), jinak target = území tahu (možnosti
+    // 50/50 u otázky (jednou za hru): siege = bitva (server vybere dvě nesprávné možnosti: removed), jinak target = území tahu (možnosti
     // vybere aplikace). Vrací { removed: [i, j] | null, items, fifty_used }
     const conquestUseFifty = async (game, { siege = null, target = null } = {}) => {
         const data = (await itemsCall('conquest_use_fifty', { game: conquestId(game), siege: siege ? siegeId(siege) : null, target: target ? conquestText(target, 16) : null },
-            'Půl na půl se nepodařilo použít. Zkus to znovu.')) || {};
+            '50/50 se nepodařilo použít. Zkus to znovu.')) || {};
         const removed = Array.isArray(data.removed) ? data.removed.filter(index => Number.isInteger(index) && index >= 0 && index < 8).slice(0, 2) : null;
         return { removed: removed && removed.length === 2 ? removed : null, items: cleanItems(data.items), fifty_used: data.fifty_used === true };
     };
-    // Vzkříšení (blok 39) na území target, když hráči nezbylo žádné území: stav hry (conquestState) s used, territory a shield_until
+    // Ankh vzkříšení (blok 39) na území target, když hráči nezbylo žádné území: stav hry (conquestState) s used, territory a shield_until
     // (konec ochrany, čas serveru). Databáze bez bloku 39 (404): chyba se status 404
     const conquestUseRevive = async (game, target) => {
-        const data = await conquestCall('conquest_use_revive', { game: conquestId(game), target: conquestText(target, 16) }, 'Vzkříšení se nepodařilo použít. Zkus to znovu.', 'revive');
+        const data = await conquestCall('conquest_use_revive', { game: conquestId(game), target: conquestText(target, 16) }, 'Ankh vzkříšení se nepodařilo použít. Zkus to znovu.', 'revive');
         const state = conquestGame(data);
         return state ? { ...state, used: data.used === 'revive' ? 'revive' : null, territory: typeof data.territory === 'string' ? data.territory.slice(0, 16) : null,
             shield_until: data.shield_until ? String(data.shield_until) : null } : null;

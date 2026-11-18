@@ -1,4 +1,4 @@
-// Pomůcky do Dobývání (blok 30) v aplikaci: Tah navíc a Půl na půl v conquest.js (strop shodný se serverem, kdy jde Půl na půl, výběr
+// Pomůcky do Dobývání (blok 30) v aplikaci: Tah navíc a 50/50 v conquest.js (strop shodný se serverem, kdy jde 50/50, výběr
 // dvou špatných možností, zprávy o zisku, pečeť, pruh v rozcestníku, okno Pomůcky, nabídka a štítek Tahu navíc, tlačítko ½ a přeškrtnuté
 // možnosti, „½“ u účastníků bitvy, „+1“ u tahů, záznam v kronice, nápověda) a volání v social.js (zásoba, zisk, použití, databáze bez
 // bloku 30). Texty bez rodu hráče. Chování v databázi hlídá tests/sql-pomucky.test.js, v prohlížeči tests/e2e-conquest.test.js.
@@ -31,16 +31,16 @@ const view = (extra) => C.viewOf(state(extra), evropa, 'A');
 const QUESTION = { kind: 'capital', prompt: 'Které město je hlavním městem Rakouska?', difficulty: 1,
     choices: [{ label: 'Varšava' }, { label: 'Vídeň', correct: true }, { label: 'Budapešť' }, { label: 'Záhřeb' }] };
 
-test('pravidla: strop a názvy stejné jako na serveru; Půl na půl jen u 4 textových nebo obrázkových možností; odebere vždy dvě špatné', () => {
+test('pravidla: strop a názvy stejné jako na serveru; 50/50 jen u 4 textových nebo obrázkových možností; odebere vždy dvě špatné', () => {
     const schema = fs.readFileSync(path.join(ROOT, 'supabase', 'schema.sql'), 'utf8');
     assert.match(schema, /player_item_cap\(item text\) returns integer\s+language sql immutable as \$\$ select case item when 'extra_move' then 1 when 'fifty' then 2 when 'chain_rescue' then 1 when 'revive' then 3 end \$\$;/);
     assert.deepEqual(C.ITEM_IDS, ['extra_move', 'fifty', 'revive'], 'Záchrana navíc (blok 37) patří do Řetězovky, ne do pruhu Dobývání');
-    assert.deepEqual([C.ITEMS.revive.max, C.ITEMS.revive.name, C.ITEMS.revive.place], [3, 'Vzkříšení', undefined]);
-    assert.deepEqual(C.itemIdsFor({ extra_move: 0, fifty: 0 }), ['extra_move', 'fifty'], 'databáze bez bloku 39: bez Vzkříšení');
+    assert.deepEqual([C.ITEMS.revive.max, C.ITEMS.revive.name, C.ITEMS.revive.place], [3, 'Ankh vzkříšení', undefined]);
+    assert.deepEqual(C.itemIdsFor({ extra_move: 0, fifty: 0 }), ['extra_move', 'fifty'], 'databáze bez bloku 39: bez Ankh vzkříšení');
     assert.deepEqual(C.itemIdsFor({ extra_move: 0, fifty: 0, revive: 0 }), ['extra_move', 'fifty', 'revive']);
     assert.deepEqual([C.ITEMS.chain_rescue.max, C.ITEMS.chain_rescue.name, C.ITEMS.chain_rescue.place], [1, 'Záchrana navíc', 'chain']);
     assert.deepEqual([C.ITEMS.extra_move.max, C.ITEMS.fifty.max], [1, 2]);
-    assert.deepEqual([C.ITEMS.extra_move.name, C.ITEMS.fifty.name], ['Tah navíc', 'Půl na půl']);
+    assert.deepEqual([C.ITEMS.extra_move.name, C.ITEMS.fifty.name], ['Tah navíc', '50/50']);
     // Server odmítá stejné druhy otázek (conquest_use_fifty)
     assert.match(schema, /coalesce\(s\.question ->> 'kind', ''\) in \('map', 'year', 'number'\)/);
     assert.equal(C.fiftyAllowed(QUESTION), true);
@@ -60,10 +60,10 @@ test('pravidla: strop a názvy stejné jako na serveru; Půl na půl jen u 4 tex
 });
 
 test('zisk pomůcky: nová = oslava „Nová pomůcka do Dobývání“, plná zásoba = zpráva, už započítaný zdroj nic', () => {
-    assert.deepEqual(C.grantNews({ kind: 'fifty', granted: true, count: 1 }), { kind: 'new', title: 'Nová pomůcka do Dobývání', text: 'Půl na půl (1/2)' });
+    assert.deepEqual(C.grantNews({ kind: 'fifty', granted: true, count: 1 }), { kind: 'new', title: 'Nová pomůcka do Dobývání', text: '50/50 (1/2)' });
     assert.deepEqual(C.grantNews({ kind: 'extra_move', granted: true, count: 1 }), { kind: 'new', title: 'Nová pomůcka do Dobývání', text: 'Tah navíc (1/1)' });
     assert.deepEqual(C.grantNews({ kind: 'extra_move', granted: false, full: true, count: 1 }), { kind: 'full', text: 'Tah navíc už máš, víc jich mít nejde.' });
-    assert.deepEqual(C.grantNews({ kind: 'fifty', granted: false, full: true, count: 2 }), { kind: 'full', text: 'Půl na půl už máš dvakrát, víc jich mít nejde.' });
+    assert.deepEqual(C.grantNews({ kind: 'fifty', granted: false, full: true, count: 2 }), { kind: 'full', text: '50/50 už máš dvakrát, víc jich mít nejde.' });
     assert.deepEqual(C.grantNews({ kind: 'fifty', granted: true, already: true, count: 2 }), { kind: null });
     assert.deepEqual(C.grantNews({ kind: 'fifty', granted: false, lucky: false }), { kind: null }, 'truhla bez štěstí');
     assert.deepEqual(C.grantNews(null), { kind: null });
@@ -72,7 +72,7 @@ test('zisk pomůcky: nová = oslava „Nová pomůcka do Dobývání“, plná z
 test('rozcestník a okno Pomůcky: zásoba, co dělají, jak je získat; ve hře tlačítko Tahu navíc, nebo proč ne', () => {
     const strip = C.itemsStripHtml({ extra_move: 0, fifty: 2 });
     assert.match(strip, /data-cq="items"/);
-    assert.match(strip, /aria-label="Pomůcky: Tah navíc 0 z 1, Půl na půl 2 ze 2\. Co dělají a jak je získat"/);
+    assert.match(strip, /aria-label="Pomůcky: Tah navíc 0 z 1, 50\/50 2 ze 2\. Co dělají a jak je získat"/);
     assert.match(strip, /cq-item-extra_move cq-item-empty/, 'prázdná zásoba zašedlá');
     assert.equal(C.itemsStripHtml(null), '', 'starší databáze bez pomůcek: nic');
     // Moje hry: pruh pod pozvánkami; bez her rada zůstane i s pruhem
@@ -80,7 +80,7 @@ test('rozcestník a okno Pomůcky: zásoba, co dělají, jak je získat; ve hře
     assert.match(empty, /data-cq-items[\s\S]*Zatím nehraješ žádnou hru/);
     const hub = C.itemsDialogHtml({ extra_move: 1, fifty: 0 });
     assert.match(hub, /Tah navíc[\s\S]*1\/1[\s\S]*Jak získat:<\/b> Poražený Boss týdne \(první výhra v týdnu\) a 15\. stupeň Sezóny Mudrlanta\./);
-    assert.match(hub, /Půl na půl[\s\S]*0\/2[\s\S]*Kvíz dne bez chyby a celá Řetězovka \(obojí jednou za týden\), výhra v Dobývání, 5\. stupeň Sezóny Mudrlanta a vzácně Truhla Mudrlanta\./);
+    assert.match(hub, /50\/50[\s\S]*0\/2[\s\S]*Kvíz dne bez chyby a celá Řetězovka \(obojí jednou za týden\), výhra v Dobývání, 5\. stupeň Sezóny Mudrlanta a vzácně Truhla Mudrlanta\./);
     assert.doesNotMatch(hub, /data-cq="extra-use"/, 'mimo hru nic k použití');
     const game = C.itemsDialogHtml(state().items, { game: true });
     assert.match(game, /data-cq="extra-use"[^>]*>[\s\S]*Použít Tah navíc/);
@@ -128,9 +128,9 @@ test('Tah navíc ve hře: nabídka v listu území a štítek na mapě, až tahy
     assert.doesNotMatch(C.roundHtml(view({ items: { ...state().items, can_extra: false } }), round, { now: Date.parse('2026-11-13T10:01:00Z') }), /extra-use/);
 });
 
-test('Půl na půl u otázky: tlačítko ½ (nabídka, potvrzení, použito), odebrané možnosti přeškrtnuté a vypnuté; v bitvě „½“ u účastníků', () => {
+test('50/50 u otázky: tlačítko ½ (nabídka, potvrzení, použito), odebrané možnosti přeškrtnuté a vypnuté; v bitvě „½“ u účastníků', () => {
     const offer = C.questionHtml(QUESTION, { title: 'Útok na Rakousko', fifty: { state: 'offer', items: { fifty: 2 } } });
-    assert.match(offer, /data-cq="fifty"[^>]*aria-label="Půl na půl: odebere dvě špatné odpovědi \(máš 2 ze 2\)"[\s\S]*½[\s\S]*Půl na půl/);
+    assert.match(offer, /data-cq="fifty"[^>]*aria-label="50\/50: odebere dvě špatné odpovědi \(máš 2 ze 2\)"[\s\S]*½[\s\S]*50\/50/);
     assert.match(C.questionHtml(QUESTION, { title: 'Útok', fifty: { state: 'confirm', items: { fifty: 2 } } }), /cq-fifty-confirm[\s\S]*Opravdu\?/);
     assert.doesNotMatch(C.questionHtml(QUESTION, { title: 'Útok' }), /data-cq="fifty"/, 'bez pomůcky nic');
     const gone = C.questionHtml(QUESTION, { title: 'Útok', fifty: { state: 'used' }, removed: [0, 2], fresh: true });
@@ -145,7 +145,7 @@ test('Půl na půl u otázky: tlačítko ½ (nabídka, potvrzení, použito), od
     const v = view();
     const fighters = [{ id: 'A', fifty: true }, { id: 'B', fifty: false }];
     const row = C.fightersHtml(v, fighters);
-    assert.match(row, /data-cq-fighter="A"[\s\S]*ty<\/span><span class="cq-half-badge[^"]*" title="Pomůcka Půl na půl" aria-label="s pomůckou Půl na půl">½/);
+    assert.match(row, /data-cq-fighter="A"[\s\S]*ty<\/span><span class="cq-half-badge[^"]*" title="Pomůcka 50\/50" aria-label="s pomůckou 50\/50">½/);
     assert.equal((row.match(/cq-half-badge/g) || []).length, 1);
     const siege = { id: SIEGE, territory: 'Q40', status: 'resolved', outcome: 'capture', participants: [{ id: 'B', fifty: true, winner: true, answer_ms: 2100, answered: true }, { id: 'A', fifty: false, result: 'outrun', answer_ms: 3900, answered: true }] };
     assert.match(C.battleResultHtml(v, siege), /data-cq-result-player="B"[\s\S]*Petr<\/span><span class="cq-half-badge/);
@@ -156,11 +156,11 @@ test('nápověda: záložka Pomůcky (obě pomůcky, jednou za hru, odkud), bez 
     assert.deepEqual(C.HELP_TABS.map(([id]) => id), ['zaklady', 'utok', 'regiony', 'konec', 'pomucky']);
     const help = C.helpHtml('pomucky');
     assert.match(help, /data-cq-help="pomucky"/);
-    assert.match(help, /Pomůcky:<\/b> V zásobě máš nejvýš 1 Tah navíc, 2 Půl na půl a 3 Vzkříšení\. Tah navíc a Půl na půl jdou v jedné hře použít jen jednou\./);
+    assert.match(help, /Pomůcky:<\/b> V zásobě máš nejvýš 1× Tah navíc, 2× 50\/50 a 3× Ankh vzkříšení\. Tah navíc a 50\/50 jdou v jedné hře použít jen jednou\./);
     assert.match(help, /Tah navíc:<\/b> O 1 tah víc v tomto kole\. Nabídne se, když ti tahy dojdou\. V posledním kole hry ne\./);
-    assert.match(help, /Půl na půl:<\/b> Tlačítko ½ u otázky se 4 možnostmi odebere dvě špatné odpovědi\. Jde i v bitvě/);
-    assert.match(help, /Vzkříšení:<\/b> Nabídne se, když přijdeš o všechna území: vybereš si volné nebo neopevněné území a hraješ dál\./);
-    assert.match(help, /Jak získat:<\/b> Tah navíc: Boss týdne a 15\. stupeň Sezóny\. Půl na půl: Kvíz dne bez chyby, celá Řetězovka, výhra v Dobývání, 5\. stupeň Sezóny\. Vzkříšení: jedno na začátek, dohraná hra s body, série Kvízu dne, 8\. stupeň Sezóny\. Vzácně i z truhel\./);
+    assert.match(help, /50\/50:<\/b> Tlačítko ½ u otázky se 4 možnostmi odebere dvě špatné odpovědi\. Jde i v bitvě/);
+    assert.match(help, /Ankh vzkříšení:<\/b> Nabídne se, když přijdeš o všechna území: vybereš si volné nebo neopevněné území a hraješ dál\./);
+    assert.match(help, /Jak získat:<\/b> Tah navíc: Boss týdne a 15\. stupeň Sezóny\. 50\/50: Kvíz dne bez chyby, celá Řetězovka, výhra v Dobývání, 5\. stupeň Sezóny\. Ankh vzkříšení: jeden na začátek, dohraná hra s body, série Kvízu dne, 8\. stupeň Sezóny\. Vzácně i z truhel\./);
     assert.doesNotMatch(help, /Dál:/, 'poslední záložka');
     assert.match(C.helpHtml('konec'), /Dál: Pomůcky/);
     assert.doesNotMatch(C.HELP_TABS.map(([id]) => C.helpHtml(id)).join(''), GENDERED);
@@ -189,7 +189,7 @@ const loadSocial = (handler) => {
     return { Social: require(file), calls, done: () => { delete global.self; delete global.fetch; delete require.cache[file]; } };
 };
 
-test('social.js: zásoba, zisk ze sezóny a truhly, Tah navíc a Půl na půl; zisk v Bossovi, Kvízu dne, Řetězovce a výhře; databáze bez bloku 30', async () => {
+test('social.js: zásoba, zisk ze sezóny a truhly, Tah navíc a 50/50; zisk v Bossovi, Kvízu dne, Řetězovce a výhře; databáze bez bloku 30', async () => {
     let missing = false;
     const { Social, calls, done } = loadSocial((name, body) => {
         if (missing) return [404, { message: 'Could not find the function' }];
@@ -204,7 +204,7 @@ test('social.js: zásoba, zisk ze sezóny a truhly, Tah navíc a Půl na půl; z
         if (name === 'conquest_claim') return [200, { place: 1, players: 2, score: 5, eligible: true, claimed_now: true, item: { kind: 'fifty', granted: true, count: 2 },
             revive_item: { kind: 'revive', granted: false, full: true, count: 3 } }];
         if (name === 'conquest_use_revive') return [200, { id: GAME, map: 'evropa', status: 'running', players: [], used: 'revive', territory: 'Q40', shield_until: '2026-11-12T10:01:00Z',
-            items: { extra_move: 0, fifty: 1, revive: 1, can_extra: false, can_revive: false, revive_block: 'Vzkříšení jde použít, jen když ti nezbylo žádné území.', revive_used: 1 } }];
+            items: { extra_move: 0, fifty: 1, revive: 1, can_extra: false, can_revive: false, revive_block: 'Ankh vzkříšení jde použít, jen když ti nezbylo žádné území.', revive_used: 1 } }];
         if (name === 'conquest_state') return [200, { id: GAME, map: 'evropa', status: 'running', players: [], round: null, items: { extra_move: 1, fifty: 2, can_extra: true, extra_block: null } }];
         return [400, { message: 'neznámé' }];
     });
@@ -227,14 +227,14 @@ test('social.js: zásoba, zisk ze sezóny a truhly, Tah navíc a Půl na půl; z
         assert.deepEqual((await Social.chainSubmit('2026-11-12', 7, 28, false)).item, { kind: 'fifty', granted: false, full: true, already: false, count: 2, max: 2 });
         assert.equal((await Social.dailyQuizAnswer('2026-11-12', 9, { correct: true, points: 3, ms: 3000 })).item.granted, true);
         assert.deepEqual((await Social.conquestClaim(GAME)).item, { kind: 'fifty', granted: true, full: false, already: false, count: 2, max: 2 });
-        // Vzkříšení (blok 39): zisk za hru a za sérii Kvízu dne, použití
+        // Ankh vzkříšení (blok 39): zisk za hru a za sérii Kvízu dne, použití
         assert.deepEqual((await Social.conquestClaim(GAME)).revive_item, { kind: 'revive', granted: false, full: true, already: false, count: 3, max: 3 });
         assert.deepEqual((await Social.dailyQuizAnswer('2026-11-12', 9, { correct: true, points: 3, ms: 3000 })).revive_item,
             { kind: 'revive', granted: true, full: false, already: false, count: 2, max: 3, source: 'daily-streak', at: 7 });
         const revived = await Social.conquestUseRevive(GAME, 'Q40');
         assert.deepEqual(calls.pop(), { name: 'conquest_use_revive', body: { game: GAME, target: 'Q40' } });
         assert.deepEqual([revived.used, revived.territory, revived.shield_until, revived.items.revive, revived.items.can_revive, revived.items.revive_used], ['revive', 'Q40', '2026-11-12T10:01:00Z', 1, false, 1]);
-        assert.equal((await Social.conquestState(GAME)).items.can_revive, undefined, 'stav bez bloku 39: o Vzkříšení nic');
+        assert.equal((await Social.conquestState(GAME)).items.can_revive, undefined, 'stav bez bloku 39: o Ankh vzkříšení nic');
         assert.equal(Social.cleanItemGrant({ kind: 'zlato', granted: true }), null, 'neznámý druh ne');
         // Databáze bez bloku 30: srozumitelná chyba 404 a příznak, Dobývání jede dál
         assert.equal(Social.conquestItemsMissing(), false);

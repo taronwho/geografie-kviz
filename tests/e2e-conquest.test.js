@@ -2,8 +2,8 @@
 // Lobby s Rychlými hrami, Založit hru), okno Barva a znak (obsazená barva nejde), založení soukromé hry, detail lobby (kód, Chci hrát,
 // začátek hry), obrazovka hry (mapa se vejde na 360×640 bez posouvání, klepnutí na území, spodní list, otázka, dobytí, opevnění,
 // odražený útok, přiblížení, kronika tažení), konec hry (stupně vítězů, odměna jen jednou, přehrání), pomůcky (zásoba v rozcestníku,
-// okno Pomůcky, Půl na půl u otázky i v bitvě s „½“ u účastníků, Tah navíc z listu území, štítku i okna Kolo dohráno s potvrzením,
-// „+1“ u tahů a záznam v kronice), Vzkříšení (blok 39: okno po ztrátě všech území, výběr území na mapě, animace, štít ochrany s odpočtem,
+// okno Pomůcky, 50/50 u otázky i v bitvě s „½“ u účastníků, Tah navíc z listu území, štítku i okna Kolo dohráno s potvrzením,
+// „+1“ u tahů a záznam v kronice), Ankh vzkříšení (blok 39: okno po ztrátě všech území, výběr území na mapě, animace, štít ochrany s odpočtem,
 // zašedlý útok u soupeře, kronika u obou; bez pomůcky Mimo hru; starší databáze Návrat do hry), CSP bez chyb, tmavý režim.
 // SCREENSHOT_DIR=/cesta uloží snímky (dobyvani-*.png). Potřebuje Playwright (viz tests/e2e.test.js), jinak se přeskočí.
 const test = require('node:test');
@@ -47,7 +47,7 @@ const newDb = () => ({
 });
 const HOMES = { evropa: ['Q213', 'Q20', 'Q29', 'Q41'], cesko: ['Q192697', 'Q191091', 'Q193307', 'Q46070'] };
 const NOW = '2026-11-11T10:00:00Z';
-// Konec ochrany po Vzkříšení (blok 39): 60 s po NOW (čas stránky stojí na NOW)
+// Konec ochrany po Ankhu vzkříšení (blok 39): 60 s po NOW (čas stránky stojí na NOW)
 const SHIELD_UNTIL = '2026-11-11T10:01:00Z';
 
 const backend = async (context, db) => {
@@ -84,13 +84,13 @@ const backend = async (context, db) => {
             + (g.sieges || []).filter(s => s.status === 'open' && s.participants.some(p => p.user === me.id)).length; const penalty = g.penaltyPeriod !== undefined && g.penaltyPeriod === (g.periodNo || 0) ? 1 : 0;
             const extra = extraOf(g, me.id); return { period: g.periodNo || 0, base: g.actions, regions: 0, treasures: 0, loot: 0, penalty, extra, used, total: g.actions - penalty + extra, left: Math.max(0, g.actions - penalty + extra - used), period_ends_at: '2026-11-12T10:00:00Z' }; };
         // Pomůcky (blok 30), jen s db.items = { hráč: { extra_move, fifty } }: zásoba, co jde v této hře použít
-        // Vzkříšení (blok 39) jen s db.revive: zásoba revive, ve hře can_revive / revive_block / revive_used
+        // Ankh vzkříšení (blok 39) jen s db.revive: zásoba revive, ve hře can_revive / revive_block / revive_used
         const stock = () => (db.items ? { extra_move: 0, fifty: 0, chain_rescue: 0, ...(db.revive ? { revive: 0 } : {}), ...(db.items[me.id] || {}),
             max: { extra_move: 1, fifty: 2, chain_rescue: 1, ...(db.revive ? { revive: 3 } : {}) } } : null);
         const reviveInfo = (g, items) => {
             if (!db.revive) return {};
             const out = !g.territories.some(t => t.o === me.id);
-            const block = g.status !== 'running' ? 'Hra neběží.' : !out ? 'Vzkříšení jde použít, jen když ti nezbylo žádné území.' : (items.revive || 0) < 1 ? 'Vzkříšení teď nemáš.' : null;
+            const block = g.status !== 'running' ? 'Hra neběží.' : !out ? 'Ankh vzkříšení jde použít, jen když ti nezbylo žádné území.' : (items.revive || 0) < 1 ? 'Ankh vzkříšení teď nemáš.' : null;
             return { can_revive: block === null, revive_block: block, revive_used: (g.moves || []).filter(m => m.u === me.id && m.k === 'revive').length };
         };
         const gameItems = (g) => {
@@ -192,7 +192,7 @@ const backend = async (context, db) => {
             if (!db.items) return fail('Not found', 404);
             const items = db.items[me.id] = { extra_move: 0, fifty: 0, chain_rescue: 0, ...(db.items[me.id] || {}) };
             if (name === 'player_items_mine') return json(stock());
-            // Sezóna (5. stupeň Půl na půl, 12. Záchrana navíc, 15. Tah navíc), truhla a Zlatá truhla (db.chestLucky = los vyšel; Zlatá truhla
+            // Sezóna (5. stupeň 50/50, 12. Záchrana navíc, 15. Tah navíc), truhla a Zlatá truhla (db.chestLucky = los vyšel; Zlatá truhla
             // dává Záchranu navíc, blok 37); plná zásoba nic nepřidá
             if (name === 'player_items_claim') {
                 const kind = body.source === 'season' ? (/:15$/.test(body.key) ? 'extra_move' : /:12$/.test(body.key) ? 'chain_rescue' : 'fifty') : body.source === 'gold' ? 'chain_rescue' : 'fifty';
@@ -204,15 +204,15 @@ const backend = async (context, db) => {
                 return json({ kind, granted: true, full: false, already: false, count: items[kind], max, ...(body.source !== 'season' ? { lucky: true } : {}), items: stock() });
             }
             const g = find(body.game);
-            // Vzkříšení: jen bez území a se zásobou; cíl neutrální nebo cizí neopevněné, ne domovský hrad ani chráněné; ochrana do NOW + 60 s
+            // Ankh vzkříšení: jen bez území a se zásobou; cíl neutrální nebo cizí neopevněné, ne domovský hrad ani chráněné; ochrana do NOW + 60 s
             if (name === 'conquest_use_revive') {
                 if (!db.revive) return fail('Not found', 404);
                 const info = gameItems(g).items;
                 if (!info.can_revive) return fail(info.revive_block);
                 const t = g.territories.find(x => x.t === body.target);
                 if (!t) return fail('Tohle území na mapě není.');
-                if (t.o && t.h) return fail('Domovský hrad Vzkříšením vzít nejde. Vyber volné nebo neopevněné území.');
-                if (t.o && t.l > 0) return fail('Opevněné území Vzkříšením vzít nejde. Vyber volné nebo neopevněné území.');
+                if (t.o && t.h) return fail('Domovský hrad Ankhem vzkříšení vzít nejde. Vyber volné nebo neopevněné území.');
+                if (t.o && t.l > 0) return fail('Opevněné území Ankhem vzkříšení vzít nejde. Vyber volné nebo neopevněné území.');
                 if (t.o && t.s) return fail('Území je chráněné po vzkříšení ještě 60 s.');
                 const victim = t.o;
                 g.moves.push({ id: db.seq++, u: me.id, k: 'revive', t: t.t, s: null, ok: true, r: 'respawn', v: victim, n: g.periodNo || 0, at: NOW, p: Boolean(t.p && !victim), h: false, l: 0 });
@@ -230,8 +230,8 @@ const backend = async (context, db) => {
                 if (g.round) g.round = { ...g.round, done: false, can_ready: false, ready: g.round.ready.filter(uid => uid !== me.id) };
                 return json({ ...state(g), used: 'extra_move' });
             }
-            if ((g.fiftyUsed || {})[me.id]) return fail('Půl na půl jde v jedné hře použít jen jednou.');
-            if (items.fifty < 1) return fail('Půl na půl teď nemáš.');
+            if ((g.fiftyUsed || {})[me.id]) return fail('50/50 jde v jedné hře použít jen jednou.');
+            if (items.fifty < 1) return fail('50/50 teď nemáš.');
             let removed = null;
             if (body.siege) {
                 const { s } = siegeOf(body.siege);
@@ -500,7 +500,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Jak se hraje Dobývání');
         // Pět záložek (Základy, Útok, Regiony, Konec, Pomůcky), každá se vejde; tlačítko Dál vede na další
         for (const [tabId, pattern] of [['zaklady', /Kola:[\s\S]*Chci další kolo[\s\S]*Tahy:/], ['utok', /Správně:[\s\S]*Opevnění:/], ['regiony', /Region: Skupina sousedních území[\s\S]*Britské ostrovy/], ['konec', /Body:[\s\S]*Odměny:/],
-            ['pomucky', /Pomůcky:[\s\S]*Tah navíc:[\s\S]*Půl na půl:[\s\S]*Jak získat: Tah navíc: Boss týdne/]]) {
+            ['pomucky', /Pomůcky:[\s\S]*Tah navíc:[\s\S]*50\/50:[\s\S]*Jak získat: Tah navíc: Boss týdne/]]) {
             await tab.waitForSelector(`[data-cq-help="${tabId}"]`);
             assert.match(await tab.textContent('[data-cq-help]'), pattern, tabId);
             const helpFit = await tab.evaluate(() => { const box = document.querySelector('#dialog-overlay > div'); const rect = box.getBoundingClientRect(); return { over: box.scrollHeight - box.clientHeight, top: rect.top, bottom: rect.bottom }; });
@@ -1411,9 +1411,9 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         await context.close();
     });
 
-    // Pomůcky (blok 30): stejný server s db.items (zásoba hráčů); Půl na půl u otázky bez bitvy, Tah navíc z listu území
+    // Pomůcky (blok 30): stejný server s db.items (zásoba hráčů); 50/50 u otázky bez bitvy, Tah navíc z listu území
     const bodyText = async (tab, selector) => (await tab.textContent(selector)).replace(/\s+/g, ' ');
-    await t.test('pomůcky na 360×640: zásoba v rozcestníku a okno Pomůcky; Půl na půl (dvě klepnutí, dvě špatné přeškrtnuté); Tah navíc z listu území s potvrzením, „+1“ a kronika', async () => {
+    await t.test('pomůcky na 360×640: zásoba v rozcestníku a okno Pomůcky; 50/50 (dvě klepnutí, dvě špatné přeškrtnuté); Tah navíc z listu území s potvrzením, „+1“ a kronika', async () => {
         const db = running();
         db.items = { 'u-1': { extra_move: 1, fifty: 2 } };
         const g = db.games[0];
@@ -1423,21 +1423,21 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         // Rozcestník: pruh se zásobou, klepnutím okno Pomůcky (co dělají a jak je získat)
         await tab.click('#conquest-card');
         await tab.waitForSelector('#conquest-hub [data-cq-items]');
-        assert.match(await bodyText(tab, '[data-cq-items]'), /Pomůcky\s*\+1\s*Tah navíc\s*1\/1\s*½\s*Půl na půl\s*2\/2/);
+        assert.match(await bodyText(tab, '[data-cq-items]'), /Pomůcky\s*\+1\s*Tah navíc\s*1\/1\s*½\s*50\/50\s*2\/2/);
         assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
         await tab.waitForTimeout(300);
         await shot(tab, 'pomucky-rozcestnik-360');
         await tab.click('[data-cq-items]');
         await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Pomůcky');
         const dialog = await bodyText(tab, '#dialog-overlay');
-        assert.match(dialog, /Tah navíc\s*1\/1\s*O 1 tah víc v tomto kole\.[\s\S]*Jak získat: Poražený Boss týdne[\s\S]*Půl na půl\s*2\/2[\s\S]*Jak získat: Kvíz dne bez chyby/);
+        assert.match(dialog, /Tah navíc\s*1\/1\s*O 1 tah víc v tomto kole\.[\s\S]*Jak získat: Poražený Boss týdne[\s\S]*50\/50\s*2\/2[\s\S]*Jak získat: Kvíz dne bez chyby/);
         // Záchrana navíc do Řetězovky (blok 37): krátký řádek pod pomůckami do Dobývání
         assert.match(dialog, /Záchrana navíc\s*Do Řetězovky dne: zachrání řetěz ještě jednou\.\s*0\/1/);
         assert.ok(await tab.evaluate(() => { const box = document.querySelector('#dialog-overlay > div'); const rect = box.getBoundingClientRect(); return box.scrollHeight - box.clientHeight <= 0 && rect.top >= 0 && rect.bottom <= 640; }), 'okno Pomůcky se vejde');
         await shot(tab, 'pomucky-okno-360');
         await tab.keyboard.press('Escape');
         await tab.waitForFunction(() => !document.getElementById('dialog-overlay'));
-        // Hra: útok na Rakousko, u otázky Půl na půl (první klepnutí se ptá, druhé použije)
+        // Hra: útok na Rakousko, u otázky 50/50 (první klepnutí se ptá, druhé použije)
         await tab.click(`[data-cq-play="${uuid(1)}"]`);
         await tab.waitForSelector('#conquest-game [data-cq-map] svg');
         await tapTerritory(tab, 'Q40');
@@ -1445,7 +1445,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         await tab.click('[data-cq-sheet] [data-cq="attack"]');
         await tab.waitForSelector('[data-cq-answer]', { timeout: 30000 });
         await tab.waitForSelector('[data-cq="fifty"]');
-        assert.match(await tab.textContent('[data-cq="fifty"]'), /½\s*Půl na půl/);
+        assert.match(await tab.textContent('[data-cq="fifty"]'), /½\s*50\/50/);
         await tab.click('[data-cq="fifty"]');
         await tab.waitForFunction(() => /Opravdu\?/.test(document.querySelector('[data-cq="fifty"]').textContent));
         assert.equal(db.calls.filter(call => call.name === 'conquest_use_fifty').length, 0, 'první klepnutí jen ptá');
@@ -1469,7 +1469,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         db.force.push('fortify');
         await tab.click('[data-cq-sheet] [data-cq="fortify"]');
         await tab.waitForSelector('[data-cq-answer]');
-        assert.equal(await tab.locator('[data-cq="fifty"]').count(), 0, 'Půl na půl jen jednou za hru');
+        assert.equal(await tab.locator('[data-cq="fifty"]').count(), 0, '50/50 jen jednou za hru');
         await tab.click('[data-cq-answer]:not([disabled])');
         await tab.waitForFunction(() => document.querySelector('[data-mark="Q213"] .cq-rise'), null, { timeout: 15000 });
         await tab.waitForSelector('[data-cq-chips] [data-cq="extra-use"]', { timeout: 10000 });
@@ -1505,14 +1505,14 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         // Okno Pomůcky ve hře (klepnutí na počítadlo tahů): obojí v této hře použité
         await tab.click('[data-cq-budget]');
         await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Pomůcky');
-        assert.match(await bodyText(tab, '#dialog-overlay'), /Tah navíc\s*0\/1[\s\S]*V této hře už je použitý\.[\s\S]*Půl na půl\s*1\/2[\s\S]*V této hře už je použitá\./);
+        assert.match(await bodyText(tab, '#dialog-overlay'), /Tah navíc\s*0\/1[\s\S]*V této hře už je použitý\.[\s\S]*50\/50\s*1\/2[\s\S]*V této hře už je použitá\./);
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();
     });
 
     for (const [width, height, colorScheme] of [[360, 640, 'light'], [390, 780, 'dark']]) {
-    await t.test(`pomůcky v bitvě na ${width}×${height} (${colorScheme === 'dark' ? 'tmavý' : 'světlý'} režim): „½“ u účastníka, který použil Půl na půl, server odebere dvě špatné; výsledek bitvy s „½“`, async () => {
+    await t.test(`pomůcky v bitvě na ${width}×${height} (${colorScheme === 'dark' ? 'tmavý' : 'světlý'} režim): „½“ u účastníka, který použil 50/50, server odebere dvě špatné; výsledek bitvy s „½“`, async () => {
         const db = running();
         db.battles = true;
         db.items = { 'u-1': { fifty: 1 } };
@@ -1527,7 +1527,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         await tab.click('[data-cq-sheet] [data-cq="attack"]');
         await tab.waitForSelector('[data-cq="fifty"]', { timeout: 30000 });
         const begin = db.calls.find(call => call.name === 'conquest_siege_begin').body;
-        // Petr se přidá s Půl na půl: u jeho jména „½“
+        // Petr se přidá s 50/50: u jeho jména „½“
         const siege = g.sieges[0];
         siege.participants.push({ user: 'u-2', source: 'Q183', fifty: [0, 3].filter(i => i !== begin.correct).slice(0, 2) });
         g.siegeRev += 1;
@@ -1560,7 +1560,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
 
     // Otázka Mudrlanta přes celou obrazovku s tlačítkem ½ v záhlaví: vejde se i s ním a po odebrání dvou možností
     for (const [width, height, colorScheme] of [[360, 640, 'light'], [390, 780, 'dark']]) {
-        await t.test(`pomůcky: otázka Mudrlanta ${width}×${height} (${colorScheme === 'dark' ? 'tmavý' : 'světlý'} režim) s Půl na půl se vejde bez posouvání`, async () => {
+        await t.test(`pomůcky: otázka Mudrlanta ${width}×${height} (${colorScheme === 'dark' ? 'tmavý' : 'světlý'} režim) s 50/50 se vejde bez posouvání`, async () => {
             const db = running();
             db.items = { 'u-1': { fifty: 2 } };
             const { context, tab, log } = await start(db, { viewport: { width, height }, colorScheme, only: 'text', wiki: 'article' });
@@ -1616,7 +1616,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         await context.close();
     });
 
-    await t.test('pomůcky ze Sezóny a z Truhly na 360×640: 5. stupeň s pečetí Půl na půl na cestě a obřadem „Nová pomůcka do Dobývání“; v truhle navíc Půl na půl, ve Zlaté truhle Záchrana navíc', async () => {
+    await t.test('pomůcky ze Sezóny a z Truhly na 360×640: 5. stupeň s pečetí 50/50 na cestě a obřadem „Nová pomůcka do Dobývání“; v truhle navíc 50/50, ve Zlaté truhle Záchrana navíc', async () => {
         const db = newDb();
         db.items = { 'u-1': { extra_move: 0, fifty: 0 } };
         db.chestLucky = true;
@@ -1635,7 +1635,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         await tab.click('#season-overlay [data-season-go]');
         await tab.waitForSelector('[data-season-reveal] [data-season-item]', { timeout: 10000 });
         assert.deepEqual(db.calls.filter(call => call.name === 'player_items_claim').map(call => call.body), [{ source: 'season', key: 'season:2026-11:5' }]);
-        assert.match((await tab.textContent('[data-season-reveal]')).replace(/\s+/g, ' '), /Nová pomůcka do Dobývání\s*Půl na půl\s*V otázce v Dobývání odebere dvě špatné odpovědi\./);
+        assert.match((await tab.textContent('[data-season-reveal]')).replace(/\s+/g, ' '), /Nová pomůcka do Dobývání\s*50\/50\s*V otázce v Dobývání odebere dvě špatné odpovědi\./);
         assert.equal(await tab.locator('[data-season-prize] .cq-item-fifty').count(), 1, 'pečeť pomůcky');
         const saved = await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.rewards')));
         assert.equal(saved.season.claimed[5], 'pomucka:fifty');
@@ -1644,7 +1644,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         await tab.waitForTimeout(1300);
         await shot(tab, 'pomucky-sezona-360');
         await tab.click('#season-overlay [data-season-close]:not([data-season-x])');
-        // Truhla Mudrlanta (cíle týdne splněné): navíc Půl na půl (los na serveru vyšel)
+        // Truhla Mudrlanta (cíle týdne splněné): navíc 50/50 (los na serveru vyšel)
         await tab.evaluate(() => {
             const state = JSON.parse(localStorage.getItem('mudrlant.rewards'));
             state.ready = ['2026-11-09'];
@@ -1657,7 +1657,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         await tab.click('#chest-overlay [data-chest-go]');
         await tab.waitForSelector('#chest-overlay [data-chest-pomucka]', { timeout: 10000 });
         assert.deepEqual(db.calls.filter(call => call.name === 'player_items_claim').pop().body, { source: 'chest', key: 'chest:2026-W46' });
-        assert.match(await tab.textContent('[data-chest-pomucka]'), /A navíc pomůcka do Dobývání: Půl na půl/);
+        assert.match(await tab.textContent('[data-chest-pomucka]'), /A navíc pomůcka do Dobývání: 50\/50/);
         assert.equal(db.items['u-1'].fifty, 2);
         await tab.waitForTimeout(1300);
         await shot(tab, 'pomucky-truhla-360');
@@ -1710,7 +1710,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         await context.close();
     });
 
-    // Vzkříšení (blok 39): Jana (u-1) přišla o Česko (Petr ho drží neopevněné) i o Slovensko (Petr, Palisáda)
+    // Ankh vzkříšení (blok 39): Jana (u-1) přišla o Česko (Petr ho drží neopevněné) i o Slovensko (Petr, Palisáda)
     const fallen = ({ revive = 2, schema39 = true } = {}) => {
         const db = running();
         db.items = { 'u-1': { extra_move: 0, fifty: 0, revive } };
@@ -1732,7 +1732,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
     const reviveDialogFits = (tab, height) => tab.evaluate((h) => { const box = document.querySelector('#dialog-overlay > div'); const rect = box.getBoundingClientRect(); return box.scrollHeight - box.clientHeight <= 0 && rect.top >= 0 && rect.bottom <= h; }, height);
     for (const [width, height, colorScheme] of [[360, 640, 'light'], [390, 780, 'dark']]) {
         const mode = colorScheme === 'dark' ? 'tmavy' : 'svetly';
-        await t.test(`Vzkříšení na ${width}×${height} (${colorScheme === 'dark' ? 'tmavý' : 'světlý'} režim): okno po ztrátě všech území, výběr území, animace, štít ochrany, kronika; soupeř vidí chráněné území se zašedlým útokem`, async () => {
+        await t.test(`Ankh vzkříšení na ${width}×${height} (${colorScheme === 'dark' ? 'tmavý' : 'světlý'} režim): okno po ztrátě všech území, výběr území, animace, štít ochrany, kronika; soupeř vidí chráněné území se zašedlým útokem`, async () => {
             const db = fallen();
             const g = db.games[0];
             const { context, tab, log } = await start(db, { viewport: { width, height }, colorScheme });
@@ -1740,25 +1740,25 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             await tab.click('#conquest-card');
             await tab.waitForSelector(`[data-cq-game="${g.id}"]`);
             assert.match(await bodyText(tab, `[data-cq-game="${g.id}"]`), /všechna tvá území padla\s*.*Mapa/);
-            assert.match(await bodyText(tab, '[data-cq-items]'), /Vzkříšení\s*2\/3/);
+            assert.match(await bodyText(tab, '[data-cq-items]'), /Ankh vzkříšení\s*2\/3/);
             assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
             await tab.waitForTimeout(300);
             await shot(tab, `vzkriseni-rozcestnik-${width}-${mode}`);
             await tab.click(`[data-cq-play="${g.id}"]`);
-            // Okno se ukáže samo: Všechna tvá území padla, Použít Vzkříšení? Máš 2 ze 3
-            await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Vzkříšení', null, { timeout: 15000 });
+            // Okno se ukáže samo: Všechna tvá území padla, Použít Ankh vzkříšení? Máš 2 ze 3
+            await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Ankh vzkříšení', null, { timeout: 15000 });
             const offer = await bodyText(tab, '#dialog-overlay');
-            assert.match(offer, /Všechna tvá území padla\.\s*Použít Vzkříšení\? Vybereš si volné nebo neopevněné území \(ne domovský hrad\)[\s\S]*Na 60 s bude chráněné před útoky\. Domovské nebude\.\s*Máš 2 ze 3\.\s*Použít\s*Teď ne/);
+            assert.match(offer, /Všechna tvá území padla\.\s*Použít Ankh vzkříšení\? Vybereš si volné nebo neopevněné území \(ne domovský hrad\)[\s\S]*Na 60 s bude chráněné před útoky\. Domovské nebude\.\s*Máš 2 ze 3\.\s*Použít\s*Teď ne/);
             assert.doesNotMatch(offer, /\b(přišel|přišla)\b/);
             assert.ok(await reviveDialogFits(tab, height), 'okno se vejde');
             await tab.waitForTimeout(350);
             await shot(tab, `vzkriseni-okno-${width}-${mode}`);
-            // Teď ne: zůstane štítek Vzkříšení dole na mapě, ten okno otevře znovu
+            // Teď ne: zůstane štítek Ankh vzkříšení dole na mapě, ten okno otevře znovu
             await tab.click('[data-cq="revive-later"]');
             await tab.waitForSelector('[data-cq-chips] [data-cq="revive-use"]');
-            assert.match(await bodyText(tab, '[data-cq-chips]'), /Vzkříšení 2\/3/);
+            assert.match(await bodyText(tab, '[data-cq-chips]'), /Ankh vzkříšení 2\/3/);
             await tab.click('[data-cq-chips] [data-cq="revive-use"]');
-            await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Vzkříšení');
+            await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Ankh vzkříšení');
             await tab.click('[data-cq="revive-start"]');
             // Výběr: pruh nahoře, zlatě září jen platná území; domovský hrad ani opevněné nejdou (hláška, bez volání serveru)
             await tab.waitForSelector('[data-cq-revive-bar]');
@@ -1770,7 +1770,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             await tab.waitForTimeout(400);
             await shot(tab, `vzkriseni-vyber-${width}-${mode}`);
             await tapTerritory(tab, 'Q214');
-            await tab.waitForFunction(() => /Opevněné území Vzkříšením vzít nejde/.test(document.body.textContent));
+            await tab.waitForFunction(() => /Opevněné území Ankhem vzkříšení vzít nejde/.test(document.body.textContent));
             assert.equal(db.calls.filter(call => call.name === 'conquest_use_revive').length, 0);
             assert.equal(await tab.locator('[data-cq-sheet] .cq-sheet').count(), 0, 'list území se při výběru neotevře');
             // Česko (neopevněné, drží ho Petr): animace, přebarvení, štít 60 s (pauza, ať druhé klepnutí vedle není dvojité klepnutí)
@@ -1781,7 +1781,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             await tab.waitForTimeout(550);
             await shot(tab, `vzkriseni-animace-${width}-${mode}`);
             await tab.waitForSelector('[data-shield="Q213"]', { timeout: 10000 });
-            await tab.waitForFunction(() => /Vzkříšení! Česko je tvoje, 60 s chráněné\./.test((document.querySelector('[data-cq-banner]') || {}).textContent || ''));
+            await tab.waitForFunction(() => /Ankh vzkříšení! Česko je tvoje, 60 s chráněné\./.test((document.querySelector('[data-cq-banner]') || {}).textContent || ''));
             assert.equal((await tab.textContent('[data-shield="Q213"] [data-cq-shield-at]')).trim(), '60 s');
             assert.equal(await tab.locator('[data-cq-revive-bar]').count(), 0, 'výběr skončil');
             assert.equal(await tab.locator('[data-cq-chips] [data-cq="revive-use"]').count(), 0);
@@ -1789,11 +1789,11 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
             await tab.waitForTimeout(700);
             await shot(tab, `vzkriseni-ochrana-${width}-${mode}`);
-            // Kronika: Vzkříšení s praporcem, kdo o území přišel
-            assert.match(await bodyText(tab, '[data-cq-recent]'), /Česko\s*Vzkříšení\s*ty/);
+            // Kronika: Ankh vzkříšení s praporcem, kdo o území přišel
+            assert.match(await bodyText(tab, '[data-cq-recent]'), /Česko\s*Ankh vzkříšení\s*ty/);
             await tab.click('#conquest-game button[aria-label="Kronika tažení"]');
             await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Kronika tažení');
-            assert.match(await bodyText(tab, '#dialog-overlay'), /Česko: Vzkříšení ty · dosud Petr Svoboda/);
+            assert.match(await bodyText(tab, '#dialog-overlay'), /Česko: Ankh vzkříšení ty · dosud Petr Svoboda/);
             await shot(tab, `vzkriseni-kronika-${width}-${mode}`);
             await tab.keyboard.press('Escape');
             assert.deepEqual(log.errors, []);
@@ -1819,20 +1819,20 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             await other.tab.click('[data-cq="sheet-close"]');
             await other.tab.click('#conquest-game button[aria-label="Kronika tažení"]');
             await other.tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Kronika tažení');
-            assert.match(await bodyText(other.tab, '#dialog-overlay'), /Česko: Vzkříšení Jana Nováková · dosud ty/);
+            assert.match(await bodyText(other.tab, '#dialog-overlay'), /Česko: Ankh vzkříšení Jana Nováková · dosud ty/);
             assert.deepEqual(other.log.errors, []);
             assert.deepEqual(other.log.csp, []);
             await other.context.close();
         });
     }
 
-    await t.test('Vzkříšení: bez pomůcky Mimo hru (okno jak ji získat, štítek), omezený pohyb; starší databáze Návrat do hry bez okna', async () => {
+    await t.test('Ankh vzkříšení: bez pomůcky Mimo hru (okno jak ji získat, štítek), omezený pohyb; starší databáze Návrat do hry bez okna', async () => {
         const db = fallen({ revive: 0 });
         const g = db.games[0];
         const { context, tab, log } = await start(db, { reducedMotion: 'reduce' });
         await openFromHub(tab, g.id);
-        await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Vzkříšení', null, { timeout: 15000 });
-        assert.match(await bodyText(tab, '#dialog-overlay'), /Všechna tvá území padla\.\s*Vzkříšení nemáš, hru teď jen sleduješ\. Když ho během hry získáš, můžeš se vrátit\.\s*Jak získat Vzkříšení: Jedno na začátek, dohraná započítaná hra Dobývání s body[\s\S]*Nejvýš 3\.\s*Rozumím/);
+        await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Ankh vzkříšení', null, { timeout: 15000 });
+        assert.match(await bodyText(tab, '#dialog-overlay'), /Všechna tvá území padla\.\s*Ankh vzkříšení nemáš, hru teď jen sleduješ\. Když ho během hry získáš, můžeš se vrátit\.\s*Jak získat Ankh vzkříšení: Jeden na začátek, dohraná započítaná hra Dobývání s body[\s\S]*Nejvýš 3\.\s*Rozumím/);
         assert.ok(await reviveDialogFits(tab, 640));
         await shot(tab, 'vzkriseni-bez-pomucky-360');
         await tab.click('[data-cq="revive-later"]');
@@ -1840,7 +1840,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         assert.match(await bodyText(tab, '[data-cq-chips]'), /Mimo hru · jak se vrátit/);
         await tapTerritory(tab, 'Q40');
         await tab.waitForSelector('[data-cq-sheet] .cq-sheet');
-        assert.match(await bodyText(tab, '[data-cq-sheet]'), /Všechna tvá území padla\. Bez Vzkříšení hru už jen sleduješ\./);
+        assert.match(await bodyText(tab, '[data-cq-sheet]'), /Všechna tvá území padla\. Bez Ankhu vzkříšení hru už jen sleduješ\./);
         assert.equal(await tab.locator('[data-cq-sheet] [data-cq="revive-use"]').count(), 0);
         assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
         assert.deepEqual(log.errors, []);

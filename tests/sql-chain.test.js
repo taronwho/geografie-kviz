@@ -88,7 +88,7 @@ test('SQL: Řetězovka dne', { skip: !available && 'PostgreSQL není dostupný' 
         assert.equal(json(submit(D, 2, 3, true)).score, 3);
         // E: nula (hned první článek špatně); F: dohráno ve 23:59, odesláno po půlnoci → patří ke včerejšku
         assert.equal(json(submit(E, 0, 0)).rank, 5);
-        // (celý řetěz dá i pomůcku Půl na půl do Dobývání, blok 30; víc tests/sql-pomucky.test.js)
+        // (celý řetěz dá i pomůcku 50/50 do Dobývání, blok 30; víc tests/sql-pomucky.test.js)
         const { item, ...late } = json(submit(F, 7, 28, false, at('0:03', '2026-11-13'), DAY));
         assert.deepEqual(late, { day: DAY, links: 7, score: 28, rescued: false, rank: 1 });
         assert.deepEqual([item.kind, item.granted, item.count], ['fifty', true, 1]);
@@ -208,7 +208,7 @@ test('SQL: Řetězovka dne', { skip: !available && 'PostgreSQL není dostupný' 
         past(M, 9, 0);
         assert.deepEqual(pickItem(json(submit(M, 2, 3, false, now, DAY3)).rescue_item), ['chain_rescue', true, false, 'chain-days', 10]);
         assert.equal(json(submit(M, 2, 3, false, at('13:00', '2026-11-21'), '2026-11-21')).rescue_item, undefined, 'jedenáctý den nic');
-        // N: 4 celé řetězy bez Záchrany, pátý dá Záchranu navíc (k tomu Půl na půl za celý řetěz)
+        // N: 4 celé řetězy bez Záchrany, pátý dá Záchranu navíc (k tomu 50/50 za celý řetěz)
         past(N, 4, 4);
         const n = json(submit(N, 7, 28, false, now, DAY3));
         assert.deepEqual(pickItem(n.rescue_item), ['chain_rescue', true, false, 'chain-clean', 5]);

@@ -92,7 +92,7 @@
     // 27 = Dobývání: tahy všech hráčů ve stavu hry (budgets; bez nich pořadí tahy soupeřů neukáže).
     // 28 = Dobývání: přeskočený zbytek kola (Chci další kolo) se odečte i z konce hry.
     // 29 = Dobývání: upozornění „Všichni dohráli kolo“ a „Kolo brzy končí“ (server, push_pending; aplikace je jen otevře odkazem na hru).
-    // 30 = Dobývání: pomůcky Tah navíc a Půl na půl (zásoba na serveru, zisk z Bosse týdne, Kvízu dne, Řetězovky, výhry, Sezóny a Truhly).
+    // 30 = Dobývání: pomůcky Tah navíc a 50/50 (zásoba na serveru, zisk z Bosse týdne, Kvízu dne, Řetězovky, výhry, Sezóny a Truhly).
     // 31 = Speciální turnaje na téma a hlasování o tématu (tournaments.kind…, tournament_poll_state, tournament_vote; se starší databází se
     // hlasování ani speciální turnaj neukážou), výzvy jen s výběrem z možností a rozpis kontumovaného zápasu.
     // 32 = Motivace: Pozvi kamarády (referral_*), prestiž (prestige_up), vítězný efekt, reakce navíc, vitrína se Sezónou a kontrola odemčení
@@ -106,7 +106,7 @@
     // a Pavouk pletař za odznak retezovka-10 (se starší databází se odznaky Řetězovky do účtu neuloží a počítadla zůstanou jen ze zařízení).
     // 37 = Pomůcka Záchrana navíc do Řetězovky (zásoba chain_rescue, chain_use_rescue, chain_submit se dvěma zachráněnými články; zisk za
     // milníky Řetězovky, 12. stupeň Sezóny, Truhlu Mudrlanta, Zlatou truhlu a společný cíl Bosse; se starší databází se nenabídne).
-    // 39 = Dobývání: pomůcka Vzkříšení místo automatického Návratu do hry (conquest_use_revive, ochrana 60 s, zásoba revive; zisk startovní,
+    // 39 = Dobývání: pomůcka Ankh vzkříšení místo automatického Návratu do hry (conquest_use_revive, ochrana 60 s, zásoba revive; zisk startovní,
     // za započítanou hru, sérii Kvízu dne, 8. stupeň Sezóny a truhly; se starší databází se hráč bez území vrátí sám jako dřív).
     const REQUIRED_SCHEMA = 40;
     const HISTORY_SIZE = 200;
@@ -4731,7 +4731,7 @@
         noteSeasonTier();
         notePrestigeLevel();
     };
-    // ===== Pomůcky do Dobývání (blok 30, conquest.js ITEMS): Tah navíc a Půl na půl =====
+    // ===== Pomůcky do Dobývání (blok 30, conquest.js ITEMS): Tah navíc a 50/50 =====
     // Zásoba je na serveru; sem chodí zisky z Bosse týdne, Kvízu dne bez chyby, celé Řetězovky a výhry v Dobývání (item v jejich výsledku),
     // ze Sezóny (5. a 15. stupeň) a vzácně z Truhly Mudrlanta (player_items_claim). itemStock = poslední známá zásoba (null = nevíme).
     let itemStock = null;
@@ -4741,9 +4741,9 @@
         if (!grant || !grant.kind) return;
         itemStock = { ...(itemStock || {}), [grant.kind]: grant.count };
     };
-    const itemName = (kind) => (window.MudrlantConquest && window.MudrlantConquest.ITEMS[kind] ? window.MudrlantConquest.ITEMS[kind].name : 'Půl na půl');
+    const itemName = (kind) => (window.MudrlantConquest && window.MudrlantConquest.ITEMS[kind] ? window.MudrlantConquest.ITEMS[kind].name : '50/50');
     // Zásoba ze serveru (player_items_mine): chain_rescue = null, když ji databáze nezná (bez bloku 37: Záchrana navíc se nenabídne), revive
-    // stejně (bez bloku 39: Vzkříšení v Sezóně není)
+    // stejně (bez bloku 39: Ankh vzkříšení v Sezóně není)
     const setItemStock = (items) => {
         if (!items) return;
         itemStock = { extra_move: items.extra_move, fifty: items.fifty, chain_rescue: typeof items.chain_rescue === 'number' ? items.chain_rescue : null,
@@ -5310,7 +5310,7 @@
         overlay.className = 'chest-overlay fade-in fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto px-4 pb-4';
         let opened = null;
         let opening = false;
-        // Vzácně i pomůcka; o los se řekne server (nejvýš jednou za týden): Truhla Mudrlanta 5 % Půl na půl do Dobývání a 5 % Záchrana navíc
+        // Vzácně i pomůcka; o los se řekne server (nejvýš jednou za týden): Truhla Mudrlanta 5 % 50/50 do Dobývání a 5 % Záchrana navíc
         // do Řetězovky, Zlatá truhla 20 % Záchrana navíc (blok 37)
         let bonus = null;
         const askBonus = () => {
@@ -11146,7 +11146,7 @@
                     const index = attempt.synced;
                     const state = await Social.dailyQuizAnswer(attempt.day, index, attempt.results[index]);
                     if (!state) return null;
-                    // Kvíz dne bez chyby: pomůcka Půl na půl do Dobývání (blok 30); milník série: Vzkříšení (blok 39)
+                    // Kvíz dne bez chyby: pomůcka 50/50 do Dobývání (blok 30); milník série: Ankh vzkříšení (blok 39)
                     if (state.item) celebrateItem(state.item);
                     if (state.revive_item) celebrateItem(state.revive_item);
                     if (!applyQuizServer(attempt, state) || attempt.synced <= index) return false;
@@ -12695,7 +12695,7 @@
             appContent, setScreen: (name) => { screen = name; }, getScreen: () => screen, renderHome, renderIcons, updateControlsUI, closePlaceInfo, showToast, showDialog, closeDialog,
             uiArt, specialTile, paintHome: () => paintTab('dnes'), avatarHtml, xpLine, meRow: () => quizHelpers().meRow, loadTopic, loadCountries, readJson, writeJson, signedUser, social: Social, auth: Auth, startLogin,
             shareCard: ShareCard, shareImageCounted, robeNow, appUrl, appName: APP_NAME, sound: Sound, isLoading: () => isLoading,
-            // Celá Řetězovka: pomůcka Půl na půl do Dobývání (blok 30); milník Řetězovky: Záchrana navíc (blok 37)
+            // Celá Řetězovka: pomůcka 50/50 do Dobývání (blok 30); milník Řetězovky: Záchrana navíc (blok 37)
             itemGranted: (grant) => celebrateItem(grant),
             // Pomůcka Záchrana navíc (blok 37): zásoba ze serveru (null = nevíme nebo databáze ji nezná), načtení, použití a pečeť
             rescueStock: () => (itemStock && typeof itemStock.chain_rescue === 'number' ? itemStock.chain_rescue : null),
@@ -14514,7 +14514,7 @@
                 syncProgress();
             },
             share: (payload) => ShareCard ? ShareCard.shareText(payload, { toast: showToast, copied: 'Odkaz na hru zkopírován', failed: 'Kopírování se nepodařilo' }) : null,
-            // Výhra: pomůcka Půl na půl (blok 30)
+            // Výhra: pomůcka 50/50 (blok 30)
             itemGranted: (grant) => celebrateItem(grant),
             // Nově odemčené výplně území a vzácné znaky (blok 38): oslava se vzorkem území nebo pečetí v barvě a znaku hráče
             looksUnlocked: (news, look) => celebrateLooks(news, look),

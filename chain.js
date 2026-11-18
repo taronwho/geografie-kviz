@@ -2335,7 +2335,7 @@
                 if (saved === null) return; // databáze Řetězovku nezná
                 entry.synced = true;
                 store(entry);
-                // Celý řetěz: pomůcka Půl na půl do Dobývání (blok 30, nejvýš jednou za týden; oslavu udělá app.js); milník Řetězovky:
+                // Celý řetěz: pomůcka 50/50 do Dobývání (blok 30, nejvýš jednou za týden; oslavu udělá app.js); milník Řetězovky:
                 // Záchrana navíc (blok 37, s plnou zásobou jen zpráva)
                 if (saved && saved.item && deps.itemGranted) deps.itemGranted(saved.item);
                 if (saved && saved.rescue_item && deps.itemGranted) deps.itemGranted(saved.rescue_item);

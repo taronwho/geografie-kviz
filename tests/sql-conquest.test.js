@@ -1,6 +1,6 @@
 // Dobývání v databázi (PostgreSQL 16, blok „21: Dobývání“): mapy a sousedství shodné s data/dobyvani-*.json, lobby s Rychlými hrami,
 // založení a přidání (barva jen jednou, soukromá hra jen kódem, limity), Chci hrát a plná hra (domovy, poklady, body), pravidla řádků,
-// tahy (sousedství, vlastní území, opevnění 0–3, pobourání, dobytí, tahy za období, region, poklad, kořist, ztracený hrad, bez území jen Vzkříšením), konec hry
+// tahy (sousedství, vlastní území, opevnění 0–3, pobourání, dobytí, tahy za období, region, poklad, kořist, ztracený hrad, bez území jen Ankhem vzkříšení), konec hry
 // (pořadí, shoda), odměna jen jednou, odchod z lobby a vypršení; rychlé hry a Chci další kolo (blok 26: délka v minutách, aspoň 3 kola, předčasné
 // kolo s odpočtem, tahy a bonusy ve správném kole, boti, poslední kolo, oprávnění) a upozornění na kola (blok 29: všichni dohráli kolo,
 // kolo brzy končí podle délky kola). Spouští se jen s psql a serverem (viz tests/sql-rating.test.js),
@@ -268,13 +268,13 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         assert.equal(next.budget.left, 6, '5 + region');
     });
 
-    await t.test('bez území (blok 39): sám se nikdo nevrací, jen Vzkříšením; dobytý domov = kořist', () => {
-        // B neměl od včerejška nic: automatický Návrat do hry už není, jen startovní Vzkříšení v zásobě
+    await t.test('bez území (blok 39): sám se nikdo nevrací, jen Ankhem vzkříšení; dobytý domov = kořist', () => {
+        // B neměl od včerejška nic: automatický Návrat do hry už není, jen startovní Ankh vzkříšení v zásobě
         const after = json(state(B, game.id));
         assert.equal(after.territories.filter(item => item.o === B).length, 0);
         assert.ok(!after.moves.some(m => m.r === 'respawn' && m.u === B));
         assert.deepEqual([after.items.revive, after.items.can_revive, after.items.revive_block, after.items.revive_used], [1, true, null, 0]);
-        assert.equal(json(state(A, game.id)).items.revive_block, 'Vzkříšení jde použít, jen když ti nezbylo žádné území.');
+        assert.equal(json(state(A, game.id)).items.revive_block, 'Ankh vzkříšení jde použít, jen když ti nezbylo žádné území.');
         // A dobude domov hráče B (Slovinsko z Rakouska): B přijde o vše, A dostane v dalším období kořist
         clearMap(game.id);
         place(game.id, 'Q215', B, { home: true });
@@ -1056,7 +1056,7 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         assert.deepEqual([st.budget.period, at(st.round.started_at), at(st.round.ends_at)], [2, '2026-12-20T11:05:30.000Z', '2026-12-20T11:10:30.000Z']);
     });
 
-    await t.test('další kolo (blok 26): kořist, ztracený hrad, Vzkříšení během odpočtu a Pevnost v předčasném kole; hráč bez území kolo dohrál a další kolo chce sám; upozornění o dalším kole', () => {
+    await t.test('další kolo (blok 26): kořist, ztracený hrad, Ankh vzkříšení během odpočtu a Pevnost v předčasném kole; hráč bez území kolo dohrál a další kolo chce sám; upozornění o dalším kole', () => {
         // Kolo 2 (od 11:05:30): R1 má domov Rakousko s Pevností (+1 tah), R2 jen domov Slovinsko
         clearMap(fast.id);
         place(fast.id, 'Q40', R1, { home: true, level: 3 });
@@ -1076,14 +1076,14 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         // Upozornění pro R2 (rychlá hra): jak se vrátit; jen útoky z posledních 30 minut
         const pushRows = () => { const text = q(`select title || '|' || body from conquest_push_items() where user_id = '${R2}'`); return text ? text.split('\n').map(line => line.split('|')) : []; };
         q(`update conquest_moves set at = now() - interval '20 minutes' where game_id = '${fast.id}' and kind = 'attack'`);
-        assert.deepEqual(pushRows(), [['Dobývání: padl tvůj domovský hrad', 'Útočník: Rychlík. Všechna tvá území padla. Vrátit se můžeš pomůckou Vzkříšení.']]);
+        assert.deepEqual(pushRows(), [['Dobývání: padl tvůj domovský hrad', 'Útočník: Rychlík. Všechna tvá území padla. Vrátit se můžeš pomůckou Ankh vzkříšení.']]);
         q(`update conquest_moves set at = now() - interval '40 minutes' where game_id = '${fast.id}' and kind = 'attack'`);
         assert.deepEqual(pushRows(), [], 'v rychlé hře jen čerstvé útoky');
         // R1 chce další kolo v 11:06:00 a R2 se počítá sám: kolo 3 začne v 11:06:10
         clock = '2026-12-20T11:06:00Z';
         assert.equal(at(json(roundReady(R1, fast.id)).next_at), '2026-12-20T11:06:10.000Z');
         assert.equal(json(state(R2, fast.id)).territories.filter(item => item.o === R2).length, 0, 'bez automatického Návratu do hry');
-        // Během odpočtu R2 použije startovní Vzkříšení na neopevněné Slovinsko, které teď drží R1: není domovské, R1 o ně přišel
+        // Během odpočtu R2 použije startovní Ankh vzkříšení na neopevněné Slovinsko, které teď drží R1: není domovské, R1 o ně přišel
         clock = '2026-12-20T11:06:05Z';
         const rev = json(as(R2, `select conquest_use_revive('${fast.id}', 'Q215');`));
         assert.deepEqual(rev.territories.filter(item => item.o === R2).map(item => [item.t, item.h, item.l]), [['Q215', false, 0]]);

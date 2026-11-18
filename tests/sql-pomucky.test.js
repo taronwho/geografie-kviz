@@ -1,8 +1,8 @@
-// Pomůcky do Dobývání v databázi (PostgreSQL 16, blok „30: Dobývání – pomůcky“): Tah navíc (nejvýš 1) a Půl na půl (nejvýš 2).
+// Pomůcky do Dobývání v databázi (PostgreSQL 16, blok „30: Dobývání – pomůcky“): Tah navíc (nejvýš 1) a 50/50 (nejvýš 2).
 // Zisk jednou za klíč zdroje a se stropem (Boss týdne, Kvíz dne bez chyby a celá Řetězovka nejvýš jednou za ISO týden, výhra v Dobývání,
 // 5. a 15. stupeň Sezóny Mudrlanta jen v tomto a minulém měsíci, Truhla Mudrlanta s losem 5 % jednou za týden), plná zásoba (týdenní
 // klíče se zkusí znovu, sezóna a truhla ne), boti nic; použití ve hře (Tah navíc jednou za hru, ne v posledním kole, ne v odpočtu, ne bez
-// území, přidá právě jeden tah, je v kronice a v tazích všech; Půl na půl jednou za hru, v bitvě vybere server dvě nesprávné možnosti
+// území, přidá právě jeden tah, je v kronice a v tazích všech; 50/50 jednou za hru, v bitvě vybere server dvě nesprávné možnosti
 // a ostatní účastníci vidí, že ji hráč použil); pravidla řádků, oprávnění, export a smazání účtu. Spouští se jen s psql a serverem
 // (viz tests/sql-rating.test.js), jinak se přeskočí.
 const test = require('node:test');
@@ -109,9 +109,9 @@ test('SQL: pomůcky do Dobývání', { skip: !available && 'PostgreSQL není dos
         denied(as(A, `select player_item_grant('${A}', 'fifty', 'daily:2026-W46', false);`), /permission denied/, 'zisk jen ze serveru');
         for (const sql of ['select player_items_mine();', `select player_items_claim('season', 'season:2026-11:5');`, 'select * from player_items;']) denied(as(null, sql, 'anon'), null, sql);
         denied(as(null, 'select player_items_mine();'), /Přihlas se/);
-        // Startovní Vzkříšení (blok 39) přijde s prvním načtením zásoby
+        // Startovní Ankh vzkříšení (blok 39) přijde s prvním načtením zásoby
         assert.deepEqual(json(as(A, 'select player_items_mine();')), { extra_move: 0, fifty: 0, chain_rescue: 0, revive: 1, max: { extra_move: 1, fifty: 2, chain_rescue: 1, revive: 3 } });
-        // Strop: Tah navíc nejvýš 1, Půl na půl nejvýš 2, Vzkříšení nejvýš 3 (ani správce databáze víc nezapíše)
+        // Strop: Tah navíc nejvýš 1, 50/50 nejvýš 2, Ankh vzkříšení nejvýš 3 (ani správce databáze víc nezapíše)
         for (const [kind, count] of [['extra_move', 2], ['fifty', 3], ['fifty', -1], ['chain_rescue', 2], ['revive', 4], ['jiny', 1]]) {
             const r = psql(dbName, `insert into player_items (user_id, kind, count) values ('${E}', '${kind}', ${count})`);
             assert.notEqual(r.status, 0, `${kind} ${count}`);
@@ -146,7 +146,7 @@ test('SQL: pomůcky do Dobývání', { skip: !available && 'PostgreSQL není dos
         assert.equal(q(`select string_agg(key || '=' || granted, ',' order by key) from player_item_grants where user_id = '${A}'`), 'boss:2026-11-09=true,boss:2026-11-16=false,starter=true');
     });
 
-    await t.test('Kvíz dne bez chyby: Půl na půl nejvýš jednou za ISO týden; s plnou zásobou se v týdnu zkusí znovu; s chybou nic', () => {
+    await t.test('Kvíz dne bez chyby: 50/50 nejvýš jednou za ISO týden; s plnou zásobou se v týdnu zkusí znovu; s chybou nic', () => {
         const play = (uid, day, mask) => {
             today = day;
             json(as(uid, 'select daily_quiz_start();'));
@@ -154,7 +154,7 @@ test('SQL: pomůcky do Dobývání', { skip: !available && 'PostgreSQL není dos
             [...mask].forEach((bit, idx) => { lastResult = json(as(uid, `select daily_quiz_answer('${day}', ${idx}, ${bit === '1'}, ${bit === '1' ? 3 : 0}, 3000);`)); });
             return lastResult;
         };
-        // Čtvrtek 12. 11. 2026 (týden 46): bez chyby → Půl na půl
+        // Čtvrtek 12. 11. 2026 (týden 46): bez chyby → 50/50
         const first = play(B, '2026-11-12', '1111111111');
         assert.equal(first.finished, true);
         assert.deepEqual(pick(first.item), ['fifty', true, false, false, 1]);
@@ -176,7 +176,7 @@ test('SQL: pomůcky do Dobývání', { skip: !available && 'PostgreSQL není dos
         assert.equal(json(as(C, `select daily_quiz_answer('2026-11-12', 0, true, 3, 3000);`)).item, undefined);
     });
 
-    await t.test('Řetězovka: celý řetěz (7 článků) dá Půl na půl nejvýš jednou za ISO týden; kratší ani opakované odeslání nic', () => {
+    await t.test('Řetězovka: celý řetěz (7 článků) dá 50/50 nejvýš jednou za ISO týden; kratší ani opakované odeslání nic', () => {
         const submit = (uid, day, links) => { clock = `${day}T12:00:00Z`; return json(as(uid, `select chain_submit('${day}', ${links}, ${links * (links + 1) / 2}, false);`)); };
         assert.equal(submit(C, '2026-11-12', 6).item, undefined);
         assert.deepEqual(pick(submit(C, '2026-11-13', 7).item), ['fifty', true, false, false, 1]);
@@ -186,7 +186,7 @@ test('SQL: pomůcky do Dobývání', { skip: !available && 'PostgreSQL není dos
         assert.equal(q(`select string_agg(key, ',' order by key) from player_item_grants where user_id = '${C}'`), 'chain:2026-W46,chain:2026-W47');
     });
 
-    await t.test('Sezóna Mudrlanta: 5. stupeň Půl na půl, 15. stupeň Tah navíc, jednou za klíč, jen tento a minulý měsíc; plná zásoba = věc (klíč hotový)', () => {
+    await t.test('Sezóna Mudrlanta: 5. stupeň 50/50, 15. stupeň Tah navíc, jednou za klíč, jen tento a minulý měsíc; plná zásoba = věc (klíč hotový)', () => {
         clock = '2026-11-20T10:00:00Z';
         const r5 = json(claim(D, 'season', 'season:2026-11:5'));
         assert.deepEqual(pick(r5), ['fifty', true, false, false, 1]);
@@ -221,7 +221,7 @@ test('SQL: pomůcky do Dobývání', { skip: !available && 'PostgreSQL není dos
         q(`insert into auth.users (id, email) select u, 'l' || u || '@example.com' from unnest(array[${users.map(lit).join(', ')}]::uuid[]) u`);
         const lucky = q(`select string_agg(u::text, ',') from unnest(array[${users.map(lit).join(', ')}]::uuid[]) u where player_item_lucky(u, '${week}')`).split(',').filter(Boolean);
         assert.ok(lucky.length >= 1 && lucky.length <= 20, `zhruba 5 %: ${lucky.length} ze 120`);
-        // Bez štěstí = ani Půl na půl (pod 50), ani Záchrana navíc (50–99, blok 37), ani Vzkříšení (130–229, blok 39)
+        // Bez štěstí = ani 50/50 (pod 50), ani Záchrana navíc (50–99, blok 37), ani Ankh vzkříšení (130–229, blok 39)
         const unlucky = users.find(u => Number(q(`select player_item_roll('${u}', '${week}')`)) >= 230);
         const no = json(claim(unlucky, 'chest', week));
         assert.deepEqual([no.granted, no.lucky, no.items.fifty], [false, false, 0]);
@@ -286,11 +286,11 @@ test('SQL: pomůcky do Dobývání', { skip: !available && 'PostgreSQL není dos
         setStock(B, 'extra_move', 0);
         denied(useExtra(B, g2.id), /Tah navíc teď nemáš\./);
         setStock(B, 'extra_move', 1);
-        // Bez území (vrátit se jde jen Vzkříšením, blok 39)
+        // Bez území (vrátit se jde jen Ankhem vzkříšení, blok 39)
         place(g2.id, 'Q36', null);
         place(g2.id, 'Q213', null);
         q(`update conquest_territories set owner = '${C}' where game_id = '${g2.id}' and territory = 'Q183'`);
-        assert.equal(state(B, g2.id).items.extra_block, 'Bez území Tah navíc použít nejde. Vrátit se můžeš pomůckou Vzkříšení.');
+        assert.equal(state(B, g2.id).items.extra_block, 'Bez území Tah navíc použít nejde. Vrátit se můžeš pomůckou Ankh vzkříšení.');
         denied(useExtra(B, g2.id), /Bez území Tah navíc použít nejde\./);
         place(g2.id, 'Q213', B, { home: true });
         // Kolo dohrané, B chce další kolo, pak použije Tah navíc: značka zmizí a kolo zase není hotové
@@ -330,7 +330,7 @@ test('SQL: pomůcky do Dobývání', { skip: !available && 'PostgreSQL není dos
         assert.equal(json(useExtra(D, hourly.id)).budget.extra, 1, 'předposlední hodina ještě jde');
     });
 
-    await t.test('Půl na půl bez bitvy (opevnění): jednou za hru, opakované volání před tahem nic dalšího neubere', () => {
+    await t.test('50/50 bez bitvy (opevnění): jednou za hru, opakované volání před tahem nic dalšího neubere', () => {
         clock = '2026-12-05T10:00:00Z';
         setStock(A, 'fifty', 2);
         const g3 = newGame(A, B, { per: 'day', hours: 72, minutes: null, actions: 3 });
@@ -340,14 +340,14 @@ test('SQL: pomůcky do Dobývání', { skip: !available && 'PostgreSQL není dos
         assert.deepEqual(json(useFifty(A, g3.id, { target: 'Q213' })).items.fifty, 1, 'stejná otázka: nic dalšího');
         assert.equal(state(A, g3.id).items.fifty_used, true);
         ok(move(A, g3.id, 'Q213', 'fortify', true));
-        denied(useFifty(A, g3.id, { target: 'Q213' }), /Půl na půl jde v jedné hře použít jen jednou\./);
+        denied(useFifty(A, g3.id, { target: 'Q213' }), /50\/50 jde v jedné hře použít jen jednou\./);
         denied(useFifty(A, g3.id, { target: 'Q214' }), /jen jednou/);
         assert.deepEqual(mine(A)[1], 1);
         setStock(B, 'fifty', 0);
-        denied(useFifty(B, g3.id, { target: 'Q36' }), /Půl na půl teď nemáš\./);
+        denied(useFifty(B, g3.id, { target: 'Q36' }), /50\/50 teď nemáš\./);
     });
 
-    await t.test('Půl na půl v bitvě: server odebere dvě nesprávné možnosti (správnou neprozradí), ostatní vidí ½; po odpovědi ani u mapy ne', () => {
+    await t.test('50/50 v bitvě: server odebere dvě nesprávné možnosti (správnou neprozradí), ostatní vidí ½; po odpovědi ani u mapy ne', () => {
         clock = '2026-12-06T10:00:00Z';
         setStock(A, 'fifty', 2);
         setStock(B, 'fifty', 1);
@@ -363,15 +363,15 @@ test('SQL: pomůcky do Dobývání', { skip: !available && 'PostgreSQL není dos
         assert.deepEqual(json(useFifty(A, g4.id, { siege: s.id })).removed, r.removed, 'opakované volání vrátí totéž');
         assert.equal(r.items.fifty, 1);
         assert.deepEqual(json(as(A, `select conquest_siege_status('${s.id}');`)).removed, r.removed, 'po návratu do bitvy zůstane');
-        // Ostatní vidí, že Půl na půl použil (ne které možnosti)
+        // Ostatní vidí, že 50/50 použil (ne které možnosti)
         const seen = json(as(B, `select conquest_siege_status('${s.id}');`));
         assert.deepEqual(seen.participants.map(p => [p.id, p.fifty]), [[A, true], [B, false]]);
         assert.equal(seen.removed, null);
         const pulse = json(as(C, `select conquest_pulse('${g4.id}');`));
         assert.deepEqual(pulse.sieges[0].participants.map(p => p.fifty), [true, false]);
-        // B odpoví, pak už Půl na půl nejde
+        // B odpoví, pak už 50/50 nejde
         ok(answer(B, s.id, 1));
-        denied(useFifty(B, g4.id, { siege: s.id }), /Na tuhle otázku už Půl na půl použít nejde\./);
+        denied(useFifty(B, g4.id, { siege: s.id }), /Na tuhle otázku už 50\/50 použít nejde\./);
         assert.equal(mine(B)[1], 1);
         // Cizí bitva a cizí hra ne; jednou za hru i jinde
         denied(useFifty(C, g4.id, { siege: s.id }), /V téhle bitvě nebojuješ\./);
@@ -385,10 +385,10 @@ test('SQL: pomůcky do Dobývání', { skip: !available && 'PostgreSQL není dos
         const map = { kind: 'map', prompt: 'Kde leží Brno?', choices: [{ label: 'A' }, { label: 'B' }, { label: 'C' }, { label: 'D' }] };
         setStock(B, 'fifty', 1);
         const s2 = json(begin(B, g4.id, 'Q214', { question: map, correct: 0 }));
-        denied(useFifty(B, g4.id, { siege: s2.id }), /U téhle otázky Půl na půl použít nejde\./);
+        denied(useFifty(B, g4.id, { siege: s2.id }), /U téhle otázky 50\/50 použít nejde\./);
     });
 
-    await t.test('výhra ve hře Dobývání: vítěz s aspoň 3 tahy dostane Půl na půl (conquest_claim ho řekne jednou), druhý ne; bez tahů ne', () => {
+    await t.test('výhra ve hře Dobývání: vítěz s aspoň 3 tahy dostane 50/50 (conquest_claim ho řekne jednou), druhý ne; bez tahů ne', () => {
         clock = '2026-12-10T10:00:00Z';
         setStock(D, 'fifty', 0);
         setStock(E, 'fifty', 0);
@@ -428,7 +428,7 @@ test('SQL: pomůcky do Dobývání', { skip: !available && 'PostgreSQL není dos
         assert.deepEqual(pick(json(claim(S1, 'season', 'season:2026-11:12'))), ['chain_rescue', true, false, true, 1], 'jednou za klíč');
         assert.deepEqual(pick(json(claim(S1, 'season', 'season:2026-10:12'))), ['chain_rescue', false, true, false, 1], 'nejvýš jedna');
         assert.equal(rescueOf(S1), 1);
-        // Truhla Mudrlanta: los 0–999; pod 50 Půl na půl jako dřív, 50–99 Záchrana navíc, jinak nic (jedna věc z truhly za týden)
+        // Truhla Mudrlanta: los 0–999; pod 50 50/50 jako dřív, 50–99 Záchrana navíc, jinak nic (jedna věc z truhly za týden)
         const week = 'chest:2026-W47';
         const roll = (uid, key) => Number(q(`select player_item_roll('${uid}', '${key}')`));
         const chestRescue = users.slice(1).filter(u => roll(u, week) >= 50 && roll(u, week) < 100);
@@ -436,7 +436,7 @@ test('SQL: pomůcky do Dobývání', { skip: !available && 'PostgreSQL není dos
         const got = json(claim(chestRescue[0], 'chest', week));
         assert.deepEqual([got.kind, got.granted, got.lucky, got.items.chain_rescue, got.items.fifty], ['chain_rescue', true, true, 1, 0]);
         assert.deepEqual([json(claim(chestRescue[0], 'chest', week)).already, rescueOf(chestRescue[0])], [true, 1], 'jen jednou za týden');
-        assert.equal(q(`select player_item_lucky('${chestRescue[0]}', '${week}')`), 'f', 'Půl na půl jen pod 50');
+        assert.equal(q(`select player_item_lucky('${chestRescue[0]}', '${week}')`), 'f', '50/50 jen pod 50');
         // Zlatá truhla: gold:<týden> tento nebo minulý týden, 20 % (pod 200), jednou za týden
         denied(claim(S1, 'gold', 'gold:2026-W40'), /Truhla patří k jinému týdnu\./);
         denied(claim(S1, 'gold', 'chest:2026-W47'), /Truhla patří k jinému týdnu\./);
