@@ -284,6 +284,33 @@ test('SQL: motivace (pozvánky, reakce, kontrola odemčení, prestiž, vitrína)
         ok(asUser(D, `update profiles set frame = 'zadny', title_pref = 'level', victory_fx = null where id = '${D}'`));
         assert.equal(profile(D, 'avatar'), 'pavouk13', 'uložený Pavouk zůstane');
         assert.equal(tryAvatar(D, 'pavouk2'), 'pavouk2', 'jiné barvy téže postavičky');
+        // Č. 341–357 na konci téže funkce: Duch s lucernou za Řetězovku 30 (i vyšší stupeň), Černá kočka za Bosse Alchymistu, Příšerka za úroveň 14,
+        // Dýňový strašák jen z truhly
+        assert.equal(q("select count(*) from public.unlock_catalog() where cat = 'avatars' and item in ('ponozk', 'mrak', 'priser', 'zombie', 'kohout', 'kostli', 'havran', 'holub', 'medoj', 'buldok', 'nosoro', 'duch', 'mumie', 'kocka', 'vlkodl', 'krysa', 'dynak')"), '17', 'katalog má č. 341–357');
+        q(`update profiles set xp = 0, badges = array['retezovka-10'], rewards = null, avatar = '🦊' where id = '${D}'`);
+        assert.equal(tryAvatar(D, 'duch'), '🦊', 'Duch až za 30 Řetězovek');
+        q(`update profiles set badges = array['retezovka-100'] where id = '${D}'`);
+        assert.equal(tryAvatar(D, 'duch21'), 'duch21', 'vyšší stupeň Řetězovky stačí');
+        assert.equal(tryAvatar(D, 'kocka'), 'duch21', 'Černá kočka jen za Alchymistu');
+        q(`update profiles set badges = array['boss-alchymista'] where id = '${D}'`);
+        assert.equal(tryAvatar(D, 'kocka7'), 'kocka7', 'Přemožitel Alchymisty');
+        assert.equal(tryAvatar(D, 'priser'), 'kocka7', 'Příšerka až od úrovně 14');
+        q(`update profiles set xp = 100000 where id = '${D}'`);
+        assert.equal(tryAvatar(D, 'priser'), 'priser', 'úroveň 14');
+        assert.equal(tryAvatar(D, 'dynak'), 'priser', 'Dýňový strašák jen z truhly, úroveň nestačí');
+        q(`update profiles set rewards = '{"gifts": {"avatars": ["dynak"]}}' where id = '${D}'`);
+        assert.equal(tryAvatar(D, 'dynak25'), 'dynak25', 'dar z truhly');
+        // Absurdní č. 379–408: Smrtka na dovolené až za druhou prestiž, Prd v láhvi jen z truhly, Kuře influencer za 10 kamarádů, Kaktus za pozvánku
+        assert.equal(q("select count(*) from public.unlock_catalog() where cat = 'avatars' and item in ('kafe', 'holubz', 'kachna', 'slepic', 'nuget', 'kaktik', 'husa', 'tousto', 'racek', 'sandal', 'aligat', 'zralok', 'snob', 'rohlik', 'komar', 'trpas', 'tchyne', 'kuryr', 'kocov', 'gauc', 'podnaj', 'upir', 'plivak', 'bricho', 'papous', 'syr', 'prd', 'jednor', 'kure', 'smrtka')"), '30', 'katalog má č. 379–408');
+        q(`update profiles set prestige = 1 where id = '${D}'`);
+        assert.equal(tryAvatar(D, 'smrtka'), 'dynak25', 'Smrtka až za druhou prestiž');
+        q(`update profiles set prestige = 2 where id = '${D}'`);
+        assert.equal(tryAvatar(D, 'smrtka12'), 'smrtka12', 'druhá prestiž');
+        assert.equal(tryAvatar(D, 'prd'), 'smrtka12', 'Prd v láhvi jen z truhly');
+        assert.equal(tryAvatar(D, 'kure'), 'smrtka12', 'Kuře influencer až za 10 kamarádů');
+        assert.equal(q("select rule from public.unlock_catalog() where cat = 'avatars' and item = 'kaktik'"), 'referral:novacek,pritel-1');
+        assert.equal(tryAvatar(D, 'kafe'), 'kafe', 'Křeček po pěti kávách od úrovně 6');
+        q(`update profiles set xp = 3200 where id = '${D}'`);
         q(`update profiles set prestige = ${before.prestige === '-' ? 'null' : before.prestige}, prestige_xp = ${before.prestigeXp === '-' ? 'null' : before.prestigeXp}, avatar = '🦊', rewards = null, badges = '{}' where id = '${D}'`);
     });
 

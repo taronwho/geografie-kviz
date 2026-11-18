@@ -8392,7 +8392,7 @@ revoke all on function public.dev_tournament_poll_set(text[], boolean) from publ
 grant execute on function public.dev_tournament_poll_set(text[], boolean) to authenticated;
 -- ===== 34: Hlasování o speciálním turnaji jen na pokyn správce — KONEC BLOKU =====
 
--- ===== 35: Další postavičky (č. 317–340) — ZAČÁTEK BLOKU =====
+-- ===== 35: Další postavičky (č. 317–408) — ZAČÁTEK BLOKU =====
 -- Postavičky z docs/OBRAZKY.md oddílu 26 (look.js NEW_AVATARS) jako řádky katalogu odemykání (blok 32): unlock_catalog() je přidá za
 -- své řádky přes unlock_catalog_more(), takže kontrola obrázku v profilu (unlock_avatar_ok, trigger profiles_unlock_check) je zná stejně
 -- jako starší postavičky. Bez tohoto bloku je server nezná a pustí je jako základní emoji (neznámý obrázek = volně).
@@ -8400,8 +8400,11 @@ grant execute on function public.dev_tournament_poll_set(text[], boolean) to aut
 -- z Truhly Mudrlanta a stupňů Sezóny, Zmrzlinový kornout vzácně z Truhly Mudrlanta a ze Zlaté truhly), pozvaní kamarádi a prestiž.
 -- Pavouk pletař se od schématu 36 odemyká odznakem Kovář řetězů (retezovka-10, Řetězovka dne) místo turnaj-postupy-5; kdo ho už má
 -- v profilu, o něj nepřijde (check_unlocks kontroluje jen změněný obrázek).
--- Další postavičky (č. 339, 341–357) se připíšou sem na konec seznamu (a číslo verze schématu se zvýší). Shodu s look.js hlídá
--- tests/motivace.test.js.
+-- Postavičky č. 341–357 a absurdní č. 379–408 jsou na konci seznamu ('gift' = jen z truhly: Dýňový strašák a Prd v láhvi z Truhly Mudrlanta,
+-- stupňů Sezóny a Zlaté truhly, Jednorožec mrzout jako vzácný dárek; Kaktus, který chce obejmout, za pozvánku, Kuře influencer za 10 kamarádů,
+-- Smrtka na dovolené za druhou prestiž). Funkce se
+-- jen nahradí, takže stačí soubor spustit znovu; se starší databází je server nezná a uloží je volně (neznámý obrázek), nic neodmítne.
+-- Krab kadeřník (č. 339) se připíše sem na konec seznamu. Shodu s look.js hlídá tests/motivace.test.js.
 create or replace function public.unlock_catalog_more() returns table (cat text, item text, rule text)
 language sql immutable set search_path = public as $$
     select * from (values
@@ -8410,11 +8413,27 @@ language sql immutable set search_path = public as $$
         ('avatars', 'plamak', 'badge:kviz-perfekt-5'), ('avatars', 'vajko', 'badge:sazkar'), ('avatars', 'pizza', 'badge:vyhry-5'), ('avatars', 'jezek', 'badge:sberatel-50'),
         ('avatars', 'zirafa', 'level:31'), ('avatars', 'vydra', 'badge:preziti-35'), ('avatars', 'hroch', 'badge:tezke-50'), ('avatars', 'lama', 'badge:tema-hudba-100'),
         ('avatars', 'pavouk', 'badge:retezovka-10'), ('avatars', 'krava', 'badge:dobyvatel-3'), ('avatars', 'velbl', 'badge:boss-kapitan'), ('avatars', 'kapyba', 'gift'),
-        ('avatars', 'zmrzl', 'gift'), ('avatars', 'kosatk', 'referral:pritel-3'), ('avatars', 'avokad', 'prestige:1')
+        ('avatars', 'zmrzl', 'gift'), ('avatars', 'kosatk', 'referral:pritel-3'), ('avatars', 'avokad', 'prestige:1'),
+        -- č. 341–357
+        ('avatars', 'ponozk', 'badge:vsestrannost-3'), ('avatars', 'mrak', 'badge:odhad-5'), ('avatars', 'priser', 'level:14'), ('avatars', 'zombie', 'badge:poznane-100'),
+        ('avatars', 'kohout', 'badge:kviz-serie-14'), ('avatars', 'kostli', 'badge:tema-biologie-100'), ('avatars', 'havran', 'badge:tema-literatura-100'),
+        ('avatars', 'holub', 'badge:sazky-v-rade-3'), ('avatars', 'medoj', 'badge:vyzvy-25'), ('avatars', 'buldok', 'badge:turnaj-semifinale'),
+        ('avatars', 'nosoro', 'badge:vyhry-v-rade-5'), ('avatars', 'duch', 'badge:retezovka-30'), ('avatars', 'mumie', 'badge:tema-historie-600'),
+        ('avatars', 'kocka', 'badge:boss-alchymista'), ('avatars', 'vlkodl', 'badge:boss-druid'), ('avatars', 'krysa', 'badge:zlatokop-50'), ('avatars', 'dynak', 'gift'),
+        -- č. 379–408 (absurdní postavičky)
+        ('avatars', 'kafe', 'level:6'), ('avatars', 'holubz', 'badge:mapa-5'), ('avatars', 'kachna', 'badge:serad-5'), ('avatars', 'slepic', 'badge:zalozene-1'),
+        ('avatars', 'nuget', 'badge:rada-5'), ('avatars', 'kaktik', 'referral:novacek,pritel-1'), ('avatars', 'husa', 'badge:turnaj-postupy-1'),
+        ('avatars', 'tousto', 'level:22'), ('avatars', 'racek', 'badge:kviz-dne-10'), ('avatars', 'sandal', 'badge:tema-zemepis-100'),
+        ('avatars', 'aligat', 'badge:tema-geologie-100'), ('avatars', 'zralok', 'badge:tema-film-100'), ('avatars', 'snob', 'badge:tema-umeni-100'),
+        ('avatars', 'rohlik', 'level:33'), ('avatars', 'komar', 'badge:psani-100'), ('avatars', 'trpas', 'badge:bez-napovedy-100'),
+        ('avatars', 'tchyne', 'badge:retezovka-cela-5'), ('avatars', 'kuryr', 'level:45'), ('avatars', 'kocov', 'badge:serie-60'), ('avatars', 'gauc', 'badge:dny-100'),
+        ('avatars', 'podnaj', 'badge:dobyvatel-25'), ('avatars', 'upir', 'badge:boss-reziser'), ('avatars', 'plivak', 'badge:boss-rytir'),
+        ('avatars', 'bricho', 'badge:boss-olympan'), ('avatars', 'papous', 'badge:boss-maestro'), ('avatars', 'syr', 'badge:vsechna-temata-1'),
+        ('avatars', 'prd', 'gift'), ('avatars', 'jednor', 'gift'), ('avatars', 'kure', 'referral:pritel-10'), ('avatars', 'smrtka', 'prestige:2')
     ) as t (cat, item, rule);
 $$;
 revoke all on function public.unlock_catalog_more() from public, anon, authenticated;
--- ===== 35: Další postavičky (č. 317–340) — KONEC BLOKU =====
+-- ===== 35: Další postavičky (č. 317–408) — KONEC BLOKU =====
 
 -- ===== 36: Odznaky Řetězovky dne — ZAČÁTEK BLOKU =====
 -- Dvě skupiny odznaků Řetězovky (quiz-core.js BADGE_GROUPS): Řetězovka dne (retezovka = 3 dohrané dny, retezovka-10, -30, -100, -365)

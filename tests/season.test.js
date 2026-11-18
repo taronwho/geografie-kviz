@@ -384,9 +384,11 @@ test('odměny za sérii dní: rámečky za 7, 30, 100 a 365 dní, řádek s dal�
     const text = (earned, streak) => { const next = Rewards.nextStreakReward(group.badges, earned, streak); return next ? Rewards.streakRewardText(next) : null; };
     assert.equal(text({}, 2), 'Další odměna za sérii: Jiskra za 7 dní (zbývá 5)');
     assert.equal(text({ tyden: 'x' }, 12), 'Další odměna za sérii: Plamenný za 30 dní (zbývá 18)');
-    assert.equal(text({ tyden: 'x', mesic: 'x' }, 63), 'Další odměna za sérii: Stovka a Hrdinský plášť za 100 dní (zbývá 37)', 'za 100 dní i doplněk');
-    assert.equal(text({ tyden: 'x', mesic: 'x', 'serie-100': 'x' }, 0), 'Další odměna za sérii: Věčný oheň za 365 dní (zbývá 365)');
-    assert.equal(text({ tyden: 'x', mesic: 'x', 'serie-100': 'x', 'serie-365': 'x' }, 400), null, 'všechno má');
+    // Za 60 dní postavička Kostlivec po kocovině (serie-60)
+    assert.equal(text({ tyden: 'x', mesic: 'x' }, 40), 'Další odměna za sérii: Kostlivec po kocovině za 60 dní (zbývá 20)');
+    assert.equal(text({ tyden: 'x', mesic: 'x', 'serie-60': 'x' }, 63), 'Další odměna za sérii: Stovka a Hrdinský plášť za 100 dní (zbývá 37)', 'za 100 dní i doplněk');
+    assert.equal(text({ tyden: 'x', mesic: 'x', 'serie-60': 'x', 'serie-100': 'x' }, 0), 'Další odměna za sérii: Věčný oheň za 365 dní (zbývá 365)');
+    assert.equal(text({ tyden: 'x', mesic: 'x', 'serie-60': 'x', 'serie-100': 'x', 'serie-365': 'x' }, 400), null, 'všechno má');
     assert.equal(Rewards.nextStreakReward(group.badges, {}, 7).left, 1, 'nejméně den');
     const html = Rewards.streakRewardHtml(Rewards.nextStreakReward(group.badges, {}, 2), { frameClass: Frames.frameClass });
     assert.match(html, /data-streak-reward/);

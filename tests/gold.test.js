@@ -124,10 +124,10 @@ test('Zlatá truhla: vzácná věc, kterou hráč ještě nemá (doplněk jen z 
     const all = G.chestCandidates({});
     const chestOnly = Look.CATALOG.accessories.filter(item => item.chest).map(item => `accessories:${item.id}`);
     const rare = Look.CATALOG.frames.filter(item => item.rare).map(item => `frames:${item.id}`);
-    // a postavičky jen z truhly (Kapybara v lázních) i vzácné (Zmrzlinový kornout)
+    // a postavičky jen z truhly (Kapybara v lázních, Dýňový strašák, Prd v láhvi) i vzácné (Zmrzlinový kornout, Jednorožec mrzout)
     const avatars = Look.CATALOG.avatars.filter(item => item.chest || item.rare).map(item => `avatars:${item.id}`);
     assert.ok(chestOnly.length >= 5 && rare.length >= 2);
-    assert.deepEqual(avatars, ['avatars:kapyba', 'avatars:zmrzl']);
+    assert.deepEqual(avatars, ['avatars:kapyba', 'avatars:zmrzl', 'avatars:dynak', 'avatars:prd', 'avatars:jednor']);
     assert.deepEqual(all.map(entry => `${entry.category}:${entry.item.id}`).sort(), [...chestOnly, ...rare, ...avatars].sort());
     // Co hráč má (z truhly nebo ze Sezóny), Zlatá truhla nedá
     const owned = Rewards.parse({ gifts: { accessories: ['vrtulka'], frames: ['ruze'] } });

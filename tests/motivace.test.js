@@ -185,7 +185,7 @@ test('vitrína: titul a věci ze Sezóny (tvar shodný s databází a social.js,
 
 test('katalog odemčení v databázi odpovídá look.js a friends.js; úrovně a skupiny odznaků jako quiz-core.js', () => {
     // Řádky bloku 32 a za nimi řádky pozdějších bloků (blok 35: další postavičky v unlock_catalog_more)
-    const block35 = SQL.slice(SQL.indexOf('-- ===== 35: Další postavičky'), SQL.indexOf('-- ===== 35: Další postavičky (č. 317–340) — KONEC BLOKU'));
+    const block35 = SQL.slice(SQL.indexOf('-- ===== 35: Další postavičky'), SQL.indexOf('-- ===== 35: Další postavičky (č. 317–408) — KONEC BLOKU'));
     const rowsOf = (text, fn) => [...text.slice(text.indexOf(`function public.${fn}()`), text.indexOf('as t (cat, item, rule)', text.indexOf(`function public.${fn}()`))).matchAll(/\('([a-z]+)', '([^']+)', '([^']+)'\)/g)].map(m => `${m[1]}|${m[2]}|${m[3]}`);
     assert.match(block, /as t \(cat, item, rule\)\n    union all select \* from public\.unlock_catalog_more\(\);/, 'unlock_catalog() přidá řádky pozdějších bloků');
     assert.ok(block35.length > 0 && SQL.indexOf('-- ===== 35: Další postavičky') > SQL.indexOf('-- ===== 32: Motivace — KONEC BLOKU'), 'blok 35 je za blokem 32');

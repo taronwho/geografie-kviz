@@ -206,7 +206,7 @@ test('Zlatá otázka', { skip: !chromium && 'Playwright není nainstalovaný' },
 
     await t.test('pátý střípek otevře Zlatou truhlu (okno Truhly Mudrlanta ve zlatém): vzácná věc, kterou hráč nemá, jde hned nasadit', async () => {
         for (const [viewport, colorScheme] of [[{ width: 360, height: 640 }, 'dark'], [{ width: 390, height: 780 }, 'light']]) {
-            const rewards = { v: 1, gifts: { accessories: ['vrtulka', 'srdickove-bryle', 'vencek', 'paska', 'hrnek'], frames: ['duha-mracky'], avatars: ['kapyba', 'zmrzl'] } };
+            const rewards = { v: 1, gifts: { accessories: ['vrtulka', 'srdickove-bryle', 'vencek', 'paska', 'hrnek'], frames: ['duha-mracky'], avatars: ['kapyba', 'zmrzl', 'dynak', 'prd', 'jednor'] } };
             const { context, tab, problems } = await open({ viewport, colorScheme, seed: { 'mudrlant.gold': { since: 79, intro: true, shards: 4 }, 'mudrlant.rewards': rewards } });
             await practice(tab);
             await tab.click(`[data-action="choice"][data-index="${await rightChoice(tab)}"]`);

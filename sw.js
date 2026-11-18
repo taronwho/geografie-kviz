@@ -12,9 +12,15 @@ const AVATAR_ART = ['cervik', 'axolot', 'kaktus', 'drak', 'mamut', 'meduza', 'le
     'hodiny', 'chamel', 'gepard', 'zelvus', 'tucnak', 'zabak', 'myval',
     // Legendární postavičky za diplomy témat
     'albatr', 'gryf', 'slon', 'sfinga', 'jelen', 'golem', 'liska', 'chobot', 'pav', 'bobr', 'vlk', 'kndrak', 'panda', 'klokan',
-    // Další postavičky (look.js NEW_AVATARS, docs/OBRAZKY.md č. 317–340)
+    // Další postavičky (look.js NEW_AVATARS, docs/OBRAZKY.md č. 317–408)
     'vacice', 'spisov', 'pstros', 'koala', 'toust', 'krokod', 'brokol', 'netopy', 'plamak', 'vajko', 'pizza', 'jezek', 'zirafa', 'vydra', 'hroch', 'lama',
     'pavouk', 'krava', 'velbl', 'kapyba', 'zmrzl', 'kosatk', 'avokad',
+    // č. 341–357
+    'ponozk', 'mrak', 'priser', 'zombie', 'kohout', 'kostli', 'havran', 'holub', 'medoj', 'buldok', 'nosoro', 'duch', 'mumie', 'kocka', 'vlkodl',
+    'krysa', 'dynak',
+    // č. 379–408 (absurdní)
+    'kafe', 'holubz', 'kachna', 'slepic', 'nuget', 'kaktik', 'husa', 'tousto', 'racek', 'sandal', 'aligat', 'zralok', 'snob', 'rohlik', 'komar', 'trpas',
+    'tchyne', 'kuryr', 'kocov', 'gauc', 'podnaj', 'upir', 'plivak', 'bricho', 'papous', 'syr', 'prd', 'jednor', 'kure', 'smrtka',
     // Sezónní postavičky ze Sezónní truhly (look.js SEASON_AVATARS)
     'ramp', 'kobliz', 'snezen', 'kapka', 'pampel', 'vysved', 'meloun', 'hvezda', 'aktovk', 'drakpa', 'caj', 'pernik'];
 // Obrázkové rámečky profilu (icons/frames/<id>.webp); stejný seznam má look.js (FRAMES s art: true), hlídá tests/look-frames.test.js

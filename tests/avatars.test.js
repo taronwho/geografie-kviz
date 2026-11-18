@@ -20,12 +20,12 @@ const REPLACED = {
     '🎯': ['zabak', { badge: 'odhad-25' }], '🧩': ['myval', { badge: 'serad-25' }]
 };
 
-test('katalog: postavičky s 1–2 částmi (21 místo emoji odměn, 23 dalších, 12 sezónních, 14 legendárních), id do 6 písmen, žádná odměna už není emoji', () => {
+test('katalog: postavičky s 1–2 částmi (21 místo emoji odměn, 70 dalších, 12 sezónních, 14 legendárních), id do 6 písmen, žádná odměna už není emoji', () => {
     assert.equal(CHARACTERS.length, Look.AVATARS.length);
     assert.equal(Look.AVATARS.filter(item => item.was).length, 21);
     assert.equal(Look.AVATARS.filter(item => item.source === 'season').length, 12);
-    assert.equal(CHARACTERS.filter(item => !item.diploma && !item.exclusive).length, 21 + 23);
-    assert.equal(Look.NEW_AVATARS.length, 23);
+    assert.equal(CHARACTERS.filter(item => !item.diploma && !item.exclusive).length, 21 + 70);
+    assert.equal(Look.NEW_AVATARS.length, 70);
     assert.equal(CHARACTERS.filter(item => item.diploma).length, 14);
     for (const item of CHARACTERS) {
         assert.match(item.id, /^[a-z]{1,6}$/, item.id);
@@ -261,13 +261,41 @@ test('legendární postavičky: okno diplomu ukáže odměnu (získanou i chybě
     assert.match(Rewards.diplomasHtml([{ topic, title: 'Mistr zeměpisu', earned: false, missing: 300 }], h), /dostaneš diplom, který můžeš sdílet, a legendární postavičku/);
 });
 
-// Další postavičky (docs/OBRAZKY.md oddíl 26, č. 317–340): id → jak se odemkne
+// Další postavičky (docs/OBRAZKY.md oddíly 26, 32 a 33, č. 317–408): id → jak se odemkne
 const NEW = {
     vacice: { level: 10 }, spisov: { level: 17 }, pstros: { badge: 'tema-sport-25' }, koala: { badge: 'bleskovka-12' }, toust: { badge: 'dnes-50' },
     krokod: { badge: 'chyby-50' }, brokol: { badge: 'tydenni-cile-5' }, netopy: { badge: 'detektiv-7' }, plamak: { badge: 'kviz-perfekt-5' }, vajko: { badge: 'sazkar' },
     pizza: { badge: 'vyhry-5' }, jezek: { badge: 'sberatel-50', album: true }, zirafa: { level: 31 }, vydra: { badge: 'preziti-35' }, hroch: { badge: 'tezke-50' },
     lama: { badge: 'tema-hudba-100' }, pavouk: { badge: 'retezovka-10' }, krava: { badge: 'dobyvatel-3' }, velbl: { badge: 'boss-kapitan' },
-    kapyba: { chest: 15 }, zmrzl: { rare: true }, kosatk: { referral: ['pritel-3'] }, avokad: { prestige: 1 }
+    kapyba: { chest: 15 }, zmrzl: { rare: true }, kosatk: { referral: ['pritel-3'] }, avokad: { prestige: 1 },
+    // č. 341–357 (krab kadeřník č. 339 chybí): strašidelné postavičky hlavně za Řetězovku, Bosse týdne, témata a truhlu
+    ponozk: { badge: 'vsestrannost-3' }, mrak: { badge: 'odhad-5' }, priser: { level: 14 }, zombie: { badge: 'poznane-100' }, kohout: { badge: 'kviz-serie-14' },
+    kostli: { badge: 'tema-biologie-100' }, havran: { badge: 'tema-literatura-100' }, holub: { badge: 'sazky-v-rade-3' }, medoj: { badge: 'vyzvy-25' },
+    buldok: { badge: 'turnaj-semifinale' }, nosoro: { badge: 'vyhry-v-rade-5' }, duch: { badge: 'retezovka-30' }, mumie: { badge: 'tema-historie-600' },
+    kocka: { badge: 'boss-alchymista' }, vlkodl: { badge: 'boss-druid' }, krysa: { badge: 'zlatokop-50' }, dynak: { chest: 25 },
+    // č. 379–408 (absurdní): módy, úrovně, odznaky, Řetězovka, Dobývání, Boss týdne, truhla, vzácný dárek, pozvánky a druhá prestiž
+    kafe: { level: 6 }, holubz: { badge: 'mapa-5' }, kachna: { badge: 'serad-5' }, slepic: { badge: 'zalozene-1' }, nuget: { badge: 'rada-5' },
+    kaktik: { referral: ['novacek', 'pritel-1'] }, husa: { badge: 'turnaj-postupy-1' }, tousto: { level: 22 }, racek: { badge: 'kviz-dne-10' },
+    sandal: { badge: 'tema-zemepis-100' }, aligat: { badge: 'tema-geologie-100' }, zralok: { badge: 'tema-film-100' }, snob: { badge: 'tema-umeni-100' },
+    rohlik: { level: 33 }, komar: { badge: 'psani-100' }, trpas: { badge: 'bez-napovedy-100' }, tchyne: { badge: 'retezovka-cela-5' }, kuryr: { level: 45 },
+    kocov: { badge: 'serie-60' }, gauc: { badge: 'dny-100' }, podnaj: { badge: 'dobyvatel-25' }, upir: { badge: 'boss-reziser' }, plivak: { badge: 'boss-rytir' },
+    bricho: { badge: 'boss-olympan' }, papous: { badge: 'boss-maestro' }, syr: { badge: 'vsechna-temata-1' }, prd: { chest: 30 }, jednor: { rare: true },
+    kure: { referral: ['pritel-10'] }, smrtka: { prestige: 2 }
+};
+// Zdrojový obrázek branding/ikony/avatar-<název>.png
+const NEW_SRC = {
+    vacice: 'vacice-goth', spisov: 'myval-spisovatel', pstros: 'pstros-fotbalista', koala: 'koala-ninja', toust: 'toust-surfar', krokod: 'krokodyl-zubar',
+    brokol: 'brokolice-kulturistka', netopy: 'netopyr-jeskynar', plamak: 'plamenak-tanecnik', vajko: 'vajicko-kaskader', pizza: 'pizza-hrdina', jezek: 'jezek-krejci',
+    zirafa: 'zirafa-sala', vydra: 'vydra-plavkyne', hroch: 'hroch-potapec', lama: 'lama-rocker', pavouk: 'pavouk-pletar', krava: 'krava-kovbojka',
+    velbl: 'velbloud-cestovatel', kapyba: 'kapybara-lazne', zmrzl: 'zmrzlina', kosatk: 'kosatka-komornik', avokad: 'avokado-jogin',
+    ponozk: 'ponozka', mrak: 'mrak-destnik', priser: 'priserka-pod-posteli', zombie: 'zombie-kralik', kohout: 'kohout-pankac', kostli: 'kostlivec-mleko',
+    havran: 'havran-hrobnik', holub: 'holub-z-ulice', medoj: 'medojed-rvac', buldok: 'buldok-motorkar', nosoro: 'nosorozec-vyhazovac', duch: 'duch-lucerna',
+    mumie: 'mumie', kocka: 'cerna-kocka', vlkodl: 'vlkodlak', krysa: 'krysa-piratka', dynak: 'dynovy-strasak',
+    kafe: 'krecek-kafe', holubz: 'holub-zachod', kachna: 'dement-kachna', slepic: 'slepice-tinder', nuget: 'nugetka-utek', kaktik: 'kaktus-objeti',
+    husa: 'husa-vytrznice', tousto: 'toustovac-krize', racek: 'zebrak-racek', sandal: 'ponozka-sandal', aligat: 'aligator-kanal', zralok: 'zralok-vegan',
+    snob: 'snob-kocka', rohlik: 'nasrany-rohlik', komar: 'komar-upir', trpas: 'zlobivy-trpaslik', tchyne: 'tchyne-nuzky', kuryr: 'lenochod-dodavka',
+    kocov: 'opilec-kost', gauc: 'brambora-gauc', podnaj: 'bezdomovec-pavouk', upir: 'upir-vegetarian', plivak: 'hulvat-velbloud', bricho: 'pivni-bricho',
+    papous: 'drzy-papousek', syr: 'syr-slechtic', prd: 'prd-v-lahvi', jednor: 'jednorozec-mrzout', kure: 'influencer-kure', smrtka: 'smrtka-dovolena'
 };
 
 test('další postavičky: odměny z různých částí hry, odznaky existují, první tři snadno, server je zná', () => {
@@ -277,13 +305,13 @@ test('další postavičky: odměny z různých částí hry, odznaky existují, 
     assert.deepEqual(Look.NEW_AVATARS.map(item => item.id), Object.keys(NEW));
     const none = { level: 1, badges: {}, gifts: null, diplomas: {}, referral: [], prestige: 0 };
     const all = { level: 100, badges: Object.fromEntries(core.BADGES.map(badge => [badge.id, '2026-11-01'])), gifts: null, diplomas: {}, referral: [], prestige: 0 };
-    const groups = new Set();
+    const groups = {};
     for (const item of Look.NEW_AVATARS) {
         const rule = NEW[item.id];
         assert.equal(Look.find('avatars', item.id), item, item.id);
         assert.deepEqual(Object.fromEntries(Object.keys(rule).map(key => [key, item[key]])), rule, item.id);
         assert.equal(item.was, undefined, `${item.id} nenahrazuje emoji`);
-        assert.ok(fs.existsSync(path.join(ROOT, 'branding', 'ikony', `avatar-${({ vacice: 'vacice-goth', spisov: 'myval-spisovatel', pstros: 'pstros-fotbalista', koala: 'koala-ninja', toust: 'toust-surfar', krokod: 'krokodyl-zubar', brokol: 'brokolice-kulturistka', netopy: 'netopyr-jeskynar', plamak: 'plamenak-tanecnik', vajko: 'vajicko-kaskader', pizza: 'pizza-hrdina', jezek: 'jezek-krejci', zirafa: 'zirafa-sala', vydra: 'vydra-plavkyne', hroch: 'hroch-potapec', lama: 'lama-rocker', pavouk: 'pavouk-pletar', krava: 'krava-kovbojka', velbl: 'velbloud-cestovatel', kapyba: 'kapybara-lazne', zmrzl: 'zmrzlina', kosatk: 'kosatka-komornik', avokad: 'avokado-jogin' })[item.id]}.png`)), item.id);
+        assert.ok(fs.existsSync(path.join(ROOT, 'branding', 'ikony', `avatar-${NEW_SRC[item.id]}.png`)), item.id);
         assert.equal(Look.isUnlocked(item, none), false, `${item.id} není zdarma`);
         assert.equal(Album.isStarter(item), false, item.id);
         assert.ok(Look.formatAvatar(item.id, [9, 9]).length <= 8, item.id);
@@ -295,7 +323,7 @@ test('další postavičky: odměny z různých částí hry, odznaky existují, 
         } else if (rule.badge) {
             const badge = core.BADGE_BY_ID[rule.badge];
             assert.ok(badge, `${item.id}: odznak ${rule.badge} existuje`);
-            groups.add(badge.group);
+            (groups[badge.group] = groups[badge.group] || []).push(item.id);
             assert.equal(Look.isUnlocked(item, { ...none, badges: { [rule.badge]: '2026-11-01' } }), true, item.id);
             assert.equal(Look.isUnlocked(item, { ...all, badges: {} }), false, `${item.id}: úroveň nestačí`);
             assert.ok(Look.rewardsForBadge(rule.badge).some(entry => entry.item === item), item.id);
@@ -307,22 +335,27 @@ test('další postavičky: odměny z různých částí hry, odznaky existují, 
         }
     }
     // Odznaky z různých částí hry (každá postavička jinou skupinou), první tři snadno: do úrovně 20 nebo první stupeň snadného odznaku
-    assert.equal(groups.size, Object.values(NEW).filter(rule => rule.badge).length, 'každá za jinou skupinu odznaků');
-    for (const id of ['vacice', 'spisov', 'pstros']) {
+    // Dvakrát jen Řetězovka dne (Pavouk pletař za 10, Duch s lucernou za 30 dohraných dní, jak plánoval oddíl 26) a Dobývání (Kráva kovbojka
+    // za 3, Pavouk podnájemník za 25 vyhraných her)
+    const twice = { retezovka: ['pavouk', 'duch'], dobyvatel: ['krava', 'podnaj'] };
+    for (const [group, ids] of Object.entries(groups)) assert.deepEqual(ids, twice[group] || [ids[0]], `každá za jinou skupinu odznaků: ${group}`);
+    for (const id of ['vacice', 'spisov', 'pstros', 'ponozk', 'mrak', 'priser', 'kafe', 'holubz', 'kachna']) {
         const item = Look.find('avatars', id);
         assert.ok(item.level ? item.level <= 20 : core.BADGE_GROUPS.find(group => group.id === core.BADGE_BY_ID[item.badge].group).badges[0].id === item.badge, id);
     }
-    // Kapybara: jen z Truhly Mudrlanta (i stupně Sezóny) a Zlaté truhly; Zmrzlina vzácně; dar ji odemkne
+    // Kapybara a Dýňový strašák: jen z Truhly Mudrlanta (i stupně Sezóny) a Zlaté truhly; Zmrzlina vzácně; dar je odemkne
     const kapyba = Look.find('avatars', 'kapyba');
+    const dynak = Look.find('avatars', 'dynak');
     const zmrzl = Look.find('avatars', 'zmrzl');
     assert.equal(Look.unlockText(kapyba), 'Z Truhly Mudrlanta');
     assert.equal(Look.unlockText(zmrzl), 'Vzácný dárek z Truhly Mudrlanta');
-    assert.ok(Rewards.candidates(Rewards.empty(), { level: 1, badges: {} }).some(entry => entry.item === kapyba));
-    assert.ok(!Rewards.candidates(Rewards.empty(), { level: 1, badges: {} }).some(entry => entry.category === 'avatars' && entry.item !== kapyba), 'postavičky za úroveň truhla nedá');
+    assert.equal(Look.unlockText(dynak), 'Z Truhly Mudrlanta');
+    assert.deepEqual(Rewards.candidates(Rewards.empty(), { level: 1, badges: {} }).filter(entry => entry.category === 'avatars').map(entry => entry.item.id).sort(), ['dynak', 'kapyba', 'prd'], 'postavičky za úroveň truhla nedá');
     assert.ok(!Rewards.candidates({ gifts: { avatars: ['kapyba'] } }, { level: 1, badges: {} }).some(entry => entry.item === kapyba), 'jen jednou');
-    assert.deepEqual(Rewards.rareCandidates(Rewards.empty()).filter(entry => entry.category === 'avatars').map(entry => entry.item.id), ['zmrzl']);
-    assert.ok(['kapyba', 'zmrzl'].every(id => Gold.chestCandidates(Rewards.empty()).some(entry => entry.category === 'avatars' && entry.item.id === id)), 'Zlatá truhla');
+    assert.deepEqual(Rewards.rareCandidates(Rewards.empty()).filter(entry => entry.category === 'avatars').map(entry => entry.item.id), ['zmrzl', 'jednor']);
+    assert.ok(['kapyba', 'zmrzl', 'dynak', 'prd', 'jednor'].every(id => Gold.chestCandidates(Rewards.empty()).some(entry => entry.category === 'avatars' && entry.item.id === id)), 'Zlatá truhla');
     assert.equal(Look.isUnlocked(kapyba, { ...none, gifts: { avatars: ['kapyba'] } }), true);
+    assert.equal(Look.isUnlocked(dynak, { ...none, gifts: { avatars: ['dynak'] } }), true);
     assert.match(Rewards.previewHtml({ category: 'avatars', item: kapyba }), /src="icons\/avatars\/kapyba\.webp"/);
     // Pozvaní kamarádi a prestiž (bonus: album je ukáže, jen když je hráč má)
     const kosatk = Look.find('avatars', 'kosatk');
@@ -335,6 +368,25 @@ test('další postavičky: odměny z různých částí hry, odznaky existují, 
     const Referral = require('../referral.js');
     assert.equal(Referral.REWARDS['pritel-3'].avatar, 'kosatk');
     assert.match(Referral.REWARDS['pritel-3'].text, /postavička Kosatka komorník/);
+    // Absurdní: Kaktus, který chce obejmout, za pozvánku (jako rámeček Přátelský), Kuře influencer za 10 kamarádů, Smrtka na dovolené za druhou prestiž
+    const kaktik = Look.find('avatars', 'kaktik');
+    const kure = Look.find('avatars', 'kure');
+    const smrtka = Look.find('avatars', 'smrtka');
+    assert.ok([kaktik, kure, smrtka].every(item => item.bonus), 'album je ukáže, jen když je hráč má');
+    assert.equal(Look.isUnlocked(kaktik, { ...none, referral: ['novacek'] }), true);
+    assert.equal(Look.unlockText(kaktik), 'Pozvi kamaráda, nebo přijď na jeho pozvánku (Soupeři → Přátelé → Pozvi kamarády)');
+    assert.equal(Look.isUnlocked(kure, { ...none, referral: ['pritel-1', 'pritel-3'] }), false);
+    assert.equal(Look.isUnlocked(kure, { ...none, referral: ['pritel-10'] }), true);
+    assert.equal(Look.unlockText(kure), 'Pozvi 10 kamarádů (Soupeři → Přátelé → Pozvi kamarády)');
+    assert.equal(Look.isUnlocked(smrtka, { ...none, prestige: 1 }), false);
+    assert.equal(Look.isUnlocked(smrtka, { ...none, prestige: 2 }), true);
+    assert.equal(Look.unlockText(smrtka), '2. prestiž po úrovni 100 (Postup → Úrovně a tituly)');
+    assert.match(Referral.REWARDS.novacek.text, /postavička Kaktus, který chce obejmout/);
+    assert.match(Referral.REWARDS['pritel-1'].text, /postavička Kaktus, který chce obejmout/);
+    assert.match(Referral.REWARDS['pritel-10'].text, /postavička Kuře influencer/);
+    // Prd v láhvi jen z truhly, Jednorožec mrzout jako vzácný dárek
+    assert.equal(Look.unlockText(Look.find('avatars', 'prd')), 'Z Truhly Mudrlanta');
+    assert.equal(Look.unlockText(Look.find('avatars', 'jednor')), 'Vzácný dárek z Truhly Mudrlanta');
     // Uložení do profilu (social.js) a server (blok 35 ve schema.sql, celý katalog porovnává tests/motivace.test.js)
     globalThis.MudrlantLook = Look;
     try {

@@ -13055,7 +13055,7 @@
             paintTab();
             // Nový vzhled medailonu (★1 až ★10) se řekne: „Nový medailon prestiže: Rubín“
             const medal = Prestige.newLook(next.n) ? `Nový medailon prestiže: ${Prestige.tierName(next.n)}. ` : '';
-            showCelebration('vitez', `Prestiž ★${next.n}`, next.n === 1 ? `${medal}Navíc rámeček Prestižní a postavička Avokádo jogín (Nastavení → Profil).` : `${medal}Úroveň znovu od 1, nic odemčeného se neztratilo.`, 'title', prestigeCelebrationArt(next.n));
+            showCelebration('vitez', `Prestiž ★${next.n}`, next.n === 1 ? `${medal}Navíc rámeček Prestižní a postavička Avokádo jogín (Nastavení → Profil).` : next.n === 2 ? `${medal}Navíc postavička Smrtka na dovolené (Nastavení → Profil).` : `${medal}Úroveň znovu od 1, nic odemčeného se neztratilo.`, 'title', prestigeCelebrationArt(next.n));
         } else if (message) showToast(message);
         if (document.getElementById('dialog-overlay')) openLevels();
     };
