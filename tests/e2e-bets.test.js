@@ -267,7 +267,7 @@ test('Kamarádské sázky', { skip: !chromium && 'Playwright není nainstalovan�
             await tab.waitForSelector('[data-stake-picker]');
             // Limit 30 XP: 50 nejde, hláška řekne proč
             assert.equal(await tab.getAttribute('[data-stake-pick="50"]', 'aria-disabled'), 'true');
-            assert.match(await compact(tab, '[data-stake-note]'), /nejvýš 30 XP: tolik máš z posledních 7 dní/);
+            assert.match(await compact(tab, '[data-stake-note]'), /nejvýš 30 XP: víc XP za posledních 7 dní nemáš/);
             // Klepnutí na vklad nad limit (Playwright tlačítko s aria-disabled sám neklepne)
             await tab.$eval('[data-stake-pick="50"]', el => el.click());
             await tab.waitForFunction(() => /nejvýš 30 XP/.test(document.querySelector('[data-stake-note]').textContent));
