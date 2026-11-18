@@ -142,6 +142,9 @@
             action: { kind: 'single', label: 'Na záložku Dnes' }, ready: (u) => u.weekend, used: () => false },
         { id: 'prestiz', icon: 'star', after: 100, title: 'Prestiž po úrovni 100', text: 'Na úrovni 100 můžeš na záložce Postup (Úrovně a tituly) přejít do prestiže. Úroveň se ti ukáže znovu od 1 s hvězdou ★ a získáš rámeček Prestižní a postavičku Avokádo jogín. XP, odznaky ani nic odemčeného neztratíš.',
             action: { kind: 'progress', label: 'Postup' }, ready: (u) => num(u.level) >= 90, used: (u) => num(u.prestige) > 0 },
+        // Medailon prestiže (prestige.js medalHtml): kdo je v prestiži, nebo se k ní blíží (úroveň 90+)
+        { id: 'medailon', icon: 'medal', after: 100, title: 'Medailon prestiže', text: 'Každá prestiž ti dá medailon v rohu profilového obrázku, který uvidí i ostatní hráči. Jde od bronzu (★1) přes stříbro, zlato, smaragd, ametyst, rubín, safír, obsidián a hvězdnou noc až po legendární (★10 a výš, s číslem).',
+            action: { kind: 'progress', label: 'Postup' }, ready: (u) => num(u.prestige) >= 1 || num(u.level) >= 90, used: () => false },
         { id: 'pozvi', icon: 'user-plus', multi: true, account: true, after: 25, title: 'Pozvi kamarády', text: 'Na záložce Soupeři klepni u Přátel na plus a zvol Pozvi kamarády. Pošli odkaz nebo kód přítele. Až si kamarád zahraje, oba dostanete rámeček Přátelský a XP navíc. Za 3 a 10 kamarádů jsou další odměny.',
             action: { kind: 'friends', label: 'Pozvat kamarády' }, ready: (u) => u.referral, used: (u) => Boolean(u.visited.referral) || num(u.invited) > 0 },
         { id: 'reakce-plus', icon: 'sparkles', multi: true, account: true, after: 40, title: 'Nové reakce a vítězné efekty', text: 'S vyšší úrovní, odznaky a Sezónou Mudrlanta odemykáš další reakce po zápase a vítězné efekty. Efekt, který si vybereš, uvidíš ty i soupeř po tvé vyhrané výzvě.',

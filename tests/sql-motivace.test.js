@@ -303,6 +303,25 @@ test('SQL: motivace (pozvánky, reakce, kontrola odemčení, prestiž, vitrína)
         assert.equal(last(asUser(A, `select prestige from profiles where id = '${D}'`)), '2', 'prestiž ostatních je vidět');
     });
 
+    // Medailon prestiže u obrázku hráče: seznamy hráčů posílají i stupeň prestiže (přátelé, týdenní žebříček, hledání, skupiny
+    // a Dobývání přes group_player_json, pozvaní kamarádi)
+    await t.test('seznamy hráčů vracejí prestiž (medailon u obrázku)', () => {
+        q(`set session_replication_role = replica; insert into friendships (user_id, friend_id, status) select '${A}', '${D}', 'accepted'
+            where not exists (select 1 from friendships where (user_id = '${A}' and friend_id = '${D}') or (user_id = '${D}' and friend_id = '${A}'))`);
+        const friend = json(asUser(A, `select coalesce(json_agg(f), '[]') from friends_list() f where f.id = '${D}'`))[0];
+        assert.equal(friend.prestige, 2, 'friends_list');
+        const code = duel(D, A);
+        q(`set session_replication_role = replica; insert into rating_history (challenge_id, user_id, opponent_id, outcome, delta, rating_after) values ('${code}', '${D}', '${A}', 'win', 12, 1212)`);
+        const week = json(asUser(A, 'select json_agg(w) from weekly_leaderboard() w'));
+        assert.equal(week.find(row => row.id === D).prestige, 2, 'weekly_leaderboard');
+        const name = q(`select display_name from profiles where id = '${D}'`);
+        const found = json(asUser(A, `select json_agg(s) from search_players('${name.replace(/'/g, "''")}') s`));
+        assert.equal(found.find(row => row.id === D).prestige, 2, 'search_players');
+        assert.equal(JSON.parse(q(`select group_player_json(p) from profiles p where p.id = '${D}'`)).prestige, 2, 'group_player_json (skupiny, Dobývání)');
+        const invited = status(A).invited;
+        assert.deepEqual(Object.fromEntries(invited.map(row => [row.id, row.prestige])), { [B]: 0, [C]: 0, [D]: 2 }, 'pozvaní kamarádi (referral_status)');
+    });
+
     await t.test('vitrína: titul a věci ze Sezóny jen s darem v účtu; tvar', () => {
         q(`update profiles set rewards = '{"gifts": {"titles": ["sampion-sezony"], "frames": ["sezona-11", "duha-mracky"], "avatars": ["caj"]}}', showcase = '{}' where id = '${C}'`);
         ok(asUser(C, `update profiles set showcase = array['t:sampion-sezony', 's:frames:sezona-11', 's:avatars:caj'] where id = '${C}'`));

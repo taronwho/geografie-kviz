@@ -176,7 +176,7 @@ test('SQL: Tajemná otázka dne', { skip: !available && 'PostgreSQL není dostup
         assert.equal(friends.rank, 2);
         assert.deepEqual(friends.rows.map(r => [r.rank, r.id, r.solved, r.points, r.clues, r.me]), [[1, B, true, 10, 1, false], [2, A, true, 4, 6, true], [3, C, false, 0, 3, false]]);
         assert.equal(friends.rows[0].solved_at, '0:21');
-        assert.deepEqual(Object.keys(friends.rows[0]).sort(), ['avatar', 'clues', 'color', 'display_name', 'frame', 'guesses', 'id', 'me', 'owl', 'points', 'rank', 'solved', 'solved_at', 'title_pref']);
+        assert.deepEqual(Object.keys(friends.rows[0]).sort(), ['avatar', 'clues', 'color', 'display_name', 'frame', 'guesses', 'id', 'me', 'owl', 'points', 'prestige', 'rank', 'solved', 'solved_at', 'title_pref']);
         const lonely = json(as(E, 'select mystery_friends();', at('21:00')));
         assert.deepEqual([lonely.friends, lonely.rank, lonely.rows.length], [0, 1, 1]);
     });

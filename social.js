@@ -75,19 +75,31 @@
 
     // Sloupce frame (rámeček) a title_pref (titul u jména) přibyly pozdější verzí schématu. Dokud je databáze nemá, požadavek s nimi
     // skončí chybou 400 – pak se zopakuje bez nich a dál se už o ně nežádá (po novém načtení stránky se zkusí znovu).
+    // Stupeň prestiže (sloupec prestige, blok 32; medailon u obrázku hráče) je o stupeň novější: bez něj se nejdřív zkusí jen bez prestiže.
+    // run(extras): 2 = i s prestiží, 1 = s rámečkem, titulem a sovou, 0 = jen základ (profileFields(extras) vybere sloupce).
     let extrasMissing = false;
+    let prestigeMissing = false;
     const withExtras = async (run) => {
         if (!extrasMissing) {
-            try { return await run(true); } catch (error) {
+            if (!prestigeMissing) {
+                try { return await run(2); } catch (error) {
+                    if (error.status !== 400) throw error;
+                }
+            }
+            try {
+                const result = await run(1);
+                prestigeMissing = true;
+                return result;
+            } catch (error) {
                 if (error.status !== 400) throw error;
             }
-            const result = await run(false);
+            const result = await run(0);
             extrasMissing = true;
             return result;
         }
-        return run(false);
+        return run(0);
     };
-    const profileFields = (extras) => extras ? 'id,display_name,avatar,color,frame,title_pref,owl' : 'id,display_name,avatar,color';
+    const profileFields = (extras) => extras ? `id,display_name,avatar,color,frame,title_pref,owl${extras === 2 ? ',prestige' : ''}` : 'id,display_name,avatar,color';
     // Rámeček a titul z cizího řádku: jen tvarově platné hodnoty (znáte-li katalog, jen jeho položky)
     const cleanFrame = (value, known = null) => typeof value === 'string' && /^[a-z0-9-]{1,24}$/.test(value) && (!known || known.includes(value)) ? value : null;
     // Sova jako obrázek: jen tvarově platný text (id z katalogu zkontroluje až vykreslení, MudrlantOwl.parseOwl)
@@ -110,6 +122,8 @@
         return text || null;
     };
     const cleanTitlePref = (value) => typeof value === 'string' && /^[a-z0-9-]{1,40}$/.test(value) ? value : null;
+    // Stupeň prestiže hráče (medailon u obrázku): celé číslo 0–99, cokoli jiného (i chybějící údaj ze starší databáze) je 0
+    const cleanPrestigeLevel = (value) => (value !== null && value !== '' && Number.isFinite(Number(value)) ? Math.max(0, Math.min(99, Math.floor(Number(value)))) : 0);
     const getProfile = async (userId) => (await withExtras(extras => request('GET', `profiles?id=eq.${encodeURIComponent(userId)}&select=${profileFields(extras)}`)) || [])[0] || null;
     // Rámeček a titul u jména do účtu; bez nových sloupců v databázi se potichu nic neuloží
     const saveLook = async (userId, { frame, title }) => {
@@ -271,7 +285,7 @@
     // Top hráči aktuálního týdne (veřejné údaje); null, když funkce v databázi ještě není
     const weeklyLeaderboard = () => guardRating(async () => {
         const rows = await request('POST', 'rpc/weekly_leaderboard', { body: {} }) || [];
-        return rows.map(row => ({ ...row, frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl), rating: cleanRatingNumber(row.rating) || 1000, week_delta: Math.floor(Number(row.week_delta) || 0), week_wins: Math.floor(Number(row.week_wins) || 0), week_games: Math.floor(Number(row.week_games) || 0) }));
+        return rows.map(row => ({ ...row, frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl), prestige: cleanPrestigeLevel(row.prestige), rating: cleanRatingNumber(row.rating) || 1000, week_delta: Math.floor(Number(row.week_delta) || 0), week_wins: Math.floor(Number(row.week_wins) || 0), week_games: Math.floor(Number(row.week_games) || 0) }));
     }, null);
 
     // Týdenní turnaje (tabulky a funkce přibyly pozdější verzí schématu). Dokud je databáze nemá (404), vracejí se prázdné výsledky
@@ -659,7 +673,7 @@
         if (!searchRpcMissing) {
             try {
                 const rows = await request('POST', 'rpc/search_players', { body: { term } });
-                return (Array.isArray(rows) ? rows : []).map(row => ({ id: row.id, display_name: row.display_name, avatar: row.avatar, color: row.color, frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl) }));
+                return (Array.isArray(rows) ? rows : []).map(row => ({ id: row.id, display_name: row.display_name, avatar: row.avatar, color: row.color, frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl), prestige: cleanPrestigeLevel(row.prestige) }));
             } catch (error) {
                 if (error.status !== 404) throw error;
                 searchRpcMissing = true;
@@ -761,7 +775,7 @@
         return guardSocial(async () => { await request('POST', 'rpc/touch_seen', { body: {} }); return true; }, null);
     };
     const cleanFriend = (row) => ({
-        id: String(row.id), display_name: String(row.display_name || 'Hráč'), avatar: row.avatar, color: row.color, frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl),
+        id: String(row.id), display_name: String(row.display_name || 'Hráč'), avatar: row.avatar, color: row.color, frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl), prestige: cleanPrestigeLevel(row.prestige),
         rating: cleanRatingNumber(row.rating), last_seen: row.last_seen ? String(row.last_seen) : null, status: row.status === 'accepted' ? 'accepted' : 'pending', direction: row.direction === 'in' ? 'in' : 'out',
         since: row.since ? String(row.since) : null, wins: wholeNumber(row.wins, 100000), losses: wholeNumber(row.losses, 100000), draws: wholeNumber(row.draws, 100000)
     });
@@ -841,7 +855,7 @@
     } : null);
     const cleanQuizRow = (row) => ({
         rank: wholeNumber(row.rank, 10000000) || 1, id: String(row.id), display_name: String(row.display_name || 'Hráč'), avatar: row.avatar, color: row.color,
-        frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl),
+        frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl), prestige: cleanPrestigeLevel(row.prestige),
         score: wholeNumber(row.score, 40), correct: wholeNumber(row.correct, 10), time_ms: wholeNumber(row.time_ms, 3000000), me: row.me === true
     });
     const dailyQuizState = () => guardQuiz(async () => cleanQuizState(await request('POST', 'rpc/daily_quiz_state', { body: {} })));
@@ -904,7 +918,7 @@
         if (data.hidden) return { day: cleanDay(data.day), hidden: true, friends: 0, rank: null, rows: [] };
         const rows = (Array.isArray(data.rows) ? data.rows : []).map(row => ({
             rank: wholeNumber(row.rank, 100000) || 1, id: String(row.id), display_name: String(row.display_name || 'Hráč'), avatar: row.avatar, color: row.color,
-            frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl),
+            frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl), prestige: cleanPrestigeLevel(row.prestige),
             solved: row.solved === true, clues: wholeNumber(row.clues, 8), guesses: wholeNumber(row.guesses, 3), points: wholeNumber(row.points, 10), solved_at: clockText(row.solved_at), me: row.me === true
         }));
         return { day: cleanDay(data.day), hidden: false, friends: wholeNumber(data.friends, 100000), rank: wholeNumber(data.rank, 100000) || null, rows };
@@ -981,7 +995,7 @@
         const data = (await request('POST', 'rpc/chain_day_stats', { body: { for_day: cleanDay(day) } })) || {};
         const top = (Array.isArray(data.top) ? data.top : []).filter(row => row && row.id).map(row => ({
             rank: wholeNumber(row.rank, 10000000) || 1, id: String(row.id), display_name: String(row.display_name || 'Hráč'), avatar: row.avatar, color: row.color,
-            frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl),
+            frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl), prestige: cleanPrestigeLevel(row.prestige),
             links: wholeNumber(row.links, 7), score: wholeNumber(row.score, 28), rescued: row.rescued === true, me: row.me === true
         }));
         return { day: cleanDay(data.day), players: wholeNumber(data.players, 10000000), full: wholeNumber(data.full, 10000000), full_pct: wholeNumber(data.full_pct, 100),
@@ -1018,7 +1032,7 @@
     const needGroup = (value) => { if (!isUuid(value)) throw new SocialError('Neplatná skupina.', 400); return value; };
     const cleanGroupCode = (value) => { const code = String(value || '').toUpperCase().replace(/[\s-]/g, ''); return GROUP_CODE.test(code) ? code : ''; };
     const cleanGroupPlayer = (row) => row && typeof row === 'object' && row.id ? {
-        id: String(row.id), display_name: String(row.display_name || 'Hráč'), avatar: row.avatar, color: row.color, frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl)
+        id: String(row.id), display_name: String(row.display_name || 'Hráč'), avatar: row.avatar, color: row.color, frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl), prestige: cleanPrestigeLevel(row.prestige)
     } : null;
     const cleanGroup = (row) => row && typeof row === 'object' && isUuid(row.id) ? {
         id: String(row.id), name: String(row.name || 'Skupina').slice(0, 40), icon: typeof row.icon === 'string' ? row.icon.slice(0, 8) : '🦉', code: cleanGroupCode(row.code),
@@ -1307,7 +1321,7 @@
         return conquestGame(await conquestCall('conquest_invite', { game: conquestId(game), friends: ids }, 'Pozvánky se nepodařilo poslat. Zkus to znovu.', 'invites'));
     };
     const cleanInviter = (row) => (row && typeof row === 'object' && isUuid(row.id) ? { id: String(row.id), display_name: String(row.display_name || 'Kamarád'), avatar: row.avatar, color: row.color,
-        frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl) } : null);
+        frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl), prestige: cleanPrestigeLevel(row.prestige) } : null);
     // [hra s code, invited_by (kdo zve) a invited_at]; databáze bez pozvánek vyhodí chybu se status 404
     const conquestInvitesMine = async () => {
         const data = await conquestCall('conquest_invites_mine', {}, 'Pozvánky se nepodařilo načíst. Zkontroluj připojení.', 'invites');
@@ -1478,7 +1492,7 @@
         return row && typeof row.victory_fx === 'string' ? row.victory_fx : '';
     });
 
-    return { AVATARS, allAvatars, cleanAvatar, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
+    return { AVATARS, allAvatars, cleanAvatar, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, cleanPrestigeLevel, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
         tournamentTick, getTournaments, tournamentArchive, tournamentPoll, voteTournamentTheme, ARCHIVE_PAGE, inTournament, devTournament, devClientErrors, isDevAdmin, schemaVersion, reportQuestion, getQuestionReports, deleteQuestionReport, exportMyData, deleteMyAccount, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen,
         challengeProgress, saveChallengeProgress, tournamentAnswers, saveTournamentAnswer, claimTournamentXp, cleanAnswerLabel,
         // Rozpis otázek (schéma 10)
