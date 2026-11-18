@@ -87,7 +87,7 @@ test('social.js: hlášky Chci další kolo (bez rodu) projdou, jiné chyby nahr
     const { Social, done } = loadSocial(() => reply);
     try {
         await assert.rejects(Social.conquestRoundReady(GAME), (error) => error.status === 400 && error.message === 'Další kolo jde chtít, až všichni dohrají své tahy.');
-        reply = [400, { message: 'Tohle kolo je poslední. Hra skončí, až vyprší čas.' }];
+        reply = [400, { message: 'Tohle kolo je poslední. Hra skončí, až ho všichni dohrají.' }];
         await assert.rejects(Social.conquestRoundReady(GAME), /Tohle kolo je poslední\./);
         reply = [400, { message: 'Hra musí mít aspoň 3 kola. Zvol delší hru, nebo kratší kolo.' }];
         await assert.rejects(Social.conquestCreate({ map: 'evropa', players: 2, period: 'min10', minutes: 20, actions: 2, visibility: 'public', color: 'cervena', emblem: 'lev' }),
@@ -172,7 +172,7 @@ test('schema.sql: blok 26 před verzí schématu, verze 26 i v app.js; Chci dal�
     }
     assert.match(schema, /\('blesk-20m', 'evropa', 4, null, 20, 'min5', 5\)/, 'předvolba Blesk');
     // Hlášky v češtině a bez rodu
-    const messages = ['Další kolo jde chtít, až všichni dohrají své tahy.', 'Tohle kolo je poslední. Hra skončí, až vyprší čas.', 'Odpočet už běží, další kolo začne za chvíli.',
+    const messages = ['Další kolo jde chtít, až všichni dohrají své tahy.', 'Tohle kolo je poslední. Hra skončí, až ho všichni dohrají.', 'Odpočet už běží, další kolo začne za chvíli.',
         'Hra musí mít aspoň 3 kola. Zvol delší hru, nebo kratší kolo.', 'Kolo trvá den, hodinu, 10 minut, nebo 5 minut.'];
     for (const message of messages) assert.ok(schema.includes(`'${message}'`), message);
     assert.doesNotMatch(messages.join(' '), /\b(zvolil|zvolila|jsi|dohrál|dohrála|chtěl|chtěla)\b/);

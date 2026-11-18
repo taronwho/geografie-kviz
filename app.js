@@ -108,7 +108,7 @@
     // milníky Řetězovky, 12. stupeň Sezóny, Truhlu Mudrlanta, Zlatou truhlu a společný cíl Bosse; se starší databází se nenabídne).
     // 39 = Dobývání: pomůcka Ankh vzkříšení místo automatického Návratu do hry (conquest_use_revive, ochrana 60 s, zásoba revive; zisk startovní,
     // za započítanou hru, sérii Kvízu dne, 8. stupeň Sezóny a truhly; se starší databází se hráč bez území vrátí sám jako dřív).
-    const REQUIRED_SCHEMA = 41;
+    const REQUIRED_SCHEMA = 42;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -13387,8 +13387,8 @@
     // Ukáže se na úvodní obrazovce, až nic jiného neběží (tutoriál, hra, jiné okno, oslava; pushOfferBlocked). Automatické testy
     // (navigator.webdriver) ho vidí jen s mudrlant.newsTest, ať nepřekáží v ostatních scénářích.
     const NEWS_KEY = 'mudrlant.news';
-    // Dobývání: nové stavby (strážní věž, důl) a sady hradů (blok 41, icons/stavby; bez vrstvy barvy, tedy se zlatými praporky)
-    const NEWS = { id: 'dobyvani-stavby-2026-11', art: ['vez', 'dul', 'hrad-pernikovy-0', 'hrad-parostrojni-0', 'hrad-ledovy-0'] };
+    // Dobývání: boti pro všechny (blok 42); obrázky robotích postaviček přijdou později (docs/OBRAZKY.md §37), zatím ikona bota v barvě obtížnosti
+    const NEWS = { id: 'dobyvani-boti-2026-11', bots: ['easy', 'medium', 'hard'] };
     const NEWS_DELAY = 4000;
     const newsSeen = () => { const seen = readJson(NEWS_KEY); return Array.isArray(seen) && seen.includes(NEWS.id); };
     const markNewsSeen = () => { const seen = readJson(NEWS_KEY); writeJson(NEWS_KEY, [...new Set([...(Array.isArray(seen) ? seen : []), NEWS.id])].slice(-20)); };
@@ -13400,12 +13400,12 @@
         if (!newsAllowed() || pushOfferBlocked() || screen !== 'home') return false;
         markNewsSeen();
         const user = signedUser();
-        const pictures = NEWS.art.map(id => `<img src="icons/stavby/${id}.webp" alt="" class="h-14 w-14 min-w-0 shrink object-contain drop-shadow-sm">`).join('');
-        showDialog('Nové stavby v Dobývání', `
+        const pictures = NEWS.bots.map(level => `<span class="cq-bot-face cq-bot-${level} flex h-14 w-14 items-center justify-center rounded-2xl"><i data-lucide="bot" class="h-9 w-9"></i></span>`).join('');
+        showDialog('Boti v Dobývání', `
             <div id="news-dialog" data-news="${escapeHtml(NEWS.id)}" class="flex flex-col gap-3">
-                <div class="flex items-end justify-center gap-1">${pictures}</div>
-                <p class="text-sm font-semibold leading-snug text-slate-700 dark:text-slate-200">Na svých územích teď místo opevnění můžeš postavit <b>strážní věž</b>: když na území někdo zaútočí, ubráníš ho odkudkoli. Nebo <b>důl</b>, který na konci hry dává 2 body místo 1.</p>
-                <p class="text-sm font-semibold leading-snug text-slate-700 dark:text-slate-200">Přibyly i tři sady hradů: Perníkový hrad, Parostrojní pevnost a Ledový palác.</p>
+                <div class="flex items-end justify-center gap-2">${pictures}</div>
+                <p class="text-sm font-semibold leading-snug text-slate-700 dark:text-slate-200">Do své hry v Dobývání teď můžeš přidat boty: <b>Mudrlátko</b>, <b>Mudrlant</b>, nebo <b>Super Mudrlant</b>. Obtížnosti jde i míchat.</p>
+                <p class="text-sm font-semibold leading-snug text-slate-700 dark:text-slate-200">Hrají jako lidé: tahy si rozloží do kola, chvíli přemýšlí a přidávají se do bitev. XP dává hra podle nejsilnějšího bota.</p>
                 ${user ? '' : '<p class="text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">Dobývání hrají přihlášení hráči.</p>'}
                 <button type="button" data-news-go class="${PRIMARY_BUTTON}">${user ? 'Otevřít Dobývání' : 'Přihlásit se'}</button>
                 <button type="button" data-close class="self-center rounded-xl px-3 py-2 text-[13px] font-bold text-slate-600 dark:text-slate-300">Teď ne</button>

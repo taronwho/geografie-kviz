@@ -970,6 +970,39 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
     .cq-tempo[aria-checked="true"] svg { color: #ffe08a; }
     .cq-tempo-badge { background: rgb(214 151 37 / 0.2); color: #f6d27a; box-shadow: inset 0 0 0 1px rgb(214 151 37 / 0.45); }
 }
+/* Založit hru (blok 42): skupiny nastavení jako plastické karty s hranou, volby s hranou dole (při stisku se zamáčknou), boti */
+.cq-group { background: rgb(255 250 236 / 0.62); box-shadow: inset 0 0 0 1px rgb(164 123 69 / 0.4), 0 2px 0 rgb(164 123 69 / 0.38); }
+.cq-form .cq-opt, .cq-form .cq-opt-box { box-shadow: inset 0 0 0 1px rgb(164 123 69 / 0.45), 0 2px 0 rgb(164 123 69 / 0.45); }
+.cq-form .cq-opt:active { transform: translateY(2px); box-shadow: inset 0 0 0 1px rgb(164 123 69 / 0.45); }
+.cq-form .cq-opt[aria-checked="true"] { box-shadow: inset 0 0 0 1px rgb(255 230 180 / 0.25), 0 2px 0 #3d2410; }
+.cq-bot-badge { background: #efe4f7; color: #5b2a86; box-shadow: inset 0 0 0 1px rgb(91 42 134 / 0.25); }
+.cq-bot-badge.cq-bot-easy { background: #e3f3e6; color: #1f6b35; box-shadow: inset 0 0 0 1px rgb(31 107 53 / 0.25); }
+.cq-bot-badge.cq-bot-hard { background: #f8e1e5; color: #8f1d2c; box-shadow: inset 0 0 0 1px rgb(143 29 44 / 0.3); }
+.cq-bot-face { background: linear-gradient(#f1e9ff, #ddd0f0); color: #5b2a86; box-shadow: inset 0 0 0 1px rgb(91 42 134 / 0.25), 0 2px 0 rgb(91 42 134 / 0.3); }
+.cq-bot-face.cq-bot-easy { background: linear-gradient(#ecf8ee, #cdebd4); color: #1f6b35; box-shadow: inset 0 0 0 1px rgb(31 107 53 / 0.25), 0 2px 0 rgb(31 107 53 / 0.3); }
+.cq-bot-face.cq-bot-hard { background: linear-gradient(#fbe8eb, #f0c5cd); color: #8f1d2c; box-shadow: inset 0 0 0 1px rgb(143 29 44 / 0.3), 0 2px 0 rgb(143 29 44 / 0.35); }
+.cq-bot-face.cq-bot-none { background: linear-gradient(#fffaf0, #f3e6c8); color: #7a4a1e; box-shadow: inset 0 0 0 1px rgb(164 123 69 / 0.4), 0 2px 0 rgb(164 123 69 / 0.35); }
+.cq-bot-card { background: #fffaf0; box-shadow: inset 0 0 0 1px rgb(164 123 69 / 0.35), 0 2px 0 rgb(164 123 69 / 0.35); }
+.cq-bot-stepper { background: #fff; color: #4a2c12; box-shadow: inset 0 0 0 1px rgb(164 123 69 / 0.45), 0 2px 0 rgb(164 123 69 / 0.4); }
+.cq-xp-share { background: linear-gradient(#fff3c4, #f2d27a); color: #6b3f0e; box-shadow: inset 0 0 0 1px rgb(164 110 30 / 0.5); }
+.cq-bot-add { border-color: rgb(164 123 69 / 0.55); color: #7a4a1e; background: rgb(255 250 236 / 0.5); }
+@media (prefers-color-scheme: dark) {
+    .cq-group { background: rgb(255 255 255 / 0.035); box-shadow: inset 0 0 0 1px rgb(214 151 37 / 0.22), 0 2px 0 rgb(0 0 0 / 0.45); }
+    .cq-form .cq-opt, .cq-form .cq-opt-box { box-shadow: inset 0 0 0 1px rgb(214 151 37 / 0.28), 0 2px 0 rgb(0 0 0 / 0.5); }
+    .cq-form .cq-opt:active { box-shadow: inset 0 0 0 1px rgb(214 151 37 / 0.28); }
+    .cq-form .cq-opt[aria-checked="true"] { box-shadow: inset 0 0 0 1px rgb(255 230 180 / 0.3), 0 2px 0 #3a2508; }
+    .cq-bot-badge { background: rgb(167 120 220 / 0.2); color: #dcc4ff; box-shadow: inset 0 0 0 1px rgb(167 120 220 / 0.4); }
+    .cq-bot-badge.cq-bot-easy { background: rgb(74 180 110 / 0.18); color: #a7e9b9; box-shadow: inset 0 0 0 1px rgb(74 180 110 / 0.4); }
+    .cq-bot-badge.cq-bot-hard { background: rgb(232 90 110 / 0.2); color: #ffc2cb; box-shadow: inset 0 0 0 1px rgb(232 90 110 / 0.45); }
+    .cq-bot-face { background: linear-gradient(#3b2f52, #2d2440); color: #dcc4ff; box-shadow: inset 0 0 0 1px rgb(167 120 220 / 0.4), 0 2px 0 rgb(0 0 0 / 0.5); }
+    .cq-bot-face.cq-bot-easy { background: linear-gradient(#24402d, #1b3022); color: #a7e9b9; box-shadow: inset 0 0 0 1px rgb(74 180 110 / 0.4), 0 2px 0 rgb(0 0 0 / 0.5); }
+    .cq-bot-face.cq-bot-hard { background: linear-gradient(#4a2228, #381a1f); color: #ffc2cb; box-shadow: inset 0 0 0 1px rgb(232 90 110 / 0.45), 0 2px 0 rgb(0 0 0 / 0.5); }
+    .cq-bot-face.cq-bot-none { background: rgb(255 255 255 / 0.06); color: #e2c48a; box-shadow: inset 0 0 0 1px rgb(214 151 37 / 0.3), 0 2px 0 rgb(0 0 0 / 0.5); }
+    .cq-bot-card { background: rgb(255 255 255 / 0.05); box-shadow: inset 0 0 0 1px rgb(214 151 37 / 0.25), 0 2px 0 rgb(0 0 0 / 0.45); }
+    .cq-bot-stepper { background: rgb(255 255 255 / 0.07); color: #ead7ab; box-shadow: inset 0 0 0 1px rgb(214 151 37 / 0.3), 0 2px 0 rgb(0 0 0 / 0.5); }
+    .cq-xp-share { background: rgb(214 151 37 / 0.2); color: #f6d27a; box-shadow: inset 0 0 0 1px rgb(214 151 37 / 0.45); }
+    .cq-bot-add { border-color: rgb(214 151 37 / 0.4); color: #e2c48a; background: rgb(255 255 255 / 0.03); }
+}
 .cq-ledger-title { font-family: Georgia, 'Times New Roman', serif; font-variant: small-caps; font-weight: 700; font-size: 14px; line-height: 1.35; letter-spacing: 0.06em; color: #5a3416; }
 .cq-rank-me { background: rgb(255 255 255 / 0.72); box-shadow: inset 0 0 0 1.5px #d69725; }
 .cq-medal-1 { background: linear-gradient(#ffe066, #d69725); color: #3b1e0a; box-shadow: inset 0 0 0 1px rgb(122 70 27 / 0.55); }

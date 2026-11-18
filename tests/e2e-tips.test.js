@@ -148,15 +148,15 @@ test('tipy od Mudrlanta', { skip: !chromium && 'Playwright není nainstalovaný'
     });
 
     for (const [width, height, colorScheme] of [[360, 640, 'dark'], [390, 780, 'light']]) {
-        await t.test(`novinka Nové stavby v Dobývání ${width}×${height}: jednou chvíli po otevření, vejde se, příště už ne`, async () => {
+        await t.test(`novinka Boti v Dobývání ${width}×${height}: jednou chvíli po otevření, vejde se, příště už ne`, async () => {
             const { context, tab, problems } = await open({ viewport: { width, height }, colorScheme, news: true });
             await tab.waitForSelector('#news-dialog', { timeout: 15000 });
-            assert.match(await tab.textContent('#news-dialog'), /strážní věž[^]*důl[^]*Perníkový hrad, Parostrojní pevnost a Ledový palác/);
+            assert.match(await tab.textContent('#news-dialog'), /boty: Mudrlátko, Mudrlant, nebo Super Mudrlant[^]*Hrají jako lidé[^]*nejsilnějšího bota/);
+            assert.equal(await tab.locator('#news-dialog .cq-bot-face svg').count(), 3, 'tři roboti v barvách obtížností');
             assert.match(await tab.textContent('#news-dialog [data-news-go]'), /Přihlásit se/, 'host se nejdřív přihlásí');
-            await tab.waitForFunction(() => [...document.querySelectorAll('#news-dialog img')].every(img => img.complete && img.naturalWidth > 0));
             assert.equal(await tab.evaluate(() => { const box = document.querySelector('#dialog-overlay > div'); return box.scrollHeight <= box.clientHeight + 1 && box.getBoundingClientRect().bottom <= window.innerHeight + 1; }), true, 'okno bez posouvání');
             if (process.env.SCREENSHOT_DIR) await tab.screenshot({ path: require('path').join(process.env.SCREENSHOT_DIR, `novinka-${width}.png`) });
-            assert.deepEqual(await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.news'))), ['dobyvani-stavby-2026-11']);
+            assert.deepEqual(await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.news'))), ['dobyvani-boti-2026-11']);
             await tab.click('#news-dialog [data-close]');
             await tab.waitForSelector('#news-dialog', { state: 'detached' });
             await tab.reload();

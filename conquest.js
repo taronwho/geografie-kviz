@@ -91,10 +91,29 @@
     const maxLevel = (home) => (home ? 3 : 2);
     // Odměny po konci hry (server potvrdí místo, eligible a claimed_now): 1. místo odznak Dobyvatel; XP za 1.–3. místo, ne za poslední
     const REWARD_XP = [150, 100, 50];
-    const rewardFor = ({ place, players, eligible }) => {
+    // Hra s boty (blok 42, xp_share ze serveru): XP podle nejsilnějšího bota (Mudrlátko 20 %, Mudrlant 50 %, Super Mudrlant 100 %);
+    // u menšího podílu výsledek nese i share (procenta pro výsledek hry)
+    const rewardFor = ({ place, players, eligible, xp_share: xpShare = 100 }) => {
         if (!eligible || !place) return { badge: false, xp: 0 };
+        const share = Number.isFinite(Number(xpShare)) ? Math.max(0, Math.min(100, Math.round(Number(xpShare)))) : 100;
         // Poslední místo XP nedostane (ve hře dvou hráčů tedy jen vítěz)
-        return { badge: place === 1, xp: place <= 3 && (place === 1 || place < players) ? REWARD_XP[place - 1] : 0 };
+        const xp = place <= 3 && (place === 1 || place < players) ? Math.round(REWARD_XP[place - 1] * share / 100) : 0;
+        return share < 100 ? { badge: place === 1, xp, share } : { badge: place === 1, xp };
+    };
+    // Boti (blok 42, docs/DOBYVANI-BOTI.md): tři obtížnosti s krátkým popisem a podílem XP za hru. ART = obrázky robotích postaviček
+    // podle obtížnosti (docs/OBRAZKY.md §37, č. 459–468: robotí sovy a robotí zvířata s vínovým plátováním); zatím null = štítek s ikonou
+    // bota a avatar 🤖 z profilu bota. Až obrázky budou, stačí sem doplnit seznam názvů souborů (icons/boti/…).
+    const BOT_LEVELS = [
+        { id: 'easy', name: 'Mudrlátko', text: 'Správně asi v polovině otázek, přemýšlí dlouho, útočí skoro náhodně.', xp: 20 },
+        { id: 'medium', name: 'Mudrlant', text: 'Správně asi ve dvou třetinách otázek, útočí s rozmyslem a občas staví.', xp: 50 },
+        { id: 'hard', name: 'Super Mudrlant', text: 'Skoro vždy správně a rychle. Dokončuje regiony a brání se věžemi.', xp: 100 }
+    ];
+    const BOT_BY_ID = Object.fromEntries(BOT_LEVELS.map(level => [level.id, level]));
+    const BOT_ART = { easy: null, medium: null, hard: null };
+    // Podíl XP podle obtížností botů ve hře (stejně jako conquest_xp_share na serveru): bez botů a se Super Mudrlantem 100 %
+    const botXpShare = (levels) => {
+        const list = (levels || []).filter(level => BOT_BY_ID[level]);
+        return !list.length || list.includes('hard') ? 100 : list.includes('medium') ? 50 : 20;
     };
     // Pomůcky (blok 30 ve schema.sql): vzácné, do zásoby (strop max, stejně player_item_cap na serveru); Tah navíc a 50/50 jednou za hru.
     // icon + mark = pečeť pomůcky z ikon Lucide (do dodání obrázků č. 309, 310 a 361 v docs/OBRAZKY.md, pak art = název souboru v icons/topics).
@@ -2859,16 +2878,12 @@
         <button type="button" data-cq-step="${key}" data-delta="1" ${value >= max ? 'disabled' : ''} class="flex h-9 w-10 items-center justify-center rounded-lg text-slate-700 active:scale-95 disabled:opacity-30 dark:text-slate-200" aria-label="${esc(name)}: víc"><i data-lucide="plus" class="h-4 w-4"></i></button></div>`;
     const field = (label, inner, extra = '') => `<div class="flex min-w-0 flex-col gap-0.5 ${extra}"><span class="px-1 text-[10px] font-black uppercase leading-3 tracking-widest text-slate-500 dark:text-slate-400">${esc(label)}</span>${inner}</div>`;
     // Řádek-tlačítko formuláře (popisek a hodnota); half = polovina šířky vedle Pozvat přátele (bez tužky, popisek se zkrátí)
-    const pickRow = (action, icon, label, value, half) => `<button type="button" data-cq="${action}" class="cq-pick flex min-h-[2.75rem] min-w-0 items-center gap-2 ${CARD} ${half ? 'px-2' : 'px-2.5'} text-left">${icon}<span class="min-w-0 flex-1"><span class="block truncate text-[10px] font-black uppercase leading-3 ${half ? 'tracking-wider' : 'tracking-widest'} text-slate-500 dark:text-slate-400">${esc(label)}</span><span class="block truncate text-[13px] font-bold text-slate-700 dark:text-slate-200">${esc(value)}</span></span>${half ? '' : '<i data-lucide="pencil" class="h-4 w-4 text-brand-700 dark:text-cream"></i>'}</button>`;
+    const pickRow = (action, icon, label, value, half) => `<button type="button" data-cq="${action}" class="cq-pick flex min-h-[2.75rem] min-w-0 short:min-h-[2.5rem] items-center gap-2 ${CARD} ${half ? 'px-2' : 'px-2.5'} text-left">${icon}<span class="min-w-0 flex-1"><span class="block truncate text-[10px] font-black uppercase leading-3 ${half ? 'tracking-wider' : 'tracking-widest'} text-slate-500 dark:text-slate-400">${esc(label)}</span><span class="block truncate text-[13px] font-bold text-slate-700 dark:text-slate-200">${esc(value)}</span></span>${half ? '' : '<i data-lucide="pencil" class="h-4 w-4 text-brand-700 dark:text-cream"></i>'}</button>`;
     const lookRow = (draft, half) => pickRow('look', pennantSvg(draft.color, draft.emblem, 'h-7 w-9'), 'Barva a znak', `${colorOf(draft.color).name} · ${emblemOf(draft.emblem).name}${patternOf(draft.pattern) ? ` · ${patternOf(draft.pattern).name}` : ''}${castleSetOf(draft.castle) ? ` · ${castleSetOf(draft.castle).name}` : ''}`, half);
     const inviteRow = (invites, avatar) => pickRow('invite-pick', invites.length ? avatarStack(invites, avatar)
         : '<span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gold-100 text-gold-800 dark:bg-gold-900/40 dark:text-gold-200"><i data-lucide="user-plus" class="h-4 w-4"></i></span>',
         invites.length ? `Pozvánky (${invites.length})` : 'Pozvat přátele', invites.length ? invites.map(friend => shortName(friend.display_name)).join(', ') : 'Zatím nikoho', true);
-    // Založit hru ve stylu map Dobývání: pergamenová karta se shrnutím (náhled mapy, tempo, délka hry a kola, tahy, hráči), pod ní
-    // mapa, tempo (předvolby Blesk, Rychlovka, Odpoledne, Tažení, nebo Vlastní: délka kola a hry), hráči a tahy za kolo, kdo se
-    // přidá, barva a znak a pozvánky. Vejde se na 360×640 bez posouvání. draft = { map, period, minutes, players, actions,
-    // visibility, color, emblem, custom }; invites = vybraní přátelé (pozvou se hned po založení), invitable = databáze pozvánky
-    // zná (blok 24); avatar = obrázek hráče z app.js
+    // Prvky formuláře Založit hru: nadpis skupiny (kapitálky), řada voleb jako segmenty a krokování počtu
     const formLabel = (text, extra = '') => `<span class="cq-form-label flex items-center justify-between gap-2 px-0.5">${esc(text)}${extra}</span>`;
     const optionRow = (name, key, options, current, cls = '') => `<div role="radiogroup" aria-label="${esc(name)}" class="grid gap-1 ${cls}">${options.map(([id, label]) => `
         <button type="button" role="radio" aria-checked="${String(id) === String(current)}" data-cq-set="${key}" data-value="${esc(id)}" class="cq-opt flex min-h-[2.125rem] min-w-0 items-center justify-center rounded-lg px-1 text-[13px] font-black">${esc(label)}</button>`).join('')}</div>`;
@@ -2876,6 +2891,47 @@
         <button type="button" data-cq-step="${key}" data-delta="-1" ${value <= min ? 'disabled' : ''} class="flex h-8 w-9 items-center justify-center rounded-md disabled:opacity-30" aria-label="Méně"><i data-lucide="minus" class="h-4 w-4"></i></button>
         <span class="min-w-0 truncate text-center text-[13px] font-black"><output class="text-[16px]" data-cq-value="${key}">${value}</output> ${esc(unit)}</span>
         <button type="button" data-cq-step="${key}" data-delta="1" ${value >= max ? 'disabled' : ''} class="flex h-8 w-9 items-center justify-center rounded-md disabled:opacity-30" aria-label="Víc"><i data-lucide="plus" class="h-4 w-4"></i></button></div>`;
+    // Štítek bota (blok 42): ikona robota a obtížnost; short = jen ikona (úzké řádky pořadí), jméno obtížnosti zůstane pro čtečku
+    const botBadgeHtml = (level, { short = false, cls = '' } = {}) => {
+        const item = BOT_BY_ID[level];
+        if (!item) return '';
+        return `<span class="cq-bot-badge cq-bot-${item.id} inline-flex shrink-0 items-center gap-0.5 rounded-full ${short ? 'p-0.5' : 'py-px pl-1 pr-1.5'} text-[10.5px] font-black leading-tight ${cls}" title="Bot: ${esc(item.name)}" data-cq-bot-badge="${item.id}"><i data-lucide="bot" class="h-3 w-3 shrink-0"></i>${short ? `<span class="sr-only">Bot ${esc(item.name)}</span>` : `<span class="sr-only">Bot </span>${esc(item.name)}`}</span>`;
+    };
+    // Počty botů podle obtížnosti { easy, medium, hard } (formulář Založit hru, okno Boti) a jejich obtížnosti jako seznam
+    const botCounts = (value) => Object.fromEntries(BOT_LEVELS.map(level => [level.id, Math.max(0, Math.min(7, Math.floor(Number(value && value[level.id]) || 0)))]));
+    const botLevelsOf = (counts) => { const now = botCounts(counts); return BOT_LEVELS.flatMap(level => Array.from({ length: now[level.id] }, () => level.id)); };
+    const botsSummary = (counts) => {
+        const now = botCounts(counts);
+        const list = BOT_LEVELS.filter(level => now[level.id] > 0).map(level => `${now[level.id]}× ${level.name}`);
+        return list.length ? list.join(', ') : 'Bez botů';
+    };
+    // Okno Boti (Založit hru i lobby): tři obtížnosti jako karty s popisem a krokováním počtu; max = kolik botů se ještě vejde,
+    // have = obtížnosti botů, kteří už ve hře jsou (XP za hru počítá i s nimi); lobby = tlačítko Přidat boty místo Hotovo
+    const botsDialogHtml = ({ counts, max, have = [], lobby = false, busy = false, error = '' }) => {
+        const now = botCounts(counts);
+        const total = BOT_LEVELS.reduce((sum, level) => sum + now[level.id], 0);
+        const share = botXpShare([...have, ...botLevelsOf(now)]);
+        return `<div data-cq-bots class="flex flex-col gap-2">
+            <p class="text-[12.5px] font-semibold leading-snug text-slate-600 dark:text-slate-300">Boti hrají jako lidé: tahy si rozloží do kola, chvíli přemýšlí, útočí a přidávají se do bitev. Obtížnosti jde míchat.</p>
+            <ul class="flex flex-col gap-1.5">${BOT_LEVELS.map(level => `<li class="cq-bot-card flex items-center gap-2 rounded-2xl p-1.5 pl-2" data-cq-bot-level="${level.id}">
+                <span class="cq-bot-face cq-bot-${level.id} flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"><i data-lucide="bot" class="h-6 w-6"></i></span>
+                <span class="min-w-0 flex-1"><span class="flex items-center gap-1.5"><span class="truncate text-[14px] font-black text-slate-800 dark:text-slate-100">${esc(level.name)}</span><span class="shrink-0 text-[11px] font-black text-slate-500 dark:text-slate-400">XP ${level.xp} %</span></span>
+                    <span class="block text-[11.5px] font-semibold leading-tight text-slate-600 dark:text-slate-300">${esc(level.text)}</span></span>
+                <span class="cq-bot-stepper flex shrink-0 flex-col items-center rounded-xl" role="group" aria-label="${esc(level.name)}: počet">
+                    <button type="button" data-cq-bot-step="${level.id}" data-delta="1" ${total >= max ? 'disabled' : ''} class="flex h-7 w-9 items-center justify-center rounded-t-xl disabled:opacity-30" aria-label="${esc(level.name)}: víc"><i data-lucide="plus" class="h-4 w-4"></i></button>
+                    <output class="text-[15px] font-black leading-none" data-cq-bot-count="${level.id}">${now[level.id]}</output>
+                    <button type="button" data-cq-bot-step="${level.id}" data-delta="-1" ${now[level.id] <= 0 ? 'disabled' : ''} class="flex h-7 w-9 items-center justify-center rounded-b-xl disabled:opacity-30" aria-label="${esc(level.name)}: méně"><i data-lucide="minus" class="h-4 w-4"></i></button></span></li>`).join('')}</ul>
+            <p class="flex items-center justify-between gap-2 px-0.5 text-[12px] font-bold text-slate-600 dark:text-slate-300"><span>${max > 0 ? `Místa pro boty: ${total}/${max}` : 'Pro boty už tu není místo.'}</span><span class="cq-xp-share shrink-0 rounded-full px-2 py-0.5 font-black" data-cq-bots-xp>XP za hru: ${share} %</span></p>
+            <button type="button" data-cq-bots-done ${busy || (lobby && !total) ? 'disabled' : ''} class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="${lobby ? 'user-plus' : 'check'}" class="h-5 w-5"></i> ${lobby ? (busy ? 'Přidávám…' : total > 1 ? `Přidat boty (${total})` : 'Přidat bota') : 'Hotovo'}</button>
+            ${error ? `<p class="text-[13px] font-semibold text-rose-700 dark:text-rose-400" role="status">${esc(error)}</p>` : ''}
+        </div>`;
+    };
+    // Založit hru ve stylu map Dobývání: pergamenová karta se shrnutím nahoře a nastavení v plastických skupinách: Mapa a tempo
+    // (mapy jako segmenty, předvolby tempa jako dlaždice, nebo Vlastní: délka kola a hry), Hráči (místa, tahy za kolo, boti s obtížností
+    // a XP za hru, kdo se přidá) a pod nimi barva a znak a pozvánky; Založit hru dole přes celou šířku (lepí se ke spodku, kdyby se
+    // formulář nevešel). Vejde se na 360×640 bez posouvání. draft = { map, period, minutes, players, actions, visibility, color, emblem,
+    // custom, bots: { easy, medium, hard } }; invites = vybraní přátelé (pozvou se hned po založení), invitable = databáze pozvánky
+    // zná (blok 24); avatar = obrázek hráče z app.js
     const createHtml = ({ draft, maps = {}, busy = false, error = '', invites = [], invitable = false, avatar = null }) => {
         const map = MAP_BY_ID[draft.map] || MAPS[0];
         const data = maps[map.id];
@@ -2886,12 +2942,16 @@
         const tempo = draft.custom ? null : tempoOf(period, minutes);
         const custom = !tempo;
         const rounds = Math.floor(minutes / PERIOD_MINUTES[period]);
-        const summary = `<div class="flex items-center gap-2.5">
-                <span class="cq-thumb-frame flex h-12 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl">${data ? thumbSvg(data, {}, {}, 'h-12 w-14') : ''}</span>
+        const bots = botCounts(draft.bots);
+        const botTotal = botLevelsOf(bots).length;
+        const share = botXpShare(botLevelsOf(bots));
+        const strongest = bots.hard ? 'hard' : bots.medium ? 'medium' : bots.easy ? 'easy' : 'none';
+        const summary = `<div class="flex items-center gap-2.5 px-0.5">
+                <span class="cq-thumb-frame flex h-11 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl short:h-9 short:w-12">${data ? thumbSvg(data, {}, {}, 'h-11 w-14 short:h-9 short:w-12') : ''}</span>
                 <span class="min-w-0 flex-1">
                     <span class="flex min-w-0 items-center gap-1.5"><span class="cq-ledger-title truncate text-[16px] leading-tight">${esc(map.title)}</span><span class="cq-tempo-badge inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-px text-[11px] font-black"><i data-lucide="${tempo ? tempo.icon : 'settings-2'}" class="h-3 w-3"></i>${esc(tempo ? tempo.name : 'Vlastní')}</span></span>
                     <span class="block truncate text-[12px] font-bold text-amber-950/80 dark:text-gold-100/85" data-cq-summary>Hra ${esc(minutesLabel(minutes))} · ${esc(plural(rounds, 'kolo', 'kola', 'kol'))} po ${esc(roundLabel(period))}</span>
-                    <span class="block truncate text-[12px] font-semibold text-amber-950/65 dark:text-gold-100/65">${esc(movesWord(draft.actions))} za kolo · až ${players} hráčů · ${draft.visibility === 'private' ? 'jen s kódem' : 'kdokoli'}</span>
+                    <span class="block truncate text-[12px] font-semibold text-amber-950/65 short:hidden dark:text-gold-100/65">${esc(movesWord(draft.actions))} za kolo · až ${players} hráčů${botTotal ? ` · ${esc(plural(botTotal, 'bot', 'boti', 'botů'))}` : ''}</span>
                 </span></div>`;
         const tempos = custom
             ? `<div class="flex items-center gap-1"><span class="cq-form-label w-9 shrink-0" aria-hidden="true">Kolo</span>${optionRow('Délka kola', 'period', PERIODS.map(id => [id, roundLabel(id)]), period, 'min-w-0 flex-1 grid-cols-4')}</div>
@@ -2899,16 +2959,26 @@
             : `<div role="radiogroup" aria-label="Tempo" class="grid grid-cols-4 gap-1">${TEMPOS.map(item => `<button type="button" role="radio" aria-checked="${item.id === tempo.id}" data-cq-tempo="${item.id}" class="cq-opt cq-tempo flex min-w-0 flex-col items-center justify-center rounded-lg px-0.5 py-0.5">
                 <i data-lucide="${item.icon}" class="h-4 w-4"></i><span class="max-w-full truncate text-[12.5px] font-black leading-tight">${esc(item.name)}</span><span class="max-w-full truncate text-[11px] font-bold leading-tight opacity-80">${esc(minutesLabel(item.minutes))}</span></button>`).join('')}</div>`;
         const toggle = `<button type="button" data-cq="tempo-custom" class="cq-form-link flex items-center gap-0.5 normal-case tracking-normal">${custom ? '<i data-lucide="chevron-left" class="h-3.5 w-3.5"></i>Předvolby' : 'Vlastní<i data-lucide="chevron-right" class="h-3.5 w-3.5"></i>'}</button>`;
-        return `<form data-cq-form class="cq-form flex flex-col gap-[5px] rounded-2xl p-2" autocomplete="off">
+        const botRow = `<button type="button" data-cq="bots-pick" class="cq-opt flex min-h-[2.5rem] min-w-0 short:min-h-[2.25rem] items-center gap-1.5 rounded-lg px-1.5 text-left" aria-label="Boti: ${esc(botsSummary(bots))}, XP za hru ${share} %">
+                <span class="cq-bot-face cq-bot-${strongest} flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"><i data-lucide="bot" class="h-4 w-4"></i></span>
+                <span class="min-w-0 flex-1 leading-tight"><span class="block truncate text-[12.5px] font-black">${botTotal ? esc(plural(botTotal, 'bot', 'boti', 'botů')) : 'Bez botů'}</span><span class="block truncate text-[10.5px] font-bold opacity-80" data-cq-xp-share>XP za hru: ${share} %</span></span>
+                <i data-lucide="plus" class="h-4 w-4 shrink-0 opacity-70"></i></button>`;
+        const visibility = `<div role="radiogroup" aria-label="Kdo se přidá" class="grid grid-cols-2 gap-1">${[['public', 'Kdokoli', 'Kdokoli z Lobby', 'globe'], ['private', 'S kódem', 'Jen s kódem', 'lock']].map(([id, label, full, icon]) => `
+                <button type="button" role="radio" aria-checked="${draft.visibility === id}" aria-label="${full}" data-cq-set="visibility" data-value="${id}" class="cq-opt flex min-h-[2.5rem] min-w-0 short:min-h-[2.25rem] flex-col items-center justify-center rounded-lg px-0.5 text-[12px] font-black leading-tight"><i data-lucide="${icon}" class="h-3.5 w-3.5"></i><span class="max-w-full truncate">${label}</span></button>`).join('')}</div>`;
+        return `<form data-cq-form class="cq-form flex flex-col gap-1.5 rounded-2xl p-2 short:gap-1 short:p-1.5" autocomplete="off">
             ${summary}
-            <div class="cq-form-rule"></div>
-            ${formLabel('Mapa')}${optionRow('Mapa', 'map', MAPS.map(item => [item.id, item.title]), map.id, 'grid-cols-5')}
-            ${formLabel(custom ? 'Vlastní tempo' : 'Tempo', toggle)}${tempos}
-            <div class="grid grid-cols-2 gap-1.5"><div class="flex min-w-0 flex-col gap-[5px]">${formLabel('Nejvýš hráčů')}${formStepper('Nejvýš hráčů', 'players', players, MIN_PLAYERS, maxPlayers, plural(players, 'hráč', 'hráči', 'hráčů').replace(/^\d+ /, ''))}</div>
-                <div class="flex min-w-0 flex-col gap-[5px]">${formLabel('Tahů za kolo')}${formStepper('Tahů za kolo', 'actions', draft.actions, 1, MAX_ACTIONS, plural(draft.actions, 'tah', 'tahy', 'tahů').replace(/^\d+ /, ''))}</div></div>
-            ${formLabel('Kdo se přidá')}${optionRow('Kdo se přidá', 'visibility', [['public', 'Kdokoli z Lobby'], ['private', 'Jen s kódem']], draft.visibility, 'grid-cols-2')}
-            ${invitable ? `<div class="grid grid-cols-2 gap-1.5">${lookRow(draft, true)}${inviteRow(invites, avatar)}</div>` : lookRow(draft, false)}
-            <button type="submit" ${busy ? 'disabled' : ''} class="${GOLD_BUTTON} mt-0.5 w-full py-2 text-[15px]"><i data-lucide="flag" class="h-5 w-5"></i> ${busy ? 'Zakládám…' : 'Založit hru'}</button>
+            <section class="cq-group flex flex-col gap-[5px] rounded-xl p-1.5 short:p-1" aria-label="Mapa a tempo">
+                <span class="short:hidden">${formLabel('Mapa')}</span>${optionRow('Mapa', 'map', MAPS.map(item => [item.id, item.title]), map.id, 'grid-cols-5')}
+                ${formLabel(custom ? 'Vlastní tempo' : 'Tempo', toggle)}${tempos}
+            </section>
+            <section class="cq-group grid grid-cols-2 gap-x-1.5 gap-y-[5px] rounded-xl p-1.5 short:p-1" aria-label="Hráči a boti">
+                <div class="flex min-w-0 flex-col gap-[5px]">${formLabel('Nejvýš hráčů')}${formStepper('Nejvýš hráčů', 'players', players, MIN_PLAYERS, maxPlayers, plural(players, 'hráč', 'hráči', 'hráčů').replace(/^\d+ /, ''))}</div>
+                <div class="flex min-w-0 flex-col gap-[5px]">${formLabel('Tahů za kolo')}${formStepper('Tahů za kolo', 'actions', draft.actions, 1, MAX_ACTIONS, plural(draft.actions, 'tah', 'tahy', 'tahů').replace(/^\d+ /, ''))}</div>
+                <div class="flex min-w-0 flex-col gap-[5px]">${formLabel('Boti')}${botRow}</div>
+                <div class="flex min-w-0 flex-col gap-[5px]">${formLabel('Kdo se přidá')}${visibility}</div>
+            </section>
+            <div class="grid ${invitable ? 'grid-cols-2' : 'grid-cols-1'} gap-1.5">${lookRow(draft, invitable)}${invitable ? inviteRow(invites, avatar) : ''}</div>
+            <button type="submit" ${busy ? 'disabled' : ''} class="${GOLD_BUTTON} cq-create-go sticky bottom-1 z-10 w-full py-2.5 text-[15px] short:py-2"><i data-lucide="flag" class="h-5 w-5"></i> ${busy ? 'Zakládám…' : 'Založit hru'}</button>
             ${error ? `<p class="text-[13px] font-semibold text-rose-700 dark:text-rose-400" role="status">${esc(error)}</p>` : ''}
         </form>`;
     };
@@ -3086,13 +3156,17 @@
     };
     // Pozvaní přátelé, kteří se ještě nepřidali (game.invited, jen hráčům hry): zašedlé řádky s čárkovaným okrajem „Pozváno“.
     // invitable = databáze pozvánky zná (blok 24): hráč má Pozvat přátele (jen když jsou volná místa), sdílení odkazu je vedle něj.
-    const lobbyDetailHtml = ({ game, maps = {}, busy = false, error = '', dev = false, invitable = false, avatar = null }) => {
+    // Boti (blok 42): u bota štítek s obtížností, zakladatel ho může odebrat (křížek); zakladatel s volným místem má řádek Přidat bota
+    // s podílem XP za hru (botsOn = databáze boty pro všechny zná). Boti chtějí hrát hned.
+    const lobbyDetailHtml = ({ game, maps = {}, busy = false, error = '', dev = false, invitable = false, avatar = null, botsOn = false }) => {
         const data = maps[game.map];
         const me = (game.players || []).find(player => player.me);
         const draw = avatarFn(avatar);
-        const rows = (game.players || []).map(player => `<li class="flex items-center gap-2 rounded-2xl bg-white p-1.5 pr-2.5 shadow-sm dark:bg-slate-800 ${player.me ? 'ring-2 ring-brand-600 dark:ring-brand-400' : ''}">
-                ${pennantSvg(player.flag_color, player.emblem, 'h-7 w-9')}<span class="min-w-0 flex-1 truncate text-[13.5px] font-bold text-slate-800 dark:text-slate-100">${esc(player.display_name || 'Hráč')}${player.me ? ' (ty)' : ''}</span>
-                <span class="flex shrink-0 items-center gap-1 text-[11.5px] font-black ${player.ready ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400'}"><i data-lucide="${player.ready ? 'circle-check' : 'clock'}" class="h-4 w-4"></i>${player.ready ? 'Chce hrát' : 'Čeká'}</span></li>`).join('');
+        const owner = Boolean(me && game.creator && botsOn && !game.preset);
+        const rows = (game.players || []).map(player => `<li class="flex items-center gap-2 rounded-2xl bg-white p-1.5 pr-2.5 shadow-sm short:py-1 dark:bg-slate-800 ${player.me ? 'ring-2 ring-brand-600 dark:ring-brand-400' : ''}" ${player.bot ? `data-cq-bot-row="${esc(player.id)}"` : ''}>
+                ${pennantSvg(player.flag_color, player.emblem, 'h-7 w-9')}<span class="flex min-w-0 flex-1 items-center gap-1.5"><span class="min-w-0 truncate text-[13.5px] font-bold text-slate-800 dark:text-slate-100">${esc(player.display_name || 'Hráč')}${player.me ? ' (ty)' : ''}</span>${botBadgeHtml(player.bot)}</span>
+                <span class="flex shrink-0 items-center gap-1 text-[11.5px] font-black ${player.ready ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400'}"><i data-lucide="${player.ready ? 'circle-check' : 'clock'}" class="h-4 w-4"></i>${player.bot ? '<span class="sr-only">Chce hrát</span>' : player.ready ? 'Chce hrát' : 'Čeká'}</span>
+                ${player.bot && owner ? `<button type="button" data-cq="bot-remove" data-bot="${esc(player.id)}" class="-my-1 -mr-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 active:scale-95 dark:text-slate-400" aria-label="Odebrat bota ${esc(player.display_name || '')}"><i data-lucide="x" class="h-4 w-4"></i></button>` : ''}</li>`).join('');
         const invitedRows = (me ? game.invited || [] : []).map(friend => `<li data-cq-invited="${esc(friend.id)}" class="flex items-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 p-0.5 pl-1.5 pr-2 dark:border-slate-600">
                 <span class="flex w-9 shrink-0 justify-center opacity-60 grayscale">${draw(friend, 'h-6 w-6 text-xs')}</span><span class="min-w-0 flex-1 truncate text-[13.5px] font-bold text-slate-500 dark:text-slate-400">${esc(friend.display_name || 'Hráč')}</span>
                 <span class="flex shrink-0 items-center gap-1 text-[11.5px] font-black text-slate-500 dark:text-slate-400"><i data-lucide="send" class="h-4 w-4"></i>Pozváno</span></li>`).join('');
@@ -3107,11 +3181,13 @@
         ].filter(Boolean).map((html, i, all) => (all.length % 2 && i === all.length - 1 ? html.replace('class="', 'class="col-span-2 ') : html));
         // Na nízkém displeji (short:) menší mezery a bez odkazu Moje hry (stejná záložka je hned nahoře), ať se vejdou i pozvaní
         return `<div data-cq-lobby-detail="${esc(game.id)}" class="flex flex-col gap-2 short:gap-1.5">
-            <div class="flex items-center gap-2 ${CARD} cq-card-paper p-1.5">
-                <span class="cq-thumb-frame flex h-14 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl">${data ? thumbSvg(data, {}, {}, 'h-14 w-16') : ''}</span>
+            <div class="flex items-center gap-2 ${CARD} cq-card-paper p-1.5 ${owner ? 'short:p-1' : ''}">
+                <span class="cq-thumb-frame flex h-14 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl ${owner ? 'short:h-10 short:w-12' : ''}">${data ? thumbSvg(data, {}, {}, `h-14 w-16 ${owner ? 'short:h-10 short:w-12' : ''}`) : ''}</span>
                 <span class="flex min-w-0 flex-1 flex-wrap gap-1">${paramChips(game)}</span>
             </div>
-            <ul class="flex flex-col gap-1.5">${rows}${invitedRows}${empty ? `<li class="px-2 text-[12px] font-semibold text-slate-500 dark:text-slate-400">Volná místa: ${empty}. Hra začne, až bude plná, nebo až budou chtít hrát všichni (aspoň dva).</li>` : ''}</ul>
+            <ul class="flex flex-col gap-1.5 short:gap-1">${rows}${invitedRows}${owner && empty ? `<li><button type="button" data-cq="bot-add" class="cq-bot-add flex min-h-[2.75rem] w-full short:min-h-[2.375rem] items-center gap-2 rounded-2xl border-2 border-dashed p-1 pl-1.5 pr-2.5 text-left active:scale-[0.99]">
+                    <span class="cq-bot-face cq-bot-none flex h-8 w-9 shrink-0 items-center justify-center rounded-xl"><i data-lucide="bot" class="h-5 w-5"></i></span><span class="min-w-0 flex-1 truncate text-[13.5px] font-black">Přidat bota</span>
+                    <span class="cq-xp-share shrink-0 rounded-full px-2 py-0.5 text-[11.5px] font-black" data-cq-lobby-xp>XP za hru: ${botXpShare((game.players || []).map(player => player.bot))} %</span></button></li>` : ''}${empty ? `<li class="px-2 text-[12px] font-semibold text-slate-500 dark:text-slate-400 ${owner ? 'short:hidden' : ''}">Volná místa: ${empty}. Hra začne, až bude plná, nebo až budou chtít hrát všichni (aspoň dva).</li>` : ''}</ul>
             ${dev && me ? devBarHtml({ kind: 'lobby', free: empty }) : ''}
             ${me ? `<button type="button" role="switch" aria-checked="${Boolean(me.ready)}" data-cq="ready" ${busy ? 'disabled' : ''} class="${me.ready ? BRAND_BUTTON : GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="${me.ready ? 'square-check-big' : 'square'}" class="h-5 w-5"></i> Chci hrát${me.ready ? ': ano' : ''}</button>` : ''}
             <div class="grid grid-cols-2 gap-2">${buttons.join('')}</div>
@@ -3196,7 +3272,8 @@
         if (view.finished) return 'Konečné pořadí';
         const next = view.running ? nextPeriodAt(view.state) : null;
         if (next && fastPeriod(view.state.period)) return `Další kolo za ${clockText(next - now)}`;
-        return next ? `Nové tahy za ${timeLeft(next - now)}` : view.running ? (fastPeriod(view.state.period) ? 'Poslední kolo hry' : 'Poslední období hry') : '';
+        // Poslední kolo (blok 42): hra skončí, jakmile ho všichni dohrají, nejpozději po čase
+        return next ? `Nové tahy za ${timeLeft(next - now)}` : view.running ? `${fastPeriod(view.state.period) ? 'Poslední kolo' : 'Poslední období'} · konec po dohrání` : '';
     };
     // Pořadí pod mapou: místo (medaile pro první tři), praporec, jméno, kolik území a regionů drží, podíl na mapě v barvě hráče a body.
     // Do tří hráčů po řádcích, víc hráčů ve dvou sloupcích (vejde se i osm na nejmenší displej)
@@ -3222,11 +3299,11 @@
             const label = `${player.place}. ${name}: ${pointsWord(player.score)}, ${territoriesWord(count)}${regions ? `, ${regionsWord(regions)}` : ''}`;
             if (compact) {
                 return `<li class="cq-rank-row${player.me ? ' cq-rank-me' : ''} flex min-w-0 items-center gap-1.5 rounded-lg px-1 py-0.5" aria-label="${esc(label)}">${medal}${pennantSvg(player.flag_color, player.emblem, 'h-4 w-5 shrink-0')}
-                    <span class="min-w-0 flex-1"><span class="flex items-center gap-1"><span class="min-w-0 flex-1 truncate text-[12px] font-bold text-slate-800 dark:text-slate-100">${esc(name)}</span>${movesChip(view, player, true)}<b class="shrink-0 text-[13px] font-black text-slate-900 dark:text-white">${player.score}</b></span>${bar}</span></li>`;
+                    <span class="min-w-0 flex-1"><span class="flex items-center gap-1"><span class="min-w-0 flex-1 truncate text-[12px] font-bold text-slate-800 dark:text-slate-100">${esc(name)}</span>${botBadgeHtml(player.bot, { short: true })}${movesChip(view, player, true)}<b class="shrink-0 text-[13px] font-black text-slate-900 dark:text-white">${player.score}</b></span>${bar}</span></li>`;
             }
             const detail = `${territoriesWord(count)}${regions ? ` · ${regionsWord(regions)}` : ''}`;
             return `<li class="cq-rank-row${player.me ? ' cq-rank-me' : ''} flex min-w-0 items-center gap-2 rounded-xl px-1.5 py-1 short:py-0.5" aria-label="${esc(label)}">${medal}${pennantSvg(player.flag_color, player.emblem, 'h-5 w-[1.6rem] shrink-0')}
-                <span class="min-w-0 flex-1"><span class="flex items-center gap-1.5"><span class="min-w-0 truncate text-[13.5px] font-black text-slate-800 dark:text-slate-100">${esc(name)}</span><span class="min-w-0 flex-1 truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${esc(detail)}</span>${movesChip(view, player)}</span>${bar}</span>
+                <span class="min-w-0 flex-1"><span class="flex items-center gap-1.5"><span class="min-w-0 truncate text-[13.5px] font-black text-slate-800 dark:text-slate-100">${esc(name)}</span>${botBadgeHtml(player.bot)}<span class="min-w-0 flex-1 truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${esc(detail)}</span>${movesChip(view, player)}</span>${bar}</span>
                 <span class="flex w-9 shrink-0 flex-col items-end leading-none"><b class="text-[17px] font-black text-slate-900 dark:text-white">${player.score}</b><span class="mt-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-500 short:hidden dark:text-slate-400">${esc(pointsWord(player.score).replace(/^\d+ /, ''))}</span></span></li>`;
         }).join('');
         return `<div class="flex items-baseline justify-between gap-2"><h2 class="cq-ledger-title">Pořadí</h2><span data-cq-next class="truncate text-[11px] font-bold text-amber-900/75 dark:text-gold-200/80">${esc(periodLine(view, now))}</span></div>
@@ -3266,14 +3343,15 @@
     const seconds = (ms) => `${(Math.max(0, ms) / 1000).toLocaleString('cs-CZ', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s`;
     const RISK_TEXT = 'Riskantní: všichni dostanou stejnou otázku a 60 s. Území získá nejrychlejší správná odpověď. Kdo odpoví správně, ale pomaleji, nezíská nic a tah ztratí.';
     // Obrana strážní věží (blok 41)
-    const DEFEND_TEXT = 'Strážní věž hlásí útok. Dostaneš stejnou otázku a 60 s. Odpovíš-li správně a nejrychleji, útok odrazíš. Obrana stojí 1 tah.';
+    const DEFEND_TEXT = 'Strážní věž hlásí útok. Bránit jde jen chvíli: 15 s v rychlé hře, jinak 30 s. Pak dostaneš stejnou otázku a 60 s. Odpovíš-li správně a nejrychleji, útok odrazíš. Obrana stojí 1 tah.';
     // Okno bitvy v listu území: kdo bojuje, kolik zbývá na přidání, Přidat se do bitvy (s varováním), nebo proč to nejde
     const siegeBoxHtml = (view, id, siege, { offset = 0, now = Date.now() } = {}) => {
         const info = view.owners.get(id) || {};
-        const joinUntil = localTime(siege.join_until, offset);
-        const open = joinUntil !== null && joinUntil > now;
         const mineOwner = view.me && info.owner === view.me.id;
-        const fighters = siege.participants.map(player => `<span class="flex items-center gap-1">${fighterFlag(view, player)}${esc(fighterName(view, player))}</span>`).join('');
+        // Majitel se strážní věží se může bránit jen do defend_until (blok 42: 15 s v rychlé hře, jinak 30 s od začátku útoku)
+        const joinUntil = localTime(mineOwner && siege.defend_until ? siege.defend_until : siege.join_until, offset);
+        const open = joinUntil !== null && joinUntil > now;
+        const fighters = siege.participants.map(player => `<span class="flex items-center gap-1">${fighterFlag(view, player)}${esc(fighterName(view, player))}${botBadgeHtml(player.bot || (view.byId.get(player.id) || {}).bot, { short: true })}</span>`).join('');
         let action = '';
         if (siege.mine && !siege.answered) action = `<button type="button" data-cq="siege-resume" class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="swords" class="h-5 w-5"></i> Vrátit se do bitvy</button>`;
         else if (siege.mine) action = '<p class="text-[12.5px] font-semibold text-slate-600 dark:text-slate-300">Odpověď máš odeslanou. Výsledek přijde, až odpoví ostatní.</p>';
@@ -3478,10 +3556,10 @@
     };
     // Bitvy, do kterých se můžu přidat (nebo se do své vrátit), jako štítky dole na mapě; klepnutí otevře list území s oknem bitvy
     const siegeChipsHtml = (view, { offset = 0, now = Date.now() } = {}) => [...view.sieges.values()]
-        .filter(siege => (siege.mine && !siege.answered) || ((siege.can_join || siege.can_defend) && !siege.mine && (localTime(siege.join_until, offset) || 0) > now))
+        .filter(siege => (siege.mine && !siege.answered) || ((siege.can_join || siege.can_defend) && !siege.mine && (localTime(siege.can_defend && siege.defend_until ? siege.defend_until : siege.join_until, offset) || 0) > now))
         .slice(0, 2).map(siege => {
             const item = view.index.byId.get(siege.territory);
-            const until = siege.mine ? localTime(siege.deadline, offset) : localTime(siege.join_until, offset);
+            const until = siege.mine ? localTime(siege.deadline, offset) : localTime(siege.can_defend && siege.defend_until ? siege.defend_until : siege.join_until, offset);
             return `<button type="button" data-cq-siege-open="${esc(siege.territory)}" class="cq-siege-chip pointer-events-auto flex max-w-full items-center gap-1.5 rounded-full py-1 pl-2 pr-2.5 text-[12.5px] font-black">
                 <i data-lucide="${siege.can_defend && !siege.mine ? 'shield-check' : 'swords'}" class="h-4 w-4 shrink-0"></i><span class="min-w-0 truncate">${esc(siege.mine ? 'Vrátit se do bitvy' : siege.can_defend ? `Bránit: ${item.n}` : `Bitva o ${accusativeOf(item)}`)}</span>
                 ${until !== null ? `<span class="shrink-0 tabular-nums opacity-80" data-cq-until="${until}">${clockText(until - now)}</span>` : ''}</button>`;
@@ -3573,7 +3651,7 @@
         return `<ol class="flex flex-col gap-1">${items.map(item => `<li class="flex items-center gap-2 rounded-xl bg-white px-2 py-1.5 shadow-sm dark:bg-slate-800">
             <i data-lucide="${item.icon}" class="h-4 w-4 shrink-0 ${TONES[item.tone] || ''}"></i>
             <span class="min-w-0 flex-1"><span class="block truncate text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">${esc(item.title)}: ${esc(item.text)}</span>
-            <span class="flex items-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">${item.actor ? `${esc(item.actor.me ? 'ty' : item.actor.display_name)}${pennantSvg(item.actor.flag_color, item.actor.emblem, 'h-3 w-4')}` : ''}${item.victim && item.victim !== item.actor ? ` · dosud ${esc(item.victim.me ? 'ty' : item.victim.display_name)}` : ''}${item.at ? ` · ${esc(clock(item.at))}` : ''}</span></span></li>`).join('')}</ol>`;
+            <span class="flex items-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">${item.actor ? `${esc(item.actor.me ? 'ty' : item.actor.display_name)}${botBadgeHtml(item.actor.bot, { short: true })}${pennantSvg(item.actor.flag_color, item.actor.emblem, 'h-3 w-4')}` : ''}${item.victim && item.victim !== item.actor ? ` · dosud ${esc(item.victim.me ? 'ty' : item.victim.display_name)}` : ''}${item.at ? ` · ${esc(clock(item.at))}` : ''}</span></span></li>`).join('')}</ol>`;
     };
     const clock = (at) => {
         const time = parseTime(at);
@@ -3608,7 +3686,7 @@
                 <span class="text-[11px] font-black text-amber-900/80 dark:text-gold-200/80">${esc(pointsWord(player.score))}</span>
                 <span class="cq-pedestal cq-pedestal-${player.place <= 3 ? player.place : 'x'} mt-0.5 flex w-full ${height} items-start justify-center rounded-t-lg pt-1">${player.place <= 3 ? ROMAN[player.place - 1] : player.place}</span></div>`;
         }).join('');
-        const prize = reward && (reward.badge || reward.xp) ? `<div class="cq-reward flex items-center gap-2.5 rounded-2xl px-2.5 py-1.5">${sealSvg('zluta', 'koruna', 'h-11 w-11 shrink-0')}<span class="min-w-0 flex-1"><span class="block text-[11px] font-black uppercase tracking-wider text-amber-900/75 dark:text-gold-200/80">Odměna za tažení</span><span class="block text-[14.5px] font-black text-slate-900 dark:text-white">${reward.badge ? 'Odznak Dobyvatel' : ''}${reward.badge && reward.xp ? ' · ' : ''}${reward.xp ? `+${reward.xp} XP` : ''}</span></span></div>` : '';
+        const prize = reward && (reward.badge || reward.xp) ? `<div class="cq-reward flex items-center gap-2.5 rounded-2xl px-2.5 py-1.5">${sealSvg('zluta', 'koruna', 'h-11 w-11 shrink-0')}<span class="min-w-0 flex-1"><span class="block text-[11px] font-black uppercase tracking-wider text-amber-900/75 dark:text-gold-200/80">Odměna za tažení</span><span class="block text-[14.5px] font-black text-slate-900 dark:text-white">${reward.badge ? 'Odznak Dobyvatel' : ''}${reward.badge && reward.xp ? ' · ' : ''}${reward.xp ? `+${reward.xp} XP` : ''}</span>${reward.share ? `<span class="block text-[11.5px] font-bold text-amber-900/75 dark:text-gold-200/80" data-cq-reward-share>Hra s boty: ${reward.share} % XP</span>` : ''}</span></div>` : '';
         return `<div class="flex flex-col gap-2" data-cq-result>
             <div class="cq-podium flex items-end gap-1.5 px-1 pt-1">${podium}</div>
             ${prize}
@@ -3622,11 +3700,12 @@
     const HELP_TABS = [['zaklady', 'Základy'], ['utok', 'Útok'], ['stavby', 'Stavby'], ['regiony', 'Regiony'], ['konec', 'Konec'], ['pomucky', 'Pomůcky']];
     const HELP_PAGES = {
         zaklady: [
-            ['Cíl', 'Mít na konci hry co nejvíc bodů. Body jsou za území, která na konci držíš (víc v záložce Konec).'],
-            ['Začátek', 'Hra začne, až je plná, nebo až jsou v ní aspoň 2 hráči a všichni klepli na „Chci hrát“. Každý dostane jedno domovské území s hradem, ostatní území jsou volná.'],
-            ['Kola', 'Hra je rozdělená na kola: podle nastavení 5 min, 10 min, hodina, nebo den. Když všichni dohrají tahy dřív, můžou klepnout na „Chci další kolo“ a další začne po odpočtu 10 s.'],
-            ['Tahy', 'V každém kole máš několik tahů (počítadlo s meči vpravo nahoře: 3/5 = zbývají 3 z 5). Jeden tah je jedna otázka: útok, stavba, nebo obrana. Nevyužité tahy na konci kola propadnou.'],
-            ['Vzhled', 'Výplně území, vzácné znaky a sady hradů získáš za úspěchy a vybereš v okně Barva a znak.']
+            ['Cíl', 'Mít na konci hry co nejvíc bodů za území, která držíš (víc v záložce Konec).'],
+            ['Začátek', 'Hra začne, až je plná, nebo až jsou v ní aspoň 2 hráči a všichni klepli na „Chci hrát“. Každý dostane domovské území s hradem, ostatní jsou volná.'],
+            ['Kola', 'Kolo trvá podle nastavení 5 min, 10 min, hodinu, nebo den. Když všichni dohrají tahy dřív, klepnou na „Chci další kolo“ a další začne po odpočtu 10 s.'],
+            ['Tahy', 'V každém kole máš několik tahů (počítadlo s meči: 3/5 = zbývají 3 z 5). Tah je jedna otázka: útok, stavba, nebo obrana. Nevyužité tahy na konci kola propadnou.'],
+            ['Vzhled', 'Výplně území, vzácné znaky a sady hradů získáš za úspěchy (okno Barva a znak).'],
+            ['Boti', 'Do volných míst své hry přidáš boty: Mudrlátko, Mudrlant, nebo Super Mudrlant.']
         ],
         utok: [
             ['Útok', 'Klepni na volné nebo cizí sousední území (i přes tečkovanou námořní cestu) a pak na „Zaútočit“.'],
@@ -3639,7 +3718,7 @@
         stavby: [
             ['Postavit', 'Klepni na své území bez stavby a vyber: Palisáda, Strážní věž, nebo Důl. Stavba stojí 1 tah. Na území stojí jen jedna, obléhané stavět nejde.'],
             ['Opevnění', 'Palisáda jde zvýšit na Hradbu. Útok opevnění jen pobourá o úroveň, teprve pak jde území dobýt. Domovský hrad se opevňuje až na Pevnost.'],
-            ['Strážní věž', 'Útok na území s věží můžeš bránit odkudkoli: klepni na „Bránit“ (1 tah). Odpovíš-li správně a nejrychleji, útok odrazíš. Vyhraje-li útočník, věž padne.'],
+            ['Strážní věž', 'Útok na území s věží ubráníš odkudkoli: „Bránit“ (1 tah) jde 15 s v rychlé hře, jinak 30 s. Odpovíš-li správně a nejrychleji, útok odrazíš, jinak věž padne.'],
             ['Důl', 'Území s dolem má na konci hry 2 body místo 1. Důl nemá obranu a při dobytí nepadá: získá ho dobyvatel.'],
             ['Na mapě', 'Zřícenina: tady v tomto kole padlo opevnění nebo věž. Tábor stojí u obléhaného území. Pomník vítěze zdobí po konci hry jeho domov.'],
         ],
@@ -3651,10 +3730,10 @@
             ['Ztráta hradu', 'Kdo přijde o domovský hrad, má v dalším období o 1 tah méně. Hrad se proto vyplatí opevnit.']
         ],
         konec: [
-            ['Konec', 'Hra skončí po čase nastaveném při založení. Kolik zbývá, ukazuje nápis pod názvem mapy.'],
+            ['Konec', 'Hra skončí po čase nastaveném při založení, nebo hned, jakmile všichni dohrají poslední kolo.'],
             ['Body', `1 bod za každé území na konci hry (s dolem 2) a ${REGION_POINTS} body za každý celý region. Vyhrává, kdo má nejvíc bodů. Při shodě rozhoduje, kdo svého počtu bodů dosáhl dřív.`],
             ['Ankh vzkříšení', 'Když přijdeš o všechna území, sám se do hry nevrátíš. S pomůckou Ankh vzkříšení si vybereš volné nebo neopevněné území (ne domovský hrad) a hraješ dál, 60 s je chráněné. Bez ní hru jen sleduješ.'],
-            ['Odměny', `1. místo: odznak Dobyvatel a ${REWARD_XP[0]} XP, 2. místo: ${REWARD_XP[1]} XP, 3. místo: ${REWARD_XP[2]} XP. Poslední místo nedostane nic, ve hře dvou hráčů tedy dostane odměnu jen 1. místo. Odměny jsou jen ve hře aspoň 3 hráčů nebo ve hře, která trvá aspoň den, a jen když máš aspoň 3 vlastní tahy a aspoň 1 bod.`]
+            ['Odměny', `1. místo: odznak Dobyvatel a ${REWARD_XP[0]} XP, 2. místo: ${REWARD_XP[1]} XP, 3. místo: ${REWARD_XP[2]} XP, poslední nic. Jen ve hře aspoň 3 hráčů nebo aspoň na den, s aspoň 3 vlastními tahy a 1 bodem. S boty XP podle nejsilnějšího: Mudrlátko 20 %, Mudrlant 50 %, Super Mudrlant 100 %.`]
         ],
         pomucky: [
             ['Pomůcky', `V zásobě máš nejvýš ${ITEMS.extra_move.max}× Tah navíc, ${ITEMS.fifty.max}× 50/50 a ${ITEMS.revive.max}× Ankh vzkříšení. Tah navíc a 50/50 jdou v jedné hře použít jen jednou. Zásobu ukazuje rozcestník a počítadlo tahů.`],
@@ -3676,7 +3755,7 @@
     };
 
     return {
-        ART, MAPS, MAP_BY_ID, DURATIONS, PERIODS, PERIOD_MINUTES, LENGTHS, TEMPOS, tempoOf, defaultMinutes, minutesLabel, gameMinutes, roundLabel, MIN_PLAYERS, MAX_PLAYERS, MAX_ACTIONS, MAX_GAMES, MAX_OWN_LOBBIES, REGION_POINTS, LEVELS, REWARD_XP,
+        ART, MAPS, MAP_BY_ID, DURATIONS, PERIODS, PERIOD_MINUTES, LENGTHS, TEMPOS, tempoOf, defaultMinutes, minutesLabel, gameMinutes, roundLabel, MIN_PLAYERS, MAX_PLAYERS, MAX_ACTIONS, MAX_GAMES, MAX_OWN_LOBBIES, REGION_POINTS, LEVELS, REWARD_XP, BOT_LEVELS, BOT_BY_ID, BOT_ART, botXpShare, botBadgeHtml, botCounts, botLevelsOf, botsSummary, botsDialogHtml,
         COLORS, COLOR_BY_ID, EMBLEMS, EMBLEM_BY_ID, RARE_EMBLEMS, RARE_EMBLEM_BY_ID, PATTERNS, PATTERN_BY_ID, patternOf, emblemArtUrl, patternUrl, colorOf, emblemOf,
         CASTLE_SETS, CASTLE_SET_BY_ID, castleSetOf, castlesOn, castleAllowed, castlePreviewSvg, territoryCastleSvg, BUILDING_ART, ICON_SCALE,
         // Stavby a ozdoby (blok 41)

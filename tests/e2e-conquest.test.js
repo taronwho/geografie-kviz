@@ -70,12 +70,13 @@ const backend = async (context, db) => {
         const fail = (message, status = 400) => json({ code: 'P0001', message }, status);
         const find = (id) => db.games.find(g => g.id === id);
         const mapOf = (g) => MAPS[g.map];
-        const players = (g) => g.players.map(p => ({ ...db.profiles[p.user], seat: p.seat, flag_color: p.flag_color, emblem: p.emblem, pattern: p.pattern || null, castle: p.castle || null, ready: p.ready, score: p.score || 0, score_at: p.score_at || null, place: p.place || null, me: p.user === me.id }));
+        const players = (g) => g.players.map(p => ({ ...db.profiles[p.user], seat: p.seat, flag_color: p.flag_color, emblem: p.emblem, pattern: p.pattern || null, castle: p.castle || null, ready: p.ready, score: p.score || 0, score_at: p.score_at || null, place: p.place || null, me: p.user === me.id, bot: p.bot || null }));
         // Pozvánky (blok 24): db.invites = [{ game, user, by, declined }]; čekající pozvané vidí jen hráči hry v lobby
         const waiting = (g) => (db.invites || []).filter(i => i.game === g.id && !i.declined && !g.players.some(p => p.user === i.user));
         const summary = (g) => ({ id: g.id, map: g.map, max_players: g.max_players, hours: g.hours, ...(g.minutes ? { minutes: g.minutes } : {}), period: g.period, actions: g.actions, visibility: g.visibility, preset: g.preset, status: g.status,
             created_at: g.created_at, started_at: g.started_at || null, ends_at: g.ends_at || null, mine: g.players.some(p => p.user === me.id), creator: g.creator === me.id, code: g.code, players: players(g),
-            invited: g.status === 'lobby' && g.players.some(p => p.user === me.id) ? waiting(g).map(i => ({ ...db.profiles[i.user], by_me: i.by === me.id })) : null });
+            invited: g.status === 'lobby' && g.players.some(p => p.user === me.id) ? waiting(g).map(i => ({ ...db.profiles[i.user], by_me: i.by === me.id })) : null,
+            xp_share: !g.players.some(p => p.bot) || g.players.some(p => p.bot === 'hard') ? 100 : g.players.some(p => p.bot === 'medium') ? 50 : 20 });
         const mine = (g) => g.players.find(p => p.user === me.id);
         // penalty: v období g.penaltyPeriod hráč kvůli ztracenému hradu o tah méně (schéma 23)
         // extra: v tomto období použitý Tah navíc (blok 30, tah druhu 'extra')
@@ -119,7 +120,7 @@ const backend = async (context, db) => {
             const t = g.territories.find(x => x.t === s.territory);
             const mineP = s.participants.find(p => p.user === me.id);
             const done = s.status === 'resolved';
-            return { id: s.id, game: g.id, territory: s.territory, status: s.status, started_by: s.started_by, started_at: NOW, join_until: LATER, ends_at: LATER, resolved_at: done ? NOW : null,
+            return { id: s.id, game: g.id, territory: s.territory, status: s.status, started_by: s.started_by, started_at: NOW, join_until: LATER, ends_at: LATER, defend_until: ['min5', 'min10'].includes(g.period) ? '2026-11-11T10:00:15Z' : '2026-11-11T10:00:30Z', needs_question: Boolean(s.needsQuestion), resolved_at: done ? NOW : null,
                 winner: s.winner || null, outcome: s.outcome || null, mine: Boolean(mineP), answered: Boolean(mineP && mineP.answered), joined_at: mineP ? NOW : null, deadline: mineP ? LATER : null,
                 can_join: !done && !mineP && (t.o !== me.id || t.b === 'tower'), can_defend: !done && !mineP && t.o === me.id && t.b === 'tower',
                 participants: s.participants.map(p => { const gp = g.players.find(x => x.user === p.user); return { ...db.profiles[p.user], seat: gp.seat, flag_color: gp.flag_color, emblem: gp.emblem, source: p.source || null, defender: Boolean(p.defender), joined_at: NOW, deadline: LATER, answered: Boolean(p.answered), fifty: Boolean(p.fifty), me: p.user === me.id,
@@ -160,6 +161,26 @@ const backend = async (context, db) => {
             rescore(g);
         };
         const siegeOf = (id) => { for (const g of db.games) { const s = (g.sieges || []).find(x => x.id === id); if (s) return { g, s }; } return {}; };
+        // Boti pro všechny (blok 42): zakladatel v lobby přidá boty dané obtížnosti a odebere bota
+        if (name === 'conquest_add_bots') {
+            const g = find(body.game);
+            if (!g || g.creator !== me.id) return fail('Boty může přidat a odebrat jen ten, kdo hru založil.', 403);
+            const colours = ['bila', 'nebeska', 'hneda', 'zelena', 'zluta', 'fialova', 'oranzova', 'tyrkysova', 'ruzova', 'cerna'].filter(c => !g.players.some(p => p.flag_color === c));
+            const names = { easy: ['Šroubek', 'Pípálek'], medium: ['Ozubec', 'Pístek'], hard: ['Kvantový Profesor', 'Encyklopedor'] }[body.difficulty];
+            const count = Math.min(body.how_many, g.max_players - g.players.length);
+            for (let i = 0; i < count; i++) {
+                const bot = `bot-${db.seq++}`;
+                db.profiles[bot] = player(bot, names[i % 2], '🤖');
+                g.players.push({ user: bot, seat: g.players.length, flag_color: colours[i], emblem: 'drak', ready: true, bot: body.difficulty });
+            }
+            if (g.players.length >= g.max_players) start(g);
+            return json(summary(g));
+        }
+        if (name === 'conquest_remove_bot') {
+            const g = find(body.game);
+            g.players = g.players.filter(p => !(p.user === body.bot && p.bot));
+            return json(summary(g));
+        }
         // Vývojářští boti (blok 22): do lobby (chtějí hrát, plná hra začne), jejich tahy hned (každý bot dobude jedno volné území), další období
         if (name === 'dev_conquest_add_bots') {
             const g = find(body.game);
@@ -375,6 +396,11 @@ const backend = async (context, db) => {
             move.l = t.l;
             g.moves.push(move);
             rescore(g);
+            if (db.endEarly && budget(g).left === 0) {
+                g.status = 'finished';
+                g.ends_at = NOW;
+                [...g.players].sort((a, b) => (b.score || 0) - (a.score || 0)).forEach((p, i) => { p.place = i + 1; });
+            }
             return json({ ...state(g), move });
         }
         if (name === 'conquest_claim') {
@@ -382,7 +408,7 @@ const backend = async (context, db) => {
             const p = mine(g);
             const fresh = !p.claimed;
             p.claimed = true;
-            return json({ place: p.place, players: g.players.length, score: p.score, moves: 5, eligible: true, claimed_now: fresh });
+            return json({ place: p.place, players: g.players.length, score: p.score, moves: 5, eligible: true, claimed_now: fresh, ...(db.xpShare ? { xp_share: db.xpShare } : {}) });
         }
         return json({});
     });
@@ -2024,10 +2050,10 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         await tab.waitForFunction(() => /Tahy 4\/5/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
         await tab.click('#conquest-wait [data-action="conquest-play"]');
         await tab.waitForSelector('[data-cq-siege-open="Q40"]');
-        assert.match(await tab.textContent('[data-cq-siege-open="Q40"]'), /Bránit: Rakousko\s*0:50/);
+        assert.match(await tab.textContent('[data-cq-siege-open="Q40"]'), /Bránit: Rakousko\s*0:30/);
         await tab.click('[data-cq-siege-open="Q40"]');
         await tab.waitForSelector('[data-cq-sheet] [data-cq="siege-join"][data-defend]');
-        assert.match((await tab.textContent('[data-cq-sheet]')).replace(/\s+/g, ' '), /Strážní věž[\s\S]*Probíhá bitva\s*bránit: 0:50[\s\S]*Petr Svoboda[\s\S]*Strážní věž hlásí útok\.[\s\S]*Obrana stojí 1 tah\.[\s\S]*Bránit/);
+        assert.match((await tab.textContent('[data-cq-sheet]')).replace(/\s+/g, ' '), /Strážní věž[\s\S]*Probíhá bitva\s*bránit: 0:30[\s\S]*Petr Svoboda[\s\S]*Strážní věž hlásí útok\.[\s\S]*Obrana stojí 1 tah\.[\s\S]*Bránit/);
         assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
         await tab.waitForTimeout(400);
         await shot(tab, 'stavby-branit-360');
@@ -2152,7 +2178,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         assert.deepEqual(db.calls.filter(call => call.name === 'conquest_invite').map(call => call.body), [{ game: created.id, friends: ['u-2', 'u-3'] }]);
         // Lobby: pozvaní zašedlí „Pozváno“, Pozvat přátele (volné místo zbývá); vejde se na 360×640
         assert.deepEqual(await tab.$$eval('[data-cq-invited]', els => els.map(el => el.dataset.cqInvited)), ['u-2', 'u-3']);
-        assert.match((await tab.textContent('[data-cq-lobby-detail] ul')).replace(/\s+/g, ' '), /Jana Nováková \(ty\) Čeká \S*Petr Svoboda Pozváno \S*Eva Mistr Pozváno\s*Volná místa: 3\./);
+        assert.match((await tab.textContent('[data-cq-lobby-detail] ul')).replace(/\s+/g, ' '), /Jana Nováková \(ty\) Čeká \S*Petr Svoboda Pozváno \S*Eva Mistr Pozváno\s*Přidat bota\s*XP za hru: 100 %\s*Volná místa: 3\./);
         assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 }, 'lobby s pozvanými se vejde na 360×640');
         await shot(tab, 'lobby-pozvano-360');
         // Pozvat přátele z lobby: oba už pozvaní (zašedlí), volné místo 1
@@ -2277,6 +2303,102 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         await tab.click('#dialog-overlay [data-cq-prompt="accept"]');
         await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Tvoje barva a znak', null, { timeout: 15000 });
         await tab.waitForSelector(`#conquest-hub [data-cq-invite="${uuid(1)}"]`);
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    // Boti pro všechny (blok 42): běžný hráč (bez vývojářského režimu) přidá boty v Založit hru i v lobby, obtížnosti míchá, odebere bota;
+    // štítky botů v lobby i ve hře, XP za hru podle nejsilnějšího bota; snímky Založit hru (po přestavbě) a oken s boty
+    for (const [width, height, colorScheme] of [[360, 640, 'light'], [390, 780, 'dark']]) {
+        await t.test(`boti ${width}×${height} (${colorScheme === 'dark' ? 'tmavý' : 'světlý'} režim): Založit hru s boty, lobby se štítky, odebrat a přidat bota, XP za hru`, async () => {
+            const db = newDb();
+            const { context, tab, log } = await start(db, { viewport: { width, height }, colorScheme });
+            await tab.click('#conquest-card');
+            await tab.waitForSelector('#conquest-hub');
+            await tab.click('[role="tab"][data-cq-tab="create"]');
+            await tab.click('[data-cq-set="map"][data-value="evropa"]');
+            await tab.waitForSelector('[data-cq-form] button[type="submit"]');
+            await tab.waitForFunction(() => document.querySelectorAll('[data-cq-form] .cq-thumb-frame path').length > 10, null, { timeout: 15000 });
+            assert.equal(await tab.locator('[data-cq-dev]').count(), 0, 'bez vývojářského režimu');
+            assert.match((await tab.textContent('[data-cq="bots-pick"]')).replace(/\s+/g, ' '), /Bez botů\s*XP za hru: 100 %/);
+            assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 }, 'Založit hru se vejde bez posouvání');
+            await shot(tab, `zalozit-${width}-${colorScheme}`);
+            // Okno Boti: Super Mudrlant a Mudrlátko (obtížnosti jde míchat), XP podle nejsilnějšího
+            await tab.click('[data-cq="bots-pick"]');
+            await tab.waitForSelector('[data-cq-bots]');
+            assert.equal(await tab.locator('[data-cq-bot-level]').count(), 3);
+            assert.match(await tab.textContent('[data-cq-bots]'), /Mudrlátko[^]*Mudrlant[^]*Super Mudrlant/);
+            await tab.click('[data-cq-bot-step="hard"][data-delta="1"]');
+            await tab.click('[data-cq-bot-step="easy"][data-delta="1"]');
+            assert.equal(await tab.textContent('[data-cq-bots-xp]'), 'XP za hru: 100 %');
+            await tab.click('[data-cq-bot-step="hard"][data-delta="-1"]');
+            assert.equal(await tab.textContent('[data-cq-bots-xp]'), 'XP za hru: 20 %', 'jen Mudrlátko: 20 %');
+            await tab.click('[data-cq-bot-step="hard"][data-delta="1"]');
+            const dialogFit = await tab.evaluate(() => { const box = document.querySelector('#dialog-overlay > div'); const rect = box.getBoundingClientRect(); return { over: box.scrollHeight - box.clientHeight, top: rect.top, bottom: rect.bottom }; });
+            assert.ok(dialogFit.over <= 0 && dialogFit.top >= 0 && dialogFit.bottom <= height, `okno Boti se vejde: ${JSON.stringify(dialogFit)}`);
+            await shot(tab, `boti-okno-${width}-${colorScheme}`);
+            await tab.click('[data-cq-bots-done]');
+            await tab.waitForFunction(() => !document.getElementById('dialog-overlay'));
+            assert.match((await tab.textContent('[data-cq="bots-pick"]')).replace(/\s+/g, ' '), /2 boti\s*XP za hru: 100 %/);
+            assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 }, 'Založit hru s boty se vejde');
+            await shot(tab, `zalozit-boti-${width}-${colorScheme}`);
+            await tab.click('[data-cq-form] button[type="submit"]');
+            await tab.waitForSelector('[data-cq-lobby-detail] [data-cq-bot-row]');
+            assert.deepEqual(db.calls.filter(call => call.name === 'conquest_add_bots').map(call => [call.body.how_many, call.body.difficulty]), [[1, 'easy'], [1, 'hard']]);
+            assert.deepEqual(await tab.$$eval('[data-cq-bot-row] [data-cq-bot-badge]', badges => badges.map(badge => badge.textContent.trim())), ['Bot Mudrlátko', 'Bot Super Mudrlant']);
+            assert.equal(await tab.textContent('[data-cq-lobby-xp]'), 'XP za hru: 100 %');
+            assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 }, 'lobby s boty se vejde');
+            await shot(tab, `boti-lobby-${width}-${colorScheme}`);
+            // Odebrat Super Mudrlanta: zbude Mudrlátko (20 % XP); přidat Mudrlanta v lobby (50 %)
+            const hard = await tab.getAttribute('[data-cq-bot-row]:has([data-cq-bot-badge="hard"])', 'data-cq-bot-row');
+            await tab.click(`[data-cq="bot-remove"][data-bot="${hard}"]`);
+            await tab.waitForFunction(() => document.querySelectorAll('[data-cq-bot-row]').length === 1);
+            assert.equal(await tab.textContent('[data-cq-lobby-xp]'), 'XP za hru: 20 %');
+            assert.ok(db.calls.some(call => call.name === 'conquest_remove_bot' && call.body.bot === hard));
+            await tab.click('[data-cq="bot-add"]');
+            await tab.waitForSelector('[data-cq-bots]');
+            assert.match(await tab.textContent('[data-cq-bots-done]'), /Přidat bota/);
+            await tab.click('[data-cq-bot-step="medium"][data-delta="1"]');
+            assert.equal(await tab.textContent('[data-cq-bots-xp]'), 'XP za hru: 50 %', 'v lobby počítá i s boty, kteří už ve hře jsou');
+            await tab.click('[data-cq-bots-done]');
+            await tab.waitForFunction(() => document.querySelectorAll('[data-cq-bot-row]').length === 2);
+            assert.equal(await tab.textContent('[data-cq-lobby-xp]'), 'XP za hru: 50 %');
+            assert.deepEqual(log.errors, []);
+            assert.deepEqual(log.csp, []);
+            await context.close();
+        });
+    }
+
+    await t.test('boti ve hře: štítek s obtížností v pořadí a kronice; poslední kolo dohrané všemi = konec hry hned, výsledek s XP podle botů', async () => {
+        const db = running();
+        db.endEarly = true;
+        db.xpShare = 50;
+        const g = db.games[0];
+        g.actions = 1;
+        g.ends_at = '2026-11-12T10:00:00Z';
+        db.profiles['bot-7'] = player('bot-7', 'Ozubec', '🤖');
+        g.players.push({ user: 'bot-7', seat: 2, flag_color: 'zelena', emblem: 'drak', ready: true, bot: 'medium', score: 1, score_at: NOW });
+        g.territories.find(x => x.t === 'Q29').o = 'bot-7';
+        g.moves.push({ id: 3, u: 'bot-7', k: 'attack', t: 'Q29', r: 'capture', n: 0, at: NOW, ok: true, l: 0 });
+        g.moves.push({ id: 4, u: 'u-2', k: 'fortify', t: 'Q20', r: 'fortify', n: 0, at: NOW, ok: true, l: 1 });
+        g.moves.push({ id: 5, u: 'bot-7', k: 'fortify', t: 'Q29', r: 'fortify', n: 0, at: NOW, ok: true, l: 1 });
+        const { context, tab, log } = await start(db, { reducedMotion: 'reduce' });
+        await tab.waitForFunction(() => /Tahy 1\/1/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
+        await tab.click('#conquest-wait [data-action="conquest-play"]');
+        await tab.waitForSelector('#conquest-game [data-cq-map] svg');
+        assert.equal(await tab.locator('#conquest-game [data-cq-bot-badge="medium"]').count() >= 1, true, 'štítek bota v pořadí');
+        assert.match(await tab.textContent('[data-cq-next]'), /Poslední období · konec po dohrání/);
+        await shot(tab, 'boti-hra-360');
+        // Můj poslední tah: všichni dohráli poslední kolo, hra skončí hned a ukáže výsledek
+        await tapTerritory(tab, 'Q213');
+        await tab.click('[data-cq="build"][data-build="fortify"], [data-cq="fortify"]');
+        await tab.waitForSelector('[data-cq-answer]');
+        await tab.click('[data-cq-answer="0"]');
+        await tab.waitForSelector('[data-cq-result]', { timeout: 15000 });
+        assert.match(await tab.textContent('[data-cq-result]'), /Hra s boty: 50 % XP/);
+        assert.equal(db.calls.filter(call => call.name === 'conquest_claim').length, 1);
+        await shot(tab, 'boti-konec-hned-360');
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();

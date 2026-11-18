@@ -86,7 +86,7 @@ test('SQL: stavby a ozdoby v Dobývání (blok 41)', { skip: !available && 'Post
     };
 
     await t.test('verze 41, sloupce a omezení staveb', () => {
-        assert.equal(last(ok(as(A, 'select schema_version();'))), '41');
+        assert.ok(Number(last(ok(as(A, 'select schema_version();')))) >= 41, 'verze aspoň 41');
         assert.equal(q(`select count(*) from information_schema.columns where table_name = 'conquest_territories' and column_name = 'building'`), '1');
         assert.equal(q(`select count(*) from information_schema.columns where table_name = 'conquest_siege_players' and column_name = 'defender'`), '1');
         assert.equal(q('select array_to_string(conquest_castles(), \',\')'), C.CASTLE_SETS.map(set => set.id).join(','));
