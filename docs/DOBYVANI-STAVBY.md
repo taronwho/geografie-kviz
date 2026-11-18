@@ -39,7 +39,6 @@ výběr v okně Barva a znak (záložka Hrad), odemknutí podle statistik server
 |---|---|---|
 | Perníkový hrad | perník, poleva, cukrové hole a bonbony | Kvíz dne: série 100 dní |
 | Parostrojní pevnost | měď, mosaz, ozubená kola, komíny s párou | Vyhraj 100 bitev o území |
-| Stromová tvrz | hrad vrostlý do obřího stromu, provazové lávky, houby | Drž do konce hry celkem 30 celých regionů |
 | Ledový palác | ledové bloky, rampouchy, sníh | Poraz Bosse týdne 10× |
 
 Hráč se sadou má ve stejném stylu i strážní věž, důl a zříceninu (docs/OBRAZKY.md oddíl 36, č. 438–458; základní styl č. 409–411). Tábor obléhatelů a pomník vítěze jsou pro všechny stejné. Praporky a střechy se barví barvou hráče.
