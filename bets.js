@@ -59,7 +59,8 @@
     const stakeOptions = (limit) => [{ value: 0, enabled: true }, ...STAKES.map(value => ({ value, enabled: limit === null || limit === undefined || value <= limit }))];
     const limitNote = (limit) => (limit === null || limit === undefined ? '' : limit < STAKES[0]
         ? `Na sázku potřebuješ aspoň ${STAKES[0]} XP z posledních 7 dní. Zahraj si a zkus to znovu.`
-        : `Vsadit můžeš nejvýš ${Math.min(limit, MAX_STAKE)} XP: tolik máš z posledních 7 dní.`);
+        : limit >= MAX_STAKE ? `Vsadit můžeš až ${MAX_STAKE} XP, víc nejde u žádné sázky.`
+            : `Vsadit můžeš nejvýš ${limit} XP: víc XP za posledních 7 dní nemáš.`);
 
     // --- Data ze serveru (challenge_stakes, challenge_settle_stake): jen tvarově platné hodnoty ---
     const isCode = (value) => typeof value === 'string' && /^[A-Z0-9]{6}$/.test(value);
@@ -312,7 +313,7 @@
                 </ul>
                 ${o ? `<div class="rounded-2xl bg-white p-2.5 shadow-sm dark:bg-slate-800" data-bet-mine>
                     ${s && s.bets ? balanceHtml(s, h, { label: 'Moje sázky' }) : '<p class="text-center text-[12px] font-semibold text-slate-500 dark:text-slate-400">Zatím žádná rozhodnutá sázka.</p>'}
-                    <p class="mt-1.5 text-center text-[12px] font-bold text-gold-800 dark:text-gold-200">${h.esc(o.limit >= STAKES[0] ? `Teď můžeš vsadit až ${o.limit} XP.` : limitNote(o.limit))}</p>
+                    <p class="mt-1.5 text-center text-[12px] font-bold text-gold-800 dark:text-gold-200">${h.esc(o.limit >= STAKES[0] ? `Teď můžeš vsadit až ${Math.min(o.limit, MAX_STAKE)} XP.` : limitNote(o.limit))}</p>
                 </div>` : ''}
             </div>`;
     };

@@ -21,7 +21,10 @@ test('vklady 10/25/50 XP, limit z posledních 7 dní a text limitu', () => {
     assert.deepEqual(Bets.stakeOptions(30).map(o => [o.value, o.enabled]), [[0, true], [10, true], [25, true], [50, false]]);
     assert.deepEqual(Bets.stakeOptions(null).map(o => o.enabled), [true, true, true, true], 'neznámý limit: rozhodne server');
     assert.deepEqual(Bets.stakeOptions(5).map(o => o.enabled), [true, false, false, false]);
-    assert.match(Bets.limitNote(30), /nejvýš 30 XP: tolik máš z posledních 7 dní/);
+    assert.match(Bets.limitNote(30), /nejvýš 30 XP: víc XP za posledních 7 dní nemáš/);
+    // Víc XP za týden než nejvyšší sázka: omezuje jen strop sázky, ne „tolik máš“
+    assert.equal(Bets.limitNote(50), 'Vsadit můžeš až 50 XP, víc nejde u žádné sázky.');
+    assert.equal(Bets.limitNote(480), 'Vsadit můžeš až 50 XP, víc nejde u žádné sázky.');
     assert.match(Bets.limitNote(5), /aspoň 10 XP z posledních 7 dní/);
     assert.equal(Bets.limitNote(null), '');
 });
