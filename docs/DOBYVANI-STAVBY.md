@@ -1,7 +1,15 @@
 # Dobývání – nové stavby, ozdoby a sady hradů (návrh)
 
-Stav: **čeká na obrázky** (docs/OBRAZKY.md oddíly 34–36, č. 409–458). Do hry se zapojí najednou, až budou
-všechny obrázky. Do té doby se nic z tohoto návrhu ve hře neukazuje.
+Stav: **zapojeno** (schéma 41, `supabase/schema.sql` blok 41; obrázky docs/OBRAZKY.md oddíly 34–36, č. 409–458, zpracované
+`scripts/building-art.py` do `icons/stavby`).
+
+Upřesnění při zapojení:
+- Stavba je tah fortify se stavbou (`conquest_territories.building`: `wall`, `tower`, `mine`); opevnění (Palisáda) je v nabídce Postavit
+  jen na území bez stavby, Hradba se pak staví tlačítkem Opevnit. Stavba i obrana potřebují správnou odpověď na otázku jako opevnění.
+- Bitva o území se strážní věží na majitele počká: dokud se může přidat (člověk s tahem, 60 s od začátku obléhání), útočníkova
+  odpověď bitvu neukončí. Boti nebrání.
+- Zřícenina je i po pobourání poslední úrovně opevnění mimo domov; ve stylu sady toho, komu stavba padla.
+- Pomník vítěze se ukáže, jen když vítěz drží svůj domovský hrad.
 
 ## Stavby (místo opevnění)
 

@@ -336,7 +336,7 @@ test('SQL: výplně území a vzácné znaky v Dobývání', { skip: !available 
     await t.test('export a smazání účtu', () => {
         const exported = json(as(E, 'select export_my_data();'));
         assert.deepEqual(exported.dobyvani_vzhled.map(row => `${row.kind}:${row.item}`).sort(), ['emblem:sova-mudrlant', 'pattern:hvezdna-noc', 'pattern:led', 'pattern:listi', 'pattern:mramor', 'pattern:zlato']);
-        assert.equal(q(`select string_agg(item, ',' order by item) from conquest_looks where user_id = '${D}'`), 'hvezdna-noc,vlnky', 'Vlnky ze smazané hry a Hvězdná noc za odznak série');
+        assert.equal(q(`select string_agg(item, ',' order by item) from conquest_looks where user_id = '${D}'`), 'hvezdna-noc,pernikovy,vlnky', 'Vlnky ze smazané hry, Hvězdná noc a Perníkový hrad (blok 41) za odznak série 100 dní');
         ok(as(D, 'select delete_my_account();'));
         assert.equal(q(`select count(*) from conquest_looks where user_id = '${D}'`), '0');
     });
