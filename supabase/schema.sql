@@ -5493,6 +5493,14 @@ language sql stable set search_path = public as $$
         when exists (select 1 from public.conquest_players c where c.game_id = gid and c.bot_level = 'medium') then 50
         else 20 end
 $$;
+-- Správce lobby (blok 42): kdo smí přidávat a odebírat boty. Zakladatel, pokud je ve hře; jinak (Rychlá hra bez zakladatele, nebo zakladatel
+-- odešel) člověk, který je v lobby nejdéle (joined_at, při shodě nižší místo). Když odejde, je správcem další nejdéle čekající člověk. Bot nikdy.
+create or replace function public.conquest_lobby_admin(gid uuid) returns uuid
+language sql stable set search_path = public as $$
+    select c.user_id from public.conquest_players c join public.conquest_games g on g.id = c.game_id
+     where c.game_id = gid and c.bot_level is null and not public.dev_is_bot(c.user_id)
+     order by c.user_id is not distinct from g.creator desc, c.joined_at, c.seat limit 1
+$$;
 create or replace function public.conquest_summary(g public.conquest_games, uid uuid) returns jsonb
 language sql stable set search_path = public as $$
     select jsonb_build_object('id', g.id, 'map', g.map, 'max_players', g.max_players, 'hours', g.duration_hours, 'minutes', public.conquest_minutes(g), 'period', g.period, 'actions', g.actions,
@@ -5500,9 +5508,12 @@ language sql stable set search_path = public as $$
         'mine', exists (select 1 from public.conquest_players c where c.game_id = g.id and c.user_id = uid), 'creator', g.creator is not null and g.creator = uid,
         'code', case when g.visibility = 'public' or exists (select 1 from public.conquest_players c where c.game_id = g.id and c.user_id = uid) then g.code end,
         'players', coalesce((select jsonb_agg(public.group_player_json(p) || jsonb_build_object('seat', c.seat, 'flag_color', c.color, 'emblem', c.emblem, 'pattern', c.pattern, 'castle', c.castle,
-                'ready', c.ready, 'score', c.score, 'score_at', c.score_at, 'place', c.place, 'me', c.user_id = uid, 'bot', c.bot_level) order by c.seat)
+                'ready', c.ready, 'score', c.score, 'score_at', c.score_at, 'place', c.place, 'me', c.user_id = uid, 'bot', c.bot_level,
+                'admin', g.status = 'lobby' and c.user_id is not distinct from a.adm) order by c.seat)
             from public.conquest_players c join public.profiles p on p.id = c.user_id where c.game_id = g.id), '[]'::jsonb),
-        'invited', public.conquest_invited_json(g, uid), 'xp_share', public.conquest_xp_share(g.id))
+        'invited', public.conquest_invited_json(g, uid), 'xp_share', public.conquest_xp_share(g.id),
+        'admin', g.status = 'lobby' and uid is not null and a.adm is not distinct from uid)
+      from (select public.conquest_lobby_admin(g.id) as adm) a
 $$;
 -- Otevřená Rychlá hra pro každou předvolbu (bez zakladatele); souběžné volání hlídá zámek
 create or replace function public.conquest_ensure_lobbies() returns void
@@ -5693,6 +5704,7 @@ end;
 $$;
 
 -- Odchod z lobby (rozehranou hru opustit nejde); prázdná vlastní hra zmizí (i když v ní zůstali jen boti, blok 42), Rychlá hra zůstane otevřená
+-- (boti z ní odejdou s posledním člověkem)
 create or replace function public.conquest_leave(game uuid) returns void
 language plpgsql security definer set search_path = public as $$
 declare uid uuid := auth.uid(); g public.conquest_games;
@@ -5702,7 +5714,10 @@ begin
     if g.id is null or not exists (select 1 from public.conquest_players p where p.game_id = game and p.user_id = uid) then raise exception 'Tuhle hru nehraješ.' using errcode = '42501'; end if;
     if g.status <> 'lobby' then raise exception 'Rozehranou hru opustit nejde.' using errcode = 'P0001'; end if;
     delete from public.conquest_players where game_id = game and user_id = uid;
-    if g.preset is null and not exists (select 1 from public.conquest_players where game_id = game and bot_level is null) then delete from public.conquest_games where id = game; end if;
+    if not exists (select 1 from public.conquest_players where game_id = game and bot_level is null) then
+        -- Rychlá hra zůstane otevřená bez botů (přidal je správce, který odešel)
+        if g.preset is null then delete from public.conquest_games where id = game; else delete from public.conquest_players where game_id = game; end if;
+    end if;
 end;
 $$;
 
@@ -5939,7 +5954,7 @@ revoke all on function public.conquest_now(), public.conquest_colors(), public.c
     public.conquest_housekeep(uuid), public.conquest_budget(uuid, uuid), public.conquest_invited_json(public.conquest_games, uuid), public.conquest_summary(public.conquest_games, uuid), public.conquest_ensure_lobbies(),
     public.conquest_active_count(uuid), public.conquest_add_player(public.conquest_games, uuid, text, text, text, text), public.conquest_move_json(public.conquest_moves),
     public.conquest_besieged(uuid), public.conquest_attack_check(public.conquest_games, uuid, text, text), public.conquest_attack_apply(uuid, uuid, text, text, integer, boolean),
-    public.conquest_xp_share(uuid)
+    public.conquest_xp_share(uuid), public.conquest_lobby_admin(uuid)
     from public, anon, authenticated;
 revoke all on function public.conquest_is_player(uuid), public.conquest_is_open(uuid), public.conquest_lobby(), public.conquest_create(text, integer, integer, text, integer, text, text, text, integer, text, text),
     public.conquest_join(uuid, text, text, text, text, text), public.conquest_set_look(uuid, text, text, text, text), public.conquest_ready(uuid, boolean), public.conquest_leave(uuid),
@@ -9074,17 +9089,19 @@ drop function if exists public.conquest_bots_due(uuid, boolean);
 drop function if exists public.conquest_bot_skill(uuid);
 drop function if exists public.conquest_bot_offset(uuid);
 
--- Jména botů podle obtížnosti (nejvýš 20 znaků, žádná skutečná jména lidí)
+-- Jména botů podle obtížnosti: krátká (nejvýš 13 znaků, ať se na 360 px nezkracují v lobby ani v pořadí), každé jen v jedné obtížnosti,
+-- žádná skutečná jména lidí. Mudrlátko roztomilé a nešikovné, Mudrlant chytrý, Super Mudrlant velkolepý. Starší účty botů s dřívějšími
+-- dlouhými jmény zůstávají, jak jsou (znovu se nepoužijí, protože jejich jméno v nabídce není).
 create or replace function public.conquest_bot_names(lvl text) returns text[]
 language sql immutable as $$
     select case lvl
         when 'easy' then array['Šroubek', 'Pípálek', 'Cvaklík', 'Matička', 'Drátek', 'Bzučík', 'Kolečko', 'Blikálek', 'Pružinka', 'Ťukálek',
-            'Cinkálek', 'Zoubek', 'Plecháček', 'Vrtulka', 'Klapka', 'Žárovička', 'Popletík', 'Baterka', 'Vrzálek', 'Kapsáček']
-        when 'hard' then array['Kvantový Profesor', 'Encyklopedor', 'Megamozek', 'Turbomudrc', 'Gigabajt Veliký', 'Velmistr Procesor',
-            'Algoritmus Rex', 'Hyperpíst', 'Supravodič', 'Kybernaut', 'Titán Vědění', 'Lord Kalkulon', 'Neuronový Baron', 'Arcimudrc',
-            'Omnivěd', 'Atlas Všeznalý', 'Strojmistr Všeznal', 'Generál Gigahertz', 'Císař Kvízů', 'Orákulum 3000']
+            'Cinkálek', 'Zoubek', 'Plecháček', 'Vrtulka', 'Klapka', 'Žárovička', 'Popletík', 'Baterka', 'Vrzálek', 'Kapsáček', 'Bit Bajtík', 'Mrkálek']
+        when 'hard' then array['Prof. Kvanťák', 'Encyklopedor', 'Megamozek', 'Turbomudrc', 'Gigabajt', 'Arcimudrc', 'Omnivěd', 'Hyperpíst',
+            'Supravodič', 'Kybernaut', 'Orákulum', 'Císař Kvízů', 'Lord Bajt', 'Baron Neuron', 'Sir Kvantum', 'Kníže Bitů', 'Velmistr Čip',
+            'Hrabě Hertz', 'Dr. Všeznal', 'Maxiprocesor', 'Titán Vědy']
         else array['Ozubec', 'Pístek', 'Ventilek', 'Dynamko', 'Magnetek', 'Pákovec', 'Motorek', 'Turbínka', 'Kladka', 'Spínač',
-            'Kvízomat', 'Tipovač', 'Hádankář', 'Čipík', 'Odpovídač', 'Kalibrátor', 'Paměťák', 'Logikus', 'Bystroun', 'Otazník 2.0'] end
+            'Kvízomat', 'Tipovač', 'Hádankář', 'Čipík', 'Odpovídač', 'Kalibrátor', 'Paměťák', 'Logikus', 'Bystroun', 'Otazník 2.0', 'Dr. Čip', 'Mozkovna'] end
 $$;
 -- Deterministické „náhodné“ číslo 0–1 z textu (rozvrh tahů a úspěšnost bota nezávisí na tom, kdy server běží)
 create or replace function public.conquest_bot_hash(t text) returns double precision
@@ -9110,15 +9127,55 @@ create or replace function public.conquest_bot_react_delay(lvl text) returns int
 language sql volatile as $$
     select make_interval(secs => case lvl when 'easy' then 15 + 30 * random() when 'hard' then 4 + 16 * random() else 8 + 27 * random() end)
 $$;
+-- Noc botů: ve hrách s kolem aspoň 6 hodin (tedy na den; ne v rychlých hrách na 5 a 10 minut ani v hrách po hodině) boti od 23:00 do 7:00
+-- pražského času spí: netáhnou, nepřidávají se do bitev a nebrání.
+create or replace function public.conquest_bot_night_game(g public.conquest_games) returns boolean
+language sql immutable set search_path = public as $$ select public.conquest_period_length(g.period) >= interval '6 hours' $$;
+-- Bdělé úseky kola p: 7:00 až 22:57 pražského času (3 minuty před spaním bot nezačne bitvu, ať ji i s odpovědí stihne do 23:00)
+create or replace function public.conquest_bot_awake(g public.conquest_games, p integer) returns table (a timestamptz, b timestamptz)
+language sql stable set search_path = public as $$
+    select x.a, x.b from (select public.conquest_period_start(g, p) as s, public.conquest_period_end(g, p) as e) r
+      cross join lateral generate_series(((r.s at time zone 'Europe/Prague')::date - 1)::timestamp, ((r.e at time zone 'Europe/Prague')::date)::timestamp, interval '1 day') d
+      cross join lateral (select greatest(r.s, (d::date + time '07:00') at time zone 'Europe/Prague') as a,
+                                 least(r.e, (d::date + time '23:00') at time zone 'Europe/Prague' - interval '3 minutes') as b) x
+     where x.b > x.a order by x.a
+$$;
+-- Bdělá doba kola p v sekundách (jen ve hrách, kde boti spí; jinak 0)
+create or replace function public.conquest_bot_awake_secs(g public.conquest_games, p integer) returns double precision
+language sql stable set search_path = public as $$
+    select case when public.conquest_bot_night_game(g) then coalesce((select sum(extract(epoch from (w.b - w.a)))::double precision from public.conquest_bot_awake(g, p) w), 0) else 0 end
+$$;
+-- Spí boti hry v čase ts (v tomto kole)? Jen ve hrách s kolem aspoň 6 h, od 23:00 do 7:00 pražského času a jen když kolo má aspoň
+-- 5 minut bdělé doby (kolo celé v noci: boti hrají jako dřív, ať tahy stihnou)
+create or replace function public.conquest_bot_asleep(g public.conquest_games, ts timestamptz) returns boolean
+language sql stable set search_path = public as $$
+    select public.conquest_bot_night_game(g)
+        and ((ts at time zone 'Europe/Prague')::time >= time '23:00' or (ts at time zone 'Europe/Prague')::time < time '07:00')
+        and public.conquest_bot_awake_secs(g, public.conquest_period(g)) >= 300
+$$;
 -- Rozvrh tahů bota v kole p (total tahů): časy seřazené, mezery z hashe (exponenciální, tedy jako náhodné časy), asi třetina tahů hned
--- po předchozím (shluky); první po 4 % kola, poslední nejpozději tail před koncem kola (5 min: 45 s, 10 min: 75 s, hodina: 6 min, den: 2,4 h)
+-- po předchozím (shluky); první po 4 % kola, poslední nejpozději tail před koncem kola (5 min: 45 s, 10 min: 75 s, hodina: 6 min, den: 2,4 h).
+-- Ve hrách, kde boti v noci spí (conquest_bot_night_game), se rozvrh rozloží jen do bdělé doby kola (conquest_bot_awake; 4 % a tail z ní),
+-- kolo převážně v noci se tak do bdělé doby stlačí; kolo bez bdělé doby (aspoň 5 minut) má rozvrh přes celé kolo jako dřív.
 create or replace function public.conquest_bot_slots(g public.conquest_games, uid uuid, p integer, total integer) returns timestamptz[]
 language plpgsql stable set search_path = public as $$
-declare starts timestamptz := public.conquest_period_start(g, p); span double precision; lead double precision; tail double precision;
+declare starts timestamptz := public.conquest_period_start(g, p); span double precision := 0; lead double precision; tail double precision;
     gaps double precision[] := '{}'; e double precision; sum_e double precision := 0; acc double precision := 0; k integer; slots timestamptz[] := '{}';
+    seg_a timestamptz[] := '{}'; seg_len double precision[] := '{}'; w record; x double precision; i integer;
 begin
     if coalesce(total, 0) <= 0 then return slots; end if;
-    span := greatest(1, extract(epoch from (public.conquest_period_end(g, p) - starts)));
+    if public.conquest_bot_night_game(g) then
+        for w in select * from public.conquest_bot_awake(g, p) loop
+            seg_a := seg_a || w.a;
+            seg_len := seg_len || extract(epoch from (w.b - w.a))::double precision;
+            span := span + extract(epoch from (w.b - w.a));
+        end loop;
+    end if;
+    if span < 300 then
+        seg_a := array[starts];
+        span := greatest(1, extract(epoch from (public.conquest_period_end(g, p) - starts)));
+        seg_len := array[span];
+    end if;
     lead := span * 0.04;
     tail := least(span * 0.15, greatest(75, span * 0.1));
     for k in 0 .. total loop
@@ -9129,7 +9186,11 @@ begin
     end loop;
     for k in 1 .. total loop
         acc := acc + gaps[k];
-        slots := slots || (starts + make_interval(secs => lead + greatest(0, span - lead - tail) * acc / sum_e));
+        -- Poloha v bdělé době (sekundy) → čas: přes úseky bdělé doby po sobě
+        x := lead + greatest(0, span - lead - tail) * acc / sum_e;
+        i := 1;
+        while i < cardinality(seg_len) and x > seg_len[i] loop x := x - seg_len[i]; i := i + 1; end loop;
+        slots := slots || (seg_a[i] + make_interval(secs => least(x, seg_len[i])));
     end loop;
     return slots;
 end;
@@ -9179,7 +9240,7 @@ begin
     end if;
 end;
 $$;
--- Hra pro správu botů: jen ten, kdo hru založil a hraje ji, jen v lobby; vrací ji zamčenou
+-- Hra pro správu botů: jen správce lobby (conquest_lobby_admin: zakladatel, jinak člověk, který je v lobby nejdéle), jen v lobby; vrací ji zamčenou
 create or replace function public.conquest_bot_game(game uuid) returns public.conquest_games
 language plpgsql set search_path = public as $$
 declare uid uuid := auth.uid(); g public.conquest_games;
@@ -9187,12 +9248,14 @@ begin
     if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
     select * into g from public.conquest_games where id = game for update;
     if g.id is null or not exists (select 1 from public.conquest_players p where p.game_id = game and p.user_id = uid) then raise exception 'Tuhle hru nehraješ.' using errcode = '42501'; end if;
-    if g.creator is distinct from uid then raise exception 'Boty může přidat a odebrat jen ten, kdo hru založil.' using errcode = '42501'; end if;
+    if public.conquest_lobby_admin(game) is distinct from uid then
+        raise exception 'Boty může přidat a odebrat jen správce lobby: kdo hru založil, v Rychlé hře kdo je v lobby nejdéle.' using errcode = '42501';
+    end if;
     if g.status <> 'lobby' then raise exception 'Boty jde přidat a odebrat jen ve hře, která ještě nezačala.' using errcode = 'P0001'; end if;
     return g;
 end;
 $$;
--- Přidat boty (zakladatel hry v lobby): how_many botů obtížnosti difficulty ('easy', 'medium', 'hard'), nejvýš do volných míst; aspoň jedno
+-- Přidat boty (správce lobby): how_many botů obtížnosti difficulty ('easy', 'medium', 'hard'), nejvýš do volných míst; aspoň jedno
 -- místo zůstane lidem (boti nejvýš max_players − 1), nejvýš 30 botů za hodinu. Plná hra (nebo když všichni chtějí hrát) začne. Vrací souhrn hry.
 create or replace function public.conquest_add_bots(game uuid, how_many integer default 1, difficulty text default 'medium') returns jsonb
 language plpgsql security definer set search_path = public as $$
@@ -9221,7 +9284,7 @@ begin
     return public.conquest_summary(g, uid);
 end;
 $$;
--- Odebrat bota z lobby (zakladatel hry). Vrací souhrn hry.
+-- Odebrat bota z lobby (správce lobby). Vrací souhrn hry.
 create or replace function public.conquest_remove_bot(game uuid, bot uuid) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare g public.conquest_games;
@@ -9343,11 +9406,12 @@ end;
 $$;
 -- Na začátku bitvy si boti hry naplánují reakci: majitel území se strážní věží brání (Mudrlátko 35 %, Mudrlant 65 %, Super Mudrlant 95 %,
 -- do defend_until), soused se přidá k útoku (Mudrlátko 15 %, Mudrlant 30 %, Super Mudrlant 30 % a víc, když by dokončil region, je tam
--- poklad nebo je území neopevněné); nejvýš dva boti na bitvu. Bot potřebuje tah (zkontroluje se znovu při přidání).
+-- poklad nebo je území neopevněné); nejvýš dva boti na bitvu. Bot potřebuje tah (zkontroluje se znovu při přidání). Spící bot (hra na den,
+-- 23:00–7:00 pražského času, conquest_bot_asleep) se nepřidá ani nebrání: přidání i odpověď (do 60 s po něm) musí padnout do bdělé doby.
 create or replace function public.conquest_bot_react(sid uuid) returns void
 language plpgsql set search_path = public as $$
 declare s public.conquest_sieges; g public.conquest_games; t public.conquest_territories; b record; chance double precision; joiners integer := 0;
-    lvl text; src text; wait interval; completes boolean;
+    lvl text; src text; wait interval; completes boolean; at_ts timestamptz;
 begin
     select * into s from public.conquest_sieges where id = sid;
     if s.id is null or s.status <> 'open' then return; end if;
@@ -9362,8 +9426,10 @@ begin
         if t.owner = b.user_id then
             continue when t.building is distinct from 'tower' or random() >= case lvl when 'easy' then 0.35 when 'hard' then 0.95 else 0.65 end;
             wait := public.conquest_siege_defend_until(s) - s.started_at - interval '2 seconds';
+            at_ts := s.started_at + least(public.conquest_bot_react_delay(lvl), greatest(interval '1 second', wait * (0.3 + 0.6 * random())));
+            continue when public.conquest_bot_asleep(g, at_ts) or public.conquest_bot_asleep(g, at_ts + interval '60 seconds');
             insert into public.conquest_bot_plans (siege_id, user_id, join_at, source, defender)
-            values (sid, b.user_id, s.started_at + least(public.conquest_bot_react_delay(lvl), greatest(interval '1 second', wait * (0.3 + 0.6 * random()))), null, true)
+            values (sid, b.user_id, at_ts, null, true)
             on conflict do nothing;
             continue;
         end if;
@@ -9377,8 +9443,10 @@ begin
         chance := case lvl when 'easy' then 0.15 when 'hard' then 0.3 + case when completes then 0.4 else 0 end + case when t.treasure then 0.2 else 0 end
             + case when t.level = 0 then 0.1 else 0 end else 0.3 end;
         continue when random() >= chance;
+        at_ts := least(s.started_at + public.conquest_bot_react_delay(lvl), s.join_until - interval '2 seconds');
+        continue when public.conquest_bot_asleep(g, at_ts) or public.conquest_bot_asleep(g, at_ts + interval '60 seconds');
         insert into public.conquest_bot_plans (siege_id, user_id, join_at, source, defender)
-        values (sid, b.user_id, least(s.started_at + public.conquest_bot_react_delay(lvl), s.join_until - interval '2 seconds'), src, false)
+        values (sid, b.user_id, at_ts, src, false)
         on conflict do nothing;
         joiners := joiners + 1;
     end loop;
@@ -9496,7 +9564,9 @@ $$;
 -- Boti hry odehrají, co jim podle rozvrhu kola (conquest_bot_slots) patří: tah, jehož čas nastal, jako obléhání, když bot zrovna nečeká
 -- na svou odpověď (jeden za volání); tah víc než 2 minuty po čase (hru nikdo neotevřel) okamžitě, nejvýš co rozvrh dovolí. play_all
 -- (vývojář) nebo dohrané kolo všech lidí: všechno, co zbývá, hned a okamžitě. throttle (conquest_pulse): nejvýš jednou za 4 s na hru.
--- Bot, který nemá co hrát, má kolo dohrané (bot_idle). Vrací počet tahů.
+-- Bot, který nemá co hrát, má kolo dohrané (bot_idle). Spící boti (hra na den, 23:00–7:00 pražského času, conquest_bot_asleep) nehrají
+-- vůbec, ani když lidé kolo dohráli (zbytek odehrají ráno); jen play_all (vývojář). Tah, jehož čas nastal až těsně před spaním (do 2 minut),
+-- je okamžitý, ať bitva nezasáhne do noci. Vrací počet tahů.
 create or replace function public.conquest_bots_due(gid uuid, play_all boolean default false, throttle boolean default false) returns integer
 language plpgsql set search_path = public as $$
 declare g public.conquest_games; p integer; b record; budget jsonb; slots timestamptz[]; used integer; made integer := 0; steps integer; hurry boolean;
@@ -9513,6 +9583,7 @@ begin
     select * into g from public.conquest_games where id = gid;
     if g.status <> 'running' then return 0; end if;
     p := public.conquest_period(g);
+    if not play_all and public.conquest_bot_asleep(g, now_ts) then return 0; end if;
     hurry := play_all or public.conquest_round_humans_done(g);
     for b in select pl.user_id, pl.bot_idle from public.conquest_players pl where pl.game_id = gid and (pl.bot_level is not null or public.dev_is_bot(pl.user_id)) order by pl.seat loop
         continue when b.bot_idle is not distinct from p;
@@ -9526,7 +9597,7 @@ begin
                 used := (budget ->> 'used')::integer;
                 slots := public.conquest_bot_slots(g, b.user_id, p, (budget ->> 'total')::integer);
                 exit when used >= coalesce(cardinality(slots), 0) or slots[used + 1] > now_ts;
-                instant := now_ts - slots[used + 1] > interval '2 minutes';
+                instant := now_ts - slots[used + 1] > interval '2 minutes' or public.conquest_bot_asleep(g, now_ts + interval '2 minutes');
                 exit when not instant and public.conquest_bot_busy(gid, b.user_id);
             end if;
             if not public.conquest_bot_move(gid, b.user_id, not instant) then
@@ -9560,6 +9631,8 @@ end;
 $$;
 revoke all on function public.conquest_bot_names(text), public.conquest_bot_hash(text), public.conquest_bot_skill(uuid, text), public.conquest_bot_correct(uuid, text, integer),
     public.conquest_bot_answer_delay(text), public.conquest_bot_react_delay(text), public.conquest_bot_slots(public.conquest_games, uuid, integer, integer),
+    public.conquest_bot_night_game(public.conquest_games), public.conquest_bot_awake(public.conquest_games, integer), public.conquest_bot_awake_secs(public.conquest_games, integer),
+    public.conquest_bot_asleep(public.conquest_games, timestamptz),
     public.conquest_bot_busy(uuid, uuid), public.conquest_bot_insert(public.conquest_games, text, text), public.conquest_bot_lobby_start(uuid), public.conquest_bot_game(uuid),
     public.conquest_bot_attack_pick(public.conquest_games, uuid, text), public.conquest_bot_build_pick(public.conquest_games, uuid, text),
     public.conquest_bot_siege_begin(public.conquest_games, uuid, text, text, text, integer), public.conquest_bot_react(uuid), public.conquest_bot_siege_due(uuid),
@@ -9700,7 +9773,12 @@ grant execute on function public.conquest_add_bots(uuid, integer, text), public.
 --     strážní věží jen 15 s (rychlá hra) nebo 30 s od začátku útoku (conquest_siege_defend_until, defend_until v bitvě); dev_is_bot i pro botx-…,
 --     dev_tournament_clear_bots maže jen vývojářské boty; prázdná lobby s boty zmizí (conquest_leave); poslední kolo dohrané všemi ukončí hru
 --     hned (conquest_end_early v conquest_housekeep).
+-- 43: Dobývání – boti v noci spí (hry s kolem aspoň 6 h: 23:00–7:00 pražského času netáhnou, nepřidávají se do bitev ani nebrání; rozvrh jen
+--     do bdělé doby kola: conquest_bot_night_game, conquest_bot_awake, conquest_bot_awake_secs, conquest_bot_asleep v conquest_bot_slots,
+--     conquest_bot_react a conquest_bots_due), správce lobby (conquest_lobby_admin: zakladatel, jinak kdo je v lobby nejdéle; boty přidává
+--     a odebírá i v Rychlé hře; admin v souhrnu hry a u hráče), z Rychlé hry odejdou boti s posledním člověkem (conquest_leave), kratší jména
+--     botů (conquest_bot_names).
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 42 $$;
+language sql immutable as $$ select 43 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

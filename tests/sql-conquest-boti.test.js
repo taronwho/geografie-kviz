@@ -72,25 +72,28 @@ test('SQL: boti v Dobývání (blok 42)', { skip: !available && 'PostgreSQL nen�
     for (let run = 0; run < 2; run++) ok(psql(dbName, '', schema));
     q([[A, 'Alfa'], [B, 'Beta'], [C, 'Gama'], [D, 'Delta']].map(([uid, name], i) => `insert into auth.users (id, email, raw_user_meta_data) values ('${uid}', 'u${i + 1}@example.com', '{"full_name": "${name}"}');`).join('\n'));
 
-    await t.test('verze 42; přidat a odebrat boty smí jen přihlášený, pomocné funkce nikdo; jména botů', () => {
-        assert.equal(last(ok(as(A, 'select schema_version();'))), '42');
+    await t.test('verze 43; přidat a odebrat boty smí jen přihlášený, pomocné funkce nikdo; jména botů', () => {
+        assert.equal(last(ok(as(A, 'select schema_version();'))), '43');
         const can = (role, fn) => q(`select has_function_privilege('${role}', 'public.${fn}', 'execute')`);
         for (const fn of ['conquest_add_bots(uuid, integer, text)', 'conquest_remove_bot(uuid, uuid)']) {
             assert.deepEqual([can('authenticated', fn), can('anon', fn), can('public', fn)], ['t', 'f', 'f'], fn);
         }
         for (const fn of ['conquest_bots_due(uuid, boolean, boolean)', 'conquest_bot_move(uuid, uuid, boolean)', 'conquest_bot_slots(public.conquest_games, uuid, integer, integer)',
             'conquest_bot_insert(public.conquest_games, text, text)', 'conquest_bot_siege_sync(uuid)', 'conquest_bot_react(uuid)', 'conquest_bots_tick()', 'conquest_xp_share(uuid)',
-            'conquest_siege_defend_until(public.conquest_sieges)']) {
+            'conquest_siege_defend_until(public.conquest_sieges)', 'conquest_lobby_admin(uuid)', 'conquest_bot_asleep(public.conquest_games, timestamp with time zone)',
+            'conquest_bot_awake(public.conquest_games, integer)', 'conquest_bot_night_game(public.conquest_games)']) {
             assert.deepEqual([can('authenticated', fn), can('anon', fn), can('public', fn)], ['f', 'f', 'f'], fn);
         }
         for (const table of ['conquest_bot_plans', 'conquest_bot_log']) denied(as(A, `select * from ${table};`), /permission denied/, table);
         for (const level of ['easy', 'medium', 'hard']) {
             const list = names(level);
-            assert.ok(list.length >= 15, `${level}: aspoň 15 jmen`);
+            assert.ok(list.length >= 20, `${level}: aspoň 20 jmen`);
             assert.equal(new Set(list).size, list.length, `${level}: bez opakování`);
-            assert.ok(list.every(name => name.length >= 2 && name.length <= 20), level);
+            assert.ok(list.every(name => name.length >= 2 && name.length <= 13), `${level}: krátká jména (nejvýš 13 znaků): ${list.filter(name => name.length > 13)}`);
         }
-        assert.ok(names('easy').includes('Šroubek') && names('hard').includes('Kvantový Profesor') && names('hard').includes('Encyklopedor'));
+        const all = ['easy', 'medium', 'hard'].flatMap(names);
+        assert.equal(new Set(all).size, all.length, 'každé jméno jen v jedné obtížnosti');
+        assert.ok(names('easy').includes('Šroubek') && names('easy').includes('Bit Bajtík') && names('medium').includes('Dr. Čip') && names('hard').includes('Prof. Kvanťák'));
     });
 
     let lobbyGame;
@@ -99,7 +102,7 @@ test('SQL: boti v Dobývání (blok 42)', { skip: !available && 'PostgreSQL nen�
         assert.equal(lobbyGame.xp_share, 100, 'bez botů 100 %');
         denied(addBots(B, lobbyGame.id, 1, 'easy'), /nehraješ/);
         ok(join(B, lobbyGame.code, 'modra'));
-        denied(addBots(B, lobbyGame.id, 1, 'easy'), /jen ten, kdo hru založil/);
+        denied(addBots(B, lobbyGame.id, 1, 'easy'), /jen správce lobby/, 'hra se zakladatelem: jen zakladatel');
         denied(addBots(A, lobbyGame.id, 1, 'genius'), /Vyber obtížnost bota/);
         denied(addBots(null, lobbyGame.id, 1, 'easy', 'anon'), null);
         let summary = json(addBots(A, lobbyGame.id, 1, 'easy'));
@@ -114,7 +117,7 @@ test('SQL: boti v Dobývání (blok 42)', { skip: !available && 'PostgreSQL nen�
         assert.equal(q(`select count(*) from conquest_players where game_id = '${lobbyGame.id}' and bot_level = 'hard'`), '2', 'obtížnost uložená u hráče');
         // Odebrání: jen zakladatel, jen bot
         for (const bot of bots(summary).filter(p => p.bot === 'hard')) {
-            denied(removeBot(B, lobbyGame.id, bot.id), /jen ten, kdo hru založil/);
+            denied(removeBot(B, lobbyGame.id, bot.id), /jen správce lobby/);
             summary = json(removeBot(A, lobbyGame.id, bot.id));
         }
         denied(removeBot(A, lobbyGame.id, B), /Takový bot ve hře není/, 'člověka odebrat nejde');
@@ -125,11 +128,31 @@ test('SQL: boti v Dobývání (blok 42)', { skip: !available && 'PostgreSQL nen�
         q(`insert into conquest_bot_log (user_id, at) select '${A}', now() from generate_series(1, 30)`);
         denied(addBots(A, lobbyGame.id, 1, 'easy'), /za poslední hodinu přidáno hodně/);
         q(`delete from conquest_bot_log where user_id = '${A}'`);
-        // Rychlá hra bez zakladatele: boty nepřidá nikdo
+        assert.deepEqual([summary.admin, summary.players.filter(p => p.admin).map(p => p.id)], [true, [A]], 'zakladatel je správce lobby');
+        assert.equal(json(as(B, `select conquest_join(null, ${lit(lobbyGame.code)}, 'modra', 'orel');`)).admin, false);
+    });
+
+    await t.test('Rychlá hra: boty přidává správce lobby (kdo je v ní nejdéle), po jeho odchodu další; boti nikdy; s posledním člověkem boti odejdou', () => {
         const preset = json(as(C, 'select conquest_lobby();')).open.find(g => g.preset === 'cesko-12h');
-        ok(as(C, `select conquest_join('${preset.id}', null, 'cervena', 'lev');`));
-        denied(addBots(C, preset.id, 1, 'easy'), /jen ten, kdo hru založil/);
+        let summary = json(as(C, `select conquest_join('${preset.id}', null, 'cervena', 'lev');`));
+        assert.equal(summary.admin, true, 'první, kdo se přidal, je správce');
+        clock = plus(clock, 5);
+        summary = json(as(D, `select conquest_join('${preset.id}', null, 'modra', 'orel');`));
+        assert.deepEqual([summary.admin, summary.players.filter(p => p.admin).map(p => p.id)], [false, [C]]);
+        denied(addBots(D, preset.id, 1, 'easy'), /jen správce lobby/, 'druhý přidat boty nesmí');
+        summary = json(addBots(C, preset.id, 1, 'hard'));
+        assert.deepEqual([summary.status, bots(summary).length, summary.players.filter(p => p.admin).map(p => p.id)], ['lobby', 1, [C]], 'bot správcem není');
+        denied(removeBot(D, preset.id, bots(summary)[0].id), /jen správce lobby/);
+        // Správce odejde: správcem je další nejdéle čekající člověk (ne bot, i když se přidal dřív)
         ok(as(C, `select conquest_leave('${preset.id}');`));
+        summary = json(addBots(D, preset.id, 1, 'easy'));
+        assert.deepEqual([summary.admin, bots(summary).length, summary.players.filter(p => p.admin).map(p => p.id)], [true, 2, [D]]);
+        summary = json(removeBot(D, preset.id, bots(summary).find(p => p.bot === 'easy').id));
+        assert.equal(bots(summary).length, 1);
+        // Poslední člověk odejde: Rychlá hra zůstane otevřená a prázdná, bez botů
+        ok(as(D, `select conquest_leave('${preset.id}');`));
+        assert.equal(q(`select count(*) from conquest_players where game_id = '${preset.id}'`), '0');
+        assert.equal(q(`select status from conquest_games where id = '${preset.id}'`), 'lobby');
     });
 
     await t.test('limity: do plna, aspoň jedno místo lidem; plná hra začne; v rozehrané hře ne; lobby jen s boty po odchodu zmizí', () => {
@@ -317,6 +340,103 @@ test('SQL: boti v Dobývání (blok 42)', { skip: !available && 'PostgreSQL nen�
         assert.doesNotMatch(q(`select question::text from conquest_sieges where id = '${siege.id}'`), /correct/);
         assert.equal(q(`select needs_question from conquest_sieges where id = '${siege.id}'`), 'f');
         q(`delete from conquest_sieges where id = '${siege.id}'`);
+    });
+
+    // Noc botů (hry s kolem aspoň 6 h): žádný čas akce bota (tah, bitva, přidání, obrana, odpověď) mezi 23:00 a 7:00 pražského času
+    const NIGHT = (col) => `((${col}) at time zone 'Europe/Prague')::time not between time '07:00' and time '22:59:59'`;
+    const slotsOf = (game, bot, p, total) => q(`select string_agg((extract(epoch from x) * 1000)::bigint::text, ',' order by n) from conquest_games g, unnest(conquest_bot_slots(g, '${bot}', ${p}, ${total})) with ordinality s (x, n) where g.id = '${game}'`).split(',').filter(Boolean).map(Number);
+    const local = (ms) => q(`select to_char(to_timestamp(${ms} / 1000.0) at time zone 'Europe/Prague', 'HH24:MI:SS')`);
+    const [N1, N2, N3, N4] = [21, 22, 23, 24].map(id);
+    await t.test('noc: ve hře na den boti 23:00–7:00 pražského času netáhnou, nepřidají se a nebrání; rozvrh jen do bdělé doby kola', () => {
+        q([[N1, 'Sova'], [N2, 'Výr'], [N3, 'Puštík'], [N4, 'Kalous']].map(([uid, name], i) => `insert into auth.users (id, email, raw_user_meta_data) values ('${uid}', 'n${i + 1}@example.com', '{"full_name": "${name}"}');`).join('\n'));
+        clock = '2026-12-20T20:00:00Z';                   // 21:00 pražského času
+        const g = json(create(N1, { players: 4, hours: 72, per: 'day', actions: 5 }));
+        ok(join(N2, g.code, 'modra'));
+        const full = json(addBots(N1, g.id, 2, 'hard'));
+        assert.equal(full.status, 'running');
+        const [bot1, bot2] = bots(full).map(p => p.id);
+        assert.equal(q(`select conquest_bot_night_game(g) from conquest_games g where id = '${g.id}'`), 't');
+        // Rozvrh: 60 botů × 3 kola, nic v noci, vše uvnitř kola
+        assert.equal(q(`select count(*) from conquest_games g, generate_series(0, 2) p, generate_series(1, 60) n, lateral unnest(conquest_bot_slots(g, md5('noc' || n)::uuid, p, 5)) x
+            where g.id = '${g.id}' and (${NIGHT('x')} or (x at time zone 'Europe/Prague')::time > time '22:57' or x < conquest_period_start(g, p) or x >= conquest_period_end(g, p))`), '0', 'rozvrh jen 7:00–22:57');
+        // Kolo od 21:00: část tahů ještě večer, zbytek ráno a přes den (rozložené do celé bdělé doby)
+        const many = q(`select count(*) filter (where (x at time zone 'Europe/Prague')::time >= time '21:00' and x < conquest_period_start(g, 0) + interval '3 hours') || ' ' || count(*)
+            from conquest_games g, generate_series(1, 60) n, lateral unnest(conquest_bot_slots(g, md5('noc' || n)::uuid, 0, 5)) x where g.id = '${g.id}'`).split(' ').map(Number);
+        assert.ok(many[0] > 0 && many[0] < many[1] * 0.4, `večer část tahů: ${many}`);
+        // Boti hrají podle rozvrhu (čas tahu, po 45 a 70 s odpovědi a vyhodnocení); v noci nic
+        const times = [bot1, bot2].flatMap(bot => slotsOf(g.id, bot, 0, JSON.parse(sys(`select conquest_budget('${g.id}', '${bot}')`)).total)).sort((a, b) => a - b);
+        const night = ['2026-12-20T22:01:00Z', '2026-12-20T23:30:00Z', '2026-12-21T01:00:00Z', '2026-12-21T03:00:00Z', '2026-12-21T05:59:00Z'];
+        const ticks = [...new Set([...times.flatMap(at => [at + 1000, at + 45000, at + 70000]), ...night.map(Date.parse)])].sort((a, b) => a - b);
+        for (const at of ticks) {
+            clock = new Date(at).toISOString();
+            const made = sys(`select conquest_bots_due('${g.id}')`);
+            if (night.includes(clock.replace('.000', ''))) assert.equal(made, '0', `v noci (${local(at)}) boti netáhnou`);
+            sys(`select conquest_sieges_due('${g.id}', false)`);
+        }
+        const actions = () => q(`select count(*) || ' ' || count(*) filter (where ${NIGHT('at')}) from (
+                select m.at from conquest_moves m where m.game_id = '${g.id}' and m.user_id in ('${bot1}', '${bot2}') and m.kind <> 'home'
+                union all select s.started_at from conquest_sieges s where s.game_id = '${g.id}' and s.started_by in ('${bot1}', '${bot2}')
+                union all select p.joined_at from conquest_siege_players p join conquest_sieges s on s.id = p.siege_id where s.game_id = '${g.id}' and p.user_id in ('${bot1}', '${bot2}')
+                union all select p.answered_at from conquest_siege_players p join conquest_sieges s on s.id = p.siege_id where s.game_id = '${g.id}' and p.user_id in ('${bot1}', '${bot2}') and p.answered_at is not null
+                union all select b.join_at from conquest_bot_plans b join conquest_sieges s on s.id = b.siege_id where s.game_id = '${g.id}') x`).split(' ').map(Number);
+        const [total, atNight] = actions();
+        assert.ok(total >= 6, `boti hráli (${total} časů akcí)`);
+        assert.equal(atNight, 0, 'žádná akce bota v noci');
+        // Bitvy člověka v noci: Super Mudrlant se nepřidá (ve dne by se přidal vždy: dokončí Pobaltí, poklad, neopevněné) a věž nebrání
+        const setup = () => {
+            clearMap(g.id);
+            place(g.id, 'Q213', N1, { home: true });          // Česko
+            place(g.id, 'Q36', N1);                           // Polsko
+            place(g.id, 'Q20', N2, { home: true });
+            place(g.id, 'Q37', null, { treasure: true });     // Litva volná
+            place(g.id, 'Q191', bot2, { home: true });        // Estonsko
+            place(g.id, 'Q211', bot2);                        // Lotyšsko
+            place(g.id, 'Q214', bot1, { building: 'tower' }); // Slovensko s věží
+            place(g.id, 'Q29', bot1, { home: true });
+        };
+        clock = '2026-12-21T00:30:00Z';                   // 1:30 pražského času
+        setup();
+        for (const seed of [0.11, 0.23, 0.37]) {
+            const attack = json(begin(N1, g.id, 'Q37', 'Q36', seed));
+            const tower = json(begin(N1, g.id, 'Q214', 'Q213', seed));
+            assert.equal(q(`select count(*) from conquest_bot_plans where siege_id in ('${attack.id}', '${tower.id}')`), '0', 'v noci se boti nepřidají ani nebrání');
+            q(`delete from conquest_sieges where id in ('${attack.id}', '${tower.id}')`);
+        }
+        clock = '2026-12-21T09:00:00Z';                   // 10:00
+        setup();
+        const day = json(begin(N1, g.id, 'Q37', 'Q36', 0.11));
+        assert.equal(q(`select user_id from conquest_bot_plans where siege_id = '${day.id}'`), bot2, 've dne se Super Mudrlant přidá');
+        q(`delete from conquest_sieges where id = '${day.id}'`);
+    });
+
+    await t.test('noc: kolo skoro celé v noci se do bdělé doby stlačí, kolo celé v noci má rozvrh jako dřív; rychlé a hodinové hry v noci hrají', () => {
+        // Hra na 6 h s kolem na den od 21:30: bdělá doba jen 21:30–22:57
+        clock = '2026-12-22T20:30:00Z';
+        const short = json(create(N3, { players: 2, hours: 6, per: 'day', actions: 5 }));
+        const s1 = json(addBots(N3, short.id, 1, 'hard'));
+        assert.equal(s1.status, 'running');
+        const shortSlots = slotsOf(short.id, bots(s1)[0].id, 0, 5);
+        assert.equal(shortSlots.length, 5);
+        assert.ok(shortSlots.every(at => at >= Date.parse(clock) && local(at) <= '22:57:00'), `stlačené do 21:30–22:57: ${shortSlots.map(local)}`);
+        // Od 23:30 (kolo do 5:30 bez bdělé doby): rozvrh přes celé kolo a bot v noci hraje
+        clock = '2026-12-22T22:30:00Z';
+        const dark = json(create(N3, { players: 2, hours: 6, per: 'day', actions: 5 }));
+        const s2 = json(addBots(N3, dark.id, 1, 'hard'));
+        const darkSlots = slotsOf(dark.id, bots(s2)[0].id, 0, 5);
+        assert.ok(darkSlots.every(at => at > Date.parse(clock) && at < Date.parse(clock) + 6 * 3600e3), 'v kole');
+        assert.ok(darkSlots.some(at => local(at) > '01:00:00' && local(at) < '05:00:00'), `rozvrh i v noci: ${darkSlots.map(local)}`);
+        assert.equal(q(`select conquest_bot_asleep(g, '${new Date(darkSlots[0]).toISOString()}') from conquest_games g where id = '${dark.id}'`), 'f');
+        clock = new Date(darkSlots[0] + 1000).toISOString();
+        assert.equal(sys(`select conquest_bots_due('${dark.id}')`), '1', 'bez bdělé doby bot hraje i v noci');
+        // Hodinová hra od 23:30: noc ji neovlivní (rozvrh jako dřív, bot hraje)
+        clock = '2026-12-22T22:30:00Z';
+        const quick = json(create(N4, { players: 2, hours: 6, per: 'hour', actions: 5 }));
+        const s3 = json(addBots(N4, quick.id, 1, 'medium'));
+        assert.equal(q(`select conquest_bot_night_game(g) from conquest_games g where id = '${quick.id}'`), 'f');
+        const quickSlots = slotsOf(quick.id, bots(s3)[0].id, 0, 5);
+        assert.ok(quickSlots[0] >= Date.parse(clock) + 0.04 * 3600e3 - 1 && quickSlots[4] <= Date.parse(clock) + 3600e3 - 360e3 + 1, 'rozvrh hodinového kola jako dřív');
+        clock = new Date(quickSlots[0] + 1000).toISOString();
+        assert.equal(sys(`select conquest_bots_due('${quick.id}')`), '1', 'hodinová hra: bot hraje i ve 23:30');
     });
 
     await t.test('úspěšnost a rychlost podle obtížnosti (vzorky s pevným semínkem)', () => {

@@ -1306,7 +1306,7 @@
     const devConquestAddBots = async (game, count) => conquestGame(await devConquest('dev_conquest_add_bots', { game: conquestId(game), how_many: Math.max(1, wholeNumber(count, 7)) }));
     const devConquestBotsPlay = async (game) => wholeNumber(await devConquest('dev_conquest_bots_play', { game: conquestId(game) }), 1000);
     const devConquestNextPeriod = async (game) => conquestGame(await devConquest('dev_conquest_next_period', { game: conquestId(game) }));
-    // Boti pro všechny (blok 42): zakladatel hry v lobby přidá how_many botů obtížnosti 'easy' (Mudrlátko), 'medium' (Mudrlant) nebo 'hard'
+    // Boti pro všechny (blok 42): správce lobby (zakladatel, v Rychlé hře kdo je v lobby nejdéle; schéma 43) přidá how_many botů obtížnosti 'easy' (Mudrlátko), 'medium' (Mudrlant) nebo 'hard'
     // (Super Mudrlant) a odebere bota; vrací souhrn hry (plná hra může začít)
     const BOT_LEVELS = ['easy', 'medium', 'hard'];
     const conquestAddBots = async (game, count, level) => conquestGame(await conquestCall('conquest_add_bots', {

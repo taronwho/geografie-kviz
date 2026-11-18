@@ -2929,6 +2929,8 @@
         if (!item) return '';
         return `<span class="cq-bot-badge cq-bot-${item.id} inline-flex shrink-0 items-center gap-0.5 rounded-full ${short ? 'p-0.5' : 'py-px pl-1 pr-1.5'} text-[10.5px] font-black leading-tight ${cls}" title="Bot: ${esc(item.name)}" data-cq-bot-badge="${item.id}"><i data-lucide="bot" class="h-3 w-3 shrink-0"></i>${short ? `<span class="sr-only">Bot ${esc(item.name)}</span>` : `<span class="sr-only">Bot </span>${esc(item.name)}`}</span>`;
     };
+    // Štítek správce lobby (schéma 43): kdo smí přidávat a odebírat boty
+    const adminBadgeHtml = () => '<span class="cq-admin-badge inline-flex shrink-0 items-center gap-0.5 rounded-full py-px pl-1 pr-1.5 text-[10.5px] font-black leading-tight" data-cq-admin title="Správce lobby: může přidávat a odebírat boty"><i data-lucide="shield-check" class="h-3 w-3 shrink-0"></i>správce lobby</span>';
     // Počty botů podle obtížnosti { easy, medium, hard } (formulář Založit hru, okno Boti) a jejich obtížnosti jako seznam
     const botCounts = (value) => Object.fromEntries(BOT_LEVELS.map(level => [level.id, Math.max(0, Math.min(7, Math.floor(Number(value && value[level.id]) || 0)))]));
     const botLevelsOf = (counts) => { const now = botCounts(counts); return BOT_LEVELS.flatMap(level => Array.from({ length: now[level.id] }, () => level.id)); };
@@ -3188,15 +3190,16 @@
     };
     // Pozvaní přátelé, kteří se ještě nepřidali (game.invited, jen hráčům hry): zašedlé řádky s čárkovaným okrajem „Pozváno“.
     // invitable = databáze pozvánky zná (blok 24): hráč má Pozvat přátele (jen když jsou volná místa), sdílení odkazu je vedle něj.
-    // Boti (blok 42): u bota štítek s obtížností, zakladatel ho může odebrat (křížek); zakladatel s volným místem má řádek Přidat bota
-    // s podílem XP za hru (botsOn = databáze boty pro všechny zná). Boti chtějí hrát hned.
+    // Boti (blok 42): u bota štítek s obtížností, správce lobby ho může odebrat (křížek); správce s volným místem má řádek Přidat bota
+    // s podílem XP za hru (botsOn = databáze boty pro všechny zná). Boti chtějí hrát hned. Správce lobby (schéma 43, game.admin a player.admin):
+    // zakladatel, v Rychlé hře kdo je v lobby nejdéle; jeho řádek má štítek „správce lobby“. Starší databáze bez admin: jen zakladatel vlastní hry.
     const lobbyDetailHtml = ({ game, maps = {}, busy = false, error = '', dev = false, invitable = false, avatar = null, botsOn = false }) => {
         const data = maps[game.map];
         const me = (game.players || []).find(player => player.me);
         const draw = avatarFn(avatar);
-        const owner = Boolean(me && game.creator && botsOn && !game.preset);
+        const owner = Boolean(me && botsOn && (game.admin !== undefined ? game.admin : game.creator && !game.preset));
         const rows = (game.players || []).map(player => `<li class="flex items-center gap-2 rounded-2xl bg-white p-1.5 pr-2.5 shadow-sm short:py-1 dark:bg-slate-800 ${player.me ? 'ring-2 ring-brand-600 dark:ring-brand-400' : ''}" ${player.bot ? `data-cq-bot-row="${esc(player.id)}"` : ''}>
-                ${pennantSvg(player.flag_color, player.emblem, 'h-7 w-9')}<span class="flex min-w-0 flex-1 items-center gap-1.5"><span class="min-w-0 truncate text-[13.5px] font-bold text-slate-800 dark:text-slate-100">${esc(player.display_name || 'Hráč')}${player.me ? ' (ty)' : ''}</span>${botBadgeHtml(player.bot)}</span>
+                ${pennantSvg(player.flag_color, player.emblem, 'h-7 w-9')}<span class="flex min-w-0 flex-1 items-center gap-1.5"><span class="min-w-0 truncate text-[13.5px] font-bold text-slate-800 dark:text-slate-100">${esc(player.display_name || 'Hráč')}${player.me ? ' (ty)' : ''}</span>${botBadgeHtml(player.bot)}${player.admin && !player.bot ? adminBadgeHtml() : ''}</span>
                 <span class="flex shrink-0 items-center gap-1 text-[11.5px] font-black ${player.ready ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400'}"><i data-lucide="${player.ready ? 'circle-check' : 'clock'}" class="h-4 w-4"></i>${player.bot ? '<span class="sr-only">Chce hrát</span>' : player.ready ? 'Chce hrát' : 'Čeká'}</span>
                 ${player.bot && owner ? `<button type="button" data-cq="bot-remove" data-bot="${esc(player.id)}" class="-my-1 -mr-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 active:scale-95 dark:text-slate-400" aria-label="Odebrat bota ${esc(player.display_name || '')}"><i data-lucide="x" class="h-4 w-4"></i></button>` : ''}</li>`).join('');
         const invitedRows = (me ? game.invited || [] : []).map(friend => `<li data-cq-invited="${esc(friend.id)}" class="flex items-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 p-0.5 pl-1.5 pr-2 dark:border-slate-600">
@@ -3340,6 +3343,7 @@
         const extra = budget.extra ? `<span class="cq-plus-badge absolute -right-1.5 -top-1.5 rounded-full px-[3px] text-[8.5px] font-black leading-[1.3]" aria-hidden="true">+1</span>` : '';
         return `<span class="cq-moves${left ? '' : ' cq-moves-done'}${extra ? ' relative' : ''} flex shrink-0 items-center gap-0.5 rounded-full ${small ? 'px-1 text-[10.5px]' : 'px-1.5 text-[11.5px]'} font-black tabular-nums" title="Tahy v tomto kole: zbývá ${left} z ${budget.total}${extra ? ' (včetně tahu navíc)' : ''}" aria-label="tahy ${left} z ${budget.total}${extra ? ', včetně tahu navíc' : ''}"${extra ? ' data-cq-moves-extra' : ''}><i data-lucide="swords" class="${small ? 'h-2.5 w-2.5' : 'h-3 w-3'}"></i>${left}/${budget.total}${extra}</span>`;
     };
+    // Bot má v pořadí jen malý štítek s ikonou v barvě obtížnosti (celý název obtížnosti je v lobby), ať se jméno bota na 360 px nezkracuje
     const playersStripHtml = (view, { now = Date.now() } = {}) => {
         const total = view.data.t.length || 1;
         const compact = view.ranking.length > 3;
@@ -3357,7 +3361,7 @@
             }
             const detail = `${territoriesWord(count)}${regions ? ` · ${regionsWord(regions)}` : ''}`;
             return `<li class="cq-rank-row${player.me ? ' cq-rank-me' : ''} flex min-w-0 items-center gap-2 rounded-xl px-1.5 py-1 short:py-0.5" aria-label="${esc(label)}">${medal}${pennantSvg(player.flag_color, player.emblem, 'h-5 w-[1.6rem] shrink-0')}
-                <span class="min-w-0 flex-1"><span class="flex items-center gap-1.5"><span class="min-w-0 truncate text-[13.5px] font-black text-slate-800 dark:text-slate-100">${esc(name)}</span>${botBadgeHtml(player.bot)}<span class="min-w-0 flex-1 truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${esc(detail)}</span>${movesChip(view, player)}</span>${bar}</span>
+                <span class="min-w-0 flex-1"><span class="flex items-center gap-1.5"><span class="min-w-0 truncate text-[13.5px] font-black text-slate-800 dark:text-slate-100">${esc(name)}</span>${botBadgeHtml(player.bot, { short: true })}<span class="min-w-0 flex-1 truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${esc(detail)}</span>${movesChip(view, player)}</span>${bar}</span>
                 <span class="flex w-9 shrink-0 flex-col items-end leading-none"><b class="text-[17px] font-black text-slate-900 dark:text-white">${player.score}</b><span class="mt-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-500 short:hidden dark:text-slate-400">${esc(pointsWord(player.score).replace(/^\d+ /, ''))}</span></span></li>`;
         }).join('');
         return `<div class="flex items-baseline justify-between gap-2"><h2 class="cq-ledger-title">Pořadí</h2><span data-cq-next class="truncate text-[11px] font-bold text-amber-900/75 dark:text-gold-200/80">${esc(periodLine(view, now))}</span></div>
@@ -3760,7 +3764,7 @@
             'Hra se hraje na kola. V každém kole máš několik tahů. Kolik ti jich zbývá, ukazuje počítadlo s meči nahoře.',
             'Jeden tah je vždy jedna otázka. Tahem můžeš zaútočit, postavit stavbu, nebo bránit své území.',
             'Nevyužité tahy na konci kola propadnou. Když všichni dohrají dřív, klepnete na „Chci další kolo“ a další kolo začne hned.',
-            'Na volná místa ve hře jde přidat boty. Přidává je ten, kdo hru založil, v rychlé hře ten, kdo je v lobby nejdéle.'
+            'Na volná místa ve hře jde přidat boty. Přidává je správce lobby: ten, kdo hru založil, v rychlé hře ten, kdo je v lobby nejdéle. Ve hře na den boti od 23 do 7 hodin spí.'
         ],
         utok: [
             'Zaútočit můžeš jen na území, které sousedí s některým tvým územím. Sousední jsou i území spojená tečkovanou cestou přes moře.',
