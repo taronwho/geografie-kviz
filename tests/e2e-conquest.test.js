@@ -2408,6 +2408,9 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             let i = 0;
             const tick = (now) => {
                 times.push(now);
+                // Největší dočasné zvětšení vrstvy (přes 2× by se na telefonu vykreslovala obří plocha a mapa by zamrzla)
+                const scale = /scale\(([\d.]+)\)/.exec(document.querySelector('[data-cq-map] svg').style.transform || '');
+                window.cqMaxScale = Math.max(window.cqMaxScale || 1, scale ? Number(scale[1]) : 1);
                 const at = (dx, dy) => ({ pointerId: 7, clientX: cx + dx, clientY: cy + dy, bubbles: true, isPrimary: true });
                 if (i < 50) holder.dispatchEvent(new WheelEvent('wheel', { deltaY: -40, clientX: cx, clientY: cy, bubbles: true, cancelable: true }));
                 else if (i === 50) holder.dispatchEvent(new PointerEvent('pointerdown', at(0, 0)));
@@ -2424,6 +2427,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         const stats = { frames: frames.length, mean: Number((frames.reduce((sum, f) => sum + f, 0) / frames.length).toFixed(1)), p95: Number(sorted[Math.floor(frames.length * 0.95)].toFixed(1)), max: Number(sorted[frames.length - 1].toFixed(1)), over50: frames.filter(f => f > 50).length };
         if (process.env.PERF) console.log(`Snímky přiblížení a posunu: ${JSON.stringify(stats)}${process.env.PERF === "2" ? ` ${frames.map(f => Math.round(f)).join(" ")}` : ""}`);
         assert.ok(stats.mean < 40, `průměrný snímek ${JSON.stringify(stats)}`);
+        assert.ok(await tab.evaluate(() => window.cqMaxScale) <= 2.05, 'vrstva mapy se během gesta nezvětší víc než 2×');
         // Po gestu: výřez mapy ve viewBox, bez dočasné transformace
         await tab.waitForTimeout(400);
         assert.equal(await tab.evaluate(() => document.querySelector('[data-cq-map] svg').style.transform || ''), '');
