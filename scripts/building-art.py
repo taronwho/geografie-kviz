@@ -45,8 +45,54 @@ BUILDINGS = {
     'opevneni-japonsky-1': {'roof': 'blue', 'flags': [(155, 26, 186, 102)]},
     # Nízká hradba: posunout dolů na zem (spodní okraj 184 jako ostatní stavby), praporek v posunutých souřadnicích
     'opevneni-japonsky-2': {'roof': 'blue', 'flags': [(142, 97, 167, 156)], 'ground': True},
+    # Další sady hradů (č. 414–437): Perníkový hrad, Parostrojní pevnost, Ledový palác. Ledový palác je celý z modrého ledu, proto
+    # se v něm barví jen praporky (roof None). Parostrojní pevnost stupeň 3 nemá krémový obrys samolepky: vyřízne se podle pozadí (plain).
+    'hrad-pernikovy-0': {'roof': 'blue', 'flags': [(97, 11, 125, 24), (157, 47, 177, 58)]},
+    'hrad-pernikovy-1': {'roof': 'blue', 'flags': [(97, 29, 118, 40), (142, 57, 160, 67)]},
+    'hrad-pernikovy-2': {'roof': 'blue', 'flags': [(97, 33, 117, 47), (131, 53, 146, 62), (38, 77, 51, 86), (150, 77, 166, 86)]},
+    'hrad-pernikovy-3': {'roof': 'blue', 'flags': [(89, 44, 123, 63), (58, 73, 73, 81), (133, 71, 149, 81), (36, 104, 50, 113), (152, 102, 167, 111)], 'ground': True},
+    'opevneni-pernikovy-1': {'roof': 'blue', 'flags': [(108, 68, 131, 79)], 'ground': True},
+    'opevneni-pernikovy-2': {'roof': 'blue', 'flags': [(57, 41, 76, 52)]},
+    'hrad-parostrojni-0': {'roof': 'blue', 'flags': [(97, 9, 119, 24)]},
+    'hrad-parostrojni-1': {'roof': 'blue', 'flags': [(99, 8, 120, 24)]},
+    'hrad-parostrojni-2': {'roof': 'blue', 'flags': [(101, 16, 116, 28), (24, 72, 39, 83), (165, 72, 183, 83), (112, 99, 128, 110)]},
+    'hrad-parostrojni-3': {'roof': 'blue', 'flags': [(20, 79, 35, 90), (166, 81, 181, 92), (110, 104, 119, 111)], 'plain': True},
+    'opevneni-parostrojni-1': {'roof': 'blue', 'flags': [(83, 68, 102, 83)], 'ground': True},
+    'opevneni-parostrojni-2': {'roof': 'blue', 'flags': [(137, 11, 161, 25)]},
+    'hrad-ledovy-0': {'roof': None, 'flags': [(97, 9, 119, 24)]},
+    'hrad-ledovy-1': {'roof': None, 'flags': [(97, 9, 120, 24)]},
+    'hrad-ledovy-2': {'roof': None, 'flags': [(97, 13, 118, 28), (26, 54, 41, 65), (162, 54, 181, 67)]},
+    'hrad-ledovy-3': {'roof': None, 'flags': [(104, 15, 128, 31), (57, 47, 72, 57), (19, 70, 34, 80), (166, 62, 182, 74), (112, 88, 127, 99)]},
+    'opevneni-ledovy-1': {'roof': None, 'flags': [(119, 13, 149, 35)]},
+    'opevneni-ledovy-2': {'roof': None, 'flags': [(125, 10, 150, 26)]},
+    # Stavby na území (č. 409–411 a 438–458, docs/DOBYVANI-STAVBY.md): strážní věž, důl a zřícenina, základní a v každé sadě hradů.
+    # Zřícenina je ozdoba bez barvy majitele (tint False: bez vrstvy -barva). Tábor obléhatelů (č. 412): praporky v barvě útočníka,
+    # pomník vítěze (č. 413): praporek v barvě vítěze; ostatní (stany, děla, socha) se nebarví. Nízké stavby stojí na zemi (ground).
+    'vez': {'roof': 'blue', 'flags': [(97, 8, 117, 23)]},
+    'dul': {'roof': 'blue', 'flags': [(134, 36, 158, 55)], 'ground': True},
+    'zricenina': {'tint': False, 'ground': True},
+    'tabor': {'roof': None, 'flags': [(53, 55, 83, 74), (120, 55, 149, 74)], 'ground': True},
+    'pomnik': {'roof': None, 'flags': [(103, 37, 129, 58)], 'ground': True},
+    'vez-goticky': {'roof': 'blue', 'flags': [(96, 8, 118, 21)]},
+    'dul-goticky': {'roof': 'blue', 'flags': [(91, 9, 113, 23)]},
+    'zricenina-goticky': {'tint': False, 'ground': True},
+    'vez-orientalni': {'roof': 'blue', 'flags': [(96, 8, 116, 22)]},
+    'dul-orientalni': {'roof': 'blue', 'flags': [(109, 14, 130, 29)]},
+    'zricenina-orientalni': {'tint': False, 'ground': True},
+    'vez-japonsky': {'roof': 'blue', 'flags': [(89, 8, 119, 29)]},
+    'dul-japonsky': {'roof': 'blue', 'flags': [(141, 35, 160, 65)], 'ground': True},
+    'zricenina-japonsky': {'tint': False, 'ground': True},
+    'vez-pernikovy': {'roof': 'blue', 'flags': [(98, 26, 117, 37)]},
+    'dul-pernikovy': {'roof': 'blue', 'flags': [(108, 39, 128, 52)]},
+    'zricenina-pernikovy': {'tint': False, 'ground': True},
+    'vez-parostrojni': {'roof': 'blue', 'flags': [(73, 10, 93, 23)]},
+    'dul-parostrojni': {'roof': 'blue', 'flags': [(63, 19, 88, 37)]},
+    'zricenina-parostrojni': {'tint': False, 'ground': True},
+    'vez-ledovy': {'roof': None, 'flags': [(99, 19, 118, 34)]},
+    'dul-ledovy': {'roof': None, 'flags': [(134, 19, 155, 35)]},
+    'zricenina-ledovy': {'tint': False, 'ground': True},
 }
-SETS = ('goticky', 'orientalni', 'japonsky')
+SETS = ('goticky', 'orientalni', 'japonsky', 'pernikovy', 'parostrojni', 'ledovy')
 # Vlajka pevnosti s žerdí (bez cimbuří pod ní): výřez z pevnosti, žerď v x = POLE_X výřezu
 FLAG_CROP = (86, 0, 146, 37)
 FLAG_BOX = (98, 6, 142, 32)
@@ -100,6 +146,30 @@ def with_flag(base, donor):
     box = (FLAG_BOX[0] - FLAG_CROP[0] + ox, FLAG_BOX[1] - FLAG_CROP[1] + oy, FLAG_BOX[2] - FLAG_CROP[0] + ox, FLAG_BOX[3] - FLAG_CROP[1] + oy)
     return out, box
 
+def plain_icon(path, size=192):
+    # Obrázek bez krémového obrysu samolepky (hrad-parostrojni-3): pozadí = vše od okraje obrázku skoro v barvě pozadí (tmavé obrysy
+    # kresby ho od stavby oddělí), drobnosti kolem (kouř, jiskry) pryč; kolem stavby se dokreslí krémový obrys jako u ostatních samolepek
+    a = np.asarray(Image.open(path).convert('RGB')).astype(np.float32)
+    bg = np.median(np.concatenate([a[:8].reshape(-1, 3), a[-8:].reshape(-1, 3)]), axis=0)
+    near = np.sqrt(((a - bg) ** 2).sum(-1)) < 9
+    labels, _ = ndi.label(near)
+    edge = set(np.unique(np.concatenate([labels[0], labels[-1], labels[:, 0], labels[:, -1]]))) - {0}
+    subject = ~np.isin(labels, list(edge))
+    parts, count = ndi.label(subject)
+    sizes = ndi.sum(subject, parts, range(count + 1))
+    subject = ndi.binary_fill_holes((sizes >= sizes.max() * 0.002)[parts] & subject)
+    subject = ndi.binary_opening(subject, iterations=1)
+    rim = ndi.binary_dilation(subject, iterations=11) & ~subject
+    rgb = np.where(rim[..., None], np.array([246, 236, 214], np.float32), a)
+    alpha = ndi.gaussian_filter((subject | rim).astype(np.float32), 1.2)
+    im = Image.fromarray(np.dstack([rgb, alpha * 255]).round().astype(np.uint8), 'RGBA')
+    im = im.crop(im.getchannel('A').point(lambda v: 255 if v > 8 else 0).getbbox())
+    scale = (size - 8) / max(im.size)
+    im = im.resize((max(1, round(im.width * scale)), max(1, round(im.height * scale))), Image.LANCZOS)
+    canvas = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+    canvas.paste(im, ((size - im.width) // 2, (size - im.height) // 2), im)
+    return canvas
+
 def on_ground(im, bottom=184):
     # Obsah ikony posune dolů, ať stojí na stejné čáře jako ostatní stavby
     box = im.getchannel('A').getbbox()
@@ -138,19 +208,24 @@ def main(wanted):
     os.makedirs(os.path.join(root, 'icons', 'stavby'), exist_ok=True)
     cache = {}
     def base_of(name):
-        if name not in cache: cache[name] = topic_icons.icon(os.path.join(root, 'branding', 'ikony', name + '.png'), name)
+        if name not in cache:
+            path = os.path.join(root, 'branding', 'ikony', name + '.png')
+            cache[name] = plain_icon(path) if BUILDINGS.get(name, {}).get('plain') else topic_icons.icon(path, name)
         return cache[name]
     for name, spec in BUILDINGS.items():
         if wanted and name not in wanted: continue
         im = base_of(name)
         if spec.get('ground'): im = on_ground(im)
-        flags = list(spec['flags'])
+        flags = list(spec.get('flags', []))
         if spec.get('flag_from'):
             im, box = with_flag(im, base_of(spec['flag_from']))
             flags.append(box)
-        tint, weight = tint_layer(im, spec['roof'], flags)
         out = os.path.join(root, 'icons', 'stavby', name + '.webp')
         im.save(out, 'WEBP', quality=90, method=6)
+        if spec.get('tint') is False:
+            print(name, os.path.getsize(out), 'B, bez barvy')
+            continue
+        tint, weight = tint_layer(im, spec.get('roof'), flags)
         tint_out = os.path.join(root, 'icons', 'stavby', name + '-barva.webp')
         tint.save(tint_out, 'WEBP', quality=90, method=6)
         print(name, os.path.getsize(out), 'B, barva', os.path.getsize(tint_out), 'B,', int((weight > 0.5).sum()), 'px')

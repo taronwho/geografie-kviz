@@ -26,9 +26,10 @@ export const isQuietHour = (now = new Date()) => { const hour = pragueHour(now);
 export const payloadFor = (row) => JSON.stringify({ title: String(row.title || '').slice(0, 80), body: String(row.body || '').slice(0, 200), url: String(row.url || './'), kind: String(row.kind || '') });
 
 // Jak dlouho push služba upozornění drží, když zařízení není dostupné (s): upozornění ke kolu v Dobývání (druhy 'conquest_round' a
-// 'conquest_ending', blok 29 v supabase/schema.sql) jen 10 minut – pozdě doručené by mluvilo o kole, které už skončilo; ostatní 6 hodin
+// 'conquest_ending', blok 29 v supabase/schema.sql) jen 10 minut – pozdě doručené by mluvilo o kole, které už skončilo; „Útok na tvé
+// území, braň ho!“ ('conquest_defend', blok 41) jen 2 minuty – do bitvy se jde přidat jen 60 s; ostatní 6 hodin
 const SHORT_LIVED = new Set(['conquest_round', 'conquest_ending']);
-export const ttlFor = (row) => (row && SHORT_LIVED.has(row.kind) ? 10 * 60 : 6 * 3600);
+export const ttlFor = (row) => (row && row.kind === 'conquest_defend' ? 2 * 60 : row && SHORT_LIVED.has(row.kind) ? 10 * 60 : 6 * 3600);
 
 // 404 a 410 = odběr už neexistuje (hráč ho v prohlížeči zrušil), ostatní chyby se jen počítají
 export const classifyError = (error) => (error && (error.statusCode === 404 || error.statusCode === 410) ? 'gone' : 'failed');

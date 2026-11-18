@@ -1117,7 +1117,11 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 .cq-joined { background: linear-gradient(#fff1ee, #f9c9bf); box-shadow: inset 0 0 0 1.5px #b42318, 0 8px 18px -6px rgb(60 20 10 / 0.7); color: #6b1010; font-family: Georgia, 'Times New Roman', serif; font-weight: 700; }
 .cq-wait { background: #fbf3e0; box-shadow: inset 0 0 0 1px rgb(164 123 69 / 0.5); color: #4a2c12; }
 .cq-siege-chip { background: linear-gradient(#fff4dc, #f7dcc8); box-shadow: inset 0 0 0 1.5px #b42318, 0 4px 10px -4px rgb(60 20 10 / 0.6); color: #7a1414; }
+/* Postavit (blok 41): dlaždice stavby na pergamenu a zlatá cena „1 tah“ */
+.cq-build-option { background: linear-gradient(#fffaf0, #f6ead0); box-shadow: inset 0 0 0 1px rgb(164 123 69 / 0.55), 0 2px 0 rgb(122 70 27 / 0.35); }
+.cq-build-cost { background: linear-gradient(#f2c14e, #d69725); color: #3a2410; }
 @media (prefers-color-scheme: dark) {
+    .cq-build-option { background: linear-gradient(#2f3238, #26292e); box-shadow: inset 0 0 0 1px rgb(214 151 37 / 0.4), 0 2px 0 rgb(0 0 0 / 0.45); }
     .cq-siege-box { background: linear-gradient(#3a2422, #301e1c); box-shadow: inset 0 0 0 1px rgb(248 113 113 / 0.45); color: #fecaca; }
     .cq-risk { background: #3a2f1a; box-shadow: inset 0 0 0 1px rgb(242 193 78 / 0.4); color: #fde68a; }
     .cq-timer { background: rgb(255 255 255 / 0.12); }
@@ -1455,6 +1459,9 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 /* Medailon z obrázku (prestige.js ART, icons/topics/prestiz-N.webp): čtvercový rám, obrázek object-contain. Křídla ho dělají širší než vyšší,
    takže v rohu obrázku hráče se trochu zvětší a křídla přesahují rám odznáčku (kruh medailonu pak zhruba vyplní roh). */
 .prestige-badge .prestige-art > img { scale: 1.2; }
+/* Obrázek medailonu má vlastní krémový okraj samolepky: obrys v barvě podkladu by kolem průsvitné záře a paprsků (★10 a výš)
+   nakreslil zubatou tmavou skvrnu (vidět hlavně na velkém obrázku hráče s rámečkem), proto u obrázku jen jemný stín */
+.prestige-badge:has(> .prestige-art) { filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.35)); }
 /* Rozsvěcování legendárního medailonu ★11–★99 (prestige.js litLevels): nad obrázkem ★10 jeho kopie, každá oříznutá na jednu oblast,
    zesvětlená a zářící; síla l1–l4. Oblasti v % čtverce obrázku (odhad: paprsky za medailí, křídla vlevo a vpravo, prstenec, koruna
    nahoře, diamant uprostřed) – doladit podle skutečného obrázku zde, na jednom místě. */

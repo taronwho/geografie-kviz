@@ -73,7 +73,10 @@ const APP_SHELL = [
     // Boss týdne (boss.js ART): čtyři stupně každého bosse a jeho aréna
     ...['kapitan', 'rytir', 'alchymista', 'amper', 'maestro', 'druid', 'olympan', 'reziser'].flatMap(id => [`boss-${id}`, `boss-${id}-zraneny`, `boss-${id}-vkoncich`, `boss-${id}-porazeny`, `arena-${id}`]).map(id => `icons/topics/${id}.webp`),
     // Stavby na mapě Dobývání (conquest.js BUILDINGS, scripts/building-art.py): základ a vrstva střech a vlaječek v barvě hráče
-    ...['palisada', 'hradba', 'pevnost', 'hrad-domov', 'hrad-domov-1', 'hrad-domov-2', 'hrad-domov-3'].flatMap(id => [`icons/stavby/${id}.webp`, `icons/stavby/${id}-barva.webp`]),
+    // a základní stavby a ozdoby z bloku 41 (strážní věž, důl, tábor obléhatelů, pomník vítěze; zřícenina bez vrstvy barvy). Stavby v sadách
+    // hradů (vez-<sada>, dul-<sada>, zricenina-<sada>) se uloží až při použití jako ostatní obrázky sad
+    ...['palisada', 'hradba', 'pevnost', 'hrad-domov', 'hrad-domov-1', 'hrad-domov-2', 'hrad-domov-3', 'vez', 'dul', 'tabor', 'pomnik'].flatMap(id => [`icons/stavby/${id}.webp`, `icons/stavby/${id}-barva.webp`]),
+    'icons/stavby/zricenina.webp',
     // Články řetězu v pásu Řetězovky (chain.js linkSvg, scripts/chain-links.py)
     ...['celem', 'bokem', 'prasknuty'].map(id => `icons/retez/${id}.webp`),
     // Bezešvé textury (zlatá fólie Zlaté otázky, pergamen a moře map Dobývání; č. 210, 232, 233)
@@ -85,9 +88,11 @@ const APP_SHELL = [
 ];
 
 self.addEventListener('install', (event) => {
-    // cache: 'reload' – soubory ze sítě, ne z mezipaměti prohlížeče (GitHub Pages je nechává platit 10 minut)
+    // cache: 'no-cache' – každý soubor se ověří u serveru (GitHub Pages je jinak nechává platit 10 minut), ale nezměněný soubor vrátí
+    // jen krátké 304 a vezme se z mezipaměti prohlížeče. Nová verze tak stahuje jen to, co se změnilo, ne celých ~25 MB (na mobilních
+    // datech se instalace dřív nestihla a v telefonu zůstávala stará verze)
     event.waitUntil(caches.open(CACHE_NAME)
-        .then(cache => cache.addAll(APP_SHELL.map(url => new Request(url, { cache: 'reload' }))))
+        .then(cache => cache.addAll(APP_SHELL.map(url => new Request(url, { cache: 'no-cache' }))))
         .then(() => self.skipWaiting()));
 });
 
