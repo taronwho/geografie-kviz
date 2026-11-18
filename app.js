@@ -3325,7 +3325,7 @@
             const label = escapeHtml(Weekend.bannerLabel(weekend, { topicTitle: (id) => TOPIC_BY_ID[id].title }));
             const attrs = `data-action="weekend-play" data-topic="${escapeHtml(weekend.topic)}" data-weekend-state="${weekend.state}" aria-label="${label}" title="${label}"`;
             items.push({
-                strip: actionRow({ id: 'weekend-banner', attrs, art: topicIcon(TOPIC_BY_ID[weekend.topic], ROW_ART), title: escapeHtml(weekend.title), text: escapeHtml(Weekend.rowText(weekend)), cta: 'Hrát' }),
+                strip: actionRow({ id: 'weekend-banner', attrs, art: uiArt('vikend', ROW_ART), title: escapeHtml(weekend.title), text: escapeHtml(Weekend.rowText(weekend)), cta: 'Hrát' }),
                 chip: `<button type="button" id="weekend-chip" ${attrs} class="${HOME_CHIP}">${topicIcon(TOPIC_BY_ID[weekend.topic], CHIP_ART)}<span class="truncate">${escapeHtml(weekend.title)}</span><span class="shrink-0 rounded-md bg-gold-400 px-1 py-0.5 text-[10px] font-black leading-none text-brand-950">2×</span></button>`
             });
         }

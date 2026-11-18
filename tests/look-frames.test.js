@@ -79,7 +79,7 @@ const SEASON_ART = MONTHS.flatMap(month => [`sezona-${month}`, `sezona-${month}-
 
 test('obrázkové rámečky: jedenáct, pět za úroveň (35–95, každý na jiné úrovni než ostatní odměny), čtyři za těžké odznaky (i Dobyvatel), dva z truhly', () => {
     assert.equal(ART.length, 11);
-    assert.deepEqual(ALL_ART.map(item => item.id), ['vecny-ohen', ...SEASON_ART, ...ART.map(item => item.id)], 'obrázkové jsou odměny, Věčný oheň a rámečky sezóny');
+    assert.deepEqual(ALL_ART.map(item => item.id), ['vecny-ohen', ...SEASON_ART, ...ART.map(item => item.id), 'pratelsky', 'parta', 'prestiz'], 'obrázkové jsou odměny, Věčný oheň, rámečky sezóny a za pozvání a prestiž');
     assert.equal(Look.find('frames', 'vecny-ohen').badge, 'serie-365');
     assert.deepEqual(ART.map(item => item.id), ['ohen', 'more', 'soukoli', 'galaxie', 'kralovsky-vavrin', 'blesk', 'led', 'drak', 'dobyvatel', 'duha-mracky', 'ruze']);
     for (const item of ART) assert.equal(Social.cleanFrame(item.id), item.id, 'id projde profiles_frame_format i Social.cleanFrame');

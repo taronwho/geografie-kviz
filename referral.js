@@ -100,7 +100,7 @@
         const sub = ready ? `Čeká ${plural(ready, 'odměna', 'odměny', 'odměn')} za pozvání` : next ? `Oba dostanete odměnu · ${status ? status.qualified : 0}/${next.need}` : 'Všechny odměny za pozvání máš';
         return `
             <button type="button" id="referral-card" data-action="referral-open" class="flex min-h-[3rem] w-full items-center gap-2.5 rounded-2xl bg-white px-2.5 py-1.5 text-left shadow-sm ring-1 ${ready ? 'ring-2 ring-gold-400' : 'ring-slate-200/70 dark:ring-slate-700/70'} active:scale-[0.98] dark:bg-slate-800/70">
-                <span class="referral-orb flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white"><i data-lucide="user-plus" class="h-5 w-5"></i></span>
+                <img src="icons/topics/sova-pozvanka.webp" alt="" class="h-10 w-10 shrink-0 object-contain drop-shadow-sm" data-referral-art>
                 <span class="min-w-0 flex-1"><span class="block truncate text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">Pozvi kamarády</span><span class="block truncate text-[11px] font-semibold leading-tight ${ready ? 'text-gold-800 dark:text-gold-300' : 'text-slate-500 dark:text-slate-400'}">${esc(sub)}</span></span>
                 ${ready ? `<span class="shrink-0 rounded-lg bg-gold-500 px-2 py-1 text-[11px] font-black text-brand-950">Vyzvednout</span>` : '<i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-400"></i>'}
             </button>`;
@@ -155,7 +155,7 @@
     // Okno po otevření odkazu bez přihlášení
     const welcomeHtml = () => `
         <div class="flex flex-col items-center gap-2.5 text-center" data-referral-welcome>
-            <span class="referral-orb flex h-16 w-16 items-center justify-center rounded-full text-white"><i data-lucide="user-plus" class="h-8 w-8"></i></span>
+            <img src="icons/topics/sova-pozvanka.webp" alt="" class="h-20 w-20 object-contain drop-shadow-sm" data-referral-art>
             <p class="text-[14px] font-semibold leading-snug text-slate-700 dark:text-slate-200">Kamarád tě zve do Mudrlanta. Přihlas se a po první hře oba dostanete rámeček Přátelský a XP navíc. Budete taky přátelé ve hře.</p>
             <button type="button" data-referral-login class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-brand-700 px-4 py-3 text-base font-black text-white"><i data-lucide="log-in" class="h-5 w-5"></i>Přihlásit se</button>
             <button type="button" data-referral-later class="min-h-[2.5rem] px-4 text-[13px] font-bold text-slate-500 underline underline-offset-2 dark:text-slate-400">Později</button>
