@@ -726,7 +726,10 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         assert.equal(await tab.getAttribute('#challenges-section [data-player-id="u-2"]', 'class').then(value => /frame-/.test(value)), false);
         const selects = calls.filter(call => call.startsWith('GET /rest/v1/profiles'));
         assert.match(selects[0], /select=id,display_name,avatar,color,frame,title_pref/, 'nejdřív s novými sloupci');
-        assert.match(selects[1], /select=id,display_name,avatar,color$/, 'pak bez nich');
+        // Pak bez prestiže (starší databáze bez bloku 32), nakonec bez všech nových sloupců
+        const basic = selects.findIndex(call => /select=id,display_name,avatar,color$/.test(call));
+        assert.ok(basic > 0, 'pak bez nich');
+        assert.ok(selects.slice(1, basic).every(call => /title_pref,owl$/.test(call)), 'mezitím jen bez prestiže');
         assert.ok(calls.some(call => /challenges\?select=[^ ]*creator:profiles!creator_id\(id,display_name,avatar,color\)/.test(call)), 'další požadavky už rovnou bez nich');
         assert.ok(!calls.some(call => call.includes('/challenges') && /frame/.test(call)));
         // Volba rámečku se uloží aspoň na zařízení, účet se nezmění a nic neselže

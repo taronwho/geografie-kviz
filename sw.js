@@ -3,6 +3,8 @@
 // a otevřenou aplikaci obnoví (jinak by se o nové verzi nedozvěděla)
 const CACHE_NAME = 'mudrlant-v3';
 // Symboly odznaků (icons/topics/odznak-<skupina>.webp); stejný seznam má app.js (BADGE_ART), hlídá tests/badge-art.test.js
+const PRESTIGE_ART = [...Array.from({ length: 10 }, (_, i) => `prestiz-${i + 1}`), 'sova-prestiz',
+    ...['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'violet'].map(color => `prestiz-10-gem-${color}`)];
 const BADGE_ART = ['sberatel', 'odpovedi', 'rada', 'serie', 'dny', 'dokonale', 'dnes', 'bez-napovedy', 'psani', 'tezke', 'chyby', 'vyzvy', 'vyhry', 'vyhry-v-rade', 'zalozene',
     'perfektni-vyzvy', 'uroven', 'poznane', 'vsestrannost', 'hvezdy', 'vsechna-temata', 'turnaje', 'turnaj-postupy', 'tydenni-cile', 'kviz-dne',
     'kviz-serie', 'kviz-perfekt', 'bleskovka', 'preziti', 'mapa', 'odhad', 'serad', 'detektiv', 'dobyvatel', 'retezovka', 'retezovka-cela'];
@@ -64,11 +66,10 @@ const APP_SHELL = [
         // Pomůcky Tah navíc a 50/50 (conquest.js ITEMS, č. 309 a 310)
         'tah-navic', 'pul-na-pul',
         // Motivace (č. 311, 315, 316): sova s hvězdou prestiže, sova s pozvánkou, tematický víkend
-        'sova-prestiz-hvezda', 'sova-pozvanka', 'vikend',
-        // Medailony prestiže ★1–★10 a sova prestiže (prestige.js ART, app.js PRESTIGE_OWL_ART, č. 368–378)
-        ...Array.from({ length: 10 }, (_, i) => `prestiz-${i + 1}`), 'sova-prestiz',
-        // Barvy krystalu medailonu ★10 pro rozsvěcování od ★11 (scripts/prestige-gem.py)
-        ...['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'violet'].map(color => `prestiz-10-gem-${color}`)].map(id => `icons/topics/${id}.webp`),
+        'sova-prestiz-hvezda', 'sova-pozvanka', 'vikend'].map(id => `icons/topics/${id}.webp`),
+    // Medailony prestiže ★1–★10, sova prestiže (prestige.js ART, app.js PRESTIGE_OWL_ART, č. 368–378) a barvy krystalu ★10
+    // pro rozsvěcování od ★11 (scripts/prestige-gem.py)
+    ...PRESTIGE_ART.map(id => `icons/topics/${id}.webp`),
     // Boss týdne (boss.js ART): čtyři stupně každého bosse a jeho aréna
     ...['kapitan', 'rytir', 'alchymista', 'amper', 'maestro', 'druid', 'olympan', 'reziser'].flatMap(id => [`boss-${id}`, `boss-${id}-zraneny`, `boss-${id}-vkoncich`, `boss-${id}-porazeny`, `arena-${id}`]).map(id => `icons/topics/${id}.webp`),
     // Stavby na mapě Dobývání (conquest.js BUILDINGS, scripts/building-art.py): základ a vrstva střech a vlaječek v barvě hráče
