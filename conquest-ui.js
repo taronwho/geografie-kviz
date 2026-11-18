@@ -958,8 +958,11 @@
         const previewView = () => {
             if (!svg || !game) return;
             clampView();
-            // Při oddalování by vrstva ukazovala čím dál víc mapy, kterou prohlížeč musí po kouscích dokreslovat: po 0,6× se výřez zapíše
-            if (!shown || !root.requestAnimationFrame || shown.w / game.vb.w < 0.6) { applyView(); return; }
+            // Při oddalování by vrstva ukazovala čím dál víc mapy, kterou prohlížeč musí po kouscích dokreslovat: po 0,6× se výřez zapíše.
+            // Při přibližování z celé mapy by se vrstva zvětšila až 20× (obří plocha, kterou telefon nestíhá vykreslit: mapa zamrzne
+            // a pak skočí): po 2× se výřez zapíše a další přiblížení pokračuje z nové vrstvy, takže vrstva nikdy nepřeroste 2× výřez
+            const ratio = shown ? shown.w / game.vb.w : 1;
+            if (!shown || !root.requestAnimationFrame || ratio < 0.6 || ratio > 2) { applyView(); return; }
             if (!previewFrame) previewFrame = root.requestAnimationFrame(paintPreview);
         };
         const unitsPerPixel = () => (svg && game ? 1 / fitOf(game.vb, mapRect()).k : 1);

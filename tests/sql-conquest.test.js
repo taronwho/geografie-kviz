@@ -376,7 +376,7 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         // Na začátku období boti ještě nehrají, během období hrají podle svého rozvrhu (blok 42: tahy po čase, když hru nikdo neotevřel,
         // doženou najednou), před koncem období mají odehráno všechno; moje tahy zůstanou
         assert.equal(botMoves(json(state(DEV, game.id))), 0, 'hned po začátku nic');
-        clock = '2026-12-02T02:00:00Z';
+        clock = '2026-12-01T20:00:00Z';                   // 21:00 pražského času (v noci boti ve hře na den spí, blok 42)
         let st = json(state(DEV, game.id));
         assert.ok(botMoves(st, 0) > 0, `boti hráli sami (${botMoves(st, 0)})`);
         clock = '2026-12-02T07:30:00Z';

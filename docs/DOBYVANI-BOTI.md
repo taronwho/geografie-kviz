@@ -1,21 +1,29 @@
 # Dobývání – boti pro všechny
 
-Stav: **zapojeno** (schéma 42, `supabase/schema.sql` blok 42; aplikace `conquest.js` BOT_LEVELS, `conquest-ui.js` okno Boti do hry).
+Stav: **zapojeno** (schéma 43, `supabase/schema.sql` blok 42; aplikace `conquest.js` BOT_LEVELS, `conquest-ui.js` okno Boti do hry).
 
 Dobývání je jediný mód, kde si běžný hráč (nejen vývojář) přidá do hry boty. Boti mají tři obtížnosti a hrají jako lidé:
 tahy si rozloží do kola, chvíli přemýšlí, zakládají bitvy a přidávají se do nich.
 
 ## Přidání a odebrání
 
-- Boty přidává jen ten, kdo hru založil, a jen v lobby: ve formuláři **Založit hru** (řádek Boti, přidají se hned po založení)
-  nebo v detailu hry (řádek **Přidat bota**). Okno Boti do hry nabízí počet pro každou obtížnost, obtížnosti jde míchat.
+- Boty přidává a odebírá jen **správce lobby**, a jen v lobby: ve formuláři **Založit hru** (řádek Boti, přidají se hned po
+  založení) nebo v detailu hry (řádek **Přidat bota**). Okno Boti do hry nabízí počet pro každou obtížnost, obtížnosti jde míchat.
+- **Správce lobby** (`conquest_lobby_admin`, schéma 43): zakladatel hry, pokud je v ní; jinak (Rychlá hra bez zakladatele, nebo
+  zakladatel odešel) člověk, který je v lobby nejdéle (`joined_at`, při shodě nižší místo). Když odejde, je správcem další nejdéle
+  čekající člověk. Bot správcem není nikdy. Souhrn hry má `admin` (jsem správce) a každý hráč `admin`; aplikace u něj ukáže štítek
+  „správce lobby“ a jen správci řádek Přidat bota a křížky u botů. Starší databáze bez `admin`: jen zakladatel vlastní hry.
 - RPC `conquest_add_bots(game, how_many, difficulty)` (`easy` | `medium` | `hard`) a `conquest_remove_bot(game, bot)`;
-  jen přihlášení, kontrola zakladatele uvnitř. Rychlé hry (bez zakladatele) boty nemají.
+  jen přihlášení, kontrola správce lobby uvnitř.
 - Boti nejvýš do volných míst a nejvýš `max_players − 1` (aspoň jeden člověk). Nejvýš 30 přidaných botů za hodinu na hráče
   (`conquest_bot_log`). Bot hned chce hrát; plná hra začne sama, jinak jako dosud po „Chci hrát“.
-- Kdo z lobby odejde a zůstanou v ní jen boti, hra zmizí.
+- Kdo z lobby odejde a zůstanou v ní jen boti, vlastní hra zmizí; z Rychlé hry odejdou boti a zůstane otevřená.
 - Bot je účet `botx-…@bots.invalid` (vývojářští boti dál `bot-…`, ty maže `dev_tournament_clear_bots`). Jméno je z nabídky
-  obtížnosti (`conquest_bot_names`, 20 jmen na obtížnost, ve hře se neopakuje); volný účet se stejným jménem se použije znovu.
+  obtížnosti (`conquest_bot_names`, aspoň 20 krátkých jmen na obtížnost, nejvýš 13 znaků, aby se na 360 px nezkracovala v lobby
+  ani v pořadí; každé jméno jen v jedné obtížnosti, ve hře se neopakuje): Mudrlátko třeba Šroubek, Pípálek, Bit Bajtík; Mudrlant
+  Kalibrátor, Dr. Čip, Logikus; Super Mudrlant Prof. Kvanťák, Encyklopedor, Baron Neuron. Volný účet se stejným jménem se použije
+  znovu; starší účty s dřívějšími dlouhými jmény zůstávají, jak jsou (nové hry je nepoužijí). V pořadí má bot jen malý štítek
+  s ikonou v barvě obtížnosti, celý název obtížnosti je v lobby.
 - Vývojářské nástroje zůstávají (`dev_conquest_add_bots` přidává Mudrlanty, Boti odehrají tahy, Další období).
 
 ## Obtížnosti
@@ -38,6 +46,13 @@ tahy si rozloží do kola, chvíli přemýšlí, zakládají bitvy a přidávaj�
 - **Rozvrh kola** (`conquest_bot_slots`): časy tahů bota v kole z hashe hry, bota a kola (pořád stejné), mezery jako náhodné
   časy, asi třetina tahů hned po předchozím (shluky). První tah po 4 % kola, poslední nejpozději 45 s (kolo 5 minut), 75 s
   (10 minut), 6 minut (hodina) nebo 2,4 h (den) před koncem kola.
+- **Noc** (schéma 43): ve hrách s kolem aspoň 6 hodin (tedy na den; rychlé hry na 5 a 10 minut ani hry po hodině ne) boti od 23:00
+  do 7:00 pražského času spí: netáhnou, nezakládají bitvy, nepřidávají se do nich a nebrání strážní věž (`conquest_bot_asleep`).
+  Rozvrh se rozloží jen do bdělé doby kola, tedy 7:00–22:57 (`conquest_bot_awake`; 4 % a rezerva před koncem se počítají z bdělé
+  doby), takže kolo převážně v noci se do bdělé doby stlačí a tahy stihnou. Kolo bez aspoň 5 minut bdělé doby (třeba hra na 6 h
+  od 23:30) má rozvrh přes celé kolo jako dřív a boti v něm hrají. Tah, jehož čas nastal do 2 minut před spaním, je okamžitý (bez
+  bitvy); přidání a obrana se naplánují, jen když přidání i odpověď (do 60 s) padnou do bdělé doby. Když lidé kolo dohrají v noci,
+  boti zbytek odehrají až ráno.
 - Tah, jehož čas nastal, bot zahraje jako člověk: **útok je obléhání** (bitva otevřená 60 s, sousedé se přidají). Další tah až
   po své odpovědi. Stavba je okamžitá.
 - **Odpověď bota má svůj čas**: při začátku nebo přidání se uloží `bot_answer_at` a `bot_correct`; jakmile ten čas nastane, zapíše
@@ -61,8 +76,8 @@ Server sám nic neplánuje, kromě volitelné úlohy pg_cron `upozorneni` (každ
 - `conquest_state`, `conquest_round_ready`, tahy hráčů a `tournament_tick` (otevření aplikace, pg_cron každou minutu).
 
 Výhody: žádná nová infrastruktura, časy odpovědí jsou přesné. Nevýhody: když hru nikdo neotevře a pg_cron neběží, útoky botů
-počkají a pak se doženou okamžitě (bez bitvy); bitvy bota se vyhodnotí, až se na hru někdo podívá. Den má boty i v noci
-(rozvrh je rovnoměrný přes celé kolo).
+počkají a pak se doženou okamžitě (bez bitvy); bitvy bota se vyhodnotí, až se na hru někdo podívá. Ve hře na den boti v noci spí
+(viz Noc výše).
 
 ## Odměny a odemčení
 
