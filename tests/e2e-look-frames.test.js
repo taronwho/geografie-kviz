@@ -399,17 +399,17 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         assert.equal(await tab.getAttribute('[data-pick-avatar="🦊"]', 'aria-pressed'), 'true');
         await tab.click('[data-pic-group="postavicky"]');
         await tab.waitForSelector('[data-pic-group="postavicky"][aria-selected="true"]');
-        // Úroveň 20: Knihomol (3), Axolotl (8), Kaktus (13), Drak čajník (20), Vačice gothička (10) a Mýval spisovatel (17) jsou odemčené, Mamut DJ (28) ne; za odznaky (turnaje) zamčené s medailí
-        // 21 postaviček za úrovně a odznaky a 23 dalších (č. 317–340: úrovně, odznaky, truhla, pozvaní kamarádi, prestiž; legendární mají
+        // Úroveň 20: Knihomol (3), Axolotl (8), Kaktus (13), Drak čajník (20), Vačice gothička (10), Mýval spisovatel (17), Příšerka zpod postele (14) a Křeček po pěti kávách (6) jsou odemčené, Mamut DJ (28) ne; za odznaky (turnaje) zamčené s medailí
+        // 21 postaviček za úrovně a odznaky a 70 dalších (č. 317–408: úrovně, odznaky, truhla, pozvaní kamarádi, prestiž; legendární mají
         // vlastní skupinu); navíc je vidět zamčená postavička právě běžící Sezóny
         // (podle dnešního měsíce, od schématu 32), ostatní sezónní jen když je hráč má
         const seasonal = new Set(require('../look.js').AVATARS.filter(item => item.exclusive).map(item => item.id));
         const shown = await tab.$$eval('[data-pick-avatar], [data-locked-avatar]', nodes => nodes.map(node => node.dataset.pickAvatar || node.dataset.lockedAvatar));
-        assert.equal(shown.filter(id => !seasonal.has(id)).length, 21 + 23, `44 postaviček za úrovně, odznaky a další odměny: ${shown.join(', ')}`);
+        assert.equal(shown.filter(id => !seasonal.has(id)).length, 21 + 70, `91 postaviček za úrovně, odznaky a další odměny: ${shown.join(', ')}`);
         assert.ok(shown.filter(id => seasonal.has(id)).length <= 1, `nejvýš jedna sezónní (běžící Sezóna): ${shown.join(', ')}`);
         for (const id of shown.filter(id => seasonal.has(id))) assert.equal(await tab.locator(`[data-locked-avatar="${id}"]`).count(), 1, 'sezónní postavička běžící Sezóny je zamčená');
         assert.equal(await tab.locator('[data-avatar-strip] [data-locked-avatar="albatr"], [data-avatar-strip] [data-pick-avatar="albatr"]').count(), 0);
-        assert.deepEqual(await tab.$$eval('[data-pick-avatar]', nodes => nodes.map(node => node.dataset.pickAvatar)), ['cervik', 'axolot', 'kaktus', 'drak', 'vacice', 'spisov']);
+        assert.deepEqual(await tab.$$eval('[data-pick-avatar]', nodes => nodes.map(node => node.dataset.pickAvatar)), ['cervik', 'axolot', 'kaktus', 'drak', 'vacice', 'spisov', 'priser', 'kafe']);
         assert.equal(await tab.getAttribute('[data-locked-avatar="mamut"]', 'aria-label'), 'Mamut DJ (zamčeno): Úroveň 28');
         assert.equal(await tab.getAttribute('[data-locked-avatar="mamut"]', 'title'), 'Mamut DJ: Úroveň 28');
         assert.match(await tab.textContent('[data-locked-avatar="mamut"]'), /úr\.\s28/);
@@ -526,7 +526,7 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         await tab.click('[data-me-tab="profile"]');
         await tab.click('[data-pic-group="postavicky"]');
         await tab.waitForSelector('[data-pick-avatar="drakpa"]');
-        assert.equal(await tab.locator('[data-pick-avatar], [data-locked-avatar]').count(), 21 + 23 + 1);
+        assert.equal(await tab.locator('[data-pick-avatar], [data-locked-avatar]').count(), 21 + 70 + 1);
         assert.equal(await tab.locator('[data-pick-avatar="caj"], [data-locked-avatar="caj"], [data-locked-avatar="drakpa"], [data-locked-avatar="ramp"]').count(), 0);
         assert.equal(await tab.getAttribute('[data-pick-avatar="drakpa"]', 'title'), 'Papírový drak');
         assert.equal(await tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return box.scrollHeight <= box.clientHeight; }), true, 'okno bez posouvání');
@@ -569,7 +569,7 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         await nav.settings(tab);
         await tab.click('[data-me-tab="profile"]');
         await tab.waitForSelector('[data-pic-group="postavicky"][aria-selected="true"]');
-        assert.equal(await tab.locator('[data-pick-avatar], [data-locked-avatar]').count(), 21 + 23 + 12);
+        assert.equal(await tab.locator('[data-pick-avatar], [data-locked-avatar]').count(), 21 + 70 + 12);
         assert.deepEqual(await tab.$$eval('[data-pick-avatar]', nodes => nodes.slice(-12).map(node => node.dataset.pickAvatar)), seasonal, 'sezónní po řadě měsíců za ostatními');
         const box = () => tab.evaluate(() => {
             const strip = document.querySelector('[data-avatar-strip]');
@@ -726,7 +726,10 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         assert.equal(await tab.getAttribute('#challenges-section [data-player-id="u-2"]', 'class').then(value => /frame-/.test(value)), false);
         const selects = calls.filter(call => call.startsWith('GET /rest/v1/profiles'));
         assert.match(selects[0], /select=id,display_name,avatar,color,frame,title_pref/, 'nejdřív s novými sloupci');
-        assert.match(selects[1], /select=id,display_name,avatar,color$/, 'pak bez nich');
+        // Pak bez prestiže (starší databáze bez bloku 32), nakonec bez všech nových sloupců
+        const basic = selects.findIndex(call => /select=id,display_name,avatar,color$/.test(call));
+        assert.ok(basic > 0, 'pak bez nich');
+        assert.ok(selects.slice(1, basic).every(call => /title_pref,owl$/.test(call)), 'mezitím jen bez prestiže');
         assert.ok(calls.some(call => /challenges\?select=[^ ]*creator:profiles!creator_id\(id,display_name,avatar,color\)/.test(call)), 'další požadavky už rovnou bez nich');
         assert.ok(!calls.some(call => call.includes('/challenges') && /frame/.test(call)));
         // Volba rámečku se uloží aspoň na zařízení, účet se nezmění a nic neselže

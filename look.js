@@ -134,13 +134,13 @@
         { id: 'panda', title: 'Panda režisér', diploma: 'film', parts: ['Šála', 'Záře'], colors: [[3, 4, 5, 6, 7, 8, 9], [3, 4, 5, 6, 7, 8, 9]] },
         { id: 'klokan', title: 'Klokan šampion', diploma: 'sport', parts: ['Dres a čelenka', 'Záře'], colors: [[1, 2, 3, 4, 5, 6, 7, 8], [1, 4, 5, 6, 7, 8, 9]] }
     ];
-    // Další postavičky (docs/OBRAZKY.md oddíl 26, č. 317–340): odměny rozdělené do všech částí hry, ať je co získávat odevšad. Jen podmínky,
+    // Další postavičky (docs/OBRAZKY.md oddíly 26, 32 a 33, č. 317–408): odměny rozdělené do všech částí hry, ať je co získávat odevšad. Jen podmínky,
     // které už katalog umí (a server ověří, schema.sql blok 35): úroveň, odznak (Kvíz dne, Bleskovka, Přežití, Tajemná otázka, Řetězovka, Boss týdne,
     // turnaje, výzvy, sázky, Dobývání, týdenní cíle, odznaky témat, album sbírky…), chest (jen z Truhly Mudrlanta a stupňů Sezóny, číslo
     // = úroveň, podle které se v truhle řadí), rare (vzácný dárek z Truhly Mudrlanta a ze Zlaté truhly), referral a prestige (jako rámečky
     // PERK_FRAMES níž; bonus = album je ukáže, jen když je hráč má), album: true = odměna za Album sbírky samo (jako rámeček Sběratelský,
     // do procent alba se nepočítá, jinak by se točila v kruhu). První tři jsou snadné (do úrovně 20 nebo snadný odznak).
-    // V pořadí, jak je ukáže výběr obrázku (zhruba od nejsnazší); další postavičky (č. 339, 341–357) se přidají na konec seznamu.
+    // V pořadí, jak je ukáže výběr obrázku (zhruba od nejsnazší); krab kadeřník (č. 339) se přidá na konec seznamu.
     // colors podle python3 scripts/avatar-icons.py --colors (u Kapybary bez černé vody).
     const NEW_AVATARS = [
         { id: 'vacice', title: 'Vačice gothička', level: 10, parts: ['Obojek', 'Uši'], colors: [[1, 2, 3, 4, 5, 6, 7, 8], [3, 4, 5, 6, 7, 8, 9]] },
@@ -165,7 +165,61 @@
         { id: 'kapyba', title: 'Kapybara v lázních', chest: 15, parts: ['Voda a pára', 'Ručník'], colors: [[1, 2, 3, 4, 7, 8], ALL] },
         { id: 'zmrzl', title: 'Zmrzlinový kornout', rare: true, parts: ['Jahodový kopeček', 'Pistáciový kopeček'], colors: [[2, 3, 4, 5, 6, 7, 9], ALL] },
         { id: 'kosatk', title: 'Kosatka komorník', referral: ['pritel-3'], bonus: true, parts: ['Motýlek'], colors: [[2, 3, 4, 5, 6, 7, 9]] },
-        { id: 'avokad', title: 'Avokádo jogín', prestige: 1, bonus: true, parts: ['Lotos', 'Slupka'], colors: [[2, 3, 4, 5, 6, 7, 9], [1, 2, 3, 4, 5, 6, 7, 8]] }
+        { id: 'avokad', title: 'Avokádo jogín', prestige: 1, bonus: true, parts: ['Lotos', 'Slupka'], colors: [[2, 3, 4, 5, 6, 7, 9], [1, 2, 3, 4, 5, 6, 7, 8]] },
+        // č. 341–357 (krab kadeřník č. 339 ještě chybí): zase zhruba od nejsnazší. Strašidelné za tematické zdroje (Duch s lucernou za Řetězovku 30,
+        // Černá kočka čarodějnice a Vlkodlak za Bosse Alchymistu a Druida, Mumie, Kostlivec a Havran za Historii, Biologii a Literaturu,
+        // Dýňový strašák jen z truhly)
+        { id: 'ponozk', title: 'Ztracená ponožka', badge: 'vsestrannost-3', parts: ['Proužky', 'Ponožka'], colors: [[1, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 6, 7, 8, 9]] },
+        { id: 'mrak', title: 'Mrak s deštníkem', badge: 'odhad-5', parts: ['Deštník', 'Mrak'], colors: [[1, 4, 5, 6, 7, 8, 9], ALL] },
+        { id: 'priser', title: 'Příšerka zpod postele', level: 14, parts: ['Příšerka', 'Postel'], colors: [[1, 2, 3, 4, 5, 6, 8, 9], ALL] },
+        { id: 'zombie', title: 'Zombie králík', badge: 'poznane-100', parts: ['Srst', 'Oko'], colors: [ALL, [1, 2, 4, 5, 6, 7, 8, 9]] },
+        { id: 'kohout', title: 'Kohout pankáč', badge: 'kviz-serie-14', parts: ['Číro', 'Bunda'], colors: [[3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8]] },
+        { id: 'kostli', title: 'Kostlivec s mlékem', badge: 'tema-biologie-100', parts: ['Mléko', 'Brčko'], colors: [ALL, [1, 2, 3, 4, 7, 8, 9]] },
+        { id: 'havran', title: 'Havran hrobník', badge: 'tema-literatura-100', parts: ['Cylindr', 'Peří'], colors: [[1, 2, 3, 4, 5, 6, 7, 8], [1, 2, 3, 4, 5, 6, 7, 8]] },
+        { id: 'holub', title: 'Holub z ulice', badge: 'sazky-v-rade-3', parts: ['Kšiltovka', 'Řetěz'], colors: [[2, 3, 4, 5, 6, 7, 8, 9], [1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'medoj', title: 'Medojed rváč', badge: 'vyzvy-25', parts: ['Obvazy', 'Hříva'], colors: [ALL, ALL] },
+        { id: 'buldok', title: 'Buldok motorkář', badge: 'turnaj-semifinale', parts: ['Šátek', 'Bunda'], colors: [[3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8]] },
+        { id: 'nosoro', title: 'Nosorožec vyhazovač', badge: 'vyhry-v-rade-5', parts: ['Tričko', 'Nosorožec'], colors: [[1, 2, 3, 4, 5, 6, 7, 8], ALL] },
+        { id: 'duch', title: 'Duch s lucernou', badge: 'retezovka-30', parts: ['Světlo', 'Duch'], colors: [ALL, ALL] },
+        { id: 'mumie', title: 'Mumie', badge: 'tema-historie-600', parts: ['Obvazy', 'Brouk'], colors: [ALL, [1, 2, 3, 4, 6, 7, 8, 9]] },
+        { id: 'kocka', title: 'Černá kočka čarodějnice', badge: 'boss-alchymista', parts: ['Klobouk', 'Oči'], colors: [ALL, [1, 2, 3, 5, 6, 7, 8, 9]] },
+        { id: 'vlkodl', title: 'Vlkodlak', badge: 'boss-druid', parts: ['Košile', 'Měsíc'], colors: [ALL, [1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'krysa', title: 'Krysa pirátka', badge: 'zlatokop-50', parts: ['Šátek', 'Vesta'], colors: [[2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8]] },
+        { id: 'dynak', title: 'Dýňový strašák', chest: 25, parts: ['Košile', 'Klobouk'], colors: [[2, 3, 4, 5, 6, 7, 8, 9], [1, 4, 5, 6, 7, 8, 9]] },
+        // Absurdní č. 379–408 (oddíly 32 a 33): od snadných (úroveň 6, první stupně Ukaž na mapě, Seřaď, Rozcvičky a založené výzvy) po Bosse
+        // týdne, Všude začátečníka, Zlatou a Truhlu Mudrlanta, 10 pozvaných kamarádů a druhou prestiž. Tematicky: Kostlivec po kocovině a Gaučová
+        // brambora za dlouhou sérii a sto herních dní, Lenochod kurýr pomalu až na úrovni 45, Kuře influencer za pozvané kamarády, Tchyně s vařečkou
+        // za celé Řetězovky bez Záchrany, Žralok vegan za Film (Čelisti), Upír za Bosse Režiséra. Krotší názvy než soubory (kachna, rohlík, racek…).
+        { id: 'kafe', title: 'Křeček po pěti kávách', level: 6, parts: ['Hrnky', 'Srst'], colors: [ALL, [1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'holubz', title: 'Holub, který ti právě kadil na rameno', badge: 'mapa-5', parts: ['Holub', 'Krk'], colors: [ALL, ALL] },
+        { id: 'kachna', title: 'Kachna, co spolkla kostičku', badge: 'serad-5', parts: ['Kostička', 'Zobák'], colors: [[2, 3, 4, 5, 6, 7, 8, 9], [1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'slepic', title: 'Slepice na rande', badge: 'zalozene-1', parts: ['Boa', 'Hřebínek'], colors: [[2, 3, 4, 5, 6, 7, 9], [3, 4, 5, 6, 7, 8, 9]] },
+        { id: 'nuget', title: 'Kuřecí nugetka na útěku', badge: 'rada-5', parts: ['Nugetka', 'Kečup'], colors: [[1, 4, 5, 6, 7, 8, 9], [3, 4, 5, 6, 7, 8, 9]] },
+        { id: 'kaktik', title: 'Kaktus, který chce obejmout', referral: ['novacek', 'pritel-1'], bonus: true, parts: ['Kaktus', 'Květ'], colors: [[1, 2, 3, 5, 6, 7, 8, 9], [2, 3, 4, 5, 6, 7, 9]] },
+        { id: 'husa', title: 'Husa výtržnice', badge: 'turnaj-postupy-1', parts: ['Zobák', 'Bageta'], colors: [[1, 4, 5, 6, 7, 8, 9], [1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'tousto', title: 'Toustovač v existenciální krizi', level: 22, parts: ['Toustovač'], colors: [ALL] },
+        { id: 'racek', title: 'Racek zloděj hranolek', badge: 'kviz-dne-10', parts: ['Hranolky', 'Racek'], colors: [[1, 4, 5, 6, 7, 8, 9], ALL] },
+        { id: 'sandal', title: 'Ponožka v sandálu', badge: 'tema-zemepis-100', parts: ['Sandál', 'Proužky'], colors: [ALL, [2, 3, 4, 5, 6, 7, 8, 9]] },
+        { id: 'aligat', title: 'Aligátor z kanálu', badge: 'tema-geologie-100', parts: ['Aligátor', 'Kravata'], colors: [ALL, [1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'zralok', title: 'Žralok vegan', badge: 'tema-film-100', parts: ['Zástěra', 'Žralok'], colors: [ALL, ALL] },
+        { id: 'snob', title: 'Snobská kočka s lornětem', badge: 'tema-umeni-100', parts: ['Srst', 'Lornět'], colors: [ALL, [1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'rohlik', title: 'Naštvaný rohlík', level: 33, parts: ['Rohlík'], colors: [[1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'komar', title: 'Komár v kravatě', badge: 'psani-100', parts: ['Kravata', 'Oblek'], colors: [[3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8]] },
+        { id: 'trpas', title: 'Zahradní trpaslík s prostředníčkem z kytky', badge: 'bez-napovedy-100', parts: ['Čepice', 'Kabátek'], colors: [[3, 4, 5, 6, 7, 8, 9], ALL] },
+        { id: 'tchyne', title: 'Tchyně s vařečkou', badge: 'retezovka-cela-5', parts: ['Halenka', 'Vařečka'], colors: [ALL, [1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'kuryr', title: 'Lenochod kurýr', level: 45, parts: ['Kšiltovka', 'Vesta'], colors: [[4, 5, 6, 7, 8, 9], [3, 4, 5, 6, 7, 8, 9]] },
+        { id: 'kocov', title: 'Kostlivec po kocovině', badge: 'serie-60', parts: ['Ručník'], colors: [[1, 2, 3, 4, 5, 7, 8, 9]] },
+        { id: 'gauc', title: 'Gaučová brambora', badge: 'dny-100', parts: ['Křeslo', 'Brambůrky'], colors: [[2, 3, 4, 5, 6, 7, 8, 9], [1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'podnaj', title: 'Pavouk podnájemník', badge: 'dobyvatel-25', parts: ['Čepice', 'Síť'], colors: [[1, 4, 5, 6, 7, 8, 9], ALL] },
+        { id: 'upir', title: 'Upír, který omdlí z krve', badge: 'boss-reziser', parts: ['Plášť', 'Rajčata'], colors: [ALL, [3, 4, 5, 6, 7, 8, 9]] },
+        { id: 'plivak', title: 'Velbloud, co plive', badge: 'boss-rytir', parts: ['Fez', 'Srst'], colors: [[3, 4, 5, 6, 7, 8, 9], [1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'bricho', title: 'Pivní břicho', badge: 'boss-olympan', parts: ['Tričko', 'Pivo'], colors: [ALL, [1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'papous', title: 'Papoušek, co nadává', badge: 'boss-maestro', parts: ['Peří', 'Zobák'], colors: [ALL, [1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'syr', title: 'Plesnivý sýr šlechtic', badge: 'vsechna-temata-1', parts: ['Plíseň', 'Monokl'], colors: [ALL, [1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'prd', title: 'Prd v láhvi', chest: 30, parts: ['Prd', 'Zátka'], colors: [[1, 2, 4, 5, 6, 7, 8, 9], ALL] },
+        { id: 'jednor', title: 'Jednorožec mrzout', rare: true, parts: ['Hříva', 'Roh'], colors: [[1, 2, 3, 5, 6, 7, 8, 9], [1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'kure', title: 'Kuře influencer', referral: ['pritel-10'], bonus: true, parts: ['Kuře', 'Mobil'], colors: [[1, 4, 5, 6, 7, 8, 9], [2, 3, 4, 5, 6, 7, 9]] },
+        { id: 'smrtka', title: 'Smrtka na dovolené', prestige: 2, bonus: true, parts: ['Slunečník'], colors: [[3, 4, 5, 6, 7, 8, 9]] }
     ];
     AVATARS.push(...NEW_AVATARS);
     // Témata diplomů legendárních postaviček (název pro „Diplom: Zeměpis“; app.js a rewards.js mají vlastní seznam témat)
@@ -504,7 +558,7 @@
     const unlockText = (item, badgeTitle = null) => item.exclusive ? (item.month ? `Sezóna Mudrlanta (${SEASON_MONTHS[item.month - 1].toLocaleLowerCase('cs')}, ${item.seasonTier === 10 ? 'Truhla v půli sezóny na 10. stupni' : 'Sezónní truhla na 20. stupni'})` : 'Sezóna Mudrlanta (celá cesta sezóny)')
         : item.referral ? (item.referral.includes('pritel-10') ? 'Pozvi 10 kamarádů (Soupeři → Přátelé → Pozvi kamarády)' : item.referral.includes('pritel-3') ? 'Pozvi 3 kamarády (Soupeři → Přátelé → Pozvi kamarády)'
             : 'Pozvi kamaráda, nebo přijď na jeho pozvánku (Soupeři → Přátelé → Pozvi kamarády)')
-        : item.prestige ? 'Prestiž po úrovni 100 (Postup → Úrovně a tituly)'
+        : item.prestige ? `${item.prestige > 1 ? `${item.prestige}. prestiž` : 'Prestiž'} po úrovni 100 (Postup → Úrovně a tituly)`
         : item.rare ? 'Vzácný dárek z Truhly Mudrlanta' : item.chest ? 'Z Truhly Mudrlanta' : item.diploma ? `Diplom: ${DIPLOMA_TOPICS[item.diploma] || item.diploma}`
             : item.league ? `Ligová sezóna: vrchol ${item.leagueName}` : item.badge ? `Odznak: ${badgeTitle || item.badge}` : `Úroveň ${item.level}`;
     const categoryOf = (item) => CATEGORY_OF.get(item) || null;
@@ -658,7 +712,7 @@
         migrateAvatar, parseAvatar, formatAvatar, avatarCode, avatarPicture, avatarItem, partColors,
         // Legendární postavičky za diplom tématu
         DIPLOMA_TOPICS, isLegendary, rewardsForDiploma,
-        // Další postavičky (č. 317–340)
+        // Další postavičky (č. 317–408)
         NEW_AVATARS,
         // Sezóna a série dní
         SEASON_MONTHS, SEASON_ADJECTIVES, SEASON_FRAMES, SEASON_MID_FRAMES, SEASON_AVATARS, STREAK_FRAMES, TITLES, SEASON_BUNDLES, seasonBundle, seasonMidFrame, titleItem,

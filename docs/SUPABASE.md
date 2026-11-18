@@ -752,7 +752,10 @@ volně (neznámý obrázek bere jako základní emoji); všechno ostatní funguj
   V bloku 32 je funkce prázdná a `unlock_catalog()` ji přidá za své řádky, takže `unlock_avatar_ok` a spoušť `profiles_unlock_check` je kontrolují
   stejně jako starší postavičky: úroveň z XP v účtu, odznak v účtu, `gift` (Kapybara v lázních a Zmrzlinový kornout jen jako dar z truhly v `rewards`),
   `referral:pritel-3` (Kosatka komorník) a `prestige:1` (Avokádo jogín).
-- Další postavičky se připíšou na konec seznamu v bloku 35 (a zvýší se verze schématu); shodu s `look.js` hlídá `tests/motivace.test.js`.
+- Další postavičky se připíšou na konec seznamu v bloku 35; shodu s `look.js` hlídá `tests/motivace.test.js`. Tak přibylo 17 postaviček
+  č. 341–357 a 30 absurdních č. 379–408 (`gift`: Dýňový strašák, Prd v láhvi a Jednorožec mrzout; `referral:novacek,pritel-1` Kaktus, který chce
+  obejmout; `referral:pritel-10` Kuře influencer; `prestige:2` Smrtka na dovolené). Verze schématu se kvůli nim nezvýšila: databáze se starším
+  blokem 35 je nezná a uloží je volně, nic neodmítne. Kontrolu zapne nové spuštění celého souboru.
 - Testy: `tests/motivace.test.js`, `tests/sql-motivace.test.js` a `tests/avatars.test.js`.
 
 ## Odznaky Řetězovky dne (schéma 36)

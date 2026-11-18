@@ -71,7 +71,7 @@ test('truhla: bez duplicit, po všem XP; ochrana jen do stropu', () => {
     // (i postavička jen z truhly, Kapybara v lázních)
     const chestOnly = Look.ACCESSORIES.filter(item => item.chest).map(item => item.id);
     const chestAvatars = Look.AVATARS.filter(item => item.chest).map(item => item.id);
-    assert.deepEqual(chestAvatars, ['kapyba']);
+    assert.deepEqual(chestAvatars, ['kapyba', 'dynak', 'prd']);
     assert.deepEqual(Rewards.candidates(Rewards.empty(), ctx(100)).map(entry => entry.item.id).sort(), [...chestOnly, ...chestAvatars].sort());
     let top = { ...Rewards.empty(), gifts: { ...Rewards.empty().gifts, accessories: chestOnly, avatars: chestAvatars } };
     assert.ok(Rewards.candidates(top, ctx(100)).length === 0);
@@ -87,9 +87,9 @@ test('truhla: bez duplicit, po všem XP; ochrana jen do stropu', () => {
 
 test('vzácné rámečky jen z truhly (rare): úrovní ani odznakem se neodemknou, truhla je dá občas, Sezóna ne', () => {
     const rare = Rewards.rareCandidates(Rewards.empty());
-    // Vzácné rámečky a vzácná postavička (Zmrzlinový kornout)
-    assert.deepEqual(rare.map(entry => `${entry.category}:${entry.item.id}`).sort(), [...Look.FRAMES.filter(item => item.rare).map(item => `frames:${item.id}`), 'avatars:zmrzl'].sort());
-    assert.ok(rare.length >= 3 && rare.length <= 4, 'dva až tři vzácné rámečky a postavička');
+    // Vzácné rámečky a vzácné postavičky (Zmrzlinový kornout, Jednorožec mrzout)
+    assert.deepEqual(rare.map(entry => `${entry.category}:${entry.item.id}`).sort(), [...Look.FRAMES.filter(item => item.rare).map(item => `frames:${item.id}`), 'avatars:zmrzl', 'avatars:jednor'].sort());
+    assert.ok(rare.length >= 4 && rare.length <= 5, 'dva až tři vzácné rámečky a dvě postavičky');
     for (const { item, category } of rare) {
         assert.equal(Look.isUnlocked(item, { level: 100, badges: Object.fromEntries(core.BADGES.map(badge => [badge.id, '2026-11-01'])), gifts: null }), false, `${item.id} jen z truhly`);
         assert.equal(Look.isUnlocked(item, { level: 1, badges: {}, gifts: { [category]: [item.id] } }), true, `${item.id} z truhly odemčený`);
@@ -104,11 +104,11 @@ test('vzácné rámečky jen z truhly (rare): úrovní ani odznakem se neodemkno
     assert.ok(!opened(() => 0.89).item.rare);
     const lucky = opened(() => 0.95);
     assert.equal(lucky.item.rare, true);
-    // Bez vzácné postavičky padne vzácný rámeček
-    const frame = opened(() => 0.95, Rewards.parse({ gifts: { avatars: ['zmrzl'] } }));
+    // Bez vzácných postaviček padne vzácný rámeček
+    const frame = opened(() => 0.95, Rewards.parse({ gifts: { avatars: ['zmrzl', 'jednor'] } }));
     assert.equal(frame.category, 'frames');
     assert.equal(frame.item.rare, true);
-    const owned = Rewards.parse({ gifts: { frames: rare.filter(entry => entry.category === 'frames').map(entry => entry.item.id), avatars: ['zmrzl'] } });
+    const owned = Rewards.parse({ gifts: { frames: rare.filter(entry => entry.category === 'frames').map(entry => entry.item.id), avatars: ['zmrzl', 'jednor'] } });
     assert.ok(!opened(() => 0.95, owned).item.rare, 'všechny vzácné má: běžná věc');
     // Zhruba jedna truhla z deseti
     let hits = 0;
