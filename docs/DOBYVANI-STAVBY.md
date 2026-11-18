@@ -1,6 +1,6 @@
 # Dobývání – nové stavby, ozdoby a sady hradů (návrh)
 
-Stav: **čeká na obrázky** (docs/OBRAZKY.md oddíl 34, č. 409–413, a oddíl 35, č. 414–437). Do hry se zapojí najednou, až budou
+Stav: **čeká na obrázky** (docs/OBRAZKY.md oddíly 34–36, č. 409–458). Do hry se zapojí najednou, až budou
 všechny obrázky. Do té doby se nic z tohoto návrhu ve hře neukazuje.
 
 ## Stavby (místo opevnění)
@@ -42,4 +42,4 @@ výběr v okně Barva a znak (záložka Hrad), odemknutí podle statistik server
 | Stromová tvrz | hrad vrostlý do obřího stromu, provazové lávky, houby | Drž do konce hry celkem 30 celých regionů |
 | Ledový palác | ledové bloky, rampouchy, sníh | Poraz Bosse týdne 10× |
 
-Nové stavby (věž, důl) a ozdoby mají jednu podobu pro všechny sady; jen praporky a střechy se barví barvou hráče.
+Hráč se sadou má ve stejném stylu i strážní věž, důl a zříceninu (docs/OBRAZKY.md oddíl 36, č. 438–458; základní styl č. 409–411). Tábor obléhatelů a pomník vítěze jsou pro všechny stejné. Praporky a střechy se barví barvou hráče.
