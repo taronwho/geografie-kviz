@@ -154,7 +154,7 @@ test('přátelé, reakce, blokování a nahlášení', { skip: !chromium && 'Pla
     const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
     t.after(() => browser.close());
     const start = async (db, options = {}) => {
-        const page = await setup(browser, login('tok-u1'), options);
+        const page = await setup(browser, { ...login('tok-u1'), ...(options.storage || {}) }, options);
         await backend(page.context, db);
         await page.tab.goto(`${ORIGIN}/`);
         await waitForHome(page.tab);
@@ -397,6 +397,60 @@ test('přátelé, reakce, blokování a nahlášení', { skip: !chromium && 'Pla
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();
+    });
+
+    // Medailon prestiže (prestige.js medalHtml) v rohu obrázku: přátelé ve stupních ★1 bronz … ★5 ametyst a ★12 (legendární s číslem),
+    // hráč bez prestiže bez medailonu, můj obrázek v hlavičce podle prestiže v zařízení; Profil hráče se září v barvě stupně
+    await t.test('medailon prestiže u obrázku přátel a v hlavičce, záře v profilu hráče (světlý i tmavý režim)', async () => {
+        const levels = { 'u-2': 1, 'u-3': 2, 'u-4': 3, 'u-5': 4, 'u-6': 5, 'u-7': 12, 'u-8': 0 };
+        for (const [viewport, colorScheme] of [[{ width: 360, height: 640 }, 'light'], [{ width: 390, height: 780 }, 'dark']]) {
+            const db = newDb();
+            Object.assign(db.profiles, {
+                'u-5': player('u-5', 'Karel Smaragd', '🦁', { color: 'amber', frame: 'liga-mistr' }), 'u-6': player('u-6', 'Míša Mýtus', '🐯', { color: 'violet', frame: 'ohen' }),
+                'u-7': player('u-7', 'Olga Dvanáctá', '🐙', { color: 'rose' }), 'u-8': player('u-8', 'Bez Prestiže', '🐢')
+            });
+            db.profiles['u-3'].frame = 'zlato';
+            for (const [id, n] of Object.entries(levels)) Object.assign(db.profiles[id], { prestige: n, prestige_xp: n ? 330000 : 0 });
+            db.friendships = Object.keys(levels).map(id => ({ user_id: 'u-1', friend_id: id, status: 'accepted' }));
+            const { context, tab, log } = await start(db, { viewport, colorScheme, storage: { 'mudrlant.prestige': JSON.stringify({ n: 2, at: 330000 }) } });
+            await tab.waitForSelector('#friends-strip');
+            // Můj obrázek v hlavičce: medailon podle prestiže v zařízení (★2), i když server o ní nic neví
+            await tab.waitForSelector('#btn-settings [data-prestige-badge="2"]');
+            // Pás přátel: obrázky s medailonem mají popisek s prestiží, hráč bez prestiže medailon nemá
+            const strip = await tab.evaluate(() => [...document.querySelectorAll('#friends-strip button[data-player-id]')].map(button => [button.dataset.playerId, (button.querySelector('[role="img"][aria-label^="Prestiž"]') || {}).ariaLabel || null]));
+            assert.ok(strip.length >= 3, JSON.stringify(strip));
+            for (const [id, label] of strip) assert.equal(label, levels[id] ? `Prestiž ${levels[id]}` : null, id);
+            await shot(tab, `prestiz-pas-${viewport.width}-${colorScheme}`);
+            await tab.click('#friends-section [data-friends-add]');
+            await tab.waitForSelector('#friends-list [data-friend-open="u-7"]');
+            const badges = await tab.evaluate(() => Object.fromEntries([...document.querySelectorAll('#friends-list [data-friend-open]')].map(row => {
+                const medal = row.querySelector('[data-prestige-badge] [data-prestige-medal]');
+                return [row.dataset.friendOpen, medal ? [Number(medal.dataset.prestigeTier), medal.getAttribute('aria-label'), Boolean(medal.querySelector('[data-prestige-number]'))] : null];
+            })));
+            assert.deepEqual(badges, { 'u-2': [1, 'Prestiž 1', false], 'u-3': [2, 'Prestiž 2', false], 'u-4': [3, 'Prestiž 3', false], 'u-5': [4, 'Prestiž 4', false], 'u-6': [5, 'Prestiž 5', false], 'u-7': [10, 'Prestiž 12', true], 'u-8': null });
+            // Medailon zabírá asi 40 % obrázku, sedí vpravo dole a přesahuje okraj nejvýš o desetinu
+            const box = await tab.evaluate(() => {
+                const avatar = document.querySelector('#friends-list [data-friend-open="u-2"] [data-prestige-badge]').parentElement.getBoundingClientRect();
+                const badge = document.querySelector('#friends-list [data-friend-open="u-2"] [data-prestige-badge]').getBoundingClientRect();
+                return { ratio: badge.width / avatar.width, right: (badge.right - avatar.right) / avatar.width, bottom: (badge.bottom - avatar.bottom) / avatar.height, label: document.querySelector('#friends-list [data-friend-open="u-2"] [data-prestige-badge]').parentElement.getAttribute('aria-label') };
+            });
+            assert.ok(box.ratio > 0.38 && box.ratio < 0.48, `velikost ${box.ratio}`);
+            assert.ok(box.right > 0 && box.right <= 0.1 && box.bottom > 0 && box.bottom <= 0.1, JSON.stringify(box));
+            assert.equal(box.label, 'Prestiž 1', 'obrázek s medailonem má popisek');
+            assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
+            await shot(tab, `prestiz-pratele-${viewport.width}-${colorScheme}`);
+            // Profil hráče ★3: medailon u obrázku i u úrovně a záře v barvě zlata
+            await tab.click('#friends-list [data-friend-open="u-4"]');
+            await tab.waitForSelector('[data-profile-head] [data-prestige-glow="3"] [data-prestige-badge="3"]');
+            await tab.waitForSelector('[data-profile-head] [data-prestige-medal="3"]:not([data-prestige-badge] *)');
+            assert.equal(await tab.evaluate(() => getComputedStyle(document.querySelector('[data-prestige-glow]'), '::before').animationName), 'prestigeSpin, prestigeBreath');
+            assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
+            await tab.waitForTimeout(400);
+            await shot(tab, `prestiz-profil-${viewport.width}-${colorScheme}`);
+            assert.deepEqual(log.errors, []);
+            assert.deepEqual(log.csp, []);
+            await context.close();
+        }
     });
 
     await t.test('starší databáze bez přátel: nic se nerozbije, sekce se neukážou', async () => {

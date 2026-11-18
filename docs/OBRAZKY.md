@@ -2817,7 +2817,7 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 
 Do dodání aplikace používá to, co už má: prestiž, pozvánky a vítězné efekty kreslí CSS (rámečky `.frame-prestiz`, `.frame-pratelsky`, `.frame-parta`, efekty `.vfx-*`, štítek ★), pozvánka má kolečko s ikonou `user-plus`, pruh víkendu ikonu tématu. Po dodání se rámečky přepnou na obrázkové prsteny (`art: true` v look.js PERK_FRAMES, `scripts/frame-images.py`, `FRAME_ART` v sw.js) a ostatní obrázky na `uiArt`.
 
-#### 311. `sova-prestiz.png` – Sova v prestiži – čeká na dodání
+#### 311. `sova-prestiz-hvezda.png` – Sova v prestiži – ✅ dodáno (soubor přejmenován, `sova-prestiz` je č. 373)
 
 Kam: karta prestiže v okně Úrovně a tituly (místo kolečka ★), oslava „Prestiž ★N“, tip Prestiž po úrovni 100. Zobrazí se 48–96 px. Přiložit: `branding/sova-original.jpg` (vzor stylu a postavy)
 
@@ -2825,7 +2825,7 @@ Kam: karta prestiže v okně Úrovně a tituly (místo kolečka ★), oslava „
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px icon. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Subject: the same wise owl mascot in its wine-red graduation robe and square cap, standing proudly on a small round podium, holding up a large shining five-pointed golden star above its head with both wings; a deep violet ribbon with a golden star medal hangs around its neck; a few golden sparkle lines around the star. Colors: wine red robe, warm gold star, deep violet ribbon, cream highlights. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 312. `prestiz.png` – Rámeček Prestižní (obrázkový prsten) – čeká na dodání
+#### 312. `prestiz.png` – Rámeček Prestižní (obrázkový prsten) – ✅ dodáno, zapojeno
 
 Kam: rámeček profilu Prestižní za první prestiž (look.js PERK_FRAMES `prestiz`), kolem obrázku hráče 32–96 px. Zpracuje se jako ostatní obrázkové rámečky (`scripts/frame-images.py`: průhledný střed). Přiložit: hotový `galaxie.png` (č. 112, vzor tvaru prstenu)
 
@@ -2833,7 +2833,7 @@ Kam: rámeček profilu Prestižní za první prestiž (look.js PERK_FRAMES `pres
 Cartoon sticker illustration in exactly the same art style as the attached ring frame image: thick dark maroon outline, flat bold colors with simple cel shading. A perfectly circular ornamental ring frame, centered, the inner hole an empty perfect circle taking about 62 % of the image width, the ring itself even in thickness all around. The ring is deep violet enamel with a thin polished gold rim on both edges, decorated with eight small golden five-pointed stars spaced evenly around it and one larger shining golden star at the top center sitting slightly over the outer edge. Plain solid flat dark grey background, color #2d3034, inside the hole too, no gradient, no shadow, no floor. No text, no letters, no numbers, no logo, no watermark. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 313. `pratelsky.png` – Rámeček Přátelský (obrázkový prsten) – čeká na dodání
+#### 313. `pratelsky.png` – Rámeček Přátelský (obrázkový prsten) – ✅ dodáno, zapojeno
 
 Kam: rámeček profilu Přátelský za pozvání kamaráda i pro pozvaného hráče po první hře (look.js `pratelsky`), 32–96 px. Přiložit: hotový `galaxie.png` (č. 112, vzor tvaru prstenu)
 
@@ -2841,7 +2841,7 @@ Kam: rámeček profilu Přátelský za pozvání kamaráda i pro pozvaného hrá
 Cartoon sticker illustration in exactly the same art style as the attached ring frame image: thick dark maroon outline, flat bold colors with simple cel shading. A perfectly circular ring frame, centered, the inner hole an empty perfect circle taking about 62 % of the image width, even ring thickness all around. The ring is a braided friendship bracelet of two intertwined cords, one turquoise and one coral pink, with four small cream beads spaced evenly around it, and at the bottom center two small cartoon hands in a friendly handshake sitting slightly over the outer edge. Plain solid flat dark grey background, color #2d3034, inside the hole too, no gradient, no shadow, no floor. No text, no letters, no numbers, no logo, no watermark. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 314. `parta.png` – Rámeček Parta (obrázkový prsten) – čeká na dodání
+#### 314. `parta.png` – Rámeček Parta (obrázkový prsten) – ✅ dodáno, zapojeno
 
 Kam: rámeček profilu Parta za 10 pozvaných kamarádů (look.js `parta`), 32–96 px. Přiložit: hotový `galaxie.png` (č. 112, vzor tvaru prstenu)
 
@@ -2849,7 +2849,7 @@ Kam: rámeček profilu Parta za 10 pozvaných kamarádů (look.js `parta`), 32�
 Cartoon sticker illustration in exactly the same art style as the attached ring frame image: thick dark maroon outline, flat bold colors with simple cel shading. A perfectly circular ring frame, centered, the inner hole an empty perfect circle taking about 62 % of the image width, even ring thickness all around. The ring is made of a cheerful party garland: small triangular bunting flags in rainbow colors (red, orange, yellow, green, turquoise, blue, violet) alternating around the whole circle, with a few tiny confetti pieces and one small party popper with streamers at the top right sitting slightly over the outer edge. Plain solid flat dark grey background, color #2d3034, inside the hole too, no gradient, no shadow, no floor. No text, no letters, no numbers, no logo, no watermark. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 315. `sova-pozvanka.png` – Sova s pozvánkou – čeká na dodání
+#### 315. `sova-pozvanka.png` – Sova s pozvánkou – ✅ dodáno, zapojeno
 
 Kam: okno Pozvi kamarády a karta na záložce Více hráčů (místo kolečka s ikonou), okno „Pozvánka od kamaráda“ po otevření odkazu, tip Pozvi kamarády. Zobrazí se 36–96 px. Přiložit: `branding/sova-original.jpg`
 
@@ -2857,7 +2857,7 @@ Kam: okno Pozvi kamarády a karta na záložce Více hráčů (místo kolečka s
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 36 px icon. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Subject: the same wise owl mascot in its wine-red graduation robe and square cap, cheerfully handing over a big cream envelope with a turquoise heart-shaped wax seal held out in one wing, waving with the other wing; two small turquoise and coral pink confetti hearts float beside the envelope. Colors: wine red robe, cream envelope, turquoise and coral pink accents. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 316. `vikend.png` – Tematický víkend (sova s kalendářem) – čeká na dodání
+#### 316. `vikend.png` – Tematický víkend (sova s kalendářem) – ✅ dodáno, zapojeno
 
 Kam: pruh tematického víkendu na úvodu vedle ikony tématu (na nízkém displeji čip), tip Tematické víkendy. Zobrazí se 24–64 px, proto jednoduchý tvar. Přiložit: `branding/sova-original.jpg`
 
@@ -3242,11 +3242,9 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 ## 27. Odznaky Řetězovky dne (č. 358–359)
 
 Symboly dvou skupin odznaků Řetězovky dne (Můj postup → Všechny odznaky): Řetězovka dne (dohrané dny) a Celý řetěz bez Záchrany. Stejný styl
-jako ostatní symboly odznaků (oddíl 3 a 6), bez kolečka medaile. **Stav: zatím zástupný obrázek** – obě skupiny ukazují sovu se zlatým řetězem
-(`retezovka.webp`, č. 212; `chain.js` `ART.badge`). Až symboly dorazí, uložím je do `branding/ikony/`, spustím
-`python3 scripts/topic-icons.py odznak-retezovka odznak-retezovka-cela` a přidám skupiny do `BADGE_ART` v `app.js` a `sw.js`.
+jako ostatní symboly odznaků (oddíl 3 a 6), bez kolečka medaile. **Stav: ✅ dodáno a zapojeno** (`icons/topics/odznak-retezovka*.webp`, `BADGE_ART` v `app.js` a `sw.js`).
 
-#### 358. `odznak-retezovka.png` – Řetězovka dne – čeká na dodání
+#### 358. `odznak-retezovka.png` – Řetězovka dne – ✅ dodáno, zapojeno
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -3254,7 +3252,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A short shiny golden chain of four big chunky oval links curving in a gentle arc, the last link just clicking into the others with a small bright sparkle, a tiny cream tear-off calendar page hanging from the first link. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 359. `odznak-retezovka-cela.png` – Celý řetěz bez Záchrany – čeká na dodání
+#### 359. `odznak-retezovka-cela.png` – Celý řetěz bez Záchrany – ✅ dodáno, zapojeno
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu) a hotový `odznak-retezovka.png` (č. 358, vzor řetězu)
 
@@ -3339,6 +3337,181 @@ Kam: opevnění 2. stupně (Hradba) na území mapy Dobývání u hráče se sad
 
 ```text
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 28 px map icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. The second attached image is the fortification icon of the same level from the basic set: match its three-quarter front view, its base width (about 80 % of the image width), its size and its sticker style exactly, only change the architecture to the style described here. The third attached image is the home castle of this style: use the same materials, roof shapes and colors so that both clearly belong to one set. All roofs must be slate blue and all flags and banners plain solid gold without any symbol (the app recolors roofs and flags to the player's color). The whole group stands on one flat ground line at the bottom (no grass, no ground patch). This is a small outpost, not a castle: it must stay clearly smaller and simpler than the home castle. Subject: LEVEL 2 of 2: a sturdy section of white plastered wall with a slate-blue tiled wall roof on a sloped grey stone base, a dark wooden gate, and one small two-storey corner turret with curved slate-blue roofs and upturned eaves on one side; a plain golden nobori banner beside the turret. Colors: white plaster, grey stone, dark wood, slate blue, gold. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+## 31. Prestiž – medailony a sova prestiže (č. 368–378)
+
+Prestiž po úrovni 100 (prestige.js): medailon podle stupně prestiže se ukáže v rohu avataru všude, kde jsou vidět hráči (žebříčky, přátelé, výzvy, turnaje, Dobývání, profil), v hlavičce u úrovně a velký v Úrovních a titulech. ★1 bronz, ★2 stříbro, ★3 zlato, ★4 smaragd, ★5 ametyst, ★6 rubín, ★7 safír, ★8 obsidián s ohněm, ★9 vesmír, ★10 a výš legendární (od ★10 číslo prestiže dopíše aplikace; další medailony č. 374–378). Generujte je postupně od ★1 a ke každému dalšímu přiložte předchozí, ať jsou stejně velké a stejného tvaru. Do dodání kreslí aplikace medailon v SVG.
+
+#### 368. `prestiz-1.png` – Medailon prestiže ★1 (bronz) – ✅ dodáno (icons/topics), zapojení probíhá
+
+Kam: odznáček prestiže v rohu avataru (16–20 px), v hlavičce u úrovně a velký v Úrovních a titulech a při oslavě prestiže. Přiložit: `branding/sova-original.jpg` (vzor stylu); od ★2 i předchozí medailon
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 16 px icon in the corner of a player avatar (bold simple round silhouette, few large shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. This is one of ten matching prestige medallions of a quiz game that clearly escalate in rank: the same round shape, the same size, the same front view and the same thick rim, each level richer and more precious than the one before. If an image of another level is attached, match its shape, size and style exactly. Subject: LEVEL 1 of 10: a round bronze medallion with a simple thick bronze rim decorated with small round studs, and one big bold five-pointed star embossed in the middle. Warm bronze and copper colors with simple shine. Colors: bronze, copper, dark brown. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 369. `prestiz-2.png` – Medailon prestiže ★2 (stříbro) – ✅ dodáno (icons/topics), zapojení probíhá
+
+Kam: odznáček prestiže v rohu avataru (16–20 px), v hlavičce u úrovně a velký v Úrovních a titulech a při oslavě prestiže. Přiložit: `branding/sova-original.jpg` (vzor stylu); od ★2 i předchozí medailon
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 16 px icon in the corner of a player avatar (bold simple round silhouette, few large shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. This is one of ten matching prestige medallions of a quiz game that clearly escalate in rank: the same round shape, the same size, the same front view and the same thick rim, each level richer and more precious than the one before. If an image of another level is attached, match its shape, size and style exactly. Subject: LEVEL 2 of 10: a round polished silver medallion with a thick silver rim with small studs and a thin engraved inner ring, and two big bold five-pointed stars side by side in the middle. Cool bright silver with simple shine. Colors: silver, light steel blue, white highlights. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 370. `prestiz-3.png` – Medailon prestiže ★3 (zlato) – ✅ dodáno (icons/topics), zapojení probíhá
+
+Kam: odznáček prestiže v rohu avataru (16–20 px), v hlavičce u úrovně a velký v Úrovních a titulech a při oslavě prestiže. Přiložit: `branding/sova-original.jpg` (vzor stylu); od ★2 i předchozí medailon
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 16 px icon in the corner of a player avatar (bold simple round silhouette, few large shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. This is one of ten matching prestige medallions of a quiz game that clearly escalate in rank: the same round shape, the same size, the same front view and the same thick rim, each level richer and more precious than the one before. If an image of another level is attached, match its shape, size and style exactly. Subject: LEVEL 3 of 10: a round shiny gold medallion with a thick gold rim, two small golden laurel branches curving along the lower part of the rim, and three big bold five-pointed stars in a gentle arc in the middle. Rich warm gold with bright shine. Colors: gold, warm yellow, deep amber. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 371. `prestiz-4.png` – Medailon prestiže ★4 (smaragd) – ✅ dodáno (icons/topics), zapojení probíhá
+
+Kam: odznáček prestiže v rohu avataru (16–20 px), v hlavičce u úrovně a velký v Úrovních a titulech a při oslavě prestiže. Přiložit: `branding/sova-original.jpg` (vzor stylu); od ★2 i předchozí medailon
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 16 px icon in the corner of a player avatar (bold simple round silhouette, few large shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. This is one of ten matching prestige medallions of a quiz game that clearly escalate in rank: the same round shape, the same size, the same front view and the same thick rim, each level richer and more precious than the one before. If an image of another level is attached, match its shape, size and style exactly. Subject: LEVEL 4 of 10: a round gold medallion with a thick gold rim and a big faceted emerald-green gem in the middle, three small gold stars above the gem on the rim, and two small white-gold feathered wings spreading from the left and right side of the medallion. Colors: gold, emerald green, white. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 372. `prestiz-5.png` – Medailon prestiže ★5 (ametyst) – ✅ dodáno (icons/topics), zapojení probíhá
+
+Kam: odznáček prestiže v rohu avataru (16–20 px), v hlavičce u úrovně a velký v Úrovních a titulech a při oslavě prestiže. Přiložit: `branding/sova-original.jpg` (vzor stylu); od ★2 i předchozí medailon
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 16 px icon in the corner of a player avatar (bold simple round silhouette, few large shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. This is one of ten matching prestige medallions of a quiz game that clearly escalate in rank: the same round shape, the same size, the same front view and the same thick rim, each level richer and more precious than the one before. If an image of another level is attached, match its shape, size and style exactly. Subject: LEVEL 5 of 10: a round gold medallion with a thick gold rim, a deep violet enamel face with a big faceted amethyst-violet gem in the middle, five small gold stars around the gem and two gold feathered wings on the sides. Colors: deep violet, gold, white highlights. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 374. `prestiz-6.png` – Medailon prestiže ★6 (rubín) – ✅ dodáno (icons/topics), zapojení probíhá
+
+Kam: jako č. 368–372 (odznáček prestiže u avataru, hlavička, Úrovně a tituly, oslava). Přiložit: `branding/sova-original.jpg` (vzor stylu) a předchozí medailon
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 16 px icon in the corner of a player avatar (bold simple round silhouette, few large shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. This is one of ten matching prestige medallions of a quiz game that clearly escalate in rank: the same round shape, the same size, the same front view and the same thick rim, each level richer and more precious than the one before. If an image of another level is attached, match its shape, size and style exactly. Subject: LEVEL 6 of 10: a round gold medallion with a thick ornate gold rim, a big faceted ruby-red gem in the middle surrounded by six small gold stars, two larger gold feathered wings on the sides and a small simple gold crown on top. Colors: ruby red, gold, white highlights. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 375. `prestiz-7.png` – Medailon prestiže ★7 (safír) – ✅ dodáno (icons/topics), zapojení probíhá
+
+Kam: jako č. 368–372 (odznáček prestiže u avataru, hlavička, Úrovně a tituly, oslava). Přiložit: `branding/sova-original.jpg` (vzor stylu) a předchozí medailon
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 16 px icon in the corner of a player avatar (bold simple round silhouette, few large shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. This is one of ten matching prestige medallions of a quiz game that clearly escalate in rank: the same round shape, the same size, the same front view and the same thick rim, each level richer and more precious than the one before. If an image of another level is attached, match its shape, size and style exactly. Subject: LEVEL 7 of 10: a round white-gold medallion with a thick ornate rim, a big faceted ice-blue sapphire gem in the middle with small frost crystals around it, seven small silver stars, two large white-and-silver feathered wings on the sides and a gold crown with small blue gems on top. Colors: ice blue, white gold, silver. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 376. `prestiz-8.png` – Medailon prestiže ★8 (obsidián s ohněm) – ✅ dodáno (icons/topics), zapojení probíhá
+
+Kam: jako č. 368–372 (odznáček prestiže u avataru, hlavička, Úrovně a tituly, oslava). Přiložit: `branding/sova-original.jpg` (vzor stylu) a předchozí medailon
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 16 px icon in the corner of a player avatar (bold simple round silhouette, few large shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. This is one of ten matching prestige medallions of a quiz game that clearly escalate in rank: the same round shape, the same size, the same front view and the same thick rim, each level richer and more precious than the one before. If an image of another level is attached, match its shape, size and style exactly. Subject: LEVEL 8 of 10: a round medallion with a thick dark obsidian-black rim edged with gold, a glowing orange-gold fire gem in the middle, bold orange flames rising behind the whole medallion, two large dark gold wings on the sides and a gold crown with flames on top. Colors: black obsidian, gold, fiery orange. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 377. `prestiz-9.png` – Medailon prestiže ★9 (vesmír) – ✅ dodáno (icons/topics), zapojení probíhá
+
+Kam: jako č. 368–372 (odznáček prestiže u avataru, hlavička, Úrovně a tituly, oslava). Přiložit: `branding/sova-original.jpg` (vzor stylu) a předchozí medailon
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 16 px icon in the corner of a player avatar (bold simple round silhouette, few large shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. This is one of ten matching prestige medallions of a quiz game that clearly escalate in rank: the same round shape, the same size, the same front view and the same thick rim, each level richer and more precious than the one before. If an image of another level is attached, match its shape, size and style exactly. Subject: LEVEL 9 of 10: a round gold medallion with a thick ornate rim whose face is a deep blue starry night sky with a small ringed planet and a crescent moon in the middle, nine tiny gold stars around, two large silver-blue wings on the sides and a gold crown with a glowing star on top. Colors: midnight blue, gold, silver, soft cyan glow. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 378. `prestiz-10.png` – Medailon prestiže ★10 a výš (legendární) – ✅ dodáno (icons/topics), zapojení probíhá
+
+Kam: jako č. 368–372 (odznáček prestiže u avataru, hlavička, Úrovně a tituly, oslava). Přiložit: `branding/sova-original.jpg` (vzor stylu) a předchozí medailon
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 16 px icon in the corner of a player avatar (bold simple round silhouette, few large shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. This is one of ten matching prestige medallions of a quiz game that clearly escalate in rank: the same round shape, the same size, the same front view and the same thick rim, each level richer and more precious than the one before. If an image of another level is attached, match its shape, size and style exactly. Subject: LEVEL 10 of 10, the highest, legendary rank: a magnificent round radiant white-gold medallion with a thick ornate rim, a big faceted rainbow-prism diamond in the middle, a ring of golden sun rays behind the whole medallion, two large majestic white-gold wings on the sides and a tall jeweled gold crown on top. Colors: white gold, warm gold, soft rainbow prism highlights. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+#### 373. `sova-prestiz.png` – Sova prestiže – ✅ dodáno (icons/topics), zapojení probíhá
+
+Kam: sova titulu po přechodu do prestiže (Úrovně a tituly, Můj postup, oslava prestiže, profilovka pro hráče v prestiži). Barvy obleku vyrobí aplikace přebarvením vínové (scripts/owl-robes.py), proto vínová jen na taláru a čepici. Přiložit: `branding/sova-original.jpg` (postava)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl mascot as the character: keep its face, monocle with chain, white eyebrows and whiskers, golden-brown feathers and wine-red academic robe with cap exactly as they are; change only the pose and props described here. The wine-red color must appear only on the robe and cap: all props must be in other colors (no red, pink or wine-colored props). Subject: The owl as a legendary grand master standing tall and proud, a small golden laurel crown resting on top of its academic cap, a flowing deep-violet cape sprinkled with small golden stars over its shoulders on top of the robe, holding a golden scepter topped with a glowing five-pointed star in one wing, a calm confident smile, a few small golden star sparkles around it. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+## 32. Absurdní postavičky (č. 379–388)
+
+Deset úplně absurdních postaviček na hraně, ale bez násilí, alkoholu a urážek: stejný styl a zapojení jako oddíl 26 (`scripts/avatar-icons.py`, `look.js` `NEW_AVATARS`, odměny rozložené po hře).
+
+#### 379. `avatar-toustovac-krize.png` – Toustovač v existenciální krizi – čeká na dodání
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A chrome kitchen toaster with a tired face staring into the void, dark bags under its eyes, two burnt black slices of toast sticking out of its top like messy hair, a tiny grey rain cloud raining only on it, one small wisp of smoke. Colors: silver chrome, burnt black, pale blue rain. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 380. `avatar-nugetka-utek.png` – Kuřecí nugetka na útěku – čeká na dodání
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A panicking golden chicken nugget with tiny legs mid-sprint, huge terrified eyes, big sweat drops flying off, glancing back over its shoulder, a little red dipping-sauce splash on its side like a battle wound. Colors: golden-brown crust, red sauce, white sweat drops. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 381. `avatar-kaktus-objeti.png` – Kaktus, který chce obejmout – čeká na dodání
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A round green cactus with long sharp spines, arms wide open for a hug, an enormous hopeful smile and shining puppy eyes, a small pink flower on its head, a few band-aids stuck on its own arms from previous hugs. Colors: cactus green, pink flower, beige band-aids. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 382. `avatar-husa-vytrznice.png` – Husa výtržnice – čeká na dodání
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A white goose with a wild menacing grin, honking with its beak wide open, a stolen bunch of keys dangling from its beak and a whole baguette tucked under one wing, one feather sticking up messily, pure chaos in its eyes. Colors: white feathers, orange beak, gold keys, toasted baguette. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 383. `avatar-krecek-kafe.png` – Křeček po pěti kávách – čeká na dodání
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A tiny round hamster vibrating with energy, huge bloodshot spiral eyes, fur standing on end, gripping an oversized steaming coffee cup with both paws, little zigzag shake lines around it, several empty paper cups stacked behind it. Colors: orange-beige fur, brown coffee, white paper cups. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 384. `avatar-aligator-kanal.png` – Aligátor z kanálu – čeká na dodání
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A sly green alligator in a crumpled business suit and a loose tie, sunglasses pushed down its snout, holding a battered briefcase, a small pipe-shaped manhole ring like a collar behind it, a confident toothy grin. Colors: swamp green, dark grey suit, mustard tie, rusty brown briefcase. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 385. `avatar-syr-slechtic.png` – Plesnivý sýr šlechtic – čeká na dodání
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A proud wedge of blue cheese with blue-green mould veins, a tiny powdered aristocratic wig and a golden monocle, nose held high with a snooty look, a lace collar and a small wavy stink line rising from it. Colors: creamy white cheese, blue-green mould, gold monocle, white wig. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 386. `avatar-zralok-vegan.png` – Žralok vegan – čeká na dodání
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A big grey shark with a huge toothy but friendly grin, wearing a green apron, happily crunching a carrot, a little bunch of lettuce and a radish in its fin, a tiny heart above its head. Colors: grey and white shark, green apron, orange carrot, red radish. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 387. `avatar-smrtka-dovolena.png` – Smrtka na dovolené – čeká na dodání
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A friendly hooded grim reaper skeleton on holiday, wearing big round sunglasses and a bright floral Hawaiian shirt under its black hood, sipping a coconut drink with a tiny paper umbrella, its scythe repurposed as a striped beach umbrella over its shoulder, a relaxed grin. Colors: black hood, bone white, bright floral shirt in teal and pink, brown coconut. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 388. `avatar-jednorozec-mrzout.png` – Jednorožec mrzout – čeká na dodání
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A grumpy white unicorn with a broken horn taped together with a big band-aid, arms crossed, eyes half-closed in deep annoyance, a messy rainbow mane, a tiny dark scribble cloud above its head. Colors: white body, rainbow mane, gold horn, beige band-aid. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
 ## Co udělám po dodání

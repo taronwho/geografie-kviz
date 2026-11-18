@@ -180,11 +180,23 @@ test('motivace: tematický víkend, prestiž, pozvi kamarády, reakce a efekty, 
         await tab.waitForSelector('[data-prestige-confirm]');
         await shot(tab, 'prestiz-potvrzeni');
         await tab.click('[data-prestige-confirm-go]');
-        await tab.waitForFunction(() => /★1/.test(document.getElementById('status-text').textContent));
-        assert.match(await tab.textContent('#status-text'), /★1\s*Úr\. 1 · Mudrlant/, 'úroveň znovu od 1, titul Mudrlant zůstává');
+        // V hlavičce místo „★1“ medailon prestiže (bronz) a úroveň znovu od 1; hlavička se vejde do 360 px
+        await tab.waitForSelector('#status-text [data-prestige-medal="1"][data-prestige-tier="1"][aria-label="Prestiž 1"]');
+        assert.match(await tab.textContent('#status-text'), /^\s*Mudrlant\s*Úr\. 1 · Mudrlant/, 'úroveň znovu od 1, titul Mudrlant zůstává');
+        assert.deepEqual(await tab.evaluate(() => { const header = document.getElementById('app-header'); return [header.scrollWidth - header.clientWidth, document.documentElement.scrollWidth - window.innerWidth]; }), [0, 0], 'hlavička se vejde');
         assert.deepEqual(JSON.parse(await tab.evaluate(() => localStorage.getItem('mudrlant.prestige'))), { n: 1, at: 335000 });
+        // Úrovně a tituly: velký medailon v kartě prestiže
+        await tab.waitForSelector('#dialog-overlay [data-prestige-panel] [data-prestige-medal="1"]');
         await tab.waitForTimeout(600);
         await shot(tab, 'prestiz-hotovo');
+        // Po zavření okna oslava s medailonem a větou o novém medailonu
+        await tab.keyboard.press('Escape');
+        await tab.waitForSelector('#celebration [data-prestige-medal="1"]');
+        assert.match(await tab.textContent('#celebration'), /Prestiž ★1.*Nový medailon prestiže: Bronz\./s);
+        await tab.waitForTimeout(700);
+        await shot(tab, 'prestiz-oslava');
+        await tab.evaluate(() => { const card = document.getElementById('celebration'); if (card) card.remove(); });
+        await shot(tab, 'prestiz-hlavicka-360');
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();
@@ -201,7 +213,9 @@ test('motivace: tematický víkend, prestiž, pozvi kamarády, reakce a efekty, 
         await tab.click('[data-prestige-go]');
         await tab.waitForSelector('[data-prestige-confirm]');
         await tab.click('[data-prestige-confirm-go]');
-        await tab.waitForFunction(() => /★1/.test(document.getElementById('status-text').textContent));
+        await tab.waitForSelector('#status-text [data-prestige-medal="1"]');
+        // Můj obrázek v hlavičce dostane medailon podle prestiže v zařízení (na zkoušku ji server nezná)
+        await tab.waitForSelector('#btn-settings [data-prestige-badge="1"]');
         assert.ok(!db.calls.includes('prestige_up'), 'na zkoušku se server neptá');
         assert.equal(JSON.parse(await tab.evaluate(() => localStorage.getItem('mudrlant.prestige'))).n, 1);
         await shot(tab, 'prestiz-na-zkousku');
@@ -212,9 +226,48 @@ test('motivace: tematický víkend, prestiž, pozvi kamarády, reakce a efekty, 
         await tab.waitForFunction(() => localStorage.getItem('mudrlant.prestige') === null);
         assert.equal(JSON.parse(await tab.evaluate(() => localStorage.getItem('mudrlant.progress'))).xp, 30000);
         assert.doesNotMatch(await tab.textContent('#status-text'), /★/);
+        await tab.waitForFunction(() => !document.querySelector('#status-text [data-prestige-medal], #btn-settings [data-prestige-badge]'));
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();
+    });
+
+    await t.test('Prestiž: náhled ve vývojářském režimu: ◀ ▶ mění stupeň v zařízení, medailon hned v hlavičce i u obrázku, Vrátit můj postup ho zruší', async () => {
+        for (const colorScheme of ['light', 'dark']) {
+            const db = newDb();
+            const { context, tab, log } = await setup(browser, { ...login(), ...progress(30000), 'mudrlant.dev': '1' }, { db, colorScheme, viewport: { width: 360, height: 640 } });
+            await tab.goto(`${ORIGIN}/`);
+            await waitForHome(tab);
+            await nav.settings(tab);
+            await tab.click('[data-dev="pv:1"]');
+            await tab.waitForSelector('#status-text [data-prestige-medal="1"]');
+            await tab.waitForSelector('#btn-settings [data-prestige-badge="1"]');
+            assert.equal(await tab.textContent('[data-dev-prestige-value]'), '1');
+            await tab.click('[data-dev="pv:11"]');
+            await tab.waitForSelector('#status-text [data-prestige-medal="11"][data-prestige-tier="10"][data-prestige-aura="1"]');
+            // Tlačítka se po každém klepnutí vykreslí znovu: klepne se přímo v DOMu
+            const press = (label) => tab.evaluate((text) => document.querySelector(`[data-dev-prestige] [aria-label="${text}"]`).click(), label);
+            for (let i = 0; i < 9; i++) { // 11 → 21 … 91 → 99
+                const before = await tab.textContent('[data-dev-prestige-value]');
+                await press('O deset prestiží výš');
+                await tab.waitForFunction((value) => document.querySelector('[data-dev-prestige-value]').textContent !== value, before);
+            }
+            await tab.waitForSelector('#status-text [data-prestige-medal="99"][data-prestige-aura="max"]');
+            assert.ok(await tab.$('[data-dev-prestige] [aria-label="O prestiž výš"][disabled]'), 'nad 99 to nejde');
+            assert.match(await tab.textContent('[data-dev-prestige] + p'), /Legendární · rozsvícení 24\/24/);
+            for (const n of [5, 8, 10]) {
+                await tab.evaluate((value) => { const button = document.querySelector('[data-dev-prestige] button'); button.dataset.dev = `pv:${value}`; button.click(); }, n);
+                await tab.waitForSelector(`#btn-settings [data-prestige-badge="${n}"]`);
+            }
+            await tab.evaluate(() => document.querySelector('[data-dev-prestige]').scrollIntoView({ block: 'center' }));
+            await shot(tab, `prestiz-nahled-${colorScheme}`);
+            assert.ok(!db.calls.includes('prestige_up'), 'náhled se serveru neptá');
+            await tab.click('[data-dev="restore"]');
+            await tab.waitForFunction(() => localStorage.getItem('mudrlant.prestige') === null && !document.querySelector('#status-text [data-prestige-medal], #btn-settings [data-prestige-badge]'));
+            assert.deepEqual(log.errors, []);
+            assert.deepEqual(log.csp, []);
+            await context.close();
+        }
     });
 
     await t.test('pozvi kamarády: karta v okně Přátelé a řádek na záložce Já, okno s kódem a odměnami, vyzvednutí (rámeček a XP)', async () => {

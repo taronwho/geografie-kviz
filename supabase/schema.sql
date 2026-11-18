@@ -31,6 +31,9 @@ alter table public.profiles add constraint profiles_title_pref_format check (tit
 alter table public.profiles add column if not exists owl text;
 alter table public.profiles drop constraint if exists profiles_owl_format;
 alter table public.profiles add constraint profiles_owl_format check (owl is null or owl ~ '^[a-z0-9=.;-]{1,200}$') not valid;
+-- Stupeň prestiže (blok 32, prestige.js) je vidět i ostatním (medailon v rohu obrázku hráče): seznamy hráčů níž ho vracejí spolu s rámečkem
+-- a sovou, proto sloupec vzniká už tady (meze a prestige_up() v bloku 32).
+alter table public.profiles add column if not exists prestige smallint not null default 0;
 alter table public.profiles drop constraint if exists profiles_blocked_len;
 alter table public.profiles add constraint profiles_blocked_len check (cardinality(blocked_topics) <= 30 and char_length(array_to_string(blocked_topics, ',')) <= 400) not valid;
 alter table public.profiles drop constraint if exists profiles_xp_range;
@@ -418,7 +421,7 @@ revoke all on function public.rate_challenge() from public, anon, authenticated;
 drop function if exists public.weekly_leaderboard();
 create or replace function public.weekly_leaderboard() returns table (
     id uuid, display_name text, avatar text, color text, frame text, title_pref text, xp integer,
-    rating integer, league text, week_delta integer, week_wins integer, week_games integer, owl text
+    rating integer, league text, week_delta integer, week_wins integer, week_games integer, owl text, prestige integer
 )
 language sql stable security definer set search_path = public as $$
     with week as (
@@ -427,7 +430,7 @@ language sql stable security definer set search_path = public as $$
         where h.created_at >= (date_trunc('week', now() at time zone 'Europe/Prague') at time zone 'Europe/Prague')
         group by h.user_id
     )
-    select p.id, p.display_name, p.avatar, p.color, p.frame, p.title_pref, p.xp, p.rating, public.rating_league(p.rating), w.delta, w.wins, w.games, p.owl
+    select p.id, p.display_name, p.avatar, p.color, p.frame, p.title_pref, p.xp, p.rating, public.rating_league(p.rating), w.delta, w.wins, w.games, p.owl, p.prestige::integer
     from week w join public.profiles p on p.id = w.user_id
     where auth.uid() is not null
     order by w.delta desc, w.wins desc, p.rating desc, p.display_name
@@ -1798,7 +1801,7 @@ create trigger friendships_accept before update on public.friendships for each r
 drop function if exists public.friends_list();
 create or replace function public.friends_list() returns table (
     id uuid, display_name text, avatar text, color text, frame text, title_pref text, owl text, rating integer, last_seen timestamptz,
-    status text, direction text, since timestamptz, wins integer, losses integer, draws integer
+    status text, direction text, since timestamptz, wins integer, losses integer, draws integer, prestige integer
 )
 language sql stable security definer set search_path = public as $$
     with mine as (
@@ -1816,7 +1819,7 @@ language sql stable security definer set search_path = public as $$
     )
     -- Poslední aktivitu vidí jen přátelé (ne ten, komu jsem jen poslal žádost, ani ten, kdo mi ji poslal)
     select p.id, p.display_name, p.avatar, p.color, p.frame, p.title_pref, p.owl, p.rating, case when mine.status = 'accepted' then s.last_seen end, mine.status, mine.direction, mine.created_at,
-        coalesce(d.wins, 0), coalesce(d.losses, 0), coalesce(d.draws, 0)
+        coalesce(d.wins, 0), coalesce(d.losses, 0), coalesce(d.draws, 0), p.prestige::integer
     from mine join public.profiles p on p.id = mine.other left join duel d on d.other = mine.other left join public.player_seen s on s.user_id = mine.other
     order by (mine.status = 'pending' and mine.direction = 'in') desc, case when mine.status = 'accepted' then s.last_seen end desc nulls last, p.display_name
     limit 400;
@@ -2459,7 +2462,7 @@ begin
         'day', d,
         'total', (select count(*) from ranked),
         'top', coalesce((select jsonb_agg(jsonb_build_object('rank', k.place, 'id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color,
-                'frame', p.frame, 'title_pref', p.title_pref, 'owl', p.owl, 'score', k.score, 'correct', k.correct, 'time_ms', k.time_ms, 'me', k.user_id = uid) order by k.pos)
+                'frame', p.frame, 'title_pref', p.title_pref, 'owl', p.owl, 'prestige', p.prestige, 'score', k.score, 'correct', k.correct, 'time_ms', k.time_ms, 'me', k.user_id = uid) order by k.pos)
             from ranked k join public.profiles p on p.id = k.user_id where k.pos <= n), '[]'::jsonb),
         'me', (select jsonb_build_object('rank', k.place, 'score', k.score, 'correct', k.correct, 'time_ms', k.time_ms, 'bitmap', k.bitmap, 'answered', k.answered)
             from ranked k where k.user_id = uid),
@@ -2490,7 +2493,7 @@ begin
         'day', d,
         'friends', (select count(*) from circle),
         'rows', coalesce((select jsonb_agg(jsonb_build_object('rank', k.place, 'id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color,
-                'frame', p.frame, 'title_pref', p.title_pref, 'owl', p.owl, 'score', k.score, 'correct', k.correct, 'time_ms', k.time_ms, 'me', k.user_id = uid) order by k.pos)
+                'frame', p.frame, 'title_pref', p.title_pref, 'owl', p.owl, 'prestige', p.prestige, 'score', k.score, 'correct', k.correct, 'time_ms', k.time_ms, 'me', k.user_id = uid) order by k.pos)
             from ranked k join public.profiles p on p.id = k.user_id where k.pos <= 200), '[]'::jsonb)
     ) into result;
     return result;
@@ -2715,7 +2718,7 @@ begin
     if g.id is null then return null; end if;
     return jsonb_build_object('id', g.id, 'name', g.name, 'icon', g.icon, 'code', g.code,
         'members', (select count(*) from public.group_members m where m.group_id = g.id),
-        'owner', (select jsonb_build_object('id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color, 'frame', p.frame, 'title_pref', p.title_pref, 'owl', p.owl)
+        'owner', (select jsonb_build_object('id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color, 'frame', p.frame, 'title_pref', p.title_pref, 'owl', p.owl, 'prestige', p.prestige)
             from public.profiles p where p.id = g.owner_id),
         'member', exists (select 1 from public.group_members m where m.group_id = g.id and m.user_id = uid));
 end;
@@ -2810,7 +2813,7 @@ $$;
 -- Veřejné údaje profilu jako JSON (stejné jako v pořadí Kvízu dne)
 create or replace function public.group_player_json(p public.profiles) returns jsonb
 language sql stable set search_path = public as $$
-    select jsonb_build_object('id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color, 'frame', p.frame, 'title_pref', p.title_pref, 'owl', p.owl)
+    select jsonb_build_object('id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color, 'frame', p.frame, 'title_pref', p.title_pref, 'owl', p.owl, 'prestige', p.prestige)
 $$;
 
 -- Moje skupiny (v pořadí přidání) s dnešním vedoucím Kvízu dne (dohrané pokusy: víc bodů, pak kratší čas) a jestli jsem dnes hrál
@@ -3571,7 +3574,7 @@ begin
         'friends', (select count(*) from circle),
         'rank', (select k.place from ranked k where k.user_id = uid),
         'rows', coalesce((select jsonb_agg(jsonb_build_object('rank', k.place, 'id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color,
-                'frame', p.frame, 'title_pref', p.title_pref, 'owl', p.owl, 'solved', k.solved, 'clues', k.clues, 'guesses', k.guesses, 'points', k.points,
+                'frame', p.frame, 'title_pref', p.title_pref, 'owl', p.owl, 'prestige', p.prestige, 'solved', k.solved, 'clues', k.clues, 'guesses', k.guesses, 'points', k.points,
                 'solved_at', to_char(k.solved_at at time zone 'Europe/Prague', 'FMHH24:MI'), 'me', k.user_id = uid) order by k.pos)
             from ranked k join public.profiles p on p.id = k.user_id where k.pos <= 200), '[]'::jsonb)
     ) into result;
@@ -6131,7 +6134,7 @@ begin
         'best', coalesce((select max(score) from ranked), 0),
         'me', public.chain_json(mine),
         'top', coalesce((select jsonb_agg(jsonb_build_object('rank', k.place, 'id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color,
-                'frame', p.frame, 'title_pref', p.title_pref, 'owl', p.owl, 'links', k.links, 'score', k.score, 'rescued', k.rescued, 'me', k.user_id = uid) order by k.pos)
+                'frame', p.frame, 'title_pref', p.title_pref, 'owl', p.owl, 'prestige', p.prestige, 'links', k.links, 'score', k.score, 'rescued', k.rescued, 'me', k.user_id = uid) order by k.pos)
             from ranked k join public.profiles p on p.id = k.user_id where k.pos <= 10), '[]'::jsonb)
     ) into result;
     return result;
@@ -7882,12 +7885,12 @@ begin
     if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
     return jsonb_build_object(
         'code', public.referral_code_for(uid),
-        'inviter', (select jsonb_build_object('id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color, 'frame', p.frame, 'owl', p.owl)
+        'inviter', (select jsonb_build_object('id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color, 'frame', p.frame, 'owl', p.owl, 'prestige', p.prestige)
             from public.referrals r join public.profiles p on p.id = r.inviter where r.invitee = uid),
         'games', public.referral_games(uid),
         'join_until', (select u.created_at + interval '14 days' from auth.users u where u.id = uid and u.created_at > now() - interval '14 days'
             and not exists (select 1 from public.referrals r where r.invitee = uid)),
-        'invited', coalesce((select jsonb_agg(jsonb_build_object('id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color, 'frame', p.frame, 'owl', p.owl,
+        'invited', coalesce((select jsonb_agg(jsonb_build_object('id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color, 'frame', p.frame, 'owl', p.owl, 'prestige', p.prestige,
                 'games', x.games, 'qualified', x.games >= 3) order by x.created_at desc)
             from (select r.invitee, r.created_at, public.referral_games(r.invitee) as games from public.referrals r where r.inviter = uid order by r.created_at desc limit 50) x
             join public.profiles p on p.id = x.invitee), '[]'::jsonb),
@@ -7915,7 +7918,7 @@ begin
     if host = uid then raise exception 'Vlastní kód přítele použít nejde.' using errcode = 'P0001'; end if;
     select r.inviter into already from public.referrals r where r.invitee = uid;
     if already = host then
-        return (select jsonb_build_object('inviter', jsonb_build_object('id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color, 'frame', p.frame, 'owl', p.owl)) from public.profiles p where p.id = host);
+        return (select jsonb_build_object('inviter', jsonb_build_object('id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color, 'frame', p.frame, 'owl', p.owl, 'prestige', p.prestige)) from public.profiles p where p.id = host);
     end if;
     if already is not null then raise exception 'Pozvánku od kamaráda už máš.' using errcode = 'P0001'; end if;
     select u.created_at into created from auth.users u where u.id = uid;
@@ -7933,7 +7936,7 @@ begin
             where ((user_id = uid and friend_id = host) or (user_id = host and friend_id = uid)) and status = 'pending';
     exception when others then null;
     end;
-    return (select jsonb_build_object('inviter', jsonb_build_object('id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color, 'frame', p.frame, 'owl', p.owl)) from public.profiles p where p.id = host);
+    return (select jsonb_build_object('inviter', jsonb_build_object('id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color, 'frame', p.frame, 'owl', p.owl, 'prestige', p.prestige)) from public.profiles p where p.id = host);
 end;
 $$;
 -- Vyzvednutí všech připravených odměn (každá jednou za účet); vrací pole klíčů, které se teď vyzvedly (XP a věci připíše aplikace)
@@ -9003,6 +9006,8 @@ revoke all on function public.conquest_castles(), public.conquest_check_castle(u
 --     conquest_look_catalog s druhem 'castle', conquest_looks s druhem 'castle', conquest_look_stats s home_fortress a season15,
 --     conquest_looks_json s castles; conquest_create, conquest_join, conquest_set_look a conquest_add_player s nepovinným castle_id
 --     (jen odemčená sada), conquest_summary s castle.
+--     Bez nové verze: seznamy hráčů vracejí i stupeň prestiže ('prestige'; weekly_leaderboard, friends_list, group_player_json, pořadí Kvízu
+--     dne, Tajemné otázky a Řetězovky, skupiny, pozvánky kamarádů) pro medailon v rohu obrázku hráče; starší databáze ho nepošle a medailon chybí.
 create or replace function public.schema_version() returns integer
 language sql immutable as $$ select 40 $$;
 revoke all on function public.schema_version() from public, anon;

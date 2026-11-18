@@ -5,7 +5,7 @@ const CACHE_NAME = 'mudrlant-v3';
 // Symboly odznaků (icons/topics/odznak-<skupina>.webp); stejný seznam má app.js (BADGE_ART), hlídá tests/badge-art.test.js
 const BADGE_ART = ['sberatel', 'odpovedi', 'rada', 'serie', 'dny', 'dokonale', 'dnes', 'bez-napovedy', 'psani', 'tezke', 'chyby', 'vyzvy', 'vyhry', 'vyhry-v-rade', 'zalozene',
     'perfektni-vyzvy', 'uroven', 'poznane', 'vsestrannost', 'hvezdy', 'vsechna-temata', 'turnaje', 'turnaj-postupy', 'tydenni-cile', 'kviz-dne',
-    'kviz-serie', 'kviz-perfekt', 'bleskovka', 'preziti', 'mapa', 'odhad', 'serad', 'detektiv', 'dobyvatel'];
+    'kviz-serie', 'kviz-perfekt', 'bleskovka', 'preziti', 'mapa', 'odhad', 'serad', 'detektiv', 'dobyvatel', 'retezovka', 'retezovka-cela'];
 // Postavičky (profilové obrázky za odměny, icons/avatars/<id>.webp); stejný seznam má look.js (AVATARS s parts), hlídá tests/avatars.test.js.
 // Vrstvy přebarvených částí (<id>-<část><barva>.webp) se uloží až při použití.
 const AVATAR_ART = ['cervik', 'axolot', 'kaktus', 'drak', 'mamut', 'meduza', 'lenoch', 'tukan', 'lev', 'fenix', 'krecek', 'rytir', 'narval', 'zelva',
@@ -19,7 +19,7 @@ const AVATAR_ART = ['cervik', 'axolot', 'kaktus', 'drak', 'mamut', 'meduza', 'le
     'ramp', 'kobliz', 'snezen', 'kapka', 'pampel', 'vysved', 'meloun', 'hvezda', 'aktovk', 'drakpa', 'caj', 'pernik'];
 // Obrázkové rámečky profilu (icons/frames/<id>.webp); stejný seznam má look.js (FRAMES s art: true), hlídá tests/look-frames.test.js
 const FRAME_ART = ['vecny-ohen', 'sezona-01', 'sezona-01-b', 'sezona-02', 'sezona-02-b', 'sezona-03', 'sezona-03-b', 'sezona-04', 'sezona-04-b', 'sezona-05', 'sezona-05-b', 'sezona-06', 'sezona-06-b', 'sezona-07', 'sezona-07-b', 'sezona-08', 'sezona-08-b', 'sezona-09', 'sezona-09-b', 'sezona-10', 'sezona-10-b', 'sezona-11', 'sezona-11-b', 'sezona-12', 'sezona-12-b',
-    'ohen', 'more', 'soukoli', 'galaxie', 'kralovsky-vavrin', 'blesk', 'led', 'drak', 'dobyvatel', 'duha-mracky', 'ruze'];
+    'ohen', 'more', 'soukoli', 'galaxie', 'kralovsky-vavrin', 'blesk', 'led', 'drak', 'dobyvatel', 'duha-mracky', 'ruze', 'pratelsky', 'parta', 'prestiz'];
 const APP_SHELL = [
     './', 'index.html', 'styles.css', 'config.js', 'friends.js', 'groups.js', 'soukromi.html', 'licence.html', 'licence.js', 'question-report.js', 'answer-stats.js', 'monitor.js', 'auth.js', 'social.js', 'icons.js', 'quiz-core.js', 'mystery.js', 'photo-source.js', 'visuals.js', 'question-map.js', 'numeric-questions.js', 'time-questions.js', 'data/souvislosti.json', 'look-flags.js', 'look.js', 'look-themes.js', 'look-robes.js', 'look-frames.js', 'look-owl.js', 'rating.js', 'league-seasons.js', 'showcase.js', 'prestige.js', 'weekend.js', 'referral.js', 'robe-color.js', 'tournament.js', 'review.js', 'goals.js', 'chronicle.js', 'tips.js', 'tutorial.js', 'push.js', 'daily-quiz.js', 'share-card.js', 'rewards.js', 'season.js', 'app.js', 'manifest.webmanifest', 'album.js', 'gold.js', 'boss.js', 'bets.js', 'chain.js', 'chain-legacy.js', 'data/retezovka.json',
     'topics/zemepis.js', 'data/zemepis.json', 'topics/historie.js', 'data/historie.json', 'topics/biologie.js', 'data/biologie.json',
@@ -56,7 +56,13 @@ const APP_SHELL = [
         // Pomůcka Ankh vzkříšení (conquest.js ITEMS.revive, č. 361)
         'vzkriseni',
         // Pomůcky Tah navíc a 50/50 (conquest.js ITEMS, č. 309 a 310)
-        'tah-navic', 'pul-na-pul'].map(id => `icons/topics/${id}.webp`),
+        'tah-navic', 'pul-na-pul',
+        // Motivace (č. 311, 315, 316): sova s hvězdou prestiže, sova s pozvánkou, tematický víkend
+        'sova-prestiz-hvezda', 'sova-pozvanka', 'vikend',
+        // Medailony prestiže ★1–★10 a sova prestiže (prestige.js ART, app.js PRESTIGE_OWL_ART, č. 368–378)
+        ...Array.from({ length: 10 }, (_, i) => `prestiz-${i + 1}`), 'sova-prestiz',
+        // Barvy krystalu medailonu ★10 pro rozsvěcování od ★11 (scripts/prestige-gem.py)
+        ...['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'violet'].map(color => `prestiz-10-gem-${color}`)].map(id => `icons/topics/${id}.webp`),
     // Boss týdne (boss.js ART): čtyři stupně každého bosse a jeho aréna
     ...['kapitan', 'rytir', 'alchymista', 'amper', 'maestro', 'druid', 'olympan', 'reziser'].flatMap(id => [`boss-${id}`, `boss-${id}-zraneny`, `boss-${id}-vkoncich`, `boss-${id}-porazeny`, `arena-${id}`]).map(id => `icons/topics/${id}.webp`),
     // Stavby na mapě Dobývání (conquest.js BUILDINGS, scripts/building-art.py): základ a vrstva střech a vlaječek v barvě hráče

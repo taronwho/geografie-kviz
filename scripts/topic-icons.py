@@ -15,7 +15,7 @@ GLOW = {'sova-titul-9': (0.52, 0.0, 0.92, 0.40)}
 # truhla-otevrena: jiskry kolem a světlo z mezery pod víkem by na světlém pozadí nechaly tmavé lemy; jiskry a záři kreslí CSS (.chest-*)
 # Zlatá otázka (č. 206–211): jiskry a záře kolem zlatých předmětů (otazník, truhly, střípek, rýžovací miska) zmizí stejně
 # ligova-sezona: konfety kolem poháru, sova-kronika: jiskry kolem knihy
-STICKER = {'sova-titul-11', 'truhla-otevrena', 'ligova-sezona', 'sova-kronika', 'zlata-otazka', 'zlata-truhla', 'zlata-truhla-otevrena', 'zlaty-stripek', 'zlatokop', 'vzkriseni', 'tah-navic', 'pul-na-pul'}
+STICKER = {'sova-titul-11', 'truhla-otevrena', 'ligova-sezona', 'sova-kronika', 'zlata-otazka', 'zlata-truhla', 'zlata-truhla-otevrena', 'zlaty-stripek', 'zlatokop', 'vzkriseni', 'tah-navic', 'pul-na-pul', 'sova-prestiz', *(f'prestiz-{n}' for n in range(1, 10))}
 
 def cream_like(a, bg, cream, full):
     # Barva na přímce pozadí → krémový obrys (full=False: i přechod z pozadí do krémové, full=True: jen skoro krémová)

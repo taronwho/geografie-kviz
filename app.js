@@ -859,6 +859,12 @@
             if (localStorage.getItem(DEV_BACKUP) === null) { localStorage.setItem(DEV_BACKUP, localStorage.getItem(KEYS.progress) ?? 'null'); localStorage.setItem(DEV_LEARNED_BACKUP, localStorage.getItem(KEYS.learned) ?? 'null'); }
             if (Rewards && localStorage.getItem(DEV_REWARDS_BACKUP) === null) localStorage.setItem(DEV_REWARDS_BACKUP, localStorage.getItem(Rewards.KEY) ?? 'null');
             if (localStorage.getItem(DEV_PRESTIGE_BACKUP) === null) localStorage.setItem(DEV_PRESTIGE_BACKUP, JSON.stringify(Object.fromEntries(PRESTIGE_KEYS.map(key => [key, localStorage.getItem(key)]))));
+            // Prestiž: náhled (pv:N): stupeň prestiže N jen v zařízení, úroveň v ní od 1 (prestiž začíná na nynějších XP); oslava úrovně se nespustí
+            if (kind.startsWith('pv:') && Prestige) {
+                const n = Prestige.clean({ n: Number(kind.slice(3)), at: 1 }).n;
+                if (n) { writeJson(Prestige.KEY, { n, at: loadProgress().xp }); writeJson('mudrlant.prestige-seen', `${n}:1`); } else PRESTIGE_KEYS.forEach(key => localStorage.removeItem(key));
+                return;
+            }
             // Prestiž na zkoušku: XP přesně na další prestiž (z úrovně 100, nebo v prestiži na její úroveň 100); přechod pak jen v zařízení
             if (kind === 'prestige' && Prestige) {
                 const progress = loadProgress();
@@ -1189,11 +1195,19 @@
         if (!schemaOutdated) return '';
         return `<p id="schema-banner" class="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-semibold leading-snug text-amber-900 ring-1 ring-amber-300/70 dark:bg-amber-900/30 dark:text-amber-100 dark:ring-amber-700/60" role="status">Databáze není aktuální: spusť znovu supabase/schema.sql (verze ${schemaOutdated.have === null ? 'bez čísla' : schemaOutdated.have}, aplikace potřebuje ${schemaOutdated.need}).</p>`;
     };
+    // Prestiž: náhled ve vývojářském režimu: ◀ ▶ po jedné, ◀◀ ▶▶ po deseti (0–99), vedle medailon zvoleného stupně a jeho název
+    const devPrestigeRow = () => {
+        const n = Prestige.clean(readJson(Prestige.KEY)).n;
+        const step = (delta, label, text) => { const to = Math.max(0, Math.min(Prestige.MAX_PRESTIGE, n + delta)); return `<button type="button" data-dev="pv:${to}" aria-label="${label}" ${to === n ? 'disabled' : ''} class="min-w-[2rem] rounded-lg bg-slate-200 px-1.5 py-1 text-[11px] font-black text-slate-700 active:scale-95 disabled:opacity-40 dark:bg-slate-700 dark:text-slate-200">${text}</button>`; };
+        return `<div data-dev-prestige class="mt-1.5 flex items-center gap-1"><span class="mr-auto text-[11px] font-black text-amber-800 dark:text-amber-200">Prestiž: náhled</span>${step(-10, 'O deset prestiží níž', '◀◀')}${step(-1, 'O prestiž níž', '◀')}<span class="flex min-w-[4.5rem] items-center justify-center gap-1 text-[12px] font-black tabular-nums text-slate-800 dark:text-slate-100"><span data-dev-prestige-value>${n}</span>${n ? Prestige.medalHtml(n, 'h-6 w-6') : ''}</span>${step(1, 'O prestiž výš', '▶')}${step(10, 'O deset prestiží výš', '▶▶')}</div>`
+            + (n ? `<p class="mt-0.5 text-right text-[10px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(Prestige.tierName(n))}${Prestige.litSteps(n) ? ` · rozsvícení ${Prestige.litSteps(n)}/${Prestige.LIT_REGIONS.length * 4}` : ''}</p>` : '');
+    };
     const renderDevPanel = () => !devOn() ? '' : `
         <div class="mt-3 rounded-2xl border-2 border-dashed border-amber-400/70 p-2.5">
             <p class="mb-1.5 flex items-center justify-between text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400"><span>Vývojářský režim</span><span class="font-bold normal-case tracking-normal">${devActive() ? 'zkušební postup' : 'tvůj postup'}</span></p>
             ${Social ? `<p data-dev-schema class="mb-1.5 text-[11px] font-semibold leading-snug ${schemaHave === REQUIRED_SCHEMA ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-800 dark:text-amber-200'}">Databáze: ${schemaHave === undefined ? 'verze schématu zatím nezjištěna' : schemaHave === null ? 'schéma bez verze (starší než 1)' : `schéma ${schemaHave}`} · aplikace potřebuje ${REQUIRED_SCHEMA}${schemaHave === REQUIRED_SCHEMA ? ' ✓' : schemaHave === undefined ? '' : schemaHave > REQUIRED_SCHEMA ? ' – aplikace je starší, obnov ji' : ' – spusť supabase/schema.sql'}</p>` : ''}
             <div class="flex flex-wrap gap-1">${[['all', 'Odemknout úplně vše'], ['chest', 'Otevřít Truhlu Mudrlanta'], ['season', 'Sezóna: všech 20 stupňů'], ['max', 'Vše (úr. 100)'], ['level:10', 'Úr. 10'], ['level:25', 'Úr. 25'], ['level:50', 'Úr. 50'], ['level:75', 'Úr. 75'], ['badges', 'Všechny odznaky'], ['nobadges', 'Žádné odznaky'], ['nostars', 'Vymazat hvězdičky'], ['bulb', 'Vrátit žárovku'], ['tips', 'Obnovit tipy'], ['gold', 'Příští otázka zlatá'], ['gold-chest', 'Otevřít Zlatou truhlu'], ...(Prestige ? [['prestige', 'Prestiž na zkoušku']] : [])].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${label}</button>`).join('')}${devActive() ? '<button type="button" data-dev="restore" class="rounded-lg bg-amber-700 px-2 py-1 text-[11px] font-black text-white active:scale-95">Vrátit můj postup</button>' : ''}</div>
+            ${Prestige ? devPrestigeRow() : ''}
             ${Social ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Turnaj (boti)</p>
             <div class="flex flex-wrap gap-1">${[['tour-bots', '+31 botů'], ['tour-start', 'Spustit hned'], ['tour-play', 'Boti odehrají kolo'], ['tour-next', 'Další kolo'], ['tour-reset', 'Smazat odehraný turnaj'], ['tour-clear', 'Smazat boty']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-900 active:scale-95 dark:bg-emerald-900/50 dark:text-emerald-100">${label}</button>`).join('')}</div>
             <p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Speciální turnaj a hlasování</p>
@@ -1317,7 +1331,10 @@
     };
     // Sovy titulů (icons/topics/sova-titul-<n>.webp): ilustrace stupně titulu podle úrovně; barvu obleku jí dá look-robes.js
     const titleOwlPose = (level) => `titul-${titleOwlTier(level)}`;
-    const titleOwlArt = (level) => `sova-${titleOwlPose(level)}`;
+    // Sova prestiže (docs/OBRAZKY.md č. 373, sova-prestiz): po dodání sem její název a ukáže se místo sovy titulu na kartě úrovně
+    // (Postup, Můj postup) hráči v prestiži; zatím null = sova titulu podle skutečné úrovně jako dosud
+    const PRESTIGE_OWL_ART = 'sova-prestiz';
+    const titleOwlArt = (level, prestige = 0) => (prestige > 0 && PRESTIGE_OWL_ART ? PRESTIGE_OWL_ART : `sova-${titleOwlPose(level)}`);
     // Tituly jednoho stupně sovy (např. Učeň, Žák)
     const tierTitles = (tier) => LEVEL_TITLES.filter(entry => titleOwlTier(entry.from) === tier).map(entry => entry.title);
     // Moje zvolená sova titulu omezená na dosaženou úroveň (null = sova s doplňky)
@@ -1939,7 +1956,7 @@
         if (meTab === 'owl' || meTab === 'profile') touchTip('look');
         if ((!user || !Social) && meTab === 'profile') meTab = 'game';
         if (user && Social && !meDraft) {
-            const base = myProfile || { display_name: user.name, avatar: '🦊', color: 'emerald' };
+            const base = myProfile || { id: user.id, display_name: user.name, avatar: '🦊', color: 'emerald' };
             // Staré emoji odměny se v rozpracovaném profilu rovnou ukáže jako postavička, která ho nahradila (a tak se i uloží)
             const avatar = Look && Look.avatarCode && Look.avatarCode(base.avatar) ? Look.avatarCode(base.avatar) : base.avatar;
             meDraft = { name: base.display_name, avatar, color: base.color, owl: Boolean(base.owl && Owl), pose: base.owl && Owl && Look ? myPose() : null };
@@ -1959,7 +1976,7 @@
         const pictureScroll = oldStrip && overlay.dataset.stripTab === meTab ? { group: oldStrip.dataset.group, top: oldStrip.scrollTop } : null;
         if (!overlay) overlay = createSettingsOverlay();
         const state = Auth ? Auth.getState() : { configured: false };
-        const profile = user ? (myProfile || { display_name: user.name, avatar: '🦊', color: 'emerald' }) : null;
+        const profile = user ? (myProfile || { id: user.id, display_name: user.name, avatar: '🦊', color: 'emerald' }) : null;
         const shown = profile && meTab === 'profile' && meDraft ? { ...profile, ...{ avatar: meDraft.avatar, color: meDraft.color, owl: meDraft.owl ? ownOwlText(meDraft.pose) : null, draft: true } } : profile;
         const level = levelProgress(loadProgress().xp);
         const noteText = note || meNote;
@@ -2360,6 +2377,8 @@
             if (devButton && devButton.dataset.dev === 'gold' && Gold) { saveGold({ ...loadGold(), since: Gold.PITY - 1 }); openSettings('Hotovo: příští otázka bude zlatá', '[data-dev="gold"]'); return; }
             if (devButton && devButton.dataset.dev === 'gold-chest' && Gold) { devApply('gold-chest'); saveGold({ ...loadGold(), ready: loadGold().ready + 1 }); closeSettings(); updateControlsUI(); openChestOverlay(true); return; }
             if (devButton && devButton.dataset.dev === 'season') { devApply('season'); closeSettings(); updateControlsUI(); openSeason(); return; }
+            // Prestiž: náhled: hlavička, můj obrázek i Nastavení hned s medailonem zvoleného stupně
+            if (devButton && devButton.dataset.dev.startsWith('pv:')) { devApply(devButton.dataset.dev); applyLook(); updateControlsUI(); paintTab(); openSettings(); return; }
             if (devButton && devButton.dataset.dev === 'prestige') { devApply('prestige'); applyLook(); closeSettings(); updateControlsUI(); openLevels(); return; }
             if (devButton) { devApply(devButton.dataset.dev); updateControlsUI(); openSettings(`Hotovo: ${devButton.textContent.trim()}`, `[data-dev="${devButton.dataset.dev}"]`); return; }
             const lockedOwl = event.target.closest('[data-locked-owl]');
@@ -2729,7 +2748,7 @@
             // Při hře (vedle čtyř tlačítek) se na úzkém displeji (360 px) vejde sova a jen úroveň s pruhem; na hlavních obrazovkách je místa dost
             const tight = main ? '' : ' max-[370px]:hidden';
             text.innerHTML = `<span class="block text-lg font-black normal-case leading-none tracking-tight text-brand-700 dark:text-cream${tight}">${escapeHtml(APP_NAME)}</span>`
-                + `<span class="mt-1 block whitespace-nowrap text-[10.5px] font-bold normal-case tracking-wide text-slate-500 dark:text-slate-400${main ? '' : ' max-[370px]:mt-0 max-[370px]:text-[11px]'}">${level.prestige && Prestige ? `${Prestige.markHtml(level.prestige, 'mr-0.5 text-[9px]')}` : ''}Úr. ${level.level}<span class="${tight.trim()}"> · ${escapeHtml(titleForLevel(level.realLevel))}</span></span>`
+                + `<span class="mt-1 block whitespace-nowrap text-[10.5px] font-bold normal-case tracking-wide text-slate-500 dark:text-slate-400${main ? '' : ' max-[370px]:mt-0 max-[370px]:text-[11px]'}">${level.prestige && Prestige ? Prestige.medalHtml(level.prestige, '-my-1 mr-0.5 h-4 w-4 align-[-4px]') : ''}Úr. ${level.level}<span class="${tight.trim()}"> · ${escapeHtml(titleForLevel(level.realLevel))}</span></span>`
                 + `<span class="mt-1 block h-[5px] w-full min-w-[6.5rem] overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-500" data-progress="${Math.round(level.ratio * 100)}"></span></span>`;
             applyProgress(text);
             text.className = 'min-w-[2.25rem] text-left';
@@ -3325,7 +3344,7 @@
             const label = escapeHtml(Weekend.bannerLabel(weekend, { topicTitle: (id) => TOPIC_BY_ID[id].title }));
             const attrs = `data-action="weekend-play" data-topic="${escapeHtml(weekend.topic)}" data-weekend-state="${weekend.state}" aria-label="${label}" title="${label}"`;
             items.push({
-                strip: actionRow({ id: 'weekend-banner', attrs, art: topicIcon(TOPIC_BY_ID[weekend.topic], ROW_ART), title: escapeHtml(weekend.title), text: escapeHtml(Weekend.rowText(weekend)), cta: 'Hrát' }),
+                strip: actionRow({ id: 'weekend-banner', attrs, art: uiArt('vikend', ROW_ART), title: escapeHtml(weekend.title), text: escapeHtml(Weekend.rowText(weekend)), cta: 'Hrát' }),
                 chip: `<button type="button" id="weekend-chip" ${attrs} class="${HOME_CHIP}">${topicIcon(TOPIC_BY_ID[weekend.topic], CHIP_ART)}<span class="truncate">${escapeHtml(weekend.title)}</span><span class="shrink-0 rounded-md bg-gold-400 px-1 py-0.5 text-[10px] font-black leading-none text-brand-950">2×</span></button>`
             });
         }
@@ -7738,6 +7757,21 @@
         if (!picture) return '';
         return `<span data-avatar-art="${picture.item.id}" class="grid shrink-0 ${sizeClass}">${[picture.base, ...picture.layers].map((src, index) => `<img src="${src}" alt=""${index ? ' data-avatar-layer' : ''} draggable="false" class="pointer-events-none h-full w-full select-none object-contain [grid-area:1/1]">`).join('')}</span>`;
     };
+    // Stupeň prestiže hráče pro medailon u obrázku (prestige.js): můj ze zařízení (platí hned, i prestiž na zkoušku ve vývojářském
+    // režimu), cizí z řádku ze serveru (starší databáze ho nepošle: 0, medailon chybí)
+    const playerPrestige = (player, isMe) => {
+        if (!Prestige || !player) return 0;
+        if (isMe) return Prestige.clean(readJson(Prestige.KEY)).n;
+        return Social && Social.cleanPrestigeLevel ? Social.cleanPrestigeLevel(player.prestige) : Prestige.clean({ n: player.prestige, at: 1 }).n;
+    };
+    // Medailon prestiže v rohu obrázku (prestige.js badgeHtml; u obrázků pod 20 px se nekreslí)
+    const prestigeBadge = (n, size) => (n > 0 && Prestige ? Prestige.badgeHtml(n, size) : '');
+    // Jemná pulzující záře kolem obrázku v barvě stupně prestiže (Profil hráče, moje karta na záložce Já); bez prestiže obrázek beze změny
+    const prestigeGlow = (player, html) => {
+        const me = signedUser();
+        const n = playerPrestige(player, Boolean(me && player && player.id === me.id));
+        return n > 0 && Prestige ? `<span class="prestige-glow prestige-glow-${Prestige.tierOf(n)} flex shrink-0 rounded-full" data-prestige-glow="${Prestige.tierOf(n)}">${html}</span>` : html;
+    };
     // link = klepnutím na obrázek se otevře profil hráče (klepnutí zachytí společný posluchač dole)
     const avatarHtml = (player, size = 'h-10 w-10 text-xl', link = false) => {
         const linked = link && player && player.id;
@@ -7752,7 +7786,13 @@
         const showsOwl = Boolean(player && (player.owl || (isMe && !player.draft && myProfile && myProfile.owl)));
         // Náhled v Profilu (draft) má sovu z rozpracované volby (třeba jinou sovu titulu)
         const owlHtml = showsOwl && Owl && Owl.owlAvatarHtml ? Owl.owlAvatarHtml(isMe && Look && !player.draft ? myOwlText() : player.owl) : '';
-        return `<span ${linked ? `data-player-id="${escapeHtml(player.id)}" role="button" tabindex="0" aria-label="Profil hráče ${escapeHtml(playerName(player))}"` : 'aria-hidden="true"'} class="flex shrink-0 items-center justify-center rounded-full ${size} ${avatarBg(isMe && !player.draft && myProfile && myProfile.color ? myProfile.color : player && player.color)}${frame}${linked ? ' cursor-pointer' : ''}">${owlHtml || avatarArt(player && player.avatar) || escapeHtml((player && player.avatar) || '🦊')}</span>`;
+        // Medailon prestiže v rohu: popisek „Prestiž 2“ dostane celý obrázek (u odkazu k profilu za jménem)
+        const prestige = playerPrestige(player, isMe);
+        const badge = prestigeBadge(prestige, size);
+        const label = linked ? `data-player-id="${escapeHtml(player.id)}" role="button" tabindex="0" aria-label="Profil hráče ${escapeHtml(playerName(player))}${badge ? `, prestiž ${prestige}` : ''}"`
+            : badge ? `role="img" aria-label="Prestiž ${prestige}"` : 'aria-hidden="true"';
+        const place = badge && !/(?:^|\s)(?:absolute|fixed)(?=\s|$)/.test(size) ? ' relative' : '';
+        return `<span ${label} class="flex shrink-0 items-center justify-center rounded-full ${size} ${avatarBg(isMe && !player.draft && myProfile && myProfile.color ? myProfile.color : player && player.color)}${frame}${place}${linked ? ' cursor-pointer' : ''}">${owlHtml || avatarArt(player && player.avatar) || escapeHtml((player && player.avatar) || '🦊')}${badge}</span>`;
     };
     // Téma výzvy: „mix“ (všechna), jedno téma, nebo víc témat oddělených čárkou
     const challengeTopicIds = (topic) => topic === 'mix' ? TOPICS.map(item => item.id) : String(topic).split(',').filter(id => TOPIC_BY_ID[id]);
@@ -8745,7 +8785,7 @@
         if (!button) return;
         const user = Auth && Auth.isConfigured() && Social ? signedUser() : null;
         if (user) {
-            const profile = myProfile || { display_name: user.name, avatar: '🦊', color: 'emerald' };
+            const profile = myProfile || { id: user.id, display_name: user.name, avatar: '🦊', color: 'emerald' };
             button.className = 'shrink-0 rounded-full shadow-md ring-2 ring-white transition-all active:scale-95 dark:ring-slate-700';
             button.innerHTML = avatarHtml(profile, 'h-11 w-11 text-2xl');
             button.setAttribute('aria-label', `Nastavení: ${playerName(profile)}`);
@@ -9425,7 +9465,7 @@
     // Skupiny odznaků s ilustrovaným symbolem (branding/ikony/odznak-<skupina>.png → scripts/topic-icons.py; stejný seznam má sw.js)
     const BADGE_ART = new Set(['sberatel', 'odpovedi', 'rada', 'serie', 'dny', 'dokonale', 'dnes', 'bez-napovedy', 'psani', 'tezke', 'chyby', 'vyzvy', 'vyhry',
         'vyhry-v-rade', 'zalozene', 'perfektni-vyzvy', 'uroven', 'poznane', 'vsestrannost', 'hvezdy', 'vsechna-temata', 'turnaje', 'turnaj-postupy',
-        'tydenni-cile', 'kviz-dne', 'kviz-serie', 'kviz-perfekt', 'bleskovka', 'preziti', 'mapa', 'odhad', 'serad', 'detektiv', 'dobyvatel']);
+        'tydenni-cile', 'kviz-dne', 'kviz-serie', 'kviz-perfekt', 'bleskovka', 'preziti', 'mapa', 'odhad', 'serad', 'detektiv', 'dobyvatel', 'retezovka', 'retezovka-cela']);
     // Obrázek symbolu skupiny (bez přípony); odznaky alba sbírky mají obrázek Sběratel (Album.BADGE_ART)
     const badgeArtOf = (group) => BADGE_ART.has(group) ? `odznak-${group}` : Album && Album.isAlbumGroup(BADGE_GROUPS.find(entry => entry.id === group)) ? Album.BADGE_ART
         // Odznaky Zlatokop: symbol z gold.js (ART.badge, do dodání č. 211 zástupný obrázek)
@@ -9629,9 +9669,9 @@
         ];
         return `
             <button type="button" data-open-levels class="btn-3d flex w-full shrink-0 items-center gap-3 rounded-[1.4rem] bg-gradient-to-br from-brand-700 to-brand-900 p-3 text-left text-white short:p-2.5 tiny:py-1.5" aria-label="Tabulka úrovní a titulů">
-                <span class="relative h-16 w-16 shrink-0 short:h-14 short:w-14 tiny:h-12 tiny:w-12" data-title-owl>${uiArt(titleOwlArt(level.realLevel), 'h-full w-full')}<span class="absolute -bottom-1 -right-1.5 flex h-8 w-8 flex-col items-center justify-center rounded-full ${level.prestige ? 'prestige-orb' : 'bg-gold-500 text-brand-950'} shadow-md ring-2 ring-brand-800"><span class="text-[7px] font-black uppercase leading-none">${level.prestige ? `★${level.prestige}` : 'úr.'}</span><span class="text-[13px] font-black leading-none">${level.level}</span></span></span>
+                <span class="relative h-16 w-16 shrink-0 short:h-14 short:w-14 tiny:h-12 tiny:w-12" data-title-owl>${uiArt(titleOwlArt(level.realLevel, level.prestige), 'h-full w-full')}<span class="absolute -bottom-1 -right-1.5 flex h-8 w-8 flex-col items-center justify-center rounded-full ${level.prestige ? 'prestige-orb' : 'bg-gold-500 text-brand-950'} shadow-md ring-2 ring-brand-800"><span class="text-[7px] font-black uppercase leading-none">${level.prestige ? `★${level.prestige}` : 'úr.'}</span><span class="text-[13px] font-black leading-none">${level.level}</span></span></span>
                 <span class="min-w-0 flex-1">
-                    <span class="flex min-w-0 items-center gap-1.5 text-xl font-black leading-tight short:text-lg"><span data-level-title class="truncate">${escapeHtml(titleForLevel(level.realLevel))}</span>${level.prestige && Prestige ? Prestige.markHtml(level.prestige, 'text-[11px]') : ''}</span>
+                    <span class="flex min-w-0 items-center gap-1.5 text-xl font-black leading-tight short:text-lg"><span data-level-title class="truncate">${escapeHtml(titleForLevel(level.realLevel))}</span>${level.prestige && Prestige ? Prestige.medalHtml(level.prestige, '-my-1.5 h-9 w-9 drop-shadow-md short:h-8 short:w-8') : ''}</span>
                     <span class="mt-1 block h-2 overflow-hidden rounded-full bg-white/25" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-400" data-progress="${Math.round(level.ratio * 100)}"></span></span>
                     <span class="mt-0.5 flex items-center justify-between gap-2 text-[11px] font-bold text-white/85"><span>${level.needed ? `${formatXp(level.into)} / ${formatXp(level.needed)} XP` : level.canPrestige ? '<span data-prestige-ready class="text-gold-300">Můžeš do prestiže ★</span>' : 'Nejvyšší úroveň'}</span>${level.needed ? `<span>do úr. ${level.level + 1}</span>` : ''}</span>
                     <span class="flex items-center justify-between gap-2 text-[11px] font-semibold leading-tight tiny:hidden"><span class="min-w-0 truncate text-gold-300">${next ? `Další titul: ${escapeHtml(next.title)} (úr. ${next.from})` : ''}</span><span data-total-xp class="shrink-0 text-white/80" title="Celkem získané XP">celkem ${formatXp(xp)} XP</span></span>
@@ -9737,12 +9777,12 @@
     const renderJa = () => {
         const state = Auth ? Auth.getState() : { configured: false };
         const user = multiOn() ? signedUser() : null;
-        const profile = user ? (myProfile || { display_name: user.name, avatar: '🦊', color: 'emerald' }) : null;
+        const profile = user ? (myProfile || { id: user.id, display_name: user.name, avatar: '🦊', color: 'emerald' }) : null;
         const level = prestigeView();
         const league = user && Rating && myRating ? Rating.leagueFor(myRating.rating) : null;
         const card = `
             <div id="ja-card" class="flex shrink-0 items-center gap-3 rounded-[1.4rem] ${SURFACE} p-3 short:p-2.5">
-                ${profile ? avatarHtml(profile, 'h-16 w-16 text-4xl short:h-14 short:w-14 short:text-3xl') : owlLogo('shrink-0', 'h-16 w-auto drop-shadow-md short:h-14')}
+                ${profile ? prestigeGlow(profile, avatarHtml(profile, 'h-16 w-16 text-4xl short:h-14 short:w-14 short:text-3xl')) : owlLogo('shrink-0', 'h-16 w-auto drop-shadow-md short:h-14')}
                 <div class="min-w-0 flex-1">
                     <p data-ja-name class="truncate text-xl font-black leading-tight text-slate-800 short:text-lg dark:text-slate-100">${user ? escapeHtml(playerName(profile)) : 'Hraješ bez účtu'}</p>
                     <button type="button" data-ja="progress" class="-my-2.5 flex min-h-[2.5rem] max-w-full items-center gap-1 text-left text-[12.5px] font-black text-brand-700 dark:text-cream"><span class="truncate">${escapeHtml(ownTitleText(level.level))}</span><i data-lucide="chevron-right" class="h-3.5 w-3.5 shrink-0"></i></button>
@@ -9858,9 +9898,9 @@
         showDialog('Můj postup', `
             <div class="flex flex-col gap-2.5 short:gap-1.5" data-progress-dialog>
                 <button type="button" data-open-levels class="btn-3d flex w-full items-center gap-2.5 rounded-2xl bg-gradient-to-br from-brand-700 to-brand-900 p-2.5 text-left text-white" aria-label="Tabulka úrovní">
-                    <span class="relative h-14 w-14 shrink-0" data-title-owl>${uiArt(titleOwlArt(level.realLevel), 'h-full w-full')}<span class="absolute -bottom-1 -right-1.5 flex h-8 w-8 flex-col items-center justify-center rounded-full ${level.prestige ? 'prestige-orb' : 'bg-gold-500 text-brand-950'} shadow-md ring-2 ring-brand-800"><span class="text-[7px] font-black uppercase leading-none">${level.prestige ? `★${level.prestige}` : 'úr.'}</span><span class="text-[13px] font-black leading-none">${level.level}</span></span></span>
+                    <span class="relative h-14 w-14 shrink-0" data-title-owl>${uiArt(titleOwlArt(level.realLevel, level.prestige), 'h-full w-full')}<span class="absolute -bottom-1 -right-1.5 flex h-8 w-8 flex-col items-center justify-center rounded-full ${level.prestige ? 'prestige-orb' : 'bg-gold-500 text-brand-950'} shadow-md ring-2 ring-brand-800"><span class="text-[7px] font-black uppercase leading-none">${level.prestige ? `★${level.prestige}` : 'úr.'}</span><span class="text-[13px] font-black leading-none">${level.level}</span></span></span>
                     <span class="min-w-0 flex-1">
-                        <span class="flex min-w-0 items-center gap-1.5 text-lg font-black leading-tight"><span class="truncate">${escapeHtml(titleForLevel(level.realLevel))}</span>${level.prestige && Prestige ? Prestige.markHtml(level.prestige, 'text-[11px]') : ''}</span>
+                        <span class="flex min-w-0 items-center gap-1.5 text-lg font-black leading-tight"><span class="truncate">${escapeHtml(titleForLevel(level.realLevel))}</span>${level.prestige && Prestige ? Prestige.medalHtml(level.prestige, '-my-1.5 h-8 w-8 drop-shadow-md') : ''}</span>
                         <span class="mt-1 block h-2 overflow-hidden rounded-full bg-white/25" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-400" data-progress="${Math.round(level.ratio * 100)}"></span></span>
                         <span class="mt-0.5 flex items-center justify-between gap-2 text-[11px] font-bold text-white/85"><span>${level.needed ? `${formatXp(level.into)} / ${formatXp(level.needed)} XP` : level.canPrestige ? '<span data-prestige-ready class="text-gold-300">Můžeš do prestiže ★</span>' : 'Nejvyšší úroveň'}</span>${level.needed ? `<span>do úr. ${level.level + 1}</span>` : ''}</span>
                         ${next ? `<span class="block truncate text-[11px] font-semibold leading-tight text-gold-300">Další titul: ${escapeHtml(next.title)} (úr. ${next.from})</span>` : ''}
@@ -10260,7 +10300,7 @@
             const level = levelProgress(value.xp || 0).level;
             // Prestiž (blok 32): „★1 · úr. 7 · Mudrlant“
             const pv = Prestige && value.prestige ? Prestige.view(value.xp || 0, { n: value.prestige, at: value.prestige_xp }) : null;
-            return `<p class="flex min-w-0 items-center gap-1 text-sm font-bold text-brand-700 dark:text-cream">${pv ? Prestige.markHtml(pv.prestige, 'text-[11px]') : ''}<span class="truncate">Úr. ${pv ? pv.level : level} · ${escapeHtml(titleForLevel(level))}</span></p>`;
+            return `<p class="flex min-w-0 items-center gap-1 text-sm font-bold text-brand-700 dark:text-cream">${pv ? Prestige.medalHtml(pv.prestige, 'h-5 w-5') : ''}<span class="truncate">Úr. ${pv ? pv.level : level} · ${escapeHtml(titleForLevel(level))}</span></p>`;
         };
         // Odznaky (jen u titulu podle úrovně): jedna řada malých medailí, „+N“ rozbalí všechny
         let badgesOpen = false;
@@ -10311,9 +10351,11 @@
             // Celý look tématu na jeho sově (odvozený z uloženého textu sovy v profilu, look-owl.js lookOf): zlatý štítek vedle ligy
             const look = player.owl && Owl && Owl.lookOf ? Owl.lookOf(player.owl) : null;
             const showcaseRow = theirShowcase && Showcase && view !== 'report' ? Showcase.tilesHtml(theirShowcase, showcaseHelpers(), { label: `Vitrína hráče ${playerName(player)}` }) : '';
+            // Medailon a záře prestiže: stupeň z načteného profilu hráče (prestige a prestige_xp), jinak z řádku seznamu, ze kterého se profil otevřel
+            const headPlayer = theirPrestige && theirPrestige.prestige !== undefined ? { ...player, prestige: theirPrestige.prestige } : player;
             showDialog(view === 'report' ? 'Nahlásit hráče' : 'Profil hráče', `
                 <div class="flex flex-col gap-3${showcaseRow ? ' short:gap-2' : ''}">
-                    <div class="flex items-center gap-3" data-profile-head>${avatarHtml(player, 'h-16 w-16 text-4xl')}
+                    <div class="flex items-center gap-3" data-profile-head>${prestigeGlow(headPlayer, avatarHtml(headPlayer, 'h-16 w-16 text-4xl'))}
                         <div class="min-w-0 flex-1"><p class="truncate text-xl font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(playerName(player))}</p>${theirProgress ? titleLine({ ...theirProgress, ...(theirPrestige || {}) }) : ''}${theirRating || look ? `<p class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">${theirRating ? `<span id="player-league">${leagueChip(theirRating.rating)}</span>` : ''}${look ? Owl.lookTagHtml(look) : ''}</p>` : ''}</div>
                     </div>
                     ${showcaseRow}
@@ -12970,6 +13012,8 @@
     };
     // Oslava nové úrovně v prestiži (skutečná úroveň zůstává 100, announce ji nevidí): pamatuje se poslední oslavená
     const PRESTIGE_SEEN = 'mudrlant.prestige-seen';
+    // Medailon prestiže místo sovy v kartě oslavy (stejně velký jako sova)
+    const prestigeCelebrationArt = (n) => (Prestige ? Prestige.medalHtml(n, 'h-16 w-16 -my-2 shrink-0 drop-shadow-lg') : '');
     const notePrestigeLevel = () => {
         if (!Prestige) return;
         const view = prestigeView();
@@ -12979,7 +13023,7 @@
         if (seen === key) return;
         writeJson(PRESTIGE_SEEN, key);
         if (seen && String(seen).startsWith(`${view.prestige}:`) && Number(String(seen).split(':')[1]) < view.level) {
-            showCelebration('oslava', `Prestiž ★${view.prestige}`, `Úroveň ${view.level}${view.canPrestige ? ' – můžeš do další prestiže!' : ''}`, 'level');
+            showCelebration('oslava', `Prestiž ★${view.prestige}`, `Úroveň ${view.level}${view.canPrestige ? ' – můžeš do další prestiže!' : ''}`, 'level', prestigeCelebrationArt(view.prestige));
         }
     };
     const doPrestige = async () => {
@@ -13007,7 +13051,11 @@
             writeJson(PRESTIGE_SEEN, `${next.n}:1`);
             applyLook();
             updateControlsUI();
-            showCelebration('vitez', `Prestiž ★${next.n}`, next.n === 1 ? 'Úroveň znovu od 1, rámeček Prestižní a postavička Avokádo jogín (Nastavení → Profil)' : 'Úroveň znovu od 1. Nic odemčeného se neztratilo.', 'title');
+            // Karta úrovně (Postup) a moje obrázky na záložce hned s medailonem nové prestiže
+            paintTab();
+            // Nový vzhled medailonu (★1 až ★10) se řekne: „Nový medailon prestiže: Rubín“
+            const medal = Prestige.newLook(next.n) ? `Nový medailon prestiže: ${Prestige.tierName(next.n)}. ` : '';
+            showCelebration('vitez', `Prestiž ★${next.n}`, next.n === 1 ? `${medal}Navíc rámeček Prestižní a postavička Avokádo jogín (Nastavení → Profil).` : `${medal}Úroveň znovu od 1, nic odemčeného se neztratilo.`, 'title', prestigeCelebrationArt(next.n));
         } else if (message) showToast(message);
         if (document.getElementById('dialog-overlay')) openLevels();
     };

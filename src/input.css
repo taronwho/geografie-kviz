@@ -1424,17 +1424,10 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 @keyframes chainFade { from { opacity: 0; } to { opacity: 1; } }
 
 /* ===== Motivace (blok 32): rámečky za pozvané kamarády a prestiž, tematický víkend, prestiž, Pozvi kamarády, vítězné efekty, vlastní barva obleku ===== */
-/* Rámečky (look.js PERK_FRAMES): Přátelský (tyrkysová a korálová, ruce), Parta (duhový pás s hvězdičkou), Prestižní (fialová a zlatá, hvězda) */
-.frame-pratelsky { --frame-bg: conic-gradient(from 20deg, #14b8a6, #fda4af, #2dd4bf, #fb7185, #5eead4, #f472b6, #14b8a6); }
-.frame-pratelsky::after { content: '🤝'; position: absolute; left: 50%; bottom: calc(var(--fr) * -1 - 0.22em); transform: translateX(-50%); font-size: 0.38em; line-height: 1; pointer-events: none; }
-.frame-parta { --fr: max(2.5px, 0.12em); --frame-bg: conic-gradient(from 0deg, #ef4444, #f59e0b, #eab308, #22c55e, #06b6d4, #6366f1, #d946ef, #ef4444); filter: drop-shadow(0 0 0.14em rgb(217 70 239 / 0.6)); }
-.frame-parta::after { content: '🎉'; position: absolute; right: calc(var(--fr) * -1 - 0.12em); top: calc(var(--fr) * -1 - 0.12em); font-size: 0.36em; line-height: 1; pointer-events: none; }
-.frame-prestiz { --fr: max(2.5px, 0.12em); --frame-bg: conic-gradient(from 45deg, #4c1d95, #fde68a, #7c3aed, #f59e0b, #312e81, #fef3c7, #4c1d95); filter: drop-shadow(0 0 0.18em rgb(250 204 21 / 0.75)); }
-.frame-prestiz::after { content: '★'; position: absolute; left: 50%; top: calc(var(--fr) * -1 - 0.32em); transform: translateX(-50%); font-size: 0.42em; line-height: 1; color: #facc15; text-shadow: 0 0 0.15em #7c3aed; pointer-events: none; }
-@media (prefers-reduced-motion: no-preference) {
-    .frame-parta::before { animation: frameSpin 6s linear infinite; }
-    .frame-prestiz::before { animation: frameSpin 9s linear infinite; }
-}
+/* Rámečky (look.js PERK_FRAMES, art: true): obrázkové prsteny č. 312–314 (scripts/frame-images.py) jako ostatní obrázkové rámečky */
+.frame-pratelsky::after { background-image: url(icons/frames/pratelsky.webp); }
+.frame-parta::after { background-image: url(icons/frames/parta.webp); }
+.frame-prestiz::after { background-image: url(icons/frames/prestiz.webp); }
 
 /* Tematický víkend (weekend.js): pruh na úvodu */
 .weekend-strip { background: linear-gradient(100deg, rgb(var(--brand-800)), #4338ca 70%, #7c3aed); }
@@ -1447,6 +1440,74 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 .prestige-mark { background: linear-gradient(135deg, #fde68a, #f59e0b); color: #3b0764; box-shadow: 0 0 0 1px rgb(124 58 237 / 0.45); }
 .prestige-card { background: linear-gradient(135deg, #312e81, #6d28d9 55%, #a16207); }
 .prestige-orb { background: radial-gradient(circle at 35% 30%, #fef3c7, #f59e0b 55%, #92400e); color: #3b0764; box-shadow: 0 0 0.8rem rgb(250 204 21 / 0.6); }
+/* Medailon prestiže v rohu obrázku hráče (app.js prestigeBadge, prestige.js medalHtml): asi 40 % obrázku vpravo dole, kousek přes okraj
+   obrázku i rámečku a nad prstenem obrázkového rámečku (z-index), ať je u všech rámečků na stejném místě. Obrys v barvě podkladu karty
+   (bílá, v tmavém režimu grafit) dělá drop-shadow, takže sleduje tvar medailonu i s křídly a korunou (a poslouží i obrázku po dodání). */
+.prestige-badge {
+    --prestige-ring: #ffffff; --prestige-w: max(1px, 0.05em);
+    position: absolute; right: -9%; bottom: -9%; z-index: 1; display: flex; width: 44%; height: 44%; min-width: 11px; min-height: 11px;
+    filter: drop-shadow(var(--prestige-w) 0 0 var(--prestige-ring)) drop-shadow(calc(var(--prestige-w) * -1) 0 0 var(--prestige-ring))
+        drop-shadow(0 var(--prestige-w) 0 var(--prestige-ring)) drop-shadow(0 calc(var(--prestige-w) * -1) 0 var(--prestige-ring)) drop-shadow(0 1px 1px rgb(0 0 0 / 0.3));
+}
+@media (prefers-color-scheme: dark) {
+    .prestige-badge { --prestige-ring: #2d3034; }
+}
+/* Medailon z obrázku (prestige.js ART, icons/topics/prestiz-N.webp): čtvercový rám, obrázek object-contain. Křídla ho dělají širší než vyšší,
+   takže v rohu obrázku hráče se trochu zvětší a křídla přesahují rám odznáčku (kruh medailonu pak zhruba vyplní roh). */
+.prestige-badge .prestige-art > img { scale: 1.2; }
+/* Rozsvěcování legendárního medailonu ★11–★99 (prestige.js litLevels): nad obrázkem ★10 jeho kopie, každá oříznutá na jednu oblast,
+   zesvětlená a zářící; síla l1–l4. Oblasti v % čtverce obrázku (odhad: paprsky za medailí, křídla vlevo a vpravo, prstenec, koruna
+   nahoře, diamant uprostřed) – doladit podle skutečného obrázku zde, na jednom místě. */
+.prestige-lit { position: absolute; inset: 0; pointer-events: none; }
+.prestige-lit-rays { clip-path: polygon(evenodd, 0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%, 22% 30%, 22% 84%, 78% 84%, 78% 30%, 22% 30%); }
+.prestige-lit-wing-left { clip-path: polygon(0% 22%, 28% 30%, 30% 76%, 0% 70%); }
+.prestige-lit-wing-right { clip-path: polygon(100% 22%, 72% 30%, 70% 76%, 100% 70%); }
+.prestige-lit-rim { clip-path: polygon(evenodd, 50% 26%, 70% 34%, 78% 55%, 70% 76%, 50% 84%, 30% 76%, 22% 55%, 30% 34%, 50% 26%, 50% 40%, 60% 45%, 64% 55%, 60% 65%, 50% 70%, 40% 65%, 36% 55%, 40% 45%, 50% 40%); }
+.prestige-lit-crown { clip-path: polygon(30% 0%, 70% 0%, 68% 30%, 32% 30%); }
+.prestige-lit-gem { clip-path: none; }
+/* Barvy krystalu: sytější a se světlou září, ať je každá nově rozsvícená barva vidět */
+.prestige-lit.prestige-lit-gem { filter: saturate(1.9) brightness(1.4) drop-shadow(0 0 0.06em rgb(255 255 255 / 0.95)); }
+.prestige-lit-l1 { opacity: 0.45; filter: brightness(1.1) saturate(1.25) drop-shadow(0 0 0.04em #ffd54a); }
+.prestige-lit-l2 { opacity: 0.65; filter: brightness(1.18) saturate(1.4) drop-shadow(0 0 0.06em #ffcf33); }
+.prestige-lit-l3 { opacity: 0.85; filter: brightness(1.26) saturate(1.55) drop-shadow(0 0 0.08em #ffc61a); }
+.prestige-lit-l4 { opacity: 1; filter: brightness(1.34) saturate(1.7) drop-shadow(0 0 0.1em #ffbf00); }
+/* Záře celého medailonu podle rozsvícení (i u kresby v SVG a u malého odznáčku), na ★99 jemně pulzuje */
+.prestige-aura-1 { filter: drop-shadow(0 0 1px rgb(253 230 138 / 0.7)); }
+.prestige-aura-2 { filter: drop-shadow(0 0 2px rgb(253 224 71 / 0.75)); }
+.prestige-aura-3 { filter: drop-shadow(0 0 3px rgb(250 204 21 / 0.8)) drop-shadow(0 0 1px rgb(255 255 255 / 0.6)); }
+.prestige-aura-4, .prestige-aura-max { filter: drop-shadow(0 0 4px rgb(250 204 21 / 0.85)) drop-shadow(0 0 2px rgb(255 255 255 / 0.7)); }
+@media (prefers-reduced-motion: no-preference) {
+    .prestige-aura-max { animation: prestigeShimmer 2.4s ease-in-out infinite; }
+    .prestige-aura-max > .prestige-lit { animation: prestigeLitPulse 2.4s ease-in-out infinite; }
+}
+@keyframes prestigeShimmer {
+    0%, 100% { filter: drop-shadow(0 0 3px rgb(250 204 21 / 0.75)) drop-shadow(0 0 1px rgb(255 255 255 / 0.6)); }
+    50% { filter: drop-shadow(0 0 7px rgb(253 230 138 / 0.95)) drop-shadow(0 0 3px rgb(255 255 255 / 0.9)); }
+}
+@keyframes prestigeLitPulse { 0%, 100% { opacity: 0.75; } 50% { opacity: 1; } }
+/* Záře prestiže kolem obrázku (Profil hráče, moje karta na záložce Já): rozmazaný kroužek v barvách stupně za obrázkem, který se pomalu
+   točí a dýchá; při omezeném pohybu jen stojí */
+.prestige-glow { position: relative; isolation: isolate; }
+.prestige-glow::before {
+    content: ''; position: absolute; inset: -6px; z-index: -1; border-radius: 9999px; pointer-events: none; opacity: 0.8; filter: blur(5px);
+    background: conic-gradient(from 0deg, var(--prestige-a), var(--prestige-b), var(--prestige-a), var(--prestige-b), var(--prestige-a));
+}
+.prestige-glow-1 { --prestige-a: #b4652c; --prestige-b: #f6c08a; }
+.prestige-glow-2 { --prestige-a: #7f8ca0; --prestige-b: #e9eef5; }
+.prestige-glow-3 { --prestige-a: #e09a0b; --prestige-b: #fde68a; }
+.prestige-glow-4 { --prestige-a: #10b981; --prestige-b: #fcd34d; }
+.prestige-glow-5 { --prestige-a: #8b5cf6; --prestige-b: #e9d5ff; }
+.prestige-glow-6 { --prestige-a: #e11d48; --prestige-b: #facc15; }
+.prestige-glow-7 { --prestige-a: #3b82f6; --prestige-b: #e0f2fe; }
+.prestige-glow-8 { --prestige-a: #f97316; --prestige-b: #1c1917; }
+.prestige-glow-9 { --prestige-a: #4338ca; --prestige-b: #fbbf24; }
+.prestige-glow-10 { --prestige-a: #fde68a; --prestige-b: #f472b6; }
+.prestige-glow-10::before { background: conic-gradient(from 0deg, #fde68a, #f87171, #fbbf24, #4ade80, #60a5fa, #c084fc, #fde68a); }
+@media (prefers-reduced-motion: no-preference) {
+    .prestige-glow::before { animation: prestigeSpin 8s linear infinite, prestigeBreath 2.8s ease-in-out infinite; }
+}
+@keyframes prestigeSpin { to { rotate: 360deg; } }
+@keyframes prestigeBreath { 0%, 100% { opacity: 0.55; scale: 0.97; } 50% { opacity: 0.95; scale: 1.06; } }
 
 /* Pozvi kamarády (referral.js) */
 .referral-orb { background: linear-gradient(135deg, #14b8a6, #f472b6); }

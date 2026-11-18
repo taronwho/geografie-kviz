@@ -103,7 +103,7 @@ test('SQL: Skupiny', { skip: !available && 'PostgreSQL není dostupný' }, async
     await t.test('přidání kódem: náhled, malá písmena a mezery, opakované přidání nic nezmění, neznámý kód = null', () => {
         const preview = json(as(B, `select group_preview(${lit(main.code.toLowerCase().replace(/(...)/, '$1 '))});`));
         assert.deepEqual([preview.name, preview.members, preview.member, preview.owner.display_name], ['5.B Základka', 1, false, 'Hráč 1']);
-        assert.deepEqual(Object.keys(preview.owner).sort(), ['avatar', 'color', 'display_name', 'frame', 'id', 'owl', 'title_pref']);
+        assert.deepEqual(Object.keys(preview.owner).sort(), ['avatar', 'color', 'display_name', 'frame', 'id', 'owl', 'prestige', 'title_pref']);
         const joined = json(join(B, main.code.toLowerCase()));
         assert.deepEqual([joined.id, joined.members, joined.is_owner], [main.id, 2, false]);
         assert.equal(json(join(B, main.code)).members, 2, 'podruhé se nic nezmění');
@@ -249,7 +249,7 @@ test('SQL: Skupiny', { skip: !available && 'PostgreSQL není dostupný' }, async
         assert.deepEqual([byId[C].week_score, byId[C].today], [18, null]);
         assert.deepEqual([byId[A].week_xp, byId[B].week_xp, byId[C].week_xp], [1820, 180, 0]);
         assert.deepEqual([byId[A].owner, byId[B].me, byId[A].me], [true, true, false]);
-        const allowed = ['avatar', 'color', 'display_name', 'frame', 'id', 'joined_at', 'me', 'owl', 'owner', 'title_pref', 'today', 'week_correct', 'week_days', 'week_score', 'week_time_ms', 'week_xp'];
+        const allowed = ['avatar', 'color', 'display_name', 'frame', 'id', 'joined_at', 'me', 'owl', 'owner', 'prestige', 'title_pref', 'today', 'week_correct', 'week_days', 'week_score', 'week_time_ms', 'week_xp'];
         data.rows.forEach(row => assert.deepEqual(Object.keys(row).sort(), allowed, 'žádný e-mail, rating ani XP celkem'));
         // Moje skupiny: dnešní vedoucí (dohraný pokus) a jestli jsem dnes hrál
         const mine = json(as(B, 'select my_groups();'));

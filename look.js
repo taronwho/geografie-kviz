@@ -443,9 +443,9 @@
     // odemknou (stačí jeden), prestige = od které prestiže. Odemyká je setPerks (stav ze serveru, u hosta prestiž ze zařízení), ne úroveň,
     // odznak ani truhla. bonus = album je ukáže, jen když je hráč má, a do procent je nepočítá (100 % zůstane stejně dosažitelných).
     const PERK_FRAMES = [
-        { id: 'pratelsky', title: 'Přátelský', referral: ['novacek', 'pritel-1'], bonus: true },
-        { id: 'parta', title: 'Parta', referral: ['pritel-10'], bonus: true },
-        { id: 'prestiz', title: 'Prestižní', prestige: 1, bonus: true }
+        { id: 'pratelsky', title: 'Přátelský', referral: ['novacek', 'pritel-1'], bonus: true, art: true },
+        { id: 'parta', title: 'Parta', referral: ['pritel-10'], bonus: true, art: true },
+        { id: 'prestiz', title: 'Prestižní', prestige: 1, bonus: true, art: true }
     ];
     FRAMES.push(...PERK_FRAMES);
     let perks = { referral: [], prestige: 0 };

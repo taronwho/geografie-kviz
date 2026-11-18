@@ -168,7 +168,7 @@ test('SQL: Kvíz dne', { skip: !available && 'PostgreSQL není dostupný' }, asy
         assert.ok(!board.top.find(r => r.id === B).me);
         // Jen veřejné údaje profilu: žádné e-maily, mřížka cizích hráčů ani čas začátku
         const keys = Object.keys(board.top[0]).sort();
-        assert.deepEqual(keys, ['avatar', 'color', 'correct', 'display_name', 'frame', 'id', 'me', 'owl', 'rank', 'score', 'time_ms', 'title_pref']);
+        assert.deepEqual(keys, ['avatar', 'color', 'correct', 'display_name', 'frame', 'id', 'me', 'owl', 'prestige', 'rank', 'score', 'time_ms', 'title_pref']);
         assert.doesNotMatch(last(ok(as(A, 'select daily_quiz_board();'))), /@example\.com/);
         // Top 1: jsem mimo, moje místo zůstává
         const top1 = json(as(A, 'select daily_quiz_board(null, 1);'));
