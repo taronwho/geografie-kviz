@@ -822,6 +822,9 @@
     const DEV_REWARDS_BACKUP = 'mudrlant.dev.rewardsBackup';
     const DEV_SEASON_XP = 'mudrlant.dev.seasonXp';
     const DEV_LEARNED_BACKUP = 'mudrlant.dev.backup.learned';
+    // Prestiž na zkoušku: stav prestiže a poslední oslavená úroveň se zálohují se zkušebním postupem (do účtu se nic nezapíše)
+    const DEV_PRESTIGE_BACKUP = 'mudrlant.dev.backup.prestige';
+    const PRESTIGE_KEYS = ['mudrlant.prestige', 'mudrlant.prestige-seen'];
     const devOn = () => { try { return localStorage.getItem(DEV_KEY) === '1'; } catch (e) { return false; } };
     const devActive = () => { try { return localStorage.getItem(DEV_BACKUP) !== null; } catch (e) { return false; } };
     const devApply = (kind) => {
@@ -838,6 +841,13 @@
                     applyLook();
                 }
                 if (Look && Look.setDevUnlockAll) Look.setDevUnlockAll(false);
+                const prestigeBackup = localStorage.getItem(DEV_PRESTIGE_BACKUP);
+                if (prestigeBackup !== null) {
+                    const saved = JSON.parse(prestigeBackup) || {};
+                    PRESTIGE_KEYS.forEach(key => { if (saved[key] === null || saved[key] === undefined) localStorage.removeItem(key); else localStorage.setItem(key, saved[key]); });
+                    localStorage.removeItem(DEV_PRESTIGE_BACKUP);
+                    applyLook();
+                }
                 const backup = localStorage.getItem(DEV_BACKUP);
                 if (backup !== null) { if (backup === 'null') localStorage.removeItem(KEYS.progress); else localStorage.setItem(KEYS.progress, backup); localStorage.removeItem(DEV_BACKUP); }
                 // Poznané položky se vrátí také (vývojářské „Vše“ je přepisuje); bez zálohy se vymyšlené jen odstraní
@@ -848,6 +858,14 @@
             }
             if (localStorage.getItem(DEV_BACKUP) === null) { localStorage.setItem(DEV_BACKUP, localStorage.getItem(KEYS.progress) ?? 'null'); localStorage.setItem(DEV_LEARNED_BACKUP, localStorage.getItem(KEYS.learned) ?? 'null'); }
             if (Rewards && localStorage.getItem(DEV_REWARDS_BACKUP) === null) localStorage.setItem(DEV_REWARDS_BACKUP, localStorage.getItem(Rewards.KEY) ?? 'null');
+            if (localStorage.getItem(DEV_PRESTIGE_BACKUP) === null) localStorage.setItem(DEV_PRESTIGE_BACKUP, JSON.stringify(Object.fromEntries(PRESTIGE_KEYS.map(key => [key, localStorage.getItem(key)]))));
+            // Prestiž na zkoušku: XP přesně na další prestiž (z úrovně 100, nebo v prestiži na její úroveň 100); přechod pak jen v zařízení
+            if (kind === 'prestige' && Prestige) {
+                const progress = loadProgress();
+                progress.xp = Math.max(progress.xp, Prestige.nextAt(Prestige.clean(readJson(Prestige.KEY))));
+                saveProgress(progress);
+                return;
+            }
             // Truhla Mudrlanta na zkoušku: připravená truhla v den, který ještě žádnou nemá (otevře ji app.js hned po tlačítku)
             if (kind === 'chest' && Rewards) {
                 let state = loadRewards();
@@ -1175,7 +1193,7 @@
         <div class="mt-3 rounded-2xl border-2 border-dashed border-amber-400/70 p-2.5">
             <p class="mb-1.5 flex items-center justify-between text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400"><span>Vývojářský režim</span><span class="font-bold normal-case tracking-normal">${devActive() ? 'zkušební postup' : 'tvůj postup'}</span></p>
             ${Social ? `<p data-dev-schema class="mb-1.5 text-[11px] font-semibold leading-snug ${schemaHave === REQUIRED_SCHEMA ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-800 dark:text-amber-200'}">Databáze: ${schemaHave === undefined ? 'verze schématu zatím nezjištěna' : schemaHave === null ? 'schéma bez verze (starší než 1)' : `schéma ${schemaHave}`} · aplikace potřebuje ${REQUIRED_SCHEMA}${schemaHave === REQUIRED_SCHEMA ? ' ✓' : schemaHave === undefined ? '' : schemaHave > REQUIRED_SCHEMA ? ' – aplikace je starší, obnov ji' : ' – spusť supabase/schema.sql'}</p>` : ''}
-            <div class="flex flex-wrap gap-1">${[['all', 'Odemknout úplně vše'], ['chest', 'Otevřít Truhlu Mudrlanta'], ['season', 'Sezóna: všech 20 stupňů'], ['max', 'Vše (úr. 100)'], ['level:10', 'Úr. 10'], ['level:25', 'Úr. 25'], ['level:50', 'Úr. 50'], ['level:75', 'Úr. 75'], ['badges', 'Všechny odznaky'], ['nobadges', 'Žádné odznaky'], ['nostars', 'Vymazat hvězdičky'], ['bulb', 'Vrátit žárovku'], ['tips', 'Obnovit tipy'], ['gold', 'Příští otázka zlatá'], ['gold-chest', 'Otevřít Zlatou truhlu']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${label}</button>`).join('')}${devActive() ? '<button type="button" data-dev="restore" class="rounded-lg bg-amber-700 px-2 py-1 text-[11px] font-black text-white active:scale-95">Vrátit můj postup</button>' : ''}</div>
+            <div class="flex flex-wrap gap-1">${[['all', 'Odemknout úplně vše'], ['chest', 'Otevřít Truhlu Mudrlanta'], ['season', 'Sezóna: všech 20 stupňů'], ['max', 'Vše (úr. 100)'], ['level:10', 'Úr. 10'], ['level:25', 'Úr. 25'], ['level:50', 'Úr. 50'], ['level:75', 'Úr. 75'], ['badges', 'Všechny odznaky'], ['nobadges', 'Žádné odznaky'], ['nostars', 'Vymazat hvězdičky'], ['bulb', 'Vrátit žárovku'], ['tips', 'Obnovit tipy'], ['gold', 'Příští otázka zlatá'], ['gold-chest', 'Otevřít Zlatou truhlu'], ...(Prestige ? [['prestige', 'Prestiž na zkoušku']] : [])].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${label}</button>`).join('')}${devActive() ? '<button type="button" data-dev="restore" class="rounded-lg bg-amber-700 px-2 py-1 text-[11px] font-black text-white active:scale-95">Vrátit můj postup</button>' : ''}</div>
             ${Social ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Turnaj (boti)</p>
             <div class="flex flex-wrap gap-1">${[['tour-bots', '+31 botů'], ['tour-start', 'Spustit hned'], ['tour-play', 'Boti odehrají kolo'], ['tour-next', 'Další kolo'], ['tour-reset', 'Smazat odehraný turnaj'], ['tour-clear', 'Smazat boty']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-900 active:scale-95 dark:bg-emerald-900/50 dark:text-emerald-100">${label}</button>`).join('')}</div>
             <p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Speciální turnaj a hlasování</p>
@@ -2342,6 +2360,7 @@
             if (devButton && devButton.dataset.dev === 'gold' && Gold) { saveGold({ ...loadGold(), since: Gold.PITY - 1 }); openSettings('Hotovo: příští otázka bude zlatá', '[data-dev="gold"]'); return; }
             if (devButton && devButton.dataset.dev === 'gold-chest' && Gold) { devApply('gold-chest'); saveGold({ ...loadGold(), ready: loadGold().ready + 1 }); closeSettings(); updateControlsUI(); openChestOverlay(true); return; }
             if (devButton && devButton.dataset.dev === 'season') { devApply('season'); closeSettings(); updateControlsUI(); openSeason(); return; }
+            if (devButton && devButton.dataset.dev === 'prestige') { devApply('prestige'); applyLook(); closeSettings(); updateControlsUI(); openLevels(); return; }
             if (devButton) { devApply(devButton.dataset.dev); updateControlsUI(); openSettings(`Hotovo: ${devButton.textContent.trim()}`, `[data-dev="${devButton.dataset.dev}"]`); return; }
             const lockedOwl = event.target.closest('[data-locked-owl]');
             if (lockedOwl && Look) {
@@ -12914,7 +12933,7 @@
     let prestigeConfirm = false;
     // Stav ze serveru převezme zařízení (víc prestiží vyhrává; host si ho nechá)
     const syncPrestige = async (user) => {
-        if (!Prestige || !Social || !Social.getPrestige || !user) return;
+        if (!Prestige || !Social || !Social.getPrestige || !user || devActive()) return;
         try {
             const row = await Social.getPrestige(user.id);
             const remote = Prestige.fromServer(row);
@@ -12948,7 +12967,8 @@
         let message = '';
         const user = signedUser();
         try {
-            if (user && Social && Social.prestigeUp) {
+            // Zkušební postup (vývojářský režim): prestiž jen v zařízení, server by ji podle skutečných XP v účtu odmítl
+            if (user && Social && Social.prestigeUp && !devActive()) {
                 // XP v účtu musí stačit: nejdřív se nahraje postup ze zařízení
                 await syncProgress();
                 const row = await Social.prestigeUp();

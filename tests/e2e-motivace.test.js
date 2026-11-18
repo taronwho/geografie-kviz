@@ -190,6 +190,33 @@ test('motivace: tematický víkend, prestiž, pozvi kamarády, reakce a efekty, 
         await context.close();
     });
 
+    await t.test('prestiž na zkoušku ve vývojářském režimu: přihlášený hráč s 30 000 XP, prestiž jen v zařízení (bez prestige_up), Vrátit můj postup ji zruší', async () => {
+        const db = newDb();
+        const { context, tab, log } = await setup(browser, { ...login(), ...progress(30000), 'mudrlant.dev': '1' }, { db, viewport: { width: 360, height: 640 } });
+        await tab.goto(`${ORIGIN}/`);
+        await waitForHome(tab);
+        await nav.settings(tab);
+        await tab.click('[data-dev="prestige"]');
+        await tab.waitForSelector('[data-prestige-panel] [data-prestige-go]');
+        await tab.click('[data-prestige-go]');
+        await tab.waitForSelector('[data-prestige-confirm]');
+        await tab.click('[data-prestige-confirm-go]');
+        await tab.waitForFunction(() => /★1/.test(document.getElementById('status-text').textContent));
+        assert.ok(!db.calls.includes('prestige_up'), 'na zkoušku se server neptá');
+        assert.equal(JSON.parse(await tab.evaluate(() => localStorage.getItem('mudrlant.prestige'))).n, 1);
+        await shot(tab, 'prestiz-na-zkousku');
+        // Vrátit můj postup: prestiž i XP jako předtím
+        await tab.evaluate(() => { const overlay = document.getElementById('dialog-overlay'); if (overlay) overlay.remove(); document.querySelectorAll('.celebration-overlay, #celebration-overlay').forEach(node => node.remove()); });
+        await nav.settings(tab);
+        await tab.click('[data-dev="restore"]');
+        await tab.waitForFunction(() => localStorage.getItem('mudrlant.prestige') === null);
+        assert.equal(JSON.parse(await tab.evaluate(() => localStorage.getItem('mudrlant.progress'))).xp, 30000);
+        assert.doesNotMatch(await tab.textContent('#status-text'), /★/);
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
     await t.test('pozvi kamarády: karta v okně Přátelé a řádek na záložce Já, okno s kódem a odměnami, vyzvednutí (rámeček a XP)', async () => {
         const db = newDb();
         const { context, tab, log } = await setup(browser, { ...login(), ...progress(30000), }, { db, viewport: { width: 360, height: 640 } });
