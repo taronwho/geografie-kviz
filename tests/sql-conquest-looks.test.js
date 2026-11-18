@@ -85,7 +85,7 @@ test('SQL: výplně území a vzácné znaky v Dobývání', { skip: !available 
         assert.equal(q('select array_to_string(conquest_castles(), \',\')'), C.CASTLE_SETS.map(c => c.id).join(','));
         assert.equal(q('select array_to_string(conquest_patterns(), \',\')'), C.PATTERNS.map(p => p.id).join(','));
         assert.equal(q('select array_to_string(conquest_rare_emblems(), \',\')'), C.RARE_EMBLEMS.map(e => e.id).join(','));
-        assert.equal(q('select count(*) from conquest_links where sea'), '58', 'námořní spoje oběma směry na čtyřech mapách');
+        assert.equal(q('select count(*) from conquest_links where sea'), '70', 'námořní spoje oběma směry na čtyřech mapách (Amerika i Karibik z jihu a Grónsko)');
         assert.equal(q(`select sea from conquest_links where map = 'evropa' and a = 'Q142' and b = 'Q145'`), 't', 'Francie–Velká Británie přes moře');
         assert.equal(q(`select sea from conquest_links where map = 'evropa' and a = 'Q142' and b = 'Q31'`), 'f', 'Francie–Belgie po souši');
     });
