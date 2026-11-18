@@ -216,7 +216,7 @@ test('tip Vzory a vzácné znaky (Dobývání): přihlášenému, který Dobýv�
     assert.doesNotMatch(tip.text, /\b(získal|získala|vyhrál|vyhrála|dobyl|dobyla|otevřel|otevřela)\b/);
 });
 
-test('tip Sady hradů (Dobývání, schéma 40): přihlášenému, který Dobývání už otevřel; všechny tři sady a jak je získat, bez rodu hráče', () => {
+test('tip Sady hradů (Dobývání, schéma 40 a 41): přihlášenému, který Dobývání už otevřel; všech šest sad a odkud jsou, bez rodu hráče', () => {
     const at = (ctx, state = Tips.EMPTY) => Tips.pick({ ...state, seen: Tips.TIPS.filter(tip => tip.id !== 'dobyvani-hrady').map(tip => tip.id) }, ctx);
     const visited = Tips.touch(Tips.EMPTY, 'conquest');
     assert.equal(at(base({ counters: { answered: 50 }, signedIn: true })), null, 'kdo Dobývání neotevřel, nejdřív dostane tip Dobývání');
@@ -225,7 +225,7 @@ test('tip Sady hradů (Dobývání, schéma 40): přihlášenému, který Dobýv
     assert.equal(tip.id, 'dobyvani-hrady');
     assert.equal(tip.icon, 'castle');
     assert.deepEqual(tip.action, { kind: 'conquest', label: 'Otevřít Dobývání' });
-    assert.match(tip.text, /Gotický hrad za 10 Pevností[\s\S]*Orientální palác za 25 vyhraných bitev[\s\S]*Japonský hrad za 15\. stupeň Sezóny ve 3 sezónách[\s\S]*Barva a znak/);
+    assert.match(tip.text, /Gotický, Orientální, Japonský, Perníkový, Parostrojní nebo Ledový[\s\S]*Barva a znak/);
     assert.doesNotMatch(tip.text, /\b(získal|získala|vyhrál|vyhrála|postavil|postavila|otevřel|otevřela)\b/);
 });
 
