@@ -28,6 +28,13 @@
         castle2: 'hrad-domov-2',  // č. 276 domovský hrad s hradbami
         castle3: 'hrad-domov-3',  // č. 277 domovský hrad jako pevnost (citadela s korunou)
         treasure: 'poklad',       // č. 263 truhla s pokladem
+        // Stavby na území a ozdoby (blok 41, docs/DOBYVANI-STAVBY.md): strážní věž, důl, zřícenina (bez vrstvy -barva), tábor obléhatelů
+        // (praporky v barvě útočníka) a pomník vítěze (praporek v barvě vítěze)
+        tower: 'vez',             // č. 409
+        mine: 'dul',              // č. 410
+        ruins: 'zricenina',       // č. 411
+        camp: 'tabor',            // č. 412
+        monument: 'pomnik',       // č. 413
         compass: 'vetrna-ruzice', // č. 235
         ship: 'plachetnice',      // č. 238
         monster: 'morska-prisera', // č. 237
@@ -329,7 +336,11 @@
     const CASTLE_SETS = [
         { id: 'goticky', name: 'Gotický hrad', how: 'Postav Pevnost na domovském hradu 10×', stat: 'home_fortress', need: 10 },
         { id: 'orientalni', name: 'Orientální palác', how: 'Vyhraj 25 bitev o území', stat: 'battles', need: 25 },
-        { id: 'japonsky', name: 'Japonský hrad', how: 'Sezóna Mudrlanta: 15. stupeň ve 3 různých sezónách', stat: 'season15', need: 3 }
+        { id: 'japonsky', name: 'Japonský hrad', how: 'Sezóna Mudrlanta: 15. stupeň ve 3 různých sezónách', stat: 'season15', need: 3 },
+        // Další sady (blok 41, obrázky č. 414–437)
+        { id: 'pernikovy', name: 'Perníkový hrad', how: 'Kvíz dne: série 100 dní', stat: 'daily_streak', need: 100 },
+        { id: 'parostrojni', name: 'Parostrojní pevnost', how: 'Vyhraj 100 bitev o území', stat: 'battles', need: 100 },
+        { id: 'ledovy', name: 'Ledový palác', how: 'Poraz Bosse týdne 10×', stat: 'boss', need: 10 }
     ];
     const CASTLE_SET_BY_ID = Object.fromEntries(CASTLE_SETS.map(set => [set.id, set]));
     const castleSetOf = (id) => (id && CASTLE_SET_BY_ID[id]) || null;
@@ -560,21 +571,62 @@
         const me = players.find(player => player.me || player.id === meId) || null;
         const owners = new Map();
         // s = konec ochrany po Ankhu vzkříšení (blok 39, čas serveru; jen dokud trvá)
-        for (const row of state.territories || []) owners.set(row.t, { owner: row.o || null, level: row.l || 0, home: Boolean(row.h), treasure: Boolean(row.p), shield: row.s || null });
+        // b = stavba (blok 41: 'wall' opevnění, 'tower' strážní věž, 'mine' důl); starší databáze ji nepošle: opevnění podle úrovně
+        for (const row of state.territories || []) owners.set(row.t, { owner: row.o || null, level: row.l || 0, home: Boolean(row.h), treasure: Boolean(row.p), shield: row.s || null,
+            building: row.h ? null : BUILDING_KINDS.includes(row.b) ? row.b : (row.l > 0 ? 'wall' : null) });
         const ownerOf = (id) => (owners.get(id) || {}).owner || null;
         // Celé regiony podle hráčů
         const regionsOf = (playerId) => data.regions.filter(region => region.t.every(id => ownerOf(id) === playerId)).map(region => region.id);
         const territoriesOf = (playerId) => data.t.filter(item => ownerOf(item.id) === playerId).map(item => item.id);
-        const scoreOf = (playerId) => territoriesOf(playerId).length + REGION_POINTS * regionsOf(playerId).length;
+        // Body: území, důl +1 (blok 41), celý region +2
+        const minesOf = (playerId) => territoriesOf(playerId).filter(id => owners.get(id).building === 'mine').length;
+        const scoreOf = (playerId) => territoriesOf(playerId).length + MINE_POINTS * minesOf(playerId) + REGION_POINTS * regionsOf(playerId).length;
         const mine = me ? new Set(territoriesOf(me.id)) : new Set();
         const targets = new Set();
         for (const id of mine) for (const next of index.neighbours.get(id) || []) if (!mine.has(next)) targets.add(next);
         const ranking = rank(players.map(player => ({ ...player, score: Number.isFinite(player.score) ? player.score : scoreOf(player.id) })));
         // Otevřené bitvy o území (blok 25; conquest_state a conquest_pulse: sieges). battles = databáze bitvy umí (jinak útok postaru).
         const sieges = new Map((Array.isArray(state.sieges) ? state.sieges : []).filter(siege => siege && siege.status !== 'resolved' && index.byId.has(siege.territory)).map(siege => [siege.territory, siege]));
-        return { state, data, index, players, bySeat, byId, me, owners, ownerOf, regionsOf, territoriesOf, scoreOf, mine, targets, ranking, sieges, battles: Array.isArray(state.sieges),
-            running: state.status === 'running', finished: state.status === 'finished', budget: state.budget || null, offset: 0 };
+        const running = state.status === 'running';
+        return { state, data, index, players, bySeat, byId, me, owners, ownerOf, regionsOf, territoriesOf, minesOf, scoreOf, mine, targets, ranking, sieges, battles: Array.isArray(state.sieges),
+            running, finished: state.status === 'finished', budget: state.budget || null, offset: 0,
+            ruins: running ? ruinsOf(state, owners, byId) : new Map(), monument: state.status === 'finished' ? monumentOf(state, ranking) : null };
     };
+    // --- Stavby na území a ozdoby (blok 41, docs/DOBYVANI-STAVBY.md) ---
+    const BUILDING_KINDS = ['wall', 'tower', 'mine'];
+    // Důl: území s dolem má na konci hry 2 body místo 1
+    const MINE_POINTS = 1;
+    // Zříceniny: území, kde v tomto kole padlo opevnění nebo strážní věž (tahy kola s b 'wall'/'tower') a od té doby na něm nic nestojí.
+    // Mapa { území: sada hradů toho, komu stavba padla } (zřícenina v jeho stylu)
+    const ruinsOf = (state, owners, byId) => {
+        const period = state.budget && Number.isInteger(state.budget.period) ? state.budget.period : null;
+        const ruins = new Map();
+        if (period === null) return ruins;
+        for (const move of state.moves || []) {
+            if (move.n !== period || !['wall', 'tower'].includes(move.b) || !['capture', 'breach', 'respawn'].includes(move.r)) continue;
+            if (move.r === 'breach' && move.l > 0) continue;
+            const info = owners.get(move.t);
+            if (!info || info.home || info.building) continue;
+            ruins.set(move.t, (byId.get(move.v) || {}).castle || null);
+        }
+        return ruins;
+    };
+    // Pomník vítěze: domovské území hráče na 1. místě (dohraná hra), pokud ho drží; jinak null
+    const monumentOf = (state, ranking) => {
+        const winner = ranking.find(player => player.place === 1);
+        if (!winner) return null;
+        const home = (state.territories || []).find(row => row.h && row.o === winner.id);
+        return home ? { t: home.t, owner: winner } : null;
+    };
+    // Co jde na vlastním území postavit (Postavit): Opevnit (Palisáda), Strážní věž, Důl; effect = jednořádkový účinek do listu území
+    const BUILD_OPTIONS = [
+        { id: 'fortify', icon: 'palisade', name: 'Palisáda', effect: 'Útok ji jen pobourá' },
+        { id: 'tower', icon: 'tower', name: 'Strážní věž', effect: 'Bráníš i zdaleka' },
+        { id: 'mine', icon: 'mine', name: 'Důl', effect: '2 body místo 1' }
+    ];
+    const BUILDING_NAMES = { tower: 'Strážní věž', mine: 'Důl' };
+    // Databáze stavby zná (blok 41: území ve stavu hry mají b), jinak jen opevnění postaru
+    const buildsOn = (view) => Boolean(view && view.state && Array.isArray(view.state.territories) && view.state.territories.some(row => row && 'b' in row));
     // --- Ankh vzkříšení (blok 39) ---
     // Databáze Ankh vzkříšení zná (stav hry má items.can_revive); jinak se hráč bez území vrátí sám (Návrat do hry do schématu 38)
     const reviveOn = (view) => Boolean(view && view.state && view.state.items && typeof view.state.items.can_revive === 'boolean');
@@ -623,11 +675,15 @@
         const left = view.budget ? view.budget.left : 0;
         if (!view.running || !view.me) return { attack: false, fortify: false, reason: view.finished ? 'Hra skončila.' : '' };
         // Obléhané území: majitel ho neopevní, ostatní se jen přidají do bitvy (okno bitvy v sheetHtml)
-        if (view.sieges && view.sieges.has(id)) return { attack: false, fortify: false, siege: true, reason: info.owner === view.me.id ? 'Obléhané území teď nejde opevnit.' : '' };
+        if (view.sieges && view.sieges.has(id)) return { attack: false, fortify: false, siege: true, reason: info.owner === view.me.id ? (info.home || !buildsOn(view) ? 'Obléhané území teď nejde opevnit.' : 'Na obléhaném území teď stavět nejde.') : '' };
         if (info.owner === view.me.id) {
+            // Strážní věž a důl (blok 41) jsou jednoúrovňové a na území patří jen jedna stavba
+            if (!info.home && BUILDING_NAMES[info.building]) return { attack: false, fortify: false, reason: `Na území stojí ${BUILDING_NAMES[info.building] === 'Důl' ? 'důl' : 'strážní věž'}. Na jedno území patří jen jedna stavba.` };
             const max = maxLevel(info.home);
             if (info.level >= max) return { attack: false, fortify: false, reason: info.home ? 'Domovské území je opevněné naplno (Pevnost).' : 'Území je opevněné naplno (Hradba). Pevnost jde postavit jen na domovském území.' };
-            return { attack: false, fortify: left > 0, reason: left > 0 ? '' : 'Tahy na tohle období už nemáš.', ...(left > 0 ? {} : { spent: true }) };
+            // Území bez stavby mimo domov: Postavit (Palisáda, Strážní věž, Důl), jinak jen opevnit o úroveň
+            const build = !info.home && !info.building && buildsOn(view);
+            return { attack: false, fortify: left > 0 && !build, ...(left > 0 && build ? { build: true } : {}), reason: left > 0 ? '' : 'Tahy na tohle období už nemáš.', ...(left > 0 ? {} : { spent: true }) };
         }
         if (!view.targets.has(id)) {
             if (view.mine.size) return { attack: false, fortify: false, reason: 'Útočit jde jen na území, které sousedí s tvým.' };
@@ -2048,7 +2104,8 @@
         return item.n.split(' ').map(part => (part.length < 2 ? part : part.includes('-') ? part.replace(/^[^-]+/, word) : word(part))).join(' ');
     };
     // Záhlaví otázky tahu: „Útok na Francii“, „Opevnění Francie“
-    const moveTitle = (kind, item) => (kind === 'fortify' ? `Opevnění ${formsOf(item).of}` : `Útok na ${accusativeOf(item)}`);
+    // Stavby (blok 41): „Strážní věž · Francie“, „Důl · Francie“
+    const moveTitle = (kind, item) => (kind === 'fortify' ? `Opevnění ${formsOf(item).of}` : BUILDING_NAMES[kind] ? `${BUILDING_NAMES[kind]} · ${item ? item.n : ''}` : `Útok na ${accusativeOf(item)}`);
 
     // --- Kronika tažení a přehrání ---
     const PARTICIPLE = { n: ['dobyto', 'opevněno'], f: ['dobyta', 'opevněna'], m: ['dobyt', 'opevněn'], p: ['dobyty', 'opevněny'] };
@@ -2076,8 +2133,16 @@
                 const word = PARTICIPLE[genderOf(t)][0];
                 items.push({ icon: move.h ? 'castle' : 'flag', tone: 'capture', title: name(t), text: move.h ? 'Domovský hrad dobyt' : `${word.charAt(0).toUpperCase()}${word.slice(1)}`, actor, victim });
                 if (move.p) items.push({ icon: 'gem', tone: 'gold', title: name(t), text: 'Poklad nalezen', actor });
+                // Stavby (blok 41): věž dobytím padne, důl dobyvatel získá
+                if (move.b === 'tower') items.push({ icon: 'hammer', tone: 'breach', title: name(t), text: 'Strážní věž padla', actor, victim });
+                if (move.b === 'mine') items.push({ icon: 'pickaxe', tone: 'gold', title: name(t), text: 'Důl získán', actor, victim });
             } else if (move.r === 'breach') items.push({ icon: 'hammer', tone: 'breach', title: name(t), text: `${LEVELS[move.l + 1] ? LEVELS[move.l + 1].name : 'Opevnění'} pobořena`, actor, victim });
+            else if (move.r === 'fortify' && move.b === 'tower') items.push({ icon: 'eye', tone: 'fortify', title: name(t), text: 'Strážní věž postavena', actor });
+            else if (move.r === 'fortify' && move.b === 'mine') items.push({ icon: 'pickaxe', tone: 'fortify', title: name(t), text: 'Důl postaven', actor });
             else if (move.r === 'fortify') items.push({ icon: 'shield', tone: 'fortify', title: name(t), text: `${PARTICIPLE[genderOf(t)][1].charAt(0).toUpperCase()}${PARTICIPLE[genderOf(t)][1].slice(1)} na ${LEVELS[move.l].acc}`, actor });
+            // Obrana strážní věží (blok 41): majitel odpověděl nejrychleji
+            else if (move.k === 'defend' && move.r === 'repel') items.push({ icon: 'shield-check', tone: 'defend', title: name(t), text: 'Útok odražen', actor });
+            else if (move.k === 'defend') items.push({ icon: 'eye', tone: 'neutral', title: name(t), text: 'Obrana nevyšla', actor });
             else if (move.r === 'fail' && move.k === 'attack' && move.v) items.push({ icon: 'shield-check', tone: 'defend', title: name(t), text: 'Útok odražen', actor, victim });
             // Bitva o území (blok 25): správně, ale pomaleji než vítěz
             else if (move.r === 'outrun') items.push({ icon: 'swords', tone: 'neutral', title: name(t), text: 'Prohraná bitva', actor, victim });
@@ -2110,8 +2175,12 @@
     // Stavby: základ a nad ním vrstva střech a vlaječek, kterou filtr cqb-<barva> (buildingTint v defs mapy) vynásobí barvou majitele.
     // Sady hradů (CASTLE_SETS, blok 40) mají vlastní druhy <základ>-<sada> (castle-goticky … castle3-goticky, palisade-goticky,
     // wall-goticky): domovský hrad hrad-<sada>-<stupeň>, opevnění ostatních území opevneni-<sada>-1 (Palisáda) a -2 (Hradba).
-    const BUILDINGS = ['palisade', 'wall', 'fortress', 'castle', 'castle1', 'castle2', 'castle3'];
-    const SET_BUILDINGS = { castle: 'hrad-%-0', castle1: 'hrad-%-1', castle2: 'hrad-%-2', castle3: 'hrad-%-3', palisade: 'opevneni-%-1', wall: 'opevneni-%-2' };
+    // Strážní věž, důl a zřícenina (blok 41) jsou v každé sadě hradů (vez-<sada>, dul-<sada>, zricenina-<sada>); tábor a pomník jsou pro všechny stejné
+    const BUILDINGS = ['palisade', 'wall', 'fortress', 'castle', 'castle1', 'castle2', 'castle3', 'tower', 'mine', 'ruins', 'camp', 'monument'];
+    const SET_BUILDINGS = { castle: 'hrad-%-0', castle1: 'hrad-%-1', castle2: 'hrad-%-2', castle3: 'hrad-%-3', palisade: 'opevneni-%-1', wall: 'opevneni-%-2',
+        tower: 'vez-%', mine: 'dul-%', ruins: 'zricenina-%' };
+    // Zřícenina je bez barvy majitele (nemá vrstvu -barva)
+    const UNTINTED = (kind) => kind === 'ruins' || kind.startsWith('ruins-');
     const BUILDING_ART = Object.fromEntries([
         ...BUILDINGS.filter(kind => ART[kind]).map(kind => [kind, ART[kind]]),
         ...CASTLE_SETS.flatMap(set => Object.entries(SET_BUILDINGS).map(([kind, file]) => [`${kind}-${set.id}`, file.replace('%', set.id)]))
@@ -2120,7 +2189,7 @@
     // filterId: vlastní filtr barvy (náhled sady v okně Barva a znak), jinak cqb-<barva> z defs mapy
     const iconMarkup = (kind, colorId = null, filterId = null) => {
         if (BUILDING_ART[kind]) {
-            const tint = colorId ? `<image class="cq-tint" href="${buildingUrl(BUILDING_ART[kind], '-barva')}" x="0" y="0" width="24" height="24" filter="url(#${filterId || `cqb-${colorOf(colorId).id}`})"/>` : '';
+            const tint = colorId && !UNTINTED(kind) ? `<image class="cq-tint" href="${buildingUrl(BUILDING_ART[kind], '-barva')}" x="0" y="0" width="24" height="24" filter="url(#${filterId || `cqb-${colorOf(colorId).id}`})"/>` : '';
             return `<image href="${buildingUrl(BUILDING_ART[kind])}" x="0" y="0" width="24" height="24"/>${tint}`;
         }
         if (kind === 'treasure' && ART.treasure) return `<image href="${artUrl(ART.treasure)}" x="0" y="0" width="24" height="24"/>`;
@@ -2128,11 +2197,14 @@
     };
     // Domovský hrad roste s opevněním (palisáda, hradby, pevnost); bez obrázku úrovně zůstane základní hrad s kamínky úrovně.
     // set = sada hradů majitele (conquest_players.castle): domov i opevnění ostatních území v jejím stylu (Pevnost je jen na domově)
-    const levelIcon = (level, home, set = null) => {
-        const base = home ? (level && ART[`castle${level}`] ? `castle${level}` : 'castle') : ['', 'palisade', 'wall', 'fortress'][level] || '';
+    const levelIcon = (level, home, set = null) => setIcon(home ? (level && ART[`castle${level}`] ? `castle${level}` : 'castle') : ['', 'palisade', 'wall', 'fortress'][level] || '', set);
+    // Druh značky v sadě hradů majitele (castle-goticky, tower-ledovy…), jinak základní
+    const setIcon = (base, set = null) => {
         const sada = castleSetOf(set);
         return base && sada && BUILDING_ART[`${base}-${sada.id}`] ? `${base}-${sada.id}` : base;
     };
+    // Značka stavby na území: domovský hrad a opevnění podle úrovně, strážní věž a důl (blok 41) ve stylu sady majitele
+    const territoryIcon = (info, set = null) => (!info.home && (info.building === 'tower' || info.building === 'mine') ? setIcon(info.building, set) : levelIcon(info.level, info.home, set));
     // Filtr barvy majitele pro střechy a vlaječky: šedá vrstva (prostřední jas 0,78) × barva × 1,28 = plná barva, světlá strana
     // střechy světlejší, stinná tmavší. Tmavé barvy (černá) se zesvětlí, jinak by střecha splynula s obrysem.
     const buildingTint = (colorId, id = null) => {
@@ -2337,10 +2409,12 @@
     };
     // Značky na území: opevnění nebo domovský hrad, poklad, vlaječka majitele (velikost 24 jednotek mapy; aplikace je při přiblížení zmenšuje)
     const MARK = 22;
-    const ICON_SCALE = { castle: 1.3, castle1: 1.34, castle2: 1.38, castle3: 1.44, fortress: 1.25, wall: 1.18, palisade: 1.16, treasure: 0.7 };
+    const ICON_SCALE = { castle: 1.3, castle1: 1.34, castle2: 1.38, castle3: 1.44, fortress: 1.25, wall: 1.18, palisade: 1.16, treasure: 0.7,
+        // Stavby a ozdoby (blok 41): věž a důl jako opevnění, zřícenina nízká a široká, tábor u pečeti bitvy menší (ozdoba), pomník jako hrad
+        tower: 1.22, mine: 1.2, ruins: 1.14, camp: 0.82, monument: 1.05 };
     // Sady hradů: stejná velikost jako základní stavby téhož stupně (obrázky mají stejný rámeček 192 × 192 a stojí na stejné čáře);
     // výjimka je nízká japonská hradba (zeď s bránou jen ve spodní polovině obrázku), ta je o kus větší, ať na mapě nezanikne
-    const SET_SCALE = { 'wall-japonsky': 1.36 };
+    const SET_SCALE = { 'wall-japonsky': 1.36, 'ruins-japonsky': 1.4 };
     CASTLE_SETS.forEach(set => Object.keys(SET_BUILDINGS).forEach(kind => { ICON_SCALE[`${kind}-${set.id}`] = SET_SCALE[`${kind}-${set.id}`] || ICON_SCALE[kind]; }));
     const marksFor = (item, view) => {
         const info = view.owners.get(item.id);
@@ -2348,10 +2422,23 @@
         const owner = info.owner ? view.byId.get(info.owner) : null;
         const [x, y] = item.a;
         let inner = '';
-        const icon = levelIcon(info.level, info.home, owner ? owner.castle : null);
+        const siege = view.sieges && view.sieges.get(item.id);
+        // Zřícenina (blok 41): území bez stavby, kde v tomto kole padlo opevnění nebo věž (ve stylu sady toho, komu padla)
+        const ruin = view.ruins && view.ruins.has(item.id) && !territoryIcon(info) ? setIcon('ruins', view.ruins.get(item.id)) : '';
+        const icon = territoryIcon(info, owner ? owner.castle : null) || ruin;
         // Hrad a opevnění větší, poklad menší (je to jen bonus, ne stavba); spodní okraj ikon zůstává na stejné čáře
         const iconAt = (k, left) => `translate(${(left * k * MARK).toFixed(2)} ${(-(k - 0.05) * MARK).toFixed(2)}) scale(${(k * MARK / 24).toFixed(3)})`;
-        if (icon) inner += `<g class="cq-icon" data-icon="${icon}" transform="${iconAt(ICON_SCALE[icon] || 1, -0.05)}">${iconMarkup(icon, owner ? owner.flag_color : null)}${icon === 'castle' && info.level ? levelPips(info.level) : ''}</g>`;
+        if (icon) inner += `<g class="cq-icon" data-icon="${icon}" transform="${iconAt(ICON_SCALE[icon] || 1, -0.05)}">${iconMarkup(icon, owner && icon !== ruin ? owner.flag_color : null)}${icon === 'castle' && info.level ? levelPips(info.level) : ''}</g>`;
+        // Tábor obléhatelů (blok 41): vpravo od stavby na stejné zemi, praporky v barvě útočníka (kdo bitvu začal)
+        if (siege) {
+            const attacker = view.byId.get(siege.started_by) || siege.participants.find(player => !player.defender) || null;
+            const k = ICON_SCALE[icon] || 1;
+            inner += `<g class="cq-icon cq-camp" data-icon="camp" transform="translate(${((icon ? 0.9 * k : 0.35) * MARK).toFixed(2)} ${(-(ICON_SCALE.camp - 0.05) * MARK).toFixed(2)}) scale(${(ICON_SCALE.camp * MARK / 24).toFixed(3)})">${iconMarkup('camp', attacker ? attacker.flag_color : null)}</g>`;
+        }
+        // Pomník vítěze (blok 41): na domovském území vítěze po konci hry, vpravo od hradu na stejné zemi (bitvy už neběží)
+        if (view.monument && view.monument.t === item.id) {
+            inner += `<g class="cq-icon cq-monument" data-icon="monument" transform="translate(${((icon ? 0.86 * (ICON_SCALE[icon] || 1) : 0.35) * MARK).toFixed(2)} ${(-(ICON_SCALE.monument - 0.05) * MARK).toFixed(2)}) scale(${(ICON_SCALE.monument * MARK / 24).toFixed(3)})">${iconMarkup('monument', view.monument.owner.flag_color)}</g>`;
+        }
         if (info.treasure && !owner) inner += `<g class="cq-icon cq-treasure" data-icon="treasure" transform="${iconAt(ICON_SCALE.treasure, -0.5)}">${iconMarkup('treasure')}</g>`;
         if (view.sieges && view.sieges.has(item.id)) inner += siegeBadge(view.sieges.get(item.id), view, icon);
         const shieldLeftMs = owner && info.shield && !(view.sieges && view.sieges.has(item.id)) ? shieldLeft(view, item.id) : 0;
@@ -2382,7 +2469,8 @@
     const levelPips = (level) => Array.from({ length: level }, (_, i) => `<rect x="${7 + i * 3.6}" y="23" width="2.8" height="2.8" rx="0.6" fill="#c9a227" stroke="#3d3428" stroke-width="0.6"/>`).join('');
     // Malá mapa (náhled hry): území podle majitelů (owners = { území: místo hráče }); highlightSeat = moje barva výrazně
     // seatPatterns = { pořadí: vzor } – výplň území jako na mapě (dlaždice větší, ať je v malém náhledu vidět)
-    const thumbSvg = (data, owners = {}, seatColors = {}, cls = 'h-12 w-14', seatPatterns = {}) => {
+    // monument = území s pomníkem vítěze (dohraná hra, blok 41: conquest_lobby), praporek v barvě vítěze
+    const thumbSvg = (data, owners = {}, seatColors = {}, cls = 'h-12 w-14', seatPatterns = {}, monument = null) => {
         const defs = [];
         const ids = {};
         for (const [seat, patternId] of Object.entries(seatPatterns || {})) {
@@ -2396,6 +2484,13 @@
             const color = seat !== undefined && seatColors[seat] ? colorOf(seatColors[seat]).hex : null;
             return `<path d="${item.d}" class="${color ? 'cq-thumb-owned' : 'cq-thumb-land'}"${color ? ` fill="${ids[seat] ? `url(#${ids[seat]})` : color}"` : ''}/>`;
         });
+        const spot = monument && indexMap(data).byId.get(monument);
+        if (spot && seatColors[owners[monument]]) {
+            const size = Math.max(data.w, data.h) * 0.2;
+            const fid = nextUid('cqh');
+            defs.push(buildingTint(seatColors[owners[monument]], fid));
+            parts.push(`<g class="cq-thumb-monument" data-icon="monument" transform="translate(${(spot.a[0] - size / 2).toFixed(1)} ${(spot.a[1] - size * 0.92).toFixed(1)}) scale(${(size / 24).toFixed(3)})">${iconMarkup('monument', seatColors[owners[monument]], fid)}</g>`);
+        }
         return `<svg viewBox="0 0 ${data.w} ${data.h}" class="${cls} cq-thumb" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">${defs.length ? `<defs>${defs.join('')}</defs>` : ''}<path class="cq-thumb-bg" d="${data.land}"/>${parts.join('')}</svg>`;
     };
 
@@ -2591,7 +2686,7 @@
             const budget = first.budget || { left: 0, total: first.actions };
             const more = running.length > 1 ? ` · +${running.length - 1}` : '';
             const row = `<button type="button" data-action="conquest-open" class="flex min-w-0 flex-1 items-center gap-2.5 text-left" aria-label="Otevřít Dobývání">
-                    <span class="cq-thumb-frame flex h-12 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl">${data ? thumbSvg(data, first.owners || {}, seatColors, 'h-12 w-14', seatPatterns) : art(ART.card, 'h-10 w-10')}</span>
+                    <span class="cq-thumb-frame flex h-12 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl">${data ? thumbSvg(data, first.owners || {}, seatColors, 'h-12 w-14', seatPatterns, first.status === 'finished' ? first.monument : null) : art(ART.card, 'h-10 w-10')}</span>
                     ${head}<span class="truncate text-[11.5px] font-bold text-slate-600 dark:text-slate-300">${esc(mapTitle(first.map))} · zbývá ${esc(timeLeft((parseTime(first.ends_at) || now) - now))}${esc(more)}</span>
                     <span class="flex items-center gap-1 text-[11.5px] font-black text-brand-800 dark:text-gold-200" data-conquest-moves>${meSeat !== undefined ? pennantSvg(first.players.find(p => p.me).flag_color, first.players.find(p => p.me).emblem, 'h-3.5 w-4') : ''}Tahy ${budget.left}/${budget.total}</span></span>
                 </button>
@@ -2687,7 +2782,7 @@
             button = `<button type="button" data-cq-play="${esc(game.id)}" class="${LIGHT_BUTTON} shrink-0"><i data-lucide="trophy" class="h-4 w-4"></i>Výsledky</button>`;
         }
         return `<li data-cq-game="${esc(game.id)}" class="flex items-center gap-2 ${CARD} p-1.5">
-            <span class="cq-thumb-frame flex h-12 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl">${data ? thumbSvg(data, game.owners || {}, seatColors, 'h-12 w-14', seatPatterns) : ''}</span>
+            <span class="cq-thumb-frame flex h-12 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl">${data ? thumbSvg(data, game.owners || {}, seatColors, 'h-12 w-14', seatPatterns, game.status === 'finished' ? game.monument : null) : ''}</span>
             <span class="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span class="flex min-w-0 items-center gap-1.5"><span class="truncate text-[14px] font-black leading-tight text-slate-800 dark:text-slate-100">${esc(mapTitle(game.map))}</span>${game.preset ? chip(PRESET_NAMES[game.preset] || 'Rychlá hra', 'zap') : ''}${game.visibility === 'private' ? '<i data-lucide="lock" class="h-3.5 w-3.5 shrink-0 text-slate-400"></i>' : ''}</span>
                 <span class="truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${esc(game.status === 'lobby' ? `${minutesLabel(gameMinutes(game))} · ${actionsLabel(game.actions, game.period)}` : status)}</span>
@@ -2917,12 +3012,13 @@
                 const id = item ? item.id : '';
                 const name = item ? item.name : 'Základní';
                 const { have, need } = item ? lookProgress(looks, item) : { have: 0, need: 0 };
-                return `<button type="button" role="radio" aria-checked="${(id || null) === (sada ? sada.id : null)}" aria-label="${esc(name)}${locked ? ` (zamčený, ${have} z ${need})` : ''}" title="${esc(name)}" data-cq-castle="${id}"${locked ? ' data-cq-locked="castle"' : ''} class="cq-stamp${locked ? ' cq-look-locked' : ''} relative flex min-h-[5.6rem] flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1">`
-                    + `${castlePreviewSvg(color, id || null, 'h-12 w-20')}<span class="cq-ledger-title text-[13px] leading-tight">${esc(name)}</span>`
-                    + (locked ? `<span class="flex items-center gap-1 text-[11.5px] font-black leading-none text-amber-900/80 dark:text-gold-200/80"><i data-lucide="lock" class="h-3 w-3"></i>${have}/${need}</span>` : '')
+                return `<button type="button" role="radio" aria-checked="${(id || null) === (sada ? sada.id : null)}" aria-label="${esc(name)}${locked ? ` (zamčený, ${have} z ${need})` : ''}" title="${esc(name)}" data-cq-castle="${id}"${locked ? ' data-cq-locked="castle"' : ''} class="cq-stamp${locked ? ' cq-look-locked' : ''} relative flex min-h-[4.6rem] min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg px-0.5 py-1">`
+                    + `${castlePreviewSvg(color, id || null, 'h-8 w-[3.2rem]')}<span class="max-w-full text-center text-[10.5px] font-black leading-[1.15] tracking-tight text-amber-950 dark:text-gold-100">${esc(name)}</span>`
+                    + (locked ? `<span class="flex items-center gap-0.5 text-[10.5px] font-black leading-none text-amber-900/80 dark:text-gold-200/80"><i data-lucide="lock" class="h-3 w-3"></i>${have}/${need}</span>` : '')
                     + '</button>';
             };
-            body = `<div role="radiogroup" aria-label="Hrad" class="grid grid-cols-2 gap-1" data-cq-castles>${tile(null, false)}${CASTLE_SETS.map(item => tile(item, !lookOwned(looks, 'castle', item.id))).join('')}</div>`
+            // Základní a 6 sad (blok 41) ve čtyřech sloupcích (dva řádky), ať se okno vejde i na 360×640
+            body = `<div role="radiogroup" aria-label="Hrad" class="grid grid-cols-4 gap-1" data-cq-castles>${tile(null, false)}${CASTLE_SETS.map(item => tile(item, !lookOwned(looks, 'castle', item.id))).join('')}</div>`
                 + (lockedInfo('castle') || infoLine(sada ? `Sada <b>${esc(sada.name)}</b>: domovský hrad i opevnění tvých území` : 'Sady hradů získáš v Dobývání a v Sezóně Mudrlanta.', false));
         } else {
             const swatch = (id, name, locked) => {
@@ -3169,6 +3265,8 @@
     const fighterFlag = (view, player, cls = 'h-3.5 w-[1.15rem]') => { const known = view.byId.get(player.id) || player; return pennantSvg(known.flag_color, known.emblem, cls); };
     const seconds = (ms) => `${(Math.max(0, ms) / 1000).toLocaleString('cs-CZ', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s`;
     const RISK_TEXT = 'Riskantní: všichni dostanou stejnou otázku a 60 s. Území získá nejrychlejší správná odpověď. Kdo odpoví správně, ale pomaleji, nezíská nic a tah ztratí.';
+    // Obrana strážní věží (blok 41)
+    const DEFEND_TEXT = 'Strážní věž hlásí útok. Dostaneš stejnou otázku a 60 s. Odpovíš-li správně a nejrychleji, útok odrazíš. Obrana stojí 1 tah.';
     // Okno bitvy v listu území: kdo bojuje, kolik zbývá na přidání, Přidat se do bitvy (s varováním), nebo proč to nejde
     const siegeBoxHtml = (view, id, siege, { offset = 0, now = Date.now() } = {}) => {
         const info = view.owners.get(id) || {};
@@ -3179,7 +3277,11 @@
         let action = '';
         if (siege.mine && !siege.answered) action = `<button type="button" data-cq="siege-resume" class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="swords" class="h-5 w-5"></i> Vrátit se do bitvy</button>`;
         else if (siege.mine) action = '<p class="text-[12.5px] font-semibold text-slate-600 dark:text-slate-300">Odpověď máš odeslanou. Výsledek přijde, až odpoví ostatní.</p>';
-        else if (mineOwner) action = '<p class="text-[12.5px] font-semibold text-slate-600 dark:text-slate-300">Tvoje území je obléhané. Opevnit ho teď nejde, výsledek uvidíš na mapě.</p>';
+        // Strážní věž (blok 41): majitel se přidá jako obránce odkudkoli
+        else if (mineOwner && siege.can_defend && open) action = `<p class="cq-risk flex gap-1.5 rounded-lg px-2 py-1.5 text-[11.5px] font-semibold leading-snug"><i data-lucide="eye" class="mt-px h-3.5 w-3.5 shrink-0"></i><span>${esc(DEFEND_TEXT)}</span></p>`
+            + `<button type="button" data-cq="siege-join" data-defend="1" class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="shield-check" class="h-5 w-5"></i> Bránit</button>`;
+        else if (mineOwner && info.building === 'tower' && open && !siege.mine) action = `<p class="text-[12.5px] font-semibold text-slate-600 dark:text-slate-300">${esc((view.budget ? view.budget.left : 0) > 0 ? 'Bránit se teď nejde.' : 'Bránit by šlo, ale tahy na tohle kolo už nemáš.')}</p>`;
+        else if (mineOwner) action = `<p class="text-[12.5px] font-semibold text-slate-600 dark:text-slate-300">${info.home || !buildsOn(view) ? 'Tvoje území je obléhané. Opevnit ho teď nejde, výsledek uvidíš na mapě.' : 'Tvoje území je obléhané. Stavět na něm teď nejde, výsledek uvidíš na mapě.'}</p>`;
         else if (siege.can_join && open) action = `<p class="cq-risk flex gap-1.5 rounded-lg px-2 py-1.5 text-[11.5px] font-semibold leading-snug"><i data-lucide="zap" class="mt-px h-3.5 w-3.5 shrink-0"></i><span>${esc(RISK_TEXT)}</span></p>`
             + `<button type="button" data-cq="siege-join" class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="swords" class="h-5 w-5"></i> Přidat se do bitvy</button>`;
         else {
@@ -3189,10 +3291,22 @@
         }
         return `<div class="cq-siege-box rounded-xl px-2.5 py-2" data-cq-siege-box="${esc(siege.id)}">
             <div class="flex items-center gap-1.5"><i data-lucide="swords" class="h-4 w-4 shrink-0"></i><span class="min-w-0 flex-1 truncate text-[13px] font-black">Probíhá bitva</span>
-                ${open && !siege.mine && !mineOwner ? `<span class="shrink-0 text-[12px] font-black tabular-nums">přidat se: <span data-cq-until="${joinUntil}">${clockText(joinUntil - now)}</span></span>` : ''}</div>
+                ${open && !siege.mine && (!mineOwner || siege.can_defend) ? `<span class="shrink-0 text-[12px] font-black tabular-nums">${mineOwner ? 'bránit' : 'přidat se'}: <span data-cq-until="${joinUntil}">${clockText(joinUntil - now)}</span></span>` : ''}</div>
             <div class="mt-1 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[12px] font-bold">${fighters}</div>
         </div>${action}`;
     };
+    // Postavit (blok 41): tři stavby jako dlaždice (obrázek ve stylu sady hráče, název, účinek, cena 1 tah)
+    const buildArtSvg = (kind, set, colorId) => {
+        const icon = setIcon(kind, set);
+        const fid = nextUid('cqh');
+        return `<svg viewBox="0 0 24 24" class="h-11 w-11 shrink-0" aria-hidden="true" focusable="false"><defs>${colorId ? buildingTint(colorId, fid) : ''}</defs>${iconMarkup(icon, colorId, fid)}</svg>`;
+    };
+    const buildHtml = (set, colorId) => `<div class="cq-build flex flex-col gap-1" data-cq-build-options>
+            <span class="text-[11.5px] font-black uppercase tracking-wider text-amber-900 dark:text-amber-200">Postavit</span>
+            <div class="grid grid-cols-3 gap-1.5">${BUILD_OPTIONS.map(option => `<button type="button" data-cq="build" data-build="${option.id}" class="cq-build-option btn-3d-light flex min-w-0 flex-col items-center gap-0.5 rounded-xl px-1 pb-1.5 pt-1 text-center active:scale-95">
+                ${buildArtSvg(option.icon, set, colorId)}<b class="w-full truncate text-[12.5px] font-black leading-tight text-slate-900 dark:text-white">${esc(option.name)}</b>
+                <span class="w-full truncate text-[10.5px] font-semibold leading-tight text-slate-600 dark:text-slate-300">${esc(option.effect)}</span>
+                <span class="cq-build-cost mt-0.5 rounded-full px-1.5 text-[10.5px] font-black leading-[1.35]">1 tah</span></button>`).join('')}</div></div>`;
     const sheetHtml = (view, id, { source = null, offset = 0, now = Date.now() } = {}) => {
         const item = view.index.byId.get(id);
         const info = view.owners.get(id) || { owner: null, level: 0, home: false, treasure: false };
@@ -3204,20 +3318,25 @@
         // Odkud útok vede, na výsledek ani otázku vliv nemá (jen kudy vede šipka na mapě): z nejbližšího vlastního území, bez volby
         const from = source && sources.includes(source) ? source : sources[0];
         const levelName = info.level ? LEVELS[info.level].name : 'Bez opevnění';
+        // Stavba (blok 41): strážní věž, důl (+1 bod), jinak opevnění; zřícenina z tohoto kola
+        const buildingFact = !info.home && info.building === 'tower' ? '<span class="flex items-center gap-1" data-cq-building="tower"><i data-lucide="eye" class="h-4 w-4"></i>Strážní věž</span>'
+            : !info.home && info.building === 'mine' ? '<span class="flex items-center gap-1 text-amber-700 dark:text-amber-300" data-cq-building="mine"><i data-lucide="pickaxe" class="h-4 w-4"></i>Důl: +1 bod</span>'
+                : `<span class="flex items-center gap-1"><i data-lucide="${info.home ? 'castle' : 'shield'}" class="h-4 w-4"></i>${esc(info.home ? `Domov · ${levelName}` : view.ruins && view.ruins.has(id) ? 'Zřícenina' : levelName)}</span>`;
         const facts = [
             `<span class="flex items-center gap-1">${owner ? pennantSvg(owner.flag_color, owner.emblem, 'h-4 w-5') : '<i data-lucide="map-pin" class="h-4 w-4"></i>'}${esc(owner ? (owner.me ? 'Tvoje území' : owner.display_name) : 'Neutrální území')}</span>`,
-            `<span class="flex items-center gap-1"><i data-lucide="${info.home ? 'castle' : 'shield'}" class="h-4 w-4"></i>${esc(info.home ? `Domov · ${levelName}` : levelName)}</span>`,
+            buildingFact,
             region ? `<span class="flex items-center gap-1" data-cq-region><i data-lucide="map" class="h-4 w-4"></i>${esc(regionLine(view, region, regionOwner))}</span>` : '',
             info.treasure && !owner ? '<span class="flex items-center gap-1 text-amber-700 dark:text-amber-300"><i data-lucide="gem" class="h-4 w-4"></i>Poklad: +1 tah</span>' : ''
         ].filter(Boolean).join('');
         // Chráněné po Ankhu vzkříšení (blok 39): zašedlé Zaútočit a odpočet (conquest-ui.js přepisuje data-cq-shield-at)
         const until = actions.shielded ? Math.round(now + shieldLeft(view, id, now)) : 0;
-        const buttons = actions.fortify
+        const buttons = actions.build ? buildHtml(owner ? owner.castle : null, owner ? owner.flag_color : null)
+            : actions.fortify
             ? `<button type="button" data-cq="fortify" class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="castle" class="h-5 w-5"></i> Opevnit na ${esc(LEVELS[info.level + 1].acc)}</button>`
             : actions.attack ? `<button type="button" data-cq="attack" data-source="${esc(from || '')}" class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="swords" class="h-5 w-5"></i> Zaútočit</button>`
                 : actions.shielded ? `<button type="button" disabled data-cq-shielded class="${LIGHT_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="shield" class="h-5 w-5"></i> Zaútočit</button>` : '';
         const hint = actions.shielded ? `<p class="cq-shield-note flex items-center gap-1.5 text-[12.5px] font-semibold leading-snug"><i data-lucide="shield-check" class="h-4 w-4 shrink-0"></i><span>Území je chráněné po vzkříšení ještě <b data-cq-shield-at="${until}">${shieldSeconds(until - now)} s</b>. Pak na něj půjde zaútočit.</span></p>`
-            : !buttons && actions.reason ? `<p class="text-[12.5px] font-semibold leading-snug text-slate-600 dark:text-slate-300">${esc(actions.reason)}</p>${actions.spent ? extraOfferHtml(view) : ''}${actions.out ? reviveRowHtml(view) : ''}` : '';
+            : !buttons && actions.reason && !(actions.siege && (view.sieges.get(id) || {}).can_defend) ? `<p class="text-[12.5px] font-semibold leading-snug text-slate-600 dark:text-slate-300">${esc(actions.reason)}</p>${actions.spent ? extraOfferHtml(view) : ''}${actions.out ? reviveRowHtml(view) : ''}` : '';
         const harder = actions.attack && info.level ? `<p class="text-[11.5px] font-semibold text-slate-500 dark:text-slate-400">Opevněné území: správná odpověď opevnění jen pobourá o jednu úroveň, otázka je těžší.</p>` : '';
         const siege = view.sieges && view.sieges.get(id);
         const battle = siege ? siegeBoxHtml(view, id, siege, { offset, now }) : '';
@@ -3343,6 +3462,7 @@
         const winner = fighters.find(player => player.winner) || null;
         const meWon = winner && fighterName(view, winner) === 'ty';
         const outcome = !winner ? 'Nikdo neodpověděl správně, útok je odražen.'
+            : siege.outcome === 'repel' ? (meWon ? 'Útok je odražen, území i věž zůstávají tvoje.' : `Obrana vyšla: ${fighterName(view, winner)} útok odráží.`)
             : siege.outcome === 'breach' ? (meWon ? 'Vyhráváš: opevnění je pobořené.' : `Vyhrává ${fighterName(view, winner)}: opevnění je pobořené.`)
                 : meWon ? 'Vyhráváš a území je tvoje.' : `Vyhrává ${fighterName(view, winner)} a získává území.`;
         const label = (player) => (player.winner ? `<span class="flex items-center gap-0.5 text-amber-700 dark:text-gold-300"><i data-lucide="crown" class="h-3.5 w-3.5"></i>vítězství${player.answer_ms !== null && player.answer_ms !== undefined ? ` · ${seconds(player.answer_ms)}` : ''}</span>`
@@ -3358,12 +3478,12 @@
     };
     // Bitvy, do kterých se můžu přidat (nebo se do své vrátit), jako štítky dole na mapě; klepnutí otevře list území s oknem bitvy
     const siegeChipsHtml = (view, { offset = 0, now = Date.now() } = {}) => [...view.sieges.values()]
-        .filter(siege => (siege.mine && !siege.answered) || (siege.can_join && !siege.mine && (localTime(siege.join_until, offset) || 0) > now))
+        .filter(siege => (siege.mine && !siege.answered) || ((siege.can_join || siege.can_defend) && !siege.mine && (localTime(siege.join_until, offset) || 0) > now))
         .slice(0, 2).map(siege => {
             const item = view.index.byId.get(siege.territory);
             const until = siege.mine ? localTime(siege.deadline, offset) : localTime(siege.join_until, offset);
             return `<button type="button" data-cq-siege-open="${esc(siege.territory)}" class="cq-siege-chip pointer-events-auto flex max-w-full items-center gap-1.5 rounded-full py-1 pl-2 pr-2.5 text-[12.5px] font-black">
-                <i data-lucide="swords" class="h-4 w-4 shrink-0"></i><span class="min-w-0 truncate">${esc(siege.mine ? 'Vrátit se do bitvy' : `Bitva o ${accusativeOf(item)}`)}</span>
+                <i data-lucide="${siege.can_defend && !siege.mine ? 'shield-check' : 'swords'}" class="h-4 w-4 shrink-0"></i><span class="min-w-0 truncate">${esc(siege.mine ? 'Vrátit se do bitvy' : siege.can_defend ? `Bránit: ${item.n}` : `Bitva o ${accusativeOf(item)}`)}</span>
                 ${until !== null ? `<span class="shrink-0 tabular-nums opacity-80" data-cq-until="${until}">${clockText(until - now)}</span>` : ''}</button>`;
         }).join('');
     // --- Další kolo (blok 26): když všichni odehrají své tahy, okno s hráči a políčky; kdo chce další kolo hned, má fajfku. Až ji mají
@@ -3430,8 +3550,8 @@
         }
         const options = question.choices.map((choice, i) => `<button type="button" data-cq-answer="${i}" ${answered !== null || gone.has(i) ? 'disabled' : ''}${gone.has(i) ? ' data-cq-gone' : ''} class="cq-choice${choiceState(i, answered, right)}${goneState(i, gone, fresh)} flex min-h-[3rem] min-w-0 items-center justify-center break-words rounded-xl px-2 py-1 text-center text-[13.5px] font-bold leading-tight text-slate-800 short:min-h-[2.75rem] dark:text-slate-100">${esc(choice.label)}</button>`).join('');
         const solved = right !== null ? question.choices[right] : null;
-        const fortify = kind === 'fortify';
-        const icon = fortify ? 'castle' : 'swords';
+        const fortify = kind !== 'attack';
+        const icon = kind === 'tower' ? 'eye' : kind === 'mine' ? 'pickaxe' : fortify ? 'castle' : 'swords';
         const after = answered === null || (!solved && answered !== -1) ? '' : `<p class="mt-1.5 shrink-0 text-center text-[12.5px] font-bold text-slate-600 dark:text-slate-300">${answered === -1 ? `Čas vypršel.${solved ? ` Správně: ${esc(solved.label)}` : ''}` : right === answered ? 'Správně!' : `Správně: ${esc(solved.label)}`}</p>`;
         const tall = Boolean(content.image);
         return `<div data-cq-full class="cq-sheet cq-qfull${answered === null ? ' cq-sheet-in' : ''} pointer-events-auto relative flex ${tall ? 'h-full' : 'max-h-full'} flex-col rounded-t-2xl p-2.5 pb-3 short:p-2" role="dialog" aria-label="Otázka">
@@ -3493,19 +3613,19 @@
             <div class="cq-podium flex items-end gap-1.5 px-1 pt-1">${podium}</div>
             ${prize}
             <section class="cq-ledger rounded-2xl px-2 pb-1.5 pt-1" aria-label="Konečné pořadí">${playersStripHtml(view)}</section>
-            <p class="px-1 text-[11.5px] font-semibold leading-snug text-slate-500 dark:text-slate-400">Body: 1 za každé území a ${REGION_POINTS} za celý region. Při shodě vyhrává, kdo svého počtu bodů dosáhl dřív.</p>
+            <p class="px-1 text-[11.5px] font-semibold leading-snug text-slate-500 dark:text-slate-400">Body: 1 za každé území (s dolem 2) a ${REGION_POINTS} za celý region. Při shodě vyhrává, kdo svého počtu bodů dosáhl dřív.</p>
             <button type="button" data-cq="replay" class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="repeat" class="h-5 w-5"></i> Přehrát celé tažení</button></div>`;
     };
 
     // Jak se hraje (okno)
-    // Jak se hraje: pět záložek (každá se vejde na 360×640 bez posouvání), dole tlačítko na další záložku
-    const HELP_TABS = [['zaklady', 'Základy'], ['utok', 'Útok'], ['regiony', 'Regiony'], ['konec', 'Konec'], ['pomucky', 'Pomůcky']];
+    // Jak se hraje: šest záložek (každá se vejde na 360×640 bez posouvání), dole tlačítko na další záložku
+    const HELP_TABS = [['zaklady', 'Základy'], ['utok', 'Útok'], ['stavby', 'Stavby'], ['regiony', 'Regiony'], ['konec', 'Konec'], ['pomucky', 'Pomůcky']];
     const HELP_PAGES = {
         zaklady: [
             ['Cíl', 'Mít na konci hry co nejvíc bodů. Body jsou za území, která na konci držíš (víc v záložce Konec).'],
             ['Začátek', 'Hra začne, až je plná, nebo až jsou v ní aspoň 2 hráči a všichni klepli na „Chci hrát“. Každý dostane jedno domovské území s hradem, ostatní území jsou volná.'],
             ['Kola', 'Hra je rozdělená na kola: podle nastavení 5 min, 10 min, hodina, nebo den. Když všichni dohrají tahy dřív, můžou klepnout na „Chci další kolo“ a další začne po odpočtu 10 s.'],
-            ['Tahy', 'V každém kole máš několik tahů (počítadlo s meči vpravo nahoře: 3/5 = zbývají 3 z 5). Jeden tah je jedna otázka: útok, nebo opevnění. Nevyužité tahy na konci kola propadnou.'],
+            ['Tahy', 'V každém kole máš několik tahů (počítadlo s meči vpravo nahoře: 3/5 = zbývají 3 z 5). Jeden tah je jedna otázka: útok, stavba, nebo obrana. Nevyužité tahy na konci kola propadnou.'],
             ['Vzhled', 'Výplně území, vzácné znaky a sady hradů získáš za úspěchy a vybereš v okně Barva a znak.']
         ],
         utok: [
@@ -3514,7 +3634,14 @@
             ['Bitva', 'Útok začne obléhání. Kdo s územím sousedí, může se přidat. Všichni dostanou stejnou otázku a každý má 60 s.'],
             ['Správně', 'Území získá nejrychlejší správná odpověď. U opevněného území vítěz ubere jednu úroveň opevnění.'],
             ['Pozor', 'Kdo odpoví správně, ale pomaleji, nezíská nic a tah ztratí. Stejně jako při špatné odpovědi nebo po čase.'],
-            ['Opevnění', 'Klepni na své území a na „Opevnit“: Palisáda, Hradba, Pevnost (jen domov). Obléhané území nejde opevnit.']
+            ['Opevnění', 'Na svém území postavíš Palisádu, Strážní věž, nebo Důl (záložka Stavby). Obléhané území nejde opevnit.']
+        ],
+        stavby: [
+            ['Postavit', 'Klepni na své území bez stavby a vyber: Palisáda, Strážní věž, nebo Důl. Stavba stojí 1 tah. Na území stojí jen jedna, obléhané stavět nejde.'],
+            ['Opevnění', 'Palisáda jde zvýšit na Hradbu. Útok opevnění jen pobourá o úroveň, teprve pak jde území dobýt. Domovský hrad se opevňuje až na Pevnost.'],
+            ['Strážní věž', 'Útok na území s věží můžeš bránit odkudkoli: klepni na „Bránit“ (1 tah). Odpovíš-li správně a nejrychleji, útok odrazíš. Vyhraje-li útočník, věž padne.'],
+            ['Důl', 'Území s dolem má na konci hry 2 body místo 1. Důl nemá obranu a při dobytí nepadá: získá ho dobyvatel.'],
+            ['Na mapě', 'Zřícenina: tady v tomto kole padlo opevnění nebo věž. Tábor stojí u obléhaného území. Pomník vítěze zdobí po konci hry jeho domov.'],
         ],
         regiony: [
             ['Region', 'Skupina sousedních území. Například na mapě Evropy Britské ostrovy (Spojené království a Irsko) nebo Pobaltí (Estonsko, Lotyšsko, Litva), na mapě Česka Střední Čechy (Praha a Středočeský kraj).'],
@@ -3525,7 +3652,7 @@
         ],
         konec: [
             ['Konec', 'Hra skončí po čase nastaveném při založení. Kolik zbývá, ukazuje nápis pod názvem mapy.'],
-            ['Body', `1 bod za každé území, které na konci držíš, a ${REGION_POINTS} body navíc za každý celý region. Vyhrává, kdo má nejvíc bodů. Při shodě rozhoduje, kdo svého počtu bodů dosáhl dřív.`],
+            ['Body', `1 bod za každé území na konci hry (s dolem 2) a ${REGION_POINTS} body za každý celý region. Vyhrává, kdo má nejvíc bodů. Při shodě rozhoduje, kdo svého počtu bodů dosáhl dřív.`],
             ['Ankh vzkříšení', 'Když přijdeš o všechna území, sám se do hry nevrátíš. S pomůckou Ankh vzkříšení si vybereš volné nebo neopevněné území (ne domovský hrad) a hraješ dál, 60 s je chráněné. Bez ní hru jen sleduješ.'],
             ['Odměny', `1. místo: odznak Dobyvatel a ${REWARD_XP[0]} XP, 2. místo: ${REWARD_XP[1]} XP, 3. místo: ${REWARD_XP[2]} XP. Poslední místo nedostane nic, ve hře dvou hráčů tedy dostane odměnu jen 1. místo. Odměny jsou jen ve hře aspoň 3 hráčů nebo ve hře, která trvá aspoň den, a jen když máš aspoň 3 vlastní tahy a aspoň 1 bod.`]
         ],
@@ -3542,7 +3669,7 @@
         const index = HELP_TABS.findIndex(([id]) => id === current);
         const next = HELP_TABS[index + 1];
         return `<div data-cq-help="${current}" class="flex flex-col gap-2.5">
-            <div role="tablist" class="grid grid-cols-5 gap-0.5 rounded-2xl bg-slate-200/70 p-1 dark:bg-slate-800">${HELP_TABS.map(([id, label]) => `<button type="button" role="tab" aria-selected="${id === current}" data-cq-help-tab="${id}" class="flex min-h-[2.5rem] min-w-0 items-center justify-center rounded-xl px-0.5 text-[11.5px] font-black tracking-tight ${id === current ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-300'}">${label}</button>`).join('')}</div>
+            <div role="tablist" class="grid grid-cols-6 gap-0.5 rounded-2xl bg-slate-200/70 p-1 dark:bg-slate-800">${HELP_TABS.map(([id, label]) => `<button type="button" role="tab" aria-selected="${id === current}" data-cq-help-tab="${id}" class="flex min-h-[2.5rem] min-w-0 items-center justify-center rounded-xl px-0 text-[10.5px] font-black tracking-tighter ${id === current ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-300'}">${label}</button>`).join('')}</div>
             <div class="flex flex-col gap-2 text-[13px] leading-snug text-slate-700 dark:text-slate-200">${HELP_PAGES[current].map(([title, text]) => `<p><b class="text-slate-900 dark:text-white">${title}:</b> ${text}</p>`).join('')}</div>
             ${next ? `<button type="button" data-cq-help-tab="${next[0]}" class="${LIGHT_BUTTON} w-full">Dál: ${next[1]} <i data-lucide="chevron-right" class="h-4 w-4"></i></button>` : ''}
         </div>`;
@@ -3552,6 +3679,8 @@
         ART, MAPS, MAP_BY_ID, DURATIONS, PERIODS, PERIOD_MINUTES, LENGTHS, TEMPOS, tempoOf, defaultMinutes, minutesLabel, gameMinutes, roundLabel, MIN_PLAYERS, MAX_PLAYERS, MAX_ACTIONS, MAX_GAMES, MAX_OWN_LOBBIES, REGION_POINTS, LEVELS, REWARD_XP,
         COLORS, COLOR_BY_ID, EMBLEMS, EMBLEM_BY_ID, RARE_EMBLEMS, RARE_EMBLEM_BY_ID, PATTERNS, PATTERN_BY_ID, patternOf, emblemArtUrl, patternUrl, colorOf, emblemOf,
         CASTLE_SETS, CASTLE_SET_BY_ID, castleSetOf, castlesOn, castleAllowed, castlePreviewSvg, territoryCastleSvg, BUILDING_ART, ICON_SCALE,
+        // Stavby a ozdoby (blok 41)
+        BUILD_OPTIONS, BUILDING_KINDS, BUILDING_NAMES, MINE_POINTS, DEFEND_TEXT, setIcon, territoryIcon, ruinsOf, monumentOf, buildHtml,
         lookItem, lookOwned, emblemAllowed, patternAllowed, lookProgress, lookHowText, lookNews, lookNewsArt, fillSwatchSvg, patternTintRows, tileKey, COLORED_PATTERNS, inkOf, isLight, emblemInk, luminance, maxLevel, rewardFor,
         durationLabel, periodLabel, actionsLabel, timeLeft, movesWord, pointsWord, playersWord, territoriesWord, regionsWord, nextPeriodAt, agoLabel, periodLine,
         budgetTitle, budgetInnerHtml, periodStartText, PENALTY_TEXT,

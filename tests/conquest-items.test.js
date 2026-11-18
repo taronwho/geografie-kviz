@@ -153,7 +153,7 @@ test('50/50 u otázky: tlačítko ½ (nabídka, potvrzení, použito), odebrané
 });
 
 test('nápověda: záložka Pomůcky (obě pomůcky, jednou za hru, odkud), bez rodu; ikony pomůcek jsou v icons.js', () => {
-    assert.deepEqual(C.HELP_TABS.map(([id]) => id), ['zaklady', 'utok', 'regiony', 'konec', 'pomucky']);
+    assert.deepEqual(C.HELP_TABS.map(([id]) => id), ['zaklady', 'utok', 'stavby', 'regiony', 'konec', 'pomucky']);
     const help = C.helpHtml('pomucky');
     assert.match(help, /data-cq-help="pomucky"/);
     assert.match(help, /Pomůcky:<\/b> V zásobě máš nejvýš 1× Tah navíc, 2× 50\/50 a 3× Ankh vzkříšení\. Tah navíc a 50\/50 jdou v jedné hře použít jen jednou\./);

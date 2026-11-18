@@ -1291,9 +1291,9 @@
         noteRound(data);
         return conquestGame(data);
     };
-    // Tah: kind = 'attack' | 'fortify', correct = odpověď na otázku, source = vlastní území, odkud útok vede
+    // Tah: kind = 'attack' | 'fortify' | 'tower' | 'mine' (stavby, blok 41), correct = odpověď na otázku, source = vlastní území, odkud útok vede
     const conquestMove = async (game, territory, kind, correct, source = null) => conquestGame(await conquestCall('conquest_move', {
-        game: conquestId(game), target: conquestText(territory, 16), move_kind: kind === 'fortify' ? 'fortify' : 'attack', is_correct: Boolean(correct), source: source ? conquestText(source, 16) : null
+        game: conquestId(game), target: conquestText(territory, 16), move_kind: ['fortify', 'tower', 'mine'].includes(kind) ? kind : 'attack', is_correct: Boolean(correct), source: source ? conquestText(source, 16) : null
     }, 'Tah se nepodařilo uložit. Zkontroluj připojení.'));
     // Vývojářští boti v Dobývání (blok 22, jen účet v dev_admins a jen ve hře, kterou sám hraje): boti do lobby, jejich tahy hned, další období
     const devConquest = async (name, body) => {

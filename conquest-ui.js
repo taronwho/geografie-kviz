@@ -1043,7 +1043,7 @@
             fillSheet(C.sheetHtml(game.view, id, { source: game.source, offset: game.offset, now: Date.now() }));
             // Otázka tahu se chystá hned (popis a obrázek se načítají, než hráč klepne na Zaútočit nebo Opevnit)
             const actions = C.actionsFor(game.view, id);
-            if (actions.attack || actions.fortify) prepare(id, actions.attack ? 'attack' : 'fortify');
+            if (actions.attack || actions.fortify || actions.build) prepare(id, actions.attack ? 'attack' : 'fortify');
         };
         const closeSheet = () => {
             fillSheet('');
@@ -1184,7 +1184,8 @@
             game.move = move;
             fillSheet('<div class="cq-sheet rounded-t-2xl p-4 text-center text-sm font-bold text-slate-600 dark:text-slate-300" role="status">Připravuji otázku…</div>');
             let question = null;
-            try { question = await prepare(target, kind); } catch (error) { question = null; }
+            // Stavby (blok 41: strážní věž, důl) dostanou stejnou otázku jako opevnění, chystá se už při otevření listu
+            try { question = await prepare(target, kind === 'attack' ? 'attack' : 'fortify'); } catch (error) { question = null; }
             if (!game || game.move !== move) return;
             prepared = null;
             move.question = question;
@@ -1321,7 +1322,7 @@
                 burstAt(impact);
                 crumbleIcon(target);
                 await wait(850);
-            } else if ((done.r === 'fail' || done.r === 'outrun') && move.kind === 'attack') {
+            } else if ((done.r === 'fail' || done.r === 'outrun') && move.kind === 'attack' && !move.defend) {
                 breakArrow(move);
                 shakeTerritory(target);
                 await wait(800);
@@ -1351,7 +1352,13 @@
                 banner(`${C.LEVELS[done.l + 1].name} pobořena. ${done.l ? `Zbývá ${C.LEVELS[done.l].name}.` : 'Další úspěšný útok území dobude.'}`, 'hammer');
             } else if (done.r === 'fortify') {
                 riseIcon(target);
-                banner(`${name}: ${C.LEVELS[done.l].name}`, 'shield-check');
+                if (done.b === 'tower') banner(`${name}: Strážní věž postavena`, 'eye');
+                else if (done.b === 'mine') { sound('badge'); banner(`${name}: Důl postaven, +1 bod`, 'pickaxe'); }
+                else banner(`${name}: ${C.LEVELS[done.l].name}`, 'shield-check');
+            } else if (done.r === 'repel') {
+                // Obrana strážní věží (blok 41): útok odražen, území i věž zůstávají
+                sound('record');
+                banner('Útok odražen! Území i věž zůstávají tvoje.', 'shield-check');
             } else if (move.battle) {
                 // Bitva: kdo vyhrál (rychlejší správná odpověď), nebo proč tah propadl
                 const winner = move.siegeResult ? move.siegeResult.participants.find(player => player.winner) : null;
@@ -1359,7 +1366,7 @@
                 if (done.r === 'outrun') banner(`Správně, ale rychlejší odpověď: ${who || 'soupeř'}. Tah propadl.`, 'timer');
                 else if (who) banner(`Bitvu vyhrává ${who}.`, 'swords');
                 else banner(move.answered === -1 ? 'Čas vypršel. Tah propadl.' : info.owner ? 'Útok odražen.' : 'Útok nevyšel.', 'x');
-            } else banner(move.kind === 'attack' ? (info.owner ? 'Útok odražen.' : 'Útok nevyšel.') : 'Opevnění se nepovedlo.', 'x');
+            } else banner(move.kind === 'attack' ? (info.owner ? 'Útok odražen.' : 'Útok nevyšel.') : move.kind === 'fortify' ? 'Opevnění se nepovedlo.' : 'Stavba se nepovedla.', 'x');
             game.move = null;
             paintCard();
             // Poslední tah kola: okno Další kolo (až skončí animace tahu)
@@ -1618,12 +1625,14 @@
             const target = game.selected;
             const siege = game.view.sieges.get(target);
             if (!siege) return;
-            const move = { kind: 'attack', target, source: C.sourcesFor(game.view, target)[0] || null, phase: 'loading', answered: null, battle: true };
+            // Obránce (strážní věž, blok 41): vlastní území, bez šipky odjinud
+            const defend = Boolean(siege.can_defend);
+            const move = { kind: 'attack', target, source: defend ? null : C.sourcesFor(game.view, target)[0] || null, phase: 'loading', answered: null, battle: true, defend };
             game.move = move;
-            fillSheet('<div class="cq-sheet rounded-t-2xl p-4 text-center text-sm font-bold text-slate-600 dark:text-slate-300" role="status">Vstupuješ do bitvy…</div>');
+            fillSheet(`<div class="cq-sheet rounded-t-2xl p-4 text-center text-sm font-bold text-slate-600 dark:text-slate-300" role="status">${defend ? 'Bráníš území…' : 'Vstupuješ do bitvy…'}</div>`);
             showMoveFx(move);
             let res;
-            try { res = await serverCall(() => Social.conquestSiegeJoin(siege.id, move.source)); } catch (error) { failBattle(move, error, 'Přidat se do bitvy se nepodařilo.'); return; }
+            try { res = await serverCall(() => Social.conquestSiegeJoin(siege.id, move.source)); } catch (error) { failBattle(move, error, defend ? 'Bránit se nepodařilo.' : 'Přidat se do bitvy se nepodařilo.'); return; }
             if (!game || game.move !== move) return;
             if (!res || !res.question || !Array.isArray(res.question.choices)) { failBattle(move, null, 'Otázku k bitvě se nepodařilo načíst.'); return; }
             move.question = res.question;
@@ -1919,7 +1928,8 @@
                     if (siege.started_by === meId || siege.mine) continue;
                     const item = game.view.index.byId.get(siege.territory);
                     if (!item) continue;
-                    if (game.view.ownerOf(siege.territory) === meId) { banner(`${item.n}: tvoje území je obléhané!`, 'swords'); sound('bossHit'); }
+                    if (game.view.ownerOf(siege.territory) === meId && siege.can_defend) { banner('Útok na tvé území, braň ho!', 'shield-check'); sound('bossHit'); }
+                    else if (game.view.ownerOf(siege.territory) === meId) { banner(`${item.n}: tvoje území je obléhané!`, 'swords'); sound('bossHit'); }
                     else if (siege.can_join) { banner(`Bitva o ${C.accusativeOf(item)}: můžeš se přidat!`, 'swords'); sound('tick'); }
                 }
             }
@@ -2182,6 +2192,7 @@
             else if (name === 'sheet-close') closeSheet();
             else if (name === 'attack') startMove('attack', action.dataset.source || game.source);
             else if (name === 'fortify') startMove('fortify');
+            else if (name === 'build') startMove(['fortify', 'tower', 'mine'].includes(action.dataset.build) ? action.dataset.build : 'fortify');
             else if (name === 'siege-join') joinBattle();
             else if (name === 'siege-resume' && game && game.selected) resumeBattle(game.selected);
             else if (name === 'battle-hide') hideBattle();

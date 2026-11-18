@@ -1146,7 +1146,8 @@ test('sady hradů (blok 40, č. 297–308 a 362–367): katalog shodný se serve
     assert.deepEqual(rows, C.CASTLE_SETS.map(set => `${set.id}|${set.stat}|${set.need}`));
     assert.deepEqual(sqlList('conquest_castles'), C.CASTLE_SETS.map(set => set.id));
     assert.deepEqual(C.CASTLE_SETS.map(set => [set.id, set.name, set.stat, set.need]), [
-        ['goticky', 'Gotický hrad', 'home_fortress', 10], ['orientalni', 'Orientální palác', 'battles', 25], ['japonsky', 'Japonský hrad', 'season15', 3]]);
+        ['goticky', 'Gotický hrad', 'home_fortress', 10], ['orientalni', 'Orientální palác', 'battles', 25], ['japonsky', 'Japonský hrad', 'season15', 3],
+        ['pernikovy', 'Perníkový hrad', 'daily_streak', 100], ['parostrojni', 'Parostrojní pevnost', 'battles', 100], ['ledovy', 'Ledový palác', 'boss', 10]]);
     for (const set of C.CASTLE_SETS) assert.doesNotMatch(set.how, /\b(získal|získala|vyhrál|vyhrála|postavil|postavila)\b/);
     // Stavby: domov podle stupně a opevnění ostatních území (Palisáda, Hradba) ve stylu sady; Pevnost jen na domově; neznámá sada = základní
     assert.deepEqual([0, 1, 2, 3].map(level => C.levelIcon(level, true, 'goticky')), ['castle-goticky', 'castle1-goticky', 'castle2-goticky', 'castle3-goticky']);
@@ -1213,8 +1214,8 @@ test('sady hradů (blok 40, č. 297–308 a 362–367): katalog shodný se serve
     const html = C.lookHtml({ color: 'modra', emblem: 'lev', castle: 'goticky', tab: 'castle', looks });
     assert.equal((html.match(/data-cq-look-tab=/g) || []).length, 4);
     assert.match(html, /data-cq-look-tab="castle"[^>]*><i data-lucide="castle"[^>]*><\/i>Hrad</);
-    assert.equal((html.match(/data-cq-castle=/g) || []).length, 4);
-    assert.equal((html.match(/data-cq-locked="castle"/g) || []).length, 2);
+    assert.equal((html.match(/data-cq-castle=/g) || []).length, 7, 'Základní + 6 sad');
+    assert.equal((html.match(/data-cq-locked="castle"/g) || []).length, 5);
     assert.match(html, /aria-checked="false" aria-label="Základní" title="Základní" data-cq-castle=""/);
     assert.match(html, /aria-checked="true" aria-label="Gotický hrad" title="Gotický hrad" data-cq-castle="goticky" class="cq-stamp relative/);
     assert.match(html, /aria-label="Orientální palác \(zamčený, 7 z 25\)"[^]*?<i data-lucide="lock" class="h-3 w-3"><\/i>7\/25/);
@@ -1560,4 +1561,130 @@ test('bílá barva hráče: krycí lazura mimo násobení (na pergamenu by nebyl
     // Bez bílého hráče žádná krycí skupina
     assert.doesNotMatch(C.mapSvg(maps.evropa, C.viewOf(sampleState(), maps.evropa, 'A')), /cq-washes-light/);
     assert.match(fs.readFileSync(path.join(ROOT, 'src', 'input.css'), 'utf8'), /\.cq-washes\.cq-washes-light \{ mix-blend-mode: normal; \}/);
+});
+
+// Stavby a ozdoby (blok 41, docs/DOBYVANI-STAVBY.md): stav s b u území (databáze stavby zná), Jana (A) s věží, dolem a zříceninou
+const buildingState = () => {
+    const state = sampleState();
+    state.players[1].castle = 'ledovy';
+    const plan = { Q214: 'tower', Q40: 'mine', Q183: 'wall' };
+    state.territories = state.territories.map(row => ({ ...row, o: row.t === 'Q40' || row.t === 'Q28' ? 'A' : row.o, l: row.t === 'Q183' ? 2 : row.l, b: plan[row.t] || null }));
+    // V tomto kole padla Petrova věž v Maďarsku (zřícenina v jeho stylu), opevnění jinde padlo v minulém kole (už ne)
+    state.moves = [...state.moves, { id: 9, u: 'A', k: 'attack', t: 'Q28', r: 'capture', v: 'B', l: 0, n: 0, b: 'tower', at: '2026-11-12T10:12:00Z' },
+        { id: 10, u: 'A', k: 'attack', t: 'Q41', r: 'breach', v: 'B', l: 0, n: -1, b: 'wall', at: '2026-11-11T10:12:00Z' }];
+    return state;
+};
+
+test('stavby (blok 41): obrázky věže, dolu a zříceniny podle sady, ozdoby, velikosti; body s dolem; Postavit; bránit; kronika; pomník', () => {
+    // Obrázky: základní a v každé sadě hradů; zřícenina bez vrstvy barvy; tábor a pomník pro všechny stejné
+    const head = (name) => fs.readFileSync(path.join(ROOT, 'icons', 'stavby', `${name}.webp`)).subarray(0, 12).toString('ascii', 8, 12);
+    for (const [kind, file] of [['tower', 'vez'], ['mine', 'dul'], ['ruins', 'zricenina'], ['camp', 'tabor'], ['monument', 'pomnik']]) {
+        assert.equal(C.BUILDING_ART[kind], file);
+        assert.equal(head(file), 'WEBP', file);
+        if (kind === 'ruins') {
+            assert.ok(!fs.existsSync(path.join(ROOT, 'icons', 'stavby', `${file}-barva.webp`)), 'zřícenina nemá vrstvu barvy');
+            assert.doesNotMatch(C.iconMarkup(kind, 'zelena'), /cq-tint/, 'zřícenina se nebarví');
+        } else {
+            assert.equal(head(`${file}-barva`), 'WEBP', `${file}-barva`);
+            assert.match(C.iconMarkup(kind, 'zelena'), /class="cq-tint" href="icons\/stavby\/[a-z]+-barva\.webp"[^>]*filter="url\(#cqb-zelena\)"/);
+        }
+        assert.ok(C.ICON_SCALE[kind] > 0, `${kind}: velikost na mapě`);
+    }
+    for (const set of C.CASTLE_SETS) {
+        for (const [kind, file] of [['tower', `vez-${set.id}`], ['mine', `dul-${set.id}`], ['ruins', `zricenina-${set.id}`]]) {
+            assert.equal(C.BUILDING_ART[`${kind}-${set.id}`], file);
+            assert.equal(head(file), 'WEBP', file);
+            assert.equal(C.setIcon(kind, set.id), `${kind}-${set.id}`);
+            assert.ok(C.ICON_SCALE[`${kind}-${set.id}`] >= C.ICON_SCALE[kind], `${file}: aspoň jako základní`);
+        }
+        for (const file of [0, 1, 2, 3].map(n => `hrad-${set.id}-${n}`).concat([`opevneni-${set.id}-1`, `opevneni-${set.id}-2`])) {
+            assert.equal(head(file), 'WEBP', file);
+            assert.equal(head(`${file}-barva`), 'WEBP', `${file}-barva`);
+        }
+    }
+    assert.deepEqual([C.setIcon('tower', null), C.setIcon('mine', 'neznama'), C.territoryIcon({ home: false, level: 0, building: 'tower' }, 'ledovy'),
+        C.territoryIcon({ home: false, level: 1, building: 'wall' }, 'pernikovy'), C.territoryIcon({ home: true, level: 0, building: null }, 'parostrojni')],
+    ['tower', 'mine', 'tower-ledovy', 'palisade-pernikovy', 'castle-parostrojni']);
+    // Základní stavby a ozdoby v APP_SHELL (sady až při použití)
+    const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+    for (const name of ['vez', 'dul', 'tabor', 'pomnik']) assert.match(sw, new RegExp(`'${name}'[^\\]]*\\]\\.flatMap\\(id => \\[\`icons/stavby/`));
+    assert.match(sw, /'icons\/stavby\/zricenina\.webp'/);
+    assert.doesNotMatch(sw, /vez-ledovy|dul-goticky/);
+
+    // Pohled: stavby, body s dolem (2 místo 1), zříceniny jen z tohoto kola
+    const state = buildingState();
+    const view = C.viewOf(state, maps.evropa, 'A');
+    assert.deepEqual(['Q214', 'Q40', 'Q183', 'Q213'].map(id => view.owners.get(id).building), ['tower', 'mine', 'wall', null]);
+    assert.equal(view.minesOf('A'), 1);
+    assert.equal(view.scoreOf('A'), view.territoriesOf('A').length + 1, 'důl = bod navíc');
+    assert.deepEqual([...view.ruins], [['Q28', 'ledovy']], 'zřícenina Petrovy věže v jeho stylu, jen z tohoto kola');
+    // Starší databáze (bez b): opevnění podle úrovně, žádná stavba
+    const old = C.viewOf(sampleState(), maps.evropa, 'A');
+    assert.equal(old.owners.get('Q183').building, 'wall');
+    assert.equal(old.owners.get('Q214').building, null);
+
+    // Mapa: věž, důl, zřícenina (bez barvy), Petrova hradba z Ledového paláce; tábor u obléhaného území v barvě útočníka
+    const siege = { id: 's1', territory: 'Q214', status: 'open', started_by: 'B', join_until: '2026-11-12T10:01:00Z', mine: false, can_join: true, can_defend: true, participants: [{ id: 'B', flag_color: 'modra', emblem: 'orel' }] };
+    const war = C.viewOf({ ...state, sieges: [siege] }, maps.evropa, 'A');
+    const svg = C.mapSvg(maps.evropa, war);
+    assert.match(svg, /data-mark="Q214"[^]*?data-icon="tower"[^]*?data-icon="camp"[^>]*>[^]*?filter="url\(#cqb-modra\)"/);
+    assert.match(svg, /data-mark="Q40"[^]*?data-icon="mine"/);
+    assert.match(svg, /data-mark="Q28"[^]*?<g class="cq-icon" data-icon="ruins-ledovy"[^>]*><image href="icons\/stavby\/zricenina-ledovy\.webp"[^>]*\/><\/g>/);
+    assert.match(svg, /data-mark="Q183"[^]*?data-icon="wall-ledovy"/);
+    assert.doesNotMatch(C.mapSvg(maps.evropa, view), /data-icon="camp"/, 'bez bitvy bez tábora');
+    // Na stejné zemi: spodní okraj ikon stavby stejně daleko pod bodem značky
+    const ground = (icon) => { const m = new RegExp(`data-icon="${icon}" transform="translate\\([-\\d.]+ ([-\\d.]+)\\) scale\\(([\\d.]+)\\)`).exec(svg); return Math.round((Number(m[1]) + 24 * Number(m[2])) * 10) / 10; };
+    assert.equal(new Set(['tower', 'mine', 'ruins-ledovy', 'wall-ledovy', 'camp'].map(ground)).size, 1);
+
+    // List území: Postavit se třemi stavbami (obrázek, název, účinek, 1 tah); věž a důl jsou jednoúrovňové; důl +1 bod
+    const plain = { ...state, territories: state.territories.map(row => (row.t === 'Q41' ? { ...row, o: 'A' } : row)) };
+    const sheetView = C.viewOf(plain, maps.evropa, 'A');
+    assert.deepEqual(C.actionsFor(sheetView, 'Q41'), { attack: false, fortify: false, build: true, reason: '' });
+    const sheet = C.sheetHtml(sheetView, 'Q41');
+    assert.equal((sheet.match(/data-cq="build" data-build="(fortify|tower|mine)"/g) || []).length, 3);
+    const text = sheet.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    assert.match(text, /Postavit Palisáda Útok ji jen pobourá 1 tah Strážní věž Bráníš i zdaleka 1 tah Důl 2 body místo 1 1 tah/);
+    assert.match(sheet, /icons\/stavby\/vez\.webp/);
+    assert.equal(C.actionsFor(sheetView, 'Q214').reason, 'Na území stojí strážní věž. Na jedno území patří jen jedna stavba.');
+    assert.match(C.sheetHtml(sheetView, 'Q40'), /data-cq-building="mine"[^>]*>[^]*?Důl: \+1 bod/);
+    assert.deepEqual(C.actionsFor(sheetView, 'Q213'), { attack: false, fortify: true, reason: '' }, 'domov jen opevnit');
+    assert.equal(C.actionsFor(C.viewOf({ ...plain, sieges: [{ ...siege, territory: 'Q41' }] }, maps.evropa, 'A'), 'Q41').reason, 'Na obléhaném území teď stavět nejde.');
+    const q41 = maps.evropa.t.find(t => t.id === 'Q41');
+    assert.equal(C.moveTitle('tower', q41), `Strážní věž · ${q41.n}`);
+    // Bránit: okno bitvy i štítek
+    const now = Date.parse('2026-11-12T10:00:10Z');
+    const defend = C.sheetHtml(war, 'Q214', { now });
+    assert.match(defend, /data-cq="siege-join" data-defend="1"[^>]*>[^]*Bránit/);
+    assert.match(defend.replace(/<[^>]+>/g, ' '), /bránit: /);
+    assert.match(C.siegeChipsHtml(war, { now }), /Bránit: Slovensko/);
+    // Výsledek bitvy: odražený útok
+    const repel = { ...siege, status: 'resolved', outcome: 'repel', winner: 'A', participants: [{ id: 'A', me: true, winner: true, defender: true, answer_ms: 3000, result: 'repel' }, { id: 'B', result: 'outrun', answered: true, answer_ms: 5000 }] };
+    assert.match(C.battleResultHtml(war, repel), /Útok je odražen, území i věž zůstávají tvoje\./);
+    // Kronika: stavby, padlá věž, získaný důl, odražený útok
+    const feed = C.feedItems([{ id: 1, u: 'A', k: 'fortify', t: 'Q214', r: 'fortify', b: 'tower', l: 0 }, { id: 2, u: 'A', k: 'fortify', t: 'Q40', r: 'fortify', b: 'mine', l: 0 },
+        { id: 3, u: 'B', k: 'attack', t: 'Q214', r: 'capture', b: 'tower', v: 'A' }, { id: 4, u: 'B', k: 'attack', t: 'Q40', r: 'capture', b: 'mine', v: 'A' },
+        { id: 5, u: 'A', k: 'defend', t: 'Q214', r: 'repel', b: 'tower' }], war).map(item => item.text);
+    assert.deepEqual(feed.filter(x => !/^Dobyt/.test(x)), ['Útok odražen', 'Důl získán', 'Strážní věž padla', 'Důl postaven', 'Strážní věž postavena']);
+    // Konec hry: pomník na domovském území vítěze (jen když domov drží); body s dolem v pravidlech
+    const lost = C.viewOf({ ...state, status: 'finished', territories: state.territories.map(row => (row.t === 'Q213' ? { ...row, o: 'B', h: false } : row)), players: state.players.map((p, i) => ({ ...p, place: i + 1 })) }, maps.evropa, 'A');
+    assert.equal(lost.monument, null, 'Jana o domov přišla – bez pomníku');
+    const home = C.viewOf({ ...state, status: 'finished', players: state.players.map((p, i) => ({ ...p, place: 2 - i })) }, maps.evropa, 'A');
+    assert.equal(home.monument.t, 'Q36');
+    assert.match(C.mapSvg(maps.evropa, home), /data-mark="Q36"[^]*?data-icon="monument"[^>]*>[^]*?filter="url\(#cqb-modra\)"/);
+    assert.equal(home.ruins.size, 0, 'po konci hry bez zřícenin');
+    assert.match(C.thumbSvg(maps.evropa, { Q36: 1 }, { 1: 'modra' }, 'h-12 w-14', {}, 'Q36'), /class="cq-thumb-monument" data-icon="monument"/);
+    assert.doesNotMatch(C.thumbSvg(maps.evropa, { Q36: 1 }, { 1: 'modra' }), /monument/);
+    assert.match(C.resultHtml(home).replace(/<[^>]+>/g, ''), /1 za každé území \(s dolem 2\)/);
+});
+
+test('nápověda Stavby (blok 41): záložka mezi Útokem a Regiony, pravidla věže a dolu, bez rodu, šest záložek', () => {
+    assert.deepEqual(C.HELP_TABS.map(([id]) => id), ['zaklady', 'utok', 'stavby', 'regiony', 'konec', 'pomucky']);
+    const text = C.helpHtml('stavby').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    for (const part of ['Postavit:', 'Palisáda, Strážní věž, nebo Důl', 'Stavba stojí 1 tah', 'Strážní věž:', 'klepni na „Bránit“', 'útok odrazíš', 'věž padne',
+        'Důl:', '2 body místo 1', 'získá ho dobyvatel', 'Zřícenina', 'Tábor', 'Pomník vítěze']) assert.ok(text.includes(part), part);
+    assert.match(C.helpHtml('stavby'), /grid-cols-6/);
+    assert.match(C.helpHtml('stavby'), /data-cq-help-tab="regiony" class="[^"]*">Dál: Regiony/);
+    assert.match(C.helpHtml('konec').replace(/<[^>]+>/g, ''), /každé území na konci hry \(s dolem 2\)/);
+    assert.doesNotMatch(C.HELP_TABS.map(([id]) => C.helpHtml(id)).join(''), /\b(získal|získala|ubránil|ubránila|postavil|postavila|zaútočil|zaútočila)\b/);
+    assert.doesNotMatch(C.DEFEND_TEXT + C.BUILD_OPTIONS.map(o => o.effect).join(' '), /\b(získal|získala|ubránil|ubránila)\b/);
 });

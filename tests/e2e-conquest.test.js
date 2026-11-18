@@ -102,7 +102,7 @@ const backend = async (context, db) => {
                 : last ? 'V posledním kole hry Tah navíc použít nejde.' : null;
             return { items: { ...items, extra_used: extraUsed, fifty_used: Boolean((g.fiftyUsed || {})[me.id]), can_extra: block === null, extra_block: block, ...reviveInfo(g, items) } };
         };
-        const rescore = (g) => g.players.forEach(p => { const score = g.territories.filter(t => t.o === p.user).length; if (score !== p.score) { p.score = score; p.score_at = NOW; } });
+        const rescore = (g) => g.players.forEach(p => { const score = g.territories.filter(t => t.o === p.user).length + g.territories.filter(t => t.o === p.user && t.b === 'mine').length; if (score !== p.score) { p.score = score; p.score_at = NOW; } });
         const start = (g) => {
             g.status = 'running'; g.started_at = NOW; g.ends_at = '2026-11-14T10:00:00Z';
             g.territories = mapOf(g).t.map(t => ({ t: t.id, o: null, l: 0, h: false, p: false }));
@@ -121,8 +121,8 @@ const backend = async (context, db) => {
             const done = s.status === 'resolved';
             return { id: s.id, game: g.id, territory: s.territory, status: s.status, started_by: s.started_by, started_at: NOW, join_until: LATER, ends_at: LATER, resolved_at: done ? NOW : null,
                 winner: s.winner || null, outcome: s.outcome || null, mine: Boolean(mineP), answered: Boolean(mineP && mineP.answered), joined_at: mineP ? NOW : null, deadline: mineP ? LATER : null,
-                can_join: !done && !mineP && t.o !== me.id,
-                participants: s.participants.map(p => { const gp = g.players.find(x => x.user === p.user); return { ...db.profiles[p.user], seat: gp.seat, flag_color: gp.flag_color, emblem: gp.emblem, source: p.source || null, joined_at: NOW, deadline: LATER, answered: Boolean(p.answered), fifty: Boolean(p.fifty), me: p.user === me.id,
+                can_join: !done && !mineP && (t.o !== me.id || t.b === 'tower'), can_defend: !done && !mineP && t.o === me.id && t.b === 'tower',
+                participants: s.participants.map(p => { const gp = g.players.find(x => x.user === p.user); return { ...db.profiles[p.user], seat: gp.seat, flag_color: gp.flag_color, emblem: gp.emblem, source: p.source || null, defender: Boolean(p.defender), joined_at: NOW, deadline: LATER, answered: Boolean(p.answered), fifty: Boolean(p.fifty), me: p.user === me.id,
                     ...(done ? { correct: Boolean(p.correct), answer_ms: p.answered ? p.answer_ms : null, result: p.result, winner: s.winner === p.user, move: p.move } : {}) }; }) };
         };
         const siegeView = (g, s) => {
@@ -142,15 +142,20 @@ const backend = async (context, db) => {
             const t = g.territories.find(x => x.t === s.territory);
             const win = s.participants.filter(p => p.correct).sort((a, b) => a.answer_ms - b.answer_ms)[0] || null;
             for (const p of s.participants.filter(x => x !== win)) {
-                const move = { id: db.seq++, u: p.user, k: 'attack', t: t.t, s: p.source || null, ok: Boolean(p.correct), v: t.o, n: 0, at: NOW, p: false, h: false, l: t.l, r: p.correct ? 'outrun' : 'fail' };
+                const move = { id: db.seq++, u: p.user, k: p.defender ? 'defend' : 'attack', t: t.t, s: p.source || null, ok: Boolean(p.correct), v: p.defender ? null : t.o, n: 0, at: NOW, p: false, h: false, l: t.l, r: p.correct ? 'outrun' : 'fail', b: p.defender ? 'tower' : null };
                 g.moves.push(move); p.result = move.r; p.move = move;
             }
-            if (win) {
+            if (win && win.defender) {
+                // Obránce odpověděl správně a nejrychleji: útok odražen, území i věž zůstávají
+                const move = { id: db.seq++, u: win.user, k: 'defend', t: t.t, s: null, ok: true, v: null, n: 0, at: NOW, p: false, h: false, l: t.l, r: 'repel', b: 'tower' };
+                g.moves.push(move); win.result = move.r; win.move = move;
+            } else if (win) {
                 const move = { id: db.seq++, u: win.user, k: 'attack', t: t.t, s: win.source || null, ok: true, v: t.o, n: 0, at: NOW, p: false, h: false, l: t.l };
-                if (t.l > 0) { t.l -= 1; move.r = 'breach'; } else { move.p = t.p; move.h = t.h && Boolean(t.o); Object.assign(t, { o: win.user, l: 0, h: false, p: false }); move.r = 'capture'; }
+                if (t.l > 0) { t.l -= 1; move.r = 'breach'; } else { move.p = t.p; move.h = t.h && Boolean(t.o); move.b = ['tower', 'mine'].includes(t.b) ? t.b : null; Object.assign(t, { o: win.user, l: 0, h: false, p: false, b: t.b === 'mine' ? 'mine' : null }); move.r = 'capture'; }
                 move.l = t.l; g.moves.push(move); win.result = move.r; win.move = move;
             }
             Object.assign(s, { status: 'resolved', winner: win ? win.user : null, outcome: win ? win.result : 'fail' });
+            if (t.l === 0 && t.b === 'wall') t.b = null;
             g.siegeRev = (g.siegeRev || 0) + 1;
             rescore(g);
         };
@@ -248,7 +253,8 @@ const backend = async (context, db) => {
             // Vzory a vzácné znaky (blok 38): db.looks = { patterns, emblems, new, stats }, bez nich starší databáze; s castles i sady hradů (blok 40)
             return json({ ...(db.items ? { items: stock() } : {}), ...(db.looks ? { looks: db.looks } : {}), open: db.games.filter(g => g.status === 'lobby' && g.visibility === 'public').map(summary),
                 mine: db.games.filter(g => mine(g)).map(g => ({ ...summary(g), budget: g.status === 'running' ? budget(g) : null, claimed: Boolean(mine(g).claimed),
-                    owners: g.territories ? Object.fromEntries(g.territories.filter(t => t.o).map(t => [t.t, g.players.find(p => p.user === t.o).seat])) : null })) });
+                    owners: g.territories ? Object.fromEntries(g.territories.filter(t => t.o).map(t => [t.t, g.players.find(p => p.user === t.o).seat])) : null,
+                    ...(db.buildings && g.status === 'finished' ? { monument: (g.territories.find(t => t.h && g.players.some(p => p.user === t.o && p.place === 1)) || {}).t || null } : {}) })) });
         }
         if (name === 'conquest_create') {
             const g = { id: uuid(db.seq++), creator: me.id, map: body.map_id, max_players: body.players, hours: body.hours, period: body.per, actions: body.actions_per, visibility: body.vis, code: 'NEW234', preset: null, status: 'lobby', created_at: NOW,
@@ -329,7 +335,8 @@ const backend = async (context, db) => {
         if (name === 'conquest_siege_join') {
             const { g, s } = siegeOf(body.siege);
             if (s.status !== 'open') return fail('Bitva už skončila.');
-            if (!s.participants.some(p => p.user === me.id)) s.participants.push({ user: me.id, source: body.source });
+            const defender = g.territories.some(x => x.t === s.territory && x.o === me.id && x.b === 'tower');
+            if (!s.participants.some(p => p.user === me.id)) s.participants.push({ user: me.id, source: defender ? null : body.source, defender });
             g.siegeRev += 1;
             return json({ ...siegeView(g, s), budget: budget(g) });
         }
@@ -357,10 +364,13 @@ const backend = async (context, db) => {
             const correct = forced ? forced !== 'fail' : body.is_correct;
             let r = 'fail';
             const victim = t.o;
-            const move = { id: db.seq++, u: me.id, k: body.move_kind, t: t.t, s: body.source, ok: correct, v: victim, n: 0, at: NOW, p: false, h: false, l: t.l };
-            if (body.move_kind === 'fortify') { if (correct) { t.l += 1; r = 'fortify'; } }
-            else if (correct && t.l > 0) { t.l -= 1; r = 'breach'; }
-            else if (correct) { move.p = t.p; move.h = t.h && Boolean(t.o); Object.assign(t, { o: me.id, l: 0, h: false, p: false }); r = 'capture'; }
+            const build = ['tower', 'mine'].includes(body.move_kind);
+            const move = { id: db.seq++, u: me.id, k: build ? 'fortify' : body.move_kind, t: t.t, s: body.source, ok: correct, v: victim, n: 0, at: NOW, p: false, h: false, l: t.l, ...(db.buildings ? { b: null } : {}) };
+            // Stavby (blok 41, jen s db.buildings): věž a důl na území bez stavby, opevnění mimo domov = 'wall'; dobytím věž padne, důl zůstane
+            if (build) { move.b = body.move_kind; if (correct) { t.b = body.move_kind; r = 'fortify'; } }
+            else if (body.move_kind === 'fortify') { if (db.buildings && !t.h) move.b = 'wall'; if (correct) { t.l += 1; r = 'fortify'; if (db.buildings && !t.h) t.b = 'wall'; } }
+            else if (correct && t.l > 0) { t.l -= 1; r = 'breach'; if (db.buildings && !t.l && !t.h) { move.b = 'wall'; t.b = null; } }
+            else if (correct) { move.p = t.p; move.h = t.h && Boolean(t.o); if (db.buildings) move.b = ['tower', 'mine'].includes(t.b) ? t.b : null; Object.assign(t, { o: me.id, l: 0, h: false, p: false, ...(db.buildings ? { b: t.b === 'mine' ? 'mine' : null } : {}) }); r = 'capture'; }
             move.r = r;
             move.l = t.l;
             g.moves.push(move);
@@ -498,8 +508,8 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         // Jak se hraje: okno se vejde na 360×640
         await tab.click('[data-cq="help"]');
         await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Jak se hraje Dobývání');
-        // Pět záložek (Základy, Útok, Regiony, Konec, Pomůcky), každá se vejde; tlačítko Dál vede na další
-        for (const [tabId, pattern] of [['zaklady', /Kola:[\s\S]*Chci další kolo[\s\S]*Tahy:/], ['utok', /Správně:[\s\S]*Opevnění:/], ['regiony', /Region: Skupina sousedních území[\s\S]*Britské ostrovy/], ['konec', /Body:[\s\S]*Odměny:/],
+        // Šest záložek (Základy, Útok, Stavby, Regiony, Konec, Pomůcky), každá se vejde; tlačítko Dál vede na další
+        for (const [tabId, pattern] of [['zaklady', /Kola:[\s\S]*Chci další kolo[\s\S]*Tahy:/], ['utok', /Správně:[\s\S]*Opevnění:/], ['stavby', /Postavit:[\s\S]*Strážní věž:[\s\S]*Bránit[\s\S]*Důl:[\s\S]*Pomník vítěze/], ['regiony', /Region: Skupina sousedních území[\s\S]*Britské ostrovy/], ['konec', /Body:[\s\S]*Odměny:/],
             ['pomucky', /Pomůcky:[\s\S]*Tah navíc:[\s\S]*50\/50:[\s\S]*Jak získat: Tah navíc: Boss týdne/]]) {
             await tab.waitForSelector(`[data-cq-help="${tabId}"]`);
             assert.match(await tab.textContent('[data-cq-help]'), pattern, tabId);
@@ -649,7 +659,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
     for (const { width, height, colorScheme } of [{ width: 360, height: 640, colorScheme: 'light' }, { width: 390, height: 780, colorScheme: 'dark' }]) {
         await t.test(`sady hradů v okně Barva a znak na ${width}×${height} (${colorScheme === 'dark' ? 'tmavý' : 'světlý'} režim): oslava nového hradu, záložka Hrad se zamčenými a postupem, volba se pošle, pamatuje a v lobby změní`, async () => {
             const db = newDb();
-            db.looks = { patterns: ['plameny'], emblems: [], castles: ['goticky'], new: [{ kind: 'castle', item: 'goticky', at: NOW }], stats: { home_fortress: 10, battles: 12, season15: 1 } };
+            db.looks = { patterns: ['plameny'], emblems: [], castles: ['goticky'], new: [{ kind: 'castle', item: 'goticky', at: NOW }], stats: { home_fortress: 10, battles: 12, season15: 1, daily_streak: 41, boss: 3 } };
             const { context, tab, log } = await start(db, { viewport: { width, height }, colorScheme });
             await tab.click('#conquest-card');
             await tab.waitForSelector('#conquest-hub');
@@ -663,7 +673,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             await tab.click('#celebration');
             await tab.waitForFunction(() => !document.getElementById('celebration'));
             assert.ok(db.calls.some(call => call.name === 'conquest_looks_seen' && call.body.upto === NOW), 'ohlášeno do času odemčení');
-            // Založit hru: okno Barva a znak se čtyřmi záložkami, Hrad: Základní a tři sady, zamčené se zámkem a postupem
+            // Založit hru: okno Barva a znak se čtyřmi záložkami, Hrad: Základní a šest sad (blok 41: Perníkový, Parostrojní, Ledový), zamčené se zámkem a postupem
             await tab.click('[role="tab"][data-cq-tab="create"]');
             await tab.click('[data-cq="look"]');
             await tab.waitForSelector('[data-cq-look]');
@@ -672,8 +682,14 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             await tab.click('[data-cq-color="zelena"]');
             await tab.click('[data-cq-look-tab="castle"]');
             await tab.waitForSelector('[data-cq-castles]');
-            assert.equal(await tab.locator('[data-cq-castle]').count(), 4);
-            assert.equal(await tab.locator('[data-cq-castle][data-cq-locked="castle"]').count(), 2);
+            assert.equal(await tab.locator('[data-cq-castle]').count(), 7);
+            assert.equal(await tab.locator('[data-cq-castle][data-cq-locked="castle"]').count(), 5);
+            assert.match(await tab.textContent('[data-cq-castle="pernikovy"]'), /Perníkový hrad\s*41\/100/);
+            assert.match(await tab.textContent('[data-cq-castle="parostrojni"]'), /Parostrojní pevnost\s*12\/100/);
+            assert.match(await tab.textContent('[data-cq-castle="ledovy"]'), /Ledový palác\s*3\/10/);
+            await tab.click('[data-cq-castle="ledovy"]');
+            await tab.waitForFunction(() => /Ledový palác · Poraz Bosse týdne 10× \(3\/10\)/.test(document.querySelector('[data-cq-look-info]').textContent));
+            assert.equal(await tab.locator('[data-cq-castle="pernikovy"] image[href="icons/stavby/hrad-pernikovy-0.webp"]').count(), 1);
             assert.equal(await tab.getAttribute('[data-cq-castle=""]', 'aria-checked'), 'true', 'výchozí Základní');
             assert.match(await tab.textContent('[data-cq-castle="orientalni"]'), /Orientální palác\s*12\/25/);
             // Zamčený: jen ukáže, jak ho získat (a postup), výběr se nezmění
@@ -687,7 +703,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             assert.match(await tab.textContent('[data-cq-look-info]'), /Sada Gotický hrad: domovský hrad i opevnění tvých území/);
             // Náhled nahoře: kus území a na něm gotický hrad v barvě hráče; dlaždice s obrázky v barvě hráče (vlastní filtr)
             assert.equal(await tab.locator('[data-cq-look] > div:first-child svg image[href="icons/stavby/hrad-goticky-0.webp"]').count(), 1);
-            assert.equal(await tab.locator('[data-cq-castles] image.cq-tint').count(), 8);
+            assert.equal(await tab.locator('[data-cq-castles] image.cq-tint').count(), 14);
             assert.equal(await tab.evaluate(() => [...document.querySelectorAll('[data-cq-castles] image.cq-tint')].every(img => document.querySelector(img.getAttribute('filter').slice(4, -1)))), true, 'filtr barvy existuje');
             let box = await fit();
             assert.ok(box.over <= 0 && box.ok, `Hrad se vejde: ${JSON.stringify(box)}`);
@@ -1907,6 +1923,160 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         assert.equal(db.calls.filter(call => call.name === 'conquest_claim').length, 1, 'odměna jen jednou');
         const progress = await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.progress')));
         assert.equal(progress.counters.conquestWins, 1);
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    // Stavby (blok 41): Jana (u-1) má domov v Česku, Slovensko bez stavby, strážní věž v Rakousku a důl v Polsku a v Maďarsku zříceninu Petrovy
+    // věže z tohoto kola; Petr (u-2, Ledový palác) má domov v Norsku, hradbu v Německu a ledovou strážní věž ve Švédsku. Petr obléhá
+    // Rakousko (Jana ho může bránit), u obléhaného území stojí tábor v jeho barvě.
+    const buildings = () => {
+        const db = running();
+        db.buildings = true;
+        db.battles = true;
+        const g = db.games[0];
+        g.players.find(p => p.user === 'u-2').castle = 'ledovy';
+        const plan = { Q213: ['u-1', 0, true], Q214: ['u-1'], Q40: ['u-1', 0, false, 'tower'], Q36: ['u-1', 0, false, 'mine'], Q28: ['u-1'],
+            Q20: ['u-2', 0, true], Q183: ['u-2', 2, false, 'wall'], Q34: ['u-2', 0, false, 'tower'] };
+        g.territories = MAPS.evropa.t.map(item => { const [o = null, l = 0, h = false, b = null] = plan[item.id] || []; return { t: item.id, o, l, h, p: false, b }; });
+        g.moves.push({ id: 3, u: 'u-1', k: 'attack', t: 'Q28', r: 'capture', n: 0, at: NOW, v: 'u-2', l: 0, b: 'tower' });
+        g.players.forEach(p => { p.score = g.territories.filter(x => x.o === p.user).length + g.territories.filter(x => x.o === p.user && x.b === 'mine').length; p.score_at = NOW; });
+        const question = { kind: 'text', family: 'capital', prompt: 'Které město je hlavním městem tohoto státu?', difficulty: 1, choices: ['Vídeň', 'Štýrský Hradec', 'Linec', 'Salcburk'].map(label => ({ label })) };
+        g.sieges = [{ id: uuid(78), territory: 'Q40', started_by: 'u-2', question, correct: 0, status: 'open', participants: [{ user: 'u-2', source: 'Q183' }] }];
+        g.siegeRev = 1;
+        return db;
+    };
+    for (const [width, height, colorScheme] of [[360, 640, 'light'], [390, 780, 'dark']]) {
+        await t.test(`stavby na mapě ${width}×${height} (${colorScheme === 'dark' ? 'tmavý' : 'světlý'} režim): věž, důl, zřícenina, tábor obléhatelů; Postavit se třemi stavbami a 1 tahem, důl +1 bod`, async () => {
+            const db = buildings();
+            const { context, tab, log } = await start(db, { viewport: { width, height }, colorScheme });
+            await tab.waitForFunction(() => /Tahy 4\/5/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
+            await tab.click('#conquest-wait [data-action="conquest-play"]');
+            await tab.waitForSelector('#conquest-game [data-cq-map] svg');
+            const marks = { Q40: 'tower', Q36: 'mine', Q28: 'ruins-ledovy', Q34: 'tower-ledovy', Q183: 'wall-ledovy', Q213: 'castle' };
+            for (const [territory, icon] of Object.entries(marks)) assert.equal(await tab.locator(`[data-mark="${territory}"] [data-icon="${icon}"]`).count(), 1, `${territory}: ${icon}`);
+            assert.equal(await tab.locator('[data-mark="Q40"] [data-icon="camp"]').count(), 1, 'tábor u obléhaného území');
+            assert.equal(await tab.locator('[data-mark="Q40"] .cq-siege-badge').count(), 1, 'pečeť bitvy zůstává');
+            assert.equal(await tab.locator('[data-mark="Q40"] [data-icon="camp"] image.cq-tint[filter="url(#cqb-modra)"]').count(), 1, 'praporky tábora v barvě útočníka');
+            assert.equal(await tab.locator('[data-mark="Q28"] image.cq-tint').count(), 0, 'zřícenina bez barvy majitele');
+            assert.equal(await tab.locator('[data-mark="Q34"] image[href="icons/stavby/vez-ledovy.webp"]').count(), 1, 'věž ve stylu sady majitele');
+            // Stavby stojí na stejné zemi jako ostatní (spodní okraj ikony stejně daleko pod bodem značky)
+            const grounds = await tab.evaluate(() => Object.fromEntries(['Q213', 'Q40', 'Q36', 'Q28', 'Q183'].map(id => {
+                const icon = document.querySelector(`[data-mark="${id}"] .cq-icon:not(.cq-camp)`);
+                const [, ty, k] = /translate\([-\d.]+ ([-\d.]+)\) scale\(([\d.]+)\)/.exec(icon.getAttribute('transform')).map(Number);
+                return [id, Math.round((ty + 24 * k) * 10) / 10];
+            })));
+            assert.equal(new Set(Object.values(grounds)).size, 1, JSON.stringify(grounds));
+            const missing = await tab.evaluate(async () => {
+                const hrefs = [...new Set([...document.querySelectorAll('[data-cq-map] .cq-marks image')].map(img => img.getAttribute('href')).filter(href => href.startsWith('icons/stavby/')))];
+                return (await Promise.all(hrefs.map(href => fetch(href).then(r => (r.ok ? null : href), () => href)))).filter(Boolean);
+            });
+            assert.deepEqual(missing, []);
+            assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+            await tab.waitForTimeout(300);
+            await shot(tab, `stavby-mapa-${width}-${colorScheme}`);
+            // Přiblížení: stavby čitelné
+            const target = await tab.locator('[data-mark="Q40"]').boundingBox();
+            await tab.mouse.move(target.x + target.width / 2, target.y + target.height / 2);
+            await tab.mouse.wheel(0, -900);
+            await tab.waitForSelector('[data-cq="zoom-reset"].flex');
+            await settledWidth(tab);
+            await tab.waitForTimeout(300);
+            await shot(tab, `stavby-priblizeni-${width}-${colorScheme}`);
+            await tab.click('[data-cq="zoom-reset"]');
+            await settledWidth(tab);
+            // Postavit na Slovensku: tři stavby s obrázkem, názvem, účinkem a cenou
+            await tapTerritory(tab, 'Q214');
+            await tab.waitForSelector('[data-cq-sheet] [data-cq-build-options]');
+            assert.equal(await tab.locator('[data-cq-sheet] [data-cq="build"]').count(), 3);
+            assert.match((await tab.textContent('[data-cq-build-options]')).replace(/\s+/g, ' '), /Postavit Palisáda Útok ji jen pobourá 1 tah Strážní věž Bráníš i zdaleka 1 tah Důl 2 body místo 1 1 tah/);
+            assert.equal(await tab.locator('[data-cq-build-options] image[href="icons/stavby/dul.webp"]').count(), 1);
+            assert.equal(await tab.locator('[data-cq-sheet] [data-cq="fortify"]').count(), 0, 'Opevnit je jedna z možností Postavit');
+            assert.equal(await tab.evaluate(() => [...document.querySelectorAll('[data-cq-build-options] [data-cq="build"]')].every(b => b.scrollWidth <= b.clientWidth + 1 && b.getBoundingClientRect().right <= window.innerWidth)), true, 'dlaždice se vejdou');
+            assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+            await tab.waitForTimeout(400);
+            await shot(tab, `stavby-postavit-${width}-${colorScheme}`);
+            db.force.push('fortify');
+            await tab.click('[data-cq-sheet] [data-cq="build"][data-build="mine"]');
+            await tab.waitForSelector('[data-cq-answer]', { timeout: 30000 });
+            assert.match(await tab.textContent('[data-cq-sheet]'), /Důl · Slovensko/);
+            await tab.click('[data-cq-answer="0"]');
+            await tab.waitForFunction(() => /Důl postaven, \+1 bod/.test((document.querySelector('[data-cq-banner]') || {}).textContent || ''), null, { timeout: 15000 });
+            assert.equal(db.calls.filter(call => call.name === 'conquest_move').pop().body.move_kind, 'mine');
+            assert.equal(await tab.locator('[data-mark="Q214"] [data-icon="mine"]').count(), 1);
+            assert.match(await tab.textContent('[data-cq-budget]'), /3\/5/);
+            // Důl v listu území: +1 bod
+            await tapTerritory(tab, 'Q36');
+            await tab.waitForSelector('[data-cq-sheet] [data-cq-building="mine"]');
+            assert.match(await tab.textContent('[data-cq-sheet]'), /Důl: \+1 bod[\s\S]*Na území stojí důl\. Na jedno území patří jen jedna stavba\./);
+            assert.deepEqual(log.errors, []);
+            assert.deepEqual(log.csp, []);
+            await context.close();
+        });
+    }
+
+    await t.test('strážní věž na 360×640: Bránit ve štítku i v okně bitvy, obránce bez šipky odjinud, správně a nejrychleji = útok odražen', async () => {
+        const db = buildings();
+        const g = db.games[0];
+        Object.assign(g.sieges[0].participants[0], { answered: true, picked: 2, correct: false, answer_ms: 5000 });
+        const { context, tab, log } = await start(db);
+        await tab.waitForFunction(() => /Tahy 4\/5/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
+        await tab.click('#conquest-wait [data-action="conquest-play"]');
+        await tab.waitForSelector('[data-cq-siege-open="Q40"]');
+        assert.match(await tab.textContent('[data-cq-siege-open="Q40"]'), /Bránit: Rakousko\s*0:50/);
+        await tab.click('[data-cq-siege-open="Q40"]');
+        await tab.waitForSelector('[data-cq-sheet] [data-cq="siege-join"][data-defend]');
+        assert.match((await tab.textContent('[data-cq-sheet]')).replace(/\s+/g, ' '), /Strážní věž[\s\S]*Probíhá bitva\s*bránit: 0:50[\s\S]*Petr Svoboda[\s\S]*Strážní věž hlásí útok\.[\s\S]*Obrana stojí 1 tah\.[\s\S]*Bránit/);
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+        await tab.waitForTimeout(400);
+        await shot(tab, 'stavby-branit-360');
+        await tab.click('[data-cq-sheet] [data-cq="siege-join"]');
+        await tab.waitForSelector('[data-cq-answer]');
+        const join = db.calls.filter(call => call.name === 'conquest_siege_join').pop().body;
+        assert.deepEqual([join.siege, join.source], [uuid(78), null], 'obránce útočí odnikud');
+        assert.equal(await tab.locator('[data-cq-arrow]').count(), 0);
+        await tab.click('[data-cq-answer="0"]');
+        await tab.waitForFunction(() => /Útok odražen! Území i věž zůstávají tvoje\./.test((document.querySelector('[data-cq-banner]') || {}).textContent || ''), null, { timeout: 15000 });
+        await tab.waitForSelector('[data-cq-sheet] [aria-label="Výsledek bitvy"]', { timeout: 15000 });
+        assert.match((await tab.textContent('[data-cq-sheet]')).replace(/\s+/g, ' '), /Útok je odražen, území i věž zůstávají tvoje\./);
+        const q40 = g.territories.find(x => x.t === 'Q40');
+        assert.deepEqual([q40.o, q40.b], ['u-1', 'tower']);
+        assert.equal(await tab.locator('[data-mark="Q40"] [data-icon="tower"]').count(), 1);
+        assert.equal(await tab.locator('[data-mark="Q40"] [data-icon="camp"]').count(), 0, 'po bitvě tábor zmizí');
+        await shot(tab, 'stavby-odrazeno-360');
+        // Kronika: Útok odražen
+        await tab.click('[data-cq="sheet-close"]');
+        await tab.waitForFunction(() => /Rakousko\s*Útok odražen/.test((document.querySelector('[data-cq-recent]') || {}).textContent || ''), null, { timeout: 15000 });
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    await t.test('konec hry se stavbami: pomník vítěze na domovském území na mapě, po přehrání i v náhledu dohrané hry', async () => {
+        const db = buildings();
+        const g = db.games[0];
+        g.sieges = [];
+        g.status = 'finished';
+        g.ends_at = '2026-11-11T09:00:00Z';
+        g.players.find(p => p.user === 'u-1').place = 1;
+        g.players.find(p => p.user === 'u-2').place = 2;
+        const { context, tab, log } = await start(db, { viewport: { width: 390, height: 780 }, colorScheme: 'dark', reducedMotion: 'reduce', storage: { 'mudrlant.conquestFinale': JSON.stringify([uuid(1)]) } });
+        await tab.click('#conquest-card');
+        await tab.waitForSelector(`[data-cq-game="${uuid(1)}"]`);
+        assert.equal(await tab.locator(`[data-cq-game="${uuid(1)}"] .cq-thumb-monument[data-icon="monument"]`).count(), 1, 'pomník v náhledu dohrané hry');
+        await tab.click(`[data-cq-play="${uuid(1)}"]`);
+        await tab.waitForSelector('[data-cq-result]', { timeout: 15000 });
+        assert.match(await tab.textContent('[data-cq-result]'), /s dolem 2/);
+        await tab.click('[data-cq="replay"]');
+        await tab.waitForSelector('[data-cq-result]', { timeout: 15000 });
+        await tab.click('[data-cq="sheet-close"]');
+        assert.equal(await tab.locator('[data-mark="Q213"] [data-icon="monument"]').count(), 1, 'pomník po přehrání na konečné mapě');
+        assert.equal(await tab.locator('[data-mark="Q213"] [data-icon="monument"] image.cq-tint[filter="url(#cqb-cervena)"]').count(), 1, 'praporek v barvě vítěze');
+        assert.equal(await tab.locator('[data-icon="monument"]').count(), 1);
+        assert.equal(await tab.locator('[data-mark="Q28"] [data-icon^="ruins"]').count(), 0, 'po konci hry zříceniny nejsou');
+        await tab.waitForTimeout(300);
+        await shot(tab, 'stavby-pomnik-390-dark');
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();
