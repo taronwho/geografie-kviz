@@ -67,7 +67,9 @@
     const field = (key) => (item) => (item.f || {})[key];
     const firstOf = (value) => Array.isArray(value) ? value.slice(0, 2).join(', ') : value;
     // Krátký popisek pod názvem položky (stát, autor, město…), nikdy s hledaným číslem
-    const detailOf = (...keys) => (item) => keys.map(key => firstOf((item.f || {})[key])).find(Boolean) || item.ty || '';
+    // keyOf = odkud popisek je (pole nebo druh 'ty'): u Seřaď musí být u všech čtyř položek stejného druhu (ne „lední hokej“ vedle města)
+    const detailOf = (...keys) => Object.assign((item) => keys.map(key => firstOf((item.f || {})[key])).find(Boolean) || item.ty || '',
+        { keyOf: (item) => keys.find(key => firstOf((item.f || {})[key])) || (item.ty ? 'ty' : '') });
     const countriesOf = (item, ctx) => (ctx && ctx.countries ? getCountryNames(item, ctx.countries).slice(0, 2).join(', ') : '') || item.ty || '';
 
     // Osoby podle roku narození (stejné pro všechna témata s lidmi); odhad jen u známých narozených v našem letopočtu
@@ -161,7 +163,7 @@
         dated('literatura', 'dila', 'year', 'Seřaď od nejstaršího', 'Díla podle roku vzniku', detailOf('by'), { title: 'V jakém roce toto dílo vzniklo?', when: (item) => item.f.year >= 1000 }),
         born('literatura', 'spisovatele', 'Spisovatelé a básníci'),
         // Sport
-        dated('sport', 'kluby', 'from', 'Seřaď od nejstaršího', 'Kluby podle roku založení', detailOf('city', 'sport'), { title: 'V jakém roce byl tento klub založen?' }),
+        dated('sport', 'kluby', 'from', 'Seřaď od nejstaršího', 'Kluby podle roku založení', detailOf('sport', 'city'), { title: 'V jakém roce byl tento klub založen?' }),
         { id: 'sport-sportoviste-kapacita', topic: 'sport', category: 'sportoviste', key: 'capacity', unit: 'seats', gap: ratio(1.3), filter: has(['stadion', 'aréna']), detail: detailOf('city', 'loc'),
             order: { desc: ['Seřaď od největšího', 'Stadiony a haly podle počtu míst'], asc: ['Seřaď od nejmenšího', 'Stadiony a haly podle počtu míst'] } },
         born('sport', 'sportovci', 'Sportovci', detailOf('sport', 'land')),
@@ -290,9 +292,12 @@
         };
         if (planned.kind === 'order') {
             if (items.length !== 4) return null;
-            // Obrázky buď u všech čtyř položek, nebo u žádné: jediný obrázek by jednu možnost zbytečně zvýraznil
+            // Obrázky buď u všech čtyř položek, nebo u žádné: jediný obrázek by jednu možnost zbytečně zvýraznil. Stejně popisky pod názvem:
+            // jen když ho mají všechny čtyři a je stejného druhu (všude sport, nebo všude město), jinak u žádné
             const all = items.map(entry);
-            const rows = all.every(row => row.photo) ? all : all.map(row => ({ ...row, photo: null }));
+            const keys = spec.detail && spec.detail.keyOf ? items.map(item => spec.detail.keyOf(item)) : null;
+            const sameDetail = all.every(row => row.detail) && (!keys || keys.every(key => key === keys[0]));
+            const rows = all.map(row => ({ ...row, photo: all.every(one => one.photo) ? row.photo : null, detail: sameDetail ? row.detail : '' }));
             const [title, detailText] = spec.order[planned.dir] || [];
             const correct = rows.map((row, index) => index).sort((a, b) => planned.dir === 'desc' ? rows[b].value - rows[a].value : rows[a].value - rows[b].value);
             return {

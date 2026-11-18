@@ -291,3 +291,19 @@ test('každá vlastnost má vyplněné texty, jednotku a známý způsob vzdále
         if (spec.estimate) assert.ok(['ratio', 'abs', 'year'].includes(spec.estimate.score));
     }
 });
+
+test('Seřaď: popisek pod názvem buď u všech čtyř položek a stejného druhu (všude sport), nebo u žádné (ne „lední hokej“, „Paradise“ a nic)', () => {
+    const s = contextOf('sport');
+    const club = (q, n, from, f) => ({ q, n, c: 'kluby', ty: '', k: 1, f: { from, y: from, ...f } });
+    const ctxWith = (items) => ({ ...s, byId: new Map(items.map(item => [item.q, item])) });
+    const round = (items) => Numeric.buildRound({ kind: 'order', spec: 'sport-kluby-from', dir: 'asc', ids: items.map(item => item.q) }, ctxWith(items));
+    const base = [club('Q1', 'Edmonton Oilers', 1972, { sport: 'lední hokej', city: 'Edmonton' }), club('Q2', 'Vegas Golden Knights', 2017, { sport: 'lední hokej', city: 'Paradise' }),
+        club('Q3', 'Aston Villa FC', 1874, { sport: 'fotbal', city: 'Aston' }), club('Q4', 'FK Viktoria Žižkov', 1903, { sport: 'fotbal', city: 'Praha' })];
+    assert.deepEqual(round(base).numeric.items.map(row => row.detail), ['lední hokej', 'lední hokej', 'fotbal', 'fotbal'], 'všude sport, ne město');
+    // Jedné položce sport chybí (popisek by byl město): u žádné
+    const mixed = [...base.slice(0, 3), club('Q4', 'FK Viktoria Žižkov', 1903, { city: 'Praha' })];
+    assert.ok(round(mixed).numeric.items.every(row => row.detail === ''), 'různý druh popisku → bez popisků');
+    // Jedné položce popisek odpadne (je v názvu): u žádné
+    const named = [...base.slice(0, 3), club('Q4', 'Fotbal Club Praha', 1903, { sport: 'fotbal' })];
+    assert.ok(round(named).numeric.items.every(row => row.detail === ''), 'chybějící popisek → bez popisků');
+});
