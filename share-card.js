@@ -1,7 +1,7 @@
 // Sdílení výsledků: text (navigator.share, jinak schránka) a obrázek PNG nakreslený na plátno (sova v barvě obleku hráče, skóre, mřížka
 // otázek, datum a adresa hry). Obrázek se sdílí jako soubor přes navigator.share({ files }), kde to prohlížeč umí, jinak se stáhne.
 // Plátno kreslí jen obrázky z vlastního původu (icons/…), takže není „zašpiněné“ a jde z něj vyrobit PNG. Používá ho Kvíz dne,
-// výsledek dnešní otázky, vyhraná výzva, Bleskovka a Přežití a diplom za mistrovství tématu (app.js). Čistá část (rozložení karty, názvy obrázků, text) se testuje v tests/share-card.test.js.
+// výsledek dnešní otázky, vyhraná výzva, Bleskovka a Přežití, diplom za mistrovství tématu a umístění ve skončeném turnaji (app.js). Čistá část (rozložení karty, názvy obrázků, text) se testuje v tests/share-card.test.js.
 (function (root, factory) {
     const api = factory(root);
     if (typeof module === 'object' && module.exports) module.exports = api;
@@ -334,8 +334,148 @@
             ctx.fillText(model.footer, W / 2, H - 124);
         }
     };
-    // Nakreslí kartu a vrátí plátno (1080 × 1080; diplom 1080 × 1350)
+    // --- Umístění v turnaji (kind: 'tournament'): 1080 × 1350 (4 : 5) v barvě tématu jako karta výsledku. Nahoře logo a datum, obrázek turnaje
+    // s názvem turnaje a týdnem (u speciálního tématem), uprostřed sova podle výsledku (u 1.–4. místa ve vavřínovém věnci), velké umístění
+    // v barvě medaile, kolo, přezdívka, dvě políčka (hráčů v turnaji, vyhraných zápasů) a adresa hry ---
+    const TOURNAMENT = { width: 1080, height: 1350 };
+    // Barva umístění: zlatá, stříbrná, bronzová, jinak bílá
+    const TIER_COLORS = { gold: '#efc55c', silver: '#e2e8f0', bronze: '#f3a96b', good: '#ffffff', other: '#ffffff' };
+    const TIER_POSES = { gold: 'vitez', silver: 'oslava', bronze: 'oslava', good: 'radost', other: 'vyzva' };
+    // input = { kind: 'tournament', kicker, subtitle, headline, stage, tier, pose, name, players, playersLabel, wins, winsLabel, day, robe, url, appName }
+    // (tournament.js shareCard)
+    const tournamentModel = (input) => {
+        const tier = Object.prototype.hasOwnProperty.call(TIER_COLORS, input.tier) ? input.tier : 'other';
+        const count = (value) => Math.max(0, Math.floor(Number(value) || 0));
+        return {
+            kind: 'tournament', appName: String(input.appName || 'Mudrlant'),
+            kicker: String(input.kicker || 'Turnaj').toUpperCase(), subtitle: String(input.subtitle || ''),
+            headline: String(input.headline || ''), stage: String(input.stage || ''), tier, color: TIER_COLORS[tier],
+            laurel: ['gold', 'silver', 'bronze', 'good'].includes(tier) && /^[1-4]\./.test(String(input.headline || '')),
+            name: String(input.name || '').trim().slice(0, 30) || 'Hráč Mudrlanta',
+            stats: [
+                { value: String(count(input.players)), label: String(input.playersLabel || 'hráčů') },
+                { value: String(count(input.wins)), label: String(input.winsLabel || 'vyhraných zápasů') }
+            ],
+            date: formatDay(input.day),
+            owl: owlSrc(POSES.includes(input.pose) ? input.pose : TIER_POSES[tier], input.robe), logo: logoSrc(input.robe),
+            art: 'icons/topics/turnaj.webp', wreath: 'icons/topics/vavrin.webp',
+            footer: input.url ? `Zahraj si taky: ${shortUrl(input.url)}` : ''
+        };
+    };
+    // Obrázek do čtverce box × box se středem v (cx, cy)
+    const drawContained = (ctx, image, cx, cy, box) => {
+        const ratio = image.width / image.height || 1;
+        const w = ratio >= 1 ? box : box * ratio;
+        const h = ratio >= 1 ? box / ratio : box;
+        ctx.drawImage(image, cx - w / 2, cy - h / 2, w, h);
+    };
+    const drawTournament = (canvas, model, images, colors) => {
+        const { width: W, height: H } = TOURNAMENT;
+        const ctx = canvas.getContext('2d');
+        const gradient = ctx.createLinearGradient(0, 0, W, H);
+        gradient.addColorStop(0, colors.top);
+        gradient.addColorStop(1, colors.bottom);
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+        for (let y = 18; y < H; y += 36) for (let x = 18; x < W; x += 36) { ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI * 2); ctx.fill(); }
+        ctx.textBaseline = 'alphabetic';
+        // Hlavička: logo, název hry, datum
+        if (images.logo) ctx.drawImage(images.logo, PAD - 6, PAD - 14, 84, 84 * (images.logo.height / images.logo.width || 1));
+        ctx.fillStyle = COLORS.cream;
+        ctx.textAlign = 'left';
+        ctx.font = `900 60px ${FONT}`;
+        ctx.fillText(model.appName, PAD + 92, PAD + 52);
+        if (model.date) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+            ctx.textAlign = 'right';
+            ctx.font = `700 40px ${FONT}`;
+            ctx.fillText(model.date, W - PAD, PAD + 48);
+        }
+        // Turnaj: obrázek turnaje vlevo od názvu (oba uprostřed), pod tím týden nebo téma
+        const artBox = 92;
+        const kickerSize = fitFont(ctx, model.kicker, 900, 50, W - 2 * PAD - artBox - 20, 30);
+        const kickerWidth = ctx.measureText(model.kicker).width;
+        const groupLeft = (W - (images.art ? artBox + 18 : 0) - kickerWidth) / 2;
+        if (images.art) drawContained(ctx, images.art, groupLeft + artBox / 2, 222 - kickerSize * 0.35, artBox);
+        ctx.fillStyle = COLORS.gold;
+        ctx.textAlign = 'left';
+        ctx.fillText(model.kicker, groupLeft + (images.art ? artBox + 18 : 0), 222);
+        if (model.subtitle) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.88)';
+            ctx.textAlign = 'center';
+            fitFont(ctx, model.subtitle, 700, 40, W - 2 * PAD, 26);
+            ctx.fillText(model.subtitle, W / 2, 282);
+        }
+        // Sova uprostřed: záře, u 1.–4. místa vavřínový věnec za ní
+        const cx = W / 2;
+        const cy = 540;
+        const glow = ctx.createRadialGradient(cx, cy, 40, cx, cy, 330);
+        glow.addColorStop(0, 'rgba(239, 197, 92, 0.38)');
+        glow.addColorStop(1, 'rgba(239, 197, 92, 0)');
+        ctx.fillStyle = glow;
+        ctx.fillRect(cx - 340, cy - 340, 680, 680);
+        if (model.laurel && images.wreath) drawContained(ctx, images.wreath, cx, cy + 6, 450);
+        if (images.owl) drawContained(ctx, images.owl, cx, cy, model.laurel ? 310 : 360);
+        // Umístění v barvě medaile, pod ním kolo
+        ctx.textAlign = 'center';
+        ctx.save();
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+        ctx.shadowBlur = 18;
+        ctx.shadowOffsetY = 6;
+        ctx.fillStyle = model.color;
+        fitFont(ctx, model.headline, 900, 150, W - 2 * PAD, 72);
+        ctx.fillText(model.headline, cx, 880);
+        ctx.restore();
+        if (model.stage) {
+            ctx.fillStyle = COLORS.cream;
+            fitFont(ctx, model.stage, 800, 50, W - 2 * PAD, 28);
+            ctx.fillText(model.stage, cx, 948);
+        }
+        // Přezdívka hráče
+        ctx.fillStyle = '#ffffff';
+        fitFont(ctx, model.name, 800, 56, W - 2 * PAD, 30);
+        ctx.fillText(model.name, cx, 1024);
+        // Dvě políčka: číslo zlatě, popisek pod ním
+        const gap = 28;
+        const boxW = (W - 2 * PAD - gap) / 2;
+        const boxH = 108;
+        const top = 1056;
+        model.stats.forEach((stat, index) => {
+            const x = PAD + index * (boxW + gap);
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            roundRect(ctx, x, top, boxW, boxH, 28);
+            ctx.fill();
+            ctx.fillStyle = COLORS.gold;
+            ctx.font = `900 54px ${FONT}`;
+            ctx.fillText(stat.value, x + boxW / 2, top + 56);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            fitFont(ctx, stat.label, 700, 30, boxW - 32, 20);
+            ctx.fillText(stat.label, x + boxW / 2, top + 92);
+        });
+        // Pata: kde se dá hrát
+        if (model.footer) {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+            roundRect(ctx, PAD - 16, H - PAD - 76, W - 2 * PAD + 32, 92, 30);
+            ctx.fill();
+            ctx.fillStyle = COLORS.cream;
+            fitFont(ctx, model.footer, 700, 36, W - 2 * PAD - 20);
+            ctx.fillText(model.footer, cx, H - PAD - 18);
+        }
+    };
+    // Nakreslí kartu a vrátí plátno (1080 × 1080; diplom a umístění v turnaji 1080 × 1350)
     const render = async (input) => {
+        if (input && input.kind === 'tournament') {
+            const model = tournamentModel(input);
+            const [owl, logo, art, wreath] = await Promise.all([loadImage(model.owl), loadImage(model.logo), loadImage(model.art), model.laurel ? loadImage(model.wreath) : Promise.resolve(null)]);
+            const canvas = root.document.createElement('canvas');
+            canvas.width = TOURNAMENT.width;
+            canvas.height = TOURNAMENT.height;
+            drawTournament(canvas, model, { owl, logo, art, wreath }, brandColors());
+            canvas.dataset.owl = owl ? model.owl : '';
+            canvas.dataset.logo = logo ? model.logo : '';
+            return canvas;
+        }
         if (input && input.kind === 'diploma') {
             const model = diplomaModel(input);
             const [owl, logo, icon] = await Promise.all([loadImage(model.owl), loadImage(model.logo), model.icon ? loadImage(model.icon) : Promise.resolve(null)]);
@@ -431,5 +571,5 @@
         }
     };
 
-    return { SIZE, DIPLOMA, TOPIC_COLORS, diplomaModel, saveImage, ROBES, POSES, COLORS, shareText, robeOf, owlSrc, logoSrc, formatDay, shortUrl, gridLayout, cardModel, fileName, render, prepare, shareImage };
+    return { SIZE, DIPLOMA, TOURNAMENT, TIER_COLORS, TOPIC_COLORS, diplomaModel, tournamentModel, saveImage, ROBES, POSES, COLORS, shareText, robeOf, owlSrc, logoSrc, formatDay, shortUrl, gridLayout, cardModel, fileName, render, prepare, shareImage };
 });

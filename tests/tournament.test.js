@@ -134,11 +134,11 @@ test('stav karty: postoupil, vypadl, finále, bronz, divák', () => {
     let card = state([match({ winner: ME, decided_by: 'played' })], '2026-11-09');
     assert.equal(card.step, 'won');
     assert.equal(card.nextDay, '2026-11-10');
-    assert.equal(T.statusText(card, {}, '2026-11-09'), 'Postoupil jsi, další kolo je zítra.');
+    assert.equal(T.statusText(card, {}, '2026-11-09'), 'Postupuješ, další kolo je zítra.');
     card = state([match({ winner: OTHER, decided_by: 'played' })], '2026-11-10', [entry(ME, 'out', 5), entry(OTHER)]);
     assert.equal(card.step, 'lost');
     assert.equal(card.label, '5.–8. místo');
-    assert.equal(T.statusText(card, {}, '2026-11-10'), 'Vypadl jsi: 5.–8. místo.');
+    assert.equal(T.statusText(card, {}, '2026-11-10'), 'Konec v turnaji: 5.–8. místo.');
     // moje poslední zápas je nejvyššího kola; zápas o 3. místo se bere před předchozím semifinále
     card = state([match({ id: 'sf', round: 2, winner: OTHER }), match({ id: 'b', round: 3, third: true })], '2026-11-11', [entry(ME, 'out', 3), entry(OTHER)]);
     assert.equal(card.matchId, 'b');
@@ -147,7 +147,7 @@ test('stav karty: postoupil, vypadl, finále, bronz, divák', () => {
     // vyhrané finále
     card = state([match({ id: 'f', round: 3, winner: ME })], '2026-11-11');
     assert.equal(card.final, true);
-    assert.equal(T.statusText(card, {}, '2026-11-11'), 'Vyhrál jsi finále!');
+    assert.equal(T.statusText(card, {}, '2026-11-11'), 'Finále je tvoje!');
     // divák (nehraju): nemám přihlášku ve hře
     card = state([match({ p1: 'a', p2: 'b' })], '2026-11-09', [entry('a'), entry('b'), entry(ME, 'excluded')]);
     assert.equal(card.role, 'spectator');
@@ -156,7 +156,7 @@ test('stav karty: postoupil, vypadl, finále, bronz, divák', () => {
     card = T.cardState({ tournament: { ...running, status: 'finished' }, entries: [entry(ME, 'finished', 2)], matches: [], me: ME, today: '2026-11-12' });
     assert.equal(card.phase, 'finished');
     assert.equal(card.label, '2. místo');
-    assert.equal(T.statusText(card, {}, '2026-11-12'), 'Skončil, 2. místo.');
+    assert.equal(T.statusText(card, {}, '2026-11-12'), 'Turnaj skončil: 2. místo.');
 });
 
 test('texty zpráv od serveru', () => {
@@ -165,7 +165,7 @@ test('texty zpráv od serveru', () => {
     assert.match(T.noticeText({ kind: 'excluded_full', detail: '8' }).text, /příštího turnaje/);
     assert.match(T.noticeText({ kind: 'cancelled', detail: '5' }).text, /5 hráčů/);
     assert.match(T.noticeText({ kind: 'cancelled', detail: '1' }).text, /1 hráč,/);
-    assert.match(T.noticeText({ kind: 'eliminated_noplay' }).text, /neodehrál/);
+    assert.match(T.noticeText({ kind: 'eliminated_noplay' }).text, /neodehrané/);
     const result = T.noticeText({ kind: 'result', detail: '2' });
     assert.equal(result.place, 2);
     assert.match(result.text, /2\. místo/);
@@ -427,4 +427,82 @@ test('archiv: chybějící místa skončeného turnaje se dopočítají ze zápa
     assert.equal(T.finalPlaces([...blank, excluded], tournament, matches).find(e => e.user_id === 'x'), excluded);
     // pódium skončeného turnaje z dopočítaných míst
     assert.deepEqual(T.podium(filled).map(e => e.user_id), ['p1', 'p9', 'p5', 'p13']);
+});
+
+// --- Sdílení umístění (obrázek po skončení turnaje) ---
+test('umístění k obrázku: všechny výsledky vyřazovacího pavouku (finále, zápas o 3. místo, vyřazení po kolech)', () => {
+    const at = (place, size) => { const info = T.placement(place, size); return info && [info.headline, info.stage, info.tier, info.pose, info.top]; };
+    assert.deepEqual(at(1, 32), ['1. místo', 'Vítězství v turnaji', 'gold', 'vitez', null]);
+    assert.deepEqual(at(2, 32), ['2. místo', 'Finále', 'silver', 'oslava', null]);
+    assert.deepEqual(at(3, 32), ['3. místo', 'Bronz v zápase o 3. místo', 'bronze', 'oslava', null]);
+    assert.deepEqual(at(4, 32), ['4. místo', 'Semifinále', 'good', 'radost', null]);
+    // Vypadlí: přesné místo z databáze, kolo vyřazení a „Top N“ (nejlepších N, do kterých se hráč dostal)
+    assert.deepEqual(at(5, 32), ['5. místo', 'Čtvrtfinále · Top 8', 'good', 'radost', 8]);
+    assert.deepEqual(at(8, 32), ['8. místo', 'Čtvrtfinále · Top 8', 'good', 'radost', 8]);
+    assert.deepEqual(at(9, 32), ['9. místo', 'Osmifinále · Top 16', 'other', 'vyzva', 16]);
+    assert.deepEqual(at(16, 32), ['16. místo', 'Osmifinále · Top 16', 'other', 'vyzva', 16]);
+    // Vyřazení hned v prvním kole: „Top 32“ z 32 nic neříká, ukáže se rozmezí míst
+    assert.deepEqual(at(17, 32), ['17. místo', 'Šestnáctifinále · 17.–32. místo', 'other', 'vyzva', null]);
+    assert.deepEqual(at(32, 32), ['32. místo', 'Šestnáctifinále · 17.–32. místo', 'other', 'vyzva', null]);
+    // 128 hráčů: každé kolo
+    assert.equal(T.placement(17, 128).stage, 'Šestnáctifinále · Top 32');
+    assert.equal(T.placement(33, 128).stage, '2. kolo · Top 64');
+    assert.equal(T.placement(100, 128).stage, '1. kolo · 65.–128. místo');
+    assert.equal(T.placement(100, 128).range, '65.–128. místo');
+    // Nejmenší turnaj (8 hráčů): poražení ve čtvrtfinále jsou vyřazení v prvním kole
+    assert.deepEqual(at(5, 8), ['5. místo', 'Čtvrtfinále · 5.–8. místo', 'other', 'vyzva', null]);
+    assert.deepEqual(at(4, 8), ['4. místo', 'Semifinále', 'good', 'radost', null]);
+    // Neplatné místo: nic
+    [[0, 8], [null, 8], [9, 8], [3, 0], ['x', 8]].forEach(([place, size]) => assert.equal(T.placement(place, size), null, `${place}/${size}`));
+});
+
+test('vstup obrázku umístění: skončený turnaj, místo z databáze, výhry, název a týden; bez hraní nebo před koncem nic', () => {
+    const finished = { id: 't9', status: 'finished', week_start: '2026-11-09', started_on: '2026-11-09', size: 8, rounds: 3, capacity: 128, seed: 's' };
+    const players = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+    const results = (winner, loser) => [{ user_id: winner, finished_at: 'x', points: 20, time_ms: 1000, correct: 8 }, { user_id: loser, finished_at: 'x', points: 5, time_ms: 1000, correct: 2 }];
+    const play = (id, round, slot, third, p1, p2, winner) => ({ id, round, slot, third, p1, p2, winner, decided_by: 'played', results: results(winner, winner === p1 ? p2 : p1) });
+    // a vyhraje vše; c prohraje semifinále a vyhraje o 3. místo; e prohraje ve čtvrtfinále
+    const matches = [
+        play('q1', 1, 1, false, 'a', 'b', 'a'), play('q2', 1, 2, false, 'c', 'd', 'c'), play('q3', 1, 3, false, 'e', 'f', 'f'), play('q4', 1, 4, false, 'g', 'h', 'g'),
+        play('s1', 2, 1, false, 'a', 'c', 'a'), play('s2', 2, 2, false, 'f', 'g', 'g'),
+        play('f1', 3, 1, false, 'a', 'g', 'a'), play('t1', 3, 1, true, 'c', 'f', 'c')
+    ];
+    const places = { a: 1, g: 2, c: 3, f: 4, b: 5, d: 6, e: 7, h: 8 };
+    const entries = players.map(id => ({ user_id: id, status: 'finished', place: places[id], player: { display_name: `Hráč ${id.toUpperCase()}` } }));
+    const card = (me, extra = {}) => T.shareCard({ tournament: finished, entries, matches, me, robe: 'modra', url: 'https://x.test/', appName: 'Mudrlant', ...extra });
+    assert.deepEqual({ ...card('a') }, {
+        kind: 'tournament', kicker: 'Týdenní turnaj', subtitle: '9.–15. 11. 2026', place: 1, headline: '1. místo', stage: 'Vítězství v turnaji', range: '', top: null, tier: 'gold', pose: 'vitez',
+        name: 'Hráč A', players: 8, playersLabel: 'hráčů', wins: 3, winsLabel: 'vyhrané zápasy', day: '2026-11-11', week: '2026-11-09', robe: 'modra', url: 'https://x.test/', appName: 'Mudrlant'
+    });
+    assert.deepEqual([card('g').headline, card('g').stage, card('g').wins, card('g').winsLabel], ['2. místo', 'Finále', 2, 'vyhrané zápasy']);
+    assert.deepEqual([card('c').headline, card('c').tier, card('c').wins], ['3. místo', 'bronze', 2], 'semifinále prohrané, zápas o 3. místo vyhraný');
+    assert.deepEqual([card('f').headline, card('f').stage, card('f').wins, card('f').winsLabel], ['4. místo', 'Semifinále', 1, 'vyhraný zápas']);
+    assert.deepEqual([card('e').headline, card('e').stage, card('e').wins, card('e').winsLabel, card('e').pose], ['7. místo', 'Čtvrtfinále · 5.–8. místo', 0, 'vyhraných zápasů', 'vyzva']);
+    // Místa chybí (starší databáze): dopočítají se ze zápasů jako v archivu
+    const bare = entries.map(entry => ({ ...entry, place: null }));
+    assert.equal(T.shareCard({ tournament: finished, entries: bare, matches, me: 'a' }).headline, '1. místo');
+    assert.equal(T.shareCard({ tournament: finished, entries: bare, matches, me: 'c' }).headline, '3. místo');
+    // Bez obrázku: turnaj ještě běží, hráč nehrál (jen přihláška, vyloučení), nikdo přihlášený
+    assert.equal(T.shareCard({ tournament: { ...finished, status: 'running' }, entries, matches, me: 'a' }), null);
+    assert.equal(T.shareCard({ tournament: finished, entries: [...entries, { user_id: 'z', status: 'excluded', place: null }], matches, me: 'z' }), null);
+    assert.equal(T.shareCard({ tournament: finished, entries, matches, me: 'nikdo' }), null);
+    assert.equal(T.shareCard({ tournament: finished, entries, matches, me: '' }), null);
+    // Speciální turnaj: téma místo týdne, datum podle konce posledního kola v Praze
+    const special = { ...finished, kind: 'special', theme: 'hrady-zamky', title: 'Hrady a zámky', starts_at: '2026-11-21T17:00:00Z', round_minutes: 60 };
+    const specialCard = T.shareCard({ tournament: special, entries, matches, me: 'e' });
+    assert.deepEqual([specialCard.kicker, specialCard.subtitle, specialCard.day], ['Speciální turnaj', 'Hrady a zámky', '2026-11-21']);
+    assert.equal(T.lastDay({ ...special, starts_at: '2026-11-21T21:30:00Z' }), '2026-11-22', 'konec po půlnoci v Praze');
+});
+
+test('text ke sdílenému obrázku umístění: bez rodu, s počtem hráčů a vyhraných zápasů', () => {
+    assert.equal(T.shareText({ kicker: 'Týdenní turnaj', subtitle: '9.–15. 11. 2026', headline: '3. místo', players: 32, wins: 4 }, 'https://x.test/'),
+        'Týdenní turnaj v Mudrlantu: 3. místo, 4 vyhrané zápasy. Hrálo 32 hráčů. Přidáš se příště?\nhttps://x.test/');
+    assert.equal(T.shareText({ kicker: 'Speciální turnaj', subtitle: 'Hrady a zámky', headline: '1. místo', players: 8, wins: 3 }),
+        'Speciální turnaj Hrady a zámky v Mudrlantu: 1. místo, 3 vyhrané zápasy. Hrálo 8 hráčů. Přidáš se příště?');
+    assert.equal(T.shareText({ kicker: 'Týdenní turnaj', headline: '65. místo', players: 128, wins: 0 }), 'Týdenní turnaj v Mudrlantu: 65. místo, 0 vyhraných zápasů. Hrálo 128 hráčů. Přidáš se příště?');
+    assert.equal(T.shareText({ kicker: 'Týdenní turnaj', headline: '2. místo', players: 4, wins: 1 }), 'Týdenní turnaj v Mudrlantu: 2. místo, 1 vyhraný zápas. Hráli 4 hráči. Přidáš se příště?');
+    for (const place of [1, 2, 3, 4, 5, 9, 17]) {
+        const info = T.placement(place, 32);
+        assert.doesNotMatch(`${info.headline} ${info.stage}`, /(vyhrál|vyhrála|skončil|skončila|vypadl|vypadla)/i);
+    }
 });

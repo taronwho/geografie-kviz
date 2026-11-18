@@ -172,7 +172,7 @@ test('SQL: web push (odběry, tajemství, push_due, push_mark)', { skip: !availa
         const rows = dueRows(TUE, 9).filter(row => row.kind === 'notice');
         const his = rows.filter(row => row.endpoint === endpointOf(7));
         assert.equal(his.length, 1, JSON.stringify(rows));
-        assert.equal(his[0].title, 'Vypadl jsi z turnaje');
+        assert.equal(his[0].title, 'Konec v turnaji');
         assert.match(his[0].body, /kontumačně/);
         const noticeId = q(`select id from tournament_notices where user_id = '${opp}' and kind = 'eliminated_noplay'`);
         assert.equal(his[0].key, `notice:${noticeId}:${opp}`);
@@ -185,7 +185,7 @@ test('SQL: web push (odběry, tajemství, push_due, push_mark)', { skip: !availa
         const result = dueRows(TUE, 9).filter(row => row.endpoint === endpointOf(7));
         assert.equal(result.length, 1);
         assert.equal(result[0].title, 'Turnaj skončil');
-        assert.equal(result[0].body, 'Skončil jsi na 3. místě. Gratulace!');
+        assert.equal(result[0].body, 'Tvoje umístění: 3. místo. Gratulace!');
         ok(as(opp, TUE, `select tournament_notices_seen(array(select id from tournament_notices));`));
         assert.equal(dueRows(TUE, 9).filter(row => row.endpoint === endpointOf(7)).length, 0, 'přečtené se neposílá');
         // neznámý druh zprávy a stará zpráva se přeskočí
