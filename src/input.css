@@ -1455,6 +1455,9 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 /* Medailon z obrázku (prestige.js ART, icons/topics/prestiz-N.webp): čtvercový rám, obrázek object-contain. Křídla ho dělají širší než vyšší,
    takže v rohu obrázku hráče se trochu zvětší a křídla přesahují rám odznáčku (kruh medailonu pak zhruba vyplní roh). */
 .prestige-badge .prestige-art > img { scale: 1.2; }
+/* Obrázek medailonu má vlastní krémový okraj samolepky: obrys v barvě podkladu by kolem průsvitné záře a paprsků (★10 a výš)
+   nakreslil zubatou tmavou skvrnu (vidět hlavně na velkém obrázku hráče s rámečkem), proto u obrázku jen jemný stín */
+.prestige-badge:has(> .prestige-art) { filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.35)); }
 /* Rozsvěcování legendárního medailonu ★11–★99 (prestige.js litLevels): nad obrázkem ★10 jeho kopie, každá oříznutá na jednu oblast,
    zesvětlená a zářící; síla l1–l4. Oblasti v % čtverce obrázku (odhad: paprsky za medailí, křídla vlevo a vpravo, prstenec, koruna
    nahoře, diamant uprostřed) – doladit podle skutečného obrázku zde, na jednom místě. */
