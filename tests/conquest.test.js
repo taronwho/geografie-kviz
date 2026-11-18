@@ -1050,11 +1050,10 @@ test('kolo hry v kartuši: „kolo 3 z 8“, kolo začaté dřív, poslední kol
     assert.match(C.gameScreenHtml(C.viewOf(game, maps.evropa, 'A'), { now: Date.parse('2026-11-12T10:00:00Z') }), /data-cq-clock>zbývá [^<]+<\/span>\s*<span data-cq-rounds class="cq-rounds max-w-full truncate">kolo 1 z 3</);
 });
 
-test('ztracený hrad: nápověda (záložka Regiony) říká, že kdo přijde o domovský hrad, má v dalším období o 1 tah méně; počítadlo tahů a toast', () => {
-    const regiony = C.helpHtml('regiony');
-    assert.match(regiony, /<b[^>]*>Ztráta hradu:<\/b> Kdo přijde o domovský hrad, má v dalším období o 1 tah méně\./);
+test('ztracený hrad: nápověda (záložka Stavby) říká, že kdo přijde o domovský hrad, má v příštím kole o tah méně; počítadlo tahů a toast', () => {
+    assert.match(C.helpHtml('stavby'), /Kdo přijde o domovský hrad, má v příštím kole o jeden tah méně\./);
     // Tahy navíc zůstaly (poklad, kořist) a žádná záložka nemluví o rodu hráče
-    assert.match(regiony, /\+1 tah v příštím období, když dobudeš domovské území soupeře/);
+    assert.match(C.helpHtml('konec'), /Za dobytí domovského hradu soupeře máš o tah víc v příštím kole\./);
     const all = C.HELP_TABS.map(([id]) => C.helpHtml(id)).join('');
     assert.doesNotMatch(all, /\b(přišel jsi|přišla jsi|ztratil jsi|ztratila jsi|dobyl jsi|dobyla jsi)\b/);
     // Počítadlo v liště: bez postihu jen 4/5, s postihem 3/4 a červené −1 s hradem (i pro čtečku a v nápovědě po najetí)
@@ -1336,8 +1335,6 @@ test('sady hradů (blok 40, č. 297–308 a 362–367): katalog shodný se serve
     assert.match(C.lookHtml({ color: 'modra', emblem: 'lev', tab: 'castle', looks }), /aria-checked="true" aria-label="Základní"/);
     assert.match(C.lookHtml({ color: 'modra', emblem: 'lev', tab: 'castle', looks }), /Sady hradů získáš v Dobývání a v Sezóně Mudrlanta\./);
     for (const page of [html, info, art]) assert.doesNotMatch(page, /\sstyle=|undefined|NaN|\son[a-z]+=/i);
-    // Nápověda zmiňuje sady hradů u vzhledu
-    assert.match(C.helpHtml('zaklady'), /Vzhled:<\/b> Výplně území, vzácné znaky a sady hradů získáš za úspěchy \(okno Barva a znak\)\./);
 });
 
 // Doplněné otázky Mudrlanta (popis, fakta, obrázek) s obsahem jako z app.js conquestRound
@@ -1784,14 +1781,17 @@ test('stavby (blok 41): obrázky věže, dolu a zříceniny podle sady, ozdoby, 
     assert.match(C.resultHtml(home).replace(/<[^>]+>/g, ''), /1 za každé území \(s dolem 2\)/);
 });
 
-test('nápověda Stavby (blok 41): záložka mezi Útokem a Regiony, pravidla věže a dolu, bez rodu, šest záložek', () => {
-    assert.deepEqual(C.HELP_TABS.map(([id]) => id), ['zaklady', 'utok', 'stavby', 'regiony', 'konec', 'pomucky']);
+test('nápověda Stavby (blok 41): záložka mezi Útokem a Body, pravidla věže a dolu, souvislé věty bez odrážek, pět záložek', () => {
+    assert.deepEqual(C.HELP_TABS.map(([id]) => id), ['zaklady', 'utok', 'stavby', 'konec', 'pomucky']);
     const text = C.helpHtml('stavby').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-    for (const part of ['Postavit:', 'Palisáda, Strážní věž, nebo Důl', 'Stavba stojí 1 tah', 'Strážní věž:', '„Bránit“ (1 tah) jde 15 s v rychlé hře, jinak 30 s', 'útok odrazíš', 'věž padne',
-        'Důl:', '2 body místo 1', 'získá ho dobyvatel', 'Zřícenina', 'Tábor', 'Pomník vítěze']) assert.ok(text.includes(part), part);
-    assert.match(C.helpHtml('stavby'), /grid-cols-6/);
-    assert.match(C.helpHtml('stavby'), /data-cq-help-tab="regiony" class="[^"]*">Dál: Regiony/);
-    assert.match(C.helpHtml('konec').replace(/<[^>]+>/g, ''), /každé území na konci hry \(s dolem 2\)/);
+    for (const part of ['palisádu, strážní věž, nebo důl', 'za jeden tah postavit', 'klepni na „Bránit“', 'V rychlé hře na to máš 15 sekund, jinak 30', 'útok odrazíš', 'věž zmizí',
+        '2 body místo 1', 'důl mu zůstane']) assert.ok(text.includes(part), part);
+    assert.match(C.helpHtml('stavby'), /grid-cols-5/);
+    assert.match(C.helpHtml('stavby'), /data-cq-help-tab="konec" class="[^"]*">Dál: Body/);
+    assert.match(C.helpHtml('konec').replace(/<[^>]+>/g, ''), /Za každé území, které na konci hry držíš, dostaneš 1 bod\. Území s dolem má 2 body\./);
+    // Bez hesel s dvojtečkou a bez odměn
+    const all = C.HELP_TABS.map(([id]) => C.helpHtml(id)).join('');
+    assert.doesNotMatch(all, /<b[^>]*>[^<]*:<\/b>|Jak získat|XP|odznak/);
     assert.doesNotMatch(C.HELP_TABS.map(([id]) => C.helpHtml(id)).join(''), /\b(získal|získala|ubránil|ubránila|postavil|postavila|zaútočil|zaútočila)\b/);
     assert.doesNotMatch(C.DEFEND_TEXT + C.BUILD_OPTIONS.map(o => o.effect).join(' '), /\b(získal|získala|ubránil|ubránila)\b/);
 });

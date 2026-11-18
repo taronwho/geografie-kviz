@@ -3751,50 +3751,43 @@
 
     // Jak se hraje (okno)
     // Jak se hraje: šest záložek (každá se vejde na 360×640 bez posouvání), dole tlačítko na další záložku
-    const HELP_TABS = [['zaklady', 'Základy'], ['utok', 'Útok'], ['stavby', 'Stavby'], ['regiony', 'Regiony'], ['konec', 'Konec'], ['pomucky', 'Pomůcky']];
+    // Návod „Jak se hraje Dobývání“: jen to, co hráč potřebuje ke hře, souvislými krátkými větami (bez odměn a jak co získat)
+    const HELP_TABS = [['zaklady', 'Základy'], ['utok', 'Útok'], ['stavby', 'Stavby'], ['konec', 'Body'], ['pomucky', 'Pomůcky']];
     const HELP_PAGES = {
         zaklady: [
-            ['Cíl', 'Mít na konci hry co nejvíc bodů za území, která držíš (víc v záložce Konec).'],
-            ['Začátek', 'Hra začne, až je plná, nebo až jsou v ní aspoň 2 hráči a všichni klepli na „Chci hrát“. Každý dostane domovské území s hradem, ostatní jsou volná.'],
-            ['Kola', 'Kolo trvá podle nastavení 5 min, 10 min, hodinu, nebo den. Když všichni dohrají tahy dřív, klepnou na „Chci další kolo“ a další začne po odpočtu 10 s.'],
-            ['Tahy', 'V každém kole máš několik tahů (počítadlo s meči: 3/5 = zbývají 3 z 5). Tah je jedna otázka: útok, stavba, nebo obrana. Nevyužité tahy na konci kola propadnou.'],
-            ['Vzhled', 'Výplně území, vzácné znaky a sady hradů získáš za úspěchy (okno Barva a znak).'],
-            ['Boti', 'Do volných míst své hry přidáš boty: Mudrlátko, Mudrlant, nebo Super Mudrlant.']
+            'Cílem je mít na konci hry co nejvíc bodů. Body dostaneš za území, která na konci hry držíš.',
+            'Každý hráč začíná s jedním domovským územím, na kterém stojí jeho hrad. Ostatní území jsou na začátku volná.',
+            'Hra se hraje na kola. V každém kole máš několik tahů. Kolik ti jich zbývá, ukazuje počítadlo s meči nahoře.',
+            'Jeden tah je vždy jedna otázka. Tahem můžeš zaútočit, postavit stavbu, nebo bránit své území.',
+            'Nevyužité tahy na konci kola propadnou. Když všichni dohrají dřív, klepnete na „Chci další kolo“ a další kolo začne hned.',
+            'Na volná místa ve hře jde přidat boty. Přidává je ten, kdo hru založil, v rychlé hře ten, kdo je v lobby nejdéle.'
         ],
         utok: [
-            ['Útok', 'Klepni na volné nebo cizí sousední území (i přes tečkovanou námořní cestu) a pak na „Zaútočit“.'],
-            ['Otázky', 'Hlavně o tom, co k území patří: stavby, osobnosti, díla, místa, události. Občas mapa, odhad čísla nebo vlajka.'],
-            ['Bitva', 'Útok začne obléhání. Kdo s územím sousedí, může se přidat. Všichni dostanou stejnou otázku a každý má 60 s.'],
-            ['Správně', 'Území získá nejrychlejší správná odpověď. U opevněného území vítěz ubere jednu úroveň opevnění.'],
-            ['Pozor', 'Kdo odpoví správně, ale pomaleji, nezíská nic a tah ztratí. Stejně jako při špatné odpovědi nebo po čase.'],
-            ['Opevnění', 'Na svém území postavíš Palisádu, Strážní věž, nebo Důl (záložka Stavby). Obléhané území nejde opevnit.']
+            'Zaútočit můžeš jen na území, které sousedí s některým tvým územím. Sousední jsou i území spojená tečkovanou cestou přes moře.',
+            'Klepni na území a pak na „Zaútočit“. Dostaneš otázku, která se většinou týká právě toho území.',
+            'Do bitvy se může přidat každý, kdo s územím také sousedí. Všichni dostanou stejnou otázku a na odpověď mají 60 sekund.',
+            'Území získá ten, kdo odpoví správně a nejrychleji. Kdo odpoví správně, ale pomaleji, nezíská nic a tah ztratí.',
+            'Když má území opevnění, vyhraná bitva ho jen o jeden stupeň zbourá. Území dobudeš teprve tehdy, až opevnění zmizí úplně.'
         ],
         stavby: [
-            ['Postavit', 'Klepni na své území bez stavby a vyber: Palisáda, Strážní věž, nebo Důl. Stavba stojí 1 tah. Na území stojí jen jedna, obléhané stavět nejde.'],
-            ['Opevnění', 'Palisáda jde zvýšit na Hradbu. Útok opevnění jen pobourá o úroveň, teprve pak jde území dobýt. Domovský hrad se opevňuje až na Pevnost.'],
-            ['Strážní věž', 'Útok na území s věží ubráníš odkudkoli: „Bránit“ (1 tah) jde 15 s v rychlé hře, jinak 30 s. Odpovíš-li správně a nejrychleji, útok odrazíš, jinak věž padne.'],
-            ['Důl', 'Území s dolem má na konci hry 2 body místo 1. Důl nemá obranu a při dobytí nepadá: získá ho dobyvatel.'],
-            ['Na mapě', 'Zřícenina: tady v tomto kole padlo opevnění nebo věž. Tábor stojí u obléhaného území. Pomník vítěze zdobí po konci hry jeho domov.'],
-        ],
-        regiony: [
-            ['Region', 'Skupina sousedních území. Například na mapě Evropy Britské ostrovy (Spojené království a Irsko) nebo Pobaltí (Estonsko, Lotyšsko, Litva), na mapě Česka Střední Čechy (Praha a Středočeský kraj).'],
-            ['Kde ho uvidíš', 'Klepni na území: pod názvem je jeho region a jestli ho někdo drží celý.'],
-            ['Celý region', 'Držíš všechna jeho území. Region se pak na mapě zlatě obtáhne a dokud ho držíš, máš v každém období +1 tah a na konci hry 2 body navíc.'],
-            ['Další tahy navíc', '+1 tah hned, když dobudeš území s pokladem (truhla na mapě, platí jen v tom období). +1 tah v příštím období, když dobudeš domovské území soupeře. Pevnost na domovském hradu: +1 tah za období.'],
-            ['Ztráta hradu', 'Kdo přijde o domovský hrad, má v dalším období o 1 tah méně. Hrad se proto vyplatí opevnit.']
+            'Na svém území můžeš za jeden tah postavit jednu stavbu: palisádu, strážní věž, nebo důl. Na území, o které se právě bojuje, stavět nejde.',
+            'Palisáda je opevnění a později ji můžeš zvýšit na hradbu. Útočník pak potřebuje víc vyhraných bitev. Domovský hrad můžeš opevnit až na pevnost.',
+            'Strážní věž ti dovolí bránit území odkudkoli. Když na něj někdo zaútočí, klepni na „Bránit“. V rychlé hře na to máš 15 sekund, jinak 30. Když odpovíš správně a nejrychleji, útok odrazíš. Když vyhraje útočník, věž zmizí.',
+            'Důl území nebrání, ale na konci hry má území s dolem 2 body místo 1. Když území s dolem někdo dobude, důl mu zůstane.',
+            'Kdo přijde o domovský hrad, má v příštím kole o jeden tah méně. Domov se proto vyplatí opevnit.'
         ],
         konec: [
-            ['Konec', 'Hra skončí po čase nastaveném při založení, nebo hned, jakmile všichni dohrají poslední kolo.'],
-            ['Body', `1 bod za každé území na konci hry (s dolem 2) a ${REGION_POINTS} body za každý celý region. Vyhrává, kdo má nejvíc bodů. Při shodě rozhoduje, kdo svého počtu bodů dosáhl dřív.`],
-            ['Ankh vzkříšení', 'Když přijdeš o všechna území, sám se do hry nevrátíš. S pomůckou Ankh vzkříšení si vybereš volné nebo neopevněné území (ne domovský hrad) a hraješ dál, 60 s je chráněné. Bez ní hru jen sleduješ.'],
-            ['Odměny', `1. místo: odznak Dobyvatel a ${REWARD_XP[0]} XP, 2. místo: ${REWARD_XP[1]} XP, 3. místo: ${REWARD_XP[2]} XP, poslední nic. Jen ve hře aspoň 3 hráčů nebo aspoň na den, s aspoň 3 vlastními tahy a 1 bodem. S boty XP podle nejsilnějšího: Mudrlátko 20 %, Mudrlant 50 %, Super Mudrlant 100 %.`]
+            'Za každé území, které na konci hry držíš, dostaneš 1 bod. Území s dolem má 2 body.',
+            `Území jsou rozdělená do regionů. Když držíš všechna území jednoho regionu, region dostane zlatý okraj. Na konci hry za něj máš ${REGION_POINTS} body navíc a dokud ho držíš, máš v každém kole o tah víc.`,
+            'Tah navíc dostaneš hned za dobytí území s truhlou. Za dobytí domovského hradu soupeře máš o tah víc v příštím kole. Pevnost na tvém domovském hradu ti přidá tah v každém kole.',
+            'Hra končí po nastaveném čase, nebo dřív, když všichni dohrají poslední kolo. Vyhrává, kdo má nejvíc bodů. Při shodě vyhraje ten, kdo svých bodů dosáhl dřív.',
+            'Když přijdeš o všechna území, sám se do hry nevrátíš. Vrátit se můžeš jen pomůckou Ankh vzkříšení, jinak hru dál jen sleduješ.'
         ],
         pomucky: [
-            ['Pomůcky', `V zásobě máš nejvýš ${ITEMS.extra_move.max}× Tah navíc, ${ITEMS.fifty.max}× 50/50 a ${ITEMS.revive.max}× Ankh vzkříšení. Tah navíc a 50/50 jdou v jedné hře použít jen jednou. Zásobu ukazuje rozcestník a počítadlo tahů.`],
-            ['Tah navíc', 'O 1 tah víc v tomto kole. Nabídne se, když ti tahy dojdou. V posledním kole hry ne.'],
-            ['50/50', 'Tlačítko ½ u otázky se 4 možnostmi odebere dvě špatné odpovědi. Jde i v bitvě.'],
-            ['Ankh vzkříšení', 'Nabídne se, když přijdeš o všechna území: vybereš si volné nebo neopevněné území a hraješ dál.'],
-            ['Jak získat', 'Tah navíc: Boss týdne a 15. stupeň Sezóny. 50/50: Kvíz dne bez chyby, celá Řetězovka, výhra v Dobývání, 5. stupeň Sezóny. Ankh vzkříšení: jeden na začátek, dohraná hra s body, série Kvízu dne, 8. stupeň Sezóny. Vzácně i z truhel.']
+            'Pomůcky máš v zásobě a kolik jich máš, ukazuje rozcestník Dobývání. Tah navíc a 50/50 jdou v jedné hře použít jen jednou.',
+            'Tah navíc ti dá v tomto kole o jeden tah víc. Nabídne se sám, když ti tahy dojdou. V posledním kole hry ho použít nejde.',
+            '50/50 odebere u otázky se čtyřmi možnostmi dvě špatné odpovědi. Použiješ ho tlačítkem ½ u otázky, i v bitvě.',
+            'Ankh vzkříšení se nabídne, když přijdeš o všechna území. Vybereš si volné nebo neopevněné území, dostaneš ho a hraješ dál. Prvních 60 sekund na něj nikdo nemůže zaútočit.'
         ]
     };
     const helpHtml = (tab = 'zaklady') => {
@@ -3802,8 +3795,8 @@
         const index = HELP_TABS.findIndex(([id]) => id === current);
         const next = HELP_TABS[index + 1];
         return `<div data-cq-help="${current}" class="flex flex-col gap-2.5">
-            <div role="tablist" class="grid grid-cols-6 gap-0.5 rounded-2xl bg-slate-200/70 p-1 dark:bg-slate-800">${HELP_TABS.map(([id, label]) => `<button type="button" role="tab" aria-selected="${id === current}" data-cq-help-tab="${id}" class="flex min-h-[2.5rem] min-w-0 items-center justify-center rounded-xl px-0 text-[10.5px] font-black tracking-tighter ${id === current ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-300'}">${label}</button>`).join('')}</div>
-            <div class="flex flex-col gap-2 text-[13px] leading-snug text-slate-700 dark:text-slate-200">${HELP_PAGES[current].map(([title, text]) => `<p><b class="text-slate-900 dark:text-white">${title}:</b> ${text}</p>`).join('')}</div>
+            <div role="tablist" class="grid grid-cols-5 gap-0.5 rounded-2xl bg-slate-200/70 p-1 dark:bg-slate-800">${HELP_TABS.map(([id, label]) => `<button type="button" role="tab" aria-selected="${id === current}" data-cq-help-tab="${id}" class="flex min-h-[2.5rem] min-w-0 items-center justify-center rounded-xl px-0 text-[11px] font-black tracking-tight ${id === current ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-300'}">${label}</button>`).join('')}</div>
+            <div class="flex flex-col gap-2 text-[13px] leading-snug text-slate-700 dark:text-slate-200">${HELP_PAGES[current].map(text => `<p>${text}</p>`).join('')}</div>
             ${next ? `<button type="button" data-cq-help-tab="${next[0]}" class="${LIGHT_BUTTON} w-full">Dál: ${next[1]} <i data-lucide="chevron-right" class="h-4 w-4"></i></button>` : ''}
         </div>`;
     };

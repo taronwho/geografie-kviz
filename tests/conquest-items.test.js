@@ -153,14 +153,14 @@ test('50/50 u otázky: tlačítko ½ (nabídka, potvrzení, použito), odebrané
 });
 
 test('nápověda: záložka Pomůcky (obě pomůcky, jednou za hru, odkud), bez rodu; ikony pomůcek jsou v icons.js', () => {
-    assert.deepEqual(C.HELP_TABS.map(([id]) => id), ['zaklady', 'utok', 'stavby', 'regiony', 'konec', 'pomucky']);
+    assert.deepEqual(C.HELP_TABS.map(([id]) => id), ['zaklady', 'utok', 'stavby', 'konec', 'pomucky']);
     const help = C.helpHtml('pomucky');
     assert.match(help, /data-cq-help="pomucky"/);
-    assert.match(help, /Pomůcky:<\/b> V zásobě máš nejvýš 1× Tah navíc, 2× 50\/50 a 3× Ankh vzkříšení\. Tah navíc a 50\/50 jdou v jedné hře použít jen jednou\./);
-    assert.match(help, /Tah navíc:<\/b> O 1 tah víc v tomto kole\. Nabídne se, když ti tahy dojdou\. V posledním kole hry ne\./);
-    assert.match(help, /50\/50:<\/b> Tlačítko ½ u otázky se 4 možnostmi odebere dvě špatné odpovědi\. Jde i v bitvě/);
-    assert.match(help, /Ankh vzkříšení:<\/b> Nabídne se, když přijdeš o všechna území: vybereš si volné nebo neopevněné území a hraješ dál\./);
-    assert.match(help, /Jak získat:<\/b> Tah navíc: Boss týdne a 15\. stupeň Sezóny\. 50\/50: Kvíz dne bez chyby, celá Řetězovka, výhra v Dobývání, 5\. stupeň Sezóny\. Ankh vzkříšení: jeden na začátek, dohraná hra s body, série Kvízu dne, 8\. stupeň Sezóny\. Vzácně i z truhel\./);
+    assert.match(help, /Tah navíc a 50\/50 jdou v jedné hře použít jen jednou\./);
+    assert.match(help, /<p>Tah navíc ti dá v tomto kole o jeden tah víc\. Nabídne se sám, když ti tahy dojdou\./);
+    assert.match(help, /<p>50\/50 odebere u otázky se čtyřmi možnostmi dvě špatné odpovědi\./);
+    assert.match(help, /<p>Ankh vzkříšení se nabídne, když přijdeš o všechna území\./);
+    assert.doesNotMatch(help, /Jak získat|Boss týdne|Sezóny/, 'návod bez odměn');
     assert.doesNotMatch(help, /Dál:/, 'poslední záložka');
     assert.match(C.helpHtml('konec'), /Dál: Pomůcky/);
     assert.doesNotMatch(C.HELP_TABS.map(([id]) => C.helpHtml(id)).join(''), GENDERED);
