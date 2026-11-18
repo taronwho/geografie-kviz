@@ -150,12 +150,11 @@ test('kronika: prohraná bitva (správně, ale pomaleji) s meči; odražený út
 test('nápověda: záložka Útok s pravidly bitvy, Pevnost na domovském hradu +1 tah, bez rodu', () => {
     const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     const utok = text(C.helpHtml('utok'));
-    for (const sentence of ['Útok začne obléhání. Kdo s územím sousedí, může se přidat. Všichni dostanou stejnou otázku a každý má 60 s.',
-        'Území získá nejrychlejší správná odpověď.', 'Pozor: Kdo odpoví správně, ale pomaleji, nezíská nic a tah ztratí.', 'Obléhané území nejde opevnit.']) {
+    for (const sentence of ['Do bitvy se může přidat každý, kdo s územím také sousedí. Všichni dostanou stejnou otázku a na odpověď mají 60 sekund.',
+        'Území získá ten, kdo odpoví správně a nejrychleji.', 'Kdo odpoví správně, ale pomaleji, nezíská nic a tah ztratí.']) {
         assert.ok(utok.includes(sentence), sentence);
     }
-    assert.match(utok, /Správně:[\s\S]*Opevnění:/, 'záložky, které hlídá e2e test');
-    assert.match(text(C.helpHtml('regiony')), /Pevnost na domovském hradu: \+1 tah za období\./);
+    assert.match(text(C.helpHtml('konec')), /Pevnost na tvém domovském hradu ti přidá tah v každém kole\./);
     const all = C.HELP_TABS.map(([id]) => C.helpHtml(id)).join('');
     assert.doesNotMatch(all, /\b(zaútočil|zaútočila|odpověděl|odpověděla|přidal jsi|přidala jsi|prohrál|prohrála)\b/);
 });

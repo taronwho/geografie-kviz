@@ -177,7 +177,7 @@ test('pořadí: hráči bez bodů podle toho, kdo vydržel déle; rozcestník: h
 
 test('nápověda a pravidla: Ankh vzkříšení místo Návratu do hry; Fénix po Ankhu vzkříšení', () => {
     const konec = C.helpHtml('konec');
-    assert.match(konec, /Ankh vzkříšení:<\/b> Když přijdeš o všechna území, sám se do hry nevrátíš\. S pomůckou Ankh vzkříšení si vybereš volné nebo neopevněné území \(ne domovský hrad\) a hraješ dál, 60 s je chráněné\. Bez ní hru jen sleduješ\./);
+    assert.match(konec, /Když přijdeš o všechna území, sám se do hry nevrátíš\. Vrátit se můžeš jen pomůckou Ankh vzkříšení/);
     assert.doesNotMatch(konec, /Návrat do hry/);
     assert.equal(C.RARE_EMBLEM_BY_ID.fenix.how, 'Vyhraj hru po Ankhu vzkříšení');
 });

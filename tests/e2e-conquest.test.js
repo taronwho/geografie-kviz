@@ -537,9 +537,10 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         // Jak se hraje: okno se vejde na 360×640
         await tab.click('[data-cq="help"]');
         await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Jak se hraje Dobývání');
-        // Šest záložek (Základy, Útok, Stavby, Regiony, Konec, Pomůcky), každá se vejde; tlačítko Dál vede na další
-        for (const [tabId, pattern] of [['zaklady', /Kola:[\s\S]*Chci další kolo[\s\S]*Tahy:/], ['utok', /Správně:[\s\S]*Opevnění:/], ['stavby', /Postavit:[\s\S]*Strážní věž:[\s\S]*Bránit[\s\S]*Důl:[\s\S]*Pomník vítěze/], ['regiony', /Region: Skupina sousedních území[\s\S]*Britské ostrovy/], ['konec', /Body:[\s\S]*Odměny:/],
-            ['pomucky', /Pomůcky:[\s\S]*Tah navíc:[\s\S]*50\/50:[\s\S]*Jak získat: Tah navíc: Boss týdne/]]) {
+        // Pět záložek (Základy, Útok, Stavby, Body, Pomůcky), souvislé věty; každá se vejde, tlačítko Dál vede na další
+        for (const [tabId, pattern] of [['zaklady', /Hra se hraje na kola[\s\S]*Chci další kolo/], ['utok', /Zaútočit můžeš jen na území[\s\S]*nejrychleji/],
+            ['stavby', /palisádu, strážní věž, nebo důl[\s\S]*Bránit[\s\S]*2 body místo 1/], ['konec', /dostaneš 1 bod[\s\S]*regionů[\s\S]*Ankh vzkříšení/],
+            ['pomucky', /Tah navíc ti dá[\s\S]*50\/50 odebere[\s\S]*Ankh vzkříšení se nabídne/]]) {
             await tab.waitForSelector(`[data-cq-help="${tabId}"]`);
             assert.match(await tab.textContent('[data-cq-help]'), pattern, tabId);
             const helpFit = await tab.evaluate(() => { const box = document.querySelector('#dialog-overlay > div'); const rect = box.getBoundingClientRect(); return { over: box.scrollHeight - box.clientHeight, top: rect.top, bottom: rect.bottom }; });
@@ -547,8 +548,8 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             await shot(tab, `napoveda-${tabId}-360`);
             if (tabId !== 'pomucky') await tab.click('[data-cq-help] button[data-cq-help-tab]:not([role="tab"])');
         }
-        await tab.click('[data-cq-help-tab="regiony"][role="tab"]');
-        await tab.waitForSelector('[data-cq-help="regiony"]');
+        await tab.click('[data-cq-help-tab="konec"][role="tab"]');
+        await tab.waitForSelector('[data-cq-help="konec"]');
         await tab.keyboard.press('Escape');
         await tab.waitForFunction(() => !document.getElementById('dialog-overlay'));
         await tab.click('[role="tab"][data-cq-tab="lobby"]');
