@@ -52,7 +52,7 @@
     const cleanPlayer = (row) => (row && typeof row === 'object' && isUuid(row.id) ? {
         id: row.id, display_name: String(row.display_name || 'Hráč').slice(0, 24), avatar: typeof row.avatar === 'string' ? row.avatar.slice(0, 8) : '🦊',
         color: typeof row.color === 'string' ? row.color.slice(0, 12) : 'emerald', frame: typeof row.frame === 'string' ? row.frame.slice(0, 24) : null,
-        owl: typeof row.owl === 'string' ? row.owl.slice(0, 200) : null, games: whole(row.games, 1e6), qualified: Boolean(row.qualified)
+        owl: typeof row.owl === 'string' ? row.owl.slice(0, 200) : null, prestige: whole(row.prestige, 99), games: whole(row.games, 1e6), qualified: Boolean(row.qualified)
     } : null);
     const keys = (list) => [...new Set((Array.isArray(list) ? list : []).filter(key => REWARD_KEYS.includes(key)))];
     // { code, inviter, games, joinUntil, invited: [hráč s games a qualified], qualified, claimed: [klíče], ready: [klíče] } nebo null

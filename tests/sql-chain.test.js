@@ -110,7 +110,7 @@ test('SQL: Řetězovka dne', { skip: !available && 'PostgreSQL není dostupný' 
         assert.equal(stats.top.length, 10);
         assert.deepEqual(stats.top.slice(0, 5).map(r => [r.rank, r.id, r.score, r.links, r.me]), [[1, B, 28, 7, false], [1, F, 28, 7, false], [3, C, 12, 5, true], [4, A, 10, 4, false], [5, D, 3, 2, false]]);
         assert.deepEqual(stats.top.slice(5).map(r => r.rank), [6, 6, 6, 6, 6]);
-        assert.deepEqual(Object.keys(stats.top[0]).sort(), ['avatar', 'color', 'display_name', 'frame', 'id', 'links', 'me', 'owl', 'rank', 'rescued', 'score', 'title_pref']);
+        assert.deepEqual(Object.keys(stats.top[0]).sort(), ['avatar', 'color', 'display_name', 'frame', 'id', 'links', 'me', 'owl', 'prestige', 'rank', 'rescued', 'score', 'title_pref']);
         assert.equal(stats.top[0].display_name, 'Hráč 2');
         // Kdo dnes nehrál, vidí pořadí bez sebe; budoucí a starý den ne; prázdný den = nuly
         q(`insert into auth.users (id, email) values ('${id(99)}', 'u99@example.com')`);
