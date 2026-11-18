@@ -835,7 +835,8 @@
     const cardInput = ({ day, entry, robe, url, appName }) => ({
         kicker: 'Tajemná otázka dne', headline: entry.solved ? 'Vyřešeno!' : 'Tentokrát ne',
         detail: entry.solved ? `${entry.clues}. nápověda · ${pointsWord(entry.points)}` : `${tipsWord(entry.tips.length)} bez úspěchu`,
-        grid: entry.tips.map(tip => tip.correct), note: entry.solved && entry.clues <= 2 ? 'Detektivní instinkt!' : 'Uhodneš to rychleji?',
+        // Kdo obrázek dostane, už to rychleji uhodnout nemůže (nápovědy se odkrývají během dne): místo výzvy čas, kdy hráč uhodl
+        grid: entry.tips.map(tip => tip.correct), note: entry.solved ? `Uhodnuto v ${formatClock(entry.at)}${entry.clues <= 2 ? ' · detektivní instinkt!' : ''}` : 'Zvládneš to ty?',
         day, robe, pose: entry.solved ? (entry.points >= 8 ? 'vitez' : 'radost') : 'premysleni', url, appName
     });
 
@@ -928,7 +929,7 @@
             const line = [`Uhodlo ${stats.solved_pct} % hráčů`, stats.fastest ? `nejrychlejší v ${stats.fastest}` : '', stats.solved && stats.avg_clues ? `průměrně ${withClues(stats.avg_clues)}` : ''].filter(Boolean).join(', ');
             const rows = friends && Array.isArray(friends.rows) && friends.rows.length ? `
                 <ol data-mystery-friends class="flex flex-col gap-1">
-                    ${friends.rows.map(row => `<li data-mystery-row="${esc(row.id)}" class="flex items-center gap-2 rounded-xl px-1.5 py-1 ${row.me ? 'bg-violet-50 ring-1 ring-violet-300 dark:bg-violet-950/50 dark:ring-violet-700' : ''}"><span class="w-6 shrink-0 text-center text-[12px] font-black text-slate-500 dark:text-slate-400">${row.rank}.</span>${h.avatarHtml ? h.avatarHtml(row, 'h-7 w-7 text-sm', !row.me) : ''}<span data-player-name class="min-w-0 flex-1 truncate text-[13px] font-bold text-slate-800 dark:text-slate-100">${esc(row.display_name || 'Hráč')}${row.me ? ' (ty)' : ''}</span><span class="shrink-0 text-right text-[11px] font-bold text-slate-600 dark:text-slate-300">${row.solved ? `${esc(pointsWord(row.points))} · ${row.clues}. nápověda` : 'nevyřešeno'}</span></li>`).join('')}
+                    ${friends.rows.map(row => `<li data-mystery-row="${esc(row.id)}" class="flex items-center gap-2 rounded-xl px-1.5 py-1 ${row.me ? 'bg-violet-50 ring-1 ring-violet-300 dark:bg-violet-950/50 dark:ring-violet-700' : ''}"><span class="w-6 shrink-0 text-center text-[12px] font-black text-slate-500 dark:text-slate-400">${row.rank}.</span>${h.avatarHtml ? h.avatarHtml(row, 'h-7 w-7 text-sm', !row.me) : ''}<span data-player-name class="min-w-0 flex-1 truncate text-[13px] font-bold text-slate-800 dark:text-slate-100">${esc(row.display_name || 'Hráč')}${row.me ? ' (ty)' : ''}</span><span class="flex shrink-0 flex-col items-end text-right text-[11px] font-bold leading-tight text-slate-600 dark:text-slate-300">${row.solved ? `<span>${esc(pointsWord(row.points))} · ${row.clues}. nápověda</span>${row.solved_at ? `<span data-mystery-time class="font-black text-violet-700 dark:text-violet-300">uhodnuto v ${esc(row.solved_at)}</span>` : ''}` : 'nevyřešeno'}</span></li>`).join('')}
                 </ol>` : friends && friends.friends === 0 ? '<p class="text-[12px] font-semibold text-slate-500 dark:text-slate-400">Přátele si přidáš v profilu hráče.</p>' : '';
             const rank = friends && friends.rank && friends.rows && friends.rows.length > 1 ? `<p data-mystery-friend-rank class="text-[13px] font-black text-violet-800 dark:text-violet-200">Mezi přáteli ${friends.rank}. z ${friends.rows.length}</p>` : '';
             body = `<p data-mystery-community class="text-[14px] font-bold leading-snug text-slate-800 dark:text-slate-100">${esc(line)}</p>${rank}${rows}`;
