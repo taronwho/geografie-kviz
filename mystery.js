@@ -717,12 +717,28 @@
         let sentenceSeen = false;
         chosen.forEach(entry => { if (entry.sentence) { if (sentenceSeen) { entry.title = 'Další věta popisu'; entry.icon = 'book-open'; } sentenceSeen = true; } ['sentence', 'lead', 'order', 'score', 'keep', 'bonus'].forEach(key => delete entry[key]); });
         // Záložní nápověda, když data nestačí: jen počet slov (žádná písmena ani konce odpovědi – hádanka má zůstat hádankou)
+        // Málo materiálu: nejdřív další věty popisu a článku (každá zvlášť, zakryté), až pak počet slov a téma (žádná písmena)
+        const spare = [];
+        if (chosen.length < middle) {
+            const shown = new Set(chosen.flatMap(entry => entry.parts.filter(part => part.type === 'text').map(part => part.text.toLocaleLowerCase('cs'))));
+            const more = [...sentences.slice(3).map(text => ({ text, title: 'Další věta popisu', icon: 'book-open' })),
+                ...hints.filter(hint => (hint.kind === 'excerpt' || hint.kind === 'text') && hint.text)
+                    .flatMap(hint => sentencesOf(strongMask(hint.text)).map(text => ({ text, title: 'Z článku', icon: 'book-open' })))];
+            for (const item of more) {
+                const key = item.text.toLocaleLowerCase('cs');
+                if (shown.has(key) || [...shown].some(text => text.includes(key) || key.includes(text))) continue;
+                shown.add(key);
+                spare.push({ title: item.title, icon: item.icon, parts: [{ type: 'text', text: briefText([item.text], 200) }] });
+                if (chosen.length + spare.length >= middle) break;
+            }
+        }
         const fallbacks = [
-            { title: 'Délka odpovědi', icon: 'ruler', parts: [{ type: 'note', text: `Odpověď má ${plural(wordCount(name), 'slovo', 'slova', 'slov')}.` }] }
+            { title: 'Délka odpovědi', icon: 'ruler', parts: [{ type: 'note', text: `Odpověď má ${plural(wordCount(name), 'slovo', 'slova', 'slov')}.` }] },
+            ...(topicTitle ? [{ title: 'Téma', icon: 'tag', parts: [{ type: 'note', text: `Hledáš něco z tématu ${topicTitle}${data && data.typeLabel ? ` (${String(data.typeLabel).toLocaleLowerCase('cs')})` : ''}.` }] }] : [])
         ];
         const slots = [];
         if (chosen.length <= middle) {
-            slots.push(...chosen);
+            slots.push(...chosen, ...spare);
             // Co nezbude ani na záložní nápovědy (velmi krátká odpověď), přidá k poslední záložní nápovědě poznámku, že nic nového nepřibylo
             for (let i = 0; slots.length < middle; i++) slots.push(fallbacks[i] || { title: 'Bez nové nápovědy', icon: 'hourglass', parts: [{ type: 'note', text: 'Tahle hodina nic nového nepřinesla. Zkus to s tím, co už víš.' }] });
         } else {
