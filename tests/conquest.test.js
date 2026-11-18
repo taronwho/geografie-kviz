@@ -1000,6 +1000,19 @@ test('přehrání podle období a odměny (jen poctivá hra, poslední místo be
     assert.deepEqual(C.rewardFor({ place: 3, players: 3, eligible: true }), { badge: false, xp: 0 });
     assert.deepEqual(C.rewardFor({ place: 2, players: 2, eligible: true }), { badge: false, xp: 0 });
     assert.deepEqual(C.rewardFor({ place: 1, players: 2, eligible: false }), { badge: false, xp: 0 });
+    // Hra s boty (blok 42): XP podle nejsilnějšího bota
+    assert.deepEqual(C.rewardFor({ place: 1, players: 3, eligible: true, xp_share: 20 }), { badge: true, xp: 30, share: 20 });
+    assert.deepEqual(C.rewardFor({ place: 2, players: 3, eligible: true, xp_share: 50 }), { badge: false, xp: 50, share: 50 });
+    assert.deepEqual(C.rewardFor({ place: 1, players: 3, eligible: true, xp_share: 100 }), { badge: true, xp: 150 });
+    assert.deepEqual([C.botXpShare([]), C.botXpShare(['easy', 'easy']), C.botXpShare(['easy', 'medium']), C.botXpShare(['medium', 'hard', 'easy'])], [100, 20, 50, 100]);
+    assert.deepEqual(C.BOT_LEVELS.map(level => [level.id, level.name, level.xp]), [['easy', 'Mudrlátko', 20], ['medium', 'Mudrlant', 50], ['hard', 'Super Mudrlant', 100]]);
+    assert.deepEqual(C.BOT_ART, { easy: null, medium: null, hard: null }, 'obrázky botů zatím nejsou (docs/OBRAZKY.md §37)');
+    assert.match(C.botBadgeHtml('hard'), /data-cq-bot-badge="hard"[^]*Super Mudrlant/);
+    assert.equal(C.botBadgeHtml(null), '', 'člověk štítek nemá');
+    assert.deepEqual(C.botLevelsOf({ easy: 1, hard: 2, medium: 'x' }), ['easy', 'hard', 'hard']);
+    const dialog = C.botsDialogHtml({ counts: { easy: 1 }, max: 1, have: ['medium'], lobby: true });
+    assert.match(dialog, /XP za hru: 50 %/, 'počítá i s boty, kteří už ve hře jsou');
+    assert.match(dialog, /data-cq-bot-step="hard" data-delta="1" disabled/, 'nad volná místa ne');
 });
 
 test('texty času a nastavení', () => {
@@ -1139,7 +1152,7 @@ test('Založit hru: tempo (Blesk, Rychlovka, Odpoledne, Tažení, Vlastní), shr
     const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
     const draft = { map: 'evropa', period: 'min5', minutes: 20, players: 4, actions: 5, visibility: 'public', color: 'modra', emblem: 'vlk' };
     const blesk = C.createHtml({ draft, maps });
-    assert.match(text(blesk), /Evropa Blesk Hra 20 min · 4 kola po 5 min 5 tahů za kolo · až 4 hráčů · kdokoli/);
+    assert.match(text(blesk), /Evropa Blesk Hra 20 min · 4 kola po 5 min 5 tahů za kolo · až 4 hráčů /);
     assert.deepEqual([...blesk.matchAll(/data-cq-tempo="([^"]+)"/g)].map(m => m[1]), ['blesk', 'rychlovka', 'odpoledne', 'tazeni']);
     assert.match(blesk, /aria-checked="true" data-cq-tempo="blesk"/);
     assert.doesNotMatch(blesk, /data-cq-set="minutes"/, 'předvolby bez řádků délky');
@@ -1324,7 +1337,7 @@ test('sady hradů (blok 40, č. 297–308 a 362–367): katalog shodný se serve
     assert.match(C.lookHtml({ color: 'modra', emblem: 'lev', tab: 'castle', looks }), /Sady hradů získáš v Dobývání a v Sezóně Mudrlanta\./);
     for (const page of [html, info, art]) assert.doesNotMatch(page, /\sstyle=|undefined|NaN|\son[a-z]+=/i);
     // Nápověda zmiňuje sady hradů u vzhledu
-    assert.match(C.helpHtml('zaklady'), /Vzhled:<\/b> Výplně území, vzácné znaky a sady hradů získáš za úspěchy a vybereš v okně Barva a znak\./);
+    assert.match(C.helpHtml('zaklady'), /Vzhled:<\/b> Výplně území, vzácné znaky a sady hradů získáš za úspěchy \(okno Barva a znak\)\./);
 });
 
 // Doplněné otázky Mudrlanta (popis, fakta, obrázek) s obsahem jako z app.js conquestRound
@@ -1774,7 +1787,7 @@ test('stavby (blok 41): obrázky věže, dolu a zříceniny podle sady, ozdoby, 
 test('nápověda Stavby (blok 41): záložka mezi Útokem a Regiony, pravidla věže a dolu, bez rodu, šest záložek', () => {
     assert.deepEqual(C.HELP_TABS.map(([id]) => id), ['zaklady', 'utok', 'stavby', 'regiony', 'konec', 'pomucky']);
     const text = C.helpHtml('stavby').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-    for (const part of ['Postavit:', 'Palisáda, Strážní věž, nebo Důl', 'Stavba stojí 1 tah', 'Strážní věž:', 'klepni na „Bránit“', 'útok odrazíš', 'věž padne',
+    for (const part of ['Postavit:', 'Palisáda, Strážní věž, nebo Důl', 'Stavba stojí 1 tah', 'Strážní věž:', '„Bránit“ (1 tah) jde 15 s v rychlé hře, jinak 30 s', 'útok odrazíš', 'věž padne',
         'Důl:', '2 body místo 1', 'získá ho dobyvatel', 'Zřícenina', 'Tábor', 'Pomník vítěze']) assert.ok(text.includes(part), part);
     assert.match(C.helpHtml('stavby'), /grid-cols-6/);
     assert.match(C.helpHtml('stavby'), /data-cq-help-tab="regiony" class="[^"]*">Dál: Regiony/);

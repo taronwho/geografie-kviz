@@ -360,7 +360,8 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         assert.equal(summary.status, 'lobby');
         const bot = summary.players.find(player => !player.me);
         assert.equal(bot.ready, true);
-        assert.match(bot.display_name, /Bot/);
+        assert.equal(bot.bot, 'medium', 'vývojářský bot je Mudrlant (blok 42)');
+        assert.ok(JSON.parse(q(`select to_json(conquest_bot_names('medium'))`)).includes(bot.display_name.replace(/ \d+$/, '')), bot.display_name);
         assert.notEqual(bot.flag_color, 'cervena', 'barvu hráče bot nevezme');
         // Do plna (víc, než se vejde, se nepřidá): plná hra začne sama
         summary = json(as(DEV, `select dev_conquest_add_bots('${game.id}', 7);`));
@@ -372,11 +373,15 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         // Botům, kteří mají území, nezbyl v období žádný tah (čas hry přes mudrlant.test_now)
         const idle = () => q(`set mudrlant.test_now = '${clock}'; select count(*) from conquest_players p where p.game_id = '${game.id}' and p.user_id <> '${DEV}'
             and exists (select 1 from conquest_territories t where t.game_id = p.game_id and t.owner = p.user_id) and (conquest_budget(p.game_id, p.user_id) ->> 'left')::integer > 0`);
-        // Na začátku období boti ještě nehrají, ve 3/4 období mají odehráno všechno; moje tahy zůstanou
+        // Na začátku období boti ještě nehrají, během období hrají podle svého rozvrhu (blok 42: tahy po čase, když hru nikdo neotevřel,
+        // doženou najednou), před koncem období mají odehráno všechno; moje tahy zůstanou
         assert.equal(botMoves(json(state(DEV, game.id))), 0, 'hned po začátku nic');
         clock = '2026-12-02T02:00:00Z';
         let st = json(state(DEV, game.id));
-        assert.ok(botMoves(st, 0) >= 3 * 5 - 3, `boti hráli sami (${botMoves(st, 0)})`);
+        assert.ok(botMoves(st, 0) > 0, `boti hráli sami (${botMoves(st, 0)})`);
+        clock = '2026-12-02T07:30:00Z';
+        st = json(state(DEV, game.id));
+        assert.ok(botMoves(st, 0) >= 3 * 5 - 3, `boti dohráli (${botMoves(st, 0)})`);
         assert.equal(idle(), '0', 'boti s územím vyčerpali tahy období');
         assert.equal(st.budget.left, 5, 'moje tahy zůstaly');
         assert.ok(st.moves.filter(m => m.u !== DEV && m.k === 'attack').every(m => m.s), 'útok bota vede z jeho území');
@@ -623,7 +628,7 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
             assert.equal(q(`select relrowsecurity from pg_class where oid = 'public.${table}'::regclass`), 't', table);
             denied(as(S1, `select * from ${table};`), /permission denied/, `${table}: správná odpověď jen přes funkce`);
         }
-        const rpc = ['conquest_siege_begin(uuid, text, jsonb, smallint, text)', 'conquest_siege_join(uuid, text)', 'conquest_siege_answer(uuid, smallint)', 'conquest_siege_status(uuid)', 'conquest_pulse(uuid)'];
+        const rpc = ['conquest_siege_begin(uuid, text, jsonb, smallint, text)', 'conquest_siege_join(uuid, text, jsonb, smallint)', 'conquest_siege_answer(uuid, smallint)', 'conquest_siege_status(uuid)', 'conquest_pulse(uuid)'];
         const internal = ['conquest_besieged(uuid)', 'conquest_attack_check(public.conquest_games, uuid, text, text)', 'conquest_attack_apply(uuid, uuid, text, text, integer, boolean)',
             'conquest_siege_window()', 'conquest_siege_grace()', 'conquest_version(public.conquest_games)', 'conquest_siege_question(jsonb, integer)',
             'conquest_siege_json(public.conquest_sieges, uuid)', 'conquest_siege_view(public.conquest_sieges, uuid)', 'conquest_sieges_json(uuid, uuid)',
@@ -1101,9 +1106,12 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         // Kdo nemá co hrát (celá mapa jeho a všechno opevněné naplno), kolo dohrál, i když mu tahy zbývají
         const playerDone = (uid) => q(`set mudrlant.test_now = '${clock}'; select conquest_round_player_done(g, '${uid}') from conquest_games g where g.id = '${fast.id}'`);
         assert.equal(playerDone(R1), 'f', 'R1 má tahy a kam útočit');
+        // (bez conquest_state: v posledním kole by dohrané kolo všech hru hned ukončilo, blok 42; mapa se pak vrátí)
+        q(`create table cq_snap as select * from conquest_territories where game_id = '${fast.id}'`);
         q(`update conquest_territories set owner = '${R1}', level = case when home then 3 else 2 end where game_id = '${fast.id}'`);
-        assert.deepEqual([playerDone(R1), playerDone(R2), json(state(R1, fast.id)).round.done], ['t', 't', true]);
-        assert.ok(json(state(R1, fast.id)).budget.left > 0);
+        assert.deepEqual([playerDone(R1), playerDone(R2), q(`set mudrlant.test_now = '${clock}'; select conquest_round_done(g) from conquest_games g where g.id = '${fast.id}'`)], ['t', 't', 't']);
+        assert.ok(Number(q(`set mudrlant.test_now = '${clock}'; select conquest_budget('${fast.id}', '${R1}') ->> 'left'`)) > 0);
+        q(`update conquest_territories t set owner = c.owner, level = c.level from cq_snap c where t.game_id = c.game_id and t.territory = c.territory; drop table cq_snap`);
         // Poslední kolo: přeskočené zbytky kol 0 (4:30) a 2 (4:20) se odečetly z konce hry (schéma 28), hra má pořád 4 kola po 5 minutách
         // a kolo 3 (od 11:06:10) končí s hrou v 11:11:10; další kolo chtít nejde
         clock = '2026-12-20T11:08:00Z';
@@ -1112,9 +1120,10 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         assert.deepEqual([st.round.period, st.round.last, at(st.round.ends_at), at(st.budget.period_ends_at)], [3, true, '2026-12-20T11:11:10.000Z', '2026-12-20T11:11:10.000Z']);
         q(`insert into conquest_moves (game_id, user_id, period, kind, territory, success, result) select '${fast.id}', u, 3, 'fortify', 'Q40', false, 'fail'
             from unnest(array['${R1}', '${R2}']::uuid[]) u, generate_series(1, 6)`);
+        // Všichni dohráli poslední kolo: hra skončí hned, ne až v 11:11:10 (blok 42)
         st = json(state(R1, fast.id));
-        assert.deepEqual([st.round.done, st.round.can_ready, st.round.last], [true, false, true]);
-        denied(roundReady(R1, fast.id), /Tohle kolo je poslední\. Hra skončí, až vyprší čas\./);
+        assert.deepEqual([st.status, at(st.ends_at), st.round], ['finished', '2026-12-20T11:08:00.000Z', null]);
+        assert.ok(st.players.every(p => p.place >= 1), 'pořadí jako po čase');
         // Konec hry v (posunutém) ends_at: kolo už není
         clock = '2026-12-20T11:11:11Z';
         const final = json(state(R1, fast.id));
@@ -1151,8 +1160,7 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         const bots = summary.players.filter(p => !p.me).map(p => p.id);
         const botMoves = () => Number(q(`select count(*) from conquest_moves where game_id = '${game.id}' and user_id <> '${DEV2}' and kind in ('attack', 'fortify')`));
         let st = json(state(DEV2, game.id));
-        assert.deepEqual([botMoves(), st.round.done, st.round.ready.length], [0, false, 3], 'boti zatím nehrají, ale další kolo chtějí');
-        assert.deepEqual([...st.round.ready].sort(), [...bots].sort());
+        assert.deepEqual([botMoves(), st.round.done, st.round.ready.length], [0, false, 0], 'boti zatím nehrají a další kolo chtějí, až kolo dohrají (blok 42)');
         const home = st.territories.find(item => item.o === DEV2 && item.h).t;
         json(move(DEV2, game.id, home, 'fortify', false));
         assert.equal(botMoves(), 0, 'dokud mám tah, boti hrají podle času');
@@ -1162,6 +1170,7 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
             and exists (select 1 from conquest_territories t where t.game_id = p.game_id and t.owner = p.user_id) and (conquest_budget(p.game_id, p.user_id) ->> 'left')::integer > 0`);
         assert.equal(idle, '0', 'botům s územím nezbyl žádný tah');
         assert.deepEqual([st.round.done, st.round.can_ready], [true, true]);
+        assert.deepEqual([...st.round.ready].sort(), [...bots].sort(), 'boti kolo dohráli a chtějí další');
         // Jsem jediný člověk: moje Chci další kolo hned spustí odpočet
         clock = '2026-12-21T08:00:30Z';
         const go = json(roundReady(DEV2, game.id));
@@ -1201,12 +1210,11 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
     });
 
     let g1;
-    // Domovy lidí mají hradbu: bot (hraje sám, náhodně) radši útočí na volná území a hrad nedobude
+    // Domovy lidí mají hradbu; bot je bez území (od bloku 42 by podle svého rozvrhu obléhal a bitvy by zdržely kolo), hraje jen jako účastník
     const homes = () => {
         clearMap(g1.id);
         place(g1.id, 'Q213', T1, { home: true, level: 2 });     // Česko
         place(g1.id, 'Q36', T2, { home: true, level: 2 });      // Polsko
-        place(g1.id, 'Q183', TBOT, { home: true });             // Německo
     };
     await t.test('upozornění na kola (blok 29): všichni dohráli kolo → kdo ještě nechce další kolo (ne bot, ne v odpočtu, vypnutelné, jednou); po novém kole zmizí', () => {
         const SECRET = 'tajne-heslo-pro-cron-1234567890';
@@ -1302,14 +1310,17 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         const st = json(state(T1, g1.id));
         assert.deepEqual([st.round.period, st.round.last, at(st.ends_at)], [3, true, '2026-12-22T10:16:45.000Z']);
         q(`insert into conquest_moves (game_id, user_id, period, kind, territory, success, result) select '${g1.id}', u, 3, 'fortify', 'Q213', false, 'fail'
-            from unnest(array['${T1}', '${T2}']::uuid[]) u, generate_series(1, 6)`);
-        assert.equal(json(state(T1, g1.id)).round.done, true);
-        assert.deepEqual(roundItems(), [], 'poslední kolo: další kolo ne');
-        clock = '2026-12-22T10:15:00Z';
-        assert.deepEqual(roundItems(), [], 'poslední kolo bez tahů: nic');
+            from unnest(array['${T1}']::uuid[]) u, generate_series(1, 6)`);
+        assert.deepEqual([json(state(T1, g1.id)).status, json(state(T1, g1.id)).round.done], ['running', false], 'T2 tahy ještě má');
+        assert.deepEqual(roundItems(), [], 'poslední kolo: T1 bez tahů nic, T2 má do konce víc než 2 minuty');
         // T2 tahy má: „hra brzy končí“, „hra skončí za 2 min“ (1:45 nahoru na minuty)
-        q(`delete from conquest_moves where game_id = '${g1.id}' and user_id = '${T2}' and period = 3`);
+        clock = '2026-12-22T10:15:00Z';
         assert.deepEqual(roundItems(), [ending(T2, 'Hra Evropa: zbývá ti 5 tahů, hra skončí za 2 min.', 3, 'Dobývání: hra brzy končí')]);
+        // T2 dohraje: všichni dohráli poslední kolo, hra skončí hned (blok 42) a upozornění zmizí
+        q(`insert into conquest_moves (game_id, user_id, period, kind, territory, success, result) select '${g1.id}', u, 3, 'fortify', 'Q213', false, 'fail'
+            from unnest(array['${T2}']::uuid[]) u, generate_series(1, 6)`);
+        assert.deepEqual([json(state(T1, g1.id)).status, at(json(state(T1, g1.id)).ends_at)], ['finished', '2026-12-22T10:15:00.000Z']);
+        assert.deepEqual(roundItems(), [], 'hra skončila');
         // Konec hry (i bez úklidu hry): nic
         clock = '2026-12-22T10:16:46Z';
         assert.deepEqual(roundItems(), [], 'hra skončila');

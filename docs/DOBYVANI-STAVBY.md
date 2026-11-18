@@ -6,8 +6,9 @@ Stav: **zapojeno** (schéma 41, `supabase/schema.sql` blok 41; obrázky docs/OBR
 Upřesnění při zapojení:
 - Stavba je tah fortify se stavbou (`conquest_territories.building`: `wall`, `tower`, `mine`); opevnění (Palisáda) je v nabídce Postavit
   jen na území bez stavby, Hradba se pak staví tlačítkem Opevnit. Stavba i obrana potřebují správnou odpověď na otázku jako opevnění.
-- Bitva o území se strážní věží na majitele počká: dokud se může přidat (člověk s tahem, 60 s od začátku obléhání), útočníkova
-  odpověď bitvu neukončí. Boti nebrání.
+- Bitva o území se strážní věží na majitele počká: dokud se může přidat (člověk s tahem; od schématu 42 jen 15 s od začátku
+  obléhání v rychlé hře s koly 5 nebo 10 minut, jinak 30 s), útočníkova odpověď bitvu neukončí. Od schématu 42 brání i boti
+  (docs/DOBYVANI-BOTI.md).
 - Zřícenina je i po pobourání poslední úrovně opevnění mimo domov; ve stylu sady toho, komu stavba padla.
 - Pomník vítěze se ukáže, jen když vítěz drží svůj domovský hrad.
 

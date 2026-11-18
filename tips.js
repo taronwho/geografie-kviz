@@ -124,6 +124,9 @@
         // Dobývání (schéma 41): stavby na území (strážní věž, důl) místo opevnění; pro toho, kdo Dobývání už otevřel
         { id: 'dobyvani-stavby', icon: 'castle', art: 'vez', multi: true, account: true, after: 20, title: 'Stavby v Dobývání', text: 'Na svém území v Dobývání klepni na Postavit. Strážní věž ohlásí útok a území pak ubráníš odkudkoli, když odpovíš nejrychleji. Důl dává na konci hry 2 body místo 1 a při dobytí ho získá dobyvatel. Palisáda útok zdrží.',
             action: { kind: 'conquest', label: 'Otevřít Dobývání' }, ready: (u) => Boolean(u.visited.conquest), used: () => false },
+        // Dobývání (schéma 42): boti pro všechny; pro toho, kdo Dobývání už otevřel
+        { id: 'dobyvani-boti', icon: 'bot', art: 'dobyvani', multi: true, account: true, after: 20, title: 'Boti v Dobývání', text: 'Nemáš s kým hrát? Založ hru v Dobývání a přidej do ní boty: Mudrlátko, Mudrlant, nebo Super Mudrlant. Tahy si rozloží do kola a přidávají se do bitev jako lidé. XP dává hra podle nejsilnějšího bota.',
+            action: { kind: 'conquest', label: 'Otevřít Dobývání' }, ready: (u) => Boolean(u.visited.conquest), used: () => false },
         // Dobývání (schéma 40): sady hradů a jak je získat; pro toho, kdo Dobývání už otevřel
         { id: 'dobyvani-hrady', icon: 'castle', art: 'hrad-domov', multi: true, account: true, after: 20, title: 'Sady hradů v Dobývání', text: 'Hrad i stavby v Dobývání můžeš mít v jiném stylu: Gotický, Orientální, Japonský, Perníkový, Parostrojní nebo Ledový. Získáš je za úspěchy v Dobývání, Sezóně, Kvízu dne a nad Bossem týdne. Vybereš je v okně Barva a znak.',
             action: { kind: 'conquest', label: 'Otevřít Dobývání' }, ready: (u) => Boolean(u.visited.conquest), used: () => false },

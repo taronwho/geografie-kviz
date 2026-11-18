@@ -249,13 +249,25 @@
             // Sada hradů (blok 40), platí jen odemčená (fitLooks)
             castle: C.CASTLE_SET_BY_ID[prefs.castle] ? prefs.castle : null
         };
+        // Boti do nové hry (blok 42): počty podle obtížnosti, přidají se hned po založení
+        draft.bots = C.botCounts(draft.bots);
         if (!C.MAP_BY_ID[draft.map]) draft.map = 'evropa';
         // Tempo: délka kola a hry v minutách (dřívější volba v hodinách se převede); neplatná kombinace = výchozí délka pro to kolo
         if (!C.PERIODS.includes(draft.period)) draft.period = 'day';
         draft.minutes = Number(draft.minutes) || Number(draft.hours) * 60 || 4320;
         if (!C.LENGTHS[draft.period].includes(draft.minutes)) draft.minutes = C.defaultMinutes(draft.period);
         draft.custom = Boolean(draft.custom);
-        const saveDraft = () => writePrefs({ draft: { map: draft.map, minutes: draft.minutes, players: draft.players, actions: draft.actions, period: draft.period, visibility: draft.visibility, custom: draft.custom } });
+        const saveDraft = () => writePrefs({ draft: { map: draft.map, minutes: draft.minutes, players: draft.players, actions: draft.actions, period: draft.period, visibility: draft.visibility, custom: draft.custom, bots: draft.bots } });
+        // Boti se vejdou nejvýš do míst bez zakladatele (ubere se od nejslabších)
+        const trimBots = () => {
+            const data = maps[draft.map];
+            let room = Math.max(0, Math.min(draft.players, data ? data.maxPlayers : C.MAX_PLAYERS) - 1);
+            const next = { easy: 0, medium: 0, hard: 0 };
+            for (const level of ['hard', 'medium', 'easy']) { next[level] = Math.min(draft.bots[level] || 0, room); room -= next[level]; }
+            draft.bots = next;
+        };
+        // Databáze bez bloku 42 (404 na conquest_add_bots): Přidat bota se v lobby neukáže
+        let botsOff = !Social.conquestAddBots;
 
         const renderHub = () => {
             if (!active() || ui.kind === 'game') return;
@@ -265,9 +277,9 @@
             const mine = () => C.mineHtml({ games: lobby ? lobby.mine : null, invites, maps, now, error: lobbyError, avatar: deps.avatarHtml, items: lobby ? lobby.items : null });
             if (ui.kind === 'lobby') {
                 const found = findGame(ui.gameId);
-                body = found ? C.lobbyDetailHtml({ game: found, maps, busy: ui.confirmLeave ? 'leave' : ui.busy, error: ui.error, dev: devOn(), invitable: !invitesOff, avatar: deps.avatarHtml }) : mine();
+                body = found ? C.lobbyDetailHtml({ game: found, maps, busy: ui.confirmLeave ? 'leave' : ui.busy, error: ui.error, dev: devOn(), invitable: !invitesOff, avatar: deps.avatarHtml, botsOn: !botsOff }) : mine();
             } else if (ui.tab === 'lobby') body = C.lobbyHtml({ games: lobby ? lobby.open : null, maps, now, error: lobbyError });
-            else if (ui.tab === 'create') { trimInvites(); body = C.createHtml({ draft, maps, busy: ui.busy, error: ui.error, invites: ui.invites, invitable: !invitesOff, avatar: deps.avatarHtml }); }
+            else if (ui.tab === 'create') { trimInvites(); trimBots(); body = C.createHtml({ draft, maps, busy: ui.busy, error: ui.error, invites: ui.invites, invitable: !invitesOff, avatar: deps.avatarHtml }); }
             else body = mine();
             const keep = app.scrollTop;
             app.innerHTML = C.hubHtml({ tab: ui.kind === 'lobby' ? 'mine' : ui.tab, body, invites: invites.length });
@@ -470,6 +482,78 @@
                 if (open()) render();
             });
         };
+        // Okno Boti (blok 42): targetId = hra v lobby (boti se přidají hned, po obtížnostech), bez něj počty do formuláře Založit hru
+        const BOTS_TITLE = 'Boti do hry';
+        const openBotPicker = (targetId = null) => {
+            const create = !targetId;
+            const state = { counts: create ? { ...draft.bots } : { easy: 0, medium: 0, hard: 0 }, busy: false, error: '' };
+            const target = () => (create ? null : findGame(targetId));
+            const max = () => {
+                if (create) { const data = maps[draft.map]; return Math.max(0, Math.min(draft.players, data ? data.maxPlayers : C.MAX_PLAYERS) - 1); }
+                const found = target();
+                return found ? Math.max(0, Math.min(found.max_players - found.players.length, found.max_players - 1 - found.players.filter(player => player.bot).length)) : 0;
+            };
+            const have = () => (create ? [] : ((target() || {}).players || []).map(player => player.bot).filter(Boolean));
+            const open = () => { const overlay = doc.getElementById('dialog-overlay'); return Boolean(overlay && overlay.dataset.title === BOTS_TITLE); };
+            const render = () => deps.showDialog(BOTS_TITLE, C.botsDialogHtml({ counts: state.counts, max: max(), have: have(), lobby: !create, busy: state.busy, error: state.error }), { onClick });
+            const add = async () => {
+                const found = target();
+                if (!found || state.busy) return;
+                state.busy = true;
+                state.error = '';
+                render();
+                let updated = null;
+                try {
+                    for (const level of ['easy', 'medium', 'hard']) {
+                        if (state.counts[level] > 0) { updated = await Social.conquestAddBots(found.id, state.counts[level], level); upsertMine(updated); state.counts[level] = 0; }
+                        if (updated && updated.status !== 'lobby') break;
+                    }
+                    deps.closeDialog();
+                    if (updated && updated.status === 'running') { deps.showToast('Hra s boty začala!'); openGame(updated.id); return; }
+                    deps.showToast('Boti jsou ve hře a chtějí hrát.');
+                    if (active() && ui.kind === 'lobby') renderHub();
+                } catch (error) {
+                    if (error && error.status === 404) botsOff = true;
+                    state.busy = false;
+                    state.error = errorText(error, 'Bota se nepodařilo přidat.');
+                    if (open()) render();
+                    if (active() && ui.kind === 'lobby') renderHub();
+                }
+            };
+            const onClick = (event) => {
+                const step = event.target.closest('[data-cq-bot-step]');
+                if (step && !step.disabled && !state.busy) {
+                    const level = step.dataset.cqBotStep;
+                    const total = Object.values(state.counts).reduce((sum, count) => sum + count, 0);
+                    const delta = Number(step.dataset.delta);
+                    if (delta > 0 && total >= max()) return;
+                    state.counts[level] = Math.max(0, (state.counts[level] || 0) + delta);
+                    state.error = '';
+                    render();
+                    return;
+                }
+                if (!event.target.closest('[data-cq-bots-done]')) return;
+                if (!create) { add(); return; }
+                draft.bots = C.botCounts(state.counts);
+                trimBots();
+                saveDraft();
+                deps.closeDialog();
+                renderHub();
+            };
+            render();
+        };
+        const removeBot = async (botId) => {
+            const found = findGame(ui.gameId);
+            if (!found || ui.busy) return;
+            ui.busy = true;
+            ui.error = '';
+            renderHub();
+            try {
+                upsertMine(await Social.conquestRemoveBot(found.id, botId));
+            } catch (error) { ui.error = errorText(error, 'Bota se nepodařilo odebrat.'); }
+            ui.busy = false;
+            renderHub();
+        };
         const openCode = (initial = '', lookup = true) => {
             if (!deps.signedUser()) {
                 const saved = parseCode(initial);
@@ -565,10 +649,18 @@
                     } catch (error) { inviteFailed = true; }
                 }
                 ui.invites = [];
+                // Boti z formuláře (blok 42): přidají se hned po založení, po obtížnostech; plná hra rovnou začne
+                let botsFailed = false;
+                for (const level of ['easy', 'medium', 'hard']) {
+                    if (!draft.bots[level] || created.status !== 'lobby' || !Social.conquestAddBots) continue;
+                    try { created = (await Social.conquestAddBots(created.id, draft.bots[level], level)) || created; } catch (error) { botsFailed = true; if (error && error.status === 404) botsOff = true; }
+                }
                 ui.busy = false;
                 if (!lobby) await loadLobby();
                 upsertMine(created);
-                deps.showToast(inviteFailed ? 'Hra je založená, ale pozvánky se nepodařilo poslat. Pozvi přátele znovu v detailu hry.'
+                if (created.status === 'running') { deps.showToast('Hra s boty začala!'); openGame(created.id); paintCard(); return; }
+                if (botsFailed) deps.showToast('Hra je založená, ale boty se nepodařilo přidat. Přidej je v detailu hry.');
+                else deps.showToast(inviteFailed ? 'Hra je založená, ale pozvánky se nepodařilo poslat. Pozvi přátele znovu v detailu hry.'
                     : invited ? `Hra je založená. ${invitesWord(invited)}`
                         : draft.visibility === 'private' ? 'Hra je založená. Pošli ostatním kód.' : 'Hra je založená a čeká v Lobby na hráče.');
                 openLobby(created.id);
@@ -1413,6 +1505,12 @@
             } else banner(move.kind === 'attack' ? (info.owner ? 'Útok odražen.' : 'Útok nevyšel.') : move.kind === 'fortify' ? 'Opevnění se nepovedlo.' : 'Stavba se nepovedla.', 'x');
             game.move = null;
             paintCard();
+            // Poslední kolo dohráli všichni (blok 42): hra skončila hned, výsledek jako po čase (až doběhne nápis tahu)
+            if (!before.finished && game.view.finished) {
+                const id = game.id;
+                setTimeout(() => { if (game && game.id === id && !game.move) { game.revive = null; renderGame(); claim(id); finale(); } }, reduced() ? 50 : 1600);
+                return;
+            }
             // Poslední tah kola: okno Další kolo (až skončí animace tahu)
             setTimeout(() => { if (game && !game.move) { paintRound(); paintChips(); } }, reduced() ? 50 : 1600);
         };
@@ -1675,8 +1773,17 @@
             game.move = move;
             fillSheet(`<div class="cq-sheet rounded-t-2xl p-4 text-center text-sm font-bold text-slate-600 dark:text-slate-300" role="status">${defend ? 'Bráníš území…' : 'Vstupuješ do bitvy…'}</div>`);
             showMoveFx(move);
+            // Bitva bota (blok 42) zatím otázku nemá: kdo se přidá první, pošle ji (připraví se jako u útoku na to území)
+            let question = null;
+            if (siege.needs_question) {
+                try { question = await prepare(target, 'attack'); } catch (error) { question = null; }
+                if (!game || game.move !== move) return;
+                prepared = null;
+                if (!question) { failBattle(move, null, 'Otázku k bitvě se nepodařilo připravit.'); return; }
+                rememberAsked(game.id, question);
+            }
             let res;
-            try { res = await serverCall(() => Social.conquestSiegeJoin(siege.id, move.source)); } catch (error) { failBattle(move, error, defend ? 'Bránit se nepodařilo.' : 'Přidat se do bitvy se nepodařilo.'); return; }
+            try { res = await serverCall(() => Social.conquestSiegeJoin(siege.id, move.source, question)); } catch (error) { failBattle(move, error, defend ? 'Bránit se nepodařilo.' : 'Přidat se do bitvy se nepodařilo.'); return; }
             if (!game || game.move !== move) return;
             if (!res || !res.question || !Array.isArray(res.question.choices)) { failBattle(move, null, 'Otázku k bitvě se nepodařilo načíst.'); return; }
             move.question = res.question;
@@ -2229,6 +2336,9 @@
             else if (name === 'tempo-custom') { draft.custom = !draft.custom; if (!draft.custom && !C.tempoOf(draft.period, draft.minutes)) Object.assign(draft, { period: C.TEMPOS[0].period, minutes: C.TEMPOS[0].minutes }); saveDraft(); renderHub(); }
             else if (name === 'look') { if (ui.kind === 'lobby') changeLook(); else pickLook({ onDone: () => renderHub() }); }
             else if (name === 'invite-pick') openInvitePicker(ui.kind === 'lobby' ? ui.gameId : null);
+            else if (name === 'bots-pick') openBotPicker(null);
+            else if (name === 'bot-add') openBotPicker(ui.gameId);
+            else if (name === 'bot-remove' && action.dataset.bot) removeBot(action.dataset.bot);
             else if (name === 'ready') toggleReady();
             else if (name === 'leave') leaveLobby();
             else if (name === 'share') shareGame(findGame(ui.gameId));

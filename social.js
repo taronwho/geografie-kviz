@@ -1306,11 +1306,24 @@
     const devConquestAddBots = async (game, count) => conquestGame(await devConquest('dev_conquest_add_bots', { game: conquestId(game), how_many: Math.max(1, wholeNumber(count, 7)) }));
     const devConquestBotsPlay = async (game) => wholeNumber(await devConquest('dev_conquest_bots_play', { game: conquestId(game) }), 1000);
     const devConquestNextPeriod = async (game) => conquestGame(await devConquest('dev_conquest_next_period', { game: conquestId(game) }));
+    // Boti pro všechny (blok 42): zakladatel hry v lobby přidá how_many botů obtížnosti 'easy' (Mudrlátko), 'medium' (Mudrlant) nebo 'hard'
+    // (Super Mudrlant) a odebere bota; vrací souhrn hry (plná hra může začít)
+    const BOT_LEVELS = ['easy', 'medium', 'hard'];
+    const conquestAddBots = async (game, count, level) => conquestGame(await conquestCall('conquest_add_bots', {
+        game: conquestId(game), how_many: Math.max(1, wholeNumber(count, 7)), difficulty: BOT_LEVELS.includes(level) ? level : 'medium'
+    }, 'Bota se nepodařilo přidat. Zkus to znovu.'));
+    const conquestRemoveBot = async (game, bot) => {
+        if (!isUuid(bot)) throw new SocialError('Neplatný bot.', 400);
+        return conquestGame(await conquestCall('conquest_remove_bot', { game: conquestId(game), bot }, 'Bota se nepodařilo odebrat. Zkus to znovu.'));
+    };
     // item = pomůcka 50/50 za výhru (blok 30, jen s claimed_now; cleanItemGrant); looks = vzory a vzácné znaky po hře (blok 38, cleanLooks);
     // revive_item = Ankh vzkříšení za započítanou hru s body (blok 39)
     const conquestClaim = async (game) => {
         const data = (await conquestCall('conquest_claim', { game: conquestId(game) }, 'Výsledek se nepodařilo načíst.')) || {};
+        // xp_share (blok 42): kolik procent XP hra s boty dává (starší databáze ho nepošle: 100)
+        const share = Number(data.xp_share);
         return { place: wholeNumber(data.place, 8) || null, players: wholeNumber(data.players, 8), score: wholeNumber(data.score, 1000), eligible: data.eligible === true, claimed_now: data.claimed_now === true,
+            xp_share: Number.isFinite(share) && share >= 0 && share <= 100 ? Math.round(share) : 100,
             ...(data.item ? { item: cleanItemGrant(data.item) } : {}), ...(data.revive_item ? { revive_item: cleanItemGrant(data.revive_item) } : {}),
             ...(data.looks ? { looks: cleanLooks(data.looks) } : {}) };
     };
@@ -1364,10 +1377,18 @@
             game: conquestId(game), target: conquestText(territory, 16), question: prepared.question, correct: prepared.correct, source: source ? conquestText(source, 16) : null
         }, 'Útok se nepodařilo zahájit. Zkontroluj připojení.', 'sieges'));
     };
-    // Přidání do bitvy: vrací bitvu s otázkou (bez správné odpovědi), joined_at, deadline a budget; kdo už v bitvě je, dostane totéž znovu
-    const conquestSiegeJoin = async (siege, source = null) => conquestSiege(await conquestCall('conquest_siege_join', {
-        siege: siegeId(siege), source: source ? conquestText(source, 16) : null
-    }, 'Přidat se do bitvy se nepodařilo. Zkontroluj připojení.', 'sieges'));
+    // Přidání do bitvy: vrací bitvu s otázkou (bez správné odpovědi), joined_at, deadline a budget; kdo už v bitvě je, dostane totéž znovu.
+    // question = otázka pro bitvu bota, která ji ještě nemá (blok 42, siege.needs_question): pošle se jako u začátku obléhání
+    const conquestSiegeJoin = async (siege, source = null, question = null) => {
+        const body = { siege: siegeId(siege), source: source ? conquestText(source, 16) : null };
+        if (question) {
+            const prepared = siegeQuestion(question);
+            if (!prepared) throw new SocialError('Otázku k bitvě se nepodařilo připravit.', 400);
+            body.question = prepared.question;
+            body.correct = prepared.correct;
+        }
+        return conquestSiege(await conquestCall('conquest_siege_join', body, 'Přidat se do bitvy se nepodařilo. Zkontroluj připojení.', 'sieges'));
+    };
     // Odpověď: choice = index možnosti (null = bez odpovědi, třeba po vypršení času). Vrací { correct, status: 'waiting' | 'resolved', late,
     // answer_ms, correct_choice, siege, now } a po vyhodnocení i move (můj tah) a state (stav hry jako conquestState)
     const conquestSiegeAnswer = async (siege, choice) => {
@@ -1524,6 +1545,8 @@
         ITEM_MAX, cleanItems, cleanItemGrant, playerItemsMine, playerItemsClaim, conquestUseExtra, conquestUseFifty, conquestUseRevive, conquestItemsMissing,
         // Vývojářští boti v Dobývání (blok 22)
         devConquestAddBots, devConquestBotsPlay, devConquestNextPeriod,
+        // Boti pro všechny (blok 42)
+        conquestAddBots, conquestRemoveBot,
         // Řetězovka dne (blok 21) a Záchrana navíc (blok 37)
         chainSubmit, chainDayStats, chainBadgeCounts, chainUseRescue,
         // Motivace (blok 32): prestiž, pozvánky kamarádů, vítězný efekt
