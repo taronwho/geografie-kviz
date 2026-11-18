@@ -5,8 +5,8 @@
 //   nikdy věci za odznaky), na stupních FREEZE_TIERS ochranu série (když jich hráč nemá plný počet, jinak věc);
 // - 10. stupeň „Truhla v půli sezóny“: dvě věci naráz (truhla s obřadem jako Truhla Mudrlanta); jedna z nich je druhý rámeček měsíce
 //   (Look.seasonMidFrame, sezona-MM-b), dokud ho hráč nemá, druhá věc jiného druhu;
-// - 5., 8., 12. a 15. stupeň (POMUCKA_TIERS): přihlášenému hráči místo věci pomůcka (5. Půl na půl a 15. Tah navíc do Dobývání, blok 30 ve schema.sql;
-//   8. Vzkříšení do Dobývání, blok 39; 12. Záchrana navíc do Řetězovky, blok 37),
+// - 5., 8., 12. a 15. stupeň (POMUCKA_TIERS): přihlášenému hráči místo věci pomůcka (5. 50/50 a 15. Tah navíc do Dobývání, blok 30 ve schema.sql;
+//   8. Ankh vzkříšení do Dobývání, blok 39; 12. Záchrana navíc do Řetězovky, blok 37),
 //   když mu ji server dá (player_items_claim, klíč season:<RRRR-MM>:<stupeň>); bez přihlášení nebo s plnou zásobou běžná věc stejným losem;
 // - 20. stupeň „Sezónní truhla“: doplněk, rámeček a postavička toho měsíce (Look.SEASON_BUNDLES, jen co už v katalogu je) a titul
 //   „Šampion sezóny“. Věci ze sezóny má hráč navždy, jinak se získat nedají (exclusive v look.js). Oba rámečky měsíce jsou tedy na cestě:
@@ -42,7 +42,7 @@
     const BUNDLE_TIER = 20;
     // Pomůcky (conquest.js ITEMS, server player_items_claim): stupeň → druh pomůcky; kam pomůcka patří (Dobývání, Řetězovka)
     const POMUCKA_TIERS = { 5: 'fifty', 8: 'revive', 12: 'chain_rescue', 15: 'extra_move' };
-    const POMUCKA_NAMES = { fifty: 'Půl na půl', extra_move: 'Tah navíc', chain_rescue: 'Záchrana navíc', revive: 'Vzkříšení' };
+    const POMUCKA_NAMES = { fifty: '50/50', extra_move: 'Tah navíc', chain_rescue: 'Záchrana navíc', revive: 'Ankh vzkříšení' };
     const POMUCKA_PLACES = { fifty: 'do Dobývání', extra_move: 'do Dobývání', chain_rescue: 'do Řetězovky', revive: 'do Dobývání' };
     const POMUCKA_NOTES = {
         fifty: 'V otázce v Dobývání odebere dvě špatné odpovědi. Zásobu najdeš v rozcestníku Dobývání.',
@@ -330,7 +330,7 @@
     const tierText = (tier, id, frame, pomucky = null) => (pomucky && pomucky[tier] ? `Pomůcka ${placeOf(pomucky[tier])}: ${POMUCKA_NAMES[pomucky[tier]]} (s plnou zásobou věc pro Mudrlanta)`
         : kindOf(tier) === 'bundle' ? bundleText(id) : kindOf(tier) === 'double' ? doubleText(id, frame) : TIER_TEXT[kindOf(tier)]);
     // Které pomůcky na cestě platí: přihlášený hráč (signedIn) a druh, kterého nemá plno (stock = zásoba ze serveru, null = nevíme: platí;
-    // stock[druh] === null = databáze tu pomůcku nezná, třeba Záchranu navíc bez bloku 37 nebo Vzkříšení bez bloku 39: na stupni je běžná věc)
+    // stock[druh] === null = databáze tu pomůcku nezná, třeba Záchranu navíc bez bloku 37 nebo Ankh vzkříšení bez bloku 39: na stupni je běžná věc)
     const pomuckyFor = ({ signedIn = false, stock = null, max = { fifty: 2, extra_move: 1, chain_rescue: 1, revive: 3 } } = {}) => (signedIn
         ? Object.fromEntries(Object.entries(POMUCKA_TIERS).filter(([, kind]) => !stock || (stock[kind] !== null && (stock[kind] || 0) < (max[kind] || 1)))) : {});
     const countText = (n) => `${n} ${n === 1 ? 'odměna' : n >= 2 && n <= 4 ? 'odměny' : 'odměn'}`;

@@ -200,7 +200,7 @@ test('tip Pomůcky do Dobývání: přihlášenému, který Dobývání už otev
     const tip = at(base({ counters: { answered: 50 }, signedIn: true }), visited);
     assert.equal(tip.id, 'dobyvani-pomucky');
     assert.deepEqual(tip.action, { kind: 'conquest', label: 'Otevřít Dobývání' });
-    assert.match(tip.text, /Bosse týdne[\s\S]*Tah navíc[\s\S]*Kvíz dne bez chyby, celá Řetězovka nebo výhra v Dobývání dají Půl na půl[\s\S]*jen jednou/);
+    assert.match(tip.text, /Bosse týdne[\s\S]*Tah navíc[\s\S]*Kvíz dne bez chyby, celá Řetězovka nebo výhra v Dobývání dají 50\/50[\s\S]*jen jednou/);
     assert.doesNotMatch(tip.text, /\b(použil|použila|získal|získala|dostal|dostala)\b/);
 });
 

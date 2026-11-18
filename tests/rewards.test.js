@@ -278,7 +278,7 @@ test('Truhla Mudrlanta a pomůcka do Dobývání: ISO týden jako na serveru a �
     const opened = { opened: true, gift: null, xp: 250, freeze: false };
     const h = { itemArt: (kind, cls) => `<span data-test-art="${kind}" class="${cls}"></span>` };
     assert.doesNotMatch(Rewards.chestHtml({ opened }, h), /data-chest-pomucka/);
-    const html = Rewards.chestHtml({ opened: { ...opened, pomucka: { kind: 'fifty', name: 'Půl na půl' } } }, h);
-    assert.match(html, /data-chest-pomucka[^>]*>[\s\S]*data-test-art="fifty"[\s\S]*A navíc pomůcka do Dobývání: Půl na půl<\/p>/);
+    const html = Rewards.chestHtml({ opened: { ...opened, pomucka: { kind: 'fifty', name: '50/50' } } }, h);
+    assert.match(html, /data-chest-pomucka[^>]*>[\s\S]*data-test-art="fifty"[\s\S]*A navíc pomůcka do Dobývání: 50\/50<\/p>/);
     assert.doesNotMatch(html, /style=/);
 });

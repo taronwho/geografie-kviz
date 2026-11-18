@@ -428,7 +428,7 @@ test('SQL: web push (odběry, tajemství, push_due, push_mark)', { skip: !availa
         assert.equal(attack(ATTACKER, game.id, 'Q40', true, 'Q213').r, 'capture');
         rows = conquest();
         assert.equal(rows.length, 1);
-        assert.deepEqual([rows[0].title, rows[0].body], ['Dobývání: jedno tvé území padlo (+1 další útok)', 'Útočník: Hráč 12. Všechna tvá území padla. Vrátit se můžeš pomůckou Vzkříšení.']);
+        assert.deepEqual([rows[0].title, rows[0].body], ['Dobývání: jedno tvé území padlo (+1 další útok)', 'Útočník: Hráč 12. Všechna tvá území padla. Vrátit se můžeš pomůckou Ankh vzkříšení.']);
         // Staré útoky (ve hře s obdobím den přes 12 hodin, s obdobím hodina přes 2 hodiny) a dohraná hra nic
         q(`update conquest_moves set at = now() - interval '13 hours' where game_id = '${game.id}'`);
         assert.deepEqual(conquest(), [], 'starší než 12 hodin');

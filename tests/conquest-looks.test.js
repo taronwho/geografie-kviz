@@ -146,7 +146,7 @@ test('schema.sql: blok 40 (sady hradů) za blokem 39 a před verzí schématu, v
     const schema = fs.readFileSync(path.join(ROOT, 'supabase', 'schema.sql'), 'utf8');
     const start = schema.indexOf('-- ===== 40: Dobývání – sady hradů — ZAČÁTEK BLOKU =====');
     const end = schema.indexOf('-- ===== 40: Dobývání – sady hradů — KONEC BLOKU =====');
-    assert.ok(start > schema.indexOf('-- ===== 39: Dobývání – pomůcka Vzkříšení — KONEC BLOKU ====='));
+    assert.ok(start > schema.indexOf('-- ===== 39: Dobývání – pomůcka Ankh vzkříšení — KONEC BLOKU ====='));
     assert.ok(end > start && end < schema.indexOf('-- ===== Verze schématu ====='));
     const version = Number(/language sql immutable as \$\$ select (\d+) \$\$;/.exec(schema)[1]);
     assert.ok(version >= 40);

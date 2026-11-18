@@ -1,10 +1,10 @@
-// Pomůcka Vzkříšení v Dobývání (PostgreSQL 16, blok „39: Dobývání – pomůcka Vzkříšení“): automatický Návrat do hry už není; hráč bez území
-// se vrátí jen Vzkříšením (nejvýš 3 v zásobě). Zisk: startovní jednou, 8. stupeň Sezóny, Truhla Mudrlanta 10 % a Zlatá truhla 15 %
+// Pomůcka Ankh vzkříšení v Dobývání (PostgreSQL 16, blok „39: Dobývání – pomůcka Ankh vzkříšení“): automatický Návrat do hry už není; hráč bez území
+// se vrátí jen Ankhem vzkříšení (nejvýš 3 v zásobě). Zisk: startovní jednou, 8. stupeň Sezóny, Truhla Mudrlanta 10 % a Zlatá truhla 15 %
 // (stejný týdenní los), milník série Kvízu dne, započítaná hra s body (conquest_claim: revive_item); boti nic. Použití: jen bez území
 // a se zásobou; cíl neutrální nebo cizí neopevněné území, ne domovský hrad, obléhané ani chráněné; zásoba o 1 méně, území není domovské,
-// tah 'revive' v kronice s obětí, poklad +1 tah; ochrana 60 s (útok, bitva, boti ani jiné Vzkříšení ne, majitel opevnit smí; s časem
+// tah 'revive' v kronice s obětí, poklad +1 tah; ochrana 60 s (útok, bitva, boti ani jiné Ankh vzkříšení ne, majitel opevnit smí; s časem
 // z mudrlant.test_now); hráč bez území a bot bez území kolo dohráli a další kolo chtějí sami, pořadí hráčů bez bodů podle toho, kdo
-// vydržel déle; Fénix i po Vzkříšení. Spouští se jen s psql a serverem (viz tests/sql-rating.test.js), jinak se přeskočí.
+// vydržel déle; Fénix i po Ankhu vzkříšení. Spouští se jen s psql a serverem (viz tests/sql-rating.test.js), jinak se přeskočí.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
@@ -81,7 +81,7 @@ const newGame = (a, b, c, options = {}) => {
     return game;
 };
 
-test('SQL: pomůcka Vzkříšení', { skip: !available && 'PostgreSQL není dostupný' }, async (t) => {
+test('SQL: pomůcka Ankh vzkříšení', { skip: !available && 'PostgreSQL není dostupný' }, async (t) => {
     assert.equal(psql('postgres', `create database ${dbName}`).status, 0);
     t.after(() => psql('postgres', `drop database if exists ${dbName} with (force)`));
     q(bootstrap);
@@ -121,7 +121,7 @@ test('SQL: pomůcka Vzkříšení', { skip: !available && 'PostgreSQL není dost
         assert.ok(goldLucky.length >= 10 && goldLucky.length <= 45, `zhruba 15 %: ${goldLucky.length} ze 160`);
         const gold = json(claim(goldLucky[0], 'gold', 'gold:2026-W47'));
         assert.deepEqual([gold.kind, gold.granted, gold.lucky], ['revive', true, true]);
-        // Milník série Kvízu dne: 7 dní po sobě (dohraný kvíz) dá Vzkříšení jednou, dny předtím a po něm nic
+        // Milník série Kvízu dne: 7 dní po sobě (dohraný kvíz) dá Ankh vzkříšení jednou, dny předtím a po něm nic
         const play = (uid, day) => {
             today = day;
             json(as(uid, 'select daily_quiz_start();'));
@@ -143,22 +143,22 @@ test('SQL: pomůcka Vzkříšení', { skip: !available && 'PostgreSQL není dost
         clock = '2026-12-01T10:00:00Z';
         game = newGame(A, B, C);
         setStock(A, 'revive', 2);
-        denied(revive(A, game.id, 'Q183'), /Vzkříšení jde použít, jen když ti nezbylo žádné území\./);
+        denied(revive(A, game.id, 'Q183'), /Ankh vzkříšení jde použít, jen když ti nezbylo žádné území\./);
         let st = state(A, game.id);
         assert.deepEqual([st.items.revive, st.items.can_revive, st.items.revive_used], [2, false, 0]);
         // A přijde o Česko (B ho drží bez opevnění)
         place(game.id, 'Q213', B);
         setStock(A, 'revive', 0);
         st = state(A, game.id);
-        assert.deepEqual([st.items.can_revive, st.items.revive_block], [false, 'Vzkříšení teď nemáš.']);
-        denied(revive(A, game.id, 'Q183'), /Vzkříšení teď nemáš\./);
+        assert.deepEqual([st.items.can_revive, st.items.revive_block], [false, 'Ankh vzkříšení teď nemáš.']);
+        denied(revive(A, game.id, 'Q183'), /Ankh vzkříšení teď nemáš\./);
         setStock(A, 'revive', 2);
         assert.deepEqual([state(A, game.id).items.can_revive, state(A, game.id).items.revive_block], [true, null]);
         // Neplatné cíle
         place(game.id, 'Q40', C, { level: 1 });
         denied(revive(A, game.id, 'Q999'), /Tohle území na mapě není\./);
-        denied(revive(A, game.id, 'Q36'), /Domovský hrad Vzkříšením vzít nejde\./);
-        denied(revive(A, game.id, 'Q40'), /Opevněné území Vzkříšením vzít nejde\./);
+        denied(revive(A, game.id, 'Q36'), /Domovský hrad Ankhem vzkříšení vzít nejde\./);
+        denied(revive(A, game.id, 'Q40'), /Opevněné území Ankhem vzkříšení vzít nejde\./);
         const s = json(begin(B, game.id, 'Q183'));
         denied(revive(A, game.id, 'Q183'), /Na území právě probíhá bitva\./);
         const targets = q(`set mudrlant.test_now = '${clock}'; select array_to_string(conquest_revive_targets(g, '${A}'), ',') from conquest_games g where g.id = '${game.id}'`).split(',');
@@ -166,7 +166,7 @@ test('SQL: pomůcka Vzkříšení', { skip: !available && 'PostgreSQL není dost
         assert.equal(denied(revive(A, game.id, 'Q214'), /Domovský hrad/) && true, true, 'domov C');
         assert.equal(items(A).revive, 2, 'nic se neubralo');
         ok(as(B, `select conquest_siege_answer('${s.id}', 0::smallint);`));
-        // Vzkříšení na neopevněném Česku, které drží B: A ho má, ne jako domov, chráněné 60 s; B o něj přišel
+        // Ankh vzkříšení na neopevněném Česku, které drží B: A ho má, ne jako domov, chráněné 60 s; B o něj přišel
         const before = state(A, game.id).budget;
         const res = json(revive(A, game.id, 'Q213'));
         assert.deepEqual([res.used, res.territory], ['revive', 'Q213']);
@@ -174,7 +174,7 @@ test('SQL: pomůcka Vzkříšení', { skip: !available && 'PostgreSQL není dost
         const row = res.territories.find(item => item.t === 'Q213');
         assert.deepEqual([row.o, row.h, row.l, new Date(row.s).toISOString()], [A, false, 0, '2026-12-01T10:01:00.000Z']);
         assert.deepEqual([res.items.revive, res.items.revive_used, res.items.can_revive], [1, 1, false]);
-        assert.deepEqual([res.budget.left, res.budget.total], [before.left, before.total], 'Vzkříšení tah nestojí');
+        assert.deepEqual([res.budget.left, res.budget.total], [before.left, before.total], 'Ankh vzkříšení tah nestojí');
         const mv = res.moves[res.moves.length - 1];
         assert.deepEqual([mv.k, mv.r, mv.u, mv.v, mv.t, mv.h, mv.n], ['revive', 'respawn', A, B, 'Q213', false, 0]);
         assert.ok(state(B, game.id).moves.some(m => m.k === 'revive' && m.v === B), 'B to vidí v kronice');
@@ -186,13 +186,13 @@ test('SQL: pomůcka Vzkříšení', { skip: !available && 'PostgreSQL není dost
         q(`update conquest_territories set level = 0 where game_id = '${game.id}' and territory = 'Q213'`);
     });
 
-    await t.test('ochrana 60 s: útok, bitva, boti ani jiné Vzkříšení ne, majitel opevní; s časem zase normálně', () => {
+    await t.test('ochrana 60 s: útok, bitva, boti ani jiné Ankh vzkříšení ne, majitel opevní; s časem zase normálně', () => {
         clock = '2026-12-01T10:00:00Z';
         denied(move(B, game.id, 'Q213', 'attack', true), /Území je chráněné po vzkříšení ještě 60 s\./);
         clock = '2026-12-01T10:00:15Z';
         denied(move(B, game.id, 'Q213', 'attack', true, 'Q36'), /ještě 45 s\./);
         denied(begin(B, game.id, 'Q213'), /Území je chráněné po vzkříšení ještě 45 s\./);
-        // C bez území se Vzkříšením: chráněné území nevezme
+        // C bez území s Ankhem vzkříšení: chráněné území nevezme
         place(game.id, 'Q214', null);
         place(game.id, 'Q40', null);
         setStock(C, 'revive', 1);
@@ -209,7 +209,7 @@ test('SQL: pomůcka Vzkříšení', { skip: !available && 'PostgreSQL není dost
         assert.deepEqual(owned(json(revive(C, game.id, 'Q214')), C), ['Q214']);
     });
 
-    await t.test('poklad: Vzkříšení na neutrálním území s pokladem dá +1 tah v tomto kole', () => {
+    await t.test('poklad: Ankh vzkříšení na neutrálním území s pokladem dá +1 tah v tomto kole', () => {
         clock = '2026-12-01T12:00:00Z';
         place(game.id, 'Q213', B);
         place(game.id, 'Q28', null, { treasure: true });
@@ -221,7 +221,7 @@ test('SQL: pomůcka Vzkříšení', { skip: !available && 'PostgreSQL není dost
         assert.equal(res.items.revive_used, 2);
     });
 
-    await t.test('mimo hru bez Vzkříšení: kolo dohrané a další kolo chce sám; bot bez území se nevrací a hru nerozbije; boti chráněné území vynechají', () => {
+    await t.test('mimo hru bez Ankh vzkříšení: kolo dohrané a další kolo chce sám; bot bez území se nevrací a hru nerozbije; boti chráněné území vynechají', () => {
         clock = '2026-12-05T10:00:00Z';
         const fast = newGame(D, E, BOT, { players: 3, hours: 0, minutes: 20, per: 'min5', actions: 2 });
         // Bot nemá území: nehraje a sám se nevrátí
@@ -229,12 +229,12 @@ test('SQL: pomůcka Vzkříšení', { skip: !available && 'PostgreSQL není dost
         let st = state(D, fast.id);
         assert.deepEqual(owned(st, BOT), []);
         assert.ok(!st.moves.some(m => m.r === 'respawn'));
-        // E přijde o všechno a Vzkříšení nemá: je mimo hru, kolo za něj platí jako dohrané a další kolo chce sám (jako bot)
+        // E přijde o všechno a Ankh vzkříšení nemá: je mimo hru, kolo za něj platí jako dohrané a další kolo chce sám (jako bot)
         place(fast.id, 'Q36', null);
         items(E);
         setStock(E, 'revive', 0);
         st = state(E, fast.id);
-        assert.deepEqual([st.items.revive_block, st.round.can_ready, st.round.done], ['Vzkříšení teď nemáš.', false, false]);
+        assert.deepEqual([st.items.revive_block, st.round.can_ready, st.round.done], ['Ankh vzkříšení teď nemáš.', false, false]);
         ok(move(D, fast.id, 'Q214', 'attack', false));
         st = json(move(D, fast.id, 'Q40', 'attack', false));
         assert.deepEqual([st.round.done, st.round.can_ready, [...st.round.ready].sort()], [true, true, [E, BOT].sort()]);
@@ -253,7 +253,7 @@ test('SQL: pomůcka Vzkříšení', { skip: !available && 'PostgreSQL není dost
         assert.ok(Number(q(`select count(*) from conquest_moves where game_id = '${fast.id}' and user_id = '${BOT}' and kind = 'attack'`)) >= 1, 'bot hrál jinde');
     });
 
-    await t.test('konec hry: hráči bez bodů podle toho, kdo vydržel déle; započítaná hra s body dá Vzkříšení jednou (revive_item); Fénix i po Vzkříšení', () => {
+    await t.test('konec hry: hráči bez bodů podle toho, kdo vydržel déle; započítaná hra s body dá Ankh vzkříšení jednou (revive_item); Fénix i po Ankhu vzkříšení', () => {
         clock = '2026-12-10T10:00:00Z';
         const g = newGame(A, B, C);
         setStock(A, 'revive', 1);
@@ -274,7 +274,7 @@ test('SQL: pomůcka Vzkříšení', { skip: !available && 'PostgreSQL není dost
         const [placeB, placeC] = [json(as(B, `select conquest_claim('${g.id}');`)), json(as(C, `select conquest_claim('${g.id}');`))];
         assert.deepEqual([placeB.place, placeC.place], [2, 3], 'B vydržel déle');
         assert.deepEqual([placeB.revive_item, placeC.revive_item], [undefined, undefined], 'bez bodů nic');
-        assert.equal(q(`select (conquest_look_stats('${A}') ->> 'win_comeback')`), '1', 'Fénix: výhra po Vzkříšení');
+        assert.equal(q(`select (conquest_look_stats('${A}') ->> 'win_comeback')`), '1', 'Fénix: výhra po Ankhu vzkříšení');
     });
 
     await t.test('oprávnění: použití jen přihlášený hráč hry; anon nic; bot ne', () => {

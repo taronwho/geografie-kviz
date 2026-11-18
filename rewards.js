@@ -71,7 +71,7 @@
     // --- Sezóna (season.js): { id: 'RRRR-MM', startXp, claimed: { stupeň: odměna } }, minulá sezóna navíc endXp ---
     // Odměna stupně: části spojené „+“: 'kategorie:id' (věc), 'freeze' (ochrana série), 'xp:N'
     const SEASON_ID = /^\d{4}-(?:0[1-9]|1[0-2])$/;
-    // pomucka:<druh> = pomůcka do Dobývání (Vzkříšení od bloku 39) nebo Řetězovky místo věci (season.js POMUCKA_TIERS, blok 30 ve schema.sql)
+    // pomucka:<druh> = pomůcka do Dobývání (Ankh vzkříšení od bloku 39) nebo Řetězovky místo věci (season.js POMUCKA_TIERS, blok 30 ve schema.sql)
     const SEASON_PART = '(?:freeze|xp:\\d{1,4}|pomucka:(?:fifty|extra_move|chain_rescue|revive)|(?:accessories|colors|frames|robes|themes|avatars|titles):[a-z0-9-]{1,30})';
     const SEASON_REWARD = new RegExp(`^${SEASON_PART}(?:\\+${SEASON_PART}){0,5}$`);
     const SEASON_TIERS = 20;

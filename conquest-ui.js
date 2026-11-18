@@ -5,7 +5,7 @@
 // fakty nebo obrázkem přes celou obrazovku hry, ostatní ve spodním listu) a animace výsledku (šipka útoku, rozlití inkoustu z místa útoku,
 // zapíchnutí vlaječky, pobourání a stavba opevnění, poklad, zlatý obrys celého regionu, zlomená šipka), kronika tažení, přehrání
 // hry a stupně vítězů s odměnou. Pomůcky (blok 30): zásoba v rozcestníku a v okně Pomůcky (klepnutí na počítadlo tahů), Tah navíc
-// (nabídka, když tahy dojdou, s potvrzením) a Půl na půl (tlačítko ½ u otázky, dvě klepnutí); Vzkříšení (blok 39): okno, když hráči nezbylo
+// (nabídka, když tahy dojdou, s potvrzením) a 50/50 (tlačítko ½ u otázky, dvě klepnutí); Ankh vzkříšení (blok 39): okno, když hráči nezbylo
 // žádné území, výběr území na mapě (zlatá záře platných, pruh se Zrušit), animace (zlatý ankh, vlny a rozlití barvy) a štít ochrany
 // s odpočtem 60 s na mapě i v listu území. Při omezeném pohybu (prefers-reduced-motion)
 // jsou čekání krátká a CSS animace vypnuté.
@@ -640,7 +640,7 @@
                     const reward = C.rewardFor(result);
                     rewards.set(id, reward);
                     if (reward.xp || reward.badge) deps.award({ ...reward, place: result.place });
-                    // Pomůcka Půl na půl za výhru (blok 30) a Vzkříšení za započítanou hru s body (blok 39)
+                    // Pomůcka 50/50 za výhru (blok 30) a Ankh vzkříšení za započítanou hru s body (blok 39)
                     if (result.item) { noteStock(result.item.kind, result.item.count); if (deps.itemGranted) deps.itemGranted(result.item); }
                     if (result.revive_item) { noteStock(result.revive_item.kind, result.revive_item.count); if (deps.itemGranted) deps.itemGranted(result.revive_item); }
                     // Vzory a vzácné znaky odemčené touto hrou (blok 38)
@@ -691,7 +691,7 @@
                 }).catch(() => { /* zůstane filtr na dlaždici */ });
             }
         };
-        // offset = čas serveru − čas zařízení (ochrana po Vzkříšení, blok 39, je v čase serveru)
+        // offset = čas serveru − čas zařízení (ochrana po Ankhu vzkříšení, blok 39, je v čase serveru)
         const viewFor = (state, data, offset = game ? game.offset : 0) => {
             const view = C.viewOf(state, data, (deps.signedUser() || {}).id);
             view.tiles = tiles;
@@ -783,7 +783,7 @@
             if (state.items && lobby) lobby.items = { ...(lobby.items || {}), extra_move: state.items.extra_move, fifty: state.items.fifty,
                 ...(typeof state.items.chain_rescue === 'number' ? { chain_rescue: state.items.chain_rescue } : {}),
                 ...(typeof state.items.revive === 'number' ? { revive: state.items.revive } : {}), max: state.items.max };
-            // Výběr území pro Vzkříšení: platná území podle nového stavu; kdo už území má (třeba z jiného zařízení), výběr končí
+            // Výběr území pro Ankh vzkříšení: platná území podle nového stavu; kdo už území má (třeba z jiného zařízení), výběr končí
             if (game.revive) {
                 if (!C.reviveOn(game.view) || !C.outOfGame(game.view) || !state.items.can_revive) game.revive = null;
                 else game.revive = { targets: C.reviveTargets(game.view) };
@@ -1004,7 +1004,7 @@
             lastTap = { at: now, x: pointer.x, y: pointer.y };
             const hit = doc.elementFromPoint(pointer.x, pointer.y);
             const territory = hit && hit.closest ? hit.closest('[data-t]') : null;
-            // Výběr území pro Vzkříšení: klepnutí na území ho rovnou vybere (list území se neotevře)
+            // Výběr území pro Ankh vzkříšení: klepnutí na území ho rovnou vybere (list území se neotevře)
             if (territory && game.revive && !game.move) { reviveTap(territory.dataset.t); return; }
             if (territory && !(game.move && game.move.phase !== 'idle')) { selectTerritory(territory.dataset.t); fitLabel(territory.dataset.t); }
         };
@@ -1366,7 +1366,7 @@
             setTimeout(() => { if (game && !game.move) { paintRound(); paintChips(); } }, reduced() ? 50 : 1600);
         };
 
-        // --- Pomůcky (blok 30): okno Pomůcky, Tah navíc s potvrzením, Půl na půl u otázky ---
+        // --- Pomůcky (blok 30): okno Pomůcky, Tah navíc s potvrzením, 50/50 u otázky ---
         // Zásoba pomůcek: ve hře z conquest_state (items: i co jde použít teď), v rozcestníku z lobby
         const itemsNow = () => (game && ui.kind === 'game' ? game.state.items : lobby ? lobby.items : null) || null;
         // Nová zásoba (po zisku nebo použití) v rozcestníku i ve hře
@@ -1428,9 +1428,9 @@
                 reloadGame();
             } finally { extraBusy = false; }
         };
-        // --- Vzkříšení (blok 39): hráči nezbylo žádné území ---
+        // --- Ankh vzkříšení (blok 39): hráči nezbylo žádné území ---
         // Okno se ukáže samo jednou po každé ztrátě posledního území (klíč = tah, kterým padlo; při otevření hry i bez něj), jen když
-        // neběží tah, výběr ani jiné okno. Se Vzkříšením Použít → výběr území na mapě, bez něj jak ho získat. Pak zůstane štítek dole na mapě.
+        // neběží tah, výběr ani jiné okno. S Ankhem vzkříšení Použít → výběr území na mapě, bez něj jak ho získat. Pak zůstane štítek dole na mapě.
         const reviveSeen = new Set();
         const reviveKey = (view) => {
             const lost = [...(view.state.moves || [])].reverse().find(entry => view.me && entry.v === view.me.id && ['capture', 'respawn'].includes(entry.r));
@@ -1443,7 +1443,7 @@
             reviveSeen.add(key);
             openReviveOffer();
         };
-        const REVIVE_TITLE = 'Vzkříšení';
+        const REVIVE_TITLE = 'Ankh vzkříšení';
         const openReviveOffer = () => {
             if (!game || !C.reviveOn(game.view)) return;
             deps.showDialog(REVIVE_TITLE, C.reviveOfferHtml(game.state.items), {
@@ -1506,11 +1506,11 @@
                 const shield = svg && svg.querySelector(`[data-shield="${target}"] .cq-shield-pop`);
                 if (shield) shield.classList.add('cq-shield-in');
                 sound('record');
-                banner(`Vzkříšení! ${game.view.index.byId.get(target).n} je tvoje, 60 s chráněné.`, C.ITEMS.revive.icon);
+                banner(`Ankh vzkříšení! ${game.view.index.byId.get(target).n} je tvoje, 60 s chráněné.`, C.ITEMS.revive.icon);
                 paintCard();
             } catch (error) {
                 if (game) game.move = null;
-                deps.showToast(errorText(error, 'Vzkříšení se nepodařilo použít.'));
+                deps.showToast(errorText(error, 'Ankh vzkříšení se nepodařilo použít.'));
                 reloadGame();
             } finally { reviveBusy = false; }
         };
@@ -1574,7 +1574,7 @@
             } catch (error) {
                 move.fiftyConfirm = false;
                 if (game && game.move === move && move.phase === 'question') renderQuestion();
-                deps.showToast(errorText(error, 'Půl na půl se nepodařilo použít.'));
+                deps.showToast(errorText(error, '50/50 se nepodařilo použít.'));
             } finally { move.fiftyBusy = false; }
         };
 
@@ -1678,7 +1678,7 @@
             if (!move || !Array.isArray(participants)) return;
             const known = new Set((move.fighters || []).map(player => player.id));
             const fresh = participants.filter(player => !known.has(player.id) && !player.me);
-            // Půl na půl (blok 30): u toho, kdo ji použil, přibude „½“
+            // 50/50 (blok 30): u toho, kdo ji použil, přibude „½“
             const halves = (list) => (list || []).filter(player => player.fifty).map(player => player.id).join();
             const halvesChanged = halves(move.fighters) !== halves(participants);
             move.fighters = participants;
@@ -1824,7 +1824,7 @@
                 if (left <= 0) expired = true;
             });
             if (expired && !game.move) paintChips();
-            // Ochrana po Vzkříšení (blok 39): sekundy na štítu a v listu území; po konci se mapa překreslí (štít zmizí, útok jde)
+            // Ochrana po Ankhu vzkříšení (blok 39): sekundy na štítu a v listu území; po konci se mapa překreslí (štít zmizí, útok jde)
             let unshielded = false;
             app.querySelectorAll('[data-cq-shield-at]').forEach(element => {
                 const left = Number(element.dataset.cqShieldAt) - now;

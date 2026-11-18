@@ -53,9 +53,9 @@ const APP_SHELL = [
         'retezovka', 'clanek-prasknuty',
         // Pomůcka Záchrana navíc (conquest.js ITEMS.chain_rescue, č. 360)
         'zachrana-navic',
-        // Pomůcka Vzkříšení (conquest.js ITEMS.revive, č. 361)
+        // Pomůcka Ankh vzkříšení (conquest.js ITEMS.revive, č. 361)
         'vzkriseni',
-        // Pomůcky Tah navíc a Půl na půl (conquest.js ITEMS, č. 309 a 310)
+        // Pomůcky Tah navíc a 50/50 (conquest.js ITEMS, č. 309 a 310)
         'tah-navic', 'pul-na-pul'].map(id => `icons/topics/${id}.webp`),
     // Boss týdne (boss.js ART): čtyři stupně každého bosse a jeho aréna
     ...['kapitan', 'rytir', 'alchymista', 'amper', 'maestro', 'druid', 'olympan', 'reziser'].flatMap(id => [`boss-${id}`, `boss-${id}-zraneny`, `boss-${id}-vkoncich`, `boss-${id}-porazeny`, `arena-${id}`]).map(id => `icons/topics/${id}.webp`),

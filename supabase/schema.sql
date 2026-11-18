@@ -3110,9 +3110,9 @@ grant execute on function public.challenge_progress_save(text, integer, boolean,
 -- rozkliknout, jak kdo odpověděl na kterou otázku. Otázky jsou pro všechny stejné, proto cizí odpovědi daily_quiz_details vrátí jen hráči,
 -- který dnešní kvíz sám dohrál (nebo za minulé dny). daily_quiz_answer má dva nepovinné parametry navíc (starší aplikace je neposílá);
 -- starou podobu s pěti parametry (vytváří ji část souboru výš) blok odstraní, aby volání s pěti parametry nebylo nejednoznačné.
--- Odpověď, kterou hráč dohraje kvíz bez chyby (10 z 10), dá pomůcku Půl na půl do Dobývání, nejvýš jednou za ISO týden (blok 30,
+-- Odpověď, kterou hráč dohraje kvíz bez chyby (10 z 10), dá pomůcku 50/50 do Dobývání, nejvýš jednou za ISO týden (blok 30,
 -- klíč daily:<RRRR-Wtt>; s plnou zásobou se zkusí znovu při dalším kvízu bez chyby téhož týdne): výsledek má navíc item. Dohraný kvíz,
--- kterým série dosáhne milníku 7, 30, 100 nebo 365 dní, dá Vzkříšení do Dobývání (blok 39, klíč daily-streak:<dny>): revive_item.
+-- kterým série dosáhne milníku 7, 30, 100 nebo 365 dní, dá Ankh vzkříšení do Dobývání (blok 39, klíč daily-streak:<dny>): revive_item.
 create table if not exists public.daily_quiz_answers (
     user_id uuid not null references public.profiles (id) on delete cascade,
     day date not null,
@@ -3173,7 +3173,7 @@ begin
     if r.answered = 10 and r.correct = 10 and to_regprocedure('public.player_item_grant(uuid, text, text, boolean)') is not null then
         item := public.player_item_grant(uid, 'fifty', 'daily:' || public.player_items_week(d), true);
     end if;
-    -- Milník série Kvízu dne (7, 30, 100 a 365 dní) dá Vzkříšení do Dobývání (blok 39): revive_item
+    -- Milník série Kvízu dne (7, 30, 100 a 365 dní) dá Ankh vzkříšení do Dobývání (blok 39): revive_item
     if r.answered = 10 and to_regprocedure('public.conquest_revive_streak(uuid, date)') is not null then revive_item := public.conquest_revive_streak(uid, d); end if;
     return public.daily_quiz_json(r, d, uid) || case when item is not null then jsonb_build_object('item', item) else '{}'::jsonb end
         || case when revive_item is not null then jsonb_build_object('revive_item', revive_item) else '{}'::jsonb end;
@@ -4036,7 +4036,7 @@ grant execute on function public.boss_submit(date, integer, integer, boolean), p
 -- jen na domovském území); úspěšný útok na opevněné území ubere úroveň, na neopevněné ho dobude. Tahy za období: základ hry, +1 za každý
 -- celý region, +1 za poklad dobytý v tomto období a +1 za každé domovské území soupeře dobyté v minulém období (kořist); komu soupeř
 -- v minulém období dobyl domovské území, má o 1 tah méně (blok 23). Kdo přijde
--- o všechna území, vrátí se do hry jen pomůckou Vzkříšení (blok 39; do schématu 38 dostal v dalším období nové domovské území sám,
+-- o všechna území, vrátí se do hry jen pomůckou Ankh vzkříšení (blok 39; do schématu 38 dostal v dalším období nové domovské území sám,
 -- Návrat do hry). Konec v ends_at: body = území + 2 za celý region, při shodě vyhrává, kdo konečného počtu bodů dosáhl dřív (hráči bez
 -- území: kdo vydržel déle). Pro „Rychlou hru“ drží server pro každou předvolbu jednu otevřenou veřejnou hru.
 -- Lobby, které nezačalo do 7 dní, zmizí. Hráč je nejvýš v 6 hrách najednou a má nejvýš 2 vlastní otevřené hry.
@@ -4149,13 +4149,13 @@ create table if not exists public.conquest_territories (
     captured_at timestamptz,
     primary key (game_id, territory)
 );
--- Ochrana po Vzkříšení (blok 39): do kdy na území nikdo jiný nesmí zaútočit (conquest_attack_check), jinak null
+-- Ochrana po Ankhu vzkříšení (blok 39): do kdy na území nikdo jiný nesmí zaútočit (conquest_attack_check), jinak null
 alter table public.conquest_territories add column if not exists shield_until timestamptz;
 alter table public.conquest_territories drop constraint if exists conquest_territories_values;
 alter table public.conquest_territories add constraint conquest_territories_values check (level between 0 and 3 and (level <= 2 or home));
 
 -- Tahy a události hry (kronika tažení a závěrečné přehrání): kind = home | respawn | attack | fortify | extra (pomůcka Tah navíc, blok 30:
--- bez území, result 'extra', hráč má v tom kole o 1 tah víc) | revive (pomůcka Vzkříšení, blok 39: result 'respawn', victim = dosavadní
+-- bez území, result 'extra', hráč má v tom kole o 1 tah víc) | revive (pomůcka Ankh vzkříšení, blok 39: result 'respawn', victim = dosavadní
 -- majitel, treasure = poklad na území; respawn = automatický Návrat do hry do schématu 38);
 -- result = home | respawn | capture (dobytí) | breach (opevnění o úroveň níž) | fortify | fail | outrun (prohraná bitva: správně, ale pomaleji; blok 25) | extra
 create table if not exists public.conquest_moves (
@@ -5254,7 +5254,7 @@ begin
     update public.conquest_players set score = s, score_at = public.conquest_now() where game_id = gid and user_id = uid and (score <> s or score_at is null);
 end;
 $$;
--- Obléhaná území hry (otevřené bitvy z bloku 25): nejde na ně útočit jinak než přidáním do bitvy, opevnit je ani na ně použít Vzkříšení.
+-- Obléhaná území hry (otevřené bitvy z bloku 25): nejde na ně útočit jinak než přidáním do bitvy, opevnit je ani na ně použít Ankh vzkříšení.
 -- Dokud tabulka bitev není (blok 25 ještě neproběhl), žádná.
 create or replace function public.conquest_besieged(gid uuid) returns text[]
 language plpgsql stable set search_path = public as $$
@@ -5325,7 +5325,7 @@ begin
             case when c.score = 0 then c.score_at end desc nulls last)::smallint as place from public.conquest_players c where c.game_id = gid
     ) x where pl.game_id = gid and pl.user_id = x.user_id;
     update public.conquest_games set status = 'finished' where id = gid;
-    -- Pomůcka Vzkříšení za započítanou hru s body (blok 39): stejné podmínky jako odměna v conquest_claim (aspoň 3 hráči nebo hra aspoň
+    -- Pomůcka Ankh vzkříšení za započítanou hru s body (blok 39): stejné podmínky jako odměna v conquest_claim (aspoň 3 hráči nebo hra aspoň
     -- na den, aspoň 3 vlastní tahy a aspoň 1 bod), jednou za hru (klíč revive:<hra>); co hráč dostal, řekne conquest_claim (revive_item)
     if to_regprocedure('public.conquest_revive_shield()') is not null then
         select count(*) into total from public.conquest_players where game_id = gid;
@@ -5335,7 +5335,7 @@ begin
                 and (select count(*) from public.conquest_moves m where m.game_id = gid and m.user_id = c.user_id and m.kind in ('attack', 'fortify')) >= 3;
         end if;
     end if;
-    -- Pomůcka Půl na půl za výhru (blok 30): vítěz (1. místo, ne bot) s aspoň 3 vlastními tahy, jednou za hru (klíč conquest:<hra>);
+    -- Pomůcka 50/50 za výhru (blok 30): vítěz (1. místo, ne bot) s aspoň 3 vlastními tahy, jednou za hru (klíč conquest:<hra>);
     -- co vítěz dostal, řekne conquest_claim
     if to_regprocedure('public.player_item_grant(uuid, text, text, boolean)') is not null then
         perform public.player_item_grant(c.user_id, 'fifty', 'conquest:' || gid, false) from public.conquest_players c
@@ -5345,7 +5345,7 @@ begin
 end;
 $$;
 -- Návrat do hry (do schématu 38): kdo v minulém období přišel o všechna území, dostal nové domovské území co nejdál od ostatních.
--- Od bloku 39 se nikdo (ani bot) nevrací sám: hráč bez území použije pomůcku Vzkříšení (conquest_use_revive), jinak hru jen sleduje.
+-- Od bloku 39 se nikdo (ani bot) nevrací sám: hráč bez území použije pomůcku Ankh vzkříšení (conquest_use_revive), jinak hru jen sleduje.
 -- Funkce zůstává kvůli volání z conquest_housekeep a nic nedělá.
 create or replace function public.conquest_respawn(gid uuid) returns void
 language plpgsql set search_path = public as $$
@@ -5362,7 +5362,7 @@ begin
     perform public.conquest_respawn(gid);
 end;
 $$;
--- Tahy hráče v tomto období: základ + celé regiony + poklady dobyté v tomto období (i Vzkříšením na území s pokladem, blok 39) + kořist (domovská území soupeřů dobytá v minulém období)
+-- Tahy hráče v tomto období: základ + celé regiony + poklady dobyté v tomto období (i Ankhem vzkříšení na území s pokladem, blok 39) + kořist (domovská území soupeřů dobytá v minulém období)
 -- + pevnost (fortress 1, když hráč drží domovské území opevněné na Pevnost; blok 25) − ztráta hradu (penalty 1, když hráči soupeř v minulém
 -- období dobyl domovské území; blok 23) + extra (1, když hráč v tomto období použil pomůcku Tah navíc; blok 30); nikdy méně než 0.
 -- Použité tahy (used) = zapsané útoky a opevnění období + reserved = účasti v otevřených bitvách přidaných v tomto období (blok 25;
@@ -5484,10 +5484,10 @@ begin
     delete from public.conquest_games where status = 'lobby' and created_at < public.conquest_now() - interval '7 days';
     perform public.conquest_ensure_lobbies();
     perform public.conquest_housekeep(g.id) from public.conquest_games g join public.conquest_players c on c.game_id = g.id and c.user_id = uid where g.status = 'running';
-    -- Startovní Vzkříšení (blok 39): jednou pro každého hráče
+    -- Startovní Ankh vzkříšení (blok 39): jednou pro každého hráče
     if to_regprocedure('public.conquest_revive_starter(uuid)') is not null then perform public.conquest_revive_starter(uid); end if;
     return jsonb_build_object(
-        -- Zásoba pomůcek (Tah navíc, Půl na půl; blok 30; Vzkříšení, blok 39), dokud blok 30 neproběhl null
+        -- Zásoba pomůcek (Tah navíc, 50/50; blok 30; Ankh vzkříšení, blok 39), dokud blok 30 neproběhl null
         'items', case when to_regprocedure('public.player_items_json(uuid)') is not null then public.player_items_json(uid) end,
         -- Výplně území a vzácné znaky (blok 38: co hráč má, nově odemčené, postup), dokud blok 38 neproběhl null
         'looks', case when to_regprocedure('public.conquest_looks_json(uuid)') is not null then public.conquest_looks_json(uid) end,
@@ -5631,8 +5631,8 @@ $$;
 -- Stav hry: souhrn; hráčům rozehrané nebo dohrané hry navíc území (t, o = majitel, l = úroveň, h = domov, p = poklad), moje tahy
 -- v období, posledních 150 událostí pro kroniku, po konci všechny změny majitelů pro přehrání (nejvýš 3000), otevřené bitvy (sieges)
 -- a značka verze (version) jako conquest_pulse (blok 25), kolo (round: conquest_round_json, blok 26; u hry, která neběží, null)
--- a moje pomůcky v této hře (items: conquest_items_json, blok 30). Území chráněné po Vzkříšení (blok 39) má navíc s = do kdy (jen dokud
--- ochrana trvá). Hráč běžící hry dostane při čtení stavu jednou startovní Vzkříšení (conquest_revive_starter, blok 39).
+-- a moje pomůcky v této hře (items: conquest_items_json, blok 30). Území chráněné po Ankhu vzkříšení (blok 39) má navíc s = do kdy (jen dokud
+-- ochrana trvá). Hráč běžící hry dostane při čtení stavu jednou startovní Ankh vzkříšení (conquest_revive_starter, blok 39).
 create or replace function public.conquest_move_json(m public.conquest_moves) returns jsonb
 language sql stable set search_path = public as $$
     select jsonb_build_object('id', m.id, 'u', m.user_id, 'k', m.kind, 't', m.territory, 's', m.source, 'ok', m.success, 'r', m.result, 'v', m.victim,
@@ -5683,7 +5683,7 @@ end;
 $$;
 
 -- Smí hráč uid zaútočit na území target (z území src, nepovinné)? Ne na vlastní, jen na sousední s vlastním a src musí být jeho sousední,
--- a ne na území chráněné po Vzkříšení (blok 39: 60 s od Vzkříšení, shield_until). Jinak vyhodí českou chybu. Zámek hry drží volající
+-- a ne na území chráněné po Ankhu vzkříšení (blok 39: 60 s od Ankh vzkříšení, shield_until). Jinak vyhodí českou chybu. Zámek hry drží volající
 -- (conquest_move_by, conquest_siege_begin, conquest_siege_join).
 create or replace function public.conquest_attack_check(g public.conquest_games, uid uuid, target text, src text) returns void
 language plpgsql stable set search_path = public as $$
@@ -5791,8 +5791,8 @@ $$;
 
 -- Výsledek po konci: moje místo, počet hráčů a jestli hra odměnu dává (aspoň 3 hráči, nebo hra aspoň na den; aspoň 3 vlastní tahy
 -- a aspoň 1 bod). claimed_now je true jen jednou: jen tehdy si aplikace odměnu připíše (conquest.js rewardFor) a jen tehdy item = pomůcka
--- Půl na půl za výhru (blok 30: { kind, granted, full, count, max }; full = zásoba už byla plná), jinak bez item. looks = vzory a znaky
--- (blok 38, conquest_looks_json: i nově odemčené touto hrou), dokud blok 38 neproběhl bez looks. revive_item = pomůcka Vzkříšení
+-- 50/50 za výhru (blok 30: { kind, granted, full, count, max }; full = zásoba už byla plná), jinak bez item. looks = vzory a znaky
+-- (blok 38, conquest_looks_json: i nově odemčené touto hrou), dokud blok 38 neproběhl bez looks. revive_item = pomůcka Ankh vzkříšení
 -- za započítanou hru s body (blok 39, klíč revive:<hra>; stejný tvar jako item), jen s claimed_now.
 create or replace function public.conquest_claim(game uuid) returns jsonb
 language plpgsql security definer set search_path = public as $$
@@ -5856,7 +5856,7 @@ create or replace function public.conquest_bot_offset(uid uuid) returns numeric
 language sql immutable as $$ select 0.2 * (('x' || substr(md5(uid::text || 'tempo'), 1, 6))::bit(24)::integer % 1000) / 1000.0 $$;
 -- Jeden tah bota: útok (poklad > neutrální území > domov soupeře, opevnění cíl odrazuje, trocha náhody), zhruba každý pátý tah
 -- (nebo když není kam útočit) opevnění ohroženého území, nejradši domova. Obléhaná území (bitvy z bloku 25) bot vynechá: do bitev
--- se nepřidává a obléhané vlastní území neopevňuje; území chráněné po Vzkříšení (blok 39) nenapadne. Bot bez území (pomůcky nemá, sám
+-- se nepřidává a obléhané vlastní území neopevňuje; území chráněné po Ankhu vzkříšení (blok 39) nenapadne. Bot bez území (pomůcky nemá, sám
 -- se od bloku 39 nevrací) nehraje. Vrací false, když bot nemá co hrát.
 create or replace function public.conquest_bot_move(gid uuid, bot uuid) returns boolean
 language plpgsql set search_path = public as $$
@@ -6074,7 +6074,7 @@ $$;
 
 -- Výsledek dne: for_day = den řetězu (dnešek, nebo včerejšek, když se hra dohrála těsně před půlnocí a odesílá se až po ní).
 -- Odeslání podruhé (jiné zařízení, ztracená odpověď) nic nezmění a vrátí uložený výsledek. Nově uložený celý řetěz (7 článků) dá pomůcku
--- Půl na půl do Dobývání, nejvýš jednou za ISO týden (blok 30, klíč chain:<RRRR-Wtt>; s plnou zásobou se zkusí znovu): výsledek má navíc item.
+-- 50/50 do Dobývání, nejvýš jednou za ISO týden (blok 30, klíč chain:<RRRR-Wtt>; s plnou zásobou se zkusí znovu): výsledek má navíc item.
 -- Záchrana navíc (blok 37): druhý zachráněný článek (body o dva články méně) projde, jen když ji hráč ten den opravdu použil (player_item_uses,
 -- klíč chain:<den>); starší aplikace posílá stejné čtyři údaje a dva zachráněné články nikdy nemá. Nově uložený výsledek, který dorovná
 -- milník Řetězovky (dohrané dny 10, 30, 100, 365; celé řetězy bez Záchrany 5, 15, 30, 60), dá Záchranu navíc: výsledek má rescue_item.
@@ -6204,9 +6204,9 @@ language sql stable set search_path = public as $$
             else 'útok na tvé území odražen' end
             || public.conquest_push_more((r.total - case when r.severity = 3 then r.captures else 1 end)::integer),
         'Útočník: ' || coalesce(nullif(btrim(a.display_name), ''), 'Soupeř') || '. ' || case
-            when r.severity = 4 and not x.landed then 'Všechna tvá území padla. Vrátit se můžeš pomůckou Vzkříšení.'
+            when r.severity = 4 and not x.landed then 'Všechna tvá území padla. Vrátit se můžeš pomůckou Ankh vzkříšení.'
             when r.severity = 4 then r.next_round || ' máš o tah méně. Opevni se, nebo vrať úder.'
-            when r.severity = 3 and not x.landed then 'Všechna tvá území padla. Vrátit se můžeš pomůckou Vzkříšení.'
+            when r.severity = 3 and not x.landed then 'Všechna tvá území padla. Vrátit se můžeš pomůckou Ankh vzkříšení.'
             when r.severity = 3 and r.captures = 1 and x.near then 'Území sousedí s tvými, můžeš ho dobýt zpět.'
             when r.severity = 3 then 'Opevni ostatní území, nebo vrať úder.'
             when r.severity = 2 and r.level > 0 then 'Zbývá ' || (array['palisáda', 'hradba', 'pevnost'])[least(r.level, 3)] || ', opevni se znovu.'
@@ -6366,7 +6366,7 @@ grant execute on function public.conquest_invite(uuid, uuid[]), public.conquest_
 -- opevnění). Ostatní mají zapsaný neúspěšný tah: špatně nebo bez odpovědi 'fail', správně, ale pomaleji 'outrun' (prohraná bitva); oběť
 -- je u všech majitel území. Když nikdo neodpoví správně, útok je odražen. Během obléhání majitel území neopevní a jinak než přidáním do
 -- bitvy se na něj zaútočit nedá (conquest_move_by; starší aplikace dál útočí přes conquest_move jako okamžitá bitva bez dalších účastníků),
--- boti obléhaná území vynechají a Vzkříšení (blok 39) je nedovolí. Tabulky bitev nikdo nečte ani nepíše přímo, jen přes funkce níže (správná
+-- boti obléhaná území vynechají a Ankh vzkříšení (blok 39) je nedovolí. Tabulky bitev nikdo nečte ani nepíše přímo, jen přes funkce níže (správná
 -- odpověď je jen v conquest_sieges.correct_choice). Navíc: pevnost na domovském území dává +1 tah za období (conquest_budget: fortress).
 alter table public.conquest_games add column if not exists siege_rev integer not null default 0;
 create table if not exists public.conquest_sieges (
@@ -6410,7 +6410,7 @@ create table if not exists public.conquest_siege_players (
     move_id bigint references public.conquest_moves (id) on delete set null,
     primary key (siege_id, user_id)
 );
--- Pomůcka Půl na půl (blok 30): dvě nesprávné možnosti, které server účastníkovi odebral (indexy), jinak null; že ji použil, vidí všichni účastníci
+-- Pomůcka 50/50 (blok 30): dvě nesprávné možnosti, které server účastníkovi odebral (indexy), jinak null; že ji použil, vidí všichni účastníci
 alter table public.conquest_siege_players add column if not exists fifty smallint[];
 alter table public.conquest_siege_players drop constraint if exists conquest_siege_players_values;
 alter table public.conquest_siege_players add constraint conquest_siege_players_values check ((result is null or result in ('capture', 'breach', 'fail', 'outrun'))
@@ -6456,7 +6456,7 @@ $$;
 
 -- Bitva pro hráče uid (veřejné údaje, bez otázky): území, stav, termíny (join_until, ends_at), vítěz a výsledek bitvy (outcome);
 -- účastníci podle přidání s veřejnými údaji profilu (jako group_player_json), barvou hry (flag_color), znakem, územím útoku, kdy se přidali,
--- svým termínem, jestli už odpověděli a jestli použili pomůcku Půl na půl (fifty, blok 30; které možnosti zmizely, vidí jen on sám) –
+-- svým termínem, jestli už odpověděli a jestli použili pomůcku 50/50 (fifty, blok 30; které možnosti zmizely, vidí jen on sám) –
 -- po vyhodnocení i správnost, čas odpovědi (answer_ms), výsledek (result), vítěz a id zapsaného tahu; u volajícího mine, answered, joined_at a deadline.
 create or replace function public.conquest_siege_json(s public.conquest_sieges, uid uuid) returns jsonb
 language sql stable set search_path = public as $$
@@ -6477,7 +6477,7 @@ language sql stable set search_path = public as $$
 $$;
 -- Bitva pro účastníka: conquest_siege_json, čas serveru (now) a jen účastníkovi otázka (bez správné odpovědi), moje odpověď (answer: choice,
 -- correct, answer_ms, late), můj výsledek a tah po vyhodnocení (result, move), index správné možnosti (correct_choice), až když jsem
--- odpověděl nebo je bitva vyhodnocená, a možnosti odebrané pomůckou Půl na půl (removed, blok 30; jinak null)
+-- odpověděl nebo je bitva vyhodnocená, a možnosti odebrané pomůckou 50/50 (removed, blok 30; jinak null)
 create or replace function public.conquest_siege_view(s public.conquest_sieges, uid uuid) returns jsonb
 language sql stable set search_path = public as $$
     select public.conquest_siege_json(s, uid) || jsonb_build_object('now', public.conquest_now())
@@ -6766,7 +6766,7 @@ revoke all on public.conquest_round_marks from public, anon, authenticated;
 create or replace function public.conquest_round_countdown() returns interval
 language sql immutable as $$ select interval '10 seconds' $$;
 
--- Dohrál hráč kolo? Bot vždy; člověk, když nemá žádné území (je mimo hru, vrátit se může Vzkříšením; blok 39), nemá tah, nebo nemá co
+-- Dohrál hráč kolo? Bot vždy; člověk, když nemá žádné území (je mimo hru, vrátit se může Ankhem vzkříšení; blok 39), nemá tah, nebo nemá co
 -- hrát (žádné cizí sousední území a všechno má opevněné naplno). Otevřené bitvy hlídá conquest_round_done.
 create or replace function public.conquest_round_player_done(g public.conquest_games, uid uuid) returns boolean
 language plpgsql stable set search_path = public as $$
@@ -6782,7 +6782,7 @@ end;
 $$;
 
 -- Chce hráč další kolo sám? Bot vždy, člověk bez území také (blok 39: je mimo hru, „Chci další kolo“ za něj nikdo neklepne; když se
--- Vzkříšením vrátí, chce další kolo zase sám)
+-- Ankhem vzkříšení vrátí, chce další kolo zase sám)
 create or replace function public.conquest_round_auto(g public.conquest_games, uid uuid) returns boolean
 language sql stable set search_path = public as $$
     select public.dev_is_bot(uid) or not exists (select 1 from public.conquest_territories t where t.game_id = g.id and t.owner = uid)
@@ -6965,17 +6965,17 @@ revoke all on function public.conquest_push_warn(text), public.conquest_push_mov
     public.conquest_round_push_items() from public, anon, authenticated;
 -- ===== 29: Dobývání – upozornění na konec kola a další kolo — KONEC BLOKU =====
 
--- ===== 30: Dobývání – pomůcky Tah navíc a Půl na půl =====
+-- ===== 30: Dobývání – pomůcky Tah navíc a 50/50 =====
 -- Dvě vzácné pomůcky do Dobývání. Zásoba je na serveru (player_items: hráč, druh, počet), strop hlídá kontrola i funkce:
 -- - Tah navíc ('extra_move', nejvýš 1): v běžící hře, kterou hráč hraje, jednou za hru, ne v posledním kole (ani během odpočtu do dalšího
---   kola) a ne bez území (vrátit se jde jen Vzkříšením, blok 39). Dá +1 tah v tomto kole (conquest_budget: extra) a zapíše se do kroniky jako tah druhu
+--   kola) a ne bez území (vrátit se jde jen Ankhem vzkříšení, blok 39). Dá +1 tah v tomto kole (conquest_budget: extra) a zapíše se do kroniky jako tah druhu
 --   'extra' bez území, takže ho vidí všichni (a u jeho tahů v pořadí „+1“, conquest_state budgets.extra). conquest_use_extra.
--- - Půl na půl ('fifty', nejvýš 2): u otázky tahu se 4 možnostmi, jednou za hru, před odpovědí. V bitvě (blok 25) vybere server dvě
+-- - 50/50 ('fifty', nejvýš 2): u otázky tahu se 4 možnostmi, jednou za hru, před odpovědí. V bitvě (blok 25) vybere server dvě
 --   nesprávné možnosti a pošle jen jejich indexy (správnou neprozradí, zůstanou dvě možnosti), zapíše je k účastníkovi (removed) a ostatní
 --   účastníci vidí, že ji použil (fifty v conquest_siege_json). U otázky bez bitvy (opevnění) ji zná jen aplikace, server jen zapíše
 --   použití a ubere zásobu. conquest_use_fifty.
 -- Odkud (každý zdroj má klíč, takže stejná událost nedá pomůcku dvakrát; player_item_grants): Tah navíc za první poraženého Bosse týdne
--- v ISO týdnu (boss_submit, boss:<týden>) a za 15. stupeň Sezóny Mudrlanta; Půl na půl za Kvíz dne bez chyby (daily_quiz_answer,
+-- v ISO týdnu (boss_submit, boss:<týden>) a za 15. stupeň Sezóny Mudrlanta; 50/50 za Kvíz dne bez chyby (daily_quiz_answer,
 -- daily:<RRRR-Wtt>, nejvýš jednou za týden), za celou Řetězovku (chain_submit, chain:<RRRR-Wtt>, nejvýš jednou za týden), za výhru ve hře
 -- Dobývání (conquest_finish, conquest:<hra>; vítěz s aspoň 3 vlastními tahy), za 5. stupeň Sezóny Mudrlanta a vzácně (5 %) z Truhly Mudrlanta
 -- (nejvýš jednou za týden, chest:<RRRR-Wtt>). Sezónu a truhlu počítá aplikace, pomůcku si o ně řekne přes player_items_claim
@@ -6991,7 +6991,7 @@ create table if not exists public.player_items (
     primary key (user_id, kind)
 );
 alter table public.player_items drop constraint if exists player_items_values;
--- Záchrana navíc do Řetězovky ('chain_rescue', nejvýš 1) přibyla v bloku 37, Vzkříšení do Dobývání ('revive', nejvýš 3) v bloku 39
+-- Záchrana navíc do Řetězovky ('chain_rescue', nejvýš 1) přibyla v bloku 37, Ankh vzkříšení do Dobývání ('revive', nejvýš 3) v bloku 39
 alter table public.player_items add constraint player_items_values check (kind in ('extra_move', 'fifty', 'chain_rescue', 'revive') and count >= 0
     and count <= case kind when 'fifty' then 2 when 'revive' then 3 else 1 end);
 -- Odkud pomůcky přišly: jeden řádek na hráče a klíč zdroje; granted = false: pomůcka nepřibyla (plná zásoba, nebo v truhle nevyšel los)
@@ -7005,7 +7005,7 @@ create table if not exists public.player_item_grants (
 );
 alter table public.player_item_grants drop constraint if exists player_item_grants_values;
 -- Klíče Záchrany navíc (blok 37): gold:<RRRR-Wtt> (Zlatá truhla), bossbonus:<týden> (společný cíl Bosse), season:<RRRR-MM>:12,
--- chain-days:<počet> a chain-clean:<počet> (milníky Řetězovky dne). Klíče Vzkříšení (blok 39): starter (jednou na začátek),
+-- chain-days:<počet> a chain-clean:<počet> (milníky Řetězovky dne). Klíče Ankh vzkříšení (blok 39): starter (jednou na začátek),
 -- revive:<hra> (započítaná hra Dobývání s body), daily-streak:<dny> (milníky série Kvízu dne), season:<RRRR-MM>:8, chest:<týden>, gold:<týden>
 alter table public.player_item_grants add constraint player_item_grants_values check (kind in ('extra_move', 'fifty', 'chain_rescue', 'revive')
     and key ~ '^(boss:\d{4}-\d{2}-\d{2}|bossbonus:\d{4}-\d{2}-\d{2}|daily:\d{4}-W\d{2}|chain:\d{4}-W\d{2}|chest:\d{4}-W\d{2}|gold:\d{4}-W\d{2}|season:\d{4}-\d{2}:(5|8|12|15)|conquest:[0-9a-f-]{36}|chain-days:\d{1,3}|chain-clean:\d{1,3}|starter|revive:[0-9a-f-]{36}|daily-streak:\d{1,3})$');
@@ -7017,7 +7017,7 @@ drop policy if exists "pomůcky: vlastní zdroje" on public.player_item_grants;
 create policy "pomůcky: vlastní zdroje" on public.player_item_grants for select to authenticated using (user_id = auth.uid());
 revoke all on public.player_items, public.player_item_grants from public, anon, authenticated;
 grant select on public.player_items, public.player_item_grants to authenticated;
--- Půl na půl jednou za hru: kdy a u čeho (ref = siege:<bitva>, nebo move:<území>:<kolo>:<použité tahy> u otázky bez bitvy)
+-- 50/50 jednou za hru: kdy a u čeho (ref = siege:<bitva>, nebo move:<území>:<kolo>:<použité tahy> u otázky bez bitvy)
 alter table public.conquest_players add column if not exists fifty_at timestamptz;
 alter table public.conquest_players add column if not exists fifty_ref text;
 
@@ -7029,7 +7029,7 @@ $$;
 -- ISO týden dne jako text klíče: „2026-W46“
 create or replace function public.player_items_week(d date) returns text
 language sql immutable as $$ select to_char(d, 'IYYY-"W"IW') $$;
--- Strop zásoby: Tah navíc 1, Půl na půl 2, Záchrana navíc 1 (blok 37), Vzkříšení 3 (blok 39; stejně conquest.js ITEMS), jiný druh null
+-- Strop zásoby: Tah navíc 1, 50/50 2, Záchrana navíc 1 (blok 37), Ankh vzkříšení 3 (blok 39; stejně conquest.js ITEMS), jiný druh null
 create or replace function public.player_item_cap(item text) returns integer
 language sql immutable as $$ select case item when 'extra_move' then 1 when 'fifty' then 2 when 'chain_rescue' then 1 when 'revive' then 3 end $$;
 -- Zásoba hráče: { extra_move, fifty, chain_rescue, revive, max: { extra_move, fifty, chain_rescue, revive } }
@@ -7067,15 +7067,15 @@ begin
     return jsonb_build_object('kind', item, 'granted', true, 'full', false, 'already', false, 'count', have + 1, 'max', cap);
 end;
 $$;
--- Los truhly: číslo 0–999 pevně dané hráčem a klíčem (týdnem), opakované volání nic nezmění. Truhla Mudrlanta: pod 50 (5 %) Půl na půl,
--- 50–99 (dalších 5 %) Záchrana navíc (blok 37), 130–229 (10 %) Vzkříšení (blok 39; 100–129 je výplň Duha z bloku 38); Zlatá truhla:
--- pod 200 (20 %) Záchrana navíc (blok 37), 200–349 (15 %) Vzkříšení (blok 39)
+-- Los truhly: číslo 0–999 pevně dané hráčem a klíčem (týdnem), opakované volání nic nezmění. Truhla Mudrlanta: pod 50 (5 %) 50/50,
+-- 50–99 (dalších 5 %) Záchrana navíc (blok 37), 130–229 (10 %) Ankh vzkříšení (blok 39; 100–129 je výplň Duha z bloku 38); Zlatá truhla:
+-- pod 200 (20 %) Záchrana navíc (blok 37), 200–349 (15 %) Ankh vzkříšení (blok 39)
 create or replace function public.player_item_roll(uid uuid, grant_key text) returns integer
 language sql immutable as $$ select ('x' || substr(md5(uid::text || '|' || grant_key), 1, 6))::bit(24)::integer % 1000 $$;
 create or replace function public.player_item_lucky(uid uuid, grant_key text) returns boolean
 language sql immutable as $$ select public.player_item_roll(uid, grant_key) < 50 $$;
 
--- Moje zásoba pomůcek (s jednorázovým startovním Vzkříšením, blok 39)
+-- Moje zásoba pomůcek (s jednorázovým startovním Ankhem vzkříšení, blok 39)
 create or replace function public.player_items_mine() returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare uid uuid := auth.uid();
@@ -7086,10 +7086,10 @@ begin
 end;
 $$;
 
--- Pomůcka ze zdroje, který počítá aplikace: source 'season' (key season:<RRRR-MM>:<stupeň>: 5. stupeň Půl na půl, 8. stupeň Vzkříšení
+-- Pomůcka ze zdroje, který počítá aplikace: source 'season' (key season:<RRRR-MM>:<stupeň>: 5. stupeň 50/50, 8. stupeň Ankh vzkříšení
 -- (blok 39), 12. stupeň Záchrana navíc (blok 37), 15. stupeň Tah navíc; jen tento a minulý měsíc podle Prahy), 'chest' (Truhla Mudrlanta,
--- key chest:<RRRR-Wtt>, tento nebo minulý týden; los dělá server, jednou za týden: 5 % Půl na půl, dalších 5 % Záchrana navíc, 10 %
--- Vzkříšení) nebo 'gold' (Zlatá truhla, blok 37: key gold:<RRRR-Wtt>, nejvýš jednou za týden, 20 % Záchrana navíc, 15 % Vzkříšení).
+-- key chest:<RRRR-Wtt>, tento nebo minulý týden; los dělá server, jednou za týden: 5 % 50/50, dalších 5 % Záchrana navíc, 10 %
+-- Ankh vzkříšení) nebo 'gold' (Zlatá truhla, blok 37: key gold:<RRRR-Wtt>, nejvýš jednou za týden, 20 % Záchrana navíc, 15 % Ankh vzkříšení).
 -- Vrací výsledek player_item_grant (u truhly bez štěstí { kind, granted: false, lucky: false }) a zásobu (items); truhla se vzácným vzorem
 -- Duha (blok 38, conquest_chest_pattern) navíc pattern: 'duha'.
 create or replace function public.player_items_claim(source text, key text) returns jsonb
@@ -7153,13 +7153,13 @@ begin
     p := public.conquest_period(g);
     if public.conquest_period_end(g, p) >= g.ends_at then return 'V posledním kole hry Tah navíc použít nejde.'; end if;
     if not exists (select 1 from public.conquest_territories t where t.game_id = g.id and t.owner = uid) then
-        return 'Bez území Tah navíc použít nejde. Vrátit se můžeš pomůckou Vzkříšení.';
+        return 'Bez území Tah navíc použít nejde. Vrátit se můžeš pomůckou Ankh vzkříšení.';
     end if;
     return null;
 end;
 $$;
 -- Moje pomůcky ve hře: zásoba (player_items_json) a v této hře extra_used / fifty_used (už použité), can_extra a extra_block (proč ne);
--- Vzkříšení (blok 39): can_revive, revive_block (proč ne, null = jde) a revive_used (kolikrát ho hráč v této hře použil)
+-- Ankh vzkříšení (blok 39): can_revive, revive_block (proč ne, null = jde) a revive_used (kolikrát ho hráč v této hře použil)
 create or replace function public.conquest_items_json(g public.conquest_games, uid uuid) returns jsonb
 language plpgsql stable set search_path = public as $$
 declare block text := public.conquest_extra_block(g, uid); revive jsonb := '{}'::jsonb; why text;
@@ -7206,7 +7206,7 @@ begin
 end;
 $$;
 
--- Půl na půl u otázky tahu (jednou za hru, před odpovědí). siege = bitva, ve které hráč bojuje a ještě neodpověděl (otázka se 4 možnostmi,
+-- 50/50 u otázky tahu (jednou za hru, před odpovědí). siege = bitva, ve které hráč bojuje a ještě neodpověděl (otázka se 4 možnostmi,
 -- ne mapa, letopočet ani číslo): server vybere dvě nesprávné možnosti a vrátí jejich indexy (removed); opakované volání pro tutéž bitvu
 -- vrátí totéž. Bez bitvy (opevnění, starší útok): target = území tahu, správnou odpověď zná jen aplikace a server jen zapíše použití
 -- (opakované volání před tahem nic dalšího neubere). Vrací { removed (jen v bitvě), items (zásoba), fifty_used: true }.
@@ -7235,11 +7235,11 @@ begin
             return jsonb_build_object('removed', to_jsonb(sp.fifty), 'items', public.player_items_json(uid), 'fifty_used', true);
         end if;
         if s.status <> 'open' or sp.answered_at is not null or t > sp.joined_at + public.conquest_siege_window() then
-            raise exception 'Na tuhle otázku už Půl na půl použít nejde.' using errcode = 'P0001';
+            raise exception 'Na tuhle otázku už 50/50 použít nejde.' using errcode = 'P0001';
         end if;
         n := jsonb_array_length(s.question -> 'choices');
         if n <> 4 or coalesce(s.question ->> 'kind', '') in ('map', 'year', 'number') then
-            raise exception 'U téhle otázky Půl na půl použít nejde.' using errcode = 'P0001';
+            raise exception 'U téhle otázky 50/50 použít nejde.' using errcode = 'P0001';
         end if;
     else
         if target is null or not exists (select 1 from public.conquest_territories x where x.game_id = game and x.territory = target) then
@@ -7252,8 +7252,8 @@ begin
         end if;
         if (budget ->> 'left')::integer <= 0 then raise exception 'Tahy na tohle kolo už nemáš.' using errcode = 'P0001'; end if;
     end if;
-    if me.fifty_at is not null then raise exception 'Půl na půl jde v jedné hře použít jen jednou.' using errcode = 'P0001'; end if;
-    if have < 1 then raise exception 'Půl na půl teď nemáš.' using errcode = 'P0001'; end if;
+    if me.fifty_at is not null then raise exception '50/50 jde v jedné hře použít jen jednou.' using errcode = 'P0001'; end if;
+    if have < 1 then raise exception '50/50 teď nemáš.' using errcode = 'P0001'; end if;
     if siege is not null then
         select array_agg(i order by i) into gone_choices from (
             select i::smallint as i from generate_series(0, n - 1) i where i <> s.correct_choice order by random() limit 2) x;
@@ -7275,7 +7275,7 @@ revoke all on function public.player_items_mine(), public.player_items_claim(tex
     from public, anon;
 grant execute on function public.player_items_mine(), public.player_items_claim(text, text), public.conquest_use_extra(uuid), public.conquest_use_fifty(uuid, uuid, text)
     to authenticated;
--- ===== 30: Dobývání – pomůcky Tah navíc a Půl na půl — KONEC BLOKU =====
+-- ===== 30: Dobývání – pomůcky Tah navíc a 50/50 — KONEC BLOKU =====
 
 -- ===== 31: Speciální turnaje na téma, hlasování o tématu a psaní odpovědí jen pro jednoho hráče =====
 -- Nárazové turnaje (kind 'special' v tournaments; sloupce a fáze kol jsou u Týdenních turnajů výš): stejný pavouk a stejné otázky pro všechny
@@ -8444,7 +8444,7 @@ grant execute on function public.chain_badge_counts() to authenticated;
 -- Odkud (player_item_grants, každý klíč jednou; s plnou zásobou propadne): milníky Řetězovky dne v chain_submit (chain_rescue_milestone:
 -- dohrané dny 10, 30, 100, 365 a celé řetězy bez Záchrany 5, 15, 30, 60, jako stupně odznaků; počítá se z chain_results, dá se nejvyšší
 -- dosažený milník, nižší se přeskočí), 12. stupeň Sezóny Mudrlanta (season:<RRRR-MM>:12), Truhla Mudrlanta (5 % ze stejného losu jako
--- Půl na půl, chest:<týden>), Zlatá truhla (20 %, nejvýš jednou za týden, gold:<týden>) a společný cíl Bosse týdne (boss_claim_bonus,
+-- 50/50, chest:<týden>), Zlatá truhla (20 %, nejvýš jednou za týden, gold:<týden>) a společný cíl Bosse týdne (boss_claim_bonus,
 -- bossbonus:<týden>). Boti nic.
 create table if not exists public.player_item_uses (
     user_id uuid not null references public.profiles (id) on delete cascade,
@@ -8723,27 +8723,27 @@ revoke all on function public.conquest_looks(), public.conquest_looks_seen(times
 grant execute on function public.conquest_looks(), public.conquest_looks_seen(timestamptz) to authenticated;
 -- ===== 38: Dobývání – výplně území a vzácné znaky — KONEC BLOKU =====
 
--- ===== 39: Dobývání – pomůcka Vzkříšení — ZAČÁTEK BLOKU =====
+-- ===== 39: Dobývání – pomůcka Ankh vzkříšení — ZAČÁTEK BLOKU =====
 -- Kdo v Dobývání přijde o všechna území, už se do hry nevrací sám (automatický Návrat do hry do schématu 38, conquest_respawn je teď
--- prázdná; platí i pro boty). Vrátit se může pomůckou Vzkříšení ('revive', nejvýš 3 v zásobě player_items jako ostatní pomůcky, blok 30):
+-- prázdná; platí i pro boty). Vrátit se může pomůckou Ankh vzkříšení ('revive', nejvýš 3 v zásobě player_items jako ostatní pomůcky, blok 30):
 -- - Použití (conquest_use_revive(hra, území)): jen v běžící hře, kterou hráč hraje, a jen když mu nezbylo žádné území (kdykoli, i uprostřed
 --   kola a v posledním kole; během odpočtu do dalšího kola také). Cíl: neutrální území, nebo území jiného hráče bez opevnění (úroveň 0),
---   které není jeho domovským hradem, není obléhané (otevřená bitva, blok 25) a není chráněné po jiném Vzkříšení (conquest_revive_targets).
+--   které není jeho domovským hradem, není obléhané (otevřená bitva, blok 25) a není chráněné po jiném Ankh vzkříšení (conquest_revive_targets).
 --   Pod zámkem hry: území připadne hráči na úrovni 0 a NENÍ domovské (žádný hrad, Pevnost na něm postavit nejde), poklad na neutrálním
 --   území hráč sebere (+1 tah v tomto kole jako při dobytí, conquest_budget počítá i result 'respawn'), zásoba o 1 méně. Do kroniky tah
 --   druhu 'revive' s result 'respawn' (přehrání ho bere jako změnu majitele) a victim = dosavadní majitel, který o území přišel (když to bylo
---   jeho poslední, je teď mimo hru on). Hráč pak hraje se zbytkem tahů svého kola (Vzkříšení tah nestojí). V jedné hře jde použít víckrát,
+--   jeho poslední, je teď mimo hru on). Hráč pak hraje se zbytkem tahů svého kola (Ankh vzkříšení tah nestojí). V jedné hře jde použít víckrát,
 --   pokaždé, když hráč znovu přijde o všechno a pomůcku má.
 -- - Ochrana: 60 s (conquest_revive_shield) na vzkříšené území nikdo jiný nezaútočí ani nezačne bitvu (conquest_attack_check: „Území je
---   chráněné po vzkříšení ještě N s.“), boti ho vynechají a jiné Vzkříšení ho nevezme; majitel ho opevnit smí. conquest_state posílá
+--   chráněné po vzkříšení ještě N s.“), boti ho vynechají a jiné Ankh vzkříšení ho nevezme; majitel ho opevnit smí. conquest_state posílá
 --   u území s = konec ochrany, dokud trvá. Dobytí ochranu smaže.
--- - Bez Vzkříšení zůstane hráč do konce hry mimo hru: hru sleduje, kolo za něj platí jako dohrané a další kolo chce sám
---   (conquest_round_auto, blok 26), upozornění na konec kola nedostane. Hra běží do svého konce (ends_at) jako dosud, Vzkříšení může
+-- - Bez Ankhu vzkříšení zůstane hráč do konce hry mimo hru: hru sleduje, kolo za něj platí jako dohrané a další kolo chce sám
+--   (conquest_round_auto, blok 26), upozornění na konec kola nedostane. Hra běží do svého konce (ends_at) jako dosud, Ankh vzkříšení může
 --   přibýt i během hry (třeba za Kvíz dne) a hráč se pak vrátí. Pořadí: body, při shodě dřív dosažené; hráči s 0 body podle toho, kdo
 --   o poslední území přišel později (conquest_finish).
 -- - conquest_state: items má can_revive, revive_block (proč ne, česky) a revive_used (kolikrát v této hře); Fénix (blok 38, win_comeback)
---   počítá i výhru po Vzkříšení.
--- Odkud (player_item_grants, každý klíč jednou, s plnou zásobou propadne): startovní Vzkříšení pro každého hráče jednou (klíč starter;
+--   počítá i výhru po Ankhu vzkříšení.
+-- Odkud (player_item_grants, každý klíč jednou, s plnou zásobou propadne): startovní Ankh vzkříšení pro každého hráče jednou (klíč starter;
 -- conquest_lobby, conquest_state a player_items_mine), dohraná započítaná hra Dobývání s body (conquest_finish, revive:<hra>; jako odměna:
 -- aspoň 3 hráči nebo hra aspoň na den, aspoň 3 vlastní tahy, aspoň 1 bod; co hráč dostal, řekne conquest_claim v revive_item), milníky série
 -- Kvízu dne 7, 30, 100 a 365 dní (daily_quiz_answer: revive_item; nejvyšší dosažený milník, nižší se přeskočí), 8. stupeň Sezóny Mudrlanta
@@ -8753,7 +8753,7 @@ grant execute on function public.conquest_looks(), public.conquest_looks_seen(ti
 create or replace function public.conquest_revive_shield() returns interval
 language sql immutable as $$ select interval '60 seconds' $$;
 
--- Startovní Vzkříšení: jednou za účet (klíč starter), bot nic. Vrací zisk (player_item_grant), nebo null, když už ho hráč dostal.
+-- Startovní Ankh vzkříšení: jednou za účet (klíč starter), bot nic. Vrací zisk (player_item_grant), nebo null, když už ho hráč dostal.
 create or replace function public.conquest_revive_starter(uid uuid) returns jsonb
 language plpgsql set search_path = public as $$
 begin
@@ -8764,7 +8764,7 @@ end;
 $$;
 
 -- Milník série Kvízu dne po dohraném kvízu dne d (volá daily_quiz_answer): nejvyšší dosažený milník (7, 30, 100, 365 dní), který ještě
--- nedal Vzkříšení. Vrací zisk (player_item_grant s source 'daily-streak' a at = milník), nebo null.
+-- nedal Ankh vzkříšení. Vrací zisk (player_item_grant s source 'daily-streak' a at = milník), nebo null.
 create or replace function public.conquest_revive_streak(uid uuid, d date) returns jsonb
 language plpgsql set search_path = public as $$
 declare n integer; m integer; got jsonb;
@@ -8779,7 +8779,7 @@ begin
 end;
 $$;
 
--- Území, na která teď jde hráč uid použít Vzkříšení: neutrální, nebo cizí bez opevnění, ne domovský hrad, ne obléhané, ne chráněné
+-- Území, na která teď jde hráč uid použít Ankh vzkříšení: neutrální, nebo cizí bez opevnění, ne domovský hrad, ne obléhané, ne chráněné
 create or replace function public.conquest_revive_targets(g public.conquest_games, uid uuid) returns text[]
 language plpgsql stable set search_path = public as $$
 declare besieged text[] := public.conquest_besieged(g.id);
@@ -8791,7 +8791,7 @@ begin
 end;
 $$;
 
--- Proč teď nejde použít Vzkříšení (česky), nebo null, když jde. Zámek hry drží volající (conquest_use_revive), conquest_items_json jen čte.
+-- Proč teď nejde použít Ankh vzkříšení (česky), nebo null, když jde. Zámek hry drží volající (conquest_use_revive), conquest_items_json jen čte.
 create or replace function public.conquest_revive_block(g public.conquest_games, uid uuid) returns text
 language plpgsql stable set search_path = public as $$
 begin
@@ -8799,16 +8799,16 @@ begin
     if g.status <> 'running' then return 'Hra neběží.'; end if;
     if public.dev_is_bot(uid) then return 'Boti pomůcky nepoužívají.'; end if;
     if exists (select 1 from public.conquest_territories t where t.game_id = g.id and t.owner = uid) then
-        return 'Vzkříšení jde použít, jen když ti nezbylo žádné území.';
+        return 'Ankh vzkříšení jde použít, jen když ti nezbylo žádné území.';
     end if;
-    if coalesce((select i.count from public.player_items i where i.user_id = uid and i.kind = 'revive'), 0) < 1 then return 'Vzkříšení teď nemáš.'; end if;
+    if coalesce((select i.count from public.player_items i where i.user_id = uid and i.kind = 'revive'), 0) < 1 then return 'Ankh vzkříšení teď nemáš.'; end if;
     if public.conquest_now() >= g.ends_at then return 'Hra právě skončila.'; end if;
     if cardinality(public.conquest_revive_targets(g, uid)) = 0 then return 'Na mapě teď není žádné volné ani neopevněné území.'; end if;
     return null;
 end;
 $$;
 
--- Vzkříšení na území target (viz začátek bloku). Opakované volání po úspěchu vrátí chybu „…jen když ti nezbylo žádné území.“
+-- Ankh vzkříšení na území target (viz začátek bloku). Opakované volání po úspěchu vrátí chybu „…jen když ti nezbylo žádné území.“
 -- Vrací stav hry (conquest_state) a used = 'revive', territory, shield_until (konec ochrany).
 create or replace function public.conquest_use_revive(game uuid, target text) returns jsonb
 language plpgsql security definer set search_path = public as $$
@@ -8825,7 +8825,7 @@ begin
     perform public.conquest_housekeep(game);
     select * into g from public.conquest_games where id = game;
     if g.status <> 'running' then raise exception 'Hra už skončila.' using errcode = 'P0001'; end if;
-    -- Řádek zásoby zamčený: dvě souběžná Vzkříšení téhož hráče (dvě zařízení, dvě hry) jdou po sobě
+    -- Řádek zásoby zamčený: dvě souběžná Ankh vzkříšení téhož hráče (dvě zařízení, dvě hry) jdou po sobě
     insert into public.player_items (user_id, kind, count, updated_at) values (uid, 'revive', 0, now_ts) on conflict (user_id, kind) do nothing;
     perform 1 from public.player_items i where i.user_id = uid and i.kind = 'revive' for update;
     block := public.conquest_revive_block(g, uid);
@@ -8834,8 +8834,8 @@ begin
     if t.territory is null then raise exception 'Tohle území na mapě není.' using errcode = '22023'; end if;
     if target = any (public.conquest_besieged(game)) then raise exception 'Na území právě probíhá bitva. Vyber jiné.' using errcode = 'P0001'; end if;
     if t.owner is not null then
-        if t.home then raise exception 'Domovský hrad Vzkříšením vzít nejde. Vyber volné nebo neopevněné území.' using errcode = 'P0001'; end if;
-        if t.level > 0 then raise exception 'Opevněné území Vzkříšením vzít nejde. Vyber volné nebo neopevněné území.' using errcode = 'P0001'; end if;
+        if t.home then raise exception 'Domovský hrad Ankhem vzkříšení vzít nejde. Vyber volné nebo neopevněné území.' using errcode = 'P0001'; end if;
+        if t.level > 0 then raise exception 'Opevněné území Ankhem vzkříšení vzít nejde. Vyber volné nebo neopevněné území.' using errcode = 'P0001'; end if;
         if t.shield_until > now_ts then
             raise exception 'Území je chráněné po vzkříšení ještě % s.', greatest(1, ceil(extract(epoch from (t.shield_until - now_ts))))::integer using errcode = 'P0001';
         end if;
@@ -8866,7 +8866,7 @@ revoke all on function public.conquest_revive_shield(), public.conquest_revive_s
     public.conquest_revive_targets(public.conquest_games, uuid), public.conquest_revive_block(public.conquest_games, uuid) from public, anon, authenticated;
 revoke all on function public.conquest_use_revive(uuid, text) from public, anon;
 grant execute on function public.conquest_use_revive(uuid, text) to authenticated;
--- ===== 39: Dobývání – pomůcka Vzkříšení — KONEC BLOKU =====
+-- ===== 39: Dobývání – pomůcka Ankh vzkříšení — KONEC BLOKU =====
 
 -- ===== 40: Dobývání – sady hradů — ZAČÁTEK BLOKU =====
 -- Sady hradů (docs/ODMENY-DOBYVANI.md oddíl 3): jiný styl domovského hradu (stupně 0–3, icons/stavby/hrad-<sada>-<stupeň>.webp) a opevnění
@@ -8951,7 +8951,7 @@ revoke all on function public.conquest_castles(), public.conquest_check_castle(u
 -- 28: Dobývání – Chci další kolo: přeskočený zbytek kola se odečte i z konce hry (conquest_round_ready posune ends_at).
 -- 29: Dobývání – upozornění „Všichni dohráli kolo“ (druh 'conquest_round', klíč cqr:) a „Kolo brzy končí“ (druh 'conquest_ending', klíč cqe:)
 --     v push_pending a push_mark přes conquest_round_push_items, conquest_push_warn, conquest_push_moves a conquest_push_time, limit 3 minuty.
--- 30: Dobývání – pomůcky Tah navíc a Půl na půl (player_items, player_item_grants, conquest_players.fifty_at a fifty_ref,
+-- 30: Dobývání – pomůcky Tah navíc a 50/50 (player_items, player_item_grants, conquest_players.fifty_at a fifty_ref,
 --     conquest_siege_players.fifty; player_items_mine, player_items_claim (Sezóna Mudrlanta a Truhla Mudrlanta), conquest_use_extra,
 --     conquest_use_fifty; tah druhu 'extra' bez území v conquest_moves, conquest_budget: extra, budgets.extra a items v conquest_state,
 --     items v conquest_lobby, fifty a removed v bitvách; zisk v boss_submit, daily_quiz_answer, chain_submit, conquest_finish
@@ -8990,7 +8990,7 @@ revoke all on function public.conquest_castles(), public.conquest_check_castle(u
 --     conquest_create, conquest_join a conquest_set_look s nepovinným pattern_id (vzácný znak a vzor jen odemčené), conquest_add_player
 --     s pattern_id, conquest_summary s pattern, conquest_lobby a conquest_claim s looks, player_items_claim u truhly s pattern (Duha);
 --     export_my_data má i 'dobyvani_vzhled'.
--- 39: Dobývání – pomůcka Vzkříšení ('revive', nejvýš 3, v player_items, player_item_cap a player_items_json) místo automatického Návratu
+-- 39: Dobývání – pomůcka Ankh vzkříšení ('revive', nejvýš 3, v player_items, player_item_cap a player_items_json) místo automatického Návratu
 --     do hry (conquest_respawn nic nedělá): conquest_use_revive (jen bez území, cíl neutrální nebo cizí neopevněné území mimo domovské
 --     hrady a bitvy, tah 'revive' s result 'respawn', ne domovské), ochrana 60 s (conquest_territories.shield_until, conquest_attack_check,
 --     conquest_bot_move, conquest_state s 's'), conquest_revive_targets, conquest_revive_block, conquest_items_json s can_revive, revive_block
@@ -8998,7 +8998,7 @@ revoke all on function public.conquest_castles(), public.conquest_check_castle(u
 --     (conquest_finish, conquest_claim: revive_item), milníky série Kvízu dne (conquest_revive_streak v daily_quiz_answer: revive_item),
 --     8. stupeň Sezóny, Truhla Mudrlanta a Zlatá truhla (player_items_claim); hráči bez území chtějí další kolo sami (conquest_round_auto
 --     v conquest_round_json, conquest_round_ready a upozorněních), pořadí hráčů bez bodů podle toho, kdo vydržel déle (conquest_finish),
---     poklad i po Vzkříšení (conquest_budget), Fénix i po Vzkříšení (conquest_look_stats), texty upozornění na útoky.
+--     poklad i po Ankhu vzkříšení (conquest_budget), Fénix i po Ankhu vzkříšení (conquest_look_stats), texty upozornění na útoky.
 -- 40: Dobývání – sady hradů (Gotický hrad, Orientální palác, Japonský hrad): conquest_players.castle, conquest_castles, conquest_check_castle;
 --     conquest_look_catalog s druhem 'castle', conquest_looks s druhem 'castle', conquest_look_stats s home_fortress a season15,
 --     conquest_looks_json s castles; conquest_create, conquest_join, conquest_set_look a conquest_add_player s nepovinným castle_id
