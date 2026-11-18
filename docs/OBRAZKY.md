@@ -3242,11 +3242,9 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 ## 27. Odznaky Řetězovky dne (č. 358–359)
 
 Symboly dvou skupin odznaků Řetězovky dne (Můj postup → Všechny odznaky): Řetězovka dne (dohrané dny) a Celý řetěz bez Záchrany. Stejný styl
-jako ostatní symboly odznaků (oddíl 3 a 6), bez kolečka medaile. **Stav: zatím zástupný obrázek** – obě skupiny ukazují sovu se zlatým řetězem
-(`retezovka.webp`, č. 212; `chain.js` `ART.badge`). Až symboly dorazí, uložím je do `branding/ikony/`, spustím
-`python3 scripts/topic-icons.py odznak-retezovka odznak-retezovka-cela` a přidám skupiny do `BADGE_ART` v `app.js` a `sw.js`.
+jako ostatní symboly odznaků (oddíl 3 a 6), bez kolečka medaile. **Stav: ✅ dodáno a zapojeno** (`icons/topics/odznak-retezovka*.webp`, `BADGE_ART` v `app.js` a `sw.js`).
 
-#### 358. `odznak-retezovka.png` – Řetězovka dne – čeká na dodání
+#### 358. `odznak-retezovka.png` – Řetězovka dne – ✅ dodáno, zapojeno
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -3254,7 +3252,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A short shiny golden chain of four big chunky oval links curving in a gentle arc, the last link just clicking into the others with a small bright sparkle, a tiny cream tear-off calendar page hanging from the first link. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 359. `odznak-retezovka-cela.png` – Celý řetěz bez Záchrany – čeká na dodání
+#### 359. `odznak-retezovka-cela.png` – Celý řetěz bez Záchrany – ✅ dodáno, zapojeno
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu) a hotový `odznak-retezovka.png` (č. 358, vzor řetězu)
 
