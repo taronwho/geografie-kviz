@@ -187,7 +187,9 @@
     // Medailon prestiže n (bez prestiže prázdný text); cls = velikost (h-5 w-5 …) a umístění. role="img" s popiskem „Prestiž 2“.
     // Rozsvěcování legendárního medailonu od ★11 do ★99: oblasti obrázku ★10 v tomto pořadí (třídy prestige-lit-<oblast> v src/input.css
     // ořízne clip-path), každá ve 4 stupních síly; prahy rovnoměrně mezi ★11 a ★98, na ★99 svítí celý a jemně se třpytí
-    const LIT_REGIONS = ['rays', 'wing-left', 'wing-right', 'rim', 'crown', 'gem'];
+    // Krystal se rozsvěcuje barva po barvě (gem-<barva>): vlastní vrstvy icons/topics/prestiz-10-gem-<barva>.webp (scripts/prestige-gem.py)
+    const GEM_COLORS = ['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'violet'];
+    const LIT_REGIONS = ['rays', 'wing-left', 'wing-right', 'rim', 'crown', ...GEM_COLORS.map(color => `gem-${color}`)];
     const LIT_STEPS = 4;
     // Kolik kroků rozsvícení má prestiž n (0 do ★10, 1 na ★11 … všech 24 na ★98 a ★99) a síla jednotlivých oblastí
     const litSteps = (n) => {
@@ -208,7 +210,10 @@
         const tier = tierOf(value);
         const src = ART[tier] ? `icons/topics/${ART[tier]}.webp` : '';
         const img = (extra) => `<img src="${src}" alt="" draggable="false" class="block h-full w-full select-none object-contain${extra}">`;
-        const layers = src && lit ? litLevels(value).filter(([, level]) => level > 0).map(([region, level]) => img(` prestige-lit prestige-lit-${region} prestige-lit-l${level}`)).join('') : '';
+        const layer = (region, level) => (region.startsWith('gem-')
+            ? `<img src="icons/topics/${ART[tier]}-${region}.webp" alt="" draggable="false" class="block h-full w-full select-none object-contain prestige-lit prestige-lit-gem prestige-lit-l${level}">`
+            : img(` prestige-lit prestige-lit-${region} prestige-lit-l${level}`));
+        const layers = src && lit ? litLevels(value).filter(([, level]) => level > 0).map(([region, level]) => layer(region, level)).join('') : '';
         const aura = auraOf(value);
         const glow = aura ? ` prestige-aura prestige-aura-${aura}` : '';
         return `<span data-prestige-medal="${value}" data-prestige-tier="${tier}"${aura ? ` data-prestige-aura="${aura}"` : ''} role="img" aria-label="Prestiž ${value}" title="Prestiž ${value}" class="prestige-medal${src ? ' prestige-art' : ''}${glow} relative inline-flex shrink-0 ${cls}">${src ? img('') : medalSvg(tier)}${layers}${value >= TOP_TIER ? numberSvg(value) : ''}</span>`;

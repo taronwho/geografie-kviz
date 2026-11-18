@@ -60,7 +60,9 @@ const APP_SHELL = [
         // Motivace (č. 311, 315, 316): sova s hvězdou prestiže, sova s pozvánkou, tematický víkend
         'sova-prestiz-hvezda', 'sova-pozvanka', 'vikend',
         // Medailony prestiže ★1–★10 a sova prestiže (prestige.js ART, app.js PRESTIGE_OWL_ART, č. 368–378)
-        ...Array.from({ length: 10 }, (_, i) => `prestiz-${i + 1}`), 'sova-prestiz'].map(id => `icons/topics/${id}.webp`),
+        ...Array.from({ length: 10 }, (_, i) => `prestiz-${i + 1}`), 'sova-prestiz',
+        // Barvy krystalu medailonu ★10 pro rozsvěcování od ★11 (scripts/prestige-gem.py)
+        ...['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'violet'].map(color => `prestiz-10-gem-${color}`)].map(id => `icons/topics/${id}.webp`),
     // Boss týdne (boss.js ART): čtyři stupně každého bosse a jeho aréna
     ...['kapitan', 'rytir', 'alchymista', 'amper', 'maestro', 'druid', 'olympan', 'reziser'].flatMap(id => [`boss-${id}`, `boss-${id}-zraneny`, `boss-${id}-vkoncich`, `boss-${id}-porazeny`, `arena-${id}`]).map(id => `icons/topics/${id}.webp`),
     // Stavby na mapě Dobývání (conquest.js BUILDINGS, scripts/building-art.py): základ a vrstva střech a vlaječek v barvě hráče

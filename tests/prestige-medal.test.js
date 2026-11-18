@@ -54,9 +54,11 @@ test('obrázky medailonů: zapojený název v ART má soubor icons/topics/<náze
 });
 
 test('rozsvěcování od ★11 do ★99: oblasti obrázku ★10 v pořadí, 4 stupně síly, na ★99 vše a třpyt; kresba v SVG jen záře', () => {
-    assert.deepEqual(P.LIT_REGIONS, ['rays', 'wing-left', 'wing-right', 'rim', 'crown', 'gem']);
-    assert.deepEqual([1, 10, 11, 12, 30, 54, 75, 98, 99].map(P.litSteps), [0, 0, 1, 1, 6, 12, 18, 24, 24]);
-    assert.deepEqual(P.litLevels(30), [['rays', 4], ['wing-left', 2], ['wing-right', 0], ['rim', 0], ['crown', 0], ['gem', 0]]);
+    // Nakonec krystal barva po barvě (vlastní vrstvy z scripts/prestige-gem.py)
+    assert.deepEqual(P.LIT_REGIONS, ['rays', 'wing-left', 'wing-right', 'rim', 'crown', 'gem-red', 'gem-orange', 'gem-yellow', 'gem-green', 'gem-cyan', 'gem-blue', 'gem-violet']);
+    assert.deepEqual([1, 10, 11, 12, 30, 54, 75, 98, 99].map(P.litSteps), [0, 0, 1, 1, 11, 24, 35, 48, 48]);
+    assert.deepEqual(P.litLevels(30).slice(0, 4), [['rays', 4], ['wing-left', 4], ['wing-right', 3], ['rim', 0]]);
+    assert.deepEqual(P.litLevels(75).filter(([region, level]) => region.startsWith('gem-') && level).map(([region]) => region), ['gem-red', 'gem-orange', 'gem-yellow', 'gem-green'], '★75: první barvy krystalu');
     assert.deepEqual([10, 11, 40, 98, 99].map(P.auraOf), [0, 1, 2, 4, 'max']);
     // Bez obrázku (kresba v SVG, záložní): jen záře celého medailonu
     const art = { ...P.ART };
@@ -71,18 +73,19 @@ test('rozsvěcování od ★11 do ★99: oblasti obrázku ★10 v pořadí, 4 st
     P.ART[10] = 'prestiz-10';
     try {
         const big = P.medalHtml(40, 'h-16 w-16');
-        assert.equal((big.match(/<img src="icons\/topics\/prestiz-10\.webp"/g) || []).length, 1 + 2, '★40: paprsky a levé křídlo');
+        assert.equal((big.match(/<img src="icons\/topics\/prestiz-10\.webp"/g) || []).length, 1 + 4, '★40: paprsky, křídla a obruč');
         assert.match(big, /prestige-lit prestige-lit-rays prestige-lit-l4"[\s\S]*prestige-lit-wing-left prestige-lit-l4"/);
-        assert.match(P.medalHtml(30, 'h-9'), /prestige-aura-1/);
-        assert.match(P.medalHtml(30, 'h-9'), /prestige-lit-wing-left prestige-lit-l2"/);
+        assert.match(P.medalHtml(30, 'h-9'), /prestige-lit-wing-right prestige-lit-l3"/);
+        assert.match(P.medalHtml(75), /src="icons\/topics\/prestiz-10-gem-red\.webp"[^>]*prestige-lit-gem prestige-lit-l4"/);
         assert.match(big, /class="prestige-medal prestige-art prestige-aura prestige-aura-2 /);
-        assert.equal((P.medalHtml(99).match(/prestige-lit-l4/g) || []).length, 6);
+        assert.equal((P.medalHtml(99).match(/prestige-lit-l4/g) || []).length, 12);
         assert.match(P.medalHtml(99), /prestige-aura-max/);
         assert.doesNotMatch(P.badgeHtml(99, 'h-9 w-9'), /prestige-lit/, 'odznáček u obrázku: jen záře');
         assert.match(P.badgeHtml(99, 'h-9 w-9'), /prestige-aura-max/);
     } finally { P.ART[10] = saved; }
     const css = fs.readFileSync(path.join(ROOT, 'src', 'input.css'), 'utf8');
-    for (const region of P.LIT_REGIONS) assert.match(css, new RegExp(`\\.prestige-lit-${region} \\{ clip-path: polygon\\(`), region);
+    for (const region of P.LIT_REGIONS.filter(region => !region.startsWith('gem-'))) assert.match(css, new RegExp(`\\.prestige-lit-${region} \\{ clip-path: polygon\\(`), region);
+    for (const region of P.LIT_REGIONS.filter(region => region.startsWith('gem-'))) assert.ok(fs.existsSync(path.join(ROOT, 'icons', 'topics', `prestiz-10-${region}.webp`)), region);
     for (let level = 1; level <= 4; level++) assert.match(css, new RegExp(`\\.prestige-lit-l${level} \\{`));
     assert.match(css, /@media \(prefers-reduced-motion: no-preference\) \{\n {4}\.prestige-aura-max \{ animation:/);
 });

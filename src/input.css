@@ -1464,7 +1464,9 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 .prestige-lit-wing-right { clip-path: polygon(100% 22%, 72% 30%, 70% 76%, 100% 70%); }
 .prestige-lit-rim { clip-path: polygon(evenodd, 50% 26%, 70% 34%, 78% 55%, 70% 76%, 50% 84%, 30% 76%, 22% 55%, 30% 34%, 50% 26%, 50% 40%, 60% 45%, 64% 55%, 60% 65%, 50% 70%, 40% 65%, 36% 55%, 40% 45%, 50% 40%); }
 .prestige-lit-crown { clip-path: polygon(30% 0%, 70% 0%, 68% 30%, 32% 30%); }
-.prestige-lit-gem { clip-path: polygon(50% 40%, 62% 47%, 64% 57%, 50% 70%, 36% 57%, 38% 47%); }
+.prestige-lit-gem { clip-path: none; }
+/* Barvy krystalu: sytější a se světlou září, ať je každá nově rozsvícená barva vidět */
+.prestige-lit.prestige-lit-gem { filter: saturate(1.9) brightness(1.4) drop-shadow(0 0 0.06em rgb(255 255 255 / 0.95)); }
 .prestige-lit-l1 { opacity: 0.45; filter: brightness(1.1) saturate(1.25) drop-shadow(0 0 0.04em #ffd54a); }
 .prestige-lit-l2 { opacity: 0.65; filter: brightness(1.18) saturate(1.4) drop-shadow(0 0 0.06em #ffcf33); }
 .prestige-lit-l3 { opacity: 0.85; filter: brightness(1.26) saturate(1.55) drop-shadow(0 0 0.08em #ffc61a); }
