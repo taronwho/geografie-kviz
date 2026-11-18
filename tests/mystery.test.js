@@ -574,3 +574,19 @@ test('vykreslení krátkých nápověd: ano/ne, růžice se šipkou, doba, indic
     const css = read('styles.css');
     for (const cls of ['fill-violet-50', 'stroke-violet-200', 'fill-violet-700', 'fill-gold-400', 'bg-emerald-100', 'text-emerald-800', 'bg-rose-100', 'text-rose-800']) assert.ok(css.includes(`.${cls}`), cls);
 });
+
+test('sdílení a pořadí: místo výzvy „rychleji“ čas uhodnutí; v pořadí přátel u každého, kdo uhodl, v kolik hodin', () => {
+    const at = Date.UTC(2026, 10, 17, 13, 32);
+    const entry = { solved: true, clues: 6, points: 5, at, tips: [{ correct: true, clues: 6, at }] };
+    const card = M.cardInput({ day: '2026-11-17', entry, robe: 'vinova', url: 'x', appName: 'Mudrlant' });
+    assert.equal(card.note, `Uhodnuto v ${M.formatClock(at)}`);
+    assert.doesNotMatch(card.note, /rychleji/);
+    assert.match(M.cardInput({ day: '2026-11-17', entry: { ...entry, clues: 2 }, robe: 'vinova' }).note, /^Uhodnuto v \d{1,2}:\d{2} · detektivní instinkt!$/);
+    assert.equal(M.cardInput({ day: '2026-11-17', entry: { solved: false, clues: 8, points: 0, at: 0, tips: [] }, robe: 'vinova' }).note, 'Zvládneš to ty?');
+    const html = M.statsHtml({ stats: { players: 3, solved: 2, solved_pct: 66, fastest: '0:12', avg_clues: 3 }, friends: { friends: 2, rank: 1, rows: [
+        { rank: 1, id: 'a', display_name: 'Ana', solved: true, points: 9, clues: 2, solved_at: '7:05', me: true },
+        { rank: 2, id: 'b', display_name: 'Bob', solved: false, points: 0, clues: 8, solved_at: '' }] } }, {});
+    assert.match(html, /data-mystery-row="a"[\s\S]*9 bodů · 2\. nápověda<\/span><span data-mystery-time[^>]*>uhodnuto v 7:05<\/span>/);
+    assert.match(html, /data-mystery-row="b"[\s\S]*nevyřešeno/);
+    assert.doesNotMatch(html.split('data-mystery-row="b"')[1], /data-mystery-time/);
+});
