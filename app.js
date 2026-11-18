@@ -11896,7 +11896,7 @@
     };
     const shareChallengeImage = () => {
         const input = challengeCardInput(challenge);
-        if (input && ShareCard) shareImageCounted(input, { name: ShareCard.fileName('vyzva', input.day), text: `Vyhrál jsem výzvu v Mudrlantu: ${input.headline}. Zvládneš to líp?\n${challengeLink(challenge.code)}`, toast: showToast });
+        if (input && ShareCard) shareImageCounted(input, { name: ShareCard.fileName('vyzva', input.day), text: `Výzva v Mudrlantu je moje: ${input.headline}. Zvládneš to líp?\n${challengeLink(challenge.code)}`, toast: showToast });
     };
 
     // --- Boss týdne (boss.js): souboj s bossem týdne v aréně (dlaždice v řadě Výzvy na úvodu) ---
@@ -12868,23 +12868,48 @@
         if (document.getElementById('tournament-notices') && waited < 60000) { setTimeout(() => afterNotices(run, waited + 500), 500); return; }
         run();
     };
-    // Zprávy o turnajích (nepřečtené): jedno okno, hned se označí jako přečtené; za 1.–3. místo oslava
-    const showTournamentNotices = async (user) => {
+    // Zprávy o turnajích (nepřečtené): jedno okno, hned se označí jako přečtené; za 1.–3. místo oslava.
+    // Zpráva o konci turnaje (result) dostane tlačítka Sdílet umístění a Stáhnout, až se načtou přihlášky a zápasy turnaje (list = turnaje ze serveru)
+    const showTournamentNotices = async (user, list = []) => {
         const notices = await Social.tournamentNotices(user.id);
         if (!notices || !notices.length || document.getElementById('dialog-overlay') || screen !== 'home') return;
         const items = notices.map(notice => ({ notice, info: Tournament.noticeText(notice) })).filter(item => item.info);
         Social.tournamentNoticesSeen(notices.map(notice => notice.id)).catch(() => {});
         if (!items.length) return;
+        const shareViews = new Map();
         showDialog('Turnaj', `
             <div id="tournament-notices" class="flex flex-col gap-3">
-                ${items.map(({ info }) => `<div data-notice class="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:ring-slate-700/70"><p class="flex items-center gap-2 text-[15px] font-black text-slate-800 dark:text-slate-100"><i data-lucide="trophy" class="h-4 w-4 text-gold-600 dark:text-gold-300"></i>${escapeHtml(info.title)}</p><p class="mt-1 text-sm leading-snug text-slate-600 dark:text-slate-300">${escapeHtml(info.text)}</p></div>`).join('')}
+                ${items.map(({ notice, info }) => `<div data-notice ${notice.kind === 'result' && info.place ? `data-notice-tid="${escapeHtml(String(notice.tournament_id || ''))}"` : ''} class="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:ring-slate-700/70"><p class="flex items-center gap-2 text-[15px] font-black text-slate-800 dark:text-slate-100"><i data-lucide="trophy" class="h-4 w-4 text-gold-600 dark:text-gold-300"></i>${escapeHtml(info.title)}</p><p class="mt-1 text-sm leading-snug text-slate-600 dark:text-slate-300">${escapeHtml(info.text)}</p></div>`).join('')}
                 <button type="button" data-close class="${PRIMARY_BUTTON}">Rozumím</button>
-            </div>`);
+            </div>`, {
+            onClick: (event) => {
+                const button = event.target.closest('[data-t-share], [data-t-save]');
+                const box = button && button.closest('[data-notice-tid]');
+                if (box && shareViews.has(box.dataset.noticeTid)) shareTournamentPlace(shareViews.get(box.dataset.noticeTid), { save: button.hasAttribute('data-t-save') });
+            }
+        });
         const medals = items.filter(({ notice, info }) => notice.kind === 'result' && info.place >= 1 && info.place <= 3).map(({ info }) => info.place);
         if (items.some(({ notice }) => notice.kind === 'result')) afterNotices(() => {
             medals.forEach(place => showCelebration(place === 1 ? 'vitez' : 'oslava', place === 1 ? 'Vítěz turnaje' : `${place}. místo v turnaji`, 'Gratulujeme!'));
             applyTournamentProgress({ stats: true });
         });
+        // Obrázek s umístěním: skončený turnaj ze seznamu, jeho přihlášky a zápasy se načtou na pozadí (bez spojení tlačítka prostě nepřibudou)
+        const tids = [...new Set(items.filter(({ notice, info }) => notice.kind === 'result' && info.place).map(({ notice }) => String(notice.tournament_id || '')))];
+        Promise.all(tids.map(async (tid) => {
+            const tournament = (list || []).find(item => item.id === tid && item.status === 'finished');
+            if (!tournament || !ShareCard) return;
+            try {
+                const [entries, matches] = await Promise.all([Social.getTournamentEntries(tid), Social.getTournamentMatches(tid)]);
+                const view = { tournament, entries: entries || [], matches: matches || [] };
+                const card = tourShareInput(view);
+                const box = document.querySelector(`#tournament-notices [data-notice-tid="${CSS.escape(tid)}"]`);
+                if (!card || !box || !signedUser() || signedUser().id !== user.id) return;
+                shareViews.set(tid, view);
+                prepareTourShare(card);
+                box.insertAdjacentHTML('beforeend', `<div class="mt-2.5">${tourShareButtons(card)}</div>`);
+                renderIcons(box);
+            } catch (error) { /* bez spojení zůstane jen zpráva */ }
+        })).catch(() => {});
     };
 
     // --- Pozvánka do turnaje: malé okno při přepnutí na záložku Soupeři při každém druhém spuštění aplikace; žárovka u sovy i v singlu nejvýš 2× denně ---
@@ -13416,7 +13441,7 @@
             if (!signedUser() || signedUser().id !== user.id) return;
             if (list === null) { tournamentView = null; tournamentsMissing = true; paintChallenges(); return; }
             tournamentsMissing = false;
-            await showTournamentNotices(user).catch(() => {});
+            await showTournamentNotices(user, list).catch(() => {});
             await updateTournamentOffer(user, list).catch(() => {});
             if (!force && navTab !== 'souperi') return;
             // Hlasování o tématu speciálního turnaje: nejvýš jednou za minutu (a po hlasu hned z odpovědi serveru)
@@ -13472,6 +13497,30 @@
         tournamentView.forEach(view => { view.state = tournamentStateOf(view, user.id, today); });
     };
 
+    // --- Sdílení umístění ze skončeného turnaje: obrázek 1080 × 1350 (share-card.js, kind 'tournament'; umístění spočítá Tournament.shareCard
+    // z místa zapsaného databází). Tlačítka jsou v okně turnaje (i z archivu), v řádku karty turnajů a ve zprávě o konci turnaje. ---
+    const tourShareInput = (view) => {
+        const user = signedUser();
+        if (!user || !ShareCard || !Tournament || !view) return null;
+        return Tournament.shareCard({ tournament: view.tournament, entries: view.entries, matches: view.matches, me: user.id, robe: robeNow(), url: appUrl(), appName: APP_NAME });
+    };
+    const tourShareFile = (card) => ShareCard.fileName('turnaj', card.week);
+    // Obrázek se kreslí dopředu, ať ho Safari po klepnutí pustí do sdílení
+    const prepareTourShare = (card) => { if (card) ShareCard.prepare(card, tourShareFile(card)); };
+    // Sdílet (soubor přes systémové sdílení, jinak stažení) nebo jen stáhnout; obojí se počítá do sdílených obrázků
+    const shareTournamentPlace = (view, { save = false } = {}) => {
+        const card = tourShareInput(view);
+        if (!card) return;
+        touchTip('tourShare');
+        if (save) ShareCard.saveImage(card, { name: tourShareFile(card), toast: showToast }).then(result => { if (result === 'downloaded') bumpCounter('sharedImages'); });
+        else shareImageCounted(card, { name: tourShareFile(card), text: Tournament.shareText(card, appUrl()), toast: showToast });
+    };
+    // Tlačítka Sdílet umístění a Stáhnout (na úzkém displeji jen ikona)
+    const tourShareButtons = (card) => (card ? `<div data-t-share-row class="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+            <button type="button" data-t-share class="flex min-w-0 items-center justify-center gap-1.5 rounded-2xl btn-3d bg-brand-700 px-3 py-2.5 text-[15px] font-black text-white"><i data-lucide="share-2" class="h-5 w-5 shrink-0"></i><span class="truncate">Sdílet umístění</span></button>
+            <button type="button" data-t-save aria-label="Stáhnout obrázek s umístěním" class="flex items-center justify-center gap-1.5 rounded-2xl bg-slate-200 px-3 py-2.5 text-[15px] font-bold text-slate-800 dark:bg-slate-700 dark:text-slate-100"><i data-lucide="download" class="h-5 w-5 shrink-0"></i><span class="hidden min-[380px]:inline">Stáhnout</span></button>
+        </div>` : '');
+
     // --- Karta turnajů v okně Turnaje (záložka Soupeři) ---
     // Ilustrace turnaje (icons/topics/turnaj.webp): o kousek větší než místo, které zabere (40 px jako dřív kroužek), ať se řádek nezvýší ani nezúží text
     const TOUR_ART = 'h-12 w-12 -m-1';
@@ -13521,6 +13570,10 @@
         // S velkým tlačítkem Hrát je pavouk jen malá ikona, jinak ikona s popiskem
         const open = `<button type="button" data-action="tournament-open" data-tid="${id}" ${playing ? `aria-label="${bracket[1]}" title="${bracket[1]}"` : ''} class="${TOUR_SMALL} ${playing ? 'h-10 w-10' : 'px-2.5 py-2'}"><i data-lucide="${bracket[0]}" class="h-4 w-4"></i>${playing ? '' : bracket[1]}</button>`;
         const opponent = state.opponent && view.entries.find(entry => entry.user_id === state.opponent);
+        // Skončený turnaj, ve kterém hráč hrál: vedle Výsledků malá ikona Sdílet umístění
+        const shareCard = state.phase === 'finished' && state.playing ? tourShareInput(view) : null;
+        if (shareCard) prepareTourShare(shareCard);
+        const share = shareCard ? `<button type="button" data-action="tournament-share" data-tid="${id}" aria-label="Sdílet umístění" title="Sdílet umístění" class="${TOUR_SMALL} h-10 w-10"><i data-lucide="share-2" class="h-4 w-4"></i></button>` : '';
         return `
             <div data-tournament-row="${state.phase}" ${special ? 'data-special' : ''} ${state.step ? `data-step="${state.step}"` : ''} class="flex items-center gap-2.5 py-2 first:pt-0 last:pb-0">
                 ${art}
@@ -13528,7 +13581,7 @@
                     <p class="truncate text-[14px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(title)}</p>
                     <p data-tournament-text class="flex flex-wrap items-center gap-x-1 text-[11px] font-semibold leading-snug text-slate-600 dark:text-slate-300">${state.step === 'play' && opponent ? `<span>Dnes hraješ proti</span> <span class="inline-flex items-center gap-1">${avatarHtml(opponent.player, 'h-4 w-4 text-[10px]')}<b class="text-slate-800 dark:text-slate-100">${escapeHtml(playerName(opponent.player))}</b></span>` : escapeHtml(text)}</p>
                 </div>
-                <div class="flex shrink-0 items-center gap-1.5">${playing ? open + play : open}</div>
+                <div class="flex shrink-0 items-center gap-1.5">${playing ? open + play : open + share}</div>
             </div>`;
     };
     // Hráč má dnes odehrát zápas turnaje (karta jde v záložce nahoru) / turnaj je otevřený a hráč se ještě nepřihlásil (karta jemně zeleně svítí)
@@ -13790,6 +13843,7 @@
         // Speciální turnaj na téma (schéma 31): téma a délka kola místo týdne a Mixu
         const special = Tournament.isSpecial(tournament);
         const specialLine = special ? `${escapeHtml(tournament.title)} · ${tournament.size ? `${Tournament.playersWord(tournament.size)} · ` : ''}${Tournament.QUESTIONS} otázek v kole, kolo trvá ${escapeHtml(Tournament.durationText(tournament.round_minutes))}` : '';
+        let shareCard = null;
         const rules = archived
             ? `<button type="button" data-t-help class="${TOUR_LINK} self-start">Jak turnaje fungují</button>`
             : `<div class="flex flex-wrap items-center justify-between gap-x-3"><button type="button" data-t-help class="${TOUR_LINK}">Jak turnaje fungují</button><button type="button" data-t-archive class="${TOUR_LINK} gap-1">${uiArt('archiv-turnaju', 'h-7 w-7')}Archiv turnajů</button></div>`;
@@ -13817,15 +13871,19 @@
             const hasBracket = Boolean(matches.length && tournament.size >= 2);
             const bracketOn = hasBracket && tournamentMode === 'bracket';
             const medals = ['text-gold-600 dark:text-gold-300', 'text-slate-500 dark:text-slate-300', 'text-amber-700 dark:text-amber-500', 'text-slate-500 dark:text-slate-400'];
+            // Skončený turnaj, ve kterém hráč hrál: Sdílet umístění a Stáhnout pod jeho výsledkem
+            shareCard = state.phase === 'finished' ? tourShareInput(view) : null;
             body = archived ? `
                 ${archiveNavHtml()}
                 <p class="text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">${special ? `Speciální turnaj ${escapeHtml(Tournament.dateLabel(tournament.week_start))} · ${specialLine}` : `Týden ${escapeHtml(Tournament.archiveWeekLabel(tournament.week_start))} · ${tournament.size ? `${Tournament.playersWord(tournament.size)}` : ''} · ${escapeHtml(challengeTopicTitle(tournament.topic))}, ${Tournament.QUESTIONS} otázek v kole`}</p>
                 ${archivePodiumHtml(entries, user.id)}
                 ${archiveMeHtml(entries, user.id)}
+                ${tourShareButtons(shareCard)}
                 ${lastBreakdown}
                 ${rankingHtml(view, user.id, { open: tournament.size <= 16 })}` : `
                 <p class="text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">${special ? specialLine : `Týden ${escapeHtml(Tournament.weekLabel(tournament.week_start))} · ${tournament.size ? `${Tournament.playersWord(tournament.size)}` : ''} · Mix všech témat, ${Tournament.QUESTIONS} otázek v kole`}</p>
                 ${state.role === 'player' || (state.phase === 'finished' && state.playing) ? `<div class="sticky top-11 z-20 -mx-1 -my-1 bg-slate-50 px-1 py-1 dark:bg-slate-900"><div id="tournament-status" class="flex items-center gap-2.5 rounded-2xl bg-gold-50 p-2.5 ring-1 ring-gold-300/70 dark:bg-gold-900/20 dark:ring-gold-700/60"><p class="min-w-0 flex-1 text-[13px] font-bold leading-snug text-slate-800 dark:text-slate-100">${state.roundName ? `<span class="font-black">${escapeHtml(state.roundName)}:</span> ` : ''}${escapeHtml(status)}</p>${state.step === 'play' || state.step === 'resume' ? `<button type="button" data-t-play class="shrink-0 rounded-xl bg-gold-500 px-3.5 py-2 text-[13px] font-black text-brand-950 shadow-sm active:scale-[0.97]">${state.step === 'resume' ? 'Pokračovat' : 'Hrát'}</button>` : ''}</div></div>` : `<p id="tournament-status" class="text-sm font-semibold text-slate-600 dark:text-slate-300">${escapeHtml(status)}</p>`}
+                ${tourShareButtons(shareCard)}
                 ${lastBreakdown}
                 ${podium.length ? `<ol id="tournament-podium" class="flex flex-col gap-1">${podium.map(entry => `<li class="flex items-center gap-2 rounded-xl bg-white px-2.5 py-1.5 shadow-sm dark:bg-slate-800 ${entry.user_id === user.id ? 'ring-2 ring-brand-600' : 'ring-1 ring-slate-200/70 dark:ring-slate-700/70'}"><span class="flex w-8 shrink-0 items-center justify-center gap-0.5 text-sm font-black ${medals[entry.place - 1]}">${entry.place}.${entry.place === 1 ? '<i data-lucide="trophy" class="h-3.5 w-3.5"></i>' : ''}</span>${avatarHtml(entry.player, 'h-8 w-8 text-base')}<span class="min-w-0 flex-1 truncate text-[13px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(entry.player))}${entry.user_id === user.id ? ' (ty)' : ''}</span></li>`).join('')}</ol>` : ''}
                 ${rankingHtml(view, user.id)}`;
@@ -13854,6 +13912,8 @@
                 else if (target.closest('[data-t-leave]')) changeTournamentEntry(tournamentDialogId, false);
                 else if (target.closest('[data-t-play]')) { const view = findTournament(tournamentDialogId); if (view && view.state.step === 'resume') resumeTournament(tournamentDialogId); else playTournament(tournamentDialogId); }
                 else if (target.closest('[data-t-help]')) openTournamentHelp(true);
+                else if (target.closest('[data-t-share]')) shareTournamentPlace(view);
+                else if (target.closest('[data-t-save]')) shareTournamentPlace(view, { save: true });
                 else if (target.closest('[data-action="tournament-breakdown"]')) {
                     // Z rozpisu se jde zpět do tohoto okna na stejné místo (posun okna i pavouku)
                     const button = target.closest('[data-action="tournament-breakdown"]');
@@ -13881,6 +13941,7 @@
             onInput: (event) => { if (event.target.id === 'tournament-search') filterTournament(event.target.value); }
         });
         overlay.querySelectorAll('details[data-keep]').forEach(item => { if (item.dataset.keep in opened) item.open = opened[item.dataset.keep]; });
+        prepareTourShare(shareCard);
         const box = overlay.querySelector('#bracket-scroll');
         if (box) {
             if (bracketReset || !oldScroll) { positionBracket(overlay); bracketReset = false; } else box.scrollTo({ left: oldScroll.left, top: oldScroll.top, behavior: 'auto' });
@@ -14340,7 +14401,7 @@
         if (info && info.matchId === tour.mid && info.step === 'won') {
             owl = 'vitez';
             headline = 'Vyhráváš!';
-            text = info.final ? (info.third ? 'Vyhrál jsi zápas o 3. místo.' : 'Vyhrál jsi finále, jsi vítěz turnaje!')
+            text = info.final ? (info.third ? 'Zápas o 3. místo je tvůj, bronz!' : 'Finále je tvoje, vítězství v turnaji!')
                 : special && Number.isFinite(info.nextAt) ? `Postup do dalšího kola, začíná ${Tournament.whenText(info.nextAt)}.` : `Postupuješ dál, další kolo hraješ ${Tournament.dayWord(info.nextDay, today)}.`;
         } else if (info && info.matchId === tour.mid && info.step === 'lost') {
             owl = 'prohra';
@@ -14397,6 +14458,7 @@
     };
     const tournamentActions = {
         'tournament-open': (button) => openTournament(button.dataset.tid),
+        'tournament-share': (button) => shareTournamentPlace(findTournament(button.dataset.tid)),
         'tournament-vote': (button) => voteTheme(button.dataset.poll, button.dataset.theme),
         'tournament-help': () => openTournamentHelp(),
         'tournament-archive': () => openTournamentArchive(),

@@ -1221,12 +1221,12 @@ begin
         where c.invited_id is not null and c.invited_id <> c.creator_id and r.finished_at > now() - interval '3 days'
         union all
         select n.user_id, 'notice',
-            case n.kind when 'excluded_full' then 'Turnaj bez tebe' when 'cancelled' then 'Turnaj se zrušil' when 'eliminated_noplay' then 'Vypadl jsi z turnaje' else 'Turnaj skončil' end,
+            case n.kind when 'excluded_full' then 'Turnaj bez tebe' when 'cancelled' then 'Turnaj se zrušil' when 'eliminated_noplay' then 'Konec v turnaji' else 'Turnaj skončil' end,
             case n.kind
                 when 'excluded_full' then 'Hrají jen nejdřív přihlášení' || case when n.detail ~ '^\d{1,3}$' then ' (' || n.detail || ' hráčů)' else '' end || ', tentokrát nehraješ. Do příštího se přihlas hned při otevření přihlášek.'
                 when 'cancelled' then 'Přihlásilo se ' || case when n.detail ~ '^\d{1,3}$' then 'jen ' || n.detail else 'málo' end || ' hráčů, potřeba je aspoň 8. Přihlas se do dalšího turnaje.'
-                when 'eliminated_noplay' then 'Své kolo jsi neodehrál, prohráváš kontumačně. Příště si ho zahraj v den kola.'
-                else case when n.detail ~ '^\d{1,3}$' then 'Skončil jsi na ' || n.detail || '. místě.' || case when n.detail::integer <= 3 then ' Gratulace!' else '' end else 'Podívej se na konečné pořadí.' end end,
+                when 'eliminated_noplay' then 'Kolo zůstalo neodehrané, prohráváš kontumačně. Příště si ho zahraj v den kola.'
+                else case when n.detail ~ '^\d{1,3}$' then 'Tvoje umístění: ' || n.detail || '. místo.' || case when n.detail::integer <= 3 then ' Gratulace!' else '' end else 'Podívej se na konečné pořadí.' end end,
             './?tab=multi', 'notice:' || n.id || ':' || n.user_id, n.created_at::text
         from public.tournament_notices n
         join public.profiles me on me.id = n.user_id and me.push_tournament

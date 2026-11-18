@@ -1,5 +1,6 @@
 // Týdenní turnaje v prohlížeči s falešným Supabase v paměti (stav turnaje „spočítaný serverem“, jako v tests/e2e-rating.test.js):
-// přihlášky a kapacita, běžící turnaj a tlačítko Hrát, zápas až do výsledku (i pokračování rozehraného po zavření aplikace), zprávy, dialog pavouka, starší databáze bez turnajů,
+// přihlášky a kapacita, běžící turnaj a tlačítko Hrát, zápas až do výsledku (i pokračování rozehraného po zavření aplikace), zprávy, dialog pavouka, sdílení umístění
+// po skončení turnaje (obrázek PNG), starší databáze bez turnajů,
 // CSP bez chyb, 360×640 a 390×780 bez vodorovného posouvání, tmavý režim. Potřebuje Playwright (viz tests/e2e.test.js), jinak se přeskočí.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -684,11 +685,11 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         await tab.waitForSelector('#tournament-rounds');
         assert.equal(await tab.locator('#tournament-rounds [data-mine]').count(), 1);
         assert.equal(await tab.locator('[data-t-play]').count(), 0);
-        assert.match((await tab.textContent('#tournament-status')).replace(/\s+/g, ' '), /Postoupil jsi, další kolo je zítra/);
+        assert.match((await tab.textContent('#tournament-status')).replace(/\s+/g, ' '), /Postupuješ, další kolo je zítra/);
         await tab.keyboard.press('Escape');
         await tab.waitForFunction(() => !document.getElementById('dialog-overlay'));
         assert.equal(await tab.locator('[data-action="tournament-play"]').count(), 0);
-        assert.match(await tab.textContent('#tournament-card'), /Postoupil jsi/);
+        assert.match(await tab.textContent('#tournament-card'), /Postupuješ/);
         // Znovu to nejde ani na serveru
         assert.equal(db.results.filter(row => row.match_id === uuid(101) && row.user_id === 'u-1').length, 1);
         // Vyplacené XP se při dalším načtení nepřipočte podruhé
@@ -861,7 +862,7 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         assert.equal((await progressOf(tab)).xp || 0, 0);
         await closeAutoBreakdown(tab); await tab.click('[data-action="challenge-home"]');
         await tab.waitForSelector('#tournament-card');
-        assert.match(await tab.textContent('#tournament-card'), /Vypadl jsi: 5\.–8\. místo/);
+        assert.match(await tab.textContent('#tournament-card'), /Konec v turnaji: 5\.–8\. místo/);
         assert.equal(await tab.locator('[data-action="tournament-play"]').count(), 0);
         assert.deepEqual(log.errors, []);
         await context.close();
@@ -1222,7 +1223,7 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         done.matches.push({ id: uuid(401), tournament_id: T_RUN, round: 3, slot: 1, third: true, p1: 'u-1', p2: 'f-2', winner: 'u-1', decided_by: 'played' });
         const page = await start(done, { now: '2026-11-13T10:00:00Z' });
         await page.tab.waitForSelector('#tournament-card');
-        assert.match((await page.tab.textContent('#tournament-card')).replace(/\s+/g, ' '), /Poslední turnaj.*Skončil, 3\. místo/);
+        assert.match((await page.tab.textContent('#tournament-card')).replace(/\s+/g, ' '), /Poslední turnaj.*Turnaj skončil: 3\. místo/);
         await page.tab.click('#tournament-card [data-action="tournament-open"]');
         await page.tab.waitForSelector('#tournament-podium');
         const podium = (await page.tab.locator('#tournament-podium li').allTextContents()).map(text => text.replace(/\s+/g, ' ').trim());
@@ -1254,8 +1255,8 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         assert.match(items[0], /Turnaj se hraje na pavouk.*8 hráčů.*tentokrát nehraješ/);
         assert.match(items[0], /Přihlas se do příštího turnaje/);
         assert.match(items[1], /jen 5 hráčů.*aspoň 8.*Přihlas se do dalšího turnaje/);
-        assert.match(items[2], /neodehrál.*kontumačně/);
-        assert.match(items[3], /Skončil jsi na 1\. místo/);
+        assert.match(items[2], /neodehrané.*kontumačně/);
+        assert.match(items[3], /Tvoje umístění: 1\. místo/);
         await shot(tab, 'turnaj-zpravy');
         assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
         // Oslava vítěze (a odznaky) přijdou až po zavření okna se zprávami
@@ -1824,6 +1825,171 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         assert.deepEqual(log.errors, []);
         await context.close();
     });
+
+    // --- Sdílení umístění ze skončeného turnaje: obrázek PNG 1080 × 1350 přes navigator.share (soubor), jinak stažení ---
+    // Falešné sdílení souborů: uloží název, typ, text a obsah obrázku (data URL) do window.__shared
+    const shareStub = () => {
+        navigator.canShare = (data) => Boolean(data && data.files && data.files.length);
+        navigator.share = async (data) => {
+            const file = data.files[0];
+            const url = await new Promise(resolve => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.readAsDataURL(file); });
+            window.__shared = { count: (window.__shared ? window.__shared.count : 0) + 1, name: file.name, type: file.type, size: file.size, text: data.text || '', url };
+        };
+    };
+    const startSharing = async (db, options = {}) => {
+        const page = await setup(browser, login('tok-u1'), options);
+        await page.context.addInitScript(shareStub);
+        await backend(page.context, db);
+        await page.tab.goto(`${ORIGIN}/`);
+        await waitForHome(page.tab);
+        return page;
+    };
+    // Klepnutí na Sdílet umístění: vrátí sdílený soubor a rozměry obrázku; obrázek uloží do SCREENSHOT_DIR
+    const sharedCard = async (tab, selector, name) => {
+        const before = await tab.evaluate(() => (window.__shared ? window.__shared.count : 0));
+        await tab.click(selector);
+        await tab.waitForFunction((count) => window.__shared && window.__shared.count > count, before);
+        const info = await tab.evaluate(() => window.__shared);
+        // Rozměry z hlavičky PNG (obrázek z data: by CSP stránky nenačetla)
+        const png = Buffer.from(info.url.split(',')[1], 'base64');
+        assert.equal(png.subarray(1, 4).toString('latin1'), 'PNG');
+        if (SHOTS) fs.writeFileSync(path.join(SHOTS, `${name}.png`), png);
+        return { ...info, width: png.readUInt32BE(16), height: png.readUInt32BE(20) };
+    };
+
+    await t.test('sdílení umístění: skončený turnaj v řádku karty i v okně turnaje, obrázek PNG s umístěním, stažení, tip', async () => {
+        const cases = [
+            { meOut: 0, place: '1. místo', stage: 'Vítězství v turnaji', wins: 5, name: 'turnaj-umisteni-1-misto' },
+            { meOut: 4, place: '3. místo', stage: 'Bronz v zápase o 3. místo', wins: 4, name: 'turnaj-umisteni-semifinale' },
+            { meOut: 1, place: '17. místo', stage: 'Šestnáctifinále · 17.–32. místo', wins: 0, name: 'turnaj-umisteni-1-kolo' }
+        ];
+        for (const item of cases) {
+            const db = newDb({ today: '2026-11-16' });
+            bigTournament(db, { size: 32, done: 5, finished: true, meOut: item.meOut });
+            const { context, tab, log } = await startSharing(db, { now: '2026-11-16T10:00:00Z' });
+            // Řádek karty turnajů: vedle Výsledků malá ikona Sdílet umístění
+            await tab.waitForSelector('#tournament-card [data-tournament-row="finished"] [data-action="tournament-share"]');
+            assert.match(await tab.textContent('#tournament-card [data-tournament-row="finished"]'), new RegExp(`Turnaj skončil: ${item.place.replace('.', '\\.')}`));
+            const fromRow = await sharedCard(tab, '#tournament-card [data-action="tournament-share"]', `${item.name}-z-karty`);
+            assert.equal(fromRow.name, 'mudrlant-turnaj-2026-11-09.png');
+            // Okno turnaje: tlačítka pod výsledkem
+            await tab.click('#tournament-card [data-action="tournament-open"]');
+            await tab.waitForSelector('#dialog-overlay [data-t-share-row] [data-t-share]');
+            assert.match(await tab.innerText('#dialog-overlay [data-t-share-row]'), /Sdílet umístění/);
+            const shared = await sharedCard(tab, '#dialog-overlay [data-t-share]', item.name);
+            assert.equal(shared.name, 'mudrlant-turnaj-2026-11-09.png');
+            assert.equal(shared.type, 'image/png');
+            assert.deepEqual([shared.width, shared.height], [1080, 1350]);
+            assert.ok(shared.size > 20000, `obrázek není prázdný (${shared.size})`);
+            assert.equal(shared.text, `Týdenní turnaj v Mudrlantu: ${item.place}, ${item.wins} ${item.wins === 0 ? 'vyhraných zápasů' : item.wins >= 5 ? 'vyhraných zápasů' : 'vyhrané zápasy'}. Hrálo 32 hráčů. Přidáš se příště?\n${ORIGIN}/`);
+            const progress = await progressOf(tab);
+            assert.equal(progress.counters.sharedImages, 2, 'sdílení se počítá do sdílených obrázků');
+            assert.equal(JSON.parse(await tab.evaluate(() => localStorage.getItem('mudrlant.tips'))).visited.tourShare, true, 'tip o sdílení umístění už není potřeba');
+            if (item.meOut === 0) {
+                // Stáhnout: obrázek se stáhne pod stejným názvem
+                const [download] = await Promise.all([tab.waitForEvent('download'), tab.click('#dialog-overlay [data-t-save]')]);
+                assert.equal(download.suggestedFilename(), 'mudrlant-turnaj-2026-11-09.png');
+                await tab.waitForFunction(() => JSON.parse(localStorage.getItem('mudrlant.progress')).counters.sharedImages === 3);
+                // Prohlížeč, který soubory sdílet neumí: Sdílet umístění obrázek stáhne
+                await tab.evaluate(() => { navigator.canShare = () => false; });
+                const [fallback] = await Promise.all([tab.waitForEvent('download'), tab.click('#dialog-overlay [data-t-share]')]);
+                assert.equal(fallback.suggestedFilename(), 'mudrlant-turnaj-2026-11-09.png');
+            }
+            assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
+            assert.deepEqual(log.errors, []);
+            assert.deepEqual(log.csp, []);
+            await context.close();
+        }
+    });
+
+    await t.test('sdílení umístění: běžící turnaj ho nemá, z archivu jde sdílet turnaj, ve kterém jsem hrál, jinak ne', async () => {
+        const db = newDb({ today: '2026-11-12' });
+        bigTournament(db, { size: 32, done: 3 });
+        const running = await startSharing(db, { now: '2026-11-12T10:00:00Z' });
+        await openDialog(running.tab);
+        assert.equal(await running.tab.locator('[data-t-share], [data-t-save], [data-action="tournament-share"]').count(), 0, 'běžící turnaj');
+        await running.context.close();
+        // Archiv: turnaj, ve kterém jsem prohrál finále (2. místo), a turnaj, který jsem nehrál
+        const old = newDb();
+        runningEight(old);
+        const fillers = addPlayers(old, 8);
+        archivedTournament(old, { id: uuid(301), week: '2026-11-02', players: ['u-2', fillers[0], fillers[1], fillers[2], 'u-1', fillers[3], fillers[4], fillers[5]], base: 30000 });
+        archivedTournament(old, { id: uuid(302), week: '2026-10-26', players: ['u-2', ...fillers.slice(0, 7)], base: 31000 });
+        const { context, tab, log } = await startSharing(old, { viewport: { width: 360, height: 640 } });
+        await tab.waitForSelector('#tournaments-section [data-action="tournament-archive"]');
+        await tab.click('#tournaments-section [data-action="tournament-archive"]');
+        await tab.waitForSelector(`[data-archive-open="${uuid(301)}"]`);
+        await tab.click(`[data-archive-open="${uuid(301)}"]`);
+        await tab.waitForSelector('#archive-podium');
+        await tab.waitForSelector('#dialog-overlay [data-t-share-row]');
+        assert.ok(await tab.evaluate(() => { const me = document.getElementById('archive-me'); const row = document.querySelector('[data-t-share-row]'); return me.compareDocumentPosition(row) === Node.DOCUMENT_POSITION_FOLLOWING; }), 'tlačítka pod mým místem');
+        assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
+        await shot(tab, 'turnaj-archiv-sdileni-360');
+        const shared = await sharedCard(tab, '#dialog-overlay [data-t-share]', 'turnaj-umisteni-archiv-finale');
+        assert.equal(shared.name, 'mudrlant-turnaj-2026-11-02.png');
+        assert.match(shared.text, /^Týdenní turnaj v Mudrlantu: 2\. místo, 2 vyhrané zápasy\. Hrálo 8 hráčů\./);
+        await tab.click('[data-t-archive-back]');
+        await tab.waitForSelector(`[data-archive-open="${uuid(302)}"]`);
+        await tab.click(`[data-archive-open="${uuid(302)}"]`);
+        await tab.waitForSelector('#archive-podium');
+        assert.equal(await tab.locator('[data-t-share], [data-t-save]').count(), 0, 'turnaj, který jsem nehrál');
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    await t.test('sdílení umístění ze zprávy o konci turnaje: tlačítka se objeví po načtení turnaje a sdílí obrázek', async () => {
+        const db = newDb({ today: '2026-11-16' });
+        bigTournament(db, { size: 32, done: 5, finished: true, meOut: 4 });
+        db.stats = { best: 4, wins: 4, played: 1 };
+        db.notices.push({ user_id: 'u-1', tournament_id: T_RUN, created_at: '2026-11-15T20:00:00Z', seen: false, id: 9, kind: 'result', detail: '3' });
+        for (const [width, height, colorScheme] of [[360, 640, 'light'], [390, 780, 'dark']]) {
+            db.notices.forEach(notice => { notice.seen = false; });
+            const { context, tab, log } = await startSharing(db, { now: '2026-11-16T10:00:00Z', viewport: { width, height }, colorScheme });
+            await tab.waitForSelector('#tournament-notices [data-notice-tid] [data-t-share]');
+            assert.match(await tab.innerText('#tournament-notices [data-notice-tid]'), /Tvoje umístění: 3\. místo[\s\S]*Sdílet umístění/);
+            assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
+            await shot(tab, `turnaj-zprava-sdileni-${width}-${colorScheme}`);
+            const shared = await sharedCard(tab, '#tournament-notices [data-t-share]', `turnaj-umisteni-zprava-${width}`);
+            assert.deepEqual([shared.name, shared.width, shared.height], ['mudrlant-turnaj-2026-11-09.png', 1080, 1350]);
+            assert.match(shared.text, /^Týdenní turnaj v Mudrlantu: 3\. místo, 4 vyhrané zápasy\./);
+            assert.deepEqual(log.errors, []);
+            assert.deepEqual(log.csp, []);
+            await context.close();
+        }
+    });
+
+    for (const [width, height, colorScheme] of [[360, 640, 'light'], [390, 780, 'dark']]) {
+        await t.test(`sdílení umístění ${width}×${height}, ${colorScheme === 'dark' ? 'tmavý' : 'světlý'} režim: tlačítka se vejdou, bez vodorovného posouvání`, async () => {
+            const db = newDb({ today: '2026-11-16' });
+            bigTournament(db, { size: 32, done: 5, finished: true, meOut: 3 });
+            const { context, tab, log } = await startSharing(db, { now: '2026-11-16T10:00:00Z', viewport: { width, height }, colorScheme });
+            await tab.waitForSelector('#tournament-card [data-action="tournament-share"]');
+            await tab.locator('#tournament-card').scrollIntoViewIfNeeded();
+            assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
+            await shot(tab, `turnaj-karta-sdileni-${width}-${colorScheme}`);
+            await tab.click('#tournament-card [data-action="tournament-open"]');
+            await tab.waitForSelector('#dialog-overlay [data-t-share-row]');
+            const fit = await tab.evaluate(() => {
+                const row = document.querySelector('[data-t-share-row]').getBoundingClientRect();
+                const panel = document.querySelector('#dialog-overlay > div').getBoundingClientRect();
+                const label = document.querySelector('[data-t-share] span');
+                return { inside: row.left >= panel.left && row.right <= panel.right, visible: row.bottom <= window.innerHeight, height: row.height, clipped: label.scrollWidth > label.clientWidth };
+            });
+            assert.equal(fit.inside, true, 'tlačítka se vejdou na šířku okna');
+            assert.equal(fit.visible, true, 'tlačítka jsou vidět bez posouvání');
+            assert.ok(fit.height < 60, `jeden řádek (${fit.height})`);
+            assert.equal(fit.clipped, false, 'popisek Sdílet umístění není useknutý');
+            assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
+            await shot(tab, `turnaj-okno-sdileni-${width}-${colorScheme}`);
+            const shared = await sharedCard(tab, '#dialog-overlay [data-t-share]', `turnaj-umisteni-ctvrtfinale-${width}`);
+            assert.deepEqual([shared.width, shared.height], [1080, 1350]);
+            assert.match(shared.text, /: 5\. místo, 2 vyhrané zápasy\./);
+            assert.deepEqual(log.errors, []);
+            assert.deepEqual(log.csp, []);
+            await context.close();
+        });
+    }
 
     for (const [width, height] of [[360, 640], [390, 780]]) {
         for (const colorScheme of ['light', 'dark']) {

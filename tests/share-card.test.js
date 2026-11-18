@@ -124,3 +124,40 @@ test('diplom: model listu (název, jméno, barvy a ikona tématu, sova v barvě 
         assert.ok(fs.existsSync(path.join(__dirname, '..', 'icons', 'topics', `${topic.id}.webp`)), `${topic.id}: ikona`);
     }
 });
+
+test('umístění v turnaji: model obrázku (název a týden, umístění v barvě medaile, sova podle výsledku, věnec, políčka, adresa) a název souboru', () => {
+    const { api: ShareCard, restore } = load({});
+    restore();
+    const T = require('../tournament.js');
+    const input = (place, size, extra = {}) => ({ kind: 'tournament', kicker: 'Týdenní turnaj', subtitle: '9.–15. 11. 2026', ...T.placement(place, size), name: '  Jana Nováková ', players: size, playersLabel: 'hráčů',
+        wins: 4, winsLabel: 'vyhrané zápasy', day: '2026-11-15', week: '2026-11-09', robe: 'modra', url: 'https://example.org/app/', appName: 'Mudrlant', ...extra });
+    const first = ShareCard.tournamentModel(input(1, 32));
+    assert.equal(first.kind, 'tournament');
+    assert.equal(first.kicker, 'TÝDENNÍ TURNAJ');
+    assert.equal(first.subtitle, '9.–15. 11. 2026');
+    assert.equal(first.headline, '1. místo');
+    assert.equal(first.stage, 'Vítězství v turnaji');
+    assert.equal(first.color, ShareCard.TIER_COLORS.gold);
+    assert.equal(first.owl, 'icons/topics/sova-vitez-modra.webp');
+    assert.equal(first.logo, 'icons/logo-modra.webp');
+    assert.equal(first.laurel, true, 'věnec za sovou');
+    assert.equal(first.name, 'Jana Nováková');
+    assert.deepEqual(first.stats, [{ value: '32', label: 'hráčů' }, { value: '4', label: 'vyhrané zápasy' }]);
+    assert.equal(first.date, '15. 11. 2026');
+    assert.equal(first.footer, 'Zahraj si taky: example.org/app');
+    assert.ok(fs.existsSync(path.join(__dirname, '..', first.art)) && fs.existsSync(path.join(__dirname, '..', first.wreath)), 'obrázek turnaje a věnec existují');
+    // Sova a barva podle výsledku: 2.–3. medaile, 4. a čtvrtfinále radost, dřívější vyřazení výzva
+    const pick = (place, size) => { const model = ShareCard.tournamentModel(input(place, size)); return [model.owl.replace(/^icons\/topics\/sova-|-modra\.webp$/g, ''), model.color, model.laurel]; };
+    assert.deepEqual(pick(2, 32), ['oslava', ShareCard.TIER_COLORS.silver, true]);
+    assert.deepEqual(pick(3, 32), ['oslava', ShareCard.TIER_COLORS.bronze, true]);
+    assert.deepEqual(pick(4, 32), ['radost', '#ffffff', true]);
+    assert.deepEqual(pick(6, 32), ['radost', '#ffffff', false], 'čtvrtfinále bez věnce');
+    assert.deepEqual(pick(20, 32), ['vyzva', '#ffffff', false]);
+    for (const robe of ShareCard.ROBES) for (const place of [1, 2, 5, 20]) assert.ok(fs.existsSync(path.join(__dirname, '..', ShareCard.tournamentModel(input(place, 32, { robe })).owl)), `${place} ${robe}`);
+    // Chybějící údaje: výchozí texty, nula výher, neznámá úroveň bez medaile
+    const bare = ShareCard.tournamentModel({ kind: 'tournament', headline: '9. místo', tier: 'platina', wins: -3 });
+    assert.deepEqual([bare.kicker, bare.name, bare.color, bare.laurel, bare.stats[1].value, bare.footer, bare.date], ['TURNAJ', 'Hráč Mudrlanta', '#ffffff', false, '0', '', '']);
+    assert.equal(bare.owl, 'icons/topics/sova-vyzva.webp');
+    assert.equal(ShareCard.fileName('turnaj', '2026-11-09'), 'mudrlant-turnaj-2026-11-09.png');
+    assert.deepEqual([ShareCard.TOURNAMENT.width, ShareCard.TOURNAMENT.height], [1080, 1350]);
+});
