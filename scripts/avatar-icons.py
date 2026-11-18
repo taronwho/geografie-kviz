@@ -214,8 +214,8 @@ CHARACTERS.update({
                                                         {'hue': (60, 160), 'smin': 0.3, 'vmin': 0.3, 'box': [(0.43, 0.8, 0.57, 0.91)]}]}]},
 })
 
-# Nové postavičky (docs/OBRAZKY.md č. 317–339, look.js NEW_AVATARS): odměny z různých částí hry. Zdroje jsou celé samolepky
-# (STICKER_SRC výš u base_image), přebarvuje se oblečení nebo věc, kterou postavička nese. Další postavičky (č. 340–357) se přidají
+# Nové postavičky (docs/OBRAZKY.md č. 317–357, look.js NEW_AVATARS): odměny z různých částí hry. Zdroje jsou celé samolepky
+# (STICKER_SRC výš u base_image), přebarvuje se oblečení nebo věc, kterou postavička nese. Krab kadeřník (č. 339) se přidá
 # stejně: položka sem (zdroj do STICKER_SRC), barvy z --colors do look.js a id do sw.js AVATAR_ART.
 NEW_CHARACTERS = {
     'vacice': {'src': 'vacice-goth', 'parts': [
@@ -286,6 +286,146 @@ NEW_CHARACTERS = {
     'velbl': {'src': 'velbloud-cestovatel', 'parts': [
         {'title': 'Klobouk', 'rules': [{'hue': (195, 240), 'smin': 0.25, 'vmin': 0.3, 'box': [(0.15, 0.0, 0.85, 0.42)]}]},
         {'title': 'Batoh', 'rules': [{'hue': (38, 95), 'smin': 0.25, 'vmin': 0.3, 'vmax': 0.75, 'box': [(0.6, 0.5, 0.98, 0.95)]}]}]},
+    # č. 341–357 (bez krabího kadeřníka č. 339)
+    'ponozk': {'src': 'ponozka', 'parts': [
+        {'title': 'Proužky', 'rules': [{'hue': (15, 45), 'smin': 0.45, 'vmin': 0.45, 'box': [(0.0, 0.0, 0.72, 1.0)]}]},
+        {'title': 'Ponožka', 'rules': [{'hue': (160, 210), 'smin': 0.25, 'vmin': 0.2}]}]},
+    'mrak': {'src': 'mrak-destnik', 'parts': [
+        {'title': 'Deštník', 'rules': [{'hue': (38, 65), 'smin': 0.45, 'vmin': 0.5, 'box': [(0.3, 0.0, 1.0, 0.45)]}]},
+        {'title': 'Mrak', 'mode': 'tint', 'rules': [{'hue': (190, 250), 'smin': 0.08, 'smax': 0.45, 'vmin': 0.4, 'box': [(0.0, 0.2, 1.0, 0.85)]}]}]},
+    'priser': {'src': 'priserka-pod-posteli', 'parts': [
+        {'title': 'Příšerka', 'rules': [{'hue': (255, 310), 'smin': 0.2, 'vmin': 0.3}]},
+        {'title': 'Postel', 'rules': [{'hue': (205, 245), 'smin': 0.25, 'vmin': 0.15}]}]},
+    'zombie': {'src': 'zombie-kralik', 'parts': [
+        {'title': 'Srst', 'rules': [{'hue': (110, 175), 'smin': 0.1, 'vmin': 0.35}]},
+        {'title': 'Oko', 'rules': [{'hue': (40, 75), 'smin': 0.4, 'vmin': 0.55, 'box': [(0.5, 0.25, 0.95, 0.65)]}]}]},
+    'kohout': {'src': 'kohout-pankac', 'parts': [
+        {'title': 'Číro', 'rules': [{'hue': (350, 30), 'smin': 0.5, 'vmin': 0.45, 'box': [(0.25, 0.0, 0.8, 0.3)]}]},
+        {'title': 'Bunda', 'mode': 'tint', 'rules': [{'smin': 0, 'smax': 0.35, 'vmin': 0.02, 'vmax': 0.3, 'box': [(0.0, 0.55, 1.0, 1.0)]}]}]},
+    'kostli': {'src': 'kostlivec-mleko', 'parts': [
+        {'title': 'Mléko', 'mode': 'tint', 'rules': [{'smin': 0, 'smax': 0.15, 'vmin': 0.7, 'box': [(0.0, 0.5, 0.3, 1.0)]}]},
+        {'title': 'Brčko', 'rules': [{'hue': (180, 240), 'smin': 0.3, 'vmin': 0.4, 'box': [(0.2, 0.3, 0.6, 0.65)]}]}]},
+    'havran': {'src': 'havran-hrobnik', 'parts': [
+        {'title': 'Cylindr', 'mode': 'tint', 'rules': [{'smin': 0, 'smax': 0.35, 'vmin': 0.02, 'vmax': 0.32, 'box': [(0.2, 0.0, 0.8, 0.3)]}]},
+        {'title': 'Peří', 'mode': 'tint', 'rules': [{'smin': 0, 'smax': 0.4, 'vmin': 0.02, 'vmax': 0.32, 'box': [(0.0, 0.38, 1.0, 1.0)]}]}]},
+    'holub': {'src': 'holub-z-ulice', 'parts': [
+        {'title': 'Kšiltovka', 'rules': [{'hue': (345, 20), 'smin': 0.45, 'vmin': 0.35, 'box': [(0.2, 0.0, 1.0, 0.35)]}]},
+        {'title': 'Řetěz', 'rules': [{'hue': (35, 60), 'smin': 0.45, 'vmin': 0.45, 'box': [(0.2, 0.4, 1.0, 0.85)]}]}]},
+    'medoj': {'src': 'medojed-rvac', 'parts': [
+        {'title': 'Obvazy', 'mode': 'tint', 'rules': [{'smin': 0, 'smax': 0.18, 'vmin': 0.65, 'box': [(0.0, 0.5, 1.0, 1.0)]}]},
+        {'title': 'Hříva', 'mode': 'tint', 'rules': [{'smin': 0, 'smax': 0.18, 'vmin': 0.55, 'box': [(0.2, 0.0, 1.0, 0.5)]}]}]},
+    'buldok': {'src': 'buldok-motorkar', 'parts': [
+        {'title': 'Šátek', 'rules': [{'hue': (345, 20), 'smin': 0.45, 'vmin': 0.35, 'box': [(0.1, 0.0, 1.0, 0.45)]}]},
+        {'title': 'Bunda', 'mode': 'tint', 'rules': [{'smin': 0, 'smax': 0.35, 'vmin': 0.02, 'vmax': 0.3, 'box': [(0.0, 0.55, 1.0, 1.0)]}]}]},
+    'nosoro': {'src': 'nosorozec-vyhazovac', 'parts': [
+        {'title': 'Tričko', 'mode': 'tint', 'rules': [{'smin': 0, 'smax': 0.35, 'vmin': 0.02, 'vmax': 0.3, 'box': [(0.0, 0.42, 1.0, 1.0)]}]},
+        {'title': 'Nosorožec', 'rules': [{'hue': (190, 250), 'smin': 0.1, 'vmin': 0.33}]}]},
+    'duch': {'src': 'duch-lucerna', 'parts': [
+        {'title': 'Světlo', 'rules': [{'hue': (60, 160), 'smin': 0.2, 'vmin': 0.4}]},
+        {'title': 'Duch', 'mode': 'tint', 'rules': [{'smin': 0, 'smax': 0.14, 'vmin': 0.72, 'box': [(0.2, 0.0, 1.0, 1.0)], 'out': [(0.0, 0.45, 0.36, 1.0)]},
+                                                    {'hue': (200, 290), 'smin': 0.05, 'smax': 0.5, 'vmin': 0.55, 'box': [(0.2, 0.0, 1.0, 1.0)], 'out': [(0.0, 0.45, 0.36, 1.0)]}]}]},
+    'mumie': {'src': 'mumie', 'parts': [
+        {'title': 'Obvazy', 'mode': 'tint', 'rules': [{'hue': (25, 70), 'smin': 0.05, 'smax': 0.45, 'vmin': 0.55}]},
+        {'title': 'Brouk', 'rules': [{'hue': (150, 220), 'smin': 0.25, 'vmin': 0.25, 'box': [(0.55, 0.0, 1.0, 0.25)]}]}]},
+    'kocka': {'src': 'cerna-kocka', 'parts': [
+        {'title': 'Klobouk', 'rules': [{'hue': (250, 310), 'smin': 0.2, 'vmin': 0.2, 'box': [(0.0, 0.0, 1.0, 0.4)]}]},
+        {'title': 'Oči', 'rules': [{'hue': (80, 160), 'smin': 0.4, 'vmin': 0.4}]}]},
+    'vlkodl': {'src': 'vlkodlak', 'parts': [
+        {'title': 'Košile', 'rules': [{'hue': (345, 15), 'smin': 0.5, 'vmin': 0.3, 'box': [(0.0, 0.45, 1.0, 1.0)]}]},
+        {'title': 'Měsíc', 'rules': [{'hue': (35, 65), 'smin': 0.2, 'vmin': 0.6, 'outer': 24}]}]},
+    'krysa': {'src': 'krysa-piratka', 'parts': [
+        {'title': 'Šátek', 'rules': [{'hue': (345, 20), 'smin': 0.45, 'vmin': 0.35, 'box': [(0.2, 0.0, 1.0, 0.45)]}]},
+        {'title': 'Vesta', 'mode': 'tint', 'rules': [{'smin': 0, 'smax': 0.35, 'vmin': 0.02, 'vmax': 0.3, 'box': [(0.2, 0.6, 1.0, 1.0)]}]}]},
+    'dynak': {'src': 'dynovy-strasak', 'parts': [
+        {'title': 'Košile', 'rules': [{'hue': (345, 15), 'smin': 0.45, 'vmin': 0.3, 'box': [(0.0, 0.6, 1.0, 1.0)]}]},
+        {'title': 'Klobouk', 'rules': [{'hue': (25, 60), 'smin': 0.2, 'smax': 0.65, 'vmin': 0.3, 'vmax': 0.8, 'box': [(0.0, 0.0, 1.0, 0.32)]}]}]},
+    # Absurdní postavičky č. 379–408 (docs/OBRAZKY.md oddíly 32 a 33)
+    'tousto': {'src': 'toustovac-krize', 'parts': [
+        {'title': 'Toustovač', 'rules': [{'hue': (190, 240), 'smin': 0.1, 'vmin': 0.45, 'box': [(0.0, 0.2, 1.0, 1.0)]}]}]},
+    'nuget': {'src': 'nugetka-utek', 'parts': [
+        {'title': 'Nugetka', 'rules': [{'hue': (25, 50), 'smin': 0.4, 'vmin': 0.35}]},
+        {'title': 'Kečup', 'rules': [{'hue': (340, 15), 'smin': 0.5, 'vmin': 0.3}]}]},
+    'kaktik': {'src': 'kaktus-objeti', 'parts': [
+        {'title': 'Kaktus', 'rules': [{'hue': (75, 160), 'smin': 0.25, 'vmin': 0.25}]},
+        {'title': 'Květ', 'rules': [{'hue': (290, 355), 'smin': 0.2, 'vmin': 0.45, 'box': [(0.25, 0.0, 0.75, 0.3)]}]}]},
+    'husa': {'src': 'husa-vytrznice', 'parts': [
+        {'title': 'Zobák', 'rules': [{'hue': (12, 40), 'smin': 0.5, 'vmin': 0.5, 'box': [(0.0, 0.25, 0.5, 0.6)]}]},
+        {'title': 'Bageta', 'rules': [{'hue': (18, 45), 'smin': 0.35, 'vmin': 0.4, 'box': [(0.5, 0.2, 1.0, 1.0)]}]}]},
+    'kafe': {'src': 'krecek-kafe', 'parts': [
+        {'title': 'Hrnky', 'mode': 'tint', 'rules': [{'smin': 0, 'smax': 0.12, 'vmin': 0.72, 'box': [(0.0, 0.5, 1.0, 1.0)]}]},
+        {'title': 'Srst', 'rules': [{'hue': (15, 45), 'smin': 0.35, 'vmin': 0.45}]}]},
+    'aligat': {'src': 'aligator-kanal', 'parts': [
+        {'title': 'Aligátor', 'rules': [{'hue': (70, 160), 'smin': 0.25, 'vmin': 0.2}]},
+        {'title': 'Kravata', 'rules': [{'hue': (28, 65), 'smin': 0.4, 'vmin': 0.4, 'box': [(0.25, 0.5, 0.5, 0.95)]}]}]},
+    'syr': {'src': 'syr-slechtic', 'holes': True, 'parts': [
+        {'title': 'Plíseň', 'rules': [{'hue': (150, 230), 'smin': 0.12, 'vmin': 0.3, 'box': [(0.0, 0.2, 1.0, 0.95)]}]},
+        {'title': 'Monokl', 'rules': [{'hue': (32, 58), 'smin': 0.4, 'vmin': 0.4, 'box': [(0.4, 0.25, 0.85, 0.65)]}]}]},
+    'zralok': {'src': 'zralok-vegan', 'parts': [
+        {'title': 'Zástěra', 'rules': [{'hue': (75, 160), 'smin': 0.3, 'vmin': 0.2, 'box': [(0.2, 0.6, 0.8, 1.0)]}]},
+        {'title': 'Žralok', 'rules': [{'hue': (185, 240), 'smin': 0.08, 'vmin': 0.3}]}]},
+    'smrtka': {'src': 'smrtka-dovolena', 'parts': [
+        {'title': 'Slunečník', 'rules': [{'smin': 0.4, 'vmin': 0.45, 'box': [(0.5, 0.0, 1.0, 0.35)]}]}]},
+    'jednor': {'src': 'jednorozec-mrzout', 'parts': [
+        {'title': 'Hříva', 'rules': [{'smin': 0.4, 'vmin': 0.4, 'box': [(0.45, 0.15, 1.0, 0.85)], 'out': [(0.4, 0.0, 0.62, 0.25)]}]},
+        {'title': 'Roh', 'rules': [{'hue': (30, 60), 'smin': 0.35, 'vmin': 0.45, 'box': [(0.3, 0.0, 0.65, 0.3)]}]}]},
+    'prd': {'src': 'prd-v-lahvi', 'parts': [
+        {'title': 'Prd', 'rules': [{'hue': (38, 115), 'smin': 0.18, 'vmin': 0.28, 'box': [(0.0, 0.3, 1.0, 1.0)]}]},
+        {'title': 'Zátka', 'rules': [{'hue': (15, 45), 'smin': 0.3, 'vmin': 0.3, 'box': [(0.3, 0.0, 0.7, 0.3)]}]}]},
+    'holubz': {'src': 'holub-zachod', 'parts': [
+        {'title': 'Holub', 'rules': [{'hue': (195, 250), 'smin': 0.08, 'vmin': 0.3}]},
+        {'title': 'Krk', 'rules': [{'hue': (90, 300), 'smin': 0.3, 'vmin': 0.25, 'box': [(0.1, 0.25, 0.65, 0.6)], 'out': [(0.0, 0.0, 1.0, 0.3)]}]}]},
+    'sandal': {'src': 'ponozka-sandal', 'parts': [
+        {'title': 'Sandál', 'rules': [{'hue': (10, 40), 'smin': 0.35, 'vmin': 0.2, 'box': [(0.15, 0.35, 1.0, 1.0)]}]},
+        {'title': 'Proužky', 'rules': [{'smin': 0.45, 'vmin': 0.35, 'box': [(0.3, 0.0, 0.8, 0.45)]}]}]},
+    'tchyne': {'src': 'tchyne-nuzky', 'parts': [
+        {'title': 'Halenka', 'rules': [{'hue': (275, 348), 'smin': 0.12, 'vmin': 0.4, 'box': [(0.0, 0.55, 1.0, 1.0)]}]},
+        {'title': 'Vařečka', 'rules': [{'hue': (20, 45), 'smin': 0.35, 'vmin': 0.4, 'box': [(0.6, 0.0, 1.0, 1.0)]}]}]},
+    'kocov': {'src': 'opilec-kost', 'parts': [
+        {'title': 'Ručník', 'rules': [{'hue': (185, 235), 'smin': 0.3, 'vmin': 0.3, 'box': [(0.0, 0.0, 1.0, 0.45)]}]}]},
+    'snob': {'src': 'snob-kocka', 'parts': [
+        {'title': 'Srst', 'mode': 'tint', 'rules': [{'smin': 0, 'smax': 0.14, 'vmin': 0.7}]},
+        {'title': 'Lornět', 'rules': [{'hue': (32, 60), 'smin': 0.35, 'vmin': 0.4}]}]},
+    'gauc': {'src': 'brambora-gauc', 'parts': [
+        {'title': 'Křeslo', 'rules': [{'hue': (345, 15), 'smin': 0.45, 'vmin': 0.25}]},
+        {'title': 'Brambůrky', 'rules': [{'hue': (40, 62), 'smin': 0.45, 'vmin': 0.55, 'box': [(0.6, 0.6, 1.0, 1.0)]}]}]},
+    'rohlik': {'src': 'nasrany-rohlik', 'parts': [
+        {'title': 'Rohlík', 'rules': [{'hue': (15, 45), 'smin': 0.35, 'vmin': 0.4}]}]},
+    'kure': {'src': 'influencer-kure', 'parts': [
+        {'title': 'Kuře', 'rules': [{'hue': (40, 62), 'smin': 0.4, 'vmin': 0.5}]},
+        {'title': 'Mobil', 'rules': [{'hue': (320, 360), 'smin': 0.3, 'vmin': 0.45, 'box': [(0.0, 0.0, 0.45, 0.6)]}]}]},
+    'upir': {'src': 'upir-vegetarian', 'parts': [
+        {'title': 'Plášť', 'rules': [{'hue': (340, 15), 'smin': 0.5, 'vmin': 0.2, 'out': [(0.3, 0.68, 0.72, 1.0)]}]},
+        {'title': 'Rajčata', 'rules': [{'hue': (340, 20), 'smin': 0.5, 'vmin': 0.3, 'box': [(0.3, 0.68, 0.72, 1.0)]}]}]},
+    'podnaj': {'src': 'bezdomovec-pavouk', 'parts': [
+        {'title': 'Čepice', 'rules': [{'hue': (30, 60), 'smin': 0.35, 'vmin': 0.3, 'box': [(0.2, 0.0, 0.8, 0.35)]}]},
+        {'title': 'Síť', 'mode': 'tint', 'rules': [{'smin': 0, 'smax': 0.15, 'vmin': 0.65, 'box': [(0.0, 0.55, 1.0, 1.0)], 'out': [(0.25, 0.4, 0.52, 0.7)]}]}]},
+    'trpas': {'src': 'zlobivy-trpaslik', 'parts': [
+        {'title': 'Čepice', 'rules': [{'hue': (345, 20), 'smin': 0.45, 'vmin': 0.35, 'box': [(0.3, 0.0, 1.0, 0.45)]}]},
+        {'title': 'Kabátek', 'rules': [{'hue': (195, 250), 'smin': 0.3, 'vmin': 0.2, 'box': [(0.0, 0.6, 1.0, 1.0)]}]}]},
+    'komar': {'src': 'komar-upir', 'parts': [
+        {'title': 'Kravata', 'rules': [{'hue': (345, 15), 'smin': 0.5, 'vmin': 0.35, 'box': [(0.3, 0.5, 0.7, 1.0)]}]},
+        {'title': 'Oblek', 'rules': [{'hue': (200, 250), 'smin': 0.3, 'vmin': 0.15, 'box': [(0.0, 0.55, 1.0, 1.0)]}]}]},
+    'kuryr': {'src': 'lenochod-dodavka', 'parts': [
+        {'title': 'Kšiltovka', 'rules': [{'hue': (12, 40), 'smin': 0.55, 'vmin': 0.45, 'box': [(0.15, 0.0, 0.85, 0.32)]}]},
+        {'title': 'Vesta', 'rules': [{'hue': (12, 40), 'smin': 0.6, 'vmin': 0.45, 'box': [(0.0, 0.45, 1.0, 1.0)]}]}]},
+    'racek': {'src': 'zebrak-racek', 'parts': [
+        {'title': 'Hranolky', 'rules': [{'hue': (38, 65), 'smin': 0.2, 'vmin': 0.6, 'box': [(0.2, 0.15, 0.75, 0.55)]}]},
+        {'title': 'Racek', 'mode': 'tint', 'rules': [{'smin': 0, 'smax': 0.12, 'vmin': 0.75}]}]},
+    'kachna': {'src': 'dement-kachna', 'parts': [
+        {'title': 'Kostička', 'rules': [{'hue': (345, 15), 'smin': 0.5, 'vmin': 0.3, 'box': [(0.2, 0.55, 0.8, 1.0)]}]},
+        {'title': 'Zobák', 'rules': [{'hue': (15, 45), 'smin': 0.5, 'vmin': 0.5, 'box': [(0.0, 0.2, 0.75, 0.6)]}]}]},
+    'slepic': {'src': 'slepice-tinder', 'parts': [
+        {'title': 'Boa', 'rules': [{'hue': (290, 355), 'smin': 0.15, 'vmin': 0.55}]},
+        {'title': 'Hřebínek', 'rules': [{'hue': (345, 20), 'smin': 0.5, 'vmin': 0.35, 'box': [(0.2, 0.0, 0.8, 0.28)]}]}]},
+    'plivak': {'src': 'hulvat-velbloud', 'parts': [
+        {'title': 'Fez', 'rules': [{'hue': (345, 20), 'smin': 0.45, 'vmin': 0.3, 'box': [(0.2, 0.0, 0.8, 0.3)]}]},
+        {'title': 'Srst', 'rules': [{'hue': (20, 45), 'smin': 0.25, 'vmin': 0.4, 'box': [(0.0, 0.25, 1.0, 1.0)]}]}]},
+    'bricho': {'src': 'pivni-bricho', 'parts': [
+        {'title': 'Tričko', 'mode': 'tint', 'rules': [{'smin': 0, 'smax': 0.12, 'vmin': 0.72, 'box': [(0.0, 0.35, 1.0, 0.65)]}]},
+        {'title': 'Pivo', 'rules': [{'hue': (25, 50), 'smin': 0.45, 'vmin': 0.45, 'box': [(0.55, 0.4, 1.0, 1.0)]}]}]},
+    'papous': {'src': 'drzy-papousek', 'parts': [
+        {'title': 'Peří', 'rules': [{'hue': (80, 165), 'smin': 0.3, 'vmin': 0.25}]},
+        {'title': 'Zobák', 'rules': [{'hue': (30, 60), 'smin': 0.45, 'vmin': 0.5, 'box': [(0.0, 0.2, 0.55, 0.65)]}]}]},
 }
 CHARACTERS.update(NEW_CHARACTERS)
 # holes = vyříznout i uzavřené mezery barvy pozadí lemované krémovým okrajem (plameňák: mezera mezi křídly a hlavou, kráva: vnitřek lasa, brokolice: mezery mezi hlavou a pažemi), jako u starších postaviček

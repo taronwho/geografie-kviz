@@ -21,11 +21,12 @@
     const TIERS = [1, 3, 10];
     // Odměny podle klíče (stejné klíče má referral_rewards ve schema.sql): XP a věci; perks = co odemyká v look.js a friends.js
     const REWARDS = {
-        novacek: { xp: 200, frame: 'pratelsky', title: 'Odměna za první hru', text: 'rámeček Přátelský a 200 XP' },
-        'pritel-1': { xp: 300, frame: 'pratelsky', need: 1, title: 'První pozvaný kamarád', text: 'rámeček Přátelský a 300 XP' },
-        // avatar = postavička, kterou odměna odemkne (look.js: položka s referral, tady jen pro text a obrázek)
+        novacek: { xp: 200, frame: 'pratelsky', title: 'Odměna za první hru', text: 'rámeček Přátelský, postavička Kaktus, který chce obejmout, a 200 XP' },
+        'pritel-1': { xp: 300, frame: 'pratelsky', need: 1, title: 'První pozvaný kamarád', text: 'rámeček Přátelský, postavička Kaktus, který chce obejmout, a 300 XP' },
+        // avatar = postavička, kterou odměna odemkne (look.js: položka s referral, tady jen pro text a obrázek); u odměn s rámečkem je postavička
+        // jen v textu (Kaktus, který chce obejmout, za první hru i prvního kamaráda, Kuře influencer za deset kamarádů)
         'pritel-3': { xp: 500, reaction: '🤗', effect: 'srdicka', avatar: 'kosatk', need: 3, title: 'Tři pozvaní kamarádi', text: 'postavička Kosatka komorník, reakce 🤗 Vítej mezi námi, vítězný efekt Srdíčka přátel a 500 XP' },
-        'pritel-10': { xp: 1000, frame: 'parta', need: 10, title: 'Deset pozvaných kamarádů', text: 'rámeček Parta a 1 000 XP' }
+        'pritel-10': { xp: 1000, frame: 'parta', need: 10, title: 'Deset pozvaných kamarádů', text: 'rámeček Parta, postavička Kuře influencer a 1 000 XP' }
     };
     const REWARD_KEYS = Object.keys(REWARDS);
     const tierKey = (need) => `pritel-${need}`;
