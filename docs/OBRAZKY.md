@@ -3710,7 +3710,7 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 
 Pravidla jsou v `docs/DOBYVANI-STAVBY.md`; do hry se zapojí, až budou všechny obrázky (oddíl 34 i 35). Stavby mají stejný pohled, šířku základny a zemní čáru jako `hradba.png` (přiložit ji jako vzor), střechy břidlicově modré a praporky plné zlaté (přebarví se barvou hráče). Ozdoby (zřícenina, tábor, pomník) jsou bez praporku, kromě tábora (praporky útočníků).
 
-#### 409. `vez.png` – Strážní věž – čeká na dodání
+#### 409. `vez.png` – Strážní věž – ✅ dodáno (branding/ikony), zapojí se se stavbami
 
 Kam: stavba na území (místo opevnění), hráč s ní může bránit své území v bitvě; ikona 28–36 px na mapě, v listu území a v nápovědě. Přiložit: `branding/sova-original.jpg` (vzor stylu), `hradba.png` (vzor pohledu a velikosti)
 
@@ -3718,7 +3718,7 @@ Kam: stavba na území (místo opevnění), hráč s ní může bránit své úz
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 32 px map icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. The second attached image is the stone wall fortification icon of the game (hradba.png): match its three-quarter front view, base width (about 80 % of the image width), size and sticker style exactly. All roofs must be slate blue and all flags and banners plain solid gold without any symbol (the app recolors roofs and flags to the player's color). The whole group stands on one flat ground line at the bottom (no grass, no ground patch). Subject: a tall slender wooden-and-stone watchtower on four sturdy legs with a small lookout cabin on top under a pointed slate-blue roof, a tiny brass spyglass sticking out of the cabin window, a ladder up the side and one plain golden pennant on the roof tip. Colors: warm wood brown, grey stone base, slate blue roof, gold. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 410. `dul.png` – Důl – čeká na dodání
+#### 410. `dul.png` – Důl – ✅ dodáno (branding/ikony), zapojí se se stavbami
 
 Kam: stavba na území (místo opevnění), na konci hry dává body navíc; ikona 28–36 px. Přiložit: `branding/sova-original.jpg`, `hradba.png`
 
@@ -3734,7 +3734,7 @@ Kam: na území, kde právě padlo opevnění, do konce kola (bez účinku); iko
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 32 px map icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. The second attached image is the stone wall fortification icon of the game (hradba.png): match its three-quarter front view, base width (about 80 % of the image width), size and sticker style exactly. The whole group stands on one flat ground line at the bottom (no grass, no ground patch). No flags. Subject: a low flat heap of rubble only, NOT a building: a wide loose pile of broken grey stone blocks and chunks lying on the ground, at most knee-high, with just one tiny broken stump of wall sticking out of the pile (no taller than a quarter of the image), no towers, no roofs, no battlements, no gate, no doors or windows, nothing standing upright; a few small fragments scattered around the pile, a thin wisp of grey dust or smoke rising. The pile is wide and low, filling about 80 % of the image width but only the lower half of its height. Muted dusty colors so it clearly reads as destroyed. Colors: dusty grey stone, dark soot, a little green weed. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 412. `tabor.png` – Tábor obléhatelů (ozdoba) – čeká na dodání
+#### 412. `tabor.png` – Tábor obléhatelů (ozdoba) – ✅ dodáno (branding/ikony), zapojí se se stavbami
 
 Kam: u obléhaného území, dokud trvá bitva (bez účinku); ikona 28–36 px, praporky se přebarví barvou útočníků. Přiložit: `branding/sova-original.jpg`, `hradba.png`
 
@@ -3742,7 +3742,7 @@ Kam: u obléhaného území, dokud trvá bitva (bez účinku); ikona 28–36 px,
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 32 px map icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. The second attached image is the stone wall fortification icon of the game (hradba.png): match its three-quarter front view, base width (about 80 % of the image width), size and sticker style exactly. All flags and banners plain solid gold without any symbol (the app recolors them). The whole group stands on one flat ground line at the bottom (no grass, no ground patch). Subject: a small siege camp: two pointed canvas tents side by side, a small wooden battering ram on wheels in front of them, a little campfire with a cooking pot, and two plain golden pennants on poles on top of the tents. Colors: beige canvas, wood brown, orange fire, gold pennants. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 413. `pomnik.png` – Pomník vítěze (ozdoba) – čeká na dodání
+#### 413. `pomnik.png` – Pomník vítěze (ozdoba) – ✅ dodáno (branding/ikony), zapojí se se stavbami
 
 Kam: na domovském území vítěze na konečné mapě, v přehrání a v náhledu dohrané hry (bez účinku); ikona 28–36 px. Přiložit: `branding/sova-original.jpg`, `hradba.png`
 
