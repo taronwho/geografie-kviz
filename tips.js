@@ -35,6 +35,9 @@
             action: { kind: 'play', label: 'Na záložku Hrát' }, ready: (u) => u.modes, used: (u) => num(u.counters.blitzGames) + num(u.counters.survivalGames) > 0 },
         { id: 'turnaj', icon: 'trophy', multi: true, account: true, after: 14, title: 'Týdenní turnaj', text: 'Každý týden začíná turnaj. Každý den se hraje jedno kolo: 10 otázek proti jednomu soupeři a kdo vyhraje, postupuje do dalšího kola. Přihlásit se můžeš na záložce Soupeři v okně Turnaje.',
             action: { kind: 'tournaments', label: 'Zobrazit' }, used: (u) => num(u.counters.tourPlayed) > 0 },
+        // Obrázek s umístěním po skončení turnaje: jen tomu, kdo už v turnaji hrál; kdo ho sdílel nebo stáhl, tip nepotřebuje
+        { id: 'turnaj-obrazek', icon: 'share-2', multi: true, account: true, after: 30, title: 'Sdílej umístění z turnaje', text: 'Po skončení turnaje můžeš sdílet obrázek se svým umístěním: Mudrlant v barvě tvého obleku, místo v turnaji, počet hráčů a vyhraných zápasů. V okně turnaje stačí klepnout na Sdílet umístění.',
+            action: { kind: 'tournaments', label: 'Zobrazit' }, ready: (u) => num(u.counters.tourPlayed) > 0, used: (u) => Boolean(u.visited.tourShare) },
         // Hlasování o tématu speciálního turnaje (schéma 31): jen s databází, která hlasování má; kdo už hlasoval, tip nepotřebuje
         { id: 'hlasovani', icon: 'sparkles', multi: true, account: true, after: 15, title: 'Hlasuj o speciálním turnaji', text: 'Na záložce Soupeři v okně Turnaje je hlasování o tématu dalšího speciálního turnaje. Vyber jedno ze 4 témat a hned uvidíš, jak hlasují ostatní. Hlas můžeš měnit, dokud hlasování běží.',
             action: { kind: 'tournaments', label: 'Hlasovat' }, ready: (u) => u.poll, used: (u) => Boolean(u.visited.poll) },
@@ -150,7 +153,7 @@
 
     const EMPTY = { seen: [], day: '', n: 0, lastAt: 0, off: false, visited: {} };
     // Navštívené části hry (tip o nich už není potřeba): Učení, Postup, Vzhled, Diplomy, Sezóna, Album, Vitrína, Kronika týdne, skupina Postavičky…
-    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle', 'gold', 'conquest', 'bets', 'conquestInvite', 'poll', 'referral', 'perks', 'robeColor', 'characters'];
+    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle', 'gold', 'conquest', 'bets', 'conquestInvite', 'poll', 'referral', 'perks', 'robeColor', 'characters', 'tourShare'];
     const parse = (value) => {
         const v = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
         const visited = {};

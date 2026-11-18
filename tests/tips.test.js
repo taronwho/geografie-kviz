@@ -67,7 +67,7 @@ test('funkci, kterou hráč už používá, tip nenabídne; tip se ukáže jen j
         state = Tips.markShown(state, tip.id, `2026-12-${String(day + 1).padStart(2, '0')}`, now);
         now += 86400000;
     }
-    assert.deepEqual(offered, ['hlasovani', 'reakce', 'pratele', 'postavicky', 'dobyvani-hrad', 'dobyvani-blesk', 'dobyvani-bitvy', 'dobyvani-pomucky', 'dobyvani-vzkriseni', 'dobyvani-vzory', 'dobyvani-hrady', 'retezovka-zachrana', 'vikend', 'reakce-plus'], 'zkušený hráč dostane jen to, co ještě nezná (nová pravidla Dobývání a motivace zná málokdo)');
+    assert.deepEqual(offered, ['turnaj-obrazek', 'hlasovani', 'reakce', 'pratele', 'postavicky', 'dobyvani-hrad', 'dobyvani-blesk', 'dobyvani-bitvy', 'dobyvani-pomucky', 'dobyvani-vzkriseni', 'dobyvani-vzory', 'dobyvani-hrady', 'retezovka-zachrana', 'vikend', 'reakce-plus'], 'zkušený hráč dostane jen to, co ještě nezná (nová pravidla Dobývání a motivace zná málokdo)');
     assert.equal(new Set(offered).size, offered.length);
 });
 
@@ -257,4 +257,23 @@ test('tip Hlasuj o speciálním turnaji: jen přihlášenému s hlasováním v d
     assert.equal(at(base({ counters: { answered: 20 }, signedIn: true }), Tips.touch(Tips.EMPTY, 'poll')), null, 'už hlasoval(a)');
     assert.doesNotMatch(tip.text, /\b(hlasoval|hlasovala|vybral|vybrala)\b/);
     assert.match(Tips.BY_ID.get('psani').text, /1,5× víc bodů[\s\S]*jen ve hře pro jednoho hráče/);
+});
+
+test('tip Sdílej umístění z turnaje: jen přihlášenému, kdo už v turnaji hrál; kdo umístění sdílel nebo stáhl, nedostane', () => {
+    const at = (ctx, state = Tips.EMPTY) => Tips.pick({ ...state, seen: Tips.TIPS.filter(tip => tip.id !== 'turnaj-obrazek').map(tip => tip.id) }, ctx);
+    const played = { answered: 40, tourPlayed: 1 };
+    assert.equal(at(base({ counters: played })), null, 'host ne');
+    assert.equal(at(base({ counters: { answered: 40 }, signedIn: true })), null, 'v turnaji ještě nehrál(a)');
+    assert.equal(at(base({ counters: { answered: 20, tourPlayed: 1 }, signedIn: true })), null, 'málo odpovědí');
+    assert.equal(at(base({ counters: played, signedIn: true, multiAvailable: false })), null, 'bez hry více hráčů');
+    const tip = at(base({ counters: played, signedIn: true }));
+    assert.equal(tip.id, 'turnaj-obrazek');
+    assert.equal(tip.icon, 'share-2');
+    assert.deepEqual(tip.action, { kind: 'tournaments', label: 'Zobrazit' });
+    assert.match(tip.text, /Po skončení turnaje[\s\S]*obrázek se svým umístěním[\s\S]*Sdílet umístění/);
+    assert.equal(at(base({ counters: played, signedIn: true }), Tips.touch(Tips.EMPTY, 'tourShare')), null, 'už sdílel(a)');
+    assert.doesNotMatch(tip.text, /(hrál|hrála|sdílel|sdílela|vyhrál|vyhrála|skončil|skončila)/);
+    // Tlačítko Sdílet umístění v app.js označí tip jako zbytečný
+    const app = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+    assert.match(app, /touchTip\('tourShare'\)/);
 });

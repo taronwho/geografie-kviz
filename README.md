@@ -276,6 +276,11 @@ zakladatel skupinu přejmenuje, změní kód, odebere člena nebo ji smaže. Okn
 v databázi (`group_*` v `supabase/schema.sql`, popis v `docs/SUPABASE.md`).
 Okno turnaje má pohled **Pavouk** (sloupce kol zleva doprava jako v NHL playoff, od osmifinále, „Celý pavouk“ ukáže všechna kola; klepnutí na hráče zvýrazní jeho cestu)
 a rozbalovací **Celé pořadí** všech hráčů (místa 1.–4., pak skupiny podle kola vyřazení); jejich logika (`bracketColumns`, `standings`, `placeRange`) je čistě v `tournament.js`.
+**Sdílení umístění**: po skončení turnaje, ve kterém hráč hrál, nabídne okno turnaje (i turnaj z archivu), řádek v kartě turnajů a zpráva o konci
+turnaje **Sdílet umístění** a **Stáhnout**: obrázek 1080 × 1350 (`share-card.js`, kind `tournament`) s názvem turnaje a týdnem (u speciálního
+tématem), sovou v barvě obleku podle výsledku (1. místo vítěz, 2.–3. oslava, 4. a vyřazení ve čtvrtfinále radost, jinak výzva; u 1.–4. místa ve vavřínovém
+věnci), velkým umístěním v barvě medaile, kolem („Čtvrtfinále · Top 8“, při vyřazení v prvním kole rozmezí míst), přezdívkou, počtem hráčů
+a vyhraných zápasů, datem a adresou hry. Umístění je místo, které zapsala databáze při konci turnaje (`Tournament.placement`, `shareCard`, `shareText`).
 Původně: přihlášení účtem Google přes Supabase (`auth.js`, `config.js`, část Účet v Nastavení) a databázové
 schéma `supabase/schema.sql` (profily hráčů s pravidly řádků). Dokud není `config.js` vyplněný, přihlášení se
 neukáže a hra běží jako host. Postup nastavení je v `docs/SUPABASE.md`. Další kroky: ukládání postupu k účtu, zápasy

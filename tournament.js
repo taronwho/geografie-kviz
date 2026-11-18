@@ -462,6 +462,64 @@
         return final && final.winner ? final.winner : null;
     };
 
+    // --- Sdílení umístění: obrázek po skončení turnaje (share-card.js, kind 'tournament') ---
+    // Umístění je místo, které zapsala databáze při konci turnaje (tournament_progress): 1. a 2. z finále, 3. a 4. ze zápasu o 3. místo,
+    // vypadlí mají přesné místo uvnitř skupiny svého kola (5.–8. vypadli ve čtvrtfinále, 9.–16. v osmifinále …, pořadí ve skupině podle bodů a času).
+    // Vrací { place, headline ('6. místo'), stage ('Čtvrtfinále · Top 8'; vyřazení v prvním kole s rozmezím: '1. kolo · 65.–128. místo'),
+    // range ('5.–8. místo' | ''), top (8 | null), tier, pose } nebo null.
+    // tier: gold (1.), silver (2.), bronze (3.), good (4. a vyřazení mezi nejlepšími osmi, ne hned v prvním kole), other; pose = sova na obrázku.
+    const placement = (place, size) => {
+        const value = Math.floor(Number(place));
+        const total = Math.floor(Number(size));
+        if (!(value >= 1) || !(total >= 2) || value > total) return null;
+        const headline = placeLabel(value);
+        if (value === 1) return { place: value, headline, stage: 'Vítězství v turnaji', range: '', top: null, tier: 'gold', pose: 'vitez' };
+        if (value === 2) return { place: value, headline, stage: 'Finále', range: '', top: null, tier: 'silver', pose: 'oslava' };
+        if (value === 3) return { place: value, headline, stage: 'Bronz v zápase o 3. místo', range: '', top: null, tier: 'bronze', pose: 'oslava' };
+        if (value === 4) return { place: value, headline, stage: 'Semifinále', range: '', top: null, tier: 'good', pose: 'radost' };
+        const from = placeGroupStart(total, value);
+        const top = Math.min(total, 2 * (from - 1));
+        const info = roundOfPlace(total, from);
+        const round = info ? roundName(playersInRound(total, info.round)) : '';
+        const range = placeRange(from, top - from + 1).label;
+        const good = value <= 8 && top < total;
+        return { place: value, headline, stage: [round, top < total ? `Top ${top}` : range].filter(Boolean).join(' · '), range, top: top < total ? top : null, tier: good ? 'good' : 'other', pose: good ? 'radost' : 'vyzva' };
+    };
+    const winsWord = (count) => plural(count, 'vyhraný zápas', 'vyhrané zápasy', 'vyhraných zápasů');
+    // Poslední den turnaje (datum na obrázku): týdenní den finále, speciální den konce posledního kola (Praha)
+    const lastDay = (tournament) => {
+        const size = Number(tournament.size) || 0;
+        const rounds = Number(tournament.rounds) || (size >= 2 ? Math.round(Math.log2(size)) : 1);
+        if (isSpecial(tournament)) {
+            const end = roundEnd(tournament, rounds);
+            return Number.isFinite(end) ? pragueClock(end - 1).day : String(tournament.week_start || '').slice(0, 10);
+        }
+        return addDays(tournament.started_on || tournament.week_start, rounds - 1) || String(tournament.week_start || '').slice(0, 10);
+    };
+    // Vstup obrázku umístění pro share-card.js: null, když turnaj ještě neskončil nebo v něm hráč nehrál (jen přihláška, vyloučení)
+    // name = přezdívka z přihlášky (jak ji vidí ostatní); robe, url, appName doplní aplikace
+    const shareCard = ({ tournament, entries = [], matches = [], me, robe = 'vinova', url = '', appName = 'Mudrlant' }) => {
+        if (!tournament || tournament.status !== 'finished' || !me) return null;
+        const mine = finalPlaces(entries, tournament, matches).find(entry => entry.user_id === me && IN_GAME.includes(entry.status));
+        const info = mine ? placement(mine.place, tournament.size) : null;
+        if (!info) return null;
+        const special = isSpecial(tournament);
+        const wins = (matches || []).filter(match => match.winner === me).length;
+        const size = Math.floor(Number(tournament.size));
+        return {
+            kind: 'tournament', kicker: special ? 'Speciální turnaj' : 'Týdenní turnaj',
+            subtitle: special ? String(tournament.title || (themeOf(tournament.theme) || {}).title || '') : archiveWeekLabel(tournament.week_start),
+            ...info, name: entryName(mine), players: size, playersLabel: plural(size, 'hráč', 'hráči', 'hráčů').replace(/^\d+ /, ''), wins, winsLabel: winsWord(wins).replace(/^\d+ /, ''),
+            day: lastDay(tournament), week: String(tournament.week_start || '').slice(0, 10), robe, url, appName
+        };
+    };
+    // Text ke sdílenému obrázku (bez rodu): „Týdenní turnaj v Mudrlantu: 3. místo, 4 vyhrané zápasy. Hrálo 32 hráčů. Přidáš se příště?“
+    const shareText = (card, url = '') => {
+        const where = card.kicker === 'Speciální turnaj' && card.subtitle ? `Speciální turnaj ${card.subtitle}` : card.kicker;
+        const played = `${card.players < 5 ? 'Hráli' : 'Hrálo'} ${playersWord(card.players)}`;
+        return `${where} v Mudrlantu: ${card.headline}, ${winsWord(card.wins)}. ${played}. Přidáš se příště?${url ? `\n${url}` : ''}`;
+    };
+
     // --- Pavouk (sloupce kol) ---
     // První kolo, ve kterém zbývá nejvýš 16 hráčů (osmifinále a dál); u malých turnajů 1
     const bracketStartRound = (tournament) => {
@@ -560,6 +618,6 @@
         roundName, playersInRound, tournamentRoundName, roundDay, plural, playersWord, placeLabel, eliminatedLabel,
         groupRounds, currentRound, decided, involves, opponentOf, myMatch, resultOf, winnerPlace,
         cardState, statusText, noticeText, podium, nameMap, xpMatches, xpRounds,
-        placeRange, placeGroupStart, roundOfPlace, standings, finalPlaces, championOf, bracketStartRound, lastDecidedRound, bracketColumns, playerPath, dayShort
+        placeRange, placeGroupStart, roundOfPlace, standings, finalPlaces, championOf, placement, winsWord, lastDay, shareCard, shareText, bracketStartRound, lastDecidedRound, bracketColumns, playerPath, dayShort
     };
 });
