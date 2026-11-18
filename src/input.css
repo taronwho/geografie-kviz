@@ -1458,17 +1458,17 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 /* Rozsvěcování legendárního medailonu ★11–★99 (prestige.js litLevels): nad obrázkem ★10 jeho kopie, každá oříznutá na jednu oblast,
    zesvětlená a zářící; síla l1–l4. Oblasti v % čtverce obrázku (odhad: paprsky za medailí, křídla vlevo a vpravo, prstenec, koruna
    nahoře, diamant uprostřed) – doladit podle skutečného obrázku zde, na jednom místě. */
-.prestige-lit { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: screen; }
+.prestige-lit { position: absolute; inset: 0; pointer-events: none; }
 .prestige-lit-rays { clip-path: polygon(evenodd, 0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%, 22% 30%, 22% 84%, 78% 84%, 78% 30%, 22% 30%); }
 .prestige-lit-wing-left { clip-path: polygon(0% 22%, 28% 30%, 30% 76%, 0% 70%); }
 .prestige-lit-wing-right { clip-path: polygon(100% 22%, 72% 30%, 70% 76%, 100% 70%); }
 .prestige-lit-rim { clip-path: polygon(evenodd, 50% 26%, 70% 34%, 78% 55%, 70% 76%, 50% 84%, 30% 76%, 22% 55%, 30% 34%, 50% 26%, 50% 40%, 60% 45%, 64% 55%, 60% 65%, 50% 70%, 40% 65%, 36% 55%, 40% 45%, 50% 40%); }
 .prestige-lit-crown { clip-path: polygon(30% 0%, 70% 0%, 68% 30%, 32% 30%); }
 .prestige-lit-gem { clip-path: polygon(50% 40%, 62% 47%, 64% 57%, 50% 70%, 36% 57%, 38% 47%); }
-.prestige-lit-l1 { opacity: 0.3; filter: brightness(1.15) drop-shadow(0 0 0.04em #fff7d6); }
-.prestige-lit-l2 { opacity: 0.5; filter: brightness(1.3) drop-shadow(0 0 0.06em #fff3c4); }
-.prestige-lit-l3 { opacity: 0.7; filter: brightness(1.45) drop-shadow(0 0 0.08em #ffeaa0); }
-.prestige-lit-l4 { opacity: 0.9; filter: brightness(1.6) drop-shadow(0 0 0.1em #ffe27a); }
+.prestige-lit-l1 { opacity: 0.45; filter: brightness(1.1) saturate(1.25) drop-shadow(0 0 0.04em #ffd54a); }
+.prestige-lit-l2 { opacity: 0.65; filter: brightness(1.18) saturate(1.4) drop-shadow(0 0 0.06em #ffcf33); }
+.prestige-lit-l3 { opacity: 0.85; filter: brightness(1.26) saturate(1.55) drop-shadow(0 0 0.08em #ffc61a); }
+.prestige-lit-l4 { opacity: 1; filter: brightness(1.34) saturate(1.7) drop-shadow(0 0 0.1em #ffbf00); }
 /* Záře celého medailonu podle rozsvícení (i u kresby v SVG a u malého odznáčku), na ★99 jemně pulzuje */
 .prestige-aura-1 { filter: drop-shadow(0 0 1px rgb(253 230 138 / 0.7)); }
 .prestige-aura-2 { filter: drop-shadow(0 0 2px rgb(253 224 71 / 0.75)); }

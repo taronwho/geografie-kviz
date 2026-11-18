@@ -78,7 +78,7 @@
     const TOP_TIER = TIERS.length - 1;
     // Obrázky medailonů (icons/topics/<název>.webp) po dodání: zatím null, kreslí se SVG. Zapojení = doplnit název (např. 3: 'prestiz-3');
     // že soubor existuje, hlídá tests/prestige-medal.test.js.
-    const ART = { 1: null, 2: null, 3: null, 4: null, 5: null, 6: null, 7: null, 8: null, 9: null, 10: null };
+    const ART = Object.fromEntries(Array.from({ length: 10 }, (_, i) => [i + 1, `prestiz-${i + 1}`]));
     // Stupeň vzhledu medailonu (0 = bez prestiže, 10 = legendární pro ★10 a výš) a jeho název
     const tierOf = (n) => { const value = whole(n, MAX_PRESTIGE); return value ? Math.min(TOP_TIER, value) : 0; };
     const tierName = (n) => (tierOf(n) ? TIERS[tierOf(n)].name : '');
@@ -179,10 +179,10 @@
     // Štítek s číslem prestiže (od ★10) přes spodní okraj medailonu; je nad kresbou i nad obrázkem z ART
     const numberSvg = (n) => {
         const text = String(n);
-        const width = text.length > 1 ? 19 : 13.5;
+        const width = text.length > 1 ? 14 : 10;
         return `<svg viewBox="0 0 40 40" aria-hidden="true" focusable="false" data-prestige-number class="pointer-events-none absolute inset-0 h-full w-full">`
-            + `<rect x="${f1(20 - width / 2)}" y="27.2" width="${width}" height="12.2" rx="6.1" fill="#fde047" stroke="${OUTLINE}" stroke-width="1.6"/>`
-            + `<text x="20" y="36.9" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="10.6" font-weight="900" fill="${OUTLINE}">${text}</text></svg>`;
+            + `<rect x="${f1(39 - width)}" y="30.4" width="${width}" height="9" rx="4.5" fill="#fde047" stroke="${OUTLINE}" stroke-width="1.2"/>`
+            + `<text x="${f1(39 - width / 2)}" y="37.6" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="7.8" font-weight="900" fill="${OUTLINE}">${text}</text></svg>`;
     };
     // Medailon prestiže n (bez prestiže prázdný text); cls = velikost (h-5 w-5 …) a umístění. role="img" s popiskem „Prestiž 2“.
     // Rozsvěcování legendárního medailonu od ★11 do ★99: oblasti obrázku ★10 v tomto pořadí (třídy prestige-lit-<oblast> v src/input.css

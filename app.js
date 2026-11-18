@@ -1333,7 +1333,7 @@
     const titleOwlPose = (level) => `titul-${titleOwlTier(level)}`;
     // Sova prestiže (docs/OBRAZKY.md č. 373, sova-prestiz): po dodání sem její název a ukáže se místo sovy titulu na kartě úrovně
     // (Postup, Můj postup) hráči v prestiži; zatím null = sova titulu podle skutečné úrovně jako dosud
-    const PRESTIGE_OWL_ART = null;
+    const PRESTIGE_OWL_ART = 'sova-prestiz';
     const titleOwlArt = (level, prestige = 0) => (prestige > 0 && PRESTIGE_OWL_ART ? PRESTIGE_OWL_ART : `sova-${titleOwlPose(level)}`);
     // Tituly jednoho stupně sovy (např. Učeň, Žák)
     const tierTitles = (tier) => LEVEL_TITLES.filter(entry => titleOwlTier(entry.from) === tier).map(entry => entry.title);

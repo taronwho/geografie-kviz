@@ -58,10 +58,14 @@ test('rozsvěcování od ★11 do ★99: oblasti obrázku ★10 v pořadí, 4 st
     assert.deepEqual([1, 10, 11, 12, 30, 54, 75, 98, 99].map(P.litSteps), [0, 0, 1, 1, 6, 12, 18, 24, 24]);
     assert.deepEqual(P.litLevels(30), [['rays', 4], ['wing-left', 2], ['wing-right', 0], ['rim', 0], ['crown', 0], ['gem', 0]]);
     assert.deepEqual([10, 11, 40, 98, 99].map(P.auraOf), [0, 1, 2, 4, 'max']);
-    // Bez obrázku (kresba v SVG): jen záře celého medailonu
-    assert.match(P.medalHtml(40), /data-prestige-aura="2"[^>]*class="prestige-medal prestige-aura prestige-aura-2 /);
-    assert.doesNotMatch(P.medalHtml(40), /prestige-lit/);
-    assert.doesNotMatch(P.medalHtml(10), /prestige-aura/);
+    // Bez obrázku (kresba v SVG, záložní): jen záře celého medailonu
+    const art = { ...P.ART };
+    try {
+        for (const key of Object.keys(P.ART)) P.ART[key] = null;
+        assert.match(P.medalHtml(40), /data-prestige-aura="2"[^>]*class="prestige-medal prestige-aura prestige-aura-2 /);
+        assert.doesNotMatch(P.medalHtml(40), /prestige-lit/);
+        assert.doesNotMatch(P.medalHtml(10), /prestige-aura/);
+    } finally { Object.assign(P.ART, art); }
     // S obrázkem ★10: nad ním kopie oříznuté na oblasti (třídy z src/input.css), malý odznáček jen se září
     const saved = P.ART[10];
     P.ART[10] = 'prestiz-10';
@@ -89,7 +93,7 @@ test('medailon v rohu obrázku hráče: jen s prestiží a u obrázků od 20 px'
     assert.equal(P.badgeHtml(3, 'h-4 w-4 text-[10px]'), '', 'v řádku textu ne');
     assert.equal(P.badgeHtml(3, 'h-[18px] w-[18px]'), '');
     const html = P.badgeHtml(3, 'h-9 w-9 text-lg');
-    assert.match(html, /^<span class="prestige-badge" data-prestige-badge="3"><span data-prestige-medal="3"[^>]*class="prestige-medal relative inline-flex shrink-0 h-full w-full"/);
+    assert.match(html, /^<span class="prestige-badge" data-prestige-badge="3"><span data-prestige-medal="3"[^>]*class="prestige-medal (?:prestige-art )?relative inline-flex shrink-0 h-full w-full"/);
     assert.notEqual(P.badgeHtml(3, 'h-16 w-16 short:h-14'), '');
     assert.notEqual(P.badgeHtml(3, ''), '', 'neznámá velikost: medailon ano');
     assert.deepEqual(['h-9 w-9', 'h-[18px]', 'h-2.5', 'short:h-7 h-10', 'w-9'].map(P.avatarPx), [36, 18, 10, 40, null]);
