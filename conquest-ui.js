@@ -743,6 +743,12 @@
             return true;
         };
 
+        // Pořadí pod mapou celé vidět (i s osmi hráči): panel aspoň na výšku pořadí, mapa nad ním se zmenší (conquest.js gameScreenHtml)
+        const fitRanking = () => {
+            const panel = app.querySelector('[data-cq-panel]');
+            const players = panel && panel.querySelector('[data-cq-players]');
+            if (players) panel.style.setProperty('--cq-rank-h', `${Math.ceil(players.offsetHeight)}px`);
+        };
         // Vykreslení obrazovky hry (přiblížení zůstane)
         const renderGame = () => {
             if (!game || !active()) return;
@@ -751,6 +757,7 @@
             deps.renderIcons(app);
             const wrap = app.querySelector('[data-cq-wrap]');
             if (wrap) wrap.style.aspectRatio = `${game.data.w} / ${game.data.h}`;
+            fitRanking();
             mountMap();
             if (game.selected) showSheet(game.selected);
             paintChips();
@@ -764,7 +771,7 @@
             if (!holder || !game) { renderGame(); return; }
             holder.innerHTML = C.mapSvg(game.data, game.view);
             const players = app.querySelector('[data-cq-players]');
-            if (players) players.innerHTML = C.playersStripHtml(game.view, { now: Date.now() });
+            if (players) { players.innerHTML = C.playersStripHtml(game.view, { now: Date.now() }); fitRanking(); }
             const recent = app.querySelector('[data-cq-recent]');
             if (recent) recent.innerHTML = C.recentHtml(game.view, { now: Date.now() });
             const budget = app.querySelector('[data-cq-budget]');
@@ -821,21 +828,54 @@
             vb.y = Math.min(h - vb.h * 0.5, Math.max(-vb.h * 0.5, vb.y));
             if (vb.w >= w - 0.5) { vb.x = 0; vb.y = 0; }
         };
+        // Přiblížení a posun během gesta (prsty, kolečko, plynulé přiblížení k území) nemění viewBox: každá jeho změna by překreslila
+        // celou mapu (maska akvarelu, ořezy pobřeží a lemů, vzory). Výřez se jen spočítá (game.vb) a SVG se posune a zvětší transformací
+        // (previewView, nejvýš jednou za snímek, vrstvu jen skládá kompozitor: will-change ve třídě cq-moving; mapa za okrajem výřezu
+        // je vidět díky overflow: visible, takže při posunu nevzniká prázdný okraj). Po gestu se výřez zapíše do viewBox jednou
+        // (applyView) a značky a popisky dostanou své měřítko. Body na displeji se přepočítávají z výřezu a rámečku mapy, ne z CTM.
+        let shown = null;
+        let previewFrame = 0;
+        let wheelTimer = null;
+        const mapRect = () => (svg.parentElement || svg).getBoundingClientRect();
+        // Měřítko a odsazení výřezu v rámečku (preserveAspectRatio meet)
+        const fitOf = (vb, rect) => { const k = Math.min(rect.width / vb.w, rect.height / vb.h) || 1; return { k, ox: (rect.width - vb.w * k) / 2, oy: (rect.height - vb.h * k) / 2 }; };
+        const cancelPreview = () => { if (previewFrame) { root.cancelAnimationFrame(previewFrame); previewFrame = 0; } clearTimeout(wheelTimer); wheelTimer = null; };
         const applyView = () => {
             if (!svg || !game) return;
+            cancelPreview();
             clampView();
             const vb = game.vb;
             svg.setAttribute('viewBox', `${vb.x.toFixed(2)} ${vb.y.toFixed(2)} ${vb.w.toFixed(2)} ${vb.h.toFixed(2)}`);
+            svg.style.transform = '';
+            svg.classList.remove('cq-moving');
+            shown = { ...vb };
             const reset = app.querySelector('[data-cq="zoom-reset"]');
             if (reset) { reset.classList.toggle('hidden', zoomOf() < 1.05); reset.classList.toggle('flex', zoomOf() >= 1.05); }
             updateDetail();
         };
-        const unitsPerPixel = () => { const ctm = svg && svg.getScreenCTM ? svg.getScreenCTM() : null; return ctm && ctm.a ? 1 / ctm.a : 1; };
+        const paintPreview = () => {
+            previewFrame = 0;
+            if (!svg || !game || !shown) return;
+            const vb = game.vb;
+            const { k, ox, oy } = fitOf(shown, mapRect());
+            const scale = shown.w / vb.w;
+            const tx = ox * (1 - scale) + scale * k * (shown.x - vb.x), ty = oy * (1 - scale) + scale * k * (shown.y - vb.y);
+            svg.classList.add('cq-moving');
+            svg.style.transform = `translate3d(${tx.toFixed(2)}px, ${ty.toFixed(2)}px, 0) scale(${scale.toFixed(5)})`;
+        };
+        const previewView = () => {
+            if (!svg || !game) return;
+            clampView();
+            // Při oddalování by vrstva ukazovala čím dál víc mapy, kterou prohlížeč musí po kouscích dokreslovat: po 0,6× se výřez zapíše
+            if (!shown || !root.requestAnimationFrame || shown.w / game.vb.w < 0.6) { applyView(); return; }
+            if (!previewFrame) previewFrame = root.requestAnimationFrame(paintPreview);
+        };
+        const unitsPerPixel = () => (svg && game ? 1 / fitOf(game.vb, mapRect()).k : 1);
         const toSvg = (clientX, clientY) => {
-            const ctm = svg.getScreenCTM();
-            if (!ctm) return { x: 0, y: 0 };
-            const inverse = ctm.inverse();
-            return { x: inverse.a * clientX + inverse.c * clientY + inverse.e, y: inverse.b * clientX + inverse.d * clientY + inverse.f };
+            const rect = mapRect();
+            const vb = game.vb;
+            const { k, ox, oy } = fitOf(vb, rect);
+            return { x: vb.x + (clientX - rect.left - ox) / k, y: vb.y + (clientY - rect.top - oy) / k };
         };
         // Vlaječky a ikony mají na displeji skoro stálou velikost, popisky se ukážou, až se vejdou
         const updateDetail = () => {
@@ -887,10 +927,10 @@
         // tlačítko Celá mapa). Při omezeném pohybu bez animace.
         const FIT_MS = 420;
         let fitting = null;
-        const stopFit = () => { if (fitting) { root.cancelAnimationFrame(fitting.frame); fitting = null; } };
+        const stopFit = () => { if (fitting) { root.cancelAnimationFrame(fitting.frame); fitting = null; if (svg && game && svg.classList.contains('cq-moving')) applyView(); } };
         // Výřez mapy (w = šířka v jednotkách mapy), ve kterém je bod mapy point na displeji v bodě screen (preserveAspectRatio meet)
         const viewWith = (point, screen, w) => {
-            const rect = svg.getBoundingClientRect();
+            const rect = mapRect();
             const h = w * game.data.h / game.data.w;
             const scale = Math.min(rect.width / w, rect.height / h);
             const offX = (rect.width - w * scale) / 2, offY = (rect.height - h * scale) / 2;
@@ -911,24 +951,24 @@
             // Střed: místo, kam se název v největší velikosti, která se vejde, položí (u území bez místa jeho střed)
             const spot = C.labelAt(item, entry.rings, entry.ratio, entry.max, entry.max);
             const point = { x: spot.x, y: spot.y - spot.size * 0.25 };
-            const map = svg.getBoundingClientRect();
+            const map = mapRect();
             const holder = sheet();
             const sheetTop = holder && holder.childElementCount ? holder.getBoundingClientRect().top : map.bottom;
             const bottom = Math.min(map.bottom, sheetTop);
             const screen = { x: (map.left + map.right) / 2, y: bottom - map.top > 80 ? (map.top + bottom) / 2 : (map.top + map.bottom) / 2 };
-            const ctm = svg.getScreenCTM();
-            const start = ctm ? { x: ctm.a * point.x + ctm.c * point.y + ctm.e, y: ctm.b * point.x + ctm.d * point.y + ctm.f } : screen;
+            const fit = fitOf(game.vb, map);
+            const start = { x: map.left + fit.ox + (point.x - game.vb.x) * fit.k, y: map.top + fit.oy + (point.y - game.vb.y) * fit.k };
             const step = (t) => {
                 // Šířka výřezu se mění plynule v logaritmu (stejně rychlé přibližování), bod území jde po přímce do středu
                 const e = t >= 1 ? 1 : 1 - Math.pow(1 - t, 3);
                 const width = Math.exp(Math.log(from.w) + (Math.log(w) - Math.log(from.w)) * e);
                 game.vb = viewWith(point, { x: start.x + (screen.x - start.x) * e, y: start.y + (screen.y - start.y) * e }, width);
-                applyView();
+                if (t >= 1) applyView(); else previewView();
             };
             if (reduced()) { step(1); return; }
             const began = root.performance && root.performance.now ? root.performance.now() : Date.now();
             const tick = (now) => {
-                if (!fitting || !game || !svg || game.move) { fitting = null; return; }
+                if (!fitting || !game || !svg || game.move) { fitting = null; if (game && svg) applyView(); return; }
                 const t = Math.min(1, (now - began) / FIT_MS);
                 step(t);
                 if (t < 1) fitting.frame = root.requestAnimationFrame(tick);
@@ -936,20 +976,23 @@
             };
             fitting = { frame: root.requestAnimationFrame(tick) };
         };
-        const zoomAt = (point, factor) => {
+        const zoomAt = (point, factor, preview = false) => {
             const vb = game.vb;
             const w = Math.min(game.data.w, Math.max(game.data.w / MAX_ZOOM, vb.w / factor));
             const real = vb.w / w;
             vb.x = point.x - (point.x - vb.x) / real;
             vb.y = point.y - (point.y - vb.y) / real;
             vb.w = w;
-            applyView();
+            if (preview) previewView(); else applyView();
         };
+        // Kolečko: náhled v každém snímku, výřez se zapíše, až se kolečko na chvíli zastaví
         const onWheel = (event) => {
             if (!game || !svg) return;
             event.preventDefault();
             stopFit();
-            zoomAt(toSvg(event.clientX, event.clientY), Math.exp(-event.deltaY * 0.0015));
+            zoomAt(toSvg(event.clientX, event.clientY), Math.exp(-event.deltaY * 0.0015), true);
+            clearTimeout(wheelTimer);
+            wheelTimer = setTimeout(() => { wheelTimer = null; if (!gesture) applyView(); }, 160);
         };
         const onPointerDown = (event) => {
             if (!game || !svg) return;
@@ -976,14 +1019,14 @@
                 const [a, b] = [...gesture.pointers.values()];
                 const factor = Math.hypot(a.x - b.x, a.y - b.y) / gesture.dist0;
                 game.vb = { ...gesture.vb0, w: gesture.vb0.w / factor };
-                applyView();
+                clampView();
                 const mid = toSvg((a.x + b.x) / 2, (a.y + b.y) / 2);
                 game.vb.x += gesture.mid0.x - mid.x;
                 game.vb.y += gesture.mid0.y - mid.y;
-                applyView();
+                previewView();
             } else if (!gesture.multi && gesture.moved > 6 && zoomOf() > 1.02) {
                 game.vb = { ...gesture.vb0, x: gesture.vb0.x - (pointer.x - gesture.origin.x) * gesture.upp, y: gesture.vb0.y - (pointer.y - gesture.origin.y) * gesture.upp };
-                applyView();
+                previewView();
             }
         };
         const onPointerUp = (event) => {
@@ -993,6 +1036,7 @@
             if (gesture.pointers.size) { gesture.vb0 = { ...game.vb }; const rest = [...gesture.pointers.values()][0]; gesture.origin = { x: rest.x, y: rest.y }; rest.x0 = rest.x; rest.y0 = rest.y; return; }
             const tap = !gesture.multi && gesture.moved < 8 && event.timeStamp - gesture.start < 600 && event.type === 'pointerup';
             gesture = null;
+            if (svg && (previewFrame || svg.classList.contains('cq-moving'))) applyView();
             if (!tap || !pointer) return;
             const now = event.timeStamp;
             if (lastTap && now - lastTap.at < 330 && Math.hypot(lastTap.x - pointer.x, lastTap.y - pointer.y) < 30) {
@@ -1979,6 +2023,13 @@
             clock.textContent = game.view.finished ? 'Hra skončila' : Number.isFinite(end) ? `zbývá ${C.timeLeft(end - Date.now())}` : '';
             const next = app.querySelector('[data-cq-next]');
             if (next) next.textContent = C.periodLine(game.view, Date.now());
+            const rounds = app.querySelector('[data-cq-rounds]');
+            if (rounds) {
+                const info = C.roundsInfo(game.state);
+                rounds.textContent = C.roundsText(game.state);
+                rounds.classList.toggle('hidden', !info);
+                rounds.classList.toggle('cq-rounds-last', Boolean(info && info.last));
+            }
         };
 
         // --- Konec hry: stupně vítězů, odměna, přehrání ---
