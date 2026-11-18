@@ -267,6 +267,71 @@ test('Evropa: zadané území a námořní spoje, bez trpasličích států; Rus
     assert.equal(data.t.length, 41);
 });
 
+test('Amerika: námořní spoje do Karibiku z jihu i ze Střední Ameriky, Karibik souvislý; Grónsko a Francouzská Guyana jako území', () => {
+    const data = maps.amerika;
+    const index = C.indexMap(data);
+    const byName = Object.fromEntries(data.t.map(t => [t.n, t.id]));
+    const link = (a, b) => index.neighbours.get(byName[a]).has(byName[b]);
+    const sea = (a, b) => data.sea.some(([x, y]) => (x === byName[a] && y === byName[b]) || (x === byName[b] && y === byName[a]));
+    for (const [a, b] of [['Kolumbie', 'Jamajka'], ['Venezuela', 'Dominikánská republika'], ['Nikaragua', 'Jamajka'], ['Bahamy', 'Haiti'],
+        ['Dominikánská republika', 'Trinidad a Tobago'], ['Venezuela', 'Trinidad a Tobago'], ['Kuba', 'Mexiko'], ['Grónsko', 'Kanada']]) assert.ok(link(a, b) && sea(a, b), `${a} – ${b} po moři`);
+    // Vstupy do Karibiku: z Jižní Ameriky aspoň dvě území Karibiku, ze Střední Ameriky aspoň jedno, ne víc než pár
+    const into = (region) => new Set(data.t.filter(t => t.reg === region).flatMap(t => t.nb.filter(n => index.byId.get(n).reg === 'karibik')));
+    const fromSouth = new Set([...into('sever-jizni-ameriky'), ...into('andy'), ...into('brazilie-jih')]);
+    assert.ok(fromSouth.size >= 2 && fromSouth.size <= 3, `z Jižní Ameriky ${[...fromSouth]}`);
+    assert.ok(into('stredni-amerika').size >= 1 && into('stredni-amerika').size <= 2, 'ze Střední Ameriky');
+    // Karibik je souvislý i bez pevniny (Trinidad přes Malé Antily)
+    const caribbean = data.t.filter(t => t.reg === 'karibik').map(t => t.id);
+    const seen = new Set([caribbean[0]]);
+    const queue = [caribbean[0]];
+    while (queue.length) for (const next of index.neighbours.get(queue.shift())) if (caribbean.includes(next) && !seen.has(next)) { seen.add(next); queue.push(next); }
+    assert.equal(seen.size, caribbean.length, 'Karibik souvislý');
+    // Grónsko: Severní Amerika, jen po moři s Kanadou, vlajka; Francouzská Guyana: Sever Jižní Ameriky, po souši se Surinamem a Brazílií
+    const greenland = index.byId.get('Q223'), guiana = index.byId.get('Q3769');
+    assert.deepEqual([greenland.n, greenland.reg, greenland.g, greenland.of, greenland.nb], ['Grónsko', 'severni-amerika', 'n', 'Q35', ['Q16']]);
+    assert.ok(greenland.fl, 'vlajka Grónska');
+    assert.deepEqual([guiana.n, guiana.reg, guiana.g, guiana.of, guiana.nb], ['Francouzská Guyana', 'sever-jizni-ameriky', 'f', 'Q142', ['Q155', 'Q730']]);
+    assert.ok(!sea('Francouzská Guyana', 'Surinam') && !sea('Francouzská Guyana', 'Brazílie'));
+    // Na pozadí mapy už nejsou (pozadí je jen pevnina mimo hru); na Evropě je Grónsko dál pozadím, Francie bez Guyany
+    assert.ok(!maps.evropa.t.some(t => t.id === 'Q223' || t.id === 'Q3769'));
+    assert.ok(index.byId.get('Q16').nb.includes('Q223'));
+});
+
+test('Grónsko a Francouzská Guyana: otázky (hlavní město, vlajka, soused, odhad, místa podle polohy), správné tvary názvu, ve státních otázkách nejsou státem', () => {
+    const t = loadAllTopics();
+    const data = maps.amerika;
+    const prompts = (id) => {
+        const found = new Map();
+        for (const level of [0, 1, 2, 3]) for (let n = 0; n < 25; n++) {
+            const q = C.buildQuestion({ data, territory: id, level, topics: t, seed: `part|${id}|${level}|${n}` });
+            assert.ok(q && q.choices.length === 4 && q.choices.filter(c => c.correct).length === 1, `${id} ${level} ${n}`);
+            assert.doesNotMatch(q.prompt, /státem (Grónsko|Francouzská)|ve státě (Grónsko|Francouzská)|státu (Grónsko|Francouzská)/, q.prompt);
+            found.set(q.form, [...(found.get(q.form) || []), q]);
+        }
+        return found;
+    };
+    const greenland = prompts('Q223');
+    const guiana = prompts('Q3769');
+    assert.ok(greenland.size >= 4, `Grónsko: ${[...greenland.keys()]}`);
+    assert.ok(guiana.size >= 3, `Francouzská Guyana: ${[...guiana.keys()]}`);
+    const answer = (q) => q.choices.find(c => c.correct).label;
+    assert.ok(greenland.get('capital').every(q => q.prompt === 'Které město je hlavním městem Grónska?' && answer(q) === 'Nuuk'));
+    assert.ok(guiana.get('capital').every(q => q.prompt === 'Které město je hlavním městem Francouzské Guyany?' && answer(q) === 'Cayenne'));
+    assert.ok(greenland.get('flag').length && greenland.get('flag').every(q => q.prompt === 'Kterou vlajku má Grónsko?'));
+    assert.ok(greenland.get('neighbour').every(q => q.prompt === 'Který z těchto států sousedí s Grónskem (na této mapě)?' && answer(q) === 'Kanada'));
+    assert.ok(guiana.get('neighbour').every(q => q.prompt === 'Který z těchto států sousedí s Francouzskou Guyanou (na této mapě)?' && ['Surinam', 'Brazílie'].includes(answer(q))));
+    // Místa Zeměpisu u Francie a Dánska (nebo bez státu) s polohou v území patří území: Cayenne Guyaně, Gunnbjørn Grónsku
+    const places = C.placesOf(data, t);
+    assert.ok(places.byTerritory.get('Q3769').some(entry => entry.item.n === 'Cayenne'));
+    assert.ok(places.byTerritory.get('Q223').some(entry => entry.item.n === 'Gunnbjørn'));
+    assert.ok(C.familyPlan({ data, territory: 'Q223', level: 0, topics: t }).some(entry => entry.id === 'mountain'));
+    // Státní otázky jiných území: Francouzská Guyana ani Grónsko nejsou možností „Který z těchto států…“
+    for (const id of ['Q730', 'Q155', 'Q734', 'Q16', 'Q30']) for (let n = 0; n < 40; n++) {
+        const q = C.buildQuestion({ data, territory: id, level: n % 4, topics: t, seed: `state|${id}|${n}` });
+        if (/^Který z těchto států/.test(q.prompt)) assert.ok(!q.choices.some(c => c.label === 'Grónsko' || c.label === 'Francouzská Guyana'), q.prompt);
+    }
+});
+
 test('Česko: 14 krajů s krajskými městy a tvary, sousedství podle skutečných hranic', () => {
     const data = maps.cesko;
     const index = C.indexMap(data);
@@ -587,7 +652,10 @@ test('otázky ze všech témat: vztahové otázky (správná možnost vazbu spl�
         const own = landNames(f.land).includes(item.n) || nations(it.d).includes(item.n);
         if (['book', 'music-work', 'opera', 'painting', 'sculpture', 'film', 'invention'].includes(family)) return own || authorsOf(family, it).some(author => personFits(author, item));
         if (family === 'dog') return own || nations(it.n).includes(item.n);
-        if (SOURCES[family][0].startsWith('zemepis') || ['region', 'olympics', 'battle', 'event', 'building', 'castle'].includes(family)) return (it.co || []).includes(item.id) || own;
+        // Území, které není státem (of): místo jeho státu nebo bez státu s polohou v území
+        const part = item.of && Number.isFinite(it.la) && (!(it.co || []).length || it.co.includes(item.of))
+            && C.pointInRings(...C.project(maps[map], it.la, it.lo), C.parseRings(item.d));
+        if (SOURCES[family][0].startsWith('zemepis') || ['region', 'olympics', 'battle', 'event', 'building', 'castle'].includes(family)) return (it.co || []).includes(item.id) || own || Boolean(part);
         if (family === 'club' || family === 'venue') return own;
         return personFits(it, item);
     };
@@ -607,8 +675,10 @@ test('otázky ze všech témat: vztahové otázky (správná možnost vazbu spl�
     const mythWords = (my) => MYTH_WORDS[my] || `${my.replace(/á$/, 'é')} mytologie`;
     const myths = new Map();
     for (const it of t.mytologie) { if (!myths.has(plain(it.n))) myths.set(plain(it.n), []); myths.get(plain(it.n)).push(it); }
-    const stat = new Map(t.zemepis.filter(it => it.c === 'stat').map(it => [it.q, it.f]));
-    const statByName = new Map(t.zemepis.filter(it => it.c === 'stat').map(it => [it.n, it.f]));
+    // Území, která nejsou státem (Grónsko, Francouzská Guyana), mají hlavní město, obyvatele a rozlohu v datech mapy
+    const parts = MAP_IDS.flatMap(id => maps[id].t.filter(item => item.of)).map(item => [item, { cap: item.cap, pop: item.pop, area: item.area }]);
+    const stat = new Map([...t.zemepis.filter(it => it.c === 'stat').map(it => [it.q, it.f]), ...parts.map(([item, f]) => [item.id, f])]);
+    const statByName = new Map([...t.zemepis.filter(it => it.c === 'stat').map(it => [it.n, it.f]), ...parts.map(([item, f]) => [item.n, f])]);
     // „68 milionů“, „4,4 milionu“, „620 tisíc“, „9 300 km²“ → číslo
     const parseNumber = (label) => {
         const value = Number(label.replace(/km²/, '').replace(/[^\d,]/g, '').replace(',', '.'));
@@ -954,6 +1024,30 @@ test('texty času a nastavení', () => {
     assert.equal(C.actionsLabel(3, 'hour'), '3 tahy za hodinu');
     assert.equal(C.actionsLabel(5, 'day'), '5 tahů za den');
     assert.equal(C.actionsLabel(1, 'day'), '1 tah za den');
+});
+
+test('kolo hry v kartuši: „kolo 3 z 8“, kolo začaté dřív, poslední kolo zvýrazněné, mimo běžící hru nic', () => {
+    const start = Date.parse('2026-11-11T10:00:00Z');
+    const at = (minutes) => new Date(start + minutes * 60000).toISOString();
+    const state = (period, extra = {}) => ({ status: 'running', period: 'min10', started_at: at(0), ends_at: at(80), budget: { period }, ...extra });
+    assert.deepEqual(C.roundsInfo(state(0)), { current: 1, total: 8, left: 7, last: false });
+    assert.equal(C.roundsText(state(2)), 'kolo 3 z 8');
+    assert.equal(C.roundsText(state(6)), 'kolo 7 z 8');
+    assert.equal(C.roundsText(state(7)), 'poslední kolo');
+    assert.ok(C.roundsInfo(state(7)).last);
+    // Kolo 3 začalo dřív (Chci další kolo) a skončí v 23. minutě: do konce hry se vejde ještě 6 kol (poslední kratší)
+    assert.equal(C.roundsText(state(2, { round: { ends_at: at(23) } })), 'kolo 3 z 9');
+    assert.equal(C.roundsText(state(5, { round: { ends_at: at(80), last: true } })), 'poslední kolo');
+    // Denní kola: hra 3 dny
+    assert.equal(C.roundsText({ status: 'running', period: 'day', started_at: at(0), ends_at: at(3 * 1440), budget: { period: 1 } }), 'kolo 2 z 3');
+    for (const other of [{ ...state(2), status: 'finished' }, { ...state(2), budget: null }, { ...state(2), started_at: null }]) assert.equal(C.roundsInfo(other), null);
+    const html = C.roundsHtml(state(7));
+    assert.match(html, /data-cq-rounds class="cq-rounds cq-rounds-last max-w-full truncate">poslední kolo</);
+    assert.match(C.roundsHtml(state(2)), /class="cq-rounds max-w-full truncate">kolo 3 z 8</);
+    assert.match(C.roundsHtml({ ...state(2), status: 'finished' }), /class="cq-rounds hidden/);
+    // V kartuši obrazovky hry pod časem
+    const game = { ...sampleState(), started_at: '2026-11-12T08:00:00Z', ends_at: '2026-11-15T08:00:00Z', budget: { ...sampleState().budget, period: 0 } };
+    assert.match(C.gameScreenHtml(C.viewOf(game, maps.evropa, 'A'), { now: Date.parse('2026-11-12T10:00:00Z') }), /data-cq-clock>zbývá [^<]+<\/span>\s*<span data-cq-rounds class="cq-rounds max-w-full truncate">kolo 1 z 3</);
 });
 
 test('ztracený hrad: nápověda (záložka Regiony) říká, že kdo přijde o domovský hrad, má v dalším období o 1 tah méně; počítadlo tahů a toast', () => {

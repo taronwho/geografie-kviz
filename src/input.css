@@ -1067,7 +1067,9 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 .cq-map-wrap { box-shadow: 0 0 0 1px rgb(107 74 42 / 0.45), 0 8px 18px -10px rgb(60 40 20 / 0.6); }
 .cq-vignette { box-shadow: inset 0 0 28px rgb(92 60 26 / 0.45), inset 0 0 3px rgb(92 60 26 / 0.6); }
 .cq-map { cursor: grab; }
-.cq-svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.cq-svg { display: block; width: 100%; height: 100%; overflow: visible; transform-origin: 0 0; }
+/* Během přiblížení a posunu (conquest-ui.js previewView) jen transformace vrstvy, bez překreslování mapy */
+.cq-svg.cq-moving { will-change: transform; }
 .cq-sea { fill: rgb(77 133 150 / 0.26); }
 .cq-seatex { opacity: 0.6; }
 .cq-coast { fill: none; stroke: #3f6a7d; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
@@ -1121,6 +1123,15 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 .cq-cartouche-art .cq-cartouche-big { font-size: 16px; }
 /* Dva řádky (název mapy a kolik zbývá) přesně do světlého pergamenu kartuše (26–76 % výšky obrázku), ani jeden nenaráží na ornament */
 .cq-cartouche-art [data-cq-clock] { font-size: 9.5px; line-height: 1; margin-top: 2px; }
+/* Kolo hry pod časem (conquest.js roundsHtml): drobné kapitálky; poslední kolo jako rudá pečeť */
+.cq-rounds { font-size: 9.5px; font-weight: 800; line-height: 1.1; letter-spacing: 0.04em; color: rgb(120 53 15 / 0.75); }
+/* S kolem tři řádky do stejné kartuše: menší název a těsnější řádky, ať nic nenaráží na ornament */
+.cq-cartouche-art.cq-cartouche-rounds { padding-bottom: 1px; }
+.cq-cartouche-rounds .cq-cartouche-title { font-size: 12px; }
+.cq-cartouche-rounds [data-cq-clock] { font-size: 9px; margin-top: 1px; }
+.cq-cartouche-art .cq-rounds { font-size: 8.5px; line-height: 1; margin-top: 1px; }
+.cq-cartouche-art .cq-rounds.cq-rounds-last { font-size: 7.5px; line-height: 1.3; margin-top: 1px; }
+.cq-rounds.cq-rounds-last { color: #fff7ed; background: #9f1d1d; border-radius: 999px; padding: 0 5px; letter-spacing: 0.06em; text-transform: uppercase; font-size: 8.5px; line-height: 1.35; }
 .cq-cartouche-title { font-family: Georgia, 'Times New Roman', serif; font-variant: small-caps; font-weight: 700; font-size: 17px; line-height: 1.1; letter-spacing: 0.08em; color: #4a2c12; }
 @media (prefers-color-scheme: dark) { .cq-cartouche { background: linear-gradient(#d9c596, #bfa36d); } }
 .cq-sheet { background: linear-gradient(#fffaf0, #f7ecd5); box-shadow: 0 -10px 24px -12px rgb(60 40 20 / 0.55), inset 0 1px 0 #fff; border-top: 2px solid #c9a46a; }

@@ -4,7 +4,8 @@
 // odražený útok, přiblížení, kronika tažení), konec hry (stupně vítězů, odměna jen jednou, přehrání), pomůcky (zásoba v rozcestníku,
 // okno Pomůcky, 50/50 u otázky i v bitvě s „½“ u účastníků, Tah navíc z listu území, štítku i okna Kolo dohráno s potvrzením,
 // „+1“ u tahů a záznam v kronice), Ankh vzkříšení (blok 39: okno po ztrátě všech území, výběr území na mapě, animace, štít ochrany s odpočtem,
-// zašedlý útok u soupeře, kronika u obou; bez pomůcky Mimo hru; starší databáze Návrat do hry), CSP bez chyb, tmavý režim.
+// zašedlý útok u soupeře, kronika u obou; bez pomůcky Mimo hru; starší databáze Návrat do hry), Amerika (celé pořadí pod vysokou mapou,
+// kolo v kartuši, spoje Karibiku, Grónsko a Francouzská Guyana, plynulé přiblížení: PERF=1 vypíše odstup snímků), CSP bez chyb, tmavý režim.
 // SCREENSHOT_DIR=/cesta uloží snímky (dobyvani-*.png). Potřebuje Playwright (viz tests/e2e.test.js), jinak se přeskočí.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -22,7 +23,7 @@ const CSP = fs.readFileSync(path.join(ROOT, '_headers'), 'utf8').match(/Content-
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
 const CONFIG = 'window.MUDRLANT_CONFIG = { supabaseUrl: "https://proj.supabase.co", supabaseAnonKey: "anon-key" };';
 const SHOTS = process.env.SCREENSHOT_DIR || '';
-const MAPS = Object.fromEntries(['evropa', 'cesko'].map(id => [id, JSON.parse(fs.readFileSync(path.join(ROOT, 'data', `dobyvani-${id}.json`), 'utf8'))]));
+const MAPS = Object.fromEntries(['evropa', 'cesko', 'amerika'].map(id => [id, JSON.parse(fs.readFileSync(path.join(ROOT, 'data', `dobyvani-${id}.json`), 'utf8'))]));
 
 const serveFile = (pathname) => {
     const file = path.join(ROOT, pathname === '/' ? 'index.html' : decodeURIComponent(pathname));
@@ -478,15 +479,17 @@ const attributeLeaks = (tab, parts) => tab.evaluate((fragments) => {
         .filter(attribute => fragments.some(part => attribute.value.includes(part) || decoded(attribute.value).includes(part)))
         .map(attribute => `${element.tagName.toLowerCase()}[${attribute.name}]`));
 }, parts);
-// Šířka výřezu mapy (viewBox) a šířka po doběhnutí přiblížení (beze změny po dva snímky)
+// Šířka výřezu mapy (viewBox) a šířka po doběhnutí přiblížení (beze změny po dva snímky, bez rozpracovaného gesta)
 const viewWidth = (tab) => tab.evaluate(() => document.querySelector('[data-cq-map] svg').viewBox.baseVal.width);
 // (waitForFunction na Promise nečeká, proto vlastní smyčka s evaluate)
 const settledWidth = async (tab) => {
     for (let i = 0; i < 100; i += 1) {
         const steady = await tab.evaluate(() => new Promise(resolve => {
-            const width = () => document.querySelector('[data-cq-map] svg').viewBox.baseVal.width;
+            // Během přiblížení se mapa jen transformuje (třída cq-moving), viewBox se zapíše až na konci
+            const svg = () => document.querySelector('[data-cq-map] svg');
+            const width = () => (svg().classList.contains('cq-moving') ? -1 : svg().viewBox.baseVal.width);
             const first = width();
-            requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(() => resolve(width() === first ? first : null))));
+            requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(() => resolve(first > 0 && width() === first ? first : null))));
         }));
         if (steady !== null) return steady;
     }
@@ -1089,6 +1092,9 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             await tab.mouse.move(rect.x + rect.width * 0.55, rect.y + rect.height * 0.6);
             await tab.mouse.wheel(0, -900);
             await tab.waitForSelector('[data-cq="zoom-reset"].flex');
+            // Kolečko chodí po kouscích: počkat, až se výřez zapíše naposledy
+            await tab.waitForTimeout(250);
+            await settledWidth(tab);
             // Po přiblížení je Rakousko na displeji velké: název je větší a celý uvnitř území
             await tapTerritory(tab, 'Q40');
             await tab.waitForTimeout(300);
@@ -2305,6 +2311,122 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         await tab.waitForSelector(`#conquest-hub [data-cq-invite="${uuid(1)}"]`);
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    // Amerika (vysoká mapa): celé pořadí šesti hráčů pod mapou, kolo v kartuši (i poslední), námořní spoje Karibiku, Grónsko
+    // a Francouzská Guyana jako území; plynulé přiblížení kolečkem a posun (měření snímků při 4× zpomaleném procesoru, PERF=1 vypíše)
+    const america = ({ round = 2 } = {}) => {
+        const db = newDb();
+        const g = db.games[0];
+        g.map = 'amerika';
+        const users = ['u-1', 'u-2', 'u-3', 'u-4', 'u-5', 'u-6'];
+        ['Karel Dvořák', 'Lucie Malá', 'Ondřej Veselý'].forEach((name, i) => { db.profiles[`u-${i + 4}`] = player(`u-${i + 4}`, name, '🐯'); });
+        const colors = ['cervena', 'modra', 'zelena', 'zluta', 'fialova', 'oranzova'];
+        g.players = users.map((user, seat) => ({ user, seat, flag_color: colors[seat], emblem: 'lev', ready: true }));
+        const homes = ['Q30', 'Q155', 'Q96', 'Q739', 'Q414', 'Q16'];
+        // Kola po 10 min, hra 80 min: round = období od 0 (2 = kolo 3 z 8, 7 = poslední)
+        g.period = 'min10'; g.minutes = 80; g.hours = 2; g.periodNo = round;
+        g.status = 'running'; g.started_at = new Date(Date.parse(NOW) - (round * 10 + 5) * 60000).toISOString(); g.ends_at = new Date(Date.parse(g.started_at) + 80 * 60000).toISOString();
+        g.territories = MAPS.amerika.t.map((item, i) => ({ t: item.id, o: homes.includes(item.id) ? users[homes.indexOf(item.id)] : i % 3 ? users[i % 6] : null, l: 0, h: homes.includes(item.id), p: false }));
+        g.moves = homes.map((t, i) => ({ id: i + 1, u: users[i], k: 'home', t, r: 'home', n: 0, at: NOW }));
+        g.players.forEach(p => { p.score = g.territories.filter(x => x.o === p.user).length; p.score_at = NOW; });
+        return db;
+    };
+    const openAmerica = async (db, options) => {
+        const page = await start(db, options);
+        await page.tab.waitForFunction(() => /Tahy 5\/5/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
+        await page.tab.click('#conquest-wait [data-action="conquest-play"]');
+        await page.tab.waitForSelector('#conquest-game [data-cq-map] svg');
+        return page;
+    };
+    for (const [width, height, colorScheme, inset] of [[360, 640, 'light', 0], [390, 780, 'dark', 0], [412, 915, 'light', 56]]) {
+        await t.test(`Amerika ${width}×${height}${inset ? ` s horním výřezem ${inset} px` : ''} (${colorScheme === 'dark' ? 'tmavý' : 'světlý'} režim): celé pořadí pod mapou, kolo v kartuši, spoje Karibiku, Grónsko a Francouzská Guyana`, async () => {
+            const { context, tab, log } = await start(america(), { viewport: { width, height }, colorScheme });
+            // Horní výřez displeje (safe-area-inset-top): záhlaví aplikace o tolik vyšší
+            if (inset) await tab.evaluate((px) => { document.getElementById('app-header').style.paddingTop = `${px}px`; }, inset);
+            await tab.waitForFunction(() => /Tahy 5\/5/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
+            await tab.click('#conquest-wait [data-action="conquest-play"]');
+            await tab.waitForSelector('#conquest-game [data-cq-map] svg');
+            assert.equal(await tab.locator('.cq-hit').count(), MAPS.amerika.t.length);
+            for (const id of ['Q223', 'Q3769']) assert.equal(await tab.locator(`.cq-hit[data-t="${id}"]`).count(), 1, `${id} je území`);
+            assert.equal(await tab.locator('.cq-routes path').count(), MAPS.amerika.sea.length, 'tečkované námořní spoje');
+            assert.equal((await tab.textContent('[data-cq-rounds]')).trim(), 'kolo 3 z 8');
+            assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+            // Pořadí: všech šest řádků celých uvnitř panelu i obrazovky, mapa zůstane velká
+            const layout = await tab.evaluate(() => {
+                const panel = document.querySelector('[data-cq-panel]').getBoundingClientRect();
+                const rows = [...document.querySelectorAll('[data-cq-players] li')].map(li => li.getBoundingClientRect());
+                const map = document.querySelector('[data-cq-wrap]').getBoundingClientRect();
+                return { rows: rows.length, hidden: rows.filter(r => r.bottom > panel.bottom + 0.5 || r.bottom > innerHeight || r.height < 10).length, map: Math.round(map.height) };
+            });
+            assert.equal(layout.rows, 6);
+            assert.equal(layout.hidden, 0, `pořadí celé vidět: ${JSON.stringify(layout)}`);
+            assert.ok(layout.map >= 220, `mapa zůstane velká: ${JSON.stringify(layout)}`);
+            await tab.waitForTimeout(300);
+            await shot(tab, `amerika-${width}x${height}-${colorScheme}`);
+            assert.deepEqual(log.errors, []);
+            assert.deepEqual(log.csp, []);
+            await context.close();
+        });
+    }
+    await t.test('Amerika: poslední kolo v kartuši zvýrazněné; přiblížení kolečkem na Karibik', async () => {
+        const { context, tab, log } = await openAmerica(america({ round: 7 }), { viewport: { width: 390, height: 780 } });
+        assert.equal((await tab.textContent('[data-cq-rounds]')).trim(), 'poslední kolo');
+        assert.equal(await tab.locator('[data-cq-rounds].cq-rounds-last').count(), 1);
+        await shot(tab, 'amerika-posledni-kolo-390');
+        const point = await tab.evaluate(() => {
+            const svg = document.querySelector('[data-cq-map] svg');
+            const ctm = svg.getScreenCTM();
+            const label = svg.querySelector('[data-label="Q766"]');
+            const x = Number(label.getAttribute('x')), y = Number(label.getAttribute('y'));
+            return { x: ctm.a * x + ctm.e, y: ctm.d * y + ctm.f };
+        });
+        await tab.mouse.move(point.x, point.y);
+        for (let i = 0; i < 6; i++) { await tab.mouse.wheel(0, -200); await tab.waitForTimeout(30); }
+        await tab.waitForSelector('[data-cq="zoom-reset"].flex');
+        await tab.waitForTimeout(500);
+        assert.ok(await settledWidth(tab) < MAPS.amerika.w / 3, 'přiblíženo');
+        assert.equal(await tab.evaluate(() => document.querySelector('[data-cq-map] svg').style.transform || ''), '', 'po gestu bez dočasné transformace');
+        await shot(tab, 'amerika-karibik-390');
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+    await t.test('Amerika: plynulé přiblížení a posun mapy při 4× pomalejším procesoru (odstup snímků)', async () => {
+        const { context, tab, log } = await openAmerica(america(), { viewport: { width: 390, height: 780 } });
+        await tab.waitForTimeout(500);
+        const cdp = await context.newCDPSession(tab);
+        await cdp.send('Emulation.setCPUThrottlingRate', { rate: Number(process.env.PERF_RATE) || 4 });
+        // Gesto ze stránky: v každém snímku jedna událost (kolečko dovnitř, tažení, kolečko ven)
+        const frames = await tab.evaluate(() => new Promise(resolve => {
+            const holder = document.querySelector('[data-cq-map]');
+            const rect = holder.getBoundingClientRect();
+            const cx = rect.left + rect.width * 0.45, cy = rect.top + rect.height * 0.45;
+            const times = [];
+            let i = 0;
+            const tick = (now) => {
+                times.push(now);
+                const at = (dx, dy) => ({ pointerId: 7, clientX: cx + dx, clientY: cy + dy, bubbles: true, isPrimary: true });
+                if (i < 50) holder.dispatchEvent(new WheelEvent('wheel', { deltaY: -40, clientX: cx, clientY: cy, bubbles: true, cancelable: true }));
+                else if (i === 50) holder.dispatchEvent(new PointerEvent('pointerdown', at(0, 0)));
+                else if (i < 100) holder.dispatchEvent(new PointerEvent('pointermove', at((i - 50) * 4, (i - 50) * 3)));
+                else if (i === 100) holder.dispatchEvent(new PointerEvent('pointerup', at(200, 150)));
+                else holder.dispatchEvent(new WheelEvent('wheel', { deltaY: 40, clientX: cx, clientY: cy, bubbles: true, cancelable: true }));
+                i += 1;
+                if (i <= 150) requestAnimationFrame(tick); else resolve(times.slice(1).map((time, k) => time - times[k]));
+            };
+            requestAnimationFrame(tick);
+        }));
+        await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+        const sorted = [...frames].sort((a, b) => a - b);
+        const stats = { frames: frames.length, mean: Number((frames.reduce((sum, f) => sum + f, 0) / frames.length).toFixed(1)), p95: Number(sorted[Math.floor(frames.length * 0.95)].toFixed(1)), max: Number(sorted[frames.length - 1].toFixed(1)), over50: frames.filter(f => f > 50).length };
+        if (process.env.PERF) console.log(`Snímky přiblížení a posunu: ${JSON.stringify(stats)}${process.env.PERF === "2" ? ` ${frames.map(f => Math.round(f)).join(" ")}` : ""}`);
+        assert.ok(stats.mean < 40, `průměrný snímek ${JSON.stringify(stats)}`);
+        // Po gestu: výřez mapy ve viewBox, bez dočasné transformace
+        await tab.waitForTimeout(400);
+        assert.equal(await tab.evaluate(() => document.querySelector('[data-cq-map] svg').style.transform || ''), '');
+        assert.deepEqual(log.errors, []);
         await context.close();
     });
 

@@ -745,7 +745,13 @@
     // Tvary názvu území v otázce: in „ve Francii“ / „v Jihočeském kraji“, from „z Francie“, of 2. pád „Francie“, adj kmen přídavného
     // jména „francouzsk“ (jen státy z tabulky chain.js), with 7. pád se „s“ („se Středočeským krajem“, „se státem Mali“)
     const ZE = /^[sSzZšŠžŽ][^aáeéěiíoóuúůyý]/;
+    // Území, která nejsou státem (data mapy: of): odkud, kde, s čím
+    const PART_WORDS = {
+        'Grónsko': ['z Grónska', 'v Grónsku', 's Grónskem'],
+        'Francouzská Guyana': ['z Francouzské Guyany', 've Francouzské Guyaně', 's Francouzskou Guyanou']
+    };
     const withPhrase = (item) => {
+        if (!item.loc && PART_WORDS[item.n]) return PART_WORDS[item.n][2];
         if (!item.loc) return `se státem ${item.n}`;
         if (item.n === 'Praha') return 's Prahou';
         if (/^Kraj /.test(item.n)) return `s Krajem ${item.n.slice(5)}`;
@@ -754,7 +760,8 @@
     };
     const formsOf = (item) => {
         if (item.loc) { const of = item.gen || item.n; return { in: item.loc, of, from: `${ZE.test(of) ? 'ze' : 'z'} ${of}`, adj: '', with: withPhrase(item) }; }
-        const words = countryWords(item.n);
+        const words = countryWords(item.n) || PART_WORDS[item.n];
+        if (words && PART_WORDS[item.n]) return { in: words[1], from: words[0], of: words[0].replace(/^ze? /, ''), adj: '', with: words[2] };
         if (words) return { in: words[1], from: words[0], of: words[0].replace(/^ze? /, ''), adj: words[2] || '', with: withPhrase(item) };
         return { in: `ve státě ${item.n}`, from: `ze státu ${item.n}`, of: `státu ${item.n}`, adj: '', with: withPhrase(item) };
     };
@@ -930,7 +937,25 @@
     const buildPools = (data, topics) => {
         const kraje = isKraje(data);
         const ids = new Set(data.t.map(item => item.id));
-        const list = (topic) => (topics && Array.isArray(topics[topic]) ? topics[topic] : []);
+        // Území, která nejsou státem (Grónsko, Francouzská Guyana: of = stát, ke kterému patří v datech témat): položka toho státu
+        // (nebo bez státu) s polohou v území patří území (Cayenne, Gunnbjørn), ne státu; ostatní položky beze změny
+        const parts = kraje ? [] : data.t.filter(item => item.of);
+        const ofPart = (item) => {
+            const co = item.co || [];
+            if (!Number.isFinite(item.la) || !Number.isFinite(item.lo) || !parts.some(part => !co.length || co.includes(part.of))) return item;
+            const [x, y] = project(data, item.la, item.lo);
+            const part = parts.find(entry => (!co.length || co.includes(entry.of)) && x >= entry.b[0] && x <= entry.b[2] && y >= entry.b[1] && y <= entry.b[3]);
+            if (!part || territoryAtPoint(data, x, y) !== part.id) return item;
+            return { ...item, co: [...co.filter(q => q !== part.of), part.id] };
+        };
+        const lists = new Map();
+        const list = (topic) => {
+            if (!lists.has(topic)) {
+                const raw = topics && Array.isArray(topics[topic]) ? topics[topic] : [];
+                lists.set(topic, parts.length ? raw.map(ofPart) : raw);
+            }
+            return lists.get(topic);
+        };
         // Poloha → území; u krajů se bod blíž než asi 2,5 km k hranici jiného kraje nebere (Černošice těsně u Prahy)
         const located = (item) => {
             if (!Number.isFinite(item.la) || !Number.isFinite(item.lo)) return null;
@@ -983,6 +1008,11 @@
             const f = item.f || {};
             if (f.cap) capitals.set(item.q, f.cap);
             if (f.pop > 0 && f.area > 0) stats.set(item.q, { pop: f.pop, area: f.area });
+        }
+        // Území, která nejsou státem, mají hlavní město, obyvatele a rozlohu v datech mapy (scripts/build-dobyvani.js EXTRA)
+        for (const part of parts) {
+            if (part.cap && !capitals.has(part.id)) capitals.set(part.id, part.cap);
+            if (part.pop > 0 && part.area > 0 && !stats.has(part.id)) stats.set(part.id, { pop: part.pop, area: part.area });
         }
         if (kraje) capitals.clear();
         // Dnešní státy (Q z Zeměpisu): ostatní státy v datech míst a událostí jsou historické (Sovětský svaz, Anglické království)
@@ -1411,7 +1441,7 @@
         const compare = (more) => {
             // Jeden stát jasně nad cílem, tři jasně pod ním (nebo naopak); nízko velký rozdíl
             const gap = [2, 1.6, 1.35, 1.25][level];
-            const order = wrongTerritories(data, item, level, rng, true).filter(other => pools.stats.has(other.id) && !sameNamed(other, item));
+            const order = wrongTerritories(data, item, level, rng, true).filter(other => pools.stats.has(other.id) && !sameNamed(other, item) && !other.of);
             const valueOf = (other) => pools.stats.get(other.id)[spec.field];
             const right = order.find(other => (more ? valueOf(other) >= value * gap : valueOf(other) <= value / gap));
             const wrong = order.filter(other => (more ? valueOf(other) <= value / gap : valueOf(other) >= value * gap)).slice(0, 3);
@@ -1477,15 +1507,17 @@
         const index = indexMap(data);
         const near = index.neighbours.get(item.id);
         // Správně soused po souši; námořní spojení mapy (Saúdská Arábie – Írán) jen u ostrovů bez sousedů po souši
+        // Otázka je na státy: území, které státem není (Francouzská Guyana), správnou ani nesprávnou možností není, jde-li to jinak
         const named = [...near].filter(other => !sameNamed(index.byId.get(other), item));
-        const land = named.filter(other => !index.sea.has(item.id < other ? `${item.id}|${other}` : `${other}|${item.id}`));
-        const correct = shuffle(land.length ? land : named, rng)[0];
+        const states = named.filter(other => kraje || !index.byId.get(other).of);
+        const land = (states.length ? states : named).filter(other => !index.sea.has(item.id < other ? `${item.id}|${other}` : `${other}|${item.id}`));
+        const correct = shuffle(land.length ? land : states.length ? states : named, rng)[0];
         if (!correct) return null;
-        const far = nearbyTerritories(data, item.id).filter(other => !near.has(other.id) && !sameNamed(other, item));
+        const far = nearbyTerritories(data, item.id).filter(other => !near.has(other.id) && !sameNamed(other, item) && !other.of);
         // Nízko státy z dálky, výš nejbližší (nesousedí, ale leží hned vedle)
         const pool = level <= 0 && far.length >= 7 ? far.slice(4, 14) : far.slice(0, level <= 1 ? 9 : 5);
         const choices = options({ label: index.byId.get(correct).n }, shuffle(pool, rng).map(other => ({ label: other.n })), rng);
-        return choices && { kind: 'neighbour', prompt: kraje ? `Který z těchto krajů sousedí ${forms.with}?` : `Který z těchto států sousedí se státem ${item.n} (na této mapě)?`, choices };
+        return choices && { kind: 'neighbour', prompt: kraje ? `Který z těchto krajů sousedí ${forms.with}?` : `Který z těchto států sousedí ${forms.with} (na této mapě)?`, choices };
     };
     // Najdi na mapě: obrys území a čtyři body (A–D); správný je skutečná poloha města, ostatní jiná místa v území
     const mapQuestion = ({ data, item, level, rng, pools, forms }) => {
@@ -3198,7 +3230,8 @@
     };
 
     // Obrazovka hry: lišta (zpět, kartuše s mapou a časem, tahy, kronika), mapa (výška podle tvaru mapy, nastaví conquest-ui.js), pod ní
-    // hráči a poslední události; spodní list (území, otázka, výsledek) přes spodek obrazovky
+    // hráči a poslední události; spodní list (území, otázka, výsledek) přes spodek obrazovky. Pořadí je vidět celé: panel pod mapou
+    // je aspoň tak vysoký jako ono (--cq-rank-h nastaví conquest-ui.js fitRanking), vysoká mapa (Amerika) se kvůli němu zmenší
     const gameScreenHtml = (view, { now = Date.now(), dev = false } = {}) => {
         const game = view.state;
         const budget = view.budget;
@@ -3208,9 +3241,10 @@
             <div class="flex shrink-0 items-center gap-1.5">
                 <button type="button" data-cq="hub" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl btn-3d-light bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-200" aria-label="Moje hry"><i data-lucide="chevron-left" class="h-5 w-5"></i></button>
                 <div class="flex min-w-0 flex-1 justify-center">
-                    <div class="${ART.cartouche ? 'cq-cartouche-art aspect-[29/10] h-[4rem] max-w-full px-[15%] pt-px' : 'cq-cartouche h-10 w-full rounded-xl px-2'} flex min-w-0 flex-col items-center justify-center text-center">
+                    <div class="${ART.cartouche ? `cq-cartouche-art aspect-[29/10] h-[4rem] max-w-full px-[15%] ${roundsInfo(game) ? 'cq-cartouche-rounds' : 'pt-px'}` : 'cq-cartouche min-h-10 w-full rounded-xl px-2 py-0.5'} flex min-w-0 flex-col items-center justify-center text-center">
                         <span class="cq-cartouche-title max-w-full truncate">${esc(mapTitle(game.map))}</span>
                         <span class="max-w-full truncate text-[10.5px] font-bold leading-3 text-amber-900/80" data-cq-clock>${esc(status)}</span>
+                        ${roundsHtml(game)}
                     </div>
                 </div>
                 ${budget ? `<button type="button" data-cq="items" data-cq-budget class="relative flex h-10 shrink-0 items-center gap-1 rounded-xl bg-white px-2 text-[13px] font-black text-slate-800 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700" title="${esc(budgetTitle(budget))}">${budgetInnerHtml(budget)}</button>` : ''}
@@ -3225,13 +3259,18 @@
                 <div data-cq-chips class="pointer-events-none absolute bottom-1.5 left-1.5 right-1.5 flex flex-col items-start gap-1">${view.sieges.size ? siegeChipsHtml(view, { now }) : ''}</div>
             </div>
             <div data-cq-round class="pointer-events-none absolute inset-0 z-30 hidden"></div>
-            <div data-cq-panel class="flex min-h-[2.25rem] flex-1 flex-col gap-1.5 overflow-hidden short:min-h-[14rem] short:gap-1">
+            <div data-cq-panel class="flex min-h-[max(2.25rem,var(--cq-rank-h,0px))] flex-1 flex-col gap-1.5 overflow-hidden short:min-h-[max(14rem,var(--cq-rank-h,0px))] short:gap-1">
                 <section data-cq-players class="cq-ledger shrink-0 rounded-2xl px-2 pb-1.5 pt-1 short:pb-1" aria-label="Pořadí">${playersStripHtml(view, { now })}</section>
                 <button type="button" data-cq="feed" data-cq-recent class="cq-ledger flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl px-2 pb-1 pt-1 text-left">${recentHtml(view, { now })}</button>
                 ${dev && !view.finished ? devBarHtml({ kind: 'game' }) : ''}
             </div>
             <div data-cq-sheet class="absolute inset-x-0 bottom-0 z-20"></div>
         </div>`;
+    };
+    // Kolo pod časem v kartuši (v posledním kole zvýrazněné); conquest-ui.js updateClock ho obnovuje
+    const roundsHtml = (state) => {
+        const info = roundsInfo(state);
+        return `<span data-cq-rounds class="cq-rounds${info && info.last ? ' cq-rounds-last' : ''}${info ? '' : ' hidden'} max-w-full truncate">${esc(roundsText(state))}</span>`;
     };
     // Počítadlo tahů v liště hry (3/5); po ztrátě domovského hradu (server: budget.penalty) navíc červené „−1“ s hradem
     // Klepnutí na počítadlo otevře okno Pomůcky; s použitým Tahem navíc (budget.extra, blok 30) zlaté „+1“ v rohu
@@ -3257,6 +3296,19 @@
         const at = served !== null ? served : start + (state.budget.period + 1) * (PERIOD_MINUTES[state.period] || 1440) * 60e3;
         return end !== null && at >= end ? null : at;
     };
+    // Kolo hry v kartuši: „kolo 3 z 8“, v posledním „poslední kolo“. Kolo může začít dřív (Chci další kolo), další kola pak jdou po
+    // délce kola od jeho konce až do konce hry (poslední může být kratší): celkem = toto kolo + kolik se jich vejde do konce hry
+    const roundsInfo = (state) => {
+        if (!state || state.status !== 'running' || !state.budget) return null;
+        const end = parseTime(state.ends_at);
+        const length = (PERIOD_MINUTES[state.period] || 1440) * 60e3;
+        if (end === null || parseTime(state.started_at) === null) return null;
+        const current = state.budget.period + 1;
+        const next = nextPeriodAt(state);
+        const left = next === null || (state.round && state.round.last) ? 0 : Math.max(1, Math.ceil((end - next) / length - 1e-6));
+        return { current, total: current + left, left, last: left === 0 };
+    };
+    const roundsText = (state) => { const info = roundsInfo(state); return !info ? '' : info.last ? 'poslední kolo' : `kolo ${info.current} z ${info.total}`; };
     const fastPeriod = (period) => period === 'min5' || period === 'min10';
     // Jak dávno se událost stala (kronika)
     const agoLabel = (at, now) => {
@@ -3271,9 +3323,11 @@
     const periodLine = (view, now) => {
         if (view.finished) return 'Konečné pořadí';
         const next = view.running ? nextPeriodAt(view.state) : null;
+        // Poslední kolo (roundsInfo jako kartuše; blok 42): hra skončí, jakmile ho všichni dohrají, nejpozději po čase
+        const info = view.running ? roundsInfo(view.state) : null;
+        if (view.running && (!next || (info && info.last))) return `${fastPeriod(view.state.period) ? 'Poslední kolo' : 'Poslední období'} · konec po dohrání`;
         if (next && fastPeriod(view.state.period)) return `Další kolo za ${clockText(next - now)}`;
-        // Poslední kolo (blok 42): hra skončí, jakmile ho všichni dohrají, nejpozději po čase
-        return next ? `Nové tahy za ${timeLeft(next - now)}` : view.running ? `${fastPeriod(view.state.period) ? 'Poslední kolo' : 'Poslední období'} · konec po dohrání` : '';
+        return next ? `Nové tahy za ${timeLeft(next - now)}` : '';
     };
     // Pořadí pod mapou: místo (medaile pro první tři), praporec, jméno, kolik území a regionů drží, podíl na mapě v barvě hráče a body.
     // Do tří hráčů po řádcích, víc hráčů ve dvou sloupcích (vejde se i osm na nejmenší displej)
@@ -3761,7 +3815,7 @@
         // Stavby a ozdoby (blok 41)
         BUILD_OPTIONS, BUILDING_KINDS, BUILDING_NAMES, MINE_POINTS, DEFEND_TEXT, setIcon, territoryIcon, ruinsOf, monumentOf, buildHtml,
         lookItem, lookOwned, emblemAllowed, patternAllowed, lookProgress, lookHowText, lookNews, lookNewsArt, fillSwatchSvg, patternTintRows, tileKey, COLORED_PATTERNS, inkOf, isLight, emblemInk, luminance, maxLevel, rewardFor,
-        durationLabel, periodLabel, actionsLabel, timeLeft, movesWord, pointsWord, playersWord, territoriesWord, regionsWord, nextPeriodAt, agoLabel, periodLine,
+        durationLabel, periodLabel, actionsLabel, timeLeft, movesWord, pointsWord, playersWord, territoriesWord, regionsWord, nextPeriodAt, agoLabel, periodLine, roundsInfo, roundsText, roundsHtml,
         budgetTitle, budgetInnerHtml, periodStartText, PENALTY_TEXT,
         indexMap, parseRings, pointInRings, spansAt, labelSpot, labelMax, labelAt, labelFit, project, territoryAt, isAdjacent, viewOf, rank, sourcesFor, actionsFor,
         // Pomůcky (blok 30)

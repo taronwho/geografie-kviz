@@ -133,14 +133,16 @@ const MAPS = [
         id: 'amerika', title: 'Amerika', center: [12, -82],
         frame: [[71.5, -156.0], [60.0, -166.0], [72.0, -95.0], [62.0, -64.0], [47.5, -52.5], [-7.5, -34.8], [-55.8, -67.5], [-53.0, -75.0], [32.0, -118.0]],
         regions: {
-            'severni-amerika': ['Severní Amerika', ['Q16', 'Q30', 'Q96']],
+            'severni-amerika': ['Severní Amerika', ['Q16', 'Q30', 'Q96', 'Q223']],
             'stredni-amerika': ['Střední Amerika', ['Q774', 'Q242', 'Q783', 'Q792', 'Q811', 'Q800', 'Q804']],
             karibik: ['Karibik', ['Q241', 'Q778', 'Q766', 'Q790', 'Q786', 'Q754']],
-            'sever-jizni-ameriky': ['Sever Jižní Ameriky', ['Q739', 'Q717', 'Q734', 'Q730']],
+            'sever-jizni-ameriky': ['Sever Jižní Ameriky', ['Q739', 'Q717', 'Q734', 'Q730', 'Q3769']],
             andy: ['Andy', ['Q736', 'Q419', 'Q750', 'Q298']],
             'brazilie-jih': ['Brazílie a jih', ['Q155', 'Q414', 'Q77', 'Q733']]
         },
-        sea: [], seaKm: 230, maxPlayers: 8
+        // Karibik i z jihu a ze Střední Ameriky: Kolumbie–Jamajka, Venezuela–Dominikánská republika, Nikaragua–Jamajka, Bahamy–Haiti
+        // (Velký Inagua), Dominikánská republika–Trinidad a Tobago (oblouk Malých Antil), Grónsko–Kanada (Naresův průliv)
+        sea: [['Q739', 'Q766'], ['Q717', 'Q786'], ['Q811', 'Q766'], ['Q778', 'Q790'], ['Q786', 'Q754'], ['Q223', 'Q16']], seaKm: 230, maxPlayers: 8
     },
     {
         id: 'cesko', title: 'Česko', center: [49.8, 15.5], kraje: true,
@@ -229,6 +231,14 @@ const poleOf = (rings) => {
 // Body world.json jsou v desetinách stupně [délka, šířka, …]; státy bez kódu podle polohy (Severní Kypr, Somaliland, Kosovo)
 const NO_ID = [{ qid: 'Q229', lat: 35.2, lon: 33.4 }, { qid: 'Q1045', lat: 10.4, lon: 46.1 }, { qid: 'Q1246', lat: 42.5, lon: 21.0 }];
 const byIso = new Map(Object.entries(countries).filter(([, c]) => c.iso).map(([qid, c]) => [c.iso, qid]));
+// Území, která nejsou samostatné státy: Grónsko má v datech vlastní kód, Francouzská Guyana je prstenec Francie (part = nejbližší
+// prstenec k bodu [délka, šířka]). of = stát, ke kterému území v datech témat patří (conquest.js: položky podle polohy), hlavní město,
+// obyvatelé a rozloha (km²) pro otázky, flag = položka Vlajek a znaků (kategorie území) s vlajkou
+const EXTRA = {
+    Q223: { name: 'Grónsko', iso: '304', of: 'Q35', cap: 'Nuuk', pop: 56000, area: 2166086, flag: 'Grónsko' },
+    Q3769: { name: 'Francouzská Guyana', part: { iso: '250', at: [-53, 4] }, of: 'Q142', cap: 'Cayenne', pop: 295000, area: 83534 }
+};
+Object.entries(EXTRA).forEach(([qid, extra]) => { if (extra.iso) byIso.set(extra.iso, qid); });
 const worldShapes = new Map(); // QID → [prstence [[lon, lat]]]
 const background = []; // prstence pevniny, která nepatří žádnému státu ve hře (Grónsko, Západní Sahara…)
 for (const country of world.countries) {
@@ -241,6 +251,18 @@ for (const country of world.countries) {
         qid = known ? known.qid : null;
     }
     if (!qid) { background.push(...rings); continue; }
+    // Území bez státu (Grónsko) zůstane i v pozadí ostatních map (na svém místě v pořadí), na své mapě ho pozadí vynechá
+    if (EXTRA[qid] && EXTRA[qid].iso) background.push(...rings);
+    // Části státu, které jsou samostatným územím mapy (Francouzská Guyana z Francie)
+    for (const [part, extra] of Object.entries(EXTRA)) {
+        if (!extra.part || extra.part.iso !== country.id) continue;
+        const centre = (ring) => [ring.reduce((sum, p) => sum + p[0], 0) / ring.length, ring.reduce((sum, p) => sum + p[1], 0) / ring.length];
+        const gap = (ring) => { const [lon, lat] = centre(ring); return Math.hypot(lon - extra.part.at[0], lat - extra.part.at[1]); };
+        const ring = rings.reduce((best, other) => (gap(other) < gap(best) ? other : best));
+        if (gap(ring) > 3) throw new Error(`${part}: prstenec u ${extra.part.at} nenalezen`);
+        worldShapes.set(part, [ring]);
+        rings.splice(rings.indexOf(ring), 1);
+    }
     worldShapes.set(qid, [...(worldShapes.get(qid) || []), ...rings]);
 }
 // Kraje: Mercator ve stupních po q (regiony.json), Praha = díra ve Středočeském kraji
@@ -302,7 +324,8 @@ const buildMap = (config) => {
         const all = polygons.flatMap(p => p.rings[0]);
         const bx = all.map(p => p[0]), by = all.map(p => p[1]);
         const kraj = KRAJE[qid];
-        const name = kraj ? kraj[0] : countries[qid].name;
+        const extra = EXTRA[qid];
+        const name = kraj ? kraj[0] : extra ? extra.name : countries[qid].name;
         const entry = {
             id: qid, n: name, g: genderOf(qid, name), reg: regionOf.get(qid),
             d: ringsPath(polygons.flatMap(p => p.rings)),
@@ -311,8 +334,10 @@ const buildMap = (config) => {
             nb: []
         };
         if (kraj) Object.assign(entry, { loc: kraj[1], gen: kraj[2], ...(kraj[3] ? { seat: kraj[3] } : {}) });
+        if (extra) Object.assign(entry, { of: extra.of, cap: extra.cap, pop: extra.pop, area: extra.area });
         // Vlajka státu (u krajů znak) z tématu Vlajky a znaky; chybí-li tam, z vlaječek sovy (look-flags.js, Švýcarsko)
-        const flag = vlajky.find(item => (kraj ? item.q === qid && item.c === 'cesko' : item.c === 'vlajka' && (item.co || []).length === 1 && item.co[0] === qid));
+        const flag = vlajky.find(item => (kraj ? item.q === qid && item.c === 'cesko' : extra ? item.c === 'uzemi' && item.n === extra.flag
+            : item.c === 'vlajka' && (item.co || []).length === 1 && item.co[0] === qid));
         const owlFlag = kraj ? null : ownFlags.find(item => item.name === name);
         if (flag && flag.im && flag.ih) entry.fl = [flag.im, flag.ih];
         else if (owlFlag) entry.fl = [owlFlag.file, owlFlag.hash];
@@ -365,7 +390,7 @@ const buildMap = (config) => {
     for (const [a, others] of links) for (const [b, isSea] of others) if (isSea && a < b) sea.push([a, b]);
     // Pozadí: ostatní pevnina ve výřezu (u Česka okolní státy z world.json)
     const bgRings = (config.kraje ? [...worldShapes.entries()].filter(([qid]) => qid !== 'Q213').flatMap(([, rings]) => rings)
-        : [...background, ...[...worldShapes.entries()].filter(([qid]) => !regionOf.has(qid)).flatMap(([, rings]) => rings)]);
+        : [...background.filter(ring => !ids.some(qid => EXTRA[qid] && worldShapes.get(qid).includes(ring))), ...[...worldShapes.entries()].filter(([qid]) => !regionOf.has(qid) && !(EXTRA[qid] && EXTRA[qid].iso)).flatMap(([, rings]) => rings)]);
     // U krajů je kolem celá pevnina (sousední státy 1:110m by k hranici krajů 1:10m nepasovaly): pozadí je celý výřez bez moře
     const land = config.kraje ? [[[box.x0, box.y0], [box.x1, box.y0], [box.x1, box.y1], [box.x0, box.y1]]]
         : bgRings.map(ring => clipRing(ring.map(([lon, lat]) => toMap(lon, lat)), box)).filter(ring => ring.length >= 3 && Math.abs(ringArea(ring)) > 0.5);
