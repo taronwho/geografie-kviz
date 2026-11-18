@@ -4118,6 +4118,90 @@ Kam: zřícenina na mapě u hráče se sadou Ledový palác. Přiložit: `brandi
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 32 px map icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. The second attached image is the same building in the basic style of the game: match its three-quarter front view, base width (about 80 % of the image width), size and sticker style exactly, only change the architecture to the style described here. The third attached image is the home castle of this style: use the same materials, roof shapes and colors so that it clearly belongs to one set. The whole group stands on one flat ground line at the bottom (no grass, no ground patch). Subject: a low flat heap of rubble only, NOT a building: a wide loose pile of broken blocks and pieces in this style (translucent pale-blue ice blocks, icicles and snow) lying on the ground, at most knee-high, with just one tiny broken stump of wall sticking out of the pile (no taller than a quarter of the image), no towers, no roofs, no battlements, no gate, no doors or windows, nothing standing upright; a few small fragments scattered around the pile, a thin wisp of grey dust or smoke rising. The pile is wide and low, filling about 80 % of the image width but only the lower half of its height. Muted dusty colors so it clearly reads as destroyed, no flags. Colors: pale ice blue, white snow, silver. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
+## 37. Boti v Dobývání – robotí postavičky (č. 459–468)
+
+Obrázky botů v Dobývání (soupeři, které si hráč přidá do hry). Robosovy podle obtížnosti (Mudrlátko, Mudrlant, Super Mudrlant) a další robotí zvířata. Plátování těla je vždy jedna čistá vínová barva: aplikace z ní vyrobí barevné varianty (`scripts/avatar-icons.py`), každý bot ve hře tak může mít jinou barvu. Ostatní díly kovově šedé, zlaté a svítící tyrkysové.
+
+#### 459. `bot-sova-1.png` – Robosova Mudrlátko (lehká) – čeká na dodání
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon or robot character. The robot's main body plating must be one clean flat wine-red color (the app recolors this plating into other colors), all other parts in metal grey, gold and glowing cyan. Character: A small cute round robot owl made of riveted wine-red metal plates, big round glowing cyan lens eyes, a tiny antenna with a blinking bulb on its head instead of ear tufts, a little academic mortarboard cap made of metal, holding a tiny wrench, curious innocent expression. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 460. `bot-sova-2.png` – Robosova Mudrlant (střední) – čeká na dodání
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon or robot character. The robot's main body plating must be one clean flat wine-red color (the app recolors this plating into other colors), all other parts in metal grey, gold and glowing cyan. Character: A confident robot owl with sleek wine-red metal plating, glowing cyan visor eyes, two metal ear-tuft antennas, a small round monocle lens over one eye with a thin chain, a metal academic cap, a gentle confident smile and a small glowing book-shaped chip on its chest. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 461. `bot-sova-3.png` – Robosova Super Mudrlant (těžká) – čeká na dodání
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon or robot character. The robot's main body plating must be one clean flat wine-red color (the app recolors this plating into other colors), all other parts in metal grey, gold and glowing cyan. Character: A powerful battle-ready robot owl with heavy angular wine-red armor plates, fierce glowing cyan eyes with a targeting reticle, sharp metal ear tufts, a golden crown-like metal cap, small glowing circuit lines on its armor and a calm intimidating smirk. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 462. `bot-liska.png` – Robo-liška – čeká na dodání
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon or robot character. The robot's main body plating must be one clean flat wine-red color (the app recolors this plating into other colors), all other parts in metal grey, gold and glowing cyan. Character: A sly robot fox with pointed wine-red metal ears and snout plating, glowing cyan eyes narrowed in a cunning grin, a fluffy tail made of segmented metal plates curling up beside it, a tiny antenna on one ear. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 463. `bot-medved.png` – Robo-medvěd – čeká na dodání
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon or robot character. The robot's main body plating must be one clean flat wine-red color (the app recolors this plating into other colors), all other parts in metal grey, gold and glowing cyan. Character: A big friendly robot bear with round wine-red metal ears and chunky plated body, glowing cyan button eyes, a bolted metal muzzle with a happy grin, a small heart-shaped glowing core on its chest. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 464. `bot-kocka.png` – Robo-kočka – čeká na dodání
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon or robot character. The robot's main body plating must be one clean flat wine-red color (the app recolors this plating into other colors), all other parts in metal grey, gold and glowing cyan. Character: A smug robot cat with triangular wine-red metal ears, glowing cyan slit eyes, thin metal wire whiskers, a small bell on a collar, one paw raised with tiny claw blades, a mischievous grin. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 465. `bot-zelva.png` – Robo-želva – čeká na dodání
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon or robot character. The robot's main body plating must be one clean flat wine-red color (the app recolors this plating into other colors), all other parts in metal grey, gold and glowing cyan. Character: A slow but clever robot turtle with a domed wine-red metal shell with hexagon plates, a grey metal head with glowing cyan goggle eyes, a tiny satellite dish on top of the shell, a wise patient smile. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 466. `bot-tucnak.png` – Robo-tučňák – čeká na dodání
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon or robot character. The robot's main body plating must be one clean flat wine-red color (the app recolors this plating into other colors), all other parts in metal grey, gold and glowing cyan. Character: A cheerful robot penguin with a sleek wine-red metal back and wings, a white enamel belly plate, glowing cyan round eyes, an orange metal beak, a little bow-tie made of copper wire, waving one wing. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 467. `bot-chobotnice.png` – Robo-chobotnice – čeká na dodání
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon or robot character. The robot's main body plating must be one clean flat wine-red color (the app recolors this plating into other colors), all other parts in metal grey, gold and glowing cyan. Character: A clever robot octopus with a round wine-red metal head dome, glowing cyan eyes, several segmented metal tentacles each holding a different tiny tool (wrench, screwdriver, magnifying glass, quill), a happy busy expression. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 468. `bot-drak.png` – Robo-drak – čeká na dodání
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon or robot character. The robot's main body plating must be one clean flat wine-red color (the app recolors this plating into other colors), all other parts in metal grey, gold and glowing cyan. Character: A fierce little robot dragon with wine-red metal scales and spiky back plates, glowing cyan eyes, small metal bat-like wings, a puff of cyan pixel flames from its snout, a proud grin. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
 ## Co udělám po dodání
 
 1. Uložím soubory do `branding/ikony/`, vyříznu pozadí (`python3 scripts/topic-icons.py …`) a u sov vyrobím barvy obleku (`python3 scripts/owl-robes.py`).
