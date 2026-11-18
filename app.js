@@ -5398,7 +5398,7 @@
     };
     const openFreezeHelp = () => {
         if (!Rewards) return;
-        showDialog('Ochrana série', `${Rewards.freezeHelpHtml(loadRewards().freezes)}${streakRewardLine(longestStreak(), 'mt-2.5 rounded-xl bg-white px-2.5 py-2 shadow-sm dark:bg-slate-800')}${dialogBackButton('mt-3')}`);
+        showDialog('Série a ochrana série', `${Rewards.freezeHelpHtml(loadRewards().freezes, dayStreakNow())}${streakRewardLine(longestStreak(), 'mt-2.5 rounded-xl bg-white px-2.5 py-2 shadow-sm dark:bg-slate-800')}${dialogBackButton('mt-3')}`);
     };
     const lastChestText = (state) => {
         const week = Object.keys(state.chests).sort().pop();
