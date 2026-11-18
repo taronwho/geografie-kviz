@@ -1237,7 +1237,7 @@ test('jednotný vzhled: tlačítka akcí v řádcích a čip série v hlavičce'
             assert.deepEqual(same[0], same[1], 'čip série vypadá stejně jako čip aktivních přátel');
             // Klepnutí má stejnou funkci jako dřív: vysvětlení ochrany série
             await tab.click('#streak-chip');
-            await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Ochrana série');
+            await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Série a ochrana série');
             assert.deepEqual(log.errors, []);
             assert.deepEqual(log.csp, []);
             await context.close();

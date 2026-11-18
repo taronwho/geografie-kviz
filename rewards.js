@@ -423,12 +423,26 @@
             </div>
         </div>`;
     };
-    // Vysvětlení ochrany série a truhly (okno z Mého postupu a štítu u série)
-    const freezeHelpHtml = (freezes) => `
+    // Vysvětlení série a ochrany série (okno z plamene a štítu v hlavičce, z Mého postupu a z Dnešních otázek): co je série, co dává, ochrana.
+    // streak = nejdelší běžící série dní (null = neukazovat). XP za sérii: quiz-core.js streakXp a daily-quiz.js (2 XP za den, strop 10 dní);
+    // rámečky za sérii: look.js (Jiskra, Plamenný, Stovka, Věčný oheň); Ankh vzkříšení za sérii Kvízu dne: blok 39 ve schema.sql
+    const daysWordOf = (count) => `${count} ${count === 1 ? 'den' : count >= 2 && count <= 4 ? 'dny' : 'dní'}`;
+    const freezeHelpHtml = (freezes, streak = null) => `
         <div class="flex flex-col gap-2 text-[13px] leading-snug text-slate-700 dark:text-slate-200" data-freeze-help>
-            <p class="flex items-center gap-2 rounded-2xl bg-sky-50 p-2.5 font-bold text-sky-900 dark:bg-sky-900/30 dark:text-sky-100">${freezeArt('h-10 w-10 -my-1')} Máš ${freezes} ${freezeWord(freezes)} z ${MAX_FREEZES}.</p>
-            <p>Když jeden den vynecháš, ochrana se sama použije a série dnešních otázek i Kvízu dne ti zůstanou. Jedna ochrana zachrání jeden den pro všechny série, chrání se série od ${MIN_PROTECTED} dní. Dva vynechané dny v řadě nezachrání.</p>
-            <p><b>Jak ji získáš:</b> z Truhly Mudrlanta a za každých ${FREEZE_EVERY} dní v řadě dnešních otázek nebo Kvízu dne. Mít můžeš nejvýš ${MAX_FREEZES}.</p>
+            <div class="grid grid-cols-2 gap-1.5" data-streak-now>
+                ${streak === null ? '' : `<p class="flex items-center gap-1.5 rounded-2xl bg-amber-50 p-2 font-bold text-amber-900 dark:bg-amber-900/30 dark:text-amber-100"><img src="icons/topics/serie.webp" alt="" class="-my-1 h-8 w-8 shrink-0 object-contain drop-shadow-sm"><span class="min-w-0 leading-tight">Série<br><b class="text-[15px]">${streak ? daysWordOf(streak) : 'zatím žádná'}</b></span></p>`}
+                <p class="${streak === null ? 'col-span-2 ' : ''}flex items-center gap-1.5 rounded-2xl bg-sky-50 p-2 font-bold text-sky-900 dark:bg-sky-900/30 dark:text-sky-100">${freezeArt('h-8 w-8 -my-1')}<span class="min-w-0 leading-tight">Ochrana série<br><b class="text-[15px]">${freezes} z ${MAX_FREEZES}</b></span></p>
+            </div>
+            <p data-streak-what><b>Série</b> = kolik dní v řadě hraješ. Každé téma Dnešních otázek má svou sérii (stačí v něm každý den odpovědět na dnešní otázku), Kvíz dne má vlastní (stačí ho každý den dohrát). Plamen nahoře ukazuje tvou nejdelší. Když den vynecháš, série spadne na nulu.</p>
+            <div data-streak-gives><b>Co ti série dá:</b>
+                <ul class="mt-0.5 flex list-disc flex-col gap-0.5 pl-5 marker:text-amber-500">
+                    <li>Víc XP: +2 XP za každý den série ke každé dnešní otázce i ke Kvízu dne, nejvýš +20 XP.</li>
+                    <li>Rámečky za 7, 30, 100 a 365 dní v řadě.</li>
+                    <li>Za každých ${FREEZE_EVERY} dní v řadě ochranu série.</li>
+                    <li>Za 7, 30, 100 a 365 dní Kvízu dne Ankh vzkříšení do Dobývání.</li>
+                </ul>
+            </div>
+            <p><b>Ochrana série:</b> když jeden den vynecháš, sama se použije a všechny série ti zůstanou. Chrání série od ${MIN_PROTECTED} dní, dva vynechané dny v řadě nezachrání. Dostaneš ji za každých ${FREEZE_EVERY} dní v řadě a z Truhly Mudrlanta, mít můžeš nejvýš ${MAX_FREEZES}.</p>
         </div>`;
     const chestHelpHtml = (lastReward) => `
         <div class="flex flex-col gap-2 text-[13px] leading-snug text-slate-700 dark:text-slate-200" data-chest-help>
