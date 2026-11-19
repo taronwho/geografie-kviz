@@ -3791,7 +3791,7 @@
         utok: [
             'Zaútočit můžeš jen na území, které sousedí s některým tvým územím. Sousední jsou i území spojená tečkovanou cestou přes moře.',
             'Klepni na území a pak na „Zaútočit“. Dostaneš otázku, která se většinou týká právě toho území.',
-            'Do bitvy se může přidat každý, kdo s územím také sousedí. Všichni dostanou stejnou otázku a na odpověď mají 60 sekund.',
+            'Do bitvy se může prvních 10 sekund přidat každý, kdo s územím také sousedí. Všichni dostanou stejnou otázku a na odpověď mají 60 sekund.',
             'Území získá ten, kdo odpoví správně a nejrychleji. Kdo odpoví správně, ale pomaleji, nezíská nic a tah ztratí.',
             'Když má území opevnění, vyhraná bitva ho jen o jeden stupeň zbourá. Území dobudeš teprve tehdy, až opevnění zmizí úplně.'
         ],

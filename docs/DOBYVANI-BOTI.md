@@ -33,7 +33,7 @@ tahy si rozloží do kola, chvíli přemýšlí, zakládají bitvy a přidávaj�
 | Správná odpověď | 45–55 % | 65–75 % | 85–92 % |
 | Útok na opevněné | −8 bodů za úroveň | −8 bodů za úroveň | −5 bodů za úroveň |
 | Doba odpovědi v bitvě | 25–50 s | 12–35 s | 6–20 s |
-| Než si bitvy všimne | 15–45 s | 8–35 s | 4–20 s |
+| Než si bitvy všimne | 5–9 s | 3–8 s | 1–6 s |
 | Cíl útoku | skoro náhodně | poklad > volné > domov soupeře, opevnění odrazuje | dokončí region, rozbije soupeři celý region, poklady, volná a neopevněná území, domov bez opevnění, slabší soupeř |
 | Stavby | jen občas palisáda (8 %) | 20 %, občas věž nebo důl | domov až na Pevnost (+1 tah), věž na území s víc sousedy soupeřů, důl ve vnitrozemí |
 | Přidá se k bitvě souseda | 15 % | 30 % | 30 %, víc u regionu, pokladu, neopevněného |
