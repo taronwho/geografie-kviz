@@ -477,7 +477,7 @@ test('Řetězovka dne v prohlížeči', { skip: !chromium && 'Playwright není n
         await shot(tab, 'retezovka-vysledek-prihlaseny-360x640-light');
         await tab.click('[data-action="chain-ranking"]');
         await tab.waitForSelector('[data-chain-ranking]');
-        assert.match(await compact(tab, '[data-chain-ranking]'), /41 hráčů · celý řetěz 27 % · nejlepší 28 bodů 🏆 .*Petr Svoboda 28 bodů · 7\/7 2\. .*Jana Nováková \(ty\) 3 body · 2\/7/);
+        assert.match(await compact(tab, '[data-chain-ranking]'), /41 hráčů · celý řetěz 27 % · nejlepší 28 bodů 🏆 .*Petr Svoboda 7 článků z 7 28 bodů 2\. .*Jana Nováková \(ty\) 2 články z 7 3 body/);
         await fitsDialog(tab, 'okno pořadí');
         await audit(tab, 'okno pořadí');
         await shot(tab, 'retezovka-poradi-360x640-light');
@@ -670,8 +670,8 @@ test('Řetězovka dne v prohlížeči', { skip: !chromium && 'Playwright není n
         await nav.go(signed.tab, 'postup');
         await signed.tab.click('#tab-postup [data-open-badges]');
         await signed.tab.waitForSelector('[data-badge="retezovka-30"]');
-        assert.equal(await signed.tab.locator('[data-badge="retezovka-10"] img[data-badge-art][src="icons/topics/retezovka.webp"]:not(.grayscale)').count(), 1, 'získaný: barevný symbol');
-        assert.equal(await signed.tab.locator('[data-badge="retezovka-30"] img[data-badge-art][src="icons/topics/retezovka.webp"].grayscale').count(), 1, 'zamčený: zašedlý symbol');
+        assert.equal(await signed.tab.locator('[data-badge="retezovka-10"] img[data-badge-art][src="icons/topics/odznak-retezovka.webp"]:not(.grayscale)').count(), 1, 'získaný: barevný symbol');
+        assert.equal(await signed.tab.locator('[data-badge="retezovka-30"] img[data-badge-art][src="icons/topics/odznak-retezovka.webp"].grayscale').count(), 1, 'zamčený: zašedlý symbol');
         await signed.tab.click('[data-badge="retezovka-10"]');
         assert.match(await compact(signed.tab, '#dialog-overlay'), /Kovář řetězů Dohraj 10 Řetězovek dne\. Odměna: Pavouk pletař \(profilový obrázek\)/);
         await signed.tab.click('[data-badge="retezovka-30"]');
