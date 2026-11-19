@@ -861,7 +861,12 @@
         const repaintMap = () => {
             const holder = app.querySelector('[data-cq-map]');
             if (!holder || !game) { renderGame(); return; }
-            holder.innerHTML = C.mapSvg(game.data, game.view);
+            // Během gesta nebo plynulého přiblížení se mapa nepřekresluje (překreslení by gesto zastavilo a mapa by skočila); počká na konec
+            if (gesture || fitting) { pendingRepaint = true; return; }
+            pendingRepaint = false;
+            // Stejná mapa (třeba jen nové číslo v pořadí): SVG se nepřestaví – přestavba je drahá (maska, ořezy, vzory, obrázky staveb)
+            const markup = C.mapSvg(game.data, game.view);
+            if (holder.cqMarkup !== markup || !holder.firstElementChild) { holder.innerHTML = markup; holder.cqMarkup = markup; markNodes = null; }
             const players = app.querySelector('[data-cq-players]');
             if (players) { players.innerHTML = C.playersStripHtml(game.view, { now: Date.now() }); fitRanking(); }
             const recent = app.querySelector('[data-cq-recent]');
@@ -916,53 +921,51 @@
             const vb = game.vb;
             vb.w = Math.min(w, Math.max(w / MAX_ZOOM, vb.w));
             vb.h = vb.w * h / w;
-            vb.x = Math.min(w - vb.w * 0.5, Math.max(-vb.w * 0.5, vb.x));
-            vb.y = Math.min(h - vb.h * 0.5, Math.max(-vb.h * 0.5, vb.y));
+            // Výřez nikdy nepřesáhne okraj mapy (dřív šel posunout o půl výřezu ven a na displeji byl prázdný pergamen)
+            vb.x = Math.min(w - vb.w, Math.max(0, vb.x));
+            vb.y = Math.min(h - vb.h, Math.max(0, vb.y));
             if (vb.w >= w - 0.5) { vb.x = 0; vb.y = 0; }
         };
-        // Přiblížení a posun během gesta (prsty, kolečko, plynulé přiblížení k území) nemění viewBox: každá jeho změna by překreslila
-        // celou mapu (maska akvarelu, ořezy pobřeží a lemů, vzory). Výřez se jen spočítá (game.vb) a SVG se posune a zvětší transformací
-        // (previewView, nejvýš jednou za snímek, vrstvu jen skládá kompozitor: will-change ve třídě cq-moving; mapa za okrajem výřezu
-        // je vidět díky overflow: visible, takže při posunu nevzniká prázdný okraj). Po gestu se výřez zapíše do viewBox jednou
-        // (applyView) a značky a popisky dostanou své měřítko. Body na displeji se přepočítávají z výřezu a rámečku mapy, ne z CTM.
-        let shown = null;
+        // Přiblížení a posun během gesta (prsty, kolečko, plynulé přiblížení k území): výřez se zapisuje do viewBox nejvýš jednou za snímek
+        // (previewView). Dřív se SVG během gesta zvětšovalo transformací jako jedna vrstva s mapou i mimo výřez – na telefonu to přeteklo
+        // paměť grafiky (barevné čtverečky, černá obrazovka). Během gesta má mapa třídu cq-gesture, která vypne drahé efekty (maska
+        // akvarelu, násobení barev, šrafy), takže překreslení výřezu je levné; po gestu (applyView) se efekty vrátí a značky a popisky
+        // dostanou své měřítko. Překreslení mapy po změně stavu (tahy ostatních a botů) počká na konec gesta (repaintMap, pendingRepaint).
         let previewFrame = 0;
         let wheelTimer = null;
+        let pendingRepaint = false;
         const mapRect = () => (svg.parentElement || svg).getBoundingClientRect();
         // Měřítko a odsazení výřezu v rámečku (preserveAspectRatio meet)
         const fitOf = (vb, rect) => { const k = Math.min(rect.width / vb.w, rect.height / vb.h) || 1; return { k, ox: (rect.width - vb.w * k) / 2, oy: (rect.height - vb.h * k) / 2 }; };
         const cancelPreview = () => { if (previewFrame) { root.cancelAnimationFrame(previewFrame); previewFrame = 0; } clearTimeout(wheelTimer); wheelTimer = null; };
-        const applyView = () => {
-            if (!svg || !game) return;
-            cancelPreview();
+        const writeViewBox = () => {
             clampView();
             const vb = game.vb;
             svg.setAttribute('viewBox', `${vb.x.toFixed(2)} ${vb.y.toFixed(2)} ${vb.w.toFixed(2)} ${vb.h.toFixed(2)}`);
-            svg.style.transform = '';
-            svg.classList.remove('cq-moving');
-            shown = { ...vb };
+        };
+        const applyView = () => {
+            if (!svg || !game) return;
+            cancelPreview();
+            writeViewBox();
+            svg.classList.remove('cq-gesture');
             const reset = app.querySelector('[data-cq="zoom-reset"]');
             if (reset) { reset.classList.toggle('hidden', zoomOf() < 1.05); reset.classList.toggle('flex', zoomOf() >= 1.05); }
             updateDetail();
+            // Stav hry se mezitím změnil: mapa se překreslí až teď (ne uprostřed gesta)
+            if (pendingRepaint && !gesture && !fitting) { pendingRepaint = false; root.setTimeout(() => { if (!gesture && !fitting) repaintMap(); else pendingRepaint = true; }, 0); }
         };
         const paintPreview = () => {
             previewFrame = 0;
-            if (!svg || !game || !shown) return;
-            const vb = game.vb;
-            const { k, ox, oy } = fitOf(shown, mapRect());
-            const scale = shown.w / vb.w;
-            const tx = ox * (1 - scale) + scale * k * (shown.x - vb.x), ty = oy * (1 - scale) + scale * k * (shown.y - vb.y);
-            svg.classList.add('cq-moving');
-            svg.style.transform = `translate3d(${tx.toFixed(2)}px, ${ty.toFixed(2)}px, 0) scale(${scale.toFixed(5)})`;
+            if (!svg || !game) return;
+            svg.classList.add('cq-gesture');
+            writeViewBox();
+            // Vlaječky a ikony drží na displeji stálou velikost i během gesta (jen měřítko skupin, popisky počkají na konec)
+            updateMarks();
         };
         const previewView = () => {
             if (!svg || !game) return;
             clampView();
-            // Při oddalování by vrstva ukazovala čím dál víc mapy, kterou prohlížeč musí po kouscích dokreslovat: po 0,6× se výřez zapíše.
-            // Při přibližování z celé mapy by se vrstva zvětšila až 20× (obří plocha, kterou telefon nestíhá vykreslit: mapa zamrzne
-            // a pak skočí): po 2× se výřez zapíše a další přiblížení pokračuje z nové vrstvy, takže vrstva nikdy nepřeroste 2× výřez
-            const ratio = shown ? shown.w / game.vb.w : 1;
-            if (!shown || !root.requestAnimationFrame || ratio < 0.6 || ratio > 2) { applyView(); return; }
+            if (!root.requestAnimationFrame) { applyView(); return; }
             if (!previewFrame) previewFrame = root.requestAnimationFrame(paintPreview);
         };
         const unitsPerPixel = () => (svg && game ? 1 / fitOf(game.vb, mapRect()).k : 1);
@@ -973,12 +976,18 @@
             return { x: vb.x + (clientX - rect.left - ox) / k, y: vb.y + (clientY - rect.top - oy) / k };
         };
         // Vlaječky a ikony mají na displeji skoro stálou velikost, popisky se ukážou, až se vejdou
+        let markNodes = null;
+        const updateMarks = () => {
+            const upp = unitsPerPixel();
+            const markScale = (13 * Math.pow(zoomOf(), 0.35) * upp) / 16.5;
+            if (!markNodes || !markNodes.length || !markNodes[0].isConnected) markNodes = [...svg.querySelectorAll('.cq-mark-scale')];
+            const value = `scale(${markScale.toFixed(3)})`;
+            markNodes.forEach(element => element.setAttribute('transform', value));
+            return upp;
+        };
         const updateDetail = () => {
             if (!svg || !game) return;
-            const upp = unitsPerPixel();
-            const zoom = zoomOf();
-            const markScale = (13 * Math.pow(zoom, 0.35) * upp) / 16.5;
-            svg.querySelectorAll('.cq-mark-scale').forEach(element => element.setAttribute('transform', `scale(${markScale.toFixed(3)})`));
+            const upp = updateMarks();
             // Název jen u vybraného území (ostatní názvy by napovídaly)
             svg.querySelectorAll('.cq-label').forEach(element => {
                 const hide = element.dataset.label !== game.selected;
@@ -1022,7 +1031,7 @@
         // tlačítko Celá mapa). Při omezeném pohybu bez animace.
         const FIT_MS = 420;
         let fitting = null;
-        const stopFit = () => { if (fitting) { root.cancelAnimationFrame(fitting.frame); fitting = null; if (svg && game && svg.classList.contains('cq-moving')) applyView(); } };
+        const stopFit = () => { if (fitting) { root.cancelAnimationFrame(fitting.frame); fitting = null; if (svg && game && svg.classList.contains('cq-gesture')) applyView(); } };
         // Výřez mapy (w = šířka v jednotkách mapy), ve kterém je bod mapy point na displeji v bodě screen (preserveAspectRatio meet)
         const viewWith = (point, screen, w) => {
             const rect = mapRect();
@@ -1131,7 +1140,7 @@
             if (gesture.pointers.size) { gesture.vb0 = { ...game.vb }; const rest = [...gesture.pointers.values()][0]; gesture.origin = { x: rest.x, y: rest.y }; rest.x0 = rest.x; rest.y0 = rest.y; return; }
             const tap = !gesture.multi && gesture.moved < 8 && event.timeStamp - gesture.start < 600 && event.type === 'pointerup';
             gesture = null;
-            if (svg && (previewFrame || svg.classList.contains('cq-moving'))) applyView();
+            if (svg && (previewFrame || svg.classList.contains('cq-gesture') || pendingRepaint)) applyView();
             if (!tap || !pointer) return;
             const now = event.timeStamp;
             if (lastTap && now - lastTap.at < 330 && Math.hypot(lastTap.x - pointer.x, lastTap.y - pointer.y) < 30) {
