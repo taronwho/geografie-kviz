@@ -496,9 +496,9 @@ const viewWidth = (tab) => tab.evaluate(() => document.querySelector('[data-cq-m
 const settledWidth = async (tab) => {
     for (let i = 0; i < 100; i += 1) {
         const steady = await tab.evaluate(() => new Promise(resolve => {
-            // Během přiblížení se mapa jen transformuje (třída cq-moving), viewBox se zapíše až na konci
+            // Během přiblížení má mapa třídu cq-gesture (bez drahých efektů); hotové přiblížení ji už nemá
             const svg = () => document.querySelector('[data-cq-map] svg');
-            const width = () => (svg().classList.contains('cq-moving') ? -1 : svg().viewBox.baseVal.width);
+            const width = () => (svg().classList.contains('cq-gesture') ? -1 : svg().viewBox.baseVal.width);
             const first = width();
             requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(() => resolve(first > 0 && width() === first ? first : null))));
         }));
@@ -2419,9 +2419,8 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             let i = 0;
             const tick = (now) => {
                 times.push(now);
-                // Největší dočasné zvětšení vrstvy (přes 2× by se na telefonu vykreslovala obří plocha a mapa by zamrzla)
-                const scale = /scale\(([\d.]+)\)/.exec(document.querySelector('[data-cq-map] svg').style.transform || '');
-                window.cqMaxScale = Math.max(window.cqMaxScale || 1, scale ? Number(scale[1]) : 1);
+                // Mapa se během gesta nikdy netransformuje jako vrstva (obří plocha by přetekla paměť grafiky telefonu: čtverečky, černá obrazovka)
+                if (document.querySelector('[data-cq-map] svg').style.transform) window.cqTransformed = true;
                 const at = (dx, dy) => ({ pointerId: 7, clientX: cx + dx, clientY: cy + dy, bubbles: true, isPrimary: true });
                 if (i < 50) holder.dispatchEvent(new WheelEvent('wheel', { deltaY: -40, clientX: cx, clientY: cy, bubbles: true, cancelable: true }));
                 else if (i === 50) holder.dispatchEvent(new PointerEvent('pointerdown', at(0, 0)));
@@ -2438,7 +2437,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         const stats = { frames: frames.length, mean: Number((frames.reduce((sum, f) => sum + f, 0) / frames.length).toFixed(1)), p95: Number(sorted[Math.floor(frames.length * 0.95)].toFixed(1)), max: Number(sorted[frames.length - 1].toFixed(1)), over50: frames.filter(f => f > 50).length };
         if (process.env.PERF) console.log(`Snímky přiblížení a posunu: ${JSON.stringify(stats)}${process.env.PERF === "2" ? ` ${frames.map(f => Math.round(f)).join(" ")}` : ""}`);
         assert.ok(stats.mean < 40, `průměrný snímek ${JSON.stringify(stats)}`);
-        assert.ok(await tab.evaluate(() => window.cqMaxScale) <= 2.05, 'vrstva mapy se během gesta nezvětší víc než 2×');
+        assert.ok(!(await tab.evaluate(() => window.cqTransformed)), 'mapa se během gesta netransformuje, mění se jen viewBox');
         // Po gestu: výřez mapy ve viewBox, bez dočasné transformace
         await tab.waitForTimeout(400);
         assert.equal(await tab.evaluate(() => document.querySelector('[data-cq-map] svg').style.transform || ''), '');
