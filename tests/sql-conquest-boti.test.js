@@ -73,7 +73,7 @@ test('SQL: boti v Dobývání (blok 42)', { skip: !available && 'PostgreSQL nen�
     q([[A, 'Alfa'], [B, 'Beta'], [C, 'Gama'], [D, 'Delta']].map(([uid, name], i) => `insert into auth.users (id, email, raw_user_meta_data) values ('${uid}', 'u${i + 1}@example.com', '{"full_name": "${name}"}');`).join('\n'));
 
     await t.test('verze 43; přidat a odebrat boty smí jen přihlášený, pomocné funkce nikdo; jména botů', () => {
-        assert.equal(last(ok(as(A, 'select schema_version();'))), '43');
+        assert.equal(last(ok(as(A, 'select schema_version();'))), '44');
         const can = (role, fn) => q(`select has_function_privilege('${role}', 'public.${fn}', 'execute')`);
         for (const fn of ['conquest_add_bots(uuid, integer, text)', 'conquest_remove_bot(uuid, uuid)']) {
             assert.deepEqual([can('authenticated', fn), can('anon', fn), can('public', fn)], ['t', 'f', 'f'], fn);
@@ -257,7 +257,7 @@ test('SQL: boti v Dobývání (blok 42)', { skip: !available && 'PostgreSQL nen�
         const plan = q(`select user_id || ' ' || (extract(epoch from join_at) * 1000)::bigint || ' ' || defender from conquest_bot_plans where siege_id = '${s.id}'`).split(' ');
         assert.equal(plan[0], hard, 'Super Mudrlant, kterému by Litva dokončila region, se přidá');
         const joinAt = Number(plan[1]);
-        assert.ok(joinAt >= t0 + 4000 && joinAt <= t0 + 20000, 'přidá se za 4–20 s');
+        assert.ok(joinAt >= t0 + 1000 && joinAt <= t0 + 6000, 'přidá se za 1–6 s (v 10 s okně pro sousedy)');
         clock = new Date(joinAt - 500).toISOString();
         assert.equal(pulse(B, war.id).sieges[0].participants.length, 1, 'ještě ne');
         clock = new Date(joinAt + 500).toISOString();
