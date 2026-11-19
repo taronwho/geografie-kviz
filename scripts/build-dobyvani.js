@@ -135,14 +135,14 @@ const MAPS = [
         regions: {
             'severni-amerika': ['Severní Amerika', ['Q16', 'Q30', 'Q96', 'Q223']],
             'stredni-amerika': ['Střední Amerika', ['Q774', 'Q242', 'Q783', 'Q792', 'Q811', 'Q800', 'Q804']],
-            karibik: ['Karibik', ['Q241', 'Q778', 'Q766', 'Q790', 'Q786', 'Q754']],
+            karibik: ['Karibik', ['Q241', 'Q778', 'Q766', 'Q790', 'Q786', 'Q754', 'Q1183']],
             'sever-jizni-ameriky': ['Sever Jižní Ameriky', ['Q739', 'Q717', 'Q734', 'Q730', 'Q3769']],
             andy: ['Andy', ['Q736', 'Q419', 'Q750', 'Q298']],
             'brazilie-jih': ['Brazílie a jih', ['Q155', 'Q414', 'Q77', 'Q733']]
         },
         // Karibik i z jihu a ze Střední Ameriky: Kolumbie–Jamajka, Venezuela–Dominikánská republika, Nikaragua–Jamajka, Bahamy–Haiti
-        // (Velký Inagua), Dominikánská republika–Trinidad a Tobago (oblouk Malých Antil), Grónsko–Kanada (Naresův průliv)
-        sea: [['Q739', 'Q766'], ['Q717', 'Q786'], ['Q811', 'Q766'], ['Q778', 'Q790'], ['Q786', 'Q754'], ['Q223', 'Q16']], seaKm: 230, maxPlayers: 8
+        // (Velký Inagua), Dominikánská republika–Trinidad a Tobago (oblouk Malých Antil), Grónsko–Kanada (Naresův průliv), Portoriko–Dominikánská republika a Trinidad a Tobago
+        sea: [['Q739', 'Q766'], ['Q717', 'Q786'], ['Q811', 'Q766'], ['Q778', 'Q790'], ['Q786', 'Q754'], ['Q223', 'Q16'], ['Q1183', 'Q786'], ['Q1183', 'Q754']], seaKm: 230, maxPlayers: 8
     },
     {
         id: 'cesko', title: 'Česko', center: [49.8, 15.5], kraje: true,
@@ -236,6 +236,7 @@ const byIso = new Map(Object.entries(countries).filter(([, c]) => c.iso).map(([q
 // obyvatelé a rozloha (km²) pro otázky, flag = položka Vlajek a znaků (kategorie území) s vlajkou
 const EXTRA = {
     Q223: { name: 'Grónsko', iso: '304', of: 'Q35', cap: 'Nuuk', pop: 56000, area: 2166086, flag: 'Grónsko' },
+    Q1183: { name: 'Portoriko', iso: '630', of: 'Q30', cap: 'San Juan', pop: 3200000, area: 9104, flag: 'Portoriko' },
     Q3769: { name: 'Francouzská Guyana', part: { iso: '250', at: [-53, 4] }, of: 'Q142', cap: 'Cayenne', pop: 295000, area: 83534 }
 };
 Object.entries(EXTRA).forEach(([qid, extra]) => { if (extra.iso) byIso.set(extra.iso, qid); });

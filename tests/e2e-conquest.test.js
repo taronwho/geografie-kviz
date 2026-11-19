@@ -943,7 +943,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             assert.equal(await tab.locator('[data-cq-map] .cq-wash-fill').count(), owned, 'každé obsazené území ve výplni');
             assert.equal(await tab.locator('[data-cq-map] .cq-band-strong').count(), g.territories.filter(x => x.o === 'u-2').length, 'Duha s lemem v barvě hráče');
             // Vlaječky na mapě: jen barva a znak (vzácný znak ano), žádná výplň
-            assert.equal(await tab.locator('[data-cq-map] .cq-marks image[href^="icons/vzory/"], [data-cq-map] .cq-marks image[href^="blob:"]').count(), 0);
+            assert.equal(await tab.locator('[data-cq-map] .cq-marks image[href^="icons/vzory/"], [data-cq-map] .cq-marks image[href^="blob:"]:not([data-b])').count(), 0);
             assert.ok(await tab.locator('[data-cq-map] .cq-marks image[href="icons/znaky/sfinga.webp"]').count() >= 1);
             assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
             await tab.waitForTimeout(300);
@@ -991,8 +991,11 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             }
             const files = { Q213: sets['u-1'] ? `hrad-${sets['u-1']}-0` : 'hrad-domov', Q214: sets['u-1'] ? `opevneni-${sets['u-1']}-1` : 'palisada', Q183: sets['u-2'] ? `hrad-${sets['u-2']}-3` : 'hrad-domov-3' };
             for (const [territory, file] of Object.entries(files)) {
-                assert.equal(await tab.locator(`[data-mark="${territory}"] image[href="icons/stavby/${file}.webp"]`).count(), 1, file);
-                assert.equal(await tab.locator(`[data-mark="${territory}"] image.cq-tint[href="icons/stavby/${file}-barva.webp"]`).count(), 1, `${file}: vrstva barvy majitele`);
+                assert.equal(await tab.locator(`[data-mark="${territory}"] image[data-b="${file}"]`).count(), 1, file);
+                // Barva majitele: vrstva s filtrem, nebo (po předbarvení v aplikaci) jeden obrázek blob:
+                const tinted = await tab.evaluate(([id, name]) => Boolean(document.querySelector(`[data-mark="${id}"] image.cq-tint[data-bb="${name}"]`))
+                    || document.querySelector(`[data-mark="${id}"] image[data-b="${name}"]`).getAttribute('href').startsWith('blob:'), [territory, file]);
+                assert.ok(tinted, `${file}: barva majitele`);
             }
             // Všechny obrázky staveb na mapě existují
             const missing = await tab.evaluate(async () => {
@@ -2002,9 +2005,10 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             for (const [territory, icon] of Object.entries(marks)) assert.equal(await tab.locator(`[data-mark="${territory}"] [data-icon="${icon}"]`).count(), 1, `${territory}: ${icon}`);
             assert.equal(await tab.locator('[data-mark="Q40"] [data-icon="camp"]').count(), 1, 'tábor u obléhaného území');
             assert.equal(await tab.locator('[data-mark="Q40"] .cq-siege-badge').count(), 1, 'pečeť bitvy zůstává');
-            assert.equal(await tab.locator('[data-mark="Q40"] [data-icon="camp"] image.cq-tint[filter="url(#cqb-modra)"]').count(), 1, 'praporky tábora v barvě útočníka');
+            assert.ok(await tab.evaluate(() => Boolean(document.querySelector('[data-mark="Q40"] [data-icon="camp"] image.cq-tint[filter="url(#cqb-modra)"]'))
+                || document.querySelector('[data-mark="Q40"] [data-icon="camp"] image[data-b]').getAttribute('href').startsWith('blob:')), 'praporky tábora v barvě útočníka');
             assert.equal(await tab.locator('[data-mark="Q28"] image.cq-tint').count(), 0, 'zřícenina bez barvy majitele');
-            assert.equal(await tab.locator('[data-mark="Q34"] image[href="icons/stavby/vez-ledovy.webp"]').count(), 1, 'věž ve stylu sady majitele');
+            assert.equal(await tab.locator('[data-mark="Q34"] image[data-b="vez-ledovy"]').count(), 1, 'věž ve stylu sady majitele');
             // Stavby stojí na stejné zemi jako ostatní (spodní okraj ikony stejně daleko pod bodem značky)
             const grounds = await tab.evaluate(() => Object.fromEntries(['Q213', 'Q40', 'Q36', 'Q28', 'Q183'].map(id => {
                 const icon = document.querySelector(`[data-mark="${id}"] .cq-icon:not(.cq-camp)`);
@@ -2116,7 +2120,9 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         await tab.waitForSelector('[data-cq-result]', { timeout: 15000 });
         await tab.click('[data-cq="sheet-close"]');
         assert.equal(await tab.locator('[data-mark="Q213"] [data-icon="monument"]').count(), 1, 'pomník po přehrání na konečné mapě');
-        assert.equal(await tab.locator('[data-mark="Q213"] [data-icon="monument"] image.cq-tint[filter="url(#cqb-cervena)"]').count(), 1, 'praporek v barvě vítěze');
+        // Praporek v barvě vítěze: vrstva s filtrem, nebo (po předbarvení v aplikaci) jeden obrázek blob:
+        assert.ok(await tab.evaluate(() => Boolean(document.querySelector('[data-mark="Q213"] [data-icon="monument"] image.cq-tint[filter="url(#cqb-cervena)"]'))
+            || document.querySelector('[data-mark="Q213"] [data-icon="monument"] image[data-b]').getAttribute('href').startsWith('blob:')), 'praporek v barvě vítěze');
         assert.equal(await tab.locator('[data-icon="monument"]').count(), 1);
         assert.equal(await tab.locator('[data-mark="Q28"] [data-icon^="ruins"]').count(), 0, 'po konci hry zříceniny nejsou');
         await tab.waitForTimeout(300);
@@ -2345,6 +2351,30 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         g.players.forEach(p => { p.score = g.territories.filter(x => x.o === p.user).length; p.score_at = NOW; });
         return db;
     };
+    // Česko: Středočeský kraj dobyl hráč a Praha je (druhý prstenec téhož směru) uvnitř; klepnutí na Prahu musí vybrat Prahu, ne kraj
+    await t.test('Česko: klepnutí na Prahu uvnitř dobytého Středočeského kraje vybere Prahu (ne kraj) a ukáže útok na Prahu', async () => {
+        const db = newDb();
+        const g = db.games[0];
+        g.map = 'cesko';
+        g.players = ['u-1', 'u-2'].map((user, seat) => ({ user, seat, flag_color: ['cervena', 'modra'][seat], emblem: 'lev', ready: true }));
+        g.period = 'min10'; g.minutes = 80; g.hours = 2; g.periodNo = 1;
+        g.status = 'running'; g.started_at = new Date(Date.parse(NOW) - 15 * 60000).toISOString(); g.ends_at = new Date(Date.parse(g.started_at) + 80 * 60000).toISOString();
+        g.territories = MAPS.cesko.t.map(item => ({ t: item.id, o: item.id === 'Q188399' ? 'u-1' : item.id === 'Q1085' ? 'u-2' : item.id === 'Q46070' ? 'u-2' : null, l: 0, h: item.id === 'Q188399', p: false }));
+        g.moves = [{ id: 1, u: 'u-1', k: 'home', t: 'Q188399', r: 'home', n: 0, at: NOW }, { id: 2, u: 'u-2', k: 'home', t: 'Q46070', r: 'home', n: 0, at: NOW }];
+        g.players.forEach(p => { p.score = g.territories.filter(x => x.o === p.user).length; p.score_at = NOW; });
+        const { context, tab, log } = await start(db, { viewport: { width: 390, height: 780 } });
+        await tab.waitForFunction(() => /Tahy \d\/\d/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
+        await tab.click('#conquest-wait [data-action="conquest-play"]');
+        await tab.waitForSelector('#conquest-game [data-cq-map] svg');
+        const centre = await tab.evaluate(() => { const svg = document.querySelector('[data-cq-map] svg'); const point = svg.createSVGPoint(); const praha = svg.querySelector('.cq-hit[data-t="Q1085"]').getBBox(); point.x = praha.x + praha.width / 2; point.y = praha.y + praha.height / 2; const at = point.matrixTransform(svg.getScreenCTM()); return { x: at.x, y: at.y }; });
+        assert.equal(await tab.evaluate(({ x, y }) => document.elementFromPoint(x, y).closest('[data-t]').dataset.t, centre), 'Q1085', 'pod prstem je Praha');
+        await tab.mouse.click(centre.x, centre.y);
+        await tab.waitForSelector('[data-cq-sheet] [data-cq="attack"]');
+        assert.match(await tab.textContent('[data-cq-sheet]'), /Praha/);
+        assert.deepEqual(log.errors, []);
+        await context.close();
+    });
+
     const openAmerica = async (db, options) => {
         const page = await start(db, options);
         await page.tab.waitForFunction(() => /Tahy 5\/5/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });

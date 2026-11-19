@@ -1074,9 +1074,12 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
    barev a šrafy se vrátí, až gesto skončí. Výřez se tak překreslí rychle i na slabém telefonu. */
 .cq-svg.cq-gesture .cq-washes { mask: none; mix-blend-mode: normal; }
 .cq-svg.cq-gesture [data-hatch] { display: none; }
+.cq-svg.cq-zoomed .cq-washes { mask: none; }
 /* Další drahé vrstvy během gesta (změřeno: tónovací filtry staveb a vzorů, textura moře a pobřežní linky stojí nejvíc času snímku):
-   moře zůstane jednobarevné, stavby bez barvy majitele na střechách a praporcích, než gesto skončí */
-.cq-svg.cq-gesture .cq-coast, .cq-svg.cq-gesture .cq-tint, .cq-svg.cq-gesture [fill*="-seatex)"], .cq-svg.cq-gesture [fill*="-waves)"] { display: none; }
+   pobřežní linky a barva majitele na střechách a praporcích staveb počkají na konec gesta (textura moře zůstává: stojí jen asi 3 ms) */
+.cq-svg.cq-gesture .cq-coast, .cq-svg.cq-gesture .cq-tint { display: none; }
+/* Slabý telefon (conquest-ui.js watchSpeed): během gesta i bez textury moře */
+.cq-svg.cq-gesture.cq-lite [fill*="-seatex)"], .cq-svg.cq-gesture.cq-lite [fill*="-waves)"] { display: none; }
 .cq-svg.cq-gesture [filter] { filter: none; }
 /* Během přiblížení a posunu (conquest-ui.js previewView) jen transformace vrstvy, bez překreslování mapy */
 .cq-sea { fill: rgb(77 133 150 / 0.26); }
@@ -1107,6 +1110,8 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 .cq-inks path { fill: none; stroke-width: 1.6; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .cq-inks .cq-ink-me { stroke-width: 2.6; }
 .cq-routes path { fill: none; stroke: #5b3a1e; stroke-opacity: 0.6; stroke-width: 1.4; stroke-dasharray: 0.5 4; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+/* Středočeský kraj má Prahu jako druhý prstenec téhož směru: bez evenodd by ji pokryl a na Prahu by nešlo klepnout (ani ji vybarvit zvlášť) */
+.cq-hit, .cq-wash, .cq-select-item, .cq-ink, .cq-borders path, [data-hatch], .cq-revive-target, .cq-thumb-owned, .cq-thumb-land { fill-rule: evenodd; }
 .cq-hit { fill: rgb(0 0 0 / 0); stroke: none; cursor: pointer; }
 .cq-hit:focus { outline: none; }
 .cq-select path { fill: rgb(255 236 170 / 0.25); stroke: #c8961d; stroke-width: 2.6; stroke-linejoin: round; vector-effect: non-scaling-stroke; }

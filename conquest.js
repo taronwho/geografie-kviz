@@ -748,6 +748,7 @@
     // Území, která nejsou státem (data mapy: of): odkud, kde, s čím
     const PART_WORDS = {
         'Grónsko': ['z Grónska', 'v Grónsku', 's Grónskem'],
+        'Portoriko': ['z Portorika', 'v Portoriku', 's Portorikem'],
         'Francouzská Guyana': ['z Francouzské Guyany', 've Francouzské Guyaně', 's Francouzskou Guyanou']
     };
     const withPhrase = (item) => {
@@ -2238,10 +2239,17 @@
     ]);
     const buildingUrl = (name, layer = '') => `icons/stavby/${name}${layer}.webp`;
     // filterId: vlastní filtr barvy (náhled sady v okně Barva a znak), jinak cqb-<barva> z defs mapy
-    const iconMarkup = (kind, colorId = null, filterId = null) => {
+    // tiles: předbarvené obrázky staveb z aplikace (conquest-ui.js, canvas) – bez SVG filtru; filtr na každé stavbě stojí na telefonu
+    // při přiblížení mnoho času (každý filtr je zvláštní vrstva) a s počtem dobytých území roste, proto se použije, jen dokud obrázek nevznikne
+    const buildingTileKey = (name, colorId) => `b:${name}:${colorOf(colorId).id}`;
+    const iconMarkup = (kind, colorId = null, filterId = null, tiles = null) => {
         if (BUILDING_ART[kind]) {
-            const tint = colorId && !UNTINTED(kind) ? `<image class="cq-tint" href="${buildingUrl(BUILDING_ART[kind], '-barva')}" x="0" y="0" width="24" height="24" filter="url(#${filterId || `cqb-${colorOf(colorId).id}`})"/>` : '';
-            return `<image href="${buildingUrl(BUILDING_ART[kind])}" x="0" y="0" width="24" height="24"/>${tint}`;
+            const name = BUILDING_ART[kind];
+            const tinted = colorId && !UNTINTED(kind);
+            const ready = tinted && !filterId && tiles && tiles[buildingTileKey(name, colorId)];
+            if (ready) return `<image data-b="${name}" href="${ready}" x="0" y="0" width="24" height="24"/>`;
+            const tint = tinted ? `<image class="cq-tint" data-bb="${name}" data-bc="${colorOf(colorId).id}" href="${buildingUrl(name, '-barva')}" x="0" y="0" width="24" height="24" filter="url(#${filterId || `cqb-${colorOf(colorId).id}`})"/>` : '';
+            return `<image data-b="${name}" href="${buildingUrl(name)}" x="0" y="0" width="24" height="24"/>${tint}`;
         }
         if (kind === 'treasure' && ART.treasure) return `<image href="${artUrl(ART.treasure)}" x="0" y="0" width="24" height="24"/>`;
         return ICON_SHAPES[kind] || ICON_SHAPES[kind.replace(/\d$/, '')];
@@ -2258,11 +2266,14 @@
     const territoryIcon = (info, set = null) => (!info.home && (info.building === 'tower' || info.building === 'mine') ? setIcon(info.building, set) : levelIcon(info.level, info.home, set));
     // Filtr barvy majitele pro střechy a vlaječky: šedá vrstva (prostřední jas 0,78) × barva × 1,28 = plná barva, světlá strana
     // střechy světlejší, stinná tmavší. Tmavé barvy (černá) se zesvětlí, jinak by střecha splynula s obrysem.
+    const buildingFactors = (colorId) => {
+        let rgb = hexRgb(colorOf(colorId).hex).map(value => value / 255);
+        if (rgb[0] * 0.299 + rgb[1] * 0.587 + rgb[2] * 0.114 < 0.2) rgb = rgb.map(value => value + (1 - value) * 0.32);
+        return rgb.map(value => value * 1.28);
+    };
     const buildingTint = (colorId, id = null) => {
         const color = colorOf(colorId);
-        let rgb = hexRgb(color.hex).map(value => value / 255);
-        if (rgb[0] * 0.299 + rgb[1] * 0.587 + rgb[2] * 0.114 < 0.2) rgb = rgb.map(value => value + (1 - value) * 0.32);
-        const [r, g, b] = rgb.map(value => (value * 1.28).toFixed(3));
+        const [r, g, b] = buildingFactors(colorId).map(value => value.toFixed(3));
         return `<filter id="${id || `cqb-${color.id}`}" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="${r} 0 0 0 0 0 ${g} 0 0 0 0 0 ${b} 0 0 0 0 0 1 0"/></filter>`;
     };
     // Náhled sady hradů (okno Barva a znak, oznámení nového hradu): domovský hrad (stupeň 0) a vedle něj Palisáda, střechy a praporky
@@ -2400,7 +2411,7 @@
             if (owner) {
                 // Se vzorem: výplň místo lazury (šrafa odpadá, vzor je sám rozlišením); u barevných vzorů sytější lem v barvě hráče
                 const vzor = filled.get(owner.seat);
-                defs.push(`<clipPath id="${prefix}-in-${item.id}"><path d="${item.d}"/></clipPath>`);
+                defs.push(`<clipPath id="${prefix}-in-${item.id}"><path d="${item.d}" clip-rule="evenodd"/></clipPath>`);
                 (isLight(owner.flag_color) ? lights : washes).push(`<path class="cq-wash${vzor ? ' cq-wash-fill' : ''}" data-wash="${item.id}" d="${item.d}" fill="${vzor ? `url(#${prefix}-fill-${owner.seat})` : owner.color.hex}"/>`
                     + `<path class="cq-band${vzor && vzor.colored ? ' cq-band-strong' : ''}" data-band="${item.id}" d="${item.d}" stroke="${owner.color.hex}" clip-path="url(#${prefix}-in-${item.id})"/>`);
                 if (!vzor) hatches.push(`<path data-hatch="${item.id}" d="${item.d}" fill="url(#${prefix}-hatch-${owner.seat})"/>`);
@@ -2479,16 +2490,16 @@
         const icon = territoryIcon(info, owner ? owner.castle : null) || ruin;
         // Hrad a opevnění větší, poklad menší (je to jen bonus, ne stavba); spodní okraj ikon zůstává na stejné čáře
         const iconAt = (k, left) => `translate(${(left * k * MARK).toFixed(2)} ${(-(k - 0.05) * MARK).toFixed(2)}) scale(${(k * MARK / 24).toFixed(3)})`;
-        if (icon) inner += `<g class="cq-icon" data-icon="${icon}" transform="${iconAt(ICON_SCALE[icon] || 1, -0.05)}">${iconMarkup(icon, owner && icon !== ruin ? owner.flag_color : null)}${icon === 'castle' && info.level ? levelPips(info.level) : ''}</g>`;
+        if (icon) inner += `<g class="cq-icon" data-icon="${icon}" transform="${iconAt(ICON_SCALE[icon] || 1, -0.05)}">${iconMarkup(icon, owner && icon !== ruin ? owner.flag_color : null, null, view.tiles)}${icon === 'castle' && info.level ? levelPips(info.level) : ''}</g>`;
         // Tábor obléhatelů (blok 41): vpravo od stavby na stejné zemi, praporky v barvě útočníka (kdo bitvu začal)
         if (siege) {
             const attacker = view.byId.get(siege.started_by) || siege.participants.find(player => !player.defender) || null;
             const k = ICON_SCALE[icon] || 1;
-            inner += `<g class="cq-icon cq-camp" data-icon="camp" transform="translate(${((icon ? 0.9 * k : 0.35) * MARK).toFixed(2)} ${(-(ICON_SCALE.camp - 0.05) * MARK).toFixed(2)}) scale(${(ICON_SCALE.camp * MARK / 24).toFixed(3)})">${iconMarkup('camp', attacker ? attacker.flag_color : null)}</g>`;
+            inner += `<g class="cq-icon cq-camp" data-icon="camp" transform="translate(${((icon ? 0.9 * k : 0.35) * MARK).toFixed(2)} ${(-(ICON_SCALE.camp - 0.05) * MARK).toFixed(2)}) scale(${(ICON_SCALE.camp * MARK / 24).toFixed(3)})">${iconMarkup('camp', attacker ? attacker.flag_color : null, null, view.tiles)}</g>`;
         }
         // Pomník vítěze (blok 41): na domovském území vítěze po konci hry, vpravo od hradu na stejné zemi (bitvy už neběží)
         if (view.monument && view.monument.t === item.id) {
-            inner += `<g class="cq-icon cq-monument" data-icon="monument" transform="translate(${((icon ? 0.86 * (ICON_SCALE[icon] || 1) : 0.35) * MARK).toFixed(2)} ${(-(ICON_SCALE.monument - 0.05) * MARK).toFixed(2)}) scale(${(ICON_SCALE.monument * MARK / 24).toFixed(3)})">${iconMarkup('monument', view.monument.owner.flag_color)}</g>`;
+            inner += `<g class="cq-icon cq-monument" data-icon="monument" transform="translate(${((icon ? 0.86 * (ICON_SCALE[icon] || 1) : 0.35) * MARK).toFixed(2)} ${(-(ICON_SCALE.monument - 0.05) * MARK).toFixed(2)}) scale(${(ICON_SCALE.monument * MARK / 24).toFixed(3)})">${iconMarkup('monument', view.monument.owner.flag_color, null, view.tiles)}</g>`;
         }
         if (info.treasure && !owner) inner += `<g class="cq-icon cq-treasure" data-icon="treasure" transform="${iconAt(ICON_SCALE.treasure, -0.5)}">${iconMarkup('treasure')}</g>`;
         if (view.sieges && view.sieges.has(item.id)) inner += siegeBadge(view.sieges.get(item.id), view, icon);
@@ -3584,11 +3595,22 @@
             return `<li class="flex items-center gap-1.5">${fighterFlag(view, player)}<span class="min-w-0 truncate">${esc(fighterName(view, player))}</span>${halfBadge(player)}<span class="flex-1"></span><span class="shrink-0">${status}</span></li>`;
         }).join('');
         const text = correct ? 'Teď rozhoduje čas: území získá nejrychlejší správná odpověď.' : 'Tuhle bitvu už nevyhraješ. Výsledek uvidíš, jakmile skončí.';
+        // Proč se čeká: někdo ještě odpovídá, majitel věže se může bránit, nebo je ještě otevřené přidání do bitvy (60 s od začátku)
+        const info = view.owners && view.owners.get(siege.territory);
+        const thinking = siege.participants.filter(player => !(player.me || (view.me && player.id === view.me.id)) && !player.answered);
+        const defendAt = info && info.building === 'tower' && siege.defend_until ? localTime(siege.defend_until, offset) : null;
+        const joinAt = localTime(siege.join_until, offset);
+        const until = (at) => ` (ještě <span class="tabular-nums" data-cq-until="${at}">${clockText(at - now)}</span>)`;
+        const why = thinking.length ? `Ještě odpovídá: ${thinking.map(player => esc(fighterName(view, player))).join(', ')}.`
+            : defendAt !== null && defendAt > now ? `Majitel území se strážní věží se může ještě přidat a bránit${until(defendAt)}.`
+                : joinAt !== null && joinAt > now ? `Do bitvy se mohou ještě přidat hráči, kteří s územím sousedí${until(joinAt)}.`
+                    : 'Bitva se právě vyhodnocuje.';
         return `<div class="cq-wait mt-2 rounded-xl px-2.5 py-2" data-cq-wait>
             <div class="flex items-center gap-1.5 text-[12.5px] font-black"><i data-lucide="hourglass" class="h-4 w-4 shrink-0"></i><span class="min-w-0 flex-1">Čeká se na ostatní</span>
                 <button type="button" data-cq="battle-hide" class="-my-1 flex h-8 shrink-0 items-center rounded-lg px-2 text-[11.5px] font-black underline">Zavřít</button></div>
             <ul class="mt-1 flex flex-col gap-0.5 text-[12px] font-bold">${rows}</ul>
-            <p class="mt-1 text-[11.5px] font-semibold leading-snug opacity-80">${esc(text)}</p></div>`;
+            <p data-cq-wait-why class="mt-1 text-[12px] font-bold leading-snug">${why}</p>
+            <p class="mt-0.5 text-[11.5px] font-semibold leading-snug opacity-80">${esc(text)}</p></div>`;
     };
     // Výsledek bitvy s více účastníky: kdo vyhrál (a s jakým časem), kdo byl pomalejší, kdo odpověděl špatně
     const battleResultHtml = (view, siege) => {
@@ -3811,7 +3833,7 @@
         CASTLE_SETS, CASTLE_SET_BY_ID, castleSetOf, castlesOn, castleAllowed, castlePreviewSvg, territoryCastleSvg, BUILDING_ART, ICON_SCALE,
         // Stavby a ozdoby (blok 41)
         BUILD_OPTIONS, BUILDING_KINDS, BUILDING_NAMES, MINE_POINTS, DEFEND_TEXT, setIcon, territoryIcon, ruinsOf, monumentOf, buildHtml,
-        lookItem, lookOwned, emblemAllowed, patternAllowed, lookProgress, lookHowText, lookNews, lookNewsArt, fillSwatchSvg, patternTintRows, tileKey, COLORED_PATTERNS, inkOf, isLight, emblemInk, luminance, maxLevel, rewardFor,
+        buildingUrl, buildingTileKey, buildingFactors, lookItem, lookOwned, emblemAllowed, patternAllowed, lookProgress, lookHowText, lookNews, lookNewsArt, fillSwatchSvg, patternTintRows, tileKey, COLORED_PATTERNS, inkOf, isLight, emblemInk, luminance, maxLevel, rewardFor,
         durationLabel, periodLabel, actionsLabel, timeLeft, movesWord, pointsWord, playersWord, territoriesWord, regionsWord, nextPeriodAt, agoLabel, periodLine, roundsInfo, roundsText, roundsHtml,
         budgetTitle, budgetInnerHtml, periodStartText, PENALTY_TEXT,
         indexMap, parseRings, pointInRings, spansAt, labelSpot, labelMax, labelAt, labelFit, project, territoryAt, isAdjacent, viewOf, rank, sourcesFor, actionsFor,

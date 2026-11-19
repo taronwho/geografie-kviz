@@ -4964,8 +4964,8 @@ insert into public.conquest_links (map, a, b) values
     ('asie', 'Q574', 'Q252'),
     ('asie', 'Q928', 'Q833');
 update public.conquest_links set sea = true where map = 'asie' and (a, b) in (values ('Q846', 'Q878'), ('Q878', 'Q846'), ('Q794', 'Q851'), ('Q851', 'Q794'), ('Q794', 'Q842'), ('Q842', 'Q794'), ('Q794', 'Q878'), ('Q878', 'Q794'), ('Q159', 'Q17'), ('Q17', 'Q159'), ('Q668', 'Q854'), ('Q854', 'Q668'), ('Q148', 'Q865'), ('Q865', 'Q148'), ('Q17', 'Q884'), ('Q884', 'Q17'), ('Q833', 'Q928'), ('Q928', 'Q833'));
--- Mapa Amerika: 30 území, 6 regionů
-insert into public.conquest_maps (id, title, territories, treasures, max_players) values ('amerika', 'Amerika', 30, 3, 8)
+-- Mapa Amerika: 31 území, 6 regionů
+insert into public.conquest_maps (id, title, territories, treasures, max_players) values ('amerika', 'Amerika', 31, 3, 8)
     on conflict (id) do update set title = excluded.title, territories = excluded.territories, treasures = excluded.treasures, max_players = excluded.max_players;
 delete from public.conquest_regions where map = 'amerika';
 insert into public.conquest_regions (map, territory, region) values
@@ -4986,6 +4986,7 @@ insert into public.conquest_regions (map, territory, region) values
     ('amerika', 'Q790', 'karibik'),
     ('amerika', 'Q786', 'karibik'),
     ('amerika', 'Q754', 'karibik'),
+    ('amerika', 'Q1183', 'karibik'),
     ('amerika', 'Q739', 'sever-jizni-ameriky'),
     ('amerika', 'Q717', 'sever-jizni-ameriky'),
     ('amerika', 'Q734', 'sever-jizni-ameriky'),
@@ -5048,12 +5049,16 @@ insert into public.conquest_links (map, a, b) values
     ('amerika', 'Q790', 'Q766'),
     ('amerika', 'Q790', 'Q778'),
     ('amerika', 'Q790', 'Q786'),
+    ('amerika', 'Q786', 'Q1183'),
     ('amerika', 'Q786', 'Q717'),
     ('amerika', 'Q786', 'Q754'),
     ('amerika', 'Q786', 'Q790'),
+    ('amerika', 'Q754', 'Q1183'),
     ('amerika', 'Q754', 'Q717'),
     ('amerika', 'Q754', 'Q734'),
     ('amerika', 'Q754', 'Q786'),
+    ('amerika', 'Q1183', 'Q754'),
+    ('amerika', 'Q1183', 'Q786'),
     ('amerika', 'Q739', 'Q155'),
     ('amerika', 'Q739', 'Q419'),
     ('amerika', 'Q739', 'Q717'),
@@ -5109,7 +5114,7 @@ insert into public.conquest_links (map, a, b) values
     ('amerika', 'Q733', 'Q155'),
     ('amerika', 'Q733', 'Q414'),
     ('amerika', 'Q733', 'Q750');
-update public.conquest_links set sea = true where map = 'amerika' and (a, b) in (values ('Q16', 'Q223'), ('Q223', 'Q16'), ('Q30', 'Q778'), ('Q778', 'Q30'), ('Q792', 'Q811'), ('Q811', 'Q792'), ('Q241', 'Q30'), ('Q30', 'Q241'), ('Q241', 'Q96'), ('Q96', 'Q241'), ('Q241', 'Q778'), ('Q778', 'Q241'), ('Q241', 'Q766'), ('Q766', 'Q241'), ('Q241', 'Q790'), ('Q790', 'Q241'), ('Q778', 'Q790'), ('Q790', 'Q778'), ('Q766', 'Q811'), ('Q811', 'Q766'), ('Q766', 'Q790'), ('Q790', 'Q766'), ('Q754', 'Q786'), ('Q786', 'Q754'), ('Q739', 'Q766'), ('Q766', 'Q739'), ('Q717', 'Q786'), ('Q786', 'Q717'), ('Q717', 'Q754'), ('Q754', 'Q717'), ('Q734', 'Q754'), ('Q754', 'Q734'));
+update public.conquest_links set sea = true where map = 'amerika' and (a, b) in (values ('Q16', 'Q223'), ('Q223', 'Q16'), ('Q30', 'Q778'), ('Q778', 'Q30'), ('Q792', 'Q811'), ('Q811', 'Q792'), ('Q241', 'Q30'), ('Q30', 'Q241'), ('Q241', 'Q96'), ('Q96', 'Q241'), ('Q241', 'Q778'), ('Q778', 'Q241'), ('Q241', 'Q766'), ('Q766', 'Q241'), ('Q241', 'Q790'), ('Q790', 'Q241'), ('Q778', 'Q790'), ('Q790', 'Q778'), ('Q766', 'Q811'), ('Q811', 'Q766'), ('Q766', 'Q790'), ('Q790', 'Q766'), ('Q754', 'Q786'), ('Q786', 'Q754'), ('Q1183', 'Q786'), ('Q786', 'Q1183'), ('Q1183', 'Q754'), ('Q754', 'Q1183'), ('Q739', 'Q766'), ('Q766', 'Q739'), ('Q717', 'Q786'), ('Q786', 'Q717'), ('Q717', 'Q754'), ('Q754', 'Q717'), ('Q734', 'Q754'), ('Q754', 'Q734'));
 -- Mapa Česko: 14 území, 6 regionů
 insert into public.conquest_maps (id, title, territories, treasures, max_players) values ('cesko', 'Česko', 14, 1, 6)
     on conflict (id) do update set title = excluded.title, territories = excluded.territories, treasures = excluded.treasures, max_players = excluded.max_players;

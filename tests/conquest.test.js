@@ -320,6 +320,14 @@ test('Grónsko a Francouzská Guyana: otázky (hlavní město, vlajka, soused, o
     assert.ok(greenland.get('flag').length && greenland.get('flag').every(q => q.prompt === 'Kterou vlajku má Grónsko?'));
     assert.ok(greenland.get('neighbour').every(q => q.prompt === 'Který z těchto států sousedí s Grónskem (na této mapě)?' && answer(q) === 'Kanada'));
     assert.ok(guiana.get('neighbour').every(q => q.prompt === 'Který z těchto států sousedí s Francouzskou Guyanou (na této mapě)?' && ['Surinam', 'Brazílie'].includes(answer(q))));
+    // Portoriko (území USA): Karibik, spojení po moři s Dominikánskou republikou a Trinidadem, otázky a tvary názvu
+    const portoriko = prompts('Q1183');
+    assert.ok(portoriko.size >= 3, `Portoriko: ${[...portoriko.keys()]}`);
+    const pri = C.indexMap(data).byId.get('Q1183');
+    assert.deepEqual([pri.n, pri.reg, pri.g, pri.of], ['Portoriko', 'karibik', 'n', 'Q30']);
+    assert.ok(pri.nb.includes('Q786') && pri.nb.includes('Q754') && !pri.nb.includes('Q30'), 'jen po moři');
+    assert.ok(portoriko.get('capital').every(q => q.prompt === 'Které město je hlavním městem Portorika?' && answer(q) === 'San Juan'));
+    assert.ok(portoriko.get('flag').length && portoriko.get('flag').every(q => q.prompt === 'Kterou vlajku má Portoriko?'));
     // Místa Zeměpisu u Francie a Dánska (nebo bez státu) s polohou v území patří území: Cayenne Guyaně, Gunnbjørn Grónsku
     const places = C.placesOf(data, t);
     assert.ok(places.byTerritory.get('Q3769').some(entry => entry.item.n === 'Cayenne'));
@@ -1129,6 +1137,11 @@ test('bitvy o území (blok 25): obléhané území na mapě, okno bitvy s varov
     const wait = C.battleWaitHtml(view, { ...siege, participants: [fighter('A', 'Jana', 0, 'cervena', { me: true, answered: true }), fighter('B', 'Petr', 1, 'modra')] }, { correct: true, answerMs: 4200, now: NOW });
     assert.match(wait.replace(/\s+/g, ' '), /Čeká se na ostatní[^]*ty[^]*správně · 4,2 s[^]*Petr[^]*přemýšlí · <span class="tabular-nums" data-cq-until="\d+">0:50<\/span>[^]*Teď rozhoduje čas/);
     assert.match(C.battleWaitHtml(view, siege, { correct: false, now: NOW }), /Tuhle bitvu už nevyhraješ/);
+    // Proč se čeká: ještě někdo odpovídá / přidání do bitvy je otevřené (jen já jsem odpověděl) / už se vyhodnocuje
+    assert.match(wait, /data-cq-wait-why[^>]*>Ještě odpovídá: Petr\./);
+    const alone = C.battleWaitHtml(view, { ...siege, participants: [fighter('A', 'Jana', 0, 'cervena', { me: true, answered: true })] }, { correct: false, now: NOW });
+    assert.match(alone.replace(/\s+/g, ' '), /Do bitvy se mohou ještě přidat hráči, kteří s územím sousedí \(ještě <span class="tabular-nums" data-cq-until="\d+">0:50<\/span>\)\./);
+    assert.match(C.battleWaitHtml(view, { ...siege, join_until: at(-1), participants: [fighter('A', 'Jana', 0, 'cervena', { me: true, answered: true })] }, { correct: false, now: NOW }), /Bitva se právě vyhodnocuje\./);
     // Výsledek: vítěz s časem, pomalejší správná odpověď, špatně a bez odpovědi
     const resolved = { ...siege, status: 'resolved', outcome: 'capture', participants: [
         fighter('A', 'Jana', 0, 'cervena', { me: true, answered: true, correct: true, answer_ms: 4200, result: 'outrun', winner: false }),
@@ -1690,7 +1703,7 @@ test('stavby (blok 41): obrázky věže, dolu a zříceniny podle sady, ozdoby, 
             assert.doesNotMatch(C.iconMarkup(kind, 'zelena'), /cq-tint/, 'zřícenina se nebarví');
         } else {
             assert.equal(head(`${file}-barva`), 'WEBP', `${file}-barva`);
-            assert.match(C.iconMarkup(kind, 'zelena'), /class="cq-tint" href="icons\/stavby\/[a-z]+-barva\.webp"[^>]*filter="url\(#cqb-zelena\)"/);
+            assert.match(C.iconMarkup(kind, 'zelena'), /class="cq-tint"[^>]* href="icons\/stavby\/[a-z]+-barva\.webp"[^>]*filter="url\(#cqb-zelena\)"/);
         }
         assert.ok(C.ICON_SCALE[kind] > 0, `${kind}: velikost na mapě`);
     }
@@ -1733,7 +1746,7 @@ test('stavby (blok 41): obrázky věže, dolu a zříceniny podle sady, ozdoby, 
     const svg = C.mapSvg(maps.evropa, war);
     assert.match(svg, /data-mark="Q214"[^]*?data-icon="tower"[^]*?data-icon="camp"[^>]*>[^]*?filter="url\(#cqb-modra\)"/);
     assert.match(svg, /data-mark="Q40"[^]*?data-icon="mine"/);
-    assert.match(svg, /data-mark="Q28"[^]*?<g class="cq-icon" data-icon="ruins-ledovy"[^>]*><image href="icons\/stavby\/zricenina-ledovy\.webp"[^>]*\/><\/g>/);
+    assert.match(svg, /data-mark="Q28"[^]*?<g class="cq-icon" data-icon="ruins-ledovy"[^>]*><image data-b="zricenina-ledovy" href="icons\/stavby\/zricenina-ledovy\.webp"[^>]*\/><\/g>/);
     assert.match(svg, /data-mark="Q183"[^]*?data-icon="wall-ledovy"/);
     assert.doesNotMatch(C.mapSvg(maps.evropa, view), /data-icon="camp"/, 'bez bitvy bez tábora');
     // Na stejné zemi: spodní okraj ikon stavby stejně daleko pod bodem značky
@@ -1794,4 +1807,24 @@ test('nápověda Stavby (blok 41): záložka mezi Útokem a Body, pravidla věž
     assert.doesNotMatch(all, /<b[^>]*>[^<]*:<\/b>|Jak získat|XP|odznak/);
     assert.doesNotMatch(C.HELP_TABS.map(([id]) => C.helpHtml(id)).join(''), /\b(získal|získala|ubránil|ubránila|postavil|postavila|zaútočil|zaútočila)\b/);
     assert.doesNotMatch(C.DEFEND_TEXT + C.BUILD_OPTIONS.map(o => o.effect).join(' '), /\b(získal|získala|ubránil|ubránila)\b/);
+});
+
+test('Praha ve Středočeském kraji: klepací plocha kraje je evenodd, takže jde klepnout na Prahu, i když kraj dobyl hráč (druhý prstenec téhož směru)', () => {
+    const css = fs.readFileSync(path.join(ROOT, 'src', 'input.css'), 'utf8');
+    assert.match(css, /\.cq-hit, \.cq-wash[^{]*\{ fill-rule: evenodd; \}/);
+    const svg = C.mapSvg(maps.cesko, C.viewOf({ status: 'running', players: [{ id: 'A', seat: 0, display_name: 'A', flag_color: 'cervena', emblem: 'lev', me: true }], territories: maps.cesko.t.map(t => ({ t: t.id, o: t.id === 'Q188399' ? 'A' : null, l: 0, h: false })), moves: [], sieges: [], budget: { left: 3, total: 5, period: 1 }, map: 'cesko' }, maps.cesko, 'A'));
+    assert.match(svg, /<clipPath id="cq-in-Q188399"><path d="[^"]+" clip-rule="evenodd"\/><\/clipPath>/);
+    assert.ok(svg.includes('class="cq-hit" data-t="Q1085"') && svg.includes('class="cq-hit" data-t="Q188399"'));
+});
+
+test('stavby s barvou majitele: jakmile aplikace předbarví obrázek (tiles), mapa nepoužije SVG filtr (na telefonu drahý při přiblížení)', () => {
+    const key = C.buildingTileKey('vez', 'zelena');
+    const ready = C.iconMarkup('tower', 'zelena', null, { [key]: 'blob:https://x/abc' });
+    assert.match(ready, /^<image data-b="vez" href="blob:https:\/\/x\/abc" /);
+    assert.doesNotMatch(ready, /filter=|cq-tint/);
+    assert.match(C.iconMarkup('tower', 'zelena'), /class="cq-tint" data-bb="vez" data-bc="zelena"[^>]*filter="url\(#cqb-zelena\)"/);
+    // Náhled s vlastním filtrem (okno Barva a znak) se předbarvením nemění
+    assert.match(C.iconMarkup('tower', 'zelena', 'f1', { [key]: 'blob:x' }), /filter="url\(#f1\)"/);
+    const [r, g, b] = C.buildingFactors('zelena');
+    assert.ok(r > 0 && g > r && b > 0 && g <= 1.28);
 });
