@@ -1139,9 +1139,9 @@ test('bitvy o území (blok 25): obléhané území na mapě, okno bitvy s varov
     assert.match(C.battleWaitHtml(view, siege, { correct: false, now: NOW }), /Tuhle bitvu už nevyhraješ/);
     // Proč se čeká: ještě někdo odpovídá / přidání do bitvy je otevřené (jen já jsem odpověděl) / už se vyhodnocuje
     assert.match(wait, /data-cq-wait-why[^>]*>Ještě odpovídá: Petr\./);
-    const alone = C.battleWaitHtml(view, { ...siege, participants: [fighter('A', 'Jana', 0, 'cervena', { me: true, answered: true })] }, { correct: false, now: NOW });
-    assert.match(alone.replace(/\s+/g, ' '), /Do bitvy se mohou ještě přidat hráči, kteří s územím sousedí \(ještě <span class="tabular-nums" data-cq-until="\d+">0:50<\/span>\)\./);
-    assert.match(C.battleWaitHtml(view, { ...siege, join_until: at(-1), participants: [fighter('A', 'Jana', 0, 'cervena', { me: true, answered: true })] }, { correct: false, now: NOW }), /Bitva se právě vyhodnocuje\./);
+    const alone = C.battleWaitHtml(view, { ...siege, started_at: at(-4), participants: [fighter('A', 'Jana', 0, 'cervena', { me: true, answered: true })] }, { correct: false, now: NOW });
+    assert.match(alone.replace(/\s+/g, ' '), /Do bitvy se ještě mohou přidat sousední hráči \(ještě <span class="tabular-nums" data-cq-until="\d+">0:06<\/span>\)\./);
+    assert.match(C.battleWaitHtml(view, { ...siege, started_at: at(-11), participants: [fighter('A', 'Jana', 0, 'cervena', { me: true, answered: true })] }, { correct: false, now: NOW }), /Bitva se právě vyhodnocuje\./);
     // Výsledek: vítěz s časem, pomalejší správná odpověď, špatně a bez odpovědi
     const resolved = { ...siege, status: 'resolved', outcome: 'capture', participants: [
         fighter('A', 'Jana', 0, 'cervena', { me: true, answered: true, correct: true, answer_ms: 4200, result: 'outrun', winner: false }),

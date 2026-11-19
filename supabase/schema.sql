@@ -6347,8 +6347,8 @@ grant execute on function public.conquest_invite(uuid, uuid[]), public.conquest_
 -- Útok začne obléhání území (conquest_siege_begin): aplikace útočníka pošle otázku (zadání, obrázky, možnosti bez příznaku správnosti)
 -- a zvlášť index správné možnosti. Server otázku uloží a správnou odpověď nikomu neprozradí, dokud sám neodpoví. Obléhání vidí všichni
 -- hráči hry skoro hned (conquest_pulse, aplikace ho volá každé 1,5–3 s; conquest_state má totéž v sieges): území, účastníky a termíny.
--- Přidat se do bitvy (conquest_siege_join) smí, kdo by na území mohl zaútočit (sousedí s ním, není jeho majitel, má tah), nejvýš 10 s
--- od začátku obléhání (join_until, od bloku 44 jen 10 s) a jen dokud bitva trvá. Každý účastník dostane stejnou otázku a má na ni 60 s od chvíle, kdy obléhání
+-- Přidat se do bitvy (conquest_siege_join) smí, kdo by na území mohl zaútočit (sousedí s ním, není jeho majitel, má tah), nejvýš 60 s
+-- od začátku obléhání (join_until) a jen dokud někdo z útočníků ještě odpovídá. Čekání na boty je nejvýš 10 s (blok 44). Každý účastník dostane stejnou otázku a má na ni 60 s od chvíle, kdy obléhání
 -- začal nebo se přidal (joined_at; termín deadline = joined_at + 60 s, server přijme odpověď ještě 3 s po něm kvůli síti). Odpověď je
 -- index možnosti a vyhodnotí ji server (conquest_siege_answer); čas odpovědi = answered_at − joined_at, pozdní odpověď je jako žádná.
 -- Začátek i přidání stojí tah: hned je rezervovaný (conquest_budget: reserved), po vyhodnocení je místo rezervace zapsaný tah
@@ -6372,7 +6372,7 @@ create table if not exists public.conquest_sieges (
     correct_choice smallint not null,
     status text not null default 'open',
     started_at timestamptz not null,
-    -- přidat se jde do join_until (od bloku 44 10 s od začátku; majitel věže do defend_until); ends_at = poslední termín odpovědi (nejpozdější přidání + 60 s, bez 3 s na síť)
+    -- přidat se jde do join_until (60 s od začátku, a jen dokud někdo ještě neodpověděl; majitel věže do defend_until); ends_at = poslední termín odpovědi (nejpozdější přidání + 60 s, bez 3 s na síť)
     join_until timestamptz not null,
     ends_at timestamptz not null,
     resolved_at timestamptz,
@@ -6424,8 +6424,8 @@ create or replace function public.conquest_siege_window() returns interval
 language sql immutable as $$ select interval '60 seconds' $$;
 create or replace function public.conquest_siege_grace() returns interval
 language sql immutable as $$ select interval '3 seconds' $$;
--- Dokdy se k obléhání mohou přidat sousedé (blok 44): 10 s od začátku útoku (odpovídat pak mají 60 s od přidání)
-create or replace function public.conquest_siege_join_window() returns interval
+-- Jak dlouho bitva nejvýš čeká na přidání botů (blok 44): 10 s od začátku útoku. Lidé se přidat mohou, dokud někdo z útočníků neodpověděl.
+create or replace function public.conquest_bot_join_window() returns interval
 language sql immutable as $$ select interval '10 seconds' $$;
 -- Do kdy se může bránit majitel území se strážní věží (blok 41, od bloku 42 kratší) a jak dlouho na něj bitva počká: v rychlé hře
 -- (kolo 5 nebo 10 minut) 15 s od začátku útoku, jinak 30 s (od bloku 44 nezávisle na 10 s pro sousedy)
@@ -6646,7 +6646,7 @@ begin
     perform public.conquest_attack_check(g, uid, target, source);
     if target = any (public.conquest_besieged(game)) then raise exception 'Na území právě probíhá bitva. Můžeš se přidat.' using errcode = 'P0001'; end if;
     insert into public.conquest_sieges (game_id, territory, started_by, question, correct_choice, started_at, join_until, ends_at)
-    values (game, target, uid, clean, correct, now_ts, now_ts + public.conquest_siege_join_window(), now_ts + public.conquest_siege_window())
+    values (game, target, uid, clean, correct, now_ts, now_ts + public.conquest_siege_window(), now_ts + public.conquest_siege_window())
     returning * into s;
     insert into public.conquest_siege_players (siege_id, user_id, source, period, joined_at) values (s.id, uid, source, (budget ->> 'period')::integer, now_ts);
     update public.conquest_games set siege_rev = siege_rev + 1 where id = game;
@@ -6792,7 +6792,7 @@ end;
 $$;
 
 -- Oprávnění: hráč volá jen obléhání, přidání, odpověď, stav bitvy a puls (anon nic); pomocné funkce jen interně
-revoke all on function public.conquest_siege_window(), public.conquest_siege_join_window(), public.conquest_siege_grace(), public.conquest_version(public.conquest_games),
+revoke all on function public.conquest_siege_window(), public.conquest_bot_join_window(), public.conquest_siege_grace(), public.conquest_version(public.conquest_games),
     public.conquest_siege_question(jsonb, integer), public.conquest_siege_json(public.conquest_sieges, uuid), public.conquest_siege_view(public.conquest_sieges, uuid),
     public.conquest_siege_defend_wait(text), public.conquest_siege_defend_until(public.conquest_sieges),
     public.conquest_sieges_json(uuid, uuid), public.conquest_siege_resolve(uuid, boolean), public.conquest_sieges_due(uuid, boolean),
@@ -9406,7 +9406,7 @@ begin
     budget := public.conquest_budget(g.id, uid);
     if coalesce((budget ->> 'left')::integer, 0) <= 0 then return false; end if;
     insert into public.conquest_sieges (game_id, territory, started_by, question, correct_choice, started_at, join_until, ends_at, needs_question)
-    values (g.id, target, uid, '{"choices": ["?", "?"], "bot": true}'::jsonb, 0, now_ts, now_ts + public.conquest_siege_join_window(), now_ts + public.conquest_siege_window(), true)
+    values (g.id, target, uid, '{"choices": ["?", "?"], "bot": true}'::jsonb, 0, now_ts, now_ts + public.conquest_siege_window(), now_ts + public.conquest_siege_window(), true)
     returning * into s;
     insert into public.conquest_siege_players (siege_id, user_id, source, period, joined_at, bot_answer_at, bot_correct)
     values (s.id, uid, src, (budget ->> 'period')::integer, now_ts, now_ts + public.conquest_bot_answer_delay(lvl), public.conquest_bot_correct(uid, lvl, fort));
@@ -9454,7 +9454,7 @@ begin
         chance := case lvl when 'easy' then 0.15 when 'hard' then 0.3 + case when completes then 0.4 else 0 end + case when t.treasure then 0.2 else 0 end
             + case when t.level = 0 then 0.1 else 0 end else 0.3 end;
         continue when random() >= chance;
-        at_ts := least(s.started_at + public.conquest_bot_react_delay(lvl), s.join_until - interval '1 second');
+        at_ts := least(s.started_at + public.conquest_bot_react_delay(lvl), s.started_at + public.conquest_bot_join_window() - interval '1 second');
         continue when public.conquest_bot_asleep(g, at_ts) or public.conquest_bot_asleep(g, at_ts + interval '60 seconds');
         insert into public.conquest_bot_plans (siege_id, user_id, join_at, source, defender)
         values (sid, b.user_id, at_ts, src, false)
@@ -9789,8 +9789,8 @@ grant execute on function public.conquest_add_bots(uuid, integer, text), public.
 --     conquest_bot_react a conquest_bots_due), správce lobby (conquest_lobby_admin: zakladatel, jinak kdo je v lobby nejdéle; boty přidává
 --     a odebírá i v Rychlé hře; admin v souhrnu hry a u hráče), z Rychlé hry odejdou boti s posledním člověkem (conquest_leave), kratší jména
 --     botů (conquest_bot_names).
--- 44: Dobývání – k bitvě se sousedé mohou přidat jen 10 s od začátku útoku (conquest_siege_join_window, join_until); obrana strážní věží má
---     vlastní termín defend_until (15 s / 30 s), boti si bitvy všimnou do 9 s (conquest_bot_react_delay).
+-- 44: Dobývání – bitva čeká na přidání botů nejvýš 10 s (conquest_bot_join_window, conquest_bot_react_delay do 9 s); lidé se přidají, dokud někdo
+--     z útočníků neodpověděl; obrana strážní věží má vlastní termín defend_until (15 s / 30 s).
 create or replace function public.schema_version() returns integer
 language sql immutable as $$ select 44 $$;
 revoke all on function public.schema_version() from public, anon;

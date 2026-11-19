@@ -3595,15 +3595,15 @@
             return `<li class="flex items-center gap-1.5">${fighterFlag(view, player)}<span class="min-w-0 truncate">${esc(fighterName(view, player))}</span>${halfBadge(player)}<span class="flex-1"></span><span class="shrink-0">${status}</span></li>`;
         }).join('');
         const text = correct ? 'Teď rozhoduje čas: území získá nejrychlejší správná odpověď.' : 'Tuhle bitvu už nevyhraješ. Výsledek uvidíš, jakmile skončí.';
-        // Proč se čeká: někdo ještě odpovídá, majitel věže se může bránit, nebo je ještě otevřené přidání do bitvy (60 s od začátku)
+        // Proč se čeká: někdo ještě odpovídá, majitel věže se může bránit, nebo se ještě mohou přidat boti (prvních 10 s od začátku)
         const info = view.owners && view.owners.get(siege.territory);
         const thinking = siege.participants.filter(player => !(player.me || (view.me && player.id === view.me.id)) && !player.answered);
         const defendAt = info && info.building === 'tower' && siege.defend_until ? localTime(siege.defend_until, offset) : null;
-        const joinAt = localTime(siege.join_until, offset);
+        const joinAt = siege.started_at ? localTime(siege.started_at, offset) + 10000 : null;
         const until = (at) => ` (ještě <span class="tabular-nums" data-cq-until="${at}">${clockText(at - now)}</span>)`;
         const why = thinking.length ? `Ještě odpovídá: ${thinking.map(player => esc(fighterName(view, player))).join(', ')}.`
             : defendAt !== null && defendAt > now ? `Majitel území se strážní věží se může ještě přidat a bránit${until(defendAt)}.`
-                : joinAt !== null && joinAt > now ? `Do bitvy se mohou ještě přidat hráči, kteří s územím sousedí${until(joinAt)}.`
+                : joinAt !== null && joinAt > now ? `Do bitvy se ještě mohou přidat sousední hráči${until(joinAt)}.`
                     : 'Bitva se právě vyhodnocuje.';
         return `<div class="cq-wait mt-2 rounded-xl px-2.5 py-2" data-cq-wait>
             <div class="flex items-center gap-1.5 text-[12.5px] font-black"><i data-lucide="hourglass" class="h-4 w-4 shrink-0"></i><span class="min-w-0 flex-1">Čeká se na ostatní</span>
@@ -3791,7 +3791,7 @@
         utok: [
             'Zaútočit můžeš jen na území, které sousedí s některým tvým územím. Sousední jsou i území spojená tečkovanou cestou přes moře.',
             'Klepni na území a pak na „Zaútočit“. Dostaneš otázku, která se většinou týká právě toho území.',
-            'Do bitvy se může prvních 10 sekund přidat každý, kdo s územím také sousedí. Všichni dostanou stejnou otázku a na odpověď mají 60 sekund.',
+            'Do bitvy se může přidat každý, kdo s územím také sousedí, dokud ještě někdo z útočníků neodpověděl. Kdo odpoví rychle, se soupeřům vyhne. Všichni dostanou stejnou otázku a na odpověď mají 60 sekund.',
             'Území získá ten, kdo odpoví správně a nejrychleji. Kdo odpoví správně, ale pomaleji, nezíská nic a tah ztratí.',
             'Když má území opevnění, vyhraná bitva ho jen o jeden stupeň zbourá. Území dobudeš teprve tehdy, až opevnění zmizí úplně.'
         ],

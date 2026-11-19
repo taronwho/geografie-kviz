@@ -630,7 +630,7 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         }
         const rpc = ['conquest_siege_begin(uuid, text, jsonb, smallint, text)', 'conquest_siege_join(uuid, text, jsonb, smallint)', 'conquest_siege_answer(uuid, smallint)', 'conquest_siege_status(uuid)', 'conquest_pulse(uuid)'];
         const internal = ['conquest_besieged(uuid)', 'conquest_attack_check(public.conquest_games, uuid, text, text)', 'conquest_attack_apply(uuid, uuid, text, text, integer, boolean)',
-            'conquest_siege_window()', 'conquest_siege_join_window()', 'conquest_siege_grace()', 'conquest_version(public.conquest_games)', 'conquest_siege_question(jsonb, integer)',
+            'conquest_siege_window()', 'conquest_bot_join_window()', 'conquest_siege_grace()', 'conquest_version(public.conquest_games)', 'conquest_siege_question(jsonb, integer)',
             'conquest_siege_json(public.conquest_sieges, uuid)', 'conquest_siege_view(public.conquest_sieges, uuid)', 'conquest_sieges_json(uuid, uuid)',
             'conquest_siege_resolve(uuid, boolean)', 'conquest_sieges_due(uuid, boolean)', 'conquest_siege_tick(public.conquest_games)', 'conquest_siege_game(uuid, uuid, boolean)'];
         const can = (role, fn) => q(`select has_function_privilege('${role}', 'public.${fn}', 'execute')`);
@@ -662,7 +662,7 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         assert.match(v0, /^\d+\.\d+\.\d+\.\d+\.running$/, 'tah, bitvy, Chci další kolo, kolo (blok 26), stav');
         const s = json(begin(S1, war.id, 'Q214', { source: 'Q213' }));
         assert.deepEqual([s.status, s.territory, s.mine, s.answered, s.started_by, s.correct_choice, s.answer], ['open', 'Q214', true, false, S1, null, null]);
-        assert.ok(s.joined_at.startsWith('2026-12-10T08:00:00') && s.deadline.startsWith('2026-12-10T08:01:00') && s.join_until.startsWith('2026-12-10T08:00:10') && s.ends_at.startsWith('2026-12-10T08:01:00'), JSON.stringify(s));
+        assert.ok(s.joined_at.startsWith('2026-12-10T08:00:00') && s.deadline.startsWith('2026-12-10T08:01:00') && s.join_until.startsWith('2026-12-10T08:01:00') && s.ends_at.startsWith('2026-12-10T08:01:00'), JSON.stringify(s));
         assert.ok(s.now.startsWith('2026-12-10T08:00:00'));
         assert.deepEqual(s.participants.map(p => [p.id, p.display_name, p.flag_color, p.source, p.answered, p.me]), [[S1, 'Alfa', 'cervena', 'Q213', false, true]]);
         assert.ok('avatar' in s.participants[0] && 'owl' in s.participants[0] && 'frame' in s.participants[0]);
@@ -719,17 +719,17 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         place(war.id, 'Q40', null); place(war.id, 'Q142', S3, { home: true });
         denied(joinSiege(S3, s.id), /sousedí s tvým/);
         place(war.id, 'Q142', null); place(war.id, 'Q40', S3, { home: true });
-        // S2 se přidá po 9 s (okno pro sousedy je 10 s): dostane stejnou otázku, ale bez správné odpovědi
-        clock = '2026-12-10T09:00:09Z';
+        // S2 se přidá po 10 s: dostane stejnou otázku, ale bez správné odpovědi
+        clock = '2026-12-10T09:00:10Z';
         const j = json(joinSiege(S2, s.id));
         assert.deepEqual([j.mine, j.answered, j.answer, j.correct_choice], [true, false, null, null]);
-        assert.ok(j.joined_at.startsWith('2026-12-10T09:00:09') && j.deadline.startsWith('2026-12-10T09:01:09') && j.ends_at.startsWith('2026-12-10T09:01:09') && j.join_until.startsWith('2026-12-10T09:00:10'), JSON.stringify(j));
+        assert.ok(j.joined_at.startsWith('2026-12-10T09:00:10') && j.deadline.startsWith('2026-12-10T09:01:10') && j.ends_at.startsWith('2026-12-10T09:01:10') && j.join_until.startsWith('2026-12-10T09:01:00'), JSON.stringify(j));
         assert.deepEqual(j.question, { kind: 'flag', prompt: QUESTION.prompt, image: QUESTION.image, choices: [{ label: 'Slovensko' }, { label: 'Slovinsko' }, { label: 'Srbsko' }, 'Rusko'] });
         assert.doesNotMatch(JSON.stringify(j).replace(/"correct_choice":null/, ''), /correct/, 'přidaný správnou odpověď nedostane');
         assert.deepEqual(j.participants.map(p => [p.id, p.source, p.answered]), [[S1, null, false], [S2, 'Q36', false]], 'území útoku se doplní samo');
         assert.equal(j.budget.reserved, 1);
         assert.equal(json(joinSiege(S2, s.id)).budget.reserved, 1, 'podruhé se nic nerezervuje');
-        // S1 odpoví po 15 s (čeká se na S2), S2 po 13 s od přidání: S2 je rychlejší
+        // S1 odpoví po 15 s (čeká se na S2), S2 po 12 s od přidání: S2 je rychlejší
         clock = '2026-12-10T09:00:15Z';
         const first = json(answer(S1, s.id, 0));
         assert.deepEqual([first.correct, first.status, first.answer_ms, first.correct_choice, 'state' in first], [true, 'waiting', 15000, 0, false]);
@@ -740,8 +740,8 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         assert.deepEqual([spectator.mine, 'question' in spectator, 'correct_choice' in spectator], [false, false, false], 'divák otázku nevidí');
         clock = '2026-12-10T09:00:22Z';
         const second = json(answer(S2, s.id, 0));
-        assert.deepEqual([second.correct, second.status, second.answer_ms, second.move.r, second.siege.winner, second.siege.outcome], [true, 'resolved', 13000, 'capture', S2, 'capture']);
-        assert.deepEqual(second.siege.participants.map(p => [p.id, p.correct, p.answer_ms, p.result, p.winner]), [[S1, true, 15000, 'outrun', false], [S2, true, 13000, 'capture', true]]);
+        assert.deepEqual([second.correct, second.status, second.answer_ms, second.move.r, second.siege.winner, second.siege.outcome], [true, 'resolved', 12000, 'capture', S2, 'capture']);
+        assert.deepEqual(second.siege.participants.map(p => [p.id, p.correct, p.answer_ms, p.result, p.winner]), [[S1, true, 15000, 'outrun', false], [S2, true, 12000, 'capture', true]]);
         assert.equal(owner(war.id, 'Q214'), S2);
         assert.deepEqual(attacks(war.id), [`${S1} outrun true ${S4} 0`, `${S2} capture true ${S4} 0`], 'prohraná bitva napřed, tah vítěze nahoře v kronice');
         const lost = json(siegeStatus(S1, s.id));
@@ -778,23 +778,23 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         assert.equal(owner(war.id, 'Q214'), S1);
     });
 
-    await t.test('bitvy (blok 25): pozdní odpověď je jako žádná; přidat se jde jen 10 s; opuštěná bitva se vyhodnotí po termínu (+3 s) v pulsu i ve stavu hry', () => {
+    await t.test('bitvy (blok 25): pozdní odpověď je jako žádná; přidat se jde jen 60 s; opuštěná bitva se vyhodnotí po termínu (+3 s) v pulsu i ve stavu hry', () => {
         battleMap();
         clock = '2026-12-10T12:00:00Z';
         const s = json(begin(S1, war.id, 'Q214'));
-        clock = '2026-12-10T12:00:09Z';
+        clock = '2026-12-10T12:00:30Z';
         ok(joinSiege(S2, s.id));
         // S1 měl čas do 12:01:00 (+3 s na síť): správná odpověď v 12:01:04 se nepočítá
         clock = '2026-12-10T12:01:04Z';
         const late = json(answer(S1, s.id, 0));
         assert.deepEqual([late.correct, late.late, late.status, late.correct_choice], [false, true, 'waiting', 0]);
         clock = '2026-12-10T12:01:10Z';
-        denied(joinSiege(S3, s.id), /Bitva už skončila\./, 'přidat se jde jen 10 s od začátku');
-        // S2 neodpoví: termín 12:01:09 + 3 s
-        clock = '2026-12-10T12:01:11Z';
+        denied(joinSiege(S3, s.id), /Bitva už skončila\./, 'přidat se jde jen 60 s od začátku');
+        // S2 neodpoví: termín 12:01:30 + 3 s
+        clock = '2026-12-10T12:01:32Z';
         const before = pulse(S3, war.id);
         assert.equal(before.sieges.length, 1, 'ještě rezerva na síť');
-        clock = '2026-12-10T12:01:13Z';
+        clock = '2026-12-10T12:01:34Z';
         const after = pulse(S3, war.id);
         assert.deepEqual(after.sieges, []);
         assert.notEqual(after.version, before.version);
