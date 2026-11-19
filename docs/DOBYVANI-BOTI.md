@@ -53,7 +53,7 @@ tahy si rozloží do kola, chvíli přemýšlí, zakládají bitvy a přidávaj�
   od 23:30) má rozvrh přes celé kolo jako dřív a boti v něm hrají. Tah, jehož čas nastal do 2 minut před spaním, je okamžitý (bez
   bitvy); přidání a obrana se naplánují, jen když přidání i odpověď (do 60 s) padnou do bdělé doby. Když lidé kolo dohrají v noci,
   boti zbytek odehrají až ráno.
-- Tah, jehož čas nastal, bot zahraje jako člověk: **útok je obléhání** (bitva otevřená 60 s, sousedé se přidají). Další tah až
+- Tah, jehož čas nastal, bot zahraje jako člověk: **útok je obléhání** (bitva otevřená 60 s, sousedé se přidají, dokud někdo ještě odpovídá; boti se přidají do 10 s). Další tah až
   po své odpovědi. Stavba je okamžitá.
 - **Odpověď bota má svůj čas**: při začátku nebo přidání se uloží `bot_answer_at` a `bot_correct`; jakmile ten čas nastane, zapíše
   se jako odpověď s tímto časem (`conquest_bot_siege_sync`). O vítězi tedy rozhoduje skutečný čas, ať server běží kdykoli.
