@@ -768,6 +768,52 @@
             if (!blob) throw new Error('canvas');
             return root.URL.createObjectURL(blob);
         };
+        // Stavby s barvou majitele (střechy a praporky): předbarvený obrázek z canvasu místo SVG filtru na každé stavbě (filtr je na telefonu
+        // při přiblížení drahý a s počtem dobytých území roste). Než obrázek vznikne, mapa používá filtr.
+        const tintBuilding = async (name, colorId) => {
+            const load = async (src) => { const img = new root.Image(); img.src = src; await img.decode(); return img; };
+            const [base, layer] = await Promise.all([load(C.buildingUrl(name)), load(C.buildingUrl(name, '-barva'))]);
+            const w = base.naturalWidth, h = base.naturalHeight;
+            const tint = doc.createElement('canvas');
+            tint.width = w; tint.height = h;
+            const tctx = tint.getContext('2d', { willReadFrequently: true });
+            tctx.drawImage(layer, 0, 0, w, h);
+            const data = tctx.getImageData(0, 0, w, h);
+            const factors = C.buildingFactors(colorId);
+            const px = data.data;
+            for (let i = 0; i < px.length; i += 4) for (let k = 0; k < 3; k++) px[i + k] = Math.max(0, Math.min(255, Math.round(px[i + k] * factors[k])));
+            tctx.putImageData(data, 0, 0);
+            const out = doc.createElement('canvas');
+            out.width = w; out.height = h;
+            const octx = out.getContext('2d');
+            octx.drawImage(base, 0, 0, w, h);
+            octx.drawImage(tint, 0, 0);
+            const blob = await new Promise(resolve => out.toBlob(resolve, 'image/png'));
+            if (!blob) throw new Error('canvas');
+            return root.URL.createObjectURL(blob);
+        };
+        const ensureBuildingTiles = () => {
+            if (!svg || !doc || typeof root.Image !== 'function' || !root.URL || !root.URL.createObjectURL) return;
+            svg.querySelectorAll('image.cq-tint').forEach(element => {
+                const name = element.getAttribute('data-bb'), color = element.getAttribute('data-bc');
+                if (!name || !color) return;
+                const key = C.buildingTileKey(name, color);
+                if (tiles[key] || tinting.has(key)) return;
+                tinting.add(key);
+                tintBuilding(name, color).then(url => {
+                    tiles[key] = url;
+                    // Hotový obrázek se dosadí rovnou do mapy (bez překreslení, které by smazalo např. záři vítěze): základ dostane předbarvený obrázek
+                    // a vrstva s filtrem zmizí
+                    if (svg && svg.isConnected) {
+                        svg.querySelectorAll('image.cq-tint').forEach(layer => {
+                            if (layer.getAttribute('data-bb') !== name || layer.getAttribute('data-bc') !== color) return;
+                            const base = layer.previousElementSibling;
+                            if (base && base.getAttribute('data-b') === name) { base.setAttribute('href', url); layer.remove(); }
+                        });
+                    }
+                }).catch(() => { /* zůstane filtr */ });
+            });
+        };
         const ensureTiles = (view) => {
             if (!view || !doc || typeof root.Image !== 'function' || !root.URL || !root.URL.createObjectURL) return;
             for (const player of view.players) {
@@ -906,6 +952,7 @@
             if (!svg || !game) return;
             if (!game.vb) game.vb = { x: 0, y: 0, w: game.data.w, h: game.data.h };
             applyView();
+            ensureBuildingTiles();
             const holder = svg.parentElement;
             if (holder.dataset.bound) return;
             holder.dataset.bound = '1';
@@ -947,16 +994,38 @@
             if (!svg || !game) return;
             cancelPreview();
             writeViewBox();
-            svg.classList.remove('cq-gesture');
+            svg.classList.remove('cq-gesture', 'cq-lite');
             const reset = app.querySelector('[data-cq="zoom-reset"]');
             if (reset) { reset.classList.toggle('hidden', zoomOf() < 1.05); reset.classList.toggle('flex', zoomOf() >= 1.05); }
             updateDetail();
             // Stav hry se mezitím změnil: mapa se překreslí až teď (ne uprostřed gesta)
             if (pendingRepaint && !gesture && !fitting) { pendingRepaint = false; root.setTimeout(() => { if (!gesture && !fitting) repaintMap(); else pendingRepaint = true; }, 0); }
         };
+        // Přizpůsobení slabému telefonu: když se mapa během gesta vykresluje pomalu (průměr posledních snímků nad 32 ms), vypne se i textura moře
+        // (na rychlém telefonu zůstává); volba se pamatuje v zařízení
+        const LITE_KEY = 'mudrlant.cq.lite';
+        let lite = false;
+        try { lite = root.localStorage && root.localStorage.getItem(LITE_KEY) === '1'; } catch (error) { /* bez úložiště */ }
+        let lastPaintAt = 0;
+        const paintGaps = [];
+        const watchSpeed = () => {
+            const now = root.performance && root.performance.now ? root.performance.now() : Date.now();
+            const gap = now - lastPaintAt;
+            lastPaintAt = now;
+            // Přestávka v gestu se do průměru nepočítá
+            if (gap > 250) { paintGaps.length = 0; return; }
+            paintGaps.push(gap);
+            if (paintGaps.length > 8) paintGaps.shift();
+            if (!lite && paintGaps.length >= 6 && paintGaps.reduce((sum, value) => sum + value, 0) / paintGaps.length > 32) {
+                lite = true;
+                try { root.localStorage.setItem(LITE_KEY, '1'); } catch (error) { /* bez úložiště */ }
+            }
+        };
         const paintPreview = () => {
             previewFrame = 0;
             if (!svg || !game) return;
+            watchSpeed();
+            svg.classList.toggle('cq-lite', lite);
             svg.classList.add('cq-gesture');
             writeViewBox();
             // Vlaječky a ikony drží na displeji stálou velikost i během gesta (jen měřítko skupin, popisky počkají na konec)
@@ -988,6 +1057,8 @@
         const updateDetail = () => {
             if (!svg || !game) return;
             const upp = updateMarks();
+            // Od 2,5× bez textury akvarelu (maska je při velkém přiblížení drahá a textura se stejně roztáhne na velké skvrny)
+            svg.classList.toggle('cq-zoomed', zoomOf() > 2.5);
             // Název jen u vybraného území (ostatní názvy by napovídaly)
             svg.querySelectorAll('.cq-label').forEach(element => {
                 const hide = element.dataset.label !== game.selected;
