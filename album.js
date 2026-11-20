@@ -225,7 +225,7 @@
             : item.bonus && Look ? `${Look.unlockText(item)}. Bonus navíc, do sbírky se nepočítá.`
             : item.rare ? 'Vzácný dárek z Truhly Mudrlanta za splněné cíle týdne (občas místo běžné věci) a ze Zlaté truhly za pět zlatých střípků. Úrovní se neodemyká.'
             : item.chest ? 'Z Truhly Mudrlanta za splněné cíle týdne, ze stupně Sezóny Mudrlanta a ze Zlaté truhly za pět zlatých střípků. Úrovní se neodemyká.'
-            : badge ? `Za odznak „${badge.title}“: ${badge.text}`
+            : badge ? `Odemkne se s odznakem „${badge.title}“ (${String(badge.text || '').replace(/\.$/, '').replace(/^\p{Lu}(?=\p{Ll})/u, letter => letter.toLowerCase())}).`
                 : item.badge || !Number.isFinite(item.level) ? `${Look ? Look.unlockText(item, item.badge ? badgeTitle(item.badge) : null) : ''}.`
                     : `Od úrovně ${item.level}.${!entry.owned && CHEST_KINDS.includes(entry.category) && !entry.limited && !item.noGift ? ' Nebo dřív z Truhly Mudrlanta za splněné cíle týdne.' : ''}`;
         if (entry.limited) text += ` Sezónní věc${entry.until ? `, jde získat do ${formatDay(entry.until)}` : ''}.`;

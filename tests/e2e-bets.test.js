@@ -286,6 +286,7 @@ test('Kamarádské sázky', { skip: !chromium && 'Playwright není nainstalovan�
             // Pravidla a zpět: rozpracovaná výzva (hráč, sázka, hláška) zůstane
             await tab.click('[data-stake-help]');
             await tab.waitForSelector('[data-bet-help]');
+            await tab.waitForFunction(() => [...document.querySelectorAll('[data-bet-help] img')].every(img => img.complete && img.naturalWidth > 0), null, { timeout: 5000 });
             assert.match(await compact(tab, '#dialog-overlay'), /úroveň nikdy neklesne/);
             assert.match(await compact(tab, '#dialog-overlay'), /Teď můžeš vsadit až 30 XP/);
             assert.ok(await overflow(tab) <= 0, 'pravidla sázek se vejdou');

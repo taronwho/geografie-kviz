@@ -317,7 +317,7 @@ test('HTML alba: záložky sekcí, dlaždice všech věcí, podrobnosti s Nasadi
     const vavrin = Album.findEntry(album, 'frames:vavrin');
     const detail = Album.detailHtml(vavrin, { wear: { label: 'Nasadit', on: false } }, h);
     assert.match(detail, /data-album-wear[^>]*>.*Nasadit/s);
-    assert.match(detail, /Za odznak „Vítěz“: Vyhraj výzvu proti jinému hráči\./);
+    assert.match(detail, /Odemkne se s odznakem „Vítěz“ \(vyhraj výzvu proti jinému hráči\)\./);
     assert.match(Album.detailHtml(vavrin, { wear: { label: 'Nasadit', on: true, onLabel: 'Nasazeno' } }, h), /data-album-worn[^>]*>.*Nasazeno/s);
     const locked = Album.detailHtml(Album.findEntry(album, 'themes:legenda'), {}, h);
     assert.match(locked, /data-album-status="missing"/);
