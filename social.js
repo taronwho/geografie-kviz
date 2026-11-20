@@ -936,12 +936,12 @@
     const cleanWeek = (value) => (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null);
     // item = pomůcka Tah navíc za první výhru v týdnu (blok 30, cleanItemGrant)
     const cleanBossMe = (row) => (row && typeof row === 'object' ? {
-        week: cleanWeek(row.week), attempts: wholeNumber(row.attempts, 3), best_damage: wholeNumber(row.best_damage, 700), defeated: row.defeated === true,
+        week: cleanWeek(row.week), attempts: wholeNumber(row.attempts, 3), best_damage: wholeNumber(row.best_damage, 1000), defeated: row.defeated === true,
         bonus_claimed: row.bonus_claimed === true, first_win: row.first_win === true, ...(row.item ? { item: cleanItemGrant(row.item) } : {})
     } : null);
     // Dohraný souboj: týden (pondělí), idx = kolikátý pokus (0–2), poškození 0–700, výhra; vrátí můj stav týdne s first_win
     const bossSubmit = (week, idx, damage, defeated) => guardBoss(async () => cleanBossMe(await request('POST', 'rpc/boss_submit', {
-        body: { for_week: cleanWeek(week), idx: wholeNumber(idx, 2), damage: wholeNumber(damage, 700), is_defeated: Boolean(defeated) }
+        body: { for_week: cleanWeek(week), idx: wholeNumber(idx, 2), damage: wholeNumber(damage, 1000), is_defeated: Boolean(defeated) }
     })));
     // Společná lišta týdne (null = běžící týden): hráči, kteří to zkusili, kolik bosse porazilo, splněná polovina, konec týdne a můj stav
     const bossWeekStats = (week = null) => guardBoss(async () => {

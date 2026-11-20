@@ -186,4 +186,22 @@ test('SQL: Boss týdne', { skip: !available && 'PostgreSQL není dostupný' }, a
         assert.equal(q(`select count(*) from boss_results where user_id = '${C}'`), '0');
         assert.equal(q(`select count(*) from boss_results where user_id = '${A}'`), '2');
     });
+
+    await t.test('životy bosse týdne (blok 45): boss_week_hp stejně jako hpForWeek v boss.js, výhra jen s plnými životy týdne', () => {
+        const weeks = Array.from({ length: 120 }, (_, n) => new Date(Date.UTC(2026, 10, 9) + n * 7 * 86400000).toISOString().slice(0, 10));
+        const sql = q(`select string_agg(boss_week_hp(d::date)::text, ',' order by d) from unnest(array[${weeks.map(w => `'${w}'`).join(',')}]) as d`).split(',').map(Number);
+        assert.deepEqual(sql, weeks.map(w => Boss.hpForWeek(w)));
+        assert.equal(sql[0], 700);
+        assert.equal(sql[1], 700);
+        const week = '2026-11-23';
+        const hp = Boss.hpForWeek(week);
+        assert.ok(hp > 700, `týden ${week} má ${hp} životů`);
+        const now = '2026-11-26T12:00:00Z';
+        denied(submit(E, 0, hp + 50, true, now, week), /Neplatný výsledek/, 'víc než životy bosse');
+        denied(submit(E, 0, 700, true, now, week), /Neplatný výsledek/, 'výhra jen s plnými životy týdne');
+        ok(submit(E, 0, 700, false, now, week));
+        const win = json(submit(E, 1, hp, true, now, week));
+        assert.equal(win.defeated, true);
+        assert.equal(win.best_damage, hp);
+    });
 });
