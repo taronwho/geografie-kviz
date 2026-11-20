@@ -258,7 +258,9 @@ const NOT_A_ROLE = /choť|manžel|spolukníže|následník|Oxford|Akademie|Svazu
 // herci, kteří byli starosty (Clint Eastwood), do dějepisu nepatří
 const CATEGORY_OVERRIDES = {
     Q5879: 'osobnost', Q12706: 'osobnost', Q44481: 'osobnost', Q140694: 'osobnost', Q189564: 'osobnost', Q167997: 'osobnost',
-    Q315366: 'osobnost', Q344661: 'osobnost', Q43203: null, Q104027: null
+    Q315366: 'osobnost', Q344661: 'osobnost', Q43203: null, Q104027: null,
+    // Kolonie a koloniální říše nejsou samostatný stát s datem vzniku („Ve kterém století tento stát vznikl?“)
+    Q179023: null, Q130654: null, Q329618: null, Q926295: null, Q200464: null, Q370736: null
 };
 // Kategorie osoby: panovník (povolání nebo funkce), státník (prezidenti, premiéři, hlavy států a vlád), jinak osobnost
 const positionLabels = (detail) => detail.pos.map(position => label(position.id) || '').filter(text => text && !NOT_A_ROLE.test(text));
