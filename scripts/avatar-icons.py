@@ -423,6 +423,21 @@ NEW_CHARACTERS = {
     'bricho': {'src': 'pivni-bricho', 'parts': [
         {'title': 'Tričko', 'mode': 'tint', 'rules': [{'smin': 0, 'smax': 0.12, 'vmin': 0.72, 'box': [(0.0, 0.35, 1.0, 0.65)]}]},
         {'title': 'Pivo', 'rules': [{'hue': (25, 50), 'smin': 0.45, 'vmin': 0.45, 'box': [(0.55, 0.4, 1.0, 1.0)]}]}]},
+    'zampio': {'src': 'zampion', 'parts': [
+        {'title': 'Rukavice', 'rules': [{'hue': (340, 20), 'smin': 0.45, 'vmin': 0.3, 'box': [(0.1, 0.25, 0.9, 0.65)]}]},
+        {'title': 'Pás šampiona', 'rules': [{'hue': (35, 60), 'smin': 0.5, 'vmin': 0.55, 'box': [(0.3, 0.6, 0.7, 0.85)]}]}]},
+    'chrest': {'src': 'chrestys', 'parts': [
+        {'title': 'Hrot', 'rules': [{'hue': (250, 330), 'smin': 0.15, 'vmin': 0.3, 'box': [(0.2, 0.1, 0.55, 0.4)]}]},
+        {'title': 'Chřestítko', 'rules': [{'hue': (20, 50), 'smin': 0.15, 'vmin': 0.4, 'box': [(0.65, 0.25, 0.9, 0.6)]}]}]},
+    'celerb': {'src': 'celerbrita', 'holes': True, 'parts': [
+        {'title': 'Řetěz', 'rules': [{'hue': (35, 60), 'smin': 0.5, 'vmin': 0.55, 'box': [(0.3, 0.55, 0.7, 0.9)]}]},
+        {'title': 'Kožíšek', 'mode': 'tint', 'rules': [{'smin': 0, 'smax': 0.12, 'vmin': 0.8, 'box': [(0.2, 0.55, 0.8, 0.98)]}]}]},
+    'candid': {'src': 'candidat', 'parts': [
+        {'title': 'Oblek', 'rules': [{'hue': (200, 240), 'smin': 0.25, 'vmin': 0.25, 'box': [(0.25, 0.5, 0.95, 1.0)]}]},
+        {'title': 'Šerpa a kravata', 'rules': [{'hue': (340, 20), 'smin': 0.45, 'vmin': 0.4, 'box': [(0.3, 0.4, 0.85, 0.92)]}]}]},
+    'hrozny': {'src': 'hroznys', 'parts': [
+        {'title': 'Fialové hrozny', 'rules': [{'hue': (290, 350), 'smin': 0.2, 'vmin': 0.25}]},
+        {'title': 'Lístky', 'rules': [{'hue': (80, 150), 'smin': 0.45, 'vmin': 0.3, 'box': [(0.3, 0.0, 0.75, 0.25)]}]}]},
     'brokik': {'src': 'brokolik', 'parts': [
         {'title': 'Bunda', 'rules': [{'hue': (190, 240), 'smin': 0.12, 'vmin': 0.25, 'box': [(0.15, 0.6, 1.0, 1.0)]}]},
         {'title': 'Podšívka', 'rules': [{'hue': (310, 350), 'smin': 0.4, 'vmin': 0.35, 'box': [(0.25, 0.55, 0.95, 0.9)]}]}]},

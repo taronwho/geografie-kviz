@@ -4210,7 +4210,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu) a jako druhý obrázek fot
 Cartoon sticker character portrait in exactly the same art style as the first attached image (the owl mascot): thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. The only text allowed is inside the speech bubble described below; no other text, letters, numbers, logo or watermark. Use the first image (owl) only as a style reference (line weight, shading); do not draw the owl. Use the second image only as a loose design reference for the idea of the character (a person whose head is a broccoli, a long pale-green stalk instead of a neck, huge round googly eyes, a wide toothy grin, a puffy jacket); redraw it completely in the style of the first image as a new original character and do not copy the second image's drawing, colors of the background or linework. Character: Brokolík, a cheerful, slightly goofy broccoli man. His head is a big, fluffy, curly dark-green broccoli floret that looks like a funny afro hairstyle, with a few lighter green highlights on the bumps. Under it a short, thick, light-green stalk serves as his neck and face: two huge round white eyes with small black pupils that look a little startled, and a wide happy grin with a row of white teeth. He wears a puffy dark blue-grey quilted jacket with a bright magenta-pink hood lining around the neck and matching pink cuffs, and one green hand with three long fingers is raised and waving hello at the viewer. Friendly, silly and optimistic mood. Next to his head, in the top corner, a round white speech bubble with a small tail pointing at him, containing exactly this Czech text in bold hand-lettered lowercase: jakoby reálně... (keep the accent on the á and the caron on the ě, and the three dots at the end). The bubble must not cover his face.
 ```
 
-#### 470. `avatar-zampion.png` – Žampion (žampion + šampion) – čeká na dodání
+#### 470. `avatar-zampion.png` – Žampion (žampion + šampion) – ✅ dodáno, zapojeno (`zampio`, odznak boss Ampér)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -4218,7 +4218,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no speech bubble, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: Žampion, a cocky champion button mushroom. A round pale cream-white mushroom cap with a few soft brown speckles and a short thick stem as his body. Wide determined grin, one raised eyebrow, red boxing gloves held up in front of him in a fighting stance, and a golden champion belt with a big shiny round gold buckle (no text on it) around his stem. Confident, proud, slightly smug mood.
 ```
 
-#### 471. `avatar-chrestys.png` – Chřestýš (chřest + chřestýš) – čeká na dodání
+#### 471. `avatar-chrestys.png` – Chřestýš (chřest + chřestýš) – ✅ dodáno, zapojeno (`chrest`, odznak Mytologie 100)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -4226,7 +4226,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no speech bubble, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: Chřestýš, a slithering asparagus snake. A long green asparagus spear with a purple-green tip as a head, bent into a coiled S-shape like a rattlesnake ready to strike, with a forked red tongue sticking out, narrow yellow slit-pupil eyes and a sly smirk. At the end of its body a rattle made of a few small bumpy beige rings. Sneaky, cool, slightly dangerous but funny mood.
 ```
 
-#### 472. `avatar-celerbrita.png` – Celerbrita (celer + celebrita) – čeká na dodání
+#### 472. `avatar-celerbrita.png` – Celerbrita (celer + celebrita) – ✅ dodáno, zapojeno (`celerb`, odznak Hvězdy 2)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -4234,7 +4234,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no speech bubble, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: Celerbrita, a celebrity celery. A pale-green celery stalk with leafy top as stylish hair, wearing big round black sunglasses with shiny white reflections, a glamorous sparkling gold chain, and a fluffy white fur-like collar. One hand waves like on a red carpet and the other shows a peace sign; a few small white camera-flash sparkles and stars around the head. Glamorous, vain, happy mood.
 ```
 
-#### 473. `avatar-candidat.png` – Candidát (candát + kandidát) – čeká na dodání
+#### 473. `avatar-candidat.png` – Candidát (candát + kandidát) – ✅ dodáno, zapojeno (`candid`, odznak Úroveň 20)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -4242,7 +4242,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no speech bubble, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: Candidát, a politician pikeperch (zander) fish. A silvery-grey and olive fish with a pointed head, spiny dorsal fin, big round shiny eyes and a confident toothy grin, standing upright like a person. He wears a dark blue suit, a white shirt, a red tie and a bright election sash across his chest (no text on it), and holds a small round microphone in one fin-hand while the other fin points forward like a politician giving a speech. Charming, over-confident, slightly shady mood.
 ```
 
-#### 474. `avatar-hroznys.png` – Hroznýš (hrozen + hroznýš) – čeká na dodání
+#### 474. `avatar-hroznys.png` – Hroznýš (hrozen + hroznýš) – ✅ dodáno, zapojeno (`hrozny`, odznak Fyzika 100)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 

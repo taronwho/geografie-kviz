@@ -8517,7 +8517,7 @@ language sql immutable set search_path = public as $$
         ('avatars', 'tchyne', 'badge:retezovka-cela-5'), ('avatars', 'kuryr', 'level:45'), ('avatars', 'kocov', 'badge:serie-60'), ('avatars', 'gauc', 'badge:dny-100'),
         ('avatars', 'podnaj', 'badge:dobyvatel-25'), ('avatars', 'upir', 'badge:boss-reziser'), ('avatars', 'plivak', 'badge:boss-rytir'),
         ('avatars', 'bricho', 'badge:boss-olympan'), ('avatars', 'papous', 'badge:boss-maestro'), ('avatars', 'syr', 'badge:vsechna-temata-1'),
-        ('avatars', 'prd', 'gift'), ('avatars', 'jednor', 'gift'), ('avatars', 'kure', 'referral:pritel-10'), ('avatars', 'smrtka', 'prestige:2'), ('avatars', 'brokik', 'badge:tema-chemie-100')
+        ('avatars', 'prd', 'gift'), ('avatars', 'jednor', 'gift'), ('avatars', 'kure', 'referral:pritel-10'), ('avatars', 'smrtka', 'prestige:2'), ('avatars', 'brokik', 'badge:tema-chemie-100'), ('avatars', 'zampio', 'badge:boss-amper'), ('avatars', 'chrest', 'badge:tema-mytologie-100'), ('avatars', 'celerb', 'badge:hvezdy-2'), ('avatars', 'candid', 'badge:uroven-20'), ('avatars', 'hrozny', 'badge:tema-fyzika-100')
     ) as t (cat, item, rule);
 $$;
 revoke all on function public.unlock_catalog_more() from public, anon, authenticated;
@@ -9810,8 +9810,9 @@ grant execute on function public.conquest_add_bots(uuid, integer, text), public.
 -- 44: Dobývání – bitva čeká na přidání botů nejvýš 10 s (conquest_bot_join_window, conquest_bot_react_delay do 9 s); lidé se přidají, dokud někdo
 --     z útočníků neodpověděl; obrana strážní věží má vlastní termín defend_until (15 s / 30 s).
 -- 45: Boss týdne – životy bosse 700 až 1000 podle týdne (boss_week_hp, od 23. 11. 2026), základní poškození 80; boss_results a boss_submit s nimi.
+-- 47: postavičky Žampion, Chřestýš, Celerbrita, Candidát a Hroznýš (odznaky Přemožitel Ampéra, Mytologie 100, Hvězdy 2, Úroveň 20 a Fyzika 100).
 -- 46: postavička Brokolík (avatars/brokik za odznak tema-chemie-100, unlock_catalog_more).
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 46 $$;
+language sql immutable as $$ select 47 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;
