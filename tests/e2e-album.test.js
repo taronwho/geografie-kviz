@@ -225,7 +225,7 @@ test('album sbírky: sekce, podrobnosti, Nasadit a oslava milníku', { skip: !ch
         await tab.click('[data-album-tab="accessories"]');
         await tab.click('[data-album-item="accessories:kompas"]');
         await tab.waitForSelector('[data-album-detail="accessories:kompas"]');
-        assert.match(await tab.textContent('[data-album-how]'), /Za odznak „Navigátor“/);
+        assert.match(await tab.textContent('[data-album-how]'), /Odemkne se s odznakem „Navigátor“/);
         await shot(tab, 'album-detail-390-light');
         await tab.click('[data-album-wear]');
         await tab.waitForSelector('[data-album-worn]');
