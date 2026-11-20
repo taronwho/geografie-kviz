@@ -659,7 +659,7 @@ se na ně dál neptá): souboje, XP, emblémy a titul fungují, chybí jen spole
 - **Pravidla** (`boss.js`): každý ISO týden (pražský čas, pondělí–neděle) jiný boss – Mudrlant v převleku: Kapitán Mudrlant (Zeměpis), Rytíř
   Mudrlant (Historie), Alchymista (Chemie), Profesor Ampér (Fyzika), Maestro (Hudba), Druid (Biologie), Olympan (Mytologie) a Režisér (Film).
   Souboj: 10 těžkých otázek z tématu bosse (známé položky ze střední a nejméně známé třetiny kategorie), stejných pro všechny (semínko = týden
-  a číslo pokusu). Boss má **700 životů**, správná odpověď mu ubere **50 + bonus za rychlost** (až 30: plný do 6 s, do 20 s klesá k nule),
+  a číslo pokusu). Boss má **700 až 1000 životů** (od 23. 11. 2026 podle týdne, `boss_week_hp`, schéma 45), správná odpověď mu ubere **80 + bonus za rychlost** (až 30: plný do 6 s, do 20 s klesá k nule),
   hráč má **3 srdce** (chyba i vypršený čas jedno ubere). Čas na otázku 30 s (psaná 40 s); schválnosti: 4. a 8. otázka bez možností (odpověď se
   píše), poslední 3 otázky poloviční čas. **3 pokusy za týden**, počítá se nejlepší; rozehraný souboj jde dohrát později, čas otázky ale běží dál.
   Boss se mění podle životů: Plná síla (100–67 %), Zraněný (66–34 %), V koncích (33–1 %), Poražený (0).

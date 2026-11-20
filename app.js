@@ -108,7 +108,7 @@
     // milníky Řetězovky, 12. stupeň Sezóny, Truhlu Mudrlanta, Zlatou truhlu a společný cíl Bosse; se starší databází se nenabídne).
     // 39 = Dobývání: pomůcka Ankh vzkříšení místo automatického Návratu do hry (conquest_use_revive, ochrana 60 s, zásoba revive; zisk startovní,
     // za započítanou hru, sérii Kvízu dne, 8. stupeň Sezóny a truhly; se starší databází se hráč bez území vrátí sám jako dřív).
-    const REQUIRED_SCHEMA = 44;
+    const REQUIRED_SCHEMA = 45;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -12198,7 +12198,7 @@
     };
     const openBossRules = () => {
         const boss = Boss.bossForWeek(Boss.weekOf());
-        showDialog('Pravidla souboje', `${Boss.rulesHtml(boss, bossTopicTitle(boss.topic))}${dialogBackButton('mt-3')}`);
+        showDialog('Pravidla souboje', `${Boss.rulesHtml(boss, bossTopicTitle(boss.topic), Boss.weekOf())}${dialogBackButton('mt-3')}`);
     };
     const openBossHall = () => {
         if (!Boss) return;
@@ -12238,7 +12238,7 @@
         const fight = bossFight;
         const open = loadBoss().open;
         if (!fight || !open) return;
-        const status = Boss.fightStatus(open.results);
+        const status = Boss.fightStatus(open.results, open.week);
         appContent.innerHTML = `
             <div id="boss-fight" data-boss-fight class="flex min-h-full w-full flex-col bg-slate-50 dark:bg-slate-900">
                 ${Boss.stripHtml({ boss: fight.boss, status, slot: open.results.length, limit: Boss.timeLimit(Math.min(Boss.QUESTIONS - 1, open.results.length)) })}
@@ -12296,7 +12296,7 @@
         if (!bossLive(fight)) return;
         let state = loadBoss();
         if (!state.open) { renderBossIntro(); return; }
-        if (Boss.fightStatus(state.open.results).over) { finishBossFight(fight); return; }
+        if (Boss.fightStatus(state.open.results, state.open.week).over) { finishBossFight(fight); return; }
         const slot = state.open.results.length;
         // Otázka už na obrazovce byla (návrat do souboje): stejná, její čas běží dál a odemčené nápovědy zůstanou
         if (state.open.shown && state.open.shown.slot === slot) { presentBossQuestion(fight, upgradeRoundData(state.open.shown.data), state.open.shown.at, slot, state.open.shown.hint || 1); return; }
@@ -12410,7 +12410,7 @@
             stopBossTimers();
             bossFight = null;
             const state = loadBoss();
-            if (state.open && Boss.fightStatus(state.open.results).over) finishBossFight(fight, { silent: true });
+            if (state.open && Boss.fightStatus(state.open.results, state.open.week).over) finishBossFight(fight, { silent: true });
             return;
         }
         if (fight.phase !== 'question') return;
@@ -12474,10 +12474,10 @@
                 fight.picked = index;
             }
         }
-        const before = Boss.fightStatus(open.results);
+        const before = Boss.fightStatus(open.results, open.week);
         state.open = Boss.addResult(open, { correct, ms: Math.min(elapsed, fight.limit), typed, timeout: timeout || late, answer });
         saveBoss(state);
-        const after = Boss.fightStatus(state.open.results);
+        const after = Boss.fightStatus(state.open.results, state.open.week);
         Object.assign(round, { answered: true, correct, answer });
         fight.phase = 'feedback';
         noteModeAnswer(current, correct);
@@ -12539,9 +12539,9 @@
         if (fill) fill.style.width = `${status.percent}%`;
         if (ghost) ghost.style.width = `${status.percent}%`;
         const meter = strip.querySelector('[data-boss-hp]');
-        if (meter) { meter.dataset.bossHp = String(status.hp); meter.setAttribute('aria-valuenow', String(status.hp)); meter.setAttribute('aria-valuetext', `${status.hp} z ${Boss.HP} životů`); }
+        if (meter) { meter.dataset.bossHp = String(status.hp); meter.setAttribute('aria-valuenow', String(status.hp)); meter.setAttribute('aria-valuetext', `${status.hp} z ${status.max} životů`); }
         const text = strip.querySelector('[data-boss-hp-text]');
-        if (text) text.textContent = `${status.hp} / ${Boss.HP}`;
+        if (text) text.textContent = `${status.hp} / ${status.max}`;
         const hearts = strip.querySelector('[data-boss-hearts]');
         if (hearts) hearts.outerHTML = Boss.heartsHtml(status.hearts, breaking);
         const stage = String(status.stage);
@@ -12647,7 +12647,7 @@
         if (!bossLive(fight) || fight.phase !== 'feedback' || Date.now() - (fight.answeredAt || 0) < 400) return;
         clearTimeout(bossFeedbackTimer);
         const state = loadBoss();
-        if (!state.open || Boss.fightStatus(state.open.results).over) finishBossFight(fight);
+        if (!state.open || Boss.fightStatus(state.open.results, state.open.week).over) finishBossFight(fight);
         else showBossQuestion(fight);
     };
     // Konec souboje: pokus se zapíše (v zařízení i na server), XP a emblém za první výhru v týdnu, pak obrazovka výsledku.

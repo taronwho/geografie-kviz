@@ -24,9 +24,9 @@ const PHOTO = fs.readFileSync(path.join(ROOT, 'icons', 'topics', 'sova-vitej.web
 const CONFIG = 'window.MUDRLANT_CONFIG = { supabaseUrl: "https://proj.supabase.co", supabaseAnonKey: "anon-key" };';
 const REQUIRED_SCHEMA = Number(/const REQUIRED_SCHEMA = (\d+);/.exec(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8'))[1]);
 // Týden 9.–15. 11. 2026: boss Kapitán Mudrlant (Zeměpis – testovací data ho mají); čtvrtek 12. 11. ve 13:00 pražského času (UTC+1)
-const WEEK = '2026-11-09';
-const NEXT_WEEK = '2026-11-16';
-const NOW = new Date('2026-11-12T12:00:00Z');
+const WEEK = '2034-05-15';
+const NEXT_WEEK = '2034-05-22';
+const NOW = new Date('2034-05-18T12:00:00Z');
 const SHOTS = process.env.BOSS_SHOTS || '';
 
 const serveFile = (pathname) => {
@@ -63,13 +63,13 @@ const backend = async (context, db) => {
                 db.calls.push({ name, body });
                 if (db.missing) return json({ code: 'PGRST202', message: 'Could not find the function' }, 404);
                 const week = (body && body.for_week) || WEEK;
-                const mine = () => (db.me && week === WEEK ? { week: WEEK, attempts: db.me.attempts, best_damage: db.me.best, defeated: db.me.best >= 700, bonus_claimed: false } : null);
+                const mine = () => (db.me && week === WEEK ? { week: WEEK, attempts: db.me.attempts, best_damage: db.me.best, defeated: db.me.best >= 950, bonus_claimed: false } : null);
                 if (name === 'boss_week_stats') return json({ week, players: db.players, defeated: db.beaten, defeated_pct: Math.round(100 * db.beaten / db.players), reached: db.beaten * 2 >= db.players, over: false, me: mine() });
                 if (name === 'boss_submit') {
                     const attempts = db.me ? db.me.attempts : 0;
                     if (body.idx < attempts) return json({ ...mine(), first_win: false });
                     if (attempts >= 3) return json({ code: '22023', message: 'Pokusy na tento týden došly.' }, 400);
-                    const first = body.is_defeated && !(db.me && db.me.best >= 700);
+                    const first = body.is_defeated && !(db.me && db.me.best >= 950);
                     if (!db.me) db.players += 1;
                     if (first) db.beaten += 1;
                     db.me = { attempts: attempts + 1, best: Math.max(db.me ? db.me.best : 0, body.damage) };
@@ -248,7 +248,7 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         // Souboj
         await tab.click('[data-action="boss-start"]');
         await question(tab);
-        assert.equal(await hp(tab), 700);
+        assert.equal(await hp(tab), 950);
         assert.equal(await tab.getAttribute('#boss-strip [data-boss-hearts]', 'data-boss-hearts'), '3');
         assert.equal(await compact(tab, '#boss-strip [data-boss-count]'), 'Otázka 1/10');
         await clockNear(tab, 30);
@@ -262,10 +262,10 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         // Rychlá správná odpověď: 50 + plný bonus 30
         await answer(tab, true, { next: false });
         await answerCard(tab, firstShown);
-        assert.equal(await hp(tab), 620);
+        assert.equal(await hp(tab), 840);
         assert.equal(await tab.getAttribute('[data-boss-bubble]', 'data-boss-bubble'), 'hit');
         assert.ok(Boss.BY_ID.kapitan.hit.includes(await compact(tab, '[data-boss-bubble] p:last-child')));
-        assert.equal(await compact(tab, '#boss-strip .boss-dmg'), '−80');
+        assert.equal(await compact(tab, '#boss-strip .boss-dmg'), '−110');
         assert.equal(await compact(tab, '#boss-strip .boss-dmg-tag'), 'Rychlý zásah!');
         await shot(tab, 'zasah-360x640');
         // Hláška bosse po chvíli zmizí, karta odpovědi zůstane, dokud hráč neklepne na Další otázka
@@ -283,7 +283,7 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         assert.ok(await tab.$('#boss-strip .boss-heart-break'), 'srdce praskne');
         assert.equal(await tab.getAttribute('[data-boss-bubble]', 'data-boss-bubble'), 'taunt');
         assert.ok(Boss.BY_ID.kapitan.taunt[1].includes(await compact(tab, '[data-boss-bubble] p:last-child')), 'posměšek ve stupni 1');
-        assert.equal(await hp(tab), 620);
+        assert.equal(await hp(tab), 840);
         await shot(tab, 'chyba-360x640');
         await goNext(tab);
         // Pomalejší odpověď (13 s) s nápovědou: nápověda stojí jen čas (menší bonus za rychlost, do 20 s klesá k nule), čas při ní běží dál
@@ -302,8 +302,8 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         await answer(tab, true);
         const slow = (await state(tab)).open.results[2];
         assert.ok(slow.ms >= 13000 && slow.ms < 20000, `čas ${slow.ms} ms`);
-        assert.equal(await hp(tab), 620 - Boss.damageFor(true, slow.ms));
-        assert.ok(Boss.damageFor(true, slow.ms) < 80 && Boss.damageFor(true, slow.ms) > 50);
+        assert.equal(await hp(tab), 840 - Boss.damageFor(true, slow.ms));
+        assert.ok(Boss.damageFor(true, slow.ms) < 110 && Boss.damageFor(true, slow.ms) > 80);
         // 4. otázka: schválnost – možnosti schované, odpověď se píše
         await question(tab);
         assert.ok(await tab.$('#boss-input'), 'psaná odpověď');
@@ -320,7 +320,7 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         await goNext(tab);
         // 5. otázka: boss klesne pod dvě třetiny životů → stupeň 2 (Zraněný): záblesk, nový obrázek, hláška stupně
         await answer(tab, true, { next: false });
-        let status = Boss.fightStatus((await state(tab)).open.results);
+        let status = Boss.fightStatus((await state(tab)).open.results, WEEK);
         assert.equal(await hp(tab), status.hp);
         assert.equal(status.stage, 2);
         assert.equal(await tab.getAttribute('#boss-strip', 'data-stage'), '2');
@@ -352,7 +352,7 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         await clockNear(tab, 15);
         assert.equal(await tab.getAttribute('[data-boss-trick]', 'data-boss-trick'), 'half');
         await answer(tab, true, { next: false });
-        status = Boss.fightStatus((await state(tab)).open.results);
+        status = Boss.fightStatus((await state(tab)).open.results, WEEK);
         assert.equal(status.stage, 3);
         assert.equal(await tab.getAttribute('#boss-strip', 'data-stage'), '3');
         assert.equal(await compact(tab, '#boss-strip [data-boss-stage-label]'), 'V koncích');
@@ -361,7 +361,7 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         await goNext(tab);
         // 10. otázka správně, ale boss vydrží: prohra, počítá se uštědřené poškození; výsledek až po kartě odpovědi
         const tenth = await answer(tab, true, { next: false });
-        status = Boss.fightStatus((await state(tab)).open.results);
+        status = Boss.fightStatus((await state(tab)).open.results, WEEK);
         assert.ok(status.over && !status.won && status.hp > 0);
         await answerCard(tab, tenth, { over: true });
         await wait(tab, 3000);
@@ -487,7 +487,7 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         assert.equal(again.at, shown.at, 'čas otázky běží od prvního ukázání');
         const left = Number(await compact(tab, '#boss-strip [data-boss-clock]'));
         assert.ok(left <= 25 && left >= 15, `čas běží dál: zbývá ${left} s`);
-        assert.equal(await hp(tab), 620);
+        assert.equal(await hp(tab), 840);
         if (hinted) {
             assert.equal(again.hint, 2);
             assert.equal(await tab.$$eval('#hint-tab-panel [role="tab"]', items => items.length), 2, 'Popis a odemčená nápověda');
@@ -539,7 +539,7 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         await tab.waitForSelector('#boss-result[data-boss-outcome="lost"]');
         await tab.waitForFunction(() => document.querySelector('[data-boss-community]') && /4 z 11|11/.test(document.querySelector('[data-boss-community]').textContent));
         const submit = db.calls.find(call => call.name === 'boss_submit');
-        assert.deepEqual(submit.body, { for_week: WEEK, idx: 0, damage: 80, is_defeated: false });
+        assert.deepEqual(submit.body, { for_week: WEEK, idx: 0, damage: 110, is_defeated: false });
         assert.ok((await state(tab)).weeks[WEEK].attempts[0].synced, 'pokus odeslaný');
         await fitsScreen(tab, 'prohra přihlášeného (390×780)');
         await audit(tab, 'prohra přihlášeného (390×780)');
@@ -553,7 +553,7 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         assert.match(await compact(tab, '#boss-intro [data-boss-status]'), /Nejlepší pokus: 300 poškození/);
         await tab.click('[data-action="boss-home"]');
         await tab.waitForSelector('#boss-card[data-boss-status="out"]');
-        assert.equal(await compact(tab, '#boss-card'), 'Boss týdne ❤ 58 % · pokusy došly');
+        assert.equal(await compact(tab, '#boss-card'), 'Boss týdne ❤ 69 % · pokusy došly');
         assert.equal(await tab.getAttribute('#boss-card', 'data-done'), '1', 'bez pokusů je řádek hotový (ztlumený, bez tlačítka)');
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
@@ -563,11 +563,11 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         db.bonus = { xp: 50, item: { kind: 'chain_rescue', granted: true, full: false, already: false, count: 1, max: 1 } };
         // XP z účtu (falešný profil má 100) + společný bonus
         const xpBefore = 100;
-        const later = await open(browser, login('tok-u1'), { viewport: { width: 390, height: 780 }, db, time: new Date('2026-11-16T09:00:00Z') });
-        await later.tab.waitForFunction(() => JSON.parse(localStorage.getItem('mudrlant.boss') || '{"claims":{}}').claims['u-1'] === '2026-11-09');
+        const later = await open(browser, login('tok-u1'), { viewport: { width: 390, height: 780 }, db, time: new Date('2034-05-22T09:00:00Z') });
+        await later.tab.waitForFunction(() => JSON.parse(localStorage.getItem('mudrlant.boss') || '{"claims":{}}').claims['u-1'] === '2034-05-15');
         // Bonus se zkouší za minulý týden jednou: 2. 11. (při prvním otevření, cíl nesplněn) a 9. 11. (splněno: +50 XP)
         const claim = db.calls.filter(call => call.name === 'boss_claim_bonus');
-        assert.deepEqual(claim.map(call => call.body), [{ for_week: '2026-11-02' }, { for_week: WEEK }]);
+        assert.deepEqual(claim.map(call => call.body), [{ for_week: '2034-05-08' }, { for_week: WEEK }]);
         assert.equal((await progress(later.tab)).xp, xpBefore + 50);
         await later.tab.waitForSelector('#celebration');
         assert.match(await compact(later.tab, '#celebration'), /Společná výhra!/);
@@ -592,7 +592,7 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         await tab.waitForSelector('[data-boss-community="off"]');
         await tab.click('[data-action="boss-start"]');
         await answer(tab, true);
-        assert.equal(await hp(tab), 620);
+        assert.equal(await hp(tab), 840);
         assert.deepEqual(log.errors, []);
         await context.close();
     });

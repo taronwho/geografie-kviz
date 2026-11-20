@@ -3888,7 +3888,7 @@ grant execute on function public.challenge_offer_stake(text, integer, integer), 
 -- ===== Boss týdne (schéma 21) — ZAČÁTEK BLOKU =====
 -- Každý ISO týden (pražský čas, pondělí–neděle) jiný boss pro všechny hráče; kterého a jaké otázky určuje aplikace (boss.js), server zná jen týden.
 -- Hráč má na týden 3 pokusy, počítá se nejlepší: jeden řádek na hráče a týden (week = pondělí týdne). Každý dohraný souboj aplikace pošle
--- přes boss_submit (poškození 0–700, výhra = 700); idx = kolikátý pokus to podle aplikace je (od 0), opakované odeslání téhož pokusu
+-- přes boss_submit (poškození 0 až životy bosse týdne, výhra = všechny životy; od bloku 45 700–1000 podle týdne, boss_week_hp); idx = kolikátý pokus to podle aplikace je (od 0), opakované odeslání téhož pokusu
 -- (ztracená odpověď serveru) nic nezmění. Souboj dohraný těsně po půlnoci z neděle na pondělí se přijme ještě 30 minut.
 -- Společná lišta (boss_week_stats): kolik hráčů, kteří to zkusili, bosse porazilo. Když do konce týdne porazí bosse aspoň polovina z nich,
 -- vyzvedne si každý z nich příští týden 50 XP (boss_claim_bonus, jednou za týden; XP si připíše aplikace jako ostatní XP).
@@ -3906,9 +3906,27 @@ create table if not exists public.boss_results (
     updated_at timestamptz not null default now(),
     primary key (user_id, week)
 );
+-- Životy bosse týdne (blok 45): do 22. 11. 2026 vždy 700, pak 700 až 1000 po 50 podle hashe pořadového čísla týdne (stejný výpočet jako
+-- hpForWeek v boss.js: 6 bitů hashe = rozdělení jako 6 hodů mincí, většinou kolem 850, krajní hodnoty zřídka)
+create or replace function public.boss_week_hp(w date) returns integer
+language plpgsql immutable set search_path = public as $$
+declare n bigint; h bigint; steps integer := 0; b integer;
+begin
+    if w is null or w < date '2026-11-23' then return 700; end if;
+    n := (w - date '2026-11-09') / 7;
+    h := (n * 2654435761) % 4294967296;
+    h := h # (h >> 15);
+    h := ((h::numeric * 2246822519) % 4294967296)::bigint;
+    h := h # (h >> 13);
+    for b in 26..31 loop steps := steps + ((h >> b) & 1)::integer; end loop;
+    return 700 + 50 * steps;
+end;
+$$;
+revoke all on function public.boss_week_hp(date) from public, anon;
+grant execute on function public.boss_week_hp(date) to authenticated;
 alter table public.boss_results drop constraint if exists boss_results_values;
 alter table public.boss_results add constraint boss_results_values check (
-    extract(isodow from week) = 1 and attempts between 1 and 3 and best_damage between 0 and 700 and defeated = (best_damage = 700)
+    extract(isodow from week) = 1 and attempts between 1 and 3 and best_damage between 0 and 1000 and defeated = (best_damage = public.boss_week_hp(week))
     and calls between 0 and 1000);
 create index if not exists boss_results_week on public.boss_results (week, defeated);
 alter table public.boss_results enable row level security;
@@ -3935,7 +3953,7 @@ language sql stable set search_path = public as $$
 $$;
 
 -- Dohraný souboj: týden (pondělí; ten běžící, nebo minulý ještě 30 minut po půlnoci), idx = kolikátý pokus (0–2), uštědřené poškození
--- a výhra (jen s plnými 700). Nejvýš 3 pokusy za týden; počítá se nejlepší poškození, výhra už zůstane. first_win = tímto pokusem padl
+-- a výhra (jen s plnými životy bosse týdne). Nejvýš 3 pokusy za týden; počítá se nejlepší poškození, výhra už zůstane. first_win = tímto pokusem padl
 -- boss poprvé (aplikace podle toho připíše XP za výhru jen jednou za účet). První výhra v týdnu dá pomůcku Tah navíc do Dobývání
 -- (blok 30, klíč boss:<týden>): item = { kind, granted, full, count, max }, jen u odeslání s first_win.
 create or replace function public.boss_submit(for_week date, idx integer, damage integer, is_defeated boolean) returns jsonb
@@ -3946,7 +3964,7 @@ begin
     if for_week is null or for_week not in (public.boss_week(t), public.boss_week(t - interval '30 minutes')) then
         raise exception 'Tenhle boss už odešel. Tento týden je nový.' using errcode = '22023';
     end if;
-    if idx is null or idx < 0 or idx > 2 or damage is null or damage < 0 or damage > 700 or is_defeated is null or is_defeated <> (damage = 700) then
+    if idx is null or idx < 0 or idx > 2 or damage is null or damage < 0 or damage > public.boss_week_hp(for_week) or is_defeated is null or is_defeated <> (damage = public.boss_week_hp(for_week)) then
         raise exception 'Neplatný výsledek souboje.' using errcode = '22023';
     end if;
     select * into r from public.boss_results where user_id = uid and week = for_week for update;
@@ -9791,7 +9809,8 @@ grant execute on function public.conquest_add_bots(uuid, integer, text), public.
 --     botů (conquest_bot_names).
 -- 44: Dobývání – bitva čeká na přidání botů nejvýš 10 s (conquest_bot_join_window, conquest_bot_react_delay do 9 s); lidé se přidají, dokud někdo
 --     z útočníků neodpověděl; obrana strážní věží má vlastní termín defend_until (15 s / 30 s).
+-- 45: Boss týdne – životy bosse 700 až 1000 podle týdne (boss_week_hp, od 23. 11. 2026), základní poškození 80; boss_results a boss_submit s nimi.
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 44 $$;
+language sql immutable as $$ select 45 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

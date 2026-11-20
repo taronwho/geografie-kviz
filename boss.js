@@ -1,6 +1,6 @@
 // Boss týdne (Výzva od Mudrlanta, docs/NOVE-MODY.md č. 10): každý ISO týden (pražský čas) jiný boss – Mudrlant v převleku s vlastní povahou.
-// Souboj: 10 těžkých otázek z tématu bosse (stejných pro všechny: semínko = týden a číslo pokusu), boss má 700 životů, správná odpověď
-// mu ubere 50 + bonus za rychlost (až 30: plný do 6 s, do 20 s klesá k nule), hráč má 3 srdce (chyba i vypršený čas ubere jedno).
+// Souboj: 10 těžkých otázek z tématu bosse (stejných pro všechny: semínko = týden a číslo pokusu), boss má 700 až 1000 životů (podle týdne), správná odpověď
+// mu ubere 80 + bonus za rychlost (až 30: plný do 6 s, do 20 s klesá k nule), hráč má 3 srdce (chyba i vypršený čas ubere jedno).
 // Otázky jsou jako v běžné hře: zakrytý úvod článku z Wikipedie, nápovědy (další věty, fotka, obrazová nápověda, fakta), které stojí
 // jen čas (bonus za rychlost klesá), a po odpovědi karta s popisem z Wikipedie a fotkou; další otázka přijde klepnutím.
 // Schválnosti: u 4. a 8. otázky boss schová možnosti (odpověď se píše), poslední 3 otázky mají poloviční čas. 3 pokusy za týden,
@@ -35,8 +35,13 @@
     const arenaOf = (boss) => (boss && ART.arena && ART.arena[boss.id]) || '';
 
     // --- Pravidla ---
-    const HP = 700;
-    const BASE_DAMAGE = 50;
+    // Životy bosse se mění po týdnech (od HP_FROM): 700 až 1000 po 50, většinou kolem 850, krajní hodnoty zřídka (jako rozdělení 6 hodů mincí).
+    // Týden určuje hash pořadového čísla týdne, takže je stejný pro všechny a stejný na serveru (boss_week_hp ve schématu 45).
+    const HP_MIN = 700;
+    const HP_MAX = 1000;
+    const HP_STEP = 50;
+    const HP_FROM = '2026-11-23';
+    const BASE_DAMAGE = 80;
     const SPEED_BONUS = 30;
     const FULL_BONUS_MS = 6000;
     const ZERO_BONUS_MS = 20000;
@@ -265,6 +270,16 @@
     const addWeeks = (week, count) => addDays(week, 7 * count);
     // Pořadové číslo týdne a boss týdne (rotace po týdnech od ROTATION_START)
     const weekSerial = (week) => Math.round((dayNumber(week) - dayNumber(ROTATION_START)) / 7);
+    const hpForWeek = (week) => {
+        if (!week || week < HP_FROM) return HP_MIN;
+        let h = Math.imul(weekSerial(week), 2654435761) >>> 0;
+        h = (h ^ (h >>> 15)) >>> 0;
+        h = Math.imul(h, 2246822519) >>> 0;
+        h = (h ^ (h >>> 13)) >>> 0;
+        let steps = 0;
+        for (let bit = 26; bit < 32; bit += 1) steps += (h >>> bit) & 1;
+        return HP_MIN + HP_STEP * steps;
+    };
     const bossForWeek = (week) => BOSSES[((weekSerial(week) % BOSSES.length) + BOSSES.length) % BOSSES.length];
     // „9.–15. 11.“ nebo „30. 11. – 6. 12.“
     const weekLabel = (week) => {
@@ -354,15 +369,16 @@
     };
     const damageFor = (correct, ms) => (correct ? BASE_DAMAGE + speedBonus(ms) : 0);
     // Životy v procentech (zaokrouhleno nahoru: dokud boss žije, ukáže aspoň 1 %)
-    const hpPercent = (hp) => Math.max(0, Math.min(100, Math.ceil(Math.max(0, hp) * 100 / HP)));
-    const stageOf = (hp) => {
-        const percent = hpPercent(hp);
+    const hpPercent = (hp, max = HP_MIN) => Math.max(0, Math.min(100, Math.ceil(Math.max(0, hp) * 100 / max)));
+    const stageOf = (hp, max = HP_MIN) => {
+        const percent = hpPercent(hp, max);
         return percent <= 0 ? 4 : percent <= 33 ? 3 : percent <= 66 ? 2 : 1;
     };
     const stageName = (stage) => (STAGES[Math.max(1, Math.min(4, stage)) - 1] || STAGES[0]).name;
     // Průběh souboje z odpovědí [{ correct, ms }]: životy bosse, srdce, uštědřené poškození, konec a výhra
-    const fightStatus = (results = []) => {
-        let hp = HP;
+    const fightStatus = (results = [], week = '') => {
+        const max = hpForWeek(week);
+        let hp = max;
         let hearts = HEARTS;
         let correct = 0;
         let answered = 0;
@@ -372,7 +388,7 @@
             if (row && row.correct) { correct += 1; hp = Math.max(0, hp - damageFor(true, row.ms)); } else hearts -= 1;
         }
         const won = hp <= 0;
-        return { hp, hearts, correct, answered, damage: HP - hp, won, over: won || hearts <= 0 || answered >= QUESTIONS, stage: stageOf(hp), percent: hpPercent(hp) };
+        return { hp, hearts, correct, answered, damage: max - hp, max, won, over: won || hearts <= 0 || answered >= QUESTIONS, stage: stageOf(hp, max), percent: hpPercent(hp, max) };
     };
     // Obrázek bosse pro stupeň a jestli jde o zástupný obrázek (stejný jako ve stupni 1: změnu ukáže jen filtr a efekty)
     const artFor = (id, stage = 1) => {
@@ -413,11 +429,11 @@
         correct: Boolean(row.correct), ms: whole(row.ms, 3600000),
         ...(row.typed ? { typed: true } : {}), ...(row.timeout ? { timeout: true } : {}), ...(typeof row.answer === 'string' && row.answer ? { answer: row.answer.slice(0, 120) } : {})
     } : null);
-    const cleanAttempt = (row) => {
+    const cleanAttempt = (row, week = '') => {
         if (!row || typeof row !== 'object') return null;
-        const damage = whole(row.damage, HP);
+        const damage = whole(row.damage, HP_MAX);
         return {
-            n: Math.max(1, whole(row.n, ATTEMPTS)) || 1, damage, correct: whole(row.correct, QUESTIONS), hearts: whole(row.hearts, HEARTS), defeated: damage >= HP,
+            n: Math.max(1, whole(row.n, ATTEMPTS)) || 1, damage, correct: whole(row.correct, QUESTIONS), hearts: whole(row.hearts, HEARTS), defeated: damage >= hpForWeek(week),
             at: Number.isFinite(row.at) ? row.at : 0, owner: cleanText(row.owner, 64) || 'host', synced: Boolean(row.synced),
             ...(Number.isInteger(row.idx) && row.idx >= 0 && row.idx < ATTEMPTS ? { idx: row.idx } : {})
         };
@@ -442,7 +458,7 @@
                 const row = raw.weeks[week];
                 if (!row || typeof row !== 'object') return;
                 const boss = BY_ID[row.boss] ? row.boss : bossForWeek(week).id;
-                const attempts = (Array.isArray(row.attempts) ? row.attempts : []).map(cleanAttempt).filter(Boolean).slice(0, 12);
+                const attempts = (Array.isArray(row.attempts) ? row.attempts : []).map(attempt => cleanAttempt(attempt, week)).filter(Boolean).slice(0, 12);
                 state.weeks[week] = { boss, attempts, xp: Boolean(row.xp), bonus: row.bonus === 'claimed' || row.bonus === 'none' ? row.bonus : null };
             });
         }
@@ -457,8 +473,8 @@
         const local = weekEntry(state, week).attempts.length + (state.open && state.open.week === week ? 1 : 0);
         return Math.min(ATTEMPTS, Math.max(local, server ? whole(server.attempts, ATTEMPTS) : 0));
     };
-    const bestDamage = (state, week, server = null) => Math.max(0, ...weekEntry(state, week).attempts.map(row => row.damage), server ? whole(server.best_damage, HP) : 0);
-    const isDefeated = (state, week, server = null) => bestDamage(state, week, server) >= HP || Boolean(server && server.defeated);
+    const bestDamage = (state, week, server = null) => Math.max(0, ...weekEntry(state, week).attempts.map(row => row.damage), server ? whole(server.best_damage, HP_MAX) : 0);
+    const isDefeated = (state, week, server = null) => bestDamage(state, week, server) >= hpForWeek(week) || Boolean(server && server.defeated);
     // Nový souboj (číslo pokusu = použité pokusy + 1); null, když pokusy došly, boss je poražený nebo souboj už běží
     const startAttempt = (state, week, { now = Date.now(), owner = 'host', server = null } = {}) => {
         if (state.open || isDefeated(state, week, server)) return null;
@@ -471,17 +487,17 @@
     };
     // Odpověď na otázku na obrazovce (slot = results.length)
     const addResult = (open, row) => {
-        if (!open || fightStatus(open.results).over) return open;
+        if (!open || fightStatus(open.results, open.week).over) return open;
         return { ...open, results: [...open.results, cleanResult(row)], shown: null };
     };
     // Konec souboje (i nedohraného: počítá se, jak stál): pokus do týdne, emblém při první výhře. Vrátí { state, attempt, firstWin }
     const finishAttempt = (state, now = Date.now()) => {
         const open = state.open;
         if (!open) return { state, attempt: null, firstWin: false };
-        const status = fightStatus(open.results);
+        const status = fightStatus(open.results, open.week);
         const entry = weekEntry(state, open.week);
         const firstWin = status.won && !entry.attempts.some(row => row.defeated);
-        const attempt = cleanAttempt({ n: open.n, damage: status.damage, correct: status.correct, hearts: status.hearts, at: now, owner: open.owner, synced: false });
+        const attempt = cleanAttempt({ n: open.n, damage: status.damage, correct: status.correct, hearts: status.hearts, at: now, owner: open.owner, synced: false }, open.week);
         const weeks = { ...state.weeks, [open.week]: { ...entry, boss: open.boss, attempts: [...entry.attempts, attempt] } };
         const emblems = status.won && !state.emblems[open.boss] ? { ...state.emblems, [open.boss]: open.week } : state.emblems;
         return { state: { ...state, weeks, emblems, open: null }, attempt, firstWin, status };
@@ -505,9 +521,10 @@
     // view = { week, used, best, defeated, open }
     const homeTile = ({ week, used = 0, best = 0, defeated = false, open = false }) => {
         const boss = bossForWeek(week);
-        const hp = defeated ? 0 : HP - Math.min(HP, best);
-        const stage = stageOf(hp);
-        const percent = hpPercent(hp);
+        const max = hpForWeek(week);
+        const hp = defeated ? 0 : max - Math.min(max, best);
+        const stage = stageOf(hp, max);
+        const percent = hpPercent(hp, max);
         const left = Math.max(0, ATTEMPTS - used);
         const text = defeated ? 'Poraženo!' : open ? 'Souboj běží' : used ? `❤ ${percent} %` : attemptsWord(ATTEMPTS);
         const label = `Boss týdne: ${boss.name} (${boss.epithet}). ${defeated ? 'Poraženo, emblém je tvůj.'
@@ -550,11 +567,11 @@
         </span>`;
     const heartsHtml = (hearts, breaking = -1) => `<span data-boss-hearts="${hearts}" role="img" aria-label="Tvoje srdce: ${hearts} ze ${HEARTS}" class="flex items-center gap-0.5">${Array.from({ length: HEARTS }, (_, index) => heartHtml(index < hearts, index === breaking)).join('')}</span>`;
     // Lišta životů: skutečná (plynule ubývá) a „duch“ za ní (dobíhá se zpožděním); šířky nastaví app.js (data-progress / style.width)
-    const hpBarHtml = (hp, { big = false } = {}) => `
-        <div data-boss-hp="${hp}" role="meter" aria-label="Životy bosse" aria-valuemin="0" aria-valuemax="${HP}" aria-valuenow="${hp}" aria-valuetext="${hp} z ${HP} životů" class="boss-hp relative ${big ? 'h-5' : 'h-4'} overflow-hidden rounded-full">
-            <span data-boss-hp-ghost data-progress="${hpPercent(hp)}" class="boss-hp-ghost absolute inset-y-0 left-0 w-full"></span>
-            <span data-boss-hp-fill data-progress="${hpPercent(hp)}" class="boss-hp-fill absolute inset-y-0 left-0 w-full"></span>
-            <span class="boss-hp-text absolute inset-0 flex items-center justify-center gap-1 ${big ? 'text-[12px]' : 'text-[10.5px]'} font-black tabular-nums"><span aria-hidden="true">❤</span><span data-boss-hp-text>${hp} / ${HP}</span></span>
+    const hpBarHtml = (hp, { big = false, max = HP_MIN } = {}) => `
+        <div data-boss-hp="${hp}" role="meter" aria-label="Životy bosse" aria-valuemin="0" aria-valuemax="${max}" aria-valuenow="${hp}" aria-valuetext="${hp} z ${max} životů" class="boss-hp relative ${big ? 'h-5' : 'h-4'} overflow-hidden rounded-full">
+            <span data-boss-hp-ghost data-progress="${hpPercent(hp, max)}" class="boss-hp-ghost absolute inset-y-0 left-0 w-full"></span>
+            <span data-boss-hp-fill data-progress="${hpPercent(hp, max)}" class="boss-hp-fill absolute inset-y-0 left-0 w-full"></span>
+            <span class="boss-hp-text absolute inset-0 flex items-center justify-center gap-1 ${big ? 'text-[12px]' : 'text-[10.5px]'} font-black tabular-nums"><span aria-hidden="true">❤</span><span data-boss-hp-text>${hp} / ${max}</span></span>
         </div>`;
     const attemptsDots = (used) => `<span class="flex items-center gap-1" role="img" aria-label="Pokusy: ${used} z ${ATTEMPTS} použité">${Array.from({ length: ATTEMPTS }, (_, index) => `<span class="h-2.5 w-2.5 rounded-full ${index < used ? 'bg-white/30' : 'bg-gold-300 shadow-[0_0_6px_rgba(239,197,92,0.9)]'}"></span>`).join('')}</span>`;
     // Společná lišta (přihlášený): kolik procent hráčů bosse porazilo a cíl polovina; host jen pozvánka
@@ -586,10 +603,10 @@
         </div>`;
     };
     // Pravidla (okno Pravidla souboje)
-    const rulesHtml = (boss, topicTitle = '') => {
+    const rulesHtml = (boss, topicTitle = '', week = '') => {
         const rule = (icon, text) => `<li class="flex items-start gap-2.5 rounded-2xl bg-white px-3 py-2 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70"><i data-lucide="${icon}" class="mt-0.5 h-4 w-4 shrink-0 text-rose-600 dark:text-rose-300"></i><span class="text-[13px] font-semibold leading-snug text-slate-700 dark:text-slate-200">${text}</span></li>`;
         return `<ul data-boss-rules class="flex flex-col gap-1.5">
-            ${rule('swords', `${esc(boss.name)} má ${HP} životů. Čeká tě ${QUESTIONS} těžkých otázek${topicTitle ? ` z tématu ${esc(topicTitle)}` : ''}, stejných pro všechny.`)}
+            ${rule('swords', `${esc(boss.name)} má ${hpForWeek(week)} životů. Čeká tě ${QUESTIONS} těžkých otázek${topicTitle ? ` z tématu ${esc(topicTitle)}` : ''}, stejných pro všechny.`)}
             ${rule('zap', `Správná odpověď ubere bossovi ${BASE_DAMAGE} životů a za rychlost až ${SPEED_BONUS} navíc: plný bonus do ${FULL_BONUS_MS / 1000} s, do ${ZERO_BONUS_MS / 1000} s klesá k nule.`)}
             ${rule('heart', `Máš ${HEARTS} srdce, chyba i vypršený čas jedno ubere. Na odpověď máš ${TIME_MS / 1000}\u00a0s, na psanou ${TYPED_TIME_MS / 1000}\u00a0s.`)}
             ${rule('lightbulb', 'Popis z Wikipedie a nápovědy jako v běžné hře, čas ale běží dál.')}
@@ -602,8 +619,9 @@
     // view = { boss, week, used, best, defeated, open, speech, community (communityHtml), next (boss příštího týdne), topicTitle, enter }
     const introHtml = (view, h = {}) => {
         const { boss, week, used = 0, best = 0, defeated = false, open = false, speech = '', next = null, topicTitle = '', enter = true } = view;
-        const hp = defeated ? 0 : HP - Math.min(HP, best);
-        const stage = stageOf(hp);
+        const max = hpForWeek(week);
+        const hp = defeated ? 0 : max - Math.min(max, best);
+        const stage = stageOf(hp, max);
         const left = Math.max(0, ATTEMPTS - used);
         const canFight = open || (!defeated && left > 0);
         const status = defeated ? `Poraženo! Emblém a titul „${boss.title}“ jsou tvoje.`
@@ -630,7 +648,7 @@
                 </div>
                 <div class="relative z-10 mt-2.5 flex flex-col gap-2 [@media(max-height:770px)]:mt-2 [@media(max-height:770px)]:gap-1.5">
                     <div class="flex items-center gap-2">
-                        <span class="min-w-0 flex-1">${hpBarHtml(hp)}</span>
+                        <span class="min-w-0 flex-1">${hpBarHtml(hp, { max })}</span>
                         <button type="button" data-action="boss-rules" class="flex min-h-[2.5rem] shrink-0 items-center gap-1 rounded-xl bg-white/15 px-2.5 text-[12px] font-black text-white ring-1 ring-white/20"><i data-lucide="scroll-text" class="h-4 w-4"></i>Pravidla</button>
                     </div>
                     <p data-boss-status class="text-center text-[12.5px] font-bold leading-snug text-white/90">${esc(status)}</p>
@@ -658,7 +676,7 @@
                         <p class="truncate text-[15px] font-black leading-tight">${esc(boss.name)}</p>
                         <span data-boss-stage-label class="boss-stage-chip shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider">${esc(stageName(status.stage))}</span>
                     </div>
-                    <div class="mt-1.5">${hpBarHtml(status.hp)}</div>
+                    <div class="mt-1.5">${hpBarHtml(status.hp, { max: status.max })}</div>
                     <div class="mt-1.5 flex items-center justify-between gap-2">
                         ${heartsHtml(status.hearts)}
                         <span data-boss-count class="text-[11px] font-black tabular-nums text-white/85">Otázka ${Math.min(QUESTIONS, slot + 1)}/${QUESTIONS}</span>
@@ -720,7 +738,7 @@
                 </div>
                 <div class="boss-speech relative z-10 rounded-2xl bg-white px-3.5 py-2 text-slate-900 shadow-lg"><span class="boss-speech-tail" aria-hidden="true"></span><p class="text-[13.5px] font-bold leading-snug">${esc(line)}</p></div>
                 <div class="relative z-10 flex flex-col gap-2 [@media(max-height:770px)]:gap-1.5">
-                    ${hpBarHtml(won ? 0 : status.hp)}
+                    ${hpBarHtml(won ? 0 : status.hp, { max: status.max })}
                     ${statsRow}
                     ${reward}
                     ${view.xp && h.xpLine ? `<div data-boss-xp class="rounded-2xl bg-black/30 px-3 py-1.5 ring-1 ring-white/15">${h.xpLine(view.xp)}</div>` : ''}
@@ -758,7 +776,7 @@
     };
 
     return {
-        ART, HP, BASE_DAMAGE, SPEED_BONUS, FULL_BONUS_MS, ZERO_BONUS_MS, HEARTS, QUESTIONS, ATTEMPTS, TYPED_SLOTS, HALF_TIME_FROM, TIME_MS, TYPED_TIME_MS, TIERS,
+        ART, HP_MIN, HP_MAX, hpForWeek, BASE_DAMAGE, SPEED_BONUS, FULL_BONUS_MS, ZERO_BONUS_MS, HEARTS, QUESTIONS, ATTEMPTS, TYPED_SLOTS, HALF_TIME_FROM, TIME_MS, TYPED_TIME_MS, TIERS,
         WIN_XP, COMMUNITY_XP, COMMUNITY_SHARE, KEY, ROTATION_START, BOSSES, BY_ID, STAGES, TRICKS,
         pragueDay, mondayOf, isWeek, weekOf, addWeeks, weekSerial, bossForWeek, weekLabel, formatDay, attemptsWord, attemptsLeftText,
         hash32, seededRandom, seedFor, questionSeed, tiersOf, candidatesFor,

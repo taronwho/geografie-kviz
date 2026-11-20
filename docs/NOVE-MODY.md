@@ -187,7 +187,7 @@ Co ukáže obrazovka otázky (listopad 2026; Řetězovka, č. 6, má vlastní pr
   - otázka jako v hlavní hře: zakrytý úvod článku z Wikipedie a nápovědy (další věty, fotka, obrazová nápověda, fakta), které stojí jen
     čas; po odpovědi karta odpovědi s popisem z Wikipedie a fotkou a tlačítko Další otázka (viz Otázky a Wikipedie v jednotlivých módech);
   - boss má 700 životů;
-  - správná odpověď mu ubere 50 + bonus za rychlost (až 30, plný bonus do 6 s, do 20 s klesá k nule);
+  - správná odpověď mu ubere 80 + bonus za rychlost (až 30, plný bonus do 6 s, do 20 s klesá k nule);
   - hráč má 3 srdce a každá chyba jedno ubere;
   - **Bossovy schválnosti**: u 4. a 8. otázky schová možnosti a odpověď se píše; poslední 3 otázky mají poloviční čas.
 - **Konec souboje**:

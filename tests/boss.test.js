@@ -100,11 +100,11 @@ test('hlášky: všechny skupiny a varianty, čeština bez oslovení v minulém 
     assert.equal(Boss.lineFor('neznamy', 'hit'), '');
 });
 
-test('poškození: 50 za správnou odpověď a bonus za rychlost (plný do 6 s, do 20 s k nule)', () => {
+test('poškození: 80 za správnou odpověď a bonus za rychlost (plný do 6 s, do 20 s k nule)', () => {
     assert.deepEqual([0, 3000, 6000, 6001, 13000, 19999, 20000, 45000].map(Boss.speedBonus), [30, 30, 30, 30, 15, 0, 0, 0]);
-    assert.equal(Boss.damageFor(true, 1000), 80);
-    assert.equal(Boss.damageFor(true, 13000), 65);
-    assert.equal(Boss.damageFor(true, 30000), 50);
+    assert.equal(Boss.damageFor(true, 1000), 110);
+    assert.equal(Boss.damageFor(true, 13000), 95);
+    assert.equal(Boss.damageFor(true, 30000), 80);
     assert.equal(Boss.damageFor(false, 1000), 0);
     // Bonus klesá plynule
     for (let ms = 6000; ms < 20000; ms += 500) assert.ok(Boss.speedBonus(ms) >= Boss.speedBonus(ms + 500));
@@ -120,27 +120,28 @@ test('čas na otázku a schválnosti: psaní u 4. a 8. otázky, poslední tři p
 test('souboj: životy, srdce, výhra, prohra a stupně bosse podle zbývajících životů', () => {
     const fast = { correct: true, ms: 1000 };
     const wrong = { correct: false, ms: 5000 };
-    assert.deepEqual(Boss.fightStatus([]), { hp: 700, hearts: 3, correct: 0, answered: 0, damage: 0, won: false, over: false, stage: 1, percent: 100 });
-    // 9 rychlých správných = 720 → boss padne v 9. otázce
+    assert.deepEqual(Boss.fightStatus([]), { hp: 700, hearts: 3, correct: 0, answered: 0, damage: 0, max: 700, won: false, over: false, stage: 1, percent: 100 });
+    // 7 rychlých správných = 770 → boss padne v 7. otázce
     const win = Boss.fightStatus(Array(9).fill(fast));
+    assert.equal(win.answered, 7);
     assert.equal(win.hp, 0);
     assert.ok(win.won && win.over);
     assert.equal(win.stage, 4);
     assert.equal(win.damage, 700);
-    // 8 rychlých nestačí (640)
-    assert.equal(Boss.fightStatus(Array(8).fill(fast)).hp, 60);
+    // 6 rychlých nestačí (660)
+    assert.equal(Boss.fightStatus(Array(6).fill(fast)).hp, 40);
     // Tři chyby = konec
     const lost = Boss.fightStatus([fast, wrong, wrong, wrong, fast]);
     assert.ok(lost.over && !lost.won);
     assert.equal(lost.hearts, 0);
     assert.equal(lost.answered, 4, 'po třetí chybě se dál nepočítá');
-    assert.equal(lost.damage, 80);
+    assert.equal(lost.damage, 110);
     // Došly otázky
-    const out = Boss.fightStatus([...Array(7).fill(fast), wrong, { correct: true, ms: 19000 }, { correct: true, ms: 19000 }]);
+    const out = Boss.fightStatus([wrong, wrong, ...Array(8).fill({ correct: true, ms: 19000 })]);
     assert.ok(out.over && !out.won && out.answered === 10);
     // Stupně: 100–67 % Plná síla, 66–34 % Zraněný, 33–1 % V koncích, 0 Poražený
-    assert.deepEqual([700, 469, 467, 462, 238, 237, 231, 1, 0].map(Boss.stageOf), [1, 1, 1, 2, 2, 2, 3, 3, 4]);
-    assert.deepEqual([700, 462, 1, 0].map(Boss.hpPercent), [100, 66, 1, 0]);
+    assert.deepEqual([700, 469, 467, 462, 238, 237, 231, 1, 0].map(hp => Boss.stageOf(hp)), [1, 1, 1, 2, 2, 2, 3, 3, 4]);
+    assert.deepEqual([700, 462, 1, 0].map(hp => Boss.hpPercent(hp)), [100, 66, 1, 0]);
     assert.deepEqual([1, 2, 3, 4].map(Boss.stageName), ['Plná síla', 'Zraněný', 'V koncích', 'Poražený']);
 });
 
@@ -178,14 +179,14 @@ test('pokusy: tři za týden, počítá se nejlepší, po výhře konec; emblém
     state = done.state;
     assert.equal(state.open, null);
     assert.equal(done.firstWin, false);
-    assert.deepEqual(state.weeks[week].attempts.map(row => [row.n, row.damage, row.defeated, row.correct, row.hearts, row.synced]), [[1, 122, false, 2, 0, false]]);
-    assert.equal(Boss.bestDamage(state, week), 122);
+    assert.deepEqual(state.weeks[week].attempts.map(row => [row.n, row.damage, row.defeated, row.correct, row.hearts, row.synced]), [[1, 182, false, 2, 0, false]]);
+    assert.equal(Boss.bestDamage(state, week), 182);
     // Server ví o dalším pokusu z jiného zařízení (2 použité): třetí pokus je poslední
     state = Boss.startAttempt(state, week, { server: { attempts: 2, best_damage: 300, defeated: false } });
     assert.equal(state.open.n, 3);
     for (let i = 0; i < 9; i++) state = { ...state, open: Boss.addResult(state.open, { correct: true, ms: 100 }) };
     // Odpověď po konci souboje se nezapíše
-    assert.equal(Boss.addResult(state.open, { correct: true, ms: 1 }).results.length, 9);
+    assert.equal(Boss.addResult(state.open, { correct: true, ms: 1 }).results.length, 7);
     done = Boss.finishAttempt(state, 6);
     state = done.state;
     assert.equal(done.firstWin, true);
@@ -218,7 +219,7 @@ test('uložený stav: čištění, starý rozehraný souboj se po týdnu uzavře
     const state = Boss.parseState(raw);
     assert.deepEqual(Object.keys(state.weeks), ['2026-11-09'], 'jen platné týdny (pondělí)');
     assert.equal(state.weeks['2026-11-09'].attempts.length, 1);
-    assert.equal(state.weeks['2026-11-09'].attempts[0].damage, 700, 'poškození nejvýš 700');
+    assert.equal(state.weeks['2026-11-09'].attempts[0].damage, 1000, 'poškození nejvýš 1000');
     assert.equal(state.weeks['2026-11-09'].attempts[0].defeated, true);
     assert.deepEqual(state.emblems, { kapitan: '2026-11-09' });
     assert.deepEqual(state.claims, { 'u-1': '2026-11-02' });
@@ -233,7 +234,7 @@ test('uložený stav: čištění, starý rozehraný souboj se po týdnu uzavře
     // Nový týden: rozehraný souboj se uzavře, jak stál
     const next = Boss.rollover(state, '2026-11-16');
     assert.equal(next.open, null);
-    assert.deepEqual(next.weeks['2026-11-09'].attempts.map(row => [row.n, row.damage]), [[1, 700], [2, 80]]);
+    assert.deepEqual(next.weeks['2026-11-09'].attempts.map(row => [row.n, row.damage]), [[1, 1000], [2, 110]]);
     assert.equal(Boss.rollover(state, '2026-11-09'), state, 'stejný týden beze změny');
 });
 
@@ -301,4 +302,24 @@ test('HTML: úvod, souboj, výsledek a síň bez inline stylů, texty escapovan�
     assert.equal((Boss.hallHtml({ week: '2026-11-09' }, {}).match(/data-boss-hall=/g) || []).length, 8);
     // Všechny obrázky bosse se nepřebarví podle obleku Mudrlanta (data-keep)
     assert.ok([...html.matchAll(/<img [^>]*>/g)].every(match => match[0].includes('data-keep')));
+});
+
+test('životy bosse: do 22. 11. 2026 vždy 700, pak 700 až 1000 po 50, většinou kolem 850, stejné pro všechny', () => {
+    assert.equal(Boss.hpForWeek('2026-11-09'), 700);
+    assert.equal(Boss.hpForWeek('2026-11-16'), 700);
+    assert.equal(Boss.hpForWeek(''), 700);
+    const counts = {};
+    for (let n = 2; n < 2000; n++) {
+        const day = new Date(Date.UTC(2026, 10, 9) + n * 7 * 86400000).toISOString().slice(0, 10);
+        const hp = Boss.hpForWeek(day);
+        assert.ok(hp >= 700 && hp <= 1000 && hp % 50 === 0, `${day}: ${hp}`);
+        assert.equal(hp, Boss.hpForWeek(day), 'stejný týden, stejné životy');
+        counts[hp] = (counts[hp] || 0) + 1;
+    }
+    assert.ok(counts[850] > counts[750] && counts[850] > counts[950] && counts[750] > counts[700] && counts[950] > counts[1000], JSON.stringify(counts));
+    assert.ok(counts[700] > 0 && counts[1000] > 0 && counts[700] < 100 && counts[1000] < 100, 'krajní hodnoty zřídka');
+    // Stav souboje počítá s životy týdne
+    const status = Boss.fightStatus([{ correct: true, ms: 1000 }], '2026-11-23');
+    assert.equal(status.max, Boss.hpForWeek('2026-11-23'));
+    assert.equal(status.hp, status.max - 110);
 });
