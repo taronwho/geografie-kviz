@@ -269,12 +269,26 @@
         // Databáze bez bloku 42 (404 na conquest_add_bots): Přidat bota se v lobby neukáže
         let botsOff = !Social.conquestAddBots;
 
+        // Dohrané hry v Moje hry: po pěti, další se přidají, když hráč doscrolluje na konec seznamu
+        let finishedLimit = C.FINISHED_PAGE;
+        let moreObserver = null;
+        const watchMore = () => {
+            if (moreObserver) { moreObserver.disconnect(); moreObserver = null; }
+            const sentinel = app.querySelector('[data-cq-more]');
+            if (!sentinel || typeof IntersectionObserver === 'undefined') return;
+            moreObserver = new IntersectionObserver((entries) => {
+                if (!entries.some(entry => entry.isIntersecting)) return;
+                finishedLimit += C.FINISHED_PAGE;
+                renderHub();
+            }, { root: app, rootMargin: '0px 0px 80px 0px' });
+            moreObserver.observe(sentinel);
+        };
         const renderHub = () => {
             if (!active() || ui.kind === 'game') return;
             const now = Date.now();
             let body;
             const invites = lobby ? lobby.invites || [] : [];
-            const mine = () => C.mineHtml({ games: lobby ? lobby.mine : null, invites, maps, now, error: lobbyError, avatar: deps.avatarHtml, items: lobby ? lobby.items : null });
+            const mine = () => C.mineHtml({ games: lobby ? lobby.mine : null, invites, maps, now, error: lobbyError, avatar: deps.avatarHtml, items: lobby ? lobby.items : null, finishedLimit });
             if (ui.kind === 'lobby') {
                 const found = findGame(ui.gameId);
                 body = found ? C.lobbyDetailHtml({ game: found, maps, busy: ui.confirmLeave ? 'leave' : ui.busy, error: ui.error, dev: devOn(), invitable: !invitesOff, avatar: deps.avatarHtml, botsOn: !botsOff }) : mine();
@@ -285,6 +299,7 @@
             app.innerHTML = C.hubHtml({ tab: ui.kind === 'lobby' ? 'mine' : ui.tab, body, invites: invites.length });
             deps.renderIcons(app);
             app.scrollTop = keep;
+            watchMore();
             if (ui.tab === 'create' && ui.kind === 'hub' && !maps[draft.map]) ensureMap(draft.map).then(() => renderHub()).catch(() => {});
         };
         const openHub = async (tab = null) => {

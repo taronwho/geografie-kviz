@@ -1828,3 +1828,15 @@ test('stavby s barvou majitele: jakmile aplikace předbarví obrázek (tiles), m
     const [r, g, b] = C.buildingFactors('zelena');
     assert.ok(r > 0 && g > r && b > 0 && g <= 1.28);
 });
+
+test('Moje hry: dohrané hry od nejnovější, ukáže se prvních pět a další až po doscrollování', () => {
+    const game = (id, status, end) => ({ id, status, map: 'cesko', ends_at: end, period: 'day', actions: 5, players: [], owners: {}, budget: { left: 0, total: 5 } });
+    const finished = Array.from({ length: 8 }, (_, i) => game(`f${i}`, 'finished', `2026-11-0${i + 1}T10:00:00Z`));
+    const html = C.mineHtml({ games: [game('r1', 'running', '2026-12-01T10:00:00Z'), ...finished], maps: {}, now: Date.parse('2026-11-20T10:00:00Z') });
+    const ids = [...html.matchAll(/data-cq-game="([^"]+)"/g)].map(match => match[1]);
+    assert.deepEqual(ids, ['r1', 'f7', 'f6', 'f5', 'f4', 'f3'], 'běžící nahoře, pak pět nejnovějších dohraných');
+    assert.match(html, /data-cq-more[^>]*>[^]*\(3\)/, 'zbývají tři');
+    const all = C.mineHtml({ games: finished, maps: {}, finishedLimit: 10 });
+    assert.equal([...all.matchAll(/data-cq-game=/g)].length, 8);
+    assert.doesNotMatch(all, /data-cq-more/);
+});

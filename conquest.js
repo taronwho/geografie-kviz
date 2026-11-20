@@ -2897,14 +2897,24 @@
         <p class="flex items-center gap-1.5 px-1 ${LABEL}"><span class="h-2 w-2 rounded-full bg-gold-500"></span>Pozvánky od přátel</p>
         <ul class="flex flex-col gap-1.5">${invites.map(invite => inviteCardHtml(invite, opts)).join('')}</ul></section>` : '');
     // Moje hry: nahoře pozvánky od přátel, pod nimi moje hry (bez her a bez pozvánek rada, kde hru najít)
-    const mineHtml = ({ games, invites = [], maps = {}, now = Date.now(), error = '', avatar = null, items = null }) => {
+    // Dohrané hry: nejnovější nahoře (podle konce hry), ukáže se prvních FINISHED_PAGE a další se přidají, až hráč doscrolluje na konec
+    const FINISHED_PAGE = 5;
+    const orderedGames = (games, limit = FINISHED_PAGE) => {
+        const ended = (game) => parseTime(game.ends_at) || 0;
+        const active = games.filter(game => game.status !== 'finished');
+        const finished = games.filter(game => game.status === 'finished').sort((a, b) => ended(b) - ended(a));
+        return { list: [...active, ...finished.slice(0, limit)], more: Math.max(0, finished.length - limit) };
+    };
+    const mineHtml = ({ games, invites = [], maps = {}, now = Date.now(), error = '', avatar = null, items = null, finishedLimit = FINISHED_PAGE }) => {
         // Pozvánky nahoře, pod nimi pruh pomůcek (blok 30); rada bez her jen tehdy, když nečeká ani pozvánka
         const invited = invitesHtml(invites, { maps, avatar });
         const top = invited + itemsStripHtml(items);
         if (games === null) return `${top}${note(error || 'Načítám tvoje hry…', 'sova-ceka')}`;
         if (!games.length) return `${top}${invited ? '' : note('Zatím nehraješ žádnou hru. Přidej se k Rychlé hře v Lobby, nebo založ vlastní.', 'sova-dalekohled')}
             <div class="grid grid-cols-2 gap-2"><button type="button" data-cq-tab="lobby" class="${BRAND_BUTTON}"><i data-lucide="users" class="h-4 w-4"></i> Lobby</button><button type="button" data-cq-tab="create" class="${LIGHT_BUTTON}"><i data-lucide="plus" class="h-4 w-4"></i> Založit hru</button></div>${codeRow()}`;
-        return `${top}<ul class="flex flex-col gap-1.5">${games.map(game => gameRowHtml(game, { maps, now, mine: true })).join('')}</ul>${codeRow()}`;
+        const { list, more } = orderedGames(games, finishedLimit);
+        const loader = more ? `<li data-cq-more aria-label="Načítají se další dohrané hry" class="flex items-center justify-center gap-1.5 py-2 text-[12px] font-bold text-slate-500 dark:text-slate-400"><i data-lucide="loader" class="h-4 w-4"></i>Další dohrané hry (${more})</li>` : '';
+        return `${top}<ul class="flex flex-col gap-1.5">${list.map(game => gameRowHtml(game, { maps, now, mine: true })).join('')}${loader}</ul>${codeRow()}`;
     };
     const lobbyHtml = ({ games, maps, now, error = '' }) => {
         if (games === null) return note(error || 'Načítám lobby…', 'sova-ceka');
@@ -3844,7 +3854,7 @@
         reviveOn, outOfGame, shieldLeft, shieldSeconds, reviveWhy, reviveTargets, reviveOfferHtml, reviveBarHtml, reviveLayerHtml, reviveChipHtml, reviveRowHtml, gameOut, movesLeft,
         buildQuestion, prepareQuestion, completeQuestion, isFullQuestion, moveTitle, accusativeOf, ROUND_TIMEOUT, formPlan, FORM_IDS, GROUPS, RELATIONAL_CAP, MUDRLANT_IDS, nearDuplicate,
         answerKey, familyPlan, kindsFor, placesOf, poolsOf, formsOf, FAMILY_IDS, FAMILY_DOMAIN, DOMAINS, FAMILY_CAP, flagUrl, flagFallback, THUMB, feedItems, replaySteps, capturedWord, hatchPattern, levelIcon, iconMarkup,
-        pennantSvg, pennantGroup, emblemSvg, sealSvg, mapSvg, thumbSvg, marksFor, clockText, localTime, roundHtml, roundChipHtml, ROUND_COUNTDOWN, fastPeriod, battleWaitHtml, battleResultHtml, joinedHtml, fightersHtml, siegeChipsHtml, RISK_TEXT, homeCardHtml, homeTile, hubHtml, mineHtml, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,
+        pennantSvg, pennantGroup, emblemSvg, sealSvg, mapSvg, thumbSvg, marksFor, clockText, localTime, roundHtml, roundChipHtml, ROUND_COUNTDOWN, fastPeriod, battleWaitHtml, battleResultHtml, joinedHtml, fightersHtml, siegeChipsHtml, RISK_TEXT, homeCardHtml, homeTile, hubHtml, mineHtml, FINISHED_PAGE, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,
         gameScreenHtml, playersStripHtml, recentHtml, sheetHtml, devBarHtml, questionHtml, feedHtml, resultHtml, helpHtml, HELP_TABS, mapTitle, paramChips,
         // Pozvánky přátel (blok 24)
         friendsPickerHtml, inviteCardHtml, inviteLine, invitePromptHtml
