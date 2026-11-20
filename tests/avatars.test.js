@@ -20,12 +20,12 @@ const REPLACED = {
     '🎯': ['zabak', { badge: 'odhad-25' }], '🧩': ['myval', { badge: 'serad-25' }]
 };
 
-test('katalog: postavičky s 1–2 částmi (21 místo emoji odměn, 70 dalších, 12 sezónních, 14 legendárních), id do 6 písmen, žádná odměna už není emoji', () => {
+test('katalog: postavičky s 1–2 částmi (21 místo emoji odměn, 71 dalších, 12 sezónních, 14 legendárních), id do 6 písmen, žádná odměna už není emoji', () => {
     assert.equal(CHARACTERS.length, Look.AVATARS.length);
     assert.equal(Look.AVATARS.filter(item => item.was).length, 21);
     assert.equal(Look.AVATARS.filter(item => item.source === 'season').length, 12);
-    assert.equal(CHARACTERS.filter(item => !item.diploma && !item.exclusive).length, 21 + 70);
-    assert.equal(Look.NEW_AVATARS.length, 70);
+    assert.equal(CHARACTERS.filter(item => !item.diploma && !item.exclusive).length, 21 + 71);
+    assert.equal(Look.NEW_AVATARS.length, 71);
     assert.equal(CHARACTERS.filter(item => item.diploma).length, 14);
     for (const item of CHARACTERS) {
         assert.match(item.id, /^[a-z]{1,6}$/, item.id);
@@ -280,7 +280,7 @@ const NEW = {
     rohlik: { level: 33 }, komar: { badge: 'psani-100' }, trpas: { badge: 'bez-napovedy-100' }, tchyne: { badge: 'retezovka-cela-5' }, kuryr: { level: 45 },
     kocov: { badge: 'serie-60' }, gauc: { badge: 'dny-100' }, podnaj: { badge: 'dobyvatel-25' }, upir: { badge: 'boss-reziser' }, plivak: { badge: 'boss-rytir' },
     bricho: { badge: 'boss-olympan' }, papous: { badge: 'boss-maestro' }, syr: { badge: 'vsechna-temata-1' }, prd: { chest: 30 }, jednor: { rare: true },
-    kure: { referral: ['pritel-10'] }, smrtka: { prestige: 2 }
+    kure: { referral: ['pritel-10'] }, smrtka: { prestige: 2 }, brokik: { badge: 'tema-chemie-100' }
 };
 // Zdrojový obrázek branding/ikony/avatar-<název>.png
 const NEW_SRC = {
@@ -295,7 +295,7 @@ const NEW_SRC = {
     husa: 'husa-vytrznice', tousto: 'toustovac-krize', racek: 'zebrak-racek', sandal: 'ponozka-sandal', aligat: 'aligator-kanal', zralok: 'zralok-vegan',
     snob: 'snob-kocka', rohlik: 'nasrany-rohlik', komar: 'komar-upir', trpas: 'zlobivy-trpaslik', tchyne: 'tchyne-nuzky', kuryr: 'lenochod-dodavka',
     kocov: 'opilec-kost', gauc: 'brambora-gauc', podnaj: 'bezdomovec-pavouk', upir: 'upir-vegetarian', plivak: 'hulvat-velbloud', bricho: 'pivni-bricho',
-    papous: 'drzy-papousek', syr: 'syr-slechtic', prd: 'prd-v-lahvi', jednor: 'jednorozec-mrzout', kure: 'influencer-kure', smrtka: 'smrtka-dovolena'
+    papous: 'drzy-papousek', syr: 'syr-slechtic', prd: 'prd-v-lahvi', jednor: 'jednorozec-mrzout', kure: 'influencer-kure', smrtka: 'smrtka-dovolena', brokik: 'brokolik'
 };
 
 test('další postavičky: odměny z různých částí hry, odznaky existují, první tři snadno, server je zná', () => {

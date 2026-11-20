@@ -219,7 +219,9 @@
         { id: 'prd', title: 'Prd v láhvi', chest: 30, parts: ['Prd', 'Zátka'], colors: [[1, 2, 4, 5, 6, 7, 8, 9], ALL] },
         { id: 'jednor', title: 'Jednorožec mrzout', rare: true, parts: ['Hříva', 'Roh'], colors: [[1, 2, 3, 5, 6, 7, 8, 9], [1, 4, 5, 6, 7, 8, 9]] },
         { id: 'kure', title: 'Kuře influencer', referral: ['pritel-10'], bonus: true, parts: ['Kuře', 'Mobil'], colors: [[1, 4, 5, 6, 7, 8, 9], [2, 3, 4, 5, 6, 7, 9]] },
-        { id: 'smrtka', title: 'Smrtka na dovolené', prestige: 2, bonus: true, parts: ['Slunečník'], colors: [[3, 4, 5, 6, 7, 8, 9]] }
+        { id: 'smrtka', title: 'Smrtka na dovolené', prestige: 2, bonus: true, parts: ['Slunečník'], colors: [[3, 4, 5, 6, 7, 8, 9]] },
+        // Brokolík (bro-kolík, č. 469): hláška se ukáže v albu jako bublina
+        { id: 'brokik', title: 'Brokolík', badge: 'tema-chemie-100', quote: 'jakoby reálně…', parts: ['Bunda', 'Podšívka'], colors: [[1, 2, 3, 4, 5, 6, 7, 8], [2, 3, 4, 5, 6, 7, 9]] }
     ];
     AVATARS.push(...NEW_AVATARS);
     // Témata diplomů legendárních postaviček (název pro „Diplom: Zeměpis“; app.js a rewards.js mají vlastní seznam témat)

@@ -385,6 +385,7 @@
                     <p data-album-status="${entry.state}" class="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-black ${status.tone}"><i data-lucide="${status.icon}" class="h-3 w-3"></i>${esc(status.text)}</p>
                 </div>
             </div>
+            ${entry.item && entry.item.quote ? `<p data-album-quote class="relative ml-3 rounded-2xl rounded-tl-md bg-white px-3 py-2 text-[14px] font-black italic leading-snug text-slate-800 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-600">„${esc(entry.item.quote)}“</p>` : ''}
             <p data-album-how class="rounded-2xl bg-white px-3 py-2 text-[13px] leading-snug text-slate-700 shadow-sm dark:bg-slate-800 dark:text-slate-200"><b>Jak získat:</b> ${esc(howText(entry))}</p>
             ${entry.category === 'badges' ? tiersHtml(entry, badges, h) : ''}
             ${action}

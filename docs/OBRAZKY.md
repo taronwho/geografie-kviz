@@ -4202,7 +4202,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon or robot character. The robot's main body plating must be one clean flat wine-red color (the app recolors this plating into other colors), all other parts in metal grey, gold and glowing cyan. Character: A fierce little robot dragon with wine-red metal scales and spiky back plates, glowing cyan eyes, small metal bat-like wings, a puff of cyan pixel flames from its snout, a proud grin. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 469. `avatar-brokolik.png` – Brokolík (bro-kolík) – čeká na dodání
+#### 469. `avatar-brokolik.png` – Brokolík (bro-kolík) – ✅ dodáno, zapojeno (`brokik`, odznak Chemie 100, hláška „jakoby reálně…“ v albu)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu) a jako druhý obrázek fotku brokolíka (jen vzor postavy: nápad, proporce a oblečení)
 
