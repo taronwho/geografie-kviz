@@ -17,7 +17,8 @@
         { key: 'osobnost', label: 'Osobnosti', one: 'osobnost', icon: 'user', ...PERSON, spanLabel: 'v úřadu' },
         { key: 'bitva', label: 'Bitvy, války a revoluce', one: 'událost', icon: 'swords', question: 'Která bitva, válka nebo revoluce to je?', placeholder: 'Napiš název…', sort: { by: 'y' } },
         { key: 'udalosti', label: 'Události', one: 'událost', icon: 'calendar-days', question: 'Která událost to je?', placeholder: 'Napiš název události…', sort: { by: 'y' } },
-        { key: 'rise', label: 'Říše a státy minulosti', one: 'stát', icon: 'castle', question: 'Který stát to je?', placeholder: 'Napiš název státu…', sort: { by: 'y' } }
+        { key: 'rise', label: 'Říše a státy minulosti', one: 'stát', icon: 'castle', question: 'Který stát to je?', placeholder: 'Napiš název státu…', sort: { by: 'y' } },
+        { key: 'kolonie', label: 'Kolonie a koloniální říše', one: 'kolonie', icon: 'globe', question: 'Která kolonie nebo koloniální říše to je?', placeholder: 'Napiš název kolonie…', sort: { by: 'y' } }
     ];
     const isPerson = (item) => item.c === 'panovnik' || item.c === 'statnik' || item.c === 'osobnost';
     // Událost je součástí jiné (f.war: Říjnová revoluce → Ruská revoluce, bitva u Azincourtu → stoletá válka)
@@ -60,6 +61,7 @@
             return { year: f.year, title: spansCenturies ? 'Ve kterém století to začalo?' : item.c === 'udalosti' ? 'Ve kterém století se to stalo?' : 'Ve kterém století se to odehrálo?' };
         }
         if (item.c === 'rise' && f.from !== undefined) return { year: f.from, title: 'Ve kterém století tento stát vznikl?' };
+        if (item.c === 'kolonie' && f.from !== undefined) return { year: f.from, title: 'Ve kterém století začala vznikat?' };
         return null;
     };
     // Století celého období („13.–14. století“), ve výsledku a v atlasu

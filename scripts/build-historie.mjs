@@ -49,6 +49,7 @@ const CATEGORIES = {
     osobnost: { limit: 1150 },
     bitva: { limit: 1150 },
     rise: { limit: 460 },
+    kolonie: { limit: 460 },
     // Události: limit určuje krok 3b (EVENT_LIMIT)
     udalosti: { limit: 460 }
 };
@@ -259,8 +260,9 @@ const NOT_A_ROLE = /choť|manžel|spolukníže|následník|Oxford|Akademie|Svazu
 const CATEGORY_OVERRIDES = {
     Q5879: 'osobnost', Q12706: 'osobnost', Q44481: 'osobnost', Q140694: 'osobnost', Q189564: 'osobnost', Q167997: 'osobnost',
     Q315366: 'osobnost', Q344661: 'osobnost', Q43203: null, Q104027: null,
-    // Kolonie a koloniální říše nejsou samostatný stát s datem vzniku („Ve kterém století tento stát vznikl?“)
-    Q179023: null, Q130654: null, Q329618: null, Q926295: null, Q200464: null, Q370736: null
+    // Kolonie a koloniální říše nejsou samostatný stát s datem vzniku: mají vlastní kategorii (jiná otázka než „Který stát to je?“)
+    Q179023: 'kolonie', Q130654: 'kolonie', Q329618: 'kolonie', Q926295: 'kolonie', Q200464: 'kolonie', Q370736: 'kolonie',
+    Q129286: 'kolonie', Q188161: 'kolonie', Q662653: 'kolonie', Q654342: 'kolonie'
 };
 // Kategorie osoby: panovník (povolání nebo funkce), státník (prezidenti, premiéři, hlavy států a vlád), jinak osobnost
 const positionLabels = (detail) => detail.pos.map(position => label(position.id) || '').filter(text => text && !NOT_A_ROLE.test(text));
