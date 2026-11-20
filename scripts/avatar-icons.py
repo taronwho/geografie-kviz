@@ -423,6 +423,9 @@ NEW_CHARACTERS = {
     'bricho': {'src': 'pivni-bricho', 'parts': [
         {'title': 'Tričko', 'mode': 'tint', 'rules': [{'smin': 0, 'smax': 0.12, 'vmin': 0.72, 'box': [(0.0, 0.35, 1.0, 0.65)]}]},
         {'title': 'Pivo', 'rules': [{'hue': (25, 50), 'smin': 0.45, 'vmin': 0.45, 'box': [(0.55, 0.4, 1.0, 1.0)]}]}]},
+    'brokik': {'src': 'brokolik', 'parts': [
+        {'title': 'Bunda', 'rules': [{'hue': (190, 240), 'smin': 0.12, 'vmin': 0.25, 'box': [(0.15, 0.6, 1.0, 1.0)]}]},
+        {'title': 'Podšívka', 'rules': [{'hue': (310, 350), 'smin': 0.4, 'vmin': 0.35, 'box': [(0.25, 0.55, 0.95, 0.9)]}]}]},
     'papous': {'src': 'drzy-papousek', 'parts': [
         {'title': 'Peří', 'rules': [{'hue': (80, 165), 'smin': 0.3, 'vmin': 0.25}]},
         {'title': 'Zobák', 'rules': [{'hue': (30, 60), 'smin': 0.45, 'vmin': 0.5, 'box': [(0.0, 0.2, 0.55, 0.65)]}]}]},
