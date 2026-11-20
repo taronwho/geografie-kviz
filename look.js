@@ -221,7 +221,12 @@
         { id: 'kure', title: 'Kuře influencer', referral: ['pritel-10'], bonus: true, parts: ['Kuře', 'Mobil'], colors: [[1, 4, 5, 6, 7, 8, 9], [2, 3, 4, 5, 6, 7, 9]] },
         { id: 'smrtka', title: 'Smrtka na dovolené', prestige: 2, bonus: true, parts: ['Slunečník'], colors: [[3, 4, 5, 6, 7, 8, 9]] },
         // Brokolík (bro-kolík, č. 469): hláška se ukáže v albu jako bublina
-        { id: 'brokik', title: 'Brokolík', badge: 'tema-chemie-100', quote: 'jakoby reálně…', parts: ['Bunda', 'Podšívka'], colors: [[1, 2, 3, 4, 5, 6, 7, 8], [2, 3, 4, 5, 6, 7, 9]] }
+        { id: 'brokik', title: 'Brokolík', badge: 'tema-chemie-100', quote: 'jakoby reálně…', parts: ['Bunda', 'Podšívka'], colors: [[1, 2, 3, 4, 5, 6, 7, 8], [2, 3, 4, 5, 6, 7, 9]] },
+        { id: 'zampio', title: 'Žampion', badge: 'boss-amper', parts: ['Rukavice', 'Pás šampiona'], colors: [[3, 4, 5, 6, 7, 8, 9], [1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'chrest', title: 'Chřestýš', badge: 'tema-mytologie-100', parts: ['Hrot', 'Chřestítko'], colors: [ALL, [1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'celerb', title: 'Celerbrita', badge: 'hvezdy-2', parts: ['Řetěz', 'Kožíšek'], colors: [[1, 4, 5, 6, 7, 8, 9], ALL] },
+        { id: 'candid', title: 'Candidát', badge: 'uroven-20', parts: ['Oblek', 'Šerpa a kravata'], colors: [ALL, [2, 3, 4, 5, 6, 7, 8, 9]] },
+        { id: 'hrozny', title: 'Hroznýš', badge: 'tema-fyzika-100', parts: ['Fialové hrozny', 'Lístky'], colors: [ALL, ALL] }
     ];
     AVATARS.push(...NEW_AVATARS);
     // Témata diplomů legendárních postaviček (název pro „Diplom: Zeměpis“; app.js a rewards.js mají vlastní seznam témat)
