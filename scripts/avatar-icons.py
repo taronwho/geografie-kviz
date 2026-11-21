@@ -452,7 +452,7 @@ NEW_CHARACTERS = {
         {'title': 'Medailon', 'rules': [{'hue': (35, 60), 'smin': 0.5, 'vmin': 0.55, 'box': [(0.35, 0.72, 0.65, 1.0)]}]}]},
     'pivonk': {'src': 'pivonka', 'parts': [
         {'title': 'Pivo', 'rules': [{'hue': (28, 55), 'smin': 0.6, 'vmin': 0.6, 'box': [(0.7, 0.3, 1.0, 0.7)]}]},
-        {'title': 'Lístky', 'rules': [{'hue': (80, 150), 'smin': 0.35, 'vmin': 0.3}]}]},
+        {'title': 'Květ', 'rules': [{'hue': (320, 12), 'smin': 0.2, 'vmin': 0.45}]}]},
     'kaprad': {'src': 'kapradi', 'parts': [
         {'title': 'Klobouk', 'rules': [{'hue': (205, 245), 'smin': 0.3, 'vmin': 0.25, 'box': [(0.25, 0.0, 0.85, 0.42)]}]},
         {'title': 'Plášť', 'rules': [{'hue': (340, 20), 'smin': 0.4, 'vmin': 0.3, 'box': [(0.25, 0.55, 0.95, 1.0)]}]}]},
