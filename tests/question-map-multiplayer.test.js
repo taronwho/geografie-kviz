@@ -73,7 +73,7 @@ test('jen hry, které to nesou: výzva se značkou v semínku, turnaj od týdne 
     // Semínko nové výzvy (social.js) má značku a projde kontrolou semínka v databázi i v question_snapshot_claim
     const social = read('social.js');
     assert.match(social, /const CHALLENGE_SEED_MARK = '\.mapa';/);
-    assert.match(social, /seed: `vyzva-\$\{id\}-\$\{Date\.now\(\)\.toString\(36\)\}\$\{CHALLENGE_SEED_MARK\}`/);
+    assert.match(social, /seed: `vyzva-\$\{id\}-\$\{Date\.now\(\)\.toString\(36\)\}\$\{CHALLENGE_BALANCED_MARK\}\$\{CHALLENGE_SEED_MARK\}`/);
     const seed = `vyzva-ABC234-${Date.now().toString(36)}.mapa`;
     assert.match(seed, /^[A-Za-z0-9._-]{1,80}$/, 'challenges_seed_format');
     assert.equal(/^(.+)-r([0-9]{1,2}):([0-9]{1,2})$/.test(`${seed}:3`), false, 'není semínko zápasu turnaje');

@@ -191,7 +191,7 @@
     const GEM_COLORS = ['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'violet'];
     const LIT_REGIONS = ['rays', 'wing-left', 'wing-right', 'rim', 'crown', ...GEM_COLORS.map(color => `gem-${color}`)];
     const LIT_STEPS = 4;
-    // Kolik kroků rozsvícení má prestiž n (0 do ★10, 1 na ★11 … všech 24 na ★98 a ★99) a síla jednotlivých oblastí
+    // Kolik kroků rozsvícení má prestiž n (0 do ★10, 1 na ★11 … všech 48 na ★98 a ★99) a síla jednotlivých oblastí
     const litSteps = (n) => {
         const value = whole(n, MAX_PRESTIGE);
         if (value <= TOP_TIER) return 0;

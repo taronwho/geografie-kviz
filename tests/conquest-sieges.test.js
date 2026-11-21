@@ -150,7 +150,7 @@ test('kronika: prohraná bitva (správně, ale pomaleji) s meči; odražený út
 test('nápověda: záložka Útok s pravidly bitvy, Pevnost na domovském hradu +1 tah, bez rodu', () => {
     const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     const utok = text(C.helpHtml('utok'));
-    for (const sentence of ['Do bitvy se může přidat každý, kdo s územím také sousedí. Všichni dostanou stejnou otázku a na odpověď mají 60 sekund.',
+    for (const sentence of ['Do bitvy se může přidat každý, kdo s územím také sousedí, ale jen dokud někdo z útočníků neodpověděl. Všichni dostanou stejnou otázku a na odpověď mají 60 sekund.',
         'Území získá ten, kdo odpoví správně a nejrychleji.', 'Kdo odpoví správně, ale pomaleji, nezíská nic a tah ztratí.']) {
         assert.ok(utok.includes(sentence), sentence);
     }
