@@ -936,13 +936,22 @@
     const cleanWeek = (value) => (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null);
     // item = pomůcka Tah navíc za první výhru v týdnu (blok 30, cleanItemGrant)
     const cleanBossMe = (row) => (row && typeof row === 'object' ? {
-        week: cleanWeek(row.week), attempts: wholeNumber(row.attempts, 3), best_damage: wholeNumber(row.best_damage, 1000), defeated: row.defeated === true,
-        bonus_claimed: row.bonus_claimed === true, first_win: row.first_win === true, ...(row.item ? { item: cleanItemGrant(row.item) } : {})
+        week: cleanWeek(row.week), attempts: wholeNumber(row.attempts, 4), best_damage: wholeNumber(row.best_damage, 1000), defeated: row.defeated === true,
+        bonus_claimed: row.bonus_claimed === true, first_win: row.first_win === true, extra: row.extra === true,
+        ...(row.item ? { item: cleanItemGrant(row.item) } : {}), ...(row.att_item ? { att_item: cleanItemGrant(row.att_item) } : {}),
+        ...(row.win_item ? { win_item: cleanItemGrant(row.win_item) } : {}), ...(row.items ? { items: cleanItems(row.items) } : {})
     } : null);
     // Dohraný souboj: týden (pondělí), idx = kolikátý pokus (0–2), poškození 0–700, výhra; vrátí můj stav týdne s first_win
     const bossSubmit = (week, idx, damage, defeated) => guardBoss(async () => cleanBossMe(await request('POST', 'rpc/boss_submit', {
-        body: { for_week: cleanWeek(week), idx: wholeNumber(idx, 2), damage: wholeNumber(damage, 1000), is_defeated: Boolean(defeated) }
+        body: { for_week: cleanWeek(week), idx: wholeNumber(idx, 3), damage: wholeNumber(damage, 1000), is_defeated: Boolean(defeated) }
     })));
+    // Výbava do souboje (blok 49): vybrané pomůcky (nejvýš dvě) se odečtou ze zásoby; vrátí { kinds, already, items }
+    const bossEquip = (week, idx, kinds) => guardBoss(async () => {
+        const data = (await request('POST', 'rpc/boss_equip', { body: { for_week: cleanWeek(week), idx: wholeNumber(idx, 3), kinds: (Array.isArray(kinds) ? kinds : []).filter(kind => ['double_hit', 'fifty', 'freeze', 'heart', 'free_hint'].includes(kind)).slice(0, 2) } })) || {};
+        return { kinds: (Array.isArray(data.kinds) ? data.kinds : []).filter(kind => ['double_hit', 'fifty', 'freeze', 'heart', 'free_hint'].includes(kind)), already: data.already === true, items: cleanItems(data.items) };
+    });
+    // Další pokus (blok 49): odemkne čtvrtý pokus v týdnu; vrátí můj stav týdne (extra) a zásobu (items)
+    const bossUseAttempt = (week) => guardBoss(async () => cleanBossMe(await request('POST', 'rpc/boss_use_attempt', { body: { for_week: cleanWeek(week) } })));
     // Společná lišta týdne (null = běžící týden): hráči, kteří to zkusili, kolik bosse porazilo, splněná polovina, konec týdne a můj stav
     const bossWeekStats = (week = null) => guardBoss(async () => {
         const data = (await request('POST', 'rpc/boss_week_stats', { body: { for_week: cleanWeek(week) } })) || {};
@@ -1425,14 +1434,18 @@
     // Zásoba je na serveru. Zisk za Bosse týdne, Kvíz dne bez chyby, celou Řetězovku, milníky Řetězovky a výhru v Dobývání vrací jejich funkce
     // jako item (rescue_item); Sezónu Mudrlanta, Truhlu Mudrlanta a Zlatou truhlu počítá aplikace a o pomůcku si řekne přes playerItemsClaim.
     // Databáze bez bloku 30 (404): chyba se status 404 a conquestItemsMissing() pak vrací true.
-    const ITEM_KINDS = ['extra_move', 'fifty', 'chain_rescue', 'revive'];
-    const ITEM_MAX = { extra_move: 1, fifty: 2, chain_rescue: 1, revive: 3 };
+    // Pomůcky do souboje s Bossem týdne (blok 49): double_hit, freeze, heart, free_hint a attempt (Další pokus)
+    const BOSS_ITEM_KINDS = ['double_hit', 'freeze', 'heart', 'free_hint', 'attempt'];
+    const ITEM_KINDS = ['extra_move', 'fifty', 'chain_rescue', 'revive', ...BOSS_ITEM_KINDS];
+    const ITEM_MAX = { extra_move: 1, fifty: 2, chain_rescue: 1, revive: 3, double_hit: 2, freeze: 2, heart: 1, free_hint: 2, attempt: 1 };
     // Zásoba { extra_move, fifty, chain_rescue, revive, max }, nebo null; chain_rescue chybí, když ji databáze nezná (bez bloku 37), revive
     // bez bloku 39
     const cleanItems = (value) => (value && typeof value === 'object' && !Array.isArray(value)
         ? { extra_move: wholeNumber(value.extra_move, ITEM_MAX.extra_move), fifty: wholeNumber(value.fifty, ITEM_MAX.fifty),
             ...(value.chain_rescue !== undefined && value.chain_rescue !== null ? { chain_rescue: wholeNumber(value.chain_rescue, ITEM_MAX.chain_rescue) } : {}),
-            ...(value.revive !== undefined && value.revive !== null ? { revive: wholeNumber(value.revive, ITEM_MAX.revive) } : {}), max: { ...ITEM_MAX } } : null);
+            ...(value.revive !== undefined && value.revive !== null ? { revive: wholeNumber(value.revive, ITEM_MAX.revive) } : {}),
+            ...Object.fromEntries(BOSS_ITEM_KINDS.filter(kind => value[kind] !== undefined && value[kind] !== null).map(kind => [kind, wholeNumber(value[kind], ITEM_MAX[kind])])),
+            max: { ...ITEM_MAX } } : null);
     // Pomůcky ve hře: zásoba a v této hře extra_used, fifty_used, can_extra (Tah navíc jde použít teď) a extra_block (proč ne, česky);
     // Ankh vzkříšení (blok 39, jen když ho databáze zná): can_revive, revive_block (proč ne, česky) a revive_used
     const cleanGameItems = (value) => {
@@ -1532,7 +1545,7 @@
         // Ligové sezóny a vitrína (schéma 18)
         leagueSeasons, SHOWCASE_ENTRY, cleanShowcase, getShowcase, saveShowcase,
         // Boss týdne (schéma 21)
-        bossSubmit, bossWeekStats, bossClaimBonus,
+        bossSubmit, bossEquip, bossUseAttempt, bossWeekStats, bossClaimBonus,
         // Dobývání (schéma 21)
         conquestLobby, conquestCreate, conquestJoin, conquestSetLook, conquestLooks, conquestLooksSeen, cleanLooks, conquestReady, conquestLeave, conquestState, conquestMove, conquestClaim,
         // Pozvánky přátel do Dobývání (blok 24)

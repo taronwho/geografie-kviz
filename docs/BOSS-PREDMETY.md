@@ -1,4 +1,4 @@
-# Boss týdne – předměty a další pokus (návrh, zatím nezapojeno)
+# Boss týdne – předměty a další pokus (zapojeno, schéma 49)
 
 Cíl: usnadnit souboj s bossem. Životy bosse (700–1000 podle týdne, schéma 45) a základní poškození 80 už jsou hotové.
 
@@ -25,3 +25,21 @@ Před soubojem si hráč vybere nejvýš 2 předměty (obrazovka „Výbava“ n
 1. Dvojitý úder + obrazovka Výbava (nový druh, `boss_use_item`, tlačítko u otázky).
 2. 50/50 v souboji (stávající druh, jen napojení).
 3. Další pokus, Srdce navíc, Zmrazení času, Nápověda zdarma.
+
+## Jak je to zapojené (schéma 49)
+
+- **Výbava:** před první otázkou si přihlášený hráč s pomůckami vybere nejvýš dvě (okno „Výbava do souboje“). Server je odečte ze zásoby
+  (`boss_equip`, jednou na pokus) a zapíše k pokusu (`boss_equips`); co se v souboji nepoužije, propadne. Bez pomůcek nebo bez spojení se
+  souboj spustí rovnou.
+- **Dvojitý úder** (`double_hit`, strop 2): tlačítko pod nápovědou; zapnutý úder ubere dvojnásobek (zásah i bonus), spotřebuje se odpovědí.
+- **50/50** (`fifty`, stávající pomůcka): schová dvě špatné možnosti; u psané odpovědi nejde.
+- **Zmrazení času** (`freeze`, strop 2): posune začátek otázky o 10 s, takže se čas nehýbe a bonus za rychlost se počítá bez nich.
+- **Srdce navíc** (`heart`, strop 1): čtvrté srdce; pasivní, bez tlačítka.
+- **Nápověda zdarma** (`free_hint`, strop 2): odemkne další nápovědu a vrátí 5 s.
+- **Další pokus** (`attempt`, strop 1): na úvodu, když tři pokusy došly a boss stojí (`boss_use_attempt`, sloupec `boss_results.extra`, čtvrtý pokus).
+- **Zdroje:** každý dohraný pokus dá los mezi Dvojitým úderem, Zmrazením času, Srdcem navíc a Nápovědou zdarma (`bossatt:<týden>:<pokus>`),
+  první výhra v týdnu navíc Další pokus (`bosswin:<týden>`); 50/50 dál z původních zdrojů.
+- **Obrázky:** `icons/topics/boss-*.webp` (docs/OBRAZKY.md č. 492–497, `scripts/topic-icons.py`).
+- Soubory: `boss.js` (výbava v `open.loadout`, `used`, `equipped`; `fightStatusOf`, `attemptCap`), `app.js` (okno Výbava, tlačítka `useBossItem`,
+  `useBossExtraAttempt`), `social.js` (`bossEquip`, `bossUseAttempt`), `conquest.js` (`ITEMS` s `place: 'boss'`), testy `tests/boss.test.js`,
+  `tests/sql-boss.test.js`, `tests/e2e-boss.test.js`.

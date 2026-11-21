@@ -60,7 +60,7 @@ const APP_SHELL = [
         // Řetězovka (chain.js ART a výsledek, č. 212 a 214: sova s řetězem, prasklý článek)
         'retezovka', 'clanek-prasknuty',
         // Pomůcka Záchrana navíc (conquest.js ITEMS.chain_rescue, č. 360)
-        'zachrana-navic',
+        'zachrana-navic', 'boss-dvojity-uder', 'boss-zmrazeni', 'boss-srdce', 'boss-napoveda', 'boss-pokus', 'boss-vybava',
         // Pomůcka Ankh vzkříšení (conquest.js ITEMS.revive, č. 361)
         'vzkriseni',
         // Pomůcky Tah navíc a 50/50 (conquest.js ITEMS, č. 309 a 310)

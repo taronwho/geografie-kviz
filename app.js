@@ -4785,7 +4785,8 @@
     const setItemStock = (items) => {
         if (!items) return;
         itemStock = { extra_move: items.extra_move, fifty: items.fifty, chain_rescue: typeof items.chain_rescue === 'number' ? items.chain_rescue : null,
-            revive: typeof items.revive === 'number' ? items.revive : null };
+            revive: typeof items.revive === 'number' ? items.revive : null,
+            ...Object.fromEntries(['double_hit', 'freeze', 'heart', 'free_hint', 'attempt'].map(kind => [kind, typeof items[kind] === 'number' ? items[kind] : 0])) };
     };
     // Načtení zásoby (Řetězovka: Záchrana navíc); vrací zásobu, nebo null (host, starší databáze, bez spojení)
     const refreshItemStock = async () => {
@@ -11975,7 +11976,8 @@
     const bossView = (state = loadBoss()) => {
         const week = Boss.weekOf();
         const me = bossServerMe(week);
-        return { week, used: Boss.attemptsUsed(state, week, me), best: Boss.bestDamage(state, week, me), defeated: Boss.isDefeated(state, week, me), open: Boolean(state.open && state.open.week === week) };
+        return { week, used: Boss.attemptsUsed(state, week, me), best: Boss.bestDamage(state, week, me), defeated: Boss.isDefeated(state, week, me), open: Boolean(state.open && state.open.week === week),
+            cap: Boss.attemptCap(state, week, me), extraHave: (itemStock && itemStock.attempt) || 0 };
     };
     const bossLive = (fight) => Boolean(fight) && fight === bossFight && screen === 'boss';
     const stopBossTimers = () => {
@@ -12036,13 +12038,16 @@
                     if (!Number.isInteger(idx)) {
                         const stats = await Social.bossWeekStats(week);
                         if (stats === null) return null;
-                        idx = Math.min(Boss.ATTEMPTS - 1, stats.me ? stats.me.attempts : 0);
+                        idx = Math.min(Boss.ATTEMPTS, stats.me ? stats.me.attempts : 0);
                         patchBossAttempt(week, index, { idx, owner: user.id });
                     }
                     const me = await Social.bossSubmit(week, idx, attempt.damage, attempt.defeated);
                     if (me === null) return null;
                     // První výhra v týdnu: pomůcka Tah navíc do Dobývání (blok 30)
                     if (me.item) celebrateItem(me.item);
+                    // Blok 49: útěcha za dohraný pokus a Další pokus za první výhru
+                    if (me.att_item) celebrateItem(me.att_item);
+                    if (me.win_item) celebrateItem(me.win_item);
                     patchBossAttempt(week, index, { synced: true, owner: user.id });
                     last = { week, me };
                 } catch (error) {
@@ -12080,7 +12085,7 @@
     };
     // Úvod po odpovědi serveru: jen společná lišta (nástup bosse doběhne), celé překreslení jen když server zná víc pokusů nebo výhru
     let bossIntroSig = '';
-    const bossSig = (view) => `${view.week}|${view.used}|${view.best}|${view.defeated}|${view.open}`;
+    const bossSig = (view) => `${view.week}|${view.used}|${view.best}|${view.defeated}|${view.open}|${view.cap}|${view.extraHave}`;
     const paintBossIntroServer = () => {
         const view = bossView();
         if (bossSig(view) !== bossIntroSig) { renderBossIntro(); return; }
@@ -12148,6 +12153,8 @@
             bossSpeech = null;
             renderBossIntro({ enter: true });
             refreshBossServer(true);
+            // Zásoba pomůcek (Další pokus, výbava do souboje); když se změní, překreslí se úvod
+            if (bossRanked() && Social.playerItemsMine) refreshItemStock().then(() => { if (screen === 'boss' && !bossFight) paintBossIntroServer(); }).catch(() => {});
         } finally {
             bossOpening = false;
         }
@@ -12226,7 +12233,98 @@
             saveBoss(state);
         }
         if (Sound) Sound.unlock();
+        // Výbava (blok 49): před první otázkou si přihlášený hráč s pomůckami vybere nejvýš dvě
+        if (bossRanked() && Social.bossEquip && !state.open.equipped && !state.open.results.length) { openBossLoadout(); return; }
         beginBossFight(state.open);
+    };
+    // --- Výbava do souboje (blok 49, docs/BOSS-PREDMETY.md) ---
+    let bossLoadoutPick = [];
+    let bossLoadoutBusy = false;
+    const bossItemMeta = (kind) => (window.MudrlantConquest && window.MudrlantConquest.ITEMS[kind]) || { name: kind, what: '' };
+    const bossLoadoutHtml = (items) => {
+        const tiles = Boss.KINDS.filter(kind => items && items[kind] > 0).map(kind => {
+            const meta = bossItemMeta(kind);
+            const on = bossLoadoutPick.includes(kind);
+            return `<button type="button" data-action="boss-pick" data-kind="${kind}" aria-pressed="${on}" class="flex items-center gap-2.5 rounded-2xl border-2 p-2 text-left ${on ? 'border-rose-500 bg-rose-50 dark:border-rose-400 dark:bg-rose-950/40' : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800'}">
+                <span class="shrink-0">${itemArt(kind, 'h-11 w-11')}</span>
+                <span class="min-w-0 flex-1"><span class="block text-[14px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(meta.name)} <span class="text-[12px] font-bold text-slate-500 dark:text-slate-400">× ${items[kind]}</span></span><span class="block text-[11.5px] font-semibold leading-snug text-slate-600 dark:text-slate-300">${escapeHtml(meta.what)}</span></span>
+                <i data-lucide="${on ? 'circle-check' : 'circle'}" class="h-5 w-5 shrink-0 ${on ? 'text-rose-600 dark:text-rose-300' : 'text-slate-300 dark:text-slate-600'}"></i></button>`;
+        }).join('');
+        return `<div data-boss-loadout class="flex flex-col gap-2">
+            <p class="text-[13px] font-semibold leading-snug text-slate-600 dark:text-slate-300">Vyber nejvýš ${Boss.LOADOUT_MAX} pomůcky do souboje. Vzaté pomůcky se odečtou, i když je nepoužiješ.</p>
+            <div class="flex flex-col gap-1.5">${tiles}</div>
+            <button type="button" data-action="boss-loadout-go" ${bossLoadoutBusy ? 'disabled' : ''} class="${PRIMARY_BUTTON}"><i data-lucide="swords" class="h-5 w-5"></i> ${bossLoadoutPick.length ? `Do souboje s ${bossLoadoutPick.length === 1 ? 'pomůckou' : 'pomůckami'}` : 'Do souboje bez pomůcek'}</button>
+            ${bossLoadoutPick.length ? `<button type="button" data-action="boss-loadout-skip" class="${SECONDARY_BUTTON}">Bez pomůcek</button>` : ''}
+        </div>`;
+    };
+    const paintBossLoadout = () => {
+        showDialog('Výbava do souboje', bossLoadoutHtml(itemStock), { onClick: (event) => {
+            const button = event.target.closest('[data-action]');
+            if (!button) return;
+            if (button.dataset.action === 'boss-pick') pickBossItem(button.dataset.kind);
+            else if (button.dataset.action === 'boss-loadout-go') goBossLoadout(bossLoadoutPick);
+            else if (button.dataset.action === 'boss-loadout-skip') goBossLoadout([]);
+        } });
+        const overlay = document.getElementById('dialog-overlay');
+        if (overlay) renderIcons(overlay);
+    };
+    const openBossLoadout = async () => {
+        const open = loadBoss().open;
+        if (!open) return;
+        const items = Social.playerItemsMine ? await Social.playerItemsMine().catch(() => null) : null;
+        setItemStock(items);
+        if (!items || !Boss.KINDS.some(kind => items[kind] > 0)) { startBossWith(open, []); return; }
+        bossLoadoutPick = [];
+        bossLoadoutBusy = false;
+        paintBossLoadout();
+    };
+    const pickBossItem = (kind) => {
+        if (!Boss.KINDS.includes(kind)) return;
+        if (bossLoadoutPick.includes(kind)) bossLoadoutPick = bossLoadoutPick.filter(item => item !== kind);
+        else if (bossLoadoutPick.length >= Boss.LOADOUT_MAX) { showToast(`Do souboje jdou nejvýš ${Boss.LOADOUT_MAX} pomůcky.`); return; }
+        else bossLoadoutPick = [...bossLoadoutPick, kind];
+        paintBossLoadout();
+    };
+    // Výbava je vyřízená (vybraná, nebo žádná): uloží se k rozehranému souboji a souboj začne
+    const startBossWith = (open, kinds) => {
+        const state = loadBoss();
+        if (!state.open || state.open.week !== open.week) return;
+        state.open = { ...state.open, loadout: kinds, used: [], equipped: true };
+        saveBoss(state);
+        closeDialog();
+        beginBossFight(state.open);
+    };
+    const goBossLoadout = async (kinds) => {
+        const open = loadBoss().open;
+        if (!open || bossLoadoutBusy) return;
+        if (!kinds.length) { startBossWith(open, []); return; }
+        bossLoadoutBusy = true;
+        paintBossLoadout();
+        try {
+            const result = await Social.bossEquip(open.week, open.n - 1, kinds);
+            bossLoadoutBusy = false;
+            if (result) setItemStock(result.items);
+            startBossWith(open, result ? result.kinds : []);
+        } catch (error) {
+            bossLoadoutBusy = false;
+            paintBossLoadout();
+            showToast(error && error.message ? error.message : 'Pomůcky se nepodařilo vzít. Zkus to znovu, nebo jdi bez nich.');
+        }
+    };
+    // Další pokus (blok 49): čtvrtý pokus v týdnu, když tři základní došly
+    const useBossExtraAttempt = async () => {
+        const week = Boss.weekOf();
+        try {
+            const me = await Social.bossUseAttempt(week);
+            if (!me) { showToast('Další pokus teď nejde použít.'); return; }
+            saveBoss(Boss.grantExtraAttempt(loadBoss(), week));
+            if (me.items) setItemStock(me.items);
+            await refreshBossServer(true);
+            renderBossIntro();
+            showToast('Máš čtvrtý pokus. Do souboje!');
+        } catch (error) {
+            showToast(error && error.message ? error.message : 'Další pokus se nepodařilo použít.');
+        }
     };
     const beginBossFight = (open) => {
         stopBossTimers();
@@ -12243,7 +12341,7 @@
         const fight = bossFight;
         const open = loadBoss().open;
         if (!fight || !open) return;
-        const status = Boss.fightStatus(open.results, open.week);
+        const status = Boss.fightStatusOf(open);
         appContent.innerHTML = `
             <div id="boss-fight" data-boss-fight class="flex min-h-full w-full flex-col bg-slate-50 dark:bg-slate-900">
                 ${Boss.stripHtml({ boss: fight.boss, status, slot: open.results.length, limit: Boss.timeLimit(Math.min(Boss.QUESTIONS - 1, open.results.length)) })}
@@ -12301,7 +12399,7 @@
         if (!bossLive(fight)) return;
         let state = loadBoss();
         if (!state.open) { renderBossIntro(); return; }
-        if (Boss.fightStatus(state.open.results, state.open.week).over) { finishBossFight(fight); return; }
+        if (Boss.fightStatusOf(state.open).over) { finishBossFight(fight); return; }
         const slot = state.open.results.length;
         // Otázka už na obrazovce byla (návrat do souboje): stejná, její čas běží dál a odemčené nápovědy zůstanou
         if (state.open.shown && state.open.shown.slot === slot) { presentBossQuestion(fight, upgradeRoundData(state.open.shown.data), state.open.shown.at, slot, state.open.shown.hint || 1); return; }
@@ -12332,6 +12430,8 @@
         const unlocked = Math.max(1, Math.min(getLevelCount(data), hintLevel));
         round = { hintLevel: unlocked, variant: Boss.isTyped(slot) ? 'typed' : 'choices', answered: false, correct: false, points: 0, typed: false, answer: null, gaveUp: false, review: false, shownAt: at,
             ...(unlocked > 1 ? { tab: data.hints[unlocked - 2].key } : {}) };
+        const shownNow = (loadBoss().open || {}).shown;
+        if (shownNow && shownNow.slot === slot) { round.double = Boolean(shownNow.x2); round.removed = Array.isArray(shownNow.removed) ? shownNow.removed : []; }
         Object.assign(fight, { phase: 'question', slot, at, limit: Boss.timeLimit(slot), picked: null, clock: 0 });
         paintBossQuestion(fight);
         // Další otázka se chystá hned, dokud hráč přemýšlí
@@ -12359,6 +12459,68 @@
     // Nápověda v souboji: stejné nápovědy jako v běžné hře (další věty úvodu, fotka, obrazová nápověda, fakta), jen místo bodů stojí čas
     const BOSS_HINT_COST = { note: 'čas běží', title: 'čas otázky běží dál a bonus za rychlost klesá' };
     const bossHintButton = (data) => (data.hints.length ? `<div data-boss-hint class="shrink-0">${nextHintButton(data, { action: 'boss-hint', cost: BOSS_HINT_COST })}</div>` : '');
+    // Pomůcky vzaté do souboje (blok 49) jako tlačítka pod nápovědou; Srdce navíc je pasivní, tlačítko nemá
+    const BOSS_ITEM_LABELS = { double_hit: 'Dvojitý úder', fifty: '50/50', freeze: 'Zmrazit čas', free_hint: 'Nápověda zdarma' };
+    const bossItemsRowHtml = () => {
+        const open = loadBoss().open;
+        if (!open || !round || !(open.loadout || []).some(kind => kind !== 'heart')) return '';
+        const chips = open.loadout.filter(kind => kind !== 'heart').map(kind => {
+            const spent = (open.used || []).includes(kind) && !(kind === 'double_hit' && round.double && !round.answered);
+            const armed = kind === 'double_hit' && round.double && !round.answered;
+            const blocked = spent || round.answered || (kind === 'fifty' && round.variant === 'typed') || (kind === 'free_hint' && current && round.hintLevel >= getLevelCount(current));
+            const label = armed ? 'Úder ×2 zapnut' : BOSS_ITEM_LABELS[kind];
+            return `<button type="button" data-action="boss-item" data-kind="${kind}" ${blocked || armed ? 'disabled' : ''} class="flex min-h-[2.25rem] items-center gap-1.5 rounded-xl px-2.5 text-[12.5px] font-black ring-1 ${armed ? 'bg-rose-600 text-white ring-rose-300' : 'bg-white text-slate-700 ring-slate-200 disabled:opacity-40 dark:bg-slate-700 dark:text-slate-100 dark:ring-slate-600'}">${itemArt(kind, 'h-5 w-5')}${escapeHtml(label)}</button>`;
+        }).join('');
+        return `<div data-boss-items class="flex shrink-0 flex-wrap items-center gap-1.5">${chips}</div>`;
+    };
+    const repaintBossItems = () => {
+        const row = document.querySelector('[data-boss-items]');
+        if (!row) return;
+        row.outerHTML = bossItemsRowHtml();
+        const fresh = document.querySelector('[data-boss-items]');
+        if (fresh) renderIcons(fresh);
+    };
+    const useBossItem = (kind) => {
+        const fight = bossFight;
+        if (!bossLive(fight) || fight.phase !== 'question' || !current || !round || round.answered) return;
+        let state = loadBoss();
+        let open = state.open;
+        if (!open || !(open.loadout || []).includes(kind) || (open.used || []).includes(kind) || !open.shown || open.shown.slot !== fight.slot) return;
+        const mark = () => { state = loadBoss(); state.open.used = [...new Set([...(state.open.used || []), kind])]; return state; };
+        if (kind === 'double_hit') {
+            round.double = true;
+            state = loadBoss();
+            state.open.shown = { ...state.open.shown, x2: true };
+            saveBoss(state);
+        } else if (kind === 'fifty') {
+            if (round.variant === 'typed') return;
+            const wrong = current.question.choices.map((choice, index) => (choice.correct ? -1 : index)).filter(index => index >= 0);
+            if (wrong.length < 3) return;
+            const removed = wrong.sort(() => Math.random() - 0.5).slice(0, 2);
+            round.removed = removed;
+            state = mark();
+            state.open.shown = { ...state.open.shown, removed };
+            saveBoss(state);
+            document.querySelectorAll('[data-boss-answers] [data-action="boss-choice"]').forEach(button => {
+                if (removed.includes(Number(button.dataset.index))) { button.disabled = true; button.setAttribute('aria-hidden', 'true'); }
+            });
+        } else if (kind === 'freeze') {
+            fight.at += Boss.FREEZE_MS;
+            state = mark();
+            state.open.shown = { ...state.open.shown, at: state.open.shown.at + Boss.FREEZE_MS };
+            saveBoss(state);
+        } else if (kind === 'free_hint') {
+            if (round.hintLevel >= getLevelCount(current)) return;
+            showBossHint();
+            fight.at += Boss.FREE_HINT_MS;
+            state = mark();
+            state.open.shown = { ...state.open.shown, at: state.open.shown.at + Boss.FREE_HINT_MS };
+            saveBoss(state);
+        } else return;
+        if (Sound) Sound.play(kind === 'freeze' ? 'tick' : 'record');
+        repaintBossItems();
+        bossTick();
+    };
     // Otázka: schválnost, otázka a popis se zakrytou odpovědí jako v běžné hře, nápovědy, možnosti nebo pole na psaní
     const paintBossQuestion = (fight) => {
         let box = document.getElementById('boss-question');
@@ -12367,7 +12529,7 @@
         const data = current;
         const typed = round.variant === 'typed';
         const choices = data.question.choices.map((choice, index) => `
-            <button type="button" data-action="boss-choice" data-index="${index}" class="btn-3d-light min-h-[3rem] rounded-xl bg-white px-3 py-1.5 text-sm font-bold leading-tight text-slate-700 dark:bg-slate-700 dark:text-slate-100">${escapeHtml(choice.label)}</button>`).join('');
+            <button type="button" data-action="boss-choice" data-index="${index}" ${(round.removed || []).includes(index) ? 'disabled aria-hidden="true"' : ''} class="btn-3d-light min-h-[3rem] rounded-xl bg-white px-3 py-1.5 text-sm font-bold leading-tight text-slate-700 disabled:pointer-events-none disabled:opacity-25 dark:bg-slate-700 dark:text-slate-100">${escapeHtml(choice.label)}</button>`).join('');
         const form = `
             <form id="boss-form" class="flex gap-2" autocomplete="off">
                 <label for="boss-input" class="sr-only">Odpověď</label>
@@ -12380,6 +12542,7 @@
             <h2 class="text-center text-[19px] font-black leading-tight tracking-tight text-slate-800 [@media(max-height:770px)]:text-[17px] dark:text-slate-50">${escapeHtml(data.question.title)}</h2>
             ${questionPanel(data)}
             ${bossHintButton(data)}
+            ${bossItemsRowHtml()}
             <section data-boss-answers class="shrink-0">${typed ? form : `<div class="grid grid-cols-2 gap-2">${choices}</div>`}</section>
             <p class="sr-only" role="status" data-boss-verdict></p>`;
         const count = appContent.querySelector('[data-boss-count]');
@@ -12415,7 +12578,7 @@
             stopBossTimers();
             bossFight = null;
             const state = loadBoss();
-            if (state.open && Boss.fightStatus(state.open.results, state.open.week).over) finishBossFight(fight, { silent: true });
+            if (state.open && Boss.fightStatusOf(state.open).over) finishBossFight(fight, { silent: true });
             return;
         }
         if (fight.phase !== 'question') return;
@@ -12479,10 +12642,12 @@
                 fight.picked = index;
             }
         }
-        const before = Boss.fightStatus(open.results, open.week);
-        state.open = Boss.addResult(open, { correct, ms: Math.min(elapsed, fight.limit), typed, timeout: timeout || late, answer });
+        const before = Boss.fightStatusOf(open);
+        state.open = Boss.addResult(open, { correct, ms: Math.min(elapsed, fight.limit), typed, timeout: timeout || late, answer, x2: Boolean(round.double) });
+        // Dvojitý úder se spotřebuje odpovědí (správnou i špatnou)
+        if (round.double) state.open.used = [...new Set([...(state.open.used || []), 'double_hit'])];
         saveBoss(state);
-        const after = Boss.fightStatus(state.open.results, state.open.week);
+        const after = Boss.fightStatusOf(state.open);
         Object.assign(round, { answered: true, correct, answer });
         fight.phase = 'feedback';
         noteModeAnswer(current, correct);
@@ -12548,7 +12713,7 @@
         const text = strip.querySelector('[data-boss-hp-text]');
         if (text) text.textContent = `${status.hp} / ${status.max}`;
         const hearts = strip.querySelector('[data-boss-hearts]');
-        if (hearts) hearts.outerHTML = Boss.heartsHtml(status.hearts, breaking);
+        if (hearts) hearts.outerHTML = Boss.heartsHtml(status.hearts, breaking, status.heartsMax);
         const stage = String(status.stage);
         if (strip.dataset.stage !== stage) {
             const boss = bossFight.boss;
@@ -12652,7 +12817,7 @@
         if (!bossLive(fight) || fight.phase !== 'feedback' || Date.now() - (fight.answeredAt || 0) < 400) return;
         clearTimeout(bossFeedbackTimer);
         const state = loadBoss();
-        if (!state.open || Boss.fightStatus(state.open.results, state.open.week).over) finishBossFight(fight);
+        if (!state.open || Boss.fightStatusOf(state.open).over) finishBossFight(fight);
         else showBossQuestion(fight);
     };
     // Konec souboje: pokus se zapíše (v zařízení i na server), XP a emblém za první výhru v týdnu, pak obrazovka výsledku.
@@ -14748,6 +14913,8 @@
         'boss-choice': (button) => answerBoss({ index: Number(button.dataset.index) }),
         'boss-skip': () => answerBoss({ skip: true }),
         'boss-hint': () => showBossHint(),
+        'boss-item': (button) => useBossItem(button.dataset.kind),
+        'boss-extra': () => useBossExtraAttempt(),
         'boss-next': () => nextBoss(),
         'boss-retry': () => { if (bossFight) showBossQuestion(bossFight); },
         'boss-showcase': (button) => {

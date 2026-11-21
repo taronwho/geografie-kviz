@@ -120,7 +120,7 @@ test('čas na otázku a schválnosti: psaní u 4. a 8. otázky, poslední tři p
 test('souboj: životy, srdce, výhra, prohra a stupně bosse podle zbývajících životů', () => {
     const fast = { correct: true, ms: 1000 };
     const wrong = { correct: false, ms: 5000 };
-    assert.deepEqual(Boss.fightStatus([]), { hp: 700, hearts: 3, correct: 0, answered: 0, damage: 0, max: 700, won: false, over: false, stage: 1, percent: 100 });
+    assert.deepEqual(Boss.fightStatus([]), { hp: 700, hearts: 3, heartsMax: 3, correct: 0, answered: 0, damage: 0, max: 700, won: false, over: false, stage: 1, percent: 100 });
     // 7 rychlých správných = 770 → boss padne v 7. otázce
     const win = Boss.fightStatus(Array(9).fill(fast));
     assert.equal(win.answered, 7);
