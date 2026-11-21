@@ -802,10 +802,18 @@
         'hrad', 'zamek', 'jezero', 'reka', 'ostrov', 'ostrovy', 'poloostrov', 'pohori', 'zaliv', 'vodopad', 'vodopady', 'katedrala', 'chram', 'kostel',
         'bazilika', 'klaster', 'palac', 'most', 'muzeum', 'pevnost', 'narodni park']);
     const HEAD_PREPOSITIONS = new Set(['u', 'na', 'pod', 'o', 'v', 've', 'pred', 'pri', 'za', 'nad', 'mezi', 'proti', 'k', 'ke', 'od', 'do', 'z', 'ze', 'pro']);
+    // Obecné slovo na konci názvu: „Hořejší jezero“ uzná i „Hořejší“, „Lipno přehrada“ i „Lipno“. Zbytek nesmí být obecný přívlastek
+    // (Velké, Horní, Černé jezero) ani číslo.
+    const TAIL_WORDS = new Set(['jezero', 'rybnik', 'ostrov', 'moře', 'more', 'prehrada', 'nadrz', 'pohori', 'hora', 'reka', 'potok', 'vrch']);
+    const tailForm = (words) => {
+        if (words.length < 2 || !TAIL_WORDS.has(words[words.length - 1])) return null;
+        const rest = words.slice(0, -1);
+        return rest.length === 1 && rest[0].length >= 4 && !isExactToken(rest[0]) && !COMMON_NAME_WORD.test(rest[0]) ? rest[0] : null;
+    };
     const headlessForms = (answer) => {
         let words = normalizeAnswer(answer).split(' ').filter(Boolean);
         const head = words.length > 2 && HEAD_WORDS.has(`${words[0]} ${words[1]}`) ? 2 : words.length > 1 && HEAD_WORDS.has(words[0]) ? 1 : 0;
-        if (!head) return [];
+        if (!head) { const tail = tailForm(words); return tail ? [tail] : []; }
         words = words.slice(head);
         const forms = [];
         if (words.length > 1 && HEAD_PREPOSITIONS.has(words[0])) { forms.push(words.join(' ')); words = words.slice(1); }

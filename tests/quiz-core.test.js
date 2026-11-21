@@ -798,3 +798,14 @@ test('psaná odpověď: název jiného státu se neuzná ani jako překlep (Slov
     assert.equal(core.checkAnswer('Slovensku', { accepted: ['Slovensko'] }), true);
     assert.equal(core.checkAnswer('slovensko', { accepted: ['Slovensko'] }), true);
 });
+
+test('psaná odpověď bez obecného slova na konci názvu: Hořejší jezero uzná i Hořejší, obecný přívlastek ne', () => {
+    const Q = require('../quiz-core.js');
+    const lake = { accepted: ['Hořejší jezero'] };
+    assert.equal(Q.checkAnswer('Hořejší', lake), true);
+    assert.equal(Q.checkAnswer('Horejsi', lake), true);
+    assert.equal(Q.checkAnswer('jezero', lake), false);
+    assert.equal(Q.checkAnswer('Horní', { accepted: ['Horní jezero'] }), false);
+    assert.equal(Q.checkAnswer('Černé', { accepted: ['Černé moře'] }), false);
+    assert.equal(Q.checkAnswer('Lipno', { accepted: ['Lipno přehrada'] }), true);
+});
