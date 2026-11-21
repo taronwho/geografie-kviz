@@ -591,9 +591,13 @@ test('sdílení a pořadí: místo výzvy „rychleji“ čas uhodnutí; v pořa
     assert.doesNotMatch(html.split('data-mystery-row="b"')[1], /data-mystery-time/);
 });
 
-test('vzorec a značka jsou silný fakt: přijdou až za větami popisu a za souvislostí, ne mezi prvními nápovědami', () => {
-    const facts = (label, value) => ({ n: 1, parts: [{ type: 'facts', facts: [{ label, value }] }] });
-    assert.ok(M.revealScore(facts('Vzorec', 'Ag')) > M.revealScore(facts('Hustota', '10,5 g/cm³')) + 1);
-    assert.ok(M.revealScore(facts('Značka', 'Au')) > M.revealScore({ n: 1, parts: [{ type: 'related', name: 'Kutná Hora', strong: false }] }));
-    assert.ok(M.revealScore(facts('Vzorec', 'Ag')) > M.revealScore({ n: 1, parts: [{ type: 'text', text: 'Je to kov, který se používá na šperky a mince, objevený před staletími.' }] }));
+test('vzorec a značka: sílu určuje délka a známost, ne jen popisek (Ag u známého prvku skoro prozradí, dlouhý vzorec nebo neznámá věc ne)', () => {
+    const facts = (label, value, extra = {}) => ({ n: 1, parts: [{ type: 'facts', facts: [{ label, value, ...extra }] }] });
+    const related = { n: 1, parts: [{ type: 'related', name: 'Kutná Hora', strong: false }] };
+    const sentence = { n: 1, parts: [{ type: 'text', text: 'Je to kov, který se používá na šperky a mince, objevený před staletími.' }] };
+    assert.ok(M.revealScore(facts('Vzorec', 'Ag')) > M.revealScore(related), 'značka známého prvku až za souvislostí');
+    assert.ok(M.revealScore(facts('Vzorec', 'Ag')) > M.revealScore(sentence), 'a za větami popisu');
+    assert.ok(M.revealScore(facts('Vzorec', 'Al₂Si₂O₅(OH)₄')) < M.revealScore(related), 'dlouhý vzorec minerálu nikomu nic neřekne');
+    assert.ok(M.revealScore(facts('Vzorec', 'Hf', { known: false })) < M.revealScore(facts('Vzorec', 'Ag')), 'značka neznámého prvku je slabší');
+    assert.ok(M.revealScore(facts('Vzorec', 'NaCl')) > M.revealScore(facts('Vzorec', 'Ca₅(PO₄)₃F')));
 });

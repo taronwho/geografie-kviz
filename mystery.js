@@ -247,10 +247,16 @@
     const PLACE_LABELS = new Set(['Stát', 'Státy', 'Země', 'Země původu', 'Země vynálezce', 'Místo', 'Místo vzniku', 'Město', 'Kraj', 'Hlavní město', 'Pořadatel', 'Umístění', 'Naleziště v Česku', 'Známá naleziště']);
     // Vědecký a latinský název bývá odpovědi podobný (Canis familiaris, Hydrogenium)
     const NAME_LABELS = new Set(['Vědecký název', 'Latinsky']);
-    // Vzorec nebo značka (Ag, NaCl) skoro vždycky prozradí odpověď a často ji zná každý: až za větami popisu, před fotkou
+    // Vzorec nebo značka (Ag, NaCl): jak moc prozradí odpověď, záleží na tom, jak je krátký a jestli je položka známá. Značka prvku nebo
+    // jednoduchý vzorec známé věci ji skoro řekne (přijde až za větami popisu), u nepříliš známé věci nebo dlouhého vzorce minerálu
+    // (Al₂Si₂O₅(OH)₄) nikomu nic neřekne, takže to je slabý fakt a může přijít dřív
     const SYMBOL_LABELS = new Set(['Vzorec', 'Značka']);
-    const labelScore = (label) => (SYMBOL_LABELS.has(label) ? 1.2 : STRONG_RELATED.has(label) ? 1 : NAME_LABELS.has(label) ? 0.4 : PLACE_LABELS.has(label) || RELATED_LABELS.includes(label) ? 0.2 : label === 'Kontinent' ? 0.05 : 0);
-    const factScore = (fact) => 0.12 + (/\p{Lu}/u.test(fact.value) ? 0.12 : 0) + ((String(fact.value).match(YEAR) || []).length ? 0.06 : 0) + labelScore(fact.label);
+    const symbolStrength = (value, known = true) => {
+        const length = String(value).replace(/[\s_{}]/g, '').length;
+        return length <= 2 ? (known ? 1.2 : 0.5) : length <= 5 ? (known ? 1 : 0.45) : (known ? 0.5 : 0.25);
+    };
+    const labelScore = (label, fact = null) => (SYMBOL_LABELS.has(label) ? (fact ? symbolStrength(fact.value, fact.known !== false) : 1.2) : STRONG_RELATED.has(label) ? 1 : NAME_LABELS.has(label) ? 0.4 : PLACE_LABELS.has(label) || RELATED_LABELS.includes(label) ? 0.2 : label === 'Kontinent' ? 0.05 : 0);
+    const factScore = (fact) => 0.12 + (/\p{Lu}/u.test(fact.value) ? 0.12 : 0) + ((String(fact.value).match(YEAR) || []).length ? 0.06 : 0) + labelScore(fact.label, fact);
     // Nejsilnější fakt, který ještě smí být v první nápovědě (číslo, rok, obecné slovo nebo jedno jméno – ne stát, dílo ani rodiče)
     const OPENER_MAX = 0.3;
     // Krátké nápovědy jsou slabé (hrubá doba, ano/ne, vzdálenost u míst v Česku), indicie a vzdálenost do světa uprostřed, související
@@ -668,7 +674,7 @@
         const facts = [...((data && data.leadFacts) || []), ...hints.filter(hint => hint.kind === 'facts').flatMap(hint => hint.facts || [])]
             .filter(fact => fact && fact.label && fact.value !== undefined && fact.value !== '')
             .filter(fact => { const key = `${fact.label}|${fact.value}`; if (seen.has(key)) return false; seen.add(key); return true; })
-            .map(fact => ({ label: String(fact.label), value: String(fact.value) }))
+            .map(fact => ({ label: String(fact.label), value: String(fact.value), ...(data && data.known === false ? { known: false } : {}) }))
             .filter(fact => !listOf(fact.value).some(part => clueWords.has(fold(part))))
             // Výčet (Kluby: Real Madrid CF, Juventus FC) bez jména, které už je souvisejícím jménem
             .map(fact => (listOf(fact.value).length > 1 && listOf(fact.value).some(part => used.has(fold(part))) ? { ...fact, value: listOf(fact.value).filter(part => !used.has(fold(part))).join(', ') } : fact))
