@@ -375,6 +375,8 @@ for (const [qid, candidate] of candidates) {
         const roman = romanByAlias(plain);
         return roman ? roman[1] : plain;
     };
+    // Manželé, které uvádí česká Wikipedie, ale Wikidata je mají jinak nebo vůbec (jdou na začátek): Tlaloc a Chalchiuhtlicue, Afrodíté a Arés
+    const SPOUSE_FIRST = { Tlaloc: ['Chalchiuhtlicue'], Afrodíté: ['Héfaistos', 'Arés'] };
     const family = (list) => [...new Set((list || []).map(familyName))].filter(other => other !== name).slice(0, 4);
     const isGod = /bůh|bohyně|titán|božstvo/u.test(type);
     // Postava Íliady nebo účastník trojské války (ne bůh)
@@ -398,7 +400,7 @@ for (const [qid, candidate] of candidates) {
             mo: (detail.mother || []).length === 1 ? family(detail.mother)[0] : undefined,
             sib: family(detail.sib),
             // Manželé jen u bohů – u hrdinů uvádějí Wikidata i pozdní a sporné varianty bájí (Achilles a Helena)
-            sp: isGod ? family(detail.sp).slice(0, 3) : undefined,
+            sp: isGod ? [...new Set([...(SPOUSE_FIRST[name] || []), ...family(detail.sp)])].filter(other => other !== name).slice(0, 3) : undefined,
             cp: hasCounterpart ? counterpart.name : undefined,
             cpa: hasCounterpart && counterpart.aliases.length ? counterpart.aliases : undefined,
             // Na které straně je protějšek: rimska = ptáme se na římské jméno
