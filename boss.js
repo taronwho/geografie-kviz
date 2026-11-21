@@ -48,6 +48,12 @@
     const HEARTS = 3;
     const QUESTIONS = 10;
     const ATTEMPTS = 3;
+    // Pomůcky do souboje (blok 49, docs/BOSS-PREDMETY.md): do souboje jdou nejvýš dvě; Další pokus ('attempt') odemkne čtvrtý pokus v týdnu
+    const KINDS = ['double_hit', 'fifty', 'freeze', 'heart', 'free_hint'];
+    const LOADOUT_MAX = 2;
+    const FREEZE_MS = 10000;
+    const FREE_HINT_MS = 5000;
+    const HEARTS_MAX = HEARTS + 1;
     // Schválnosti: psaná odpověď (index otázky od 0) a poloviční čas od této otázky do konce
     const TYPED_SLOTS = [3, 7];
     const HALF_TIME_FROM = 7;
@@ -367,7 +373,8 @@
         if (time >= ZERO_BONUS_MS) return 0;
         return Math.round(SPEED_BONUS * (ZERO_BONUS_MS - time) / (ZERO_BONUS_MS - FULL_BONUS_MS));
     };
-    const damageFor = (correct, ms) => (correct ? BASE_DAMAGE + speedBonus(ms) : 0);
+    // double = zapnutý Dvojitý úder (zásah i bonus za rychlost dvojnásobně)
+    const damageFor = (correct, ms, double = false) => (correct ? (BASE_DAMAGE + speedBonus(ms)) * (double ? 2 : 1) : 0);
     // Životy v procentech (zaokrouhleno nahoru: dokud boss žije, ukáže aspoň 1 %)
     const hpPercent = (hp, max = HP_MIN) => Math.max(0, Math.min(100, Math.ceil(Math.max(0, hp) * 100 / max)));
     const stageOf = (hp, max = HP_MIN) => {
@@ -376,20 +383,24 @@
     };
     const stageName = (stage) => (STAGES[Math.max(1, Math.min(4, stage)) - 1] || STAGES[0]).name;
     // Průběh souboje z odpovědí [{ correct, ms }]: životy bosse, srdce, uštědřené poškození, konec a výhra
-    const fightStatus = (results = [], week = '') => {
+    // loadout = výbava souboje: Srdce navíc dá čtvrté srdce
+    const fightStatus = (results = [], week = '', loadout = []) => {
         const max = hpForWeek(week);
         let hp = max;
-        let hearts = HEARTS;
+        const heartsMax = HEARTS + ((loadout || []).includes('heart') ? 1 : 0);
+        let hearts = heartsMax;
         let correct = 0;
         let answered = 0;
         for (const row of results || []) {
             if (hp <= 0 || hearts <= 0 || answered >= QUESTIONS) break;
             answered += 1;
-            if (row && row.correct) { correct += 1; hp = Math.max(0, hp - damageFor(true, row.ms)); } else hearts -= 1;
+            if (row && row.correct) { correct += 1; hp = Math.max(0, hp - damageFor(true, row.ms, row.x2)); } else hearts -= 1;
         }
         const won = hp <= 0;
-        return { hp, hearts, correct, answered, damage: max - hp, max, won, over: won || hearts <= 0 || answered >= QUESTIONS, stage: stageOf(hp, max), percent: hpPercent(hp, max) };
+        return { hp, hearts, heartsMax, correct, answered, damage: max - hp, max, won, over: won || hearts <= 0 || answered >= QUESTIONS, stage: stageOf(hp, max), percent: hpPercent(hp, max) };
     };
+    // Stav souboje z rozehraného souboje (výsledky, týden a výbava)
+    const fightStatusOf = (open) => fightStatus(open && open.results, open && open.week, open && open.loadout);
     // Obrázek bosse pro stupeň a jestli jde o zástupný obrázek (stejný jako ve stupni 1: změnu ukáže jen filtr a efekty)
     const artFor = (id, stage = 1) => {
         const list = ART[id] || ART.kapitan;
@@ -427,15 +438,15 @@
     const cleanText = (value, max = 80) => (typeof value === 'string' ? value.slice(0, max) : '');
     const cleanResult = (row) => (row && typeof row === 'object' ? {
         correct: Boolean(row.correct), ms: whole(row.ms, 3600000),
-        ...(row.typed ? { typed: true } : {}), ...(row.timeout ? { timeout: true } : {}), ...(typeof row.answer === 'string' && row.answer ? { answer: row.answer.slice(0, 120) } : {})
+        ...(row.typed ? { typed: true } : {}), ...(row.timeout ? { timeout: true } : {}), ...(row.x2 ? { x2: true } : {}), ...(typeof row.answer === 'string' && row.answer ? { answer: row.answer.slice(0, 120) } : {})
     } : null);
     const cleanAttempt = (row, week = '') => {
         if (!row || typeof row !== 'object') return null;
         const damage = whole(row.damage, HP_MAX);
         return {
-            n: Math.max(1, whole(row.n, ATTEMPTS)) || 1, damage, correct: whole(row.correct, QUESTIONS), hearts: whole(row.hearts, HEARTS), defeated: damage >= hpForWeek(week),
+            n: Math.max(1, whole(row.n, ATTEMPTS + 1)) || 1, damage, correct: whole(row.correct, QUESTIONS), hearts: whole(row.hearts, HEARTS_MAX), defeated: damage >= hpForWeek(week),
             at: Number.isFinite(row.at) ? row.at : 0, owner: cleanText(row.owner, 64) || 'host', synced: Boolean(row.synced),
-            ...(Number.isInteger(row.idx) && row.idx >= 0 && row.idx < ATTEMPTS ? { idx: row.idx } : {})
+            ...(Number.isInteger(row.idx) && row.idx >= 0 && row.idx <= ATTEMPTS ? { idx: row.idx } : {})
         };
     };
     const cleanOpen = (raw) => {
@@ -447,7 +458,12 @@
         const shown = raw.shown && typeof raw.shown === 'object' && Number.isInteger(raw.shown.slot) && raw.shown.slot === results.length && Number.isFinite(raw.shown.at)
             && raw.shown.data && typeof raw.shown.data === 'object' && raw.shown.data.question
             ? { slot: raw.shown.slot, at: raw.shown.at, data: raw.shown.data, ...(whole(raw.shown.hint, 20) > 1 ? { hint: whole(raw.shown.hint, 20) } : {}) } : null;
-        return { week: raw.week, boss: raw.boss, n: Math.max(1, whole(raw.n, ATTEMPTS)) || 1, owner: cleanText(raw.owner, 64) || 'host', at: Number.isFinite(raw.at) ? raw.at : 0, results, plan, shown };
+        // loadout = výbava souboje (až dvě pomůcky), used = pomůcky, které už se v souboji použily, equipped = výbava je vyřízená (vybraná nebo odmítnutá)
+        const loadout = [...new Set(Array.isArray(raw.loadout) ? raw.loadout.filter(kind => KINDS.includes(kind)) : [])].slice(0, LOADOUT_MAX);
+        const used = [...new Set(Array.isArray(raw.used) ? raw.used.filter(kind => KINDS.includes(kind)) : [])];
+        const extra = raw.shown && typeof raw.shown === 'object' ? { ...(raw.shown.x2 ? { x2: true } : {}), ...(Array.isArray(raw.shown.removed) ? { removed: raw.shown.removed.filter(index => Number.isInteger(index) && index >= 0 && index < 8).slice(0, 2) } : {}) } : {};
+        return { week: raw.week, boss: raw.boss, n: Math.max(1, whole(raw.n, ATTEMPTS + 1)) || 1, owner: cleanText(raw.owner, 64) || 'host', at: Number.isFinite(raw.at) ? raw.at : 0, results, plan, shown: shown ? { ...shown, ...extra } : null,
+            loadout, used, equipped: Boolean(raw.equipped) };
     };
     const emptyState = () => ({ v: 1, weeks: {}, open: null, emblems: {}, claims: {} });
     const parseState = (raw) => {
@@ -459,7 +475,7 @@
                 if (!row || typeof row !== 'object') return;
                 const boss = BY_ID[row.boss] ? row.boss : bossForWeek(week).id;
                 const attempts = (Array.isArray(row.attempts) ? row.attempts : []).map(attempt => cleanAttempt(attempt, week)).filter(Boolean).slice(0, 12);
-                state.weeks[week] = { boss, attempts, xp: Boolean(row.xp), bonus: row.bonus === 'claimed' || row.bonus === 'none' ? row.bonus : null };
+                state.weeks[week] = { boss, attempts, xp: Boolean(row.xp), bonus: row.bonus === 'claimed' || row.bonus === 'none' ? row.bonus : null, ...(row.extra ? { extra: true } : {}) };
             });
         }
         if (raw.emblems && typeof raw.emblems === 'object') Object.keys(raw.emblems).filter(id => BY_ID[id] && isWeek(raw.emblems[id])).forEach(id => { state.emblems[id] = raw.emblems[id]; });
@@ -468,10 +484,13 @@
         return state;
     };
     const weekEntry = (state, week) => state.weeks[week] || { boss: bossForWeek(week).id, attempts: [], xp: false, bonus: null };
+    // Počet pokusů v týdnu: tři a čtvrtý po použití Dalšího pokusu (zařízení nebo server)
+    const attemptCap = (state, week, server = null) => ATTEMPTS + (weekEntry(state, week).extra || (server && server.extra) ? 1 : 0);
+    const grantExtraAttempt = (state, week) => ({ ...state, weeks: { ...state.weeks, [week]: { ...weekEntry(state, week), extra: true } } });
     // Server (přihlášený hráč): { attempts, best_damage, defeated } nebo null; zařízení počítá i rozehraný souboj
     const attemptsUsed = (state, week, server = null) => {
         const local = weekEntry(state, week).attempts.length + (state.open && state.open.week === week ? 1 : 0);
-        return Math.min(ATTEMPTS, Math.max(local, server ? whole(server.attempts, ATTEMPTS) : 0));
+        return Math.min(ATTEMPTS + 1, Math.max(local, server ? whole(server.attempts, ATTEMPTS + 1) : 0));
     };
     const bestDamage = (state, week, server = null) => Math.max(0, ...weekEntry(state, week).attempts.map(row => row.damage), server ? whole(server.best_damage, HP_MAX) : 0);
     const isDefeated = (state, week, server = null) => bestDamage(state, week, server) >= hpForWeek(week) || Boolean(server && server.defeated);
@@ -479,22 +498,22 @@
     const startAttempt = (state, week, { now = Date.now(), owner = 'host', server = null } = {}) => {
         if (state.open || isDefeated(state, week, server)) return null;
         const used = attemptsUsed(state, week, server);
-        if (used >= ATTEMPTS) return null;
+        if (used >= attemptCap(state, week, server)) return null;
         const boss = bossForWeek(week).id;
         const next = { ...state, weeks: { ...state.weeks, [week]: weekEntry(state, week) } };
-        next.open = { week, boss, n: used + 1, owner, at: now, results: [], plan: [], shown: null };
+        next.open = { week, boss, n: used + 1, owner, at: now, results: [], plan: [], shown: null, loadout: [], used: [], equipped: false };
         return next;
     };
     // Odpověď na otázku na obrazovce (slot = results.length)
     const addResult = (open, row) => {
-        if (!open || fightStatus(open.results, open.week).over) return open;
+        if (!open || fightStatusOf(open).over) return open;
         return { ...open, results: [...open.results, cleanResult(row)], shown: null };
     };
     // Konec souboje (i nedohraného: počítá se, jak stál): pokus do týdne, emblém při první výhře. Vrátí { state, attempt, firstWin }
     const finishAttempt = (state, now = Date.now()) => {
         const open = state.open;
         if (!open) return { state, attempt: null, firstWin: false };
-        const status = fightStatus(open.results, open.week);
+        const status = fightStatusOf(open);
         const entry = weekEntry(state, open.week);
         const firstWin = status.won && !entry.attempts.some(row => row.defeated);
         const attempt = cleanAttempt({ n: open.n, damage: status.damage, correct: status.correct, hearts: status.hearts, at: now, owner: open.owner, synced: false }, open.week);
@@ -519,13 +538,13 @@
 
     // --- Dlaždice na úvodu (app.js specialTile): obrázek podle stupně nejlepšího pokusu, krátký stav, celý stav pro čtečku ---
     // view = { week, used, best, defeated, open }
-    const homeTile = ({ week, used = 0, best = 0, defeated = false, open = false }) => {
+    const homeTile = ({ week, used = 0, best = 0, defeated = false, open = false, cap = ATTEMPTS }) => {
         const boss = bossForWeek(week);
         const max = hpForWeek(week);
         const hp = defeated ? 0 : max - Math.min(max, best);
         const stage = stageOf(hp, max);
         const percent = hpPercent(hp, max);
-        const left = Math.max(0, ATTEMPTS - used);
+        const left = Math.max(0, cap - used);
         const text = defeated ? 'Poraženo!' : open ? 'Souboj běží' : used ? `❤ ${percent} %` : attemptsWord(ATTEMPTS);
         const label = `Boss týdne: ${boss.name} (${boss.epithet}). ${defeated ? 'Poraženo, emblém je tvůj.'
             : open ? 'Souboj běží, klepnutím pokračuješ.'
@@ -565,7 +584,7 @@
             ${alive || breaking ? `<svg viewBox="0 0 24 24" class="boss-heart-l absolute inset-0 h-full w-full" aria-hidden="true" focusable="false"><path d="${HEART_PATH}" class="boss-heart-fill"/></svg>
             <svg viewBox="0 0 24 24" class="boss-heart-r absolute inset-0 h-full w-full" aria-hidden="true" focusable="false"><path d="${HEART_PATH}" class="boss-heart-fill"/></svg>` : ''}
         </span>`;
-    const heartsHtml = (hearts, breaking = -1) => `<span data-boss-hearts="${hearts}" role="img" aria-label="Tvoje srdce: ${hearts} ze ${HEARTS}" class="flex items-center gap-0.5">${Array.from({ length: HEARTS }, (_, index) => heartHtml(index < hearts, index === breaking)).join('')}</span>`;
+    const heartsHtml = (hearts, breaking = -1, max = HEARTS) => `<span data-boss-hearts="${hearts}" role="img" aria-label="Tvoje srdce: ${hearts} z ${Math.max(max, hearts)}" class="flex items-center gap-0.5">${Array.from({ length: Math.max(max, hearts) }, (_, index) => heartHtml(index < hearts, index === breaking)).join('')}</span>`;
     // Lišta životů: skutečná (plynule ubývá) a „duch“ za ní (dobíhá se zpožděním); šířky nastaví app.js (data-progress / style.width)
     const hpBarHtml = (hp, { big = false, max = HP_MIN } = {}) => `
         <div data-boss-hp="${hp}" role="meter" aria-label="Životy bosse" aria-valuemin="0" aria-valuemax="${max}" aria-valuenow="${hp}" aria-valuetext="${hp} z ${max} životů" class="boss-hp relative ${big ? 'h-5' : 'h-4'} overflow-hidden rounded-full">
@@ -573,7 +592,7 @@
             <span data-boss-hp-fill data-progress="${hpPercent(hp, max)}" class="boss-hp-fill absolute inset-y-0 left-0 w-full"></span>
             <span class="boss-hp-text absolute inset-0 flex items-center justify-center gap-1 ${big ? 'text-[12px]' : 'text-[10.5px]'} font-black tabular-nums"><span aria-hidden="true">❤</span><span data-boss-hp-text>${hp} / ${max}</span></span>
         </div>`;
-    const attemptsDots = (used) => `<span class="flex items-center gap-1" role="img" aria-label="Pokusy: ${used} z ${ATTEMPTS} použité">${Array.from({ length: ATTEMPTS }, (_, index) => `<span class="h-2.5 w-2.5 rounded-full ${index < used ? 'bg-white/30' : 'bg-gold-300 shadow-[0_0_6px_rgba(239,197,92,0.9)]'}"></span>`).join('')}</span>`;
+    const attemptsDots = (used, cap = ATTEMPTS) => `<span class="flex items-center gap-1" role="img" aria-label="Pokusy: ${used} z ${cap} použité">${Array.from({ length: cap }, (_, index) => `<span class="h-2.5 w-2.5 rounded-full ${index < used ? 'bg-white/30' : 'bg-gold-300 shadow-[0_0_6px_rgba(239,197,92,0.9)]'}"></span>`).join('')}</span>`;
     // Společná lišta (přihlášený): kolik procent hráčů bosse porazilo a cíl polovina; host jen pozvánka
     const communityHtml = ({ stats = null, signedIn = false, canLogin = false, loading = false, over = false }) => {
         if (!signedIn) {
@@ -608,21 +627,20 @@
         return `<ul data-boss-rules class="flex flex-col gap-1.5">
             ${rule('swords', `${esc(boss.name)} má ${hpForWeek(week)} životů. Čeká tě ${QUESTIONS} těžkých otázek${topicTitle ? ` z tématu ${esc(topicTitle)}` : ''}, stejných pro všechny.`)}
             ${rule('zap', `Správná odpověď ubere bossovi ${BASE_DAMAGE} životů a za rychlost až ${SPEED_BONUS} navíc: plný bonus do ${FULL_BONUS_MS / 1000} s, do ${ZERO_BONUS_MS / 1000} s klesá k nule.`)}
-            ${rule('heart', `Máš ${HEARTS} srdce, chyba i vypršený čas jedno ubere. Na odpověď máš ${TIME_MS / 1000}\u00a0s, na psanou ${TYPED_TIME_MS / 1000}\u00a0s.`)}
-            ${rule('lightbulb', 'Popis z Wikipedie a nápovědy jako v běžné hře, čas ale běží dál.')}
-            ${rule('eye-off', 'Bossovy schválnosti: u 4. a 8. otázky schová možnosti a odpověď se píše. Poslední 3 otázky mají poloviční čas.')}
-            ${rule('repeat', `Každý týden máš ${ATTEMPTS} pokusy, počítá se nejlepší. Rozehraný souboj dohraješ později, čas otázky běží dál.`)}
+            ${rule('heart', `Máš ${HEARTS} srdce, chyba i vypršený čas jedno ubere. Na odpověď máš ${TIME_MS / 1000}\u00a0s, na psanou ${TYPED_TIME_MS / 1000}\u00a0s, u posledních 3 otázek polovinu.`)}
+            ${rule('eye-off', 'Popis z Wikipedie a nápovědy jako v běžné hře, čas ale běží dál. Bossovy schválnosti: 4. a 8. otázky schová možnosti a odpověď se píše.')}
+            ${rule('sparkles', `Každý týden máš ${ATTEMPTS} pokusy, počítá se nejlepší. Před soubojem si vezmi nejvýš dvě pomůcky; za dohraný souboj dostaneš jednu, za první výhru Další pokus.`)}
             ${rule('trophy', `Za výhru: emblém bosse do Alba a Vitríny, titul „${esc(boss.title)}“ a ${WIN_XP} XP za první výhru v týdnu.`)}
         </ul>`;
     };
     // Úvod souboje: aréna, nástup bosse, řeč, stav pokusů, společná lišta a tlačítko Do souboje
     // view = { boss, week, used, best, defeated, open, speech, community (communityHtml), next (boss příštího týdne), topicTitle, enter }
     const introHtml = (view, h = {}) => {
-        const { boss, week, used = 0, best = 0, defeated = false, open = false, speech = '', next = null, topicTitle = '', enter = true } = view;
+        const { boss, week, used = 0, best = 0, defeated = false, open = false, speech = '', next = null, topicTitle = '', enter = true, cap = ATTEMPTS, extraHave = 0 } = view;
         const max = hpForWeek(week);
         const hp = defeated ? 0 : max - Math.min(max, best);
         const stage = stageOf(hp, max);
-        const left = Math.max(0, ATTEMPTS - used);
+        const left = Math.max(0, cap - used);
         const canFight = open || (!defeated && left > 0);
         const status = defeated ? `Poraženo! Emblém a titul „${boss.title}“ jsou tvoje.`
             : open ? 'Souboj běží. Čas u otázky na obrazovce běží dál.'
@@ -635,7 +653,7 @@
                 <span class="boss-beams" aria-hidden="true"></span>
                 <div class="relative z-10 flex items-center justify-between gap-2">
                     <p class="flex min-w-0 items-center gap-1.5 rounded-full bg-black/35 py-1 pl-1 pr-2.5 text-[11px] font-black uppercase tracking-widest text-gold-200 ring-1 ring-white/15">${h.topicIcon ? h.topicIcon(boss.topic) : ''}<span class="truncate">Boss týdne · ${esc(weekLabel(week))}</span></p>
-                    <span class="flex shrink-0 items-center gap-1.5 rounded-full bg-black/35 px-2.5 py-1 text-[11px] font-black text-white/90 ring-1 ring-white/15">Pokusy ${attemptsDots(used)}</span>
+                    <span class="flex shrink-0 items-center gap-1.5 rounded-full bg-black/35 px-2.5 py-1 text-[11px] font-black text-white/90 ring-1 ring-white/15">Pokusy ${attemptsDots(used, cap)}</span>
                 </div>
                 <div class="relative z-10 mt-1 flex flex-col items-center">
                     ${portraitHtml(boss, defeated ? 4 : stage, { size: 'h-48 w-48 [@media(max-height:770px)]:h-28 [@media(max-height:770px)]:w-28', id: 'boss-stage', enter, idle: !defeated })}
@@ -655,6 +673,7 @@
                     ${view.community || ''}
                 </div>
                 <div class="relative z-10 mt-auto flex flex-col gap-1 pt-3 [@media(max-height:770px)]:pt-2">
+                    ${!canFight && !defeated && extraHave > 0 && cap === ATTEMPTS && used >= ATTEMPTS ? `<button type="button" data-action="boss-extra" class="${PRIMARY}"><i data-lucide="repeat" class="h-5 w-5"></i> Použít Další pokus (máš ${extraHave})</button>` : ''}
                     ${canFight ? `<button type="button" data-action="boss-start" class="${PRIMARY}"><i data-lucide="swords" class="h-5 w-5"></i> ${esc(button)}</button>`
                         : `<p data-boss-next class="rounded-2xl bg-black/35 px-3 py-2.5 text-center text-[13px] font-bold leading-snug text-white ring-1 ring-white/15">${next ? `V pondělí přijde ${esc(next.name)} (${esc(next.epithet.toLocaleLowerCase('cs'))}).` : 'V pondělí přijde nový boss.'}</p>`}
                     <div class="flex items-center justify-between gap-2">
@@ -678,7 +697,7 @@
                     </div>
                     <div class="mt-1.5">${hpBarHtml(status.hp, { max: status.max })}</div>
                     <div class="mt-1.5 flex items-center justify-between gap-2">
-                        ${heartsHtml(status.hearts)}
+                        ${heartsHtml(status.hearts, -1, status.heartsMax)}
                         <span data-boss-count class="text-[11px] font-black tabular-nums text-white/85">Otázka ${Math.min(QUESTIONS, slot + 1)}/${QUESTIONS}</span>
                         <span data-boss-clock-chip role="timer" aria-label="Zbývající čas v sekundách" class="flex min-w-[3.25rem] items-center justify-end gap-1 text-[15px] font-black tabular-nums"><i data-lucide="timer" class="h-4 w-4 text-gold-300"></i><span data-boss-clock>${Math.ceil(limit / 1000)}</span></span>
                     </div>
@@ -711,7 +730,7 @@
         const statsRow = `<div class="grid grid-cols-3 gap-1.5 text-center">
             <div class="rounded-xl bg-black/30 px-1 py-1.5 ring-1 ring-white/10"><p class="text-[10px] font-black uppercase tracking-wider text-white/75">Poškození</p><p data-boss-damage class="text-lg font-black tabular-nums leading-tight">${status.damage}</p></div>
             <div class="rounded-xl bg-black/30 px-1 py-1.5 ring-1 ring-white/10"><p class="text-[10px] font-black uppercase tracking-wider text-white/75">Správně</p><p class="text-lg font-black tabular-nums leading-tight">${status.correct}/${status.answered}</p></div>
-            <div class="rounded-xl bg-black/30 px-1 py-1.5 ring-1 ring-white/10"><p class="text-[10px] font-black uppercase tracking-wider text-white/75">Srdce</p><p class="flex justify-center pt-0.5">${heartsHtml(status.hearts)}</p></div>
+            <div class="rounded-xl bg-black/30 px-1 py-1.5 ring-1 ring-white/10"><p class="text-[10px] font-black uppercase tracking-wider text-white/75">Srdce</p><p class="flex justify-center pt-0.5">${heartsHtml(status.hearts, -1, status.heartsMax)}</p></div>
         </div>`;
         const reward = won ? (emblemNew ? `
             <div data-boss-reward class="boss-reward relative flex items-center gap-3 overflow-hidden rounded-2xl bg-gradient-to-br from-gold-300 to-gold-500 p-2.5 text-brand-950 shadow-lg ring-2 ring-gold-200">
@@ -776,7 +795,7 @@
     };
 
     return {
-        ART, HP_MIN, HP_MAX, hpForWeek, BASE_DAMAGE, SPEED_BONUS, FULL_BONUS_MS, ZERO_BONUS_MS, HEARTS, QUESTIONS, ATTEMPTS, TYPED_SLOTS, HALF_TIME_FROM, TIME_MS, TYPED_TIME_MS, TIERS,
+        ART, HP_MIN, HP_MAX, hpForWeek, KINDS, LOADOUT_MAX, FREEZE_MS, FREE_HINT_MS, HEARTS_MAX, attemptCap, grantExtraAttempt, fightStatusOf, BASE_DAMAGE, SPEED_BONUS, FULL_BONUS_MS, ZERO_BONUS_MS, HEARTS, QUESTIONS, ATTEMPTS, TYPED_SLOTS, HALF_TIME_FROM, TIME_MS, TYPED_TIME_MS, TIERS,
         WIN_XP, COMMUNITY_XP, COMMUNITY_SHARE, KEY, ROTATION_START, BOSSES, BY_ID, STAGES, TRICKS,
         pragueDay, mondayOf, isWeek, weekOf, addWeeks, weekSerial, bossForWeek, weekLabel, formatDay, attemptsWord, attemptsLeftText,
         hash32, seededRandom, seedFor, questionSeed, tiersOf, candidatesFor,

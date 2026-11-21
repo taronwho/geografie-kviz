@@ -42,7 +42,7 @@ const login = (token) => ({ 'mudrlant.auth': JSON.stringify({ access_token: toke
 const player = (id, name, avatar) => ({ id, display_name: name, avatar, color: 'sky', xp: 100, badges: [], rating: 1200, rated_games: 5, blocked_topics: [], accepts_mix: true });
 
 // Databáze bosse (zjednodušeně, pravidla hlídá tests/sql-boss.test.js); missing = starší databáze bez funkcí (404)
-const newDb = () => ({ calls: [], missing: false, players: 10, beaten: 3, me: null, bonus: { xp: 0 }, profiles: { 'u-1': player('u-1', 'Jana Nováková', '🦊') } });
+const newDb = () => ({ calls: [], missing: false, items: null, players: 10, beaten: 3, me: null, bonus: { xp: 0 }, profiles: { 'u-1': player('u-1', 'Jana Nováková', '🦊') } });
 const backend = async (context, db) => {
     await context.route('https://proj.supabase.co/**', async route => {
         const request = route.request();
@@ -59,6 +59,15 @@ const backend = async (context, db) => {
             if (name === 'schema_version') return json(REQUIRED_SCHEMA);
             if (name === 'touch_seen') return route.fulfill({ status: 204, body: '' });
             if (name === 'friends_list' || name === 'weekly_leaderboard') return json([]);
+            // Zásoba pomůcek (blok 30 a 49); bez db.items starší databáze (404)
+            const stock = () => ({ extra_move: 0, fifty: 0, chain_rescue: 0, revive: 0, double_hit: 0, freeze: 0, heart: 0, free_hint: 0, attempt: 0, ...db.items,
+                max: { extra_move: 1, fifty: 2, chain_rescue: 1, revive: 3, double_hit: 2, freeze: 2, heart: 1, free_hint: 2, attempt: 1 } });
+            if (name === 'player_items_mine') return db.items ? json(stock()) : json({ code: 'PGRST202', message: 'Could not find the function' }, 404);
+            if (name === 'boss_equip' && db.items) {
+                db.calls.push({ name, body });
+                body.kinds.forEach(kind => { db.items[kind] -= 1; });
+                return json({ kinds: body.kinds, already: false, items: stock() });
+            }
             if (/^boss_/.test(name)) {
                 db.calls.push({ name, body });
                 if (db.missing) return json({ code: 'PGRST202', message: 'Could not find the function' }, 404);
@@ -77,6 +86,8 @@ const backend = async (context, db) => {
                 }
                 if (name === 'boss_claim_bonus') return json({ week: body.for_week, played: true, reached: db.bonus.xp > 0, claimed: db.bonus.xp > 0, xp: db.bonus.xp, ...(db.bonus.item ? { item: db.bonus.item } : {}) });
             }
+            // Dobývání existuje (jinak by první 404 vypnul i zásobu pomůcek)
+            if (db.items && /^conquest_/.test(name)) return json([]);
             return json({ code: 'PGRST202', message: 'Could not find the function' }, 404);
         }
         const table = url.pathname.replace('/rest/v1/', '');
@@ -593,6 +604,40 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         await tab.click('[data-action="boss-start"]');
         await answer(tab, true);
         assert.equal(await hp(tab), 840);
+        assert.deepEqual(log.errors, []);
+        await context.close();
+    });
+
+    await t.test('výbava (blok 49): výběr dvou pomůcek, Srdce navíc, Dvojitý úder a Zmrazení času v souboji (390×780)', async () => {
+        const db = newDb();
+        db.items = { double_hit: 1, heart: 1, freeze: 1, fifty: 1 };
+        const { context, tab, log } = await open(browser, login('tok-u1'), { viewport: { width: 390, height: 780 }, db });
+        await openIntro(tab);
+        await tab.click('[data-action="boss-start"]');
+        await tab.waitForSelector('[data-boss-loadout]');
+        assert.match(await compact(tab, '[data-boss-loadout]'), /Dvojitý úder × 1[^]*50\/50 × 1[^]*Zmrazení času × 1[^]*Srdce navíc × 1/);
+        await tab.click('[data-action="boss-pick"][data-kind="double_hit"]');
+        await tab.click('[data-action="boss-pick"][data-kind="heart"]');
+        await tab.click('[data-action="boss-pick"][data-kind="freeze"]');
+        assert.equal(await tab.getAttribute('[data-action="boss-pick"][data-kind="freeze"]', 'aria-pressed'), 'false', 'třetí pomůcka už nejde');
+        await tab.click('[data-action="boss-loadout-go"]');
+        await question(tab);
+        const equip = db.calls.find(call => call.name === 'boss_equip');
+        assert.deepEqual(equip.body, { for_week: WEEK, idx: 0, kinds: ['double_hit', 'heart'] });
+        assert.equal((await state(tab)).open.equipped, true);
+        assert.equal(await tab.getAttribute('#boss-strip [data-boss-hearts]', 'data-boss-hearts'), '4', 'Srdce navíc: čtyři srdce');
+        assert.equal(await tab.locator('#boss-strip [data-boss-hearts] svg, #boss-strip [data-boss-hearts] i, #boss-strip [data-boss-hearts] span').count() >= 4, true);
+        assert.match(await compact(tab, '[data-boss-items]'), /Dvojitý úder/);
+        await fitsScreen(tab, 'souboj s pomůckami (390×780)');
+        await audit(tab, 'souboj s pomůckami (390×780)');
+        await tab.click('[data-action="boss-item"][data-kind="double_hit"]');
+        assert.match(await compact(tab, '[data-boss-items]'), /Úder ×2 zapnut/);
+        const before = await hp(tab);
+        await answer(tab, true, { next: false });
+        const saved = (await state(tab)).open;
+        assert.equal(saved.results[0].x2, true);
+        assert.deepEqual(saved.used, ['double_hit']);
+        assert.equal(before - await hp(tab), Boss.damageFor(true, saved.results[0].ms, true), 'dvojnásobné poškození');
         assert.deepEqual(log.errors, []);
         await context.close();
     });

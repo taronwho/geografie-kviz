@@ -134,6 +134,25 @@
             what: 'Když ti nezbude žádné území, vrátí tě do hry: vybereš si volné nebo neopevněné území (ne domovský hrad) a hraješ dál. Na 60 s je chráněné.',
             how: 'Jeden na začátek, dohraná započítaná hra Dobývání s body, série Kvízu dne (7, 30, 100 a 365 dní), 8. stupeň Sezóny Mudrlanta a vzácně Truhla Mudrlanta nebo Zlatá truhla.' }
     };
+    // Pomůcky do souboje s Bossem týdne (blok 49, boss.js, docs/BOSS-PREDMETY.md): place 'boss', takže se v Dobývání nenabízejí. Před soubojem
+    // si hráč vezme nejvýš dvě; Dvojitý úder, Zmrazení času, Srdce navíc a Nápověda zdarma padají za každý dohraný pokus (los), Další pokus za první výhru.
+    Object.assign(ITEMS, {
+        double_hit: { id: 'double_hit', name: 'Dvojitý úder', max: 2, icon: 'swords', mark: '×2', art: 'boss-dvojity-uder', place: 'boss',
+            what: 'V souboji s Bossem týdne ho zapneš před odpovědí: správná odpověď ubere dvojnásobek. Při chybě se spotřebuje.',
+            how: 'Za každý dohraný souboj s Bossem týdne (los mezi čtyřmi pomůckami do souboje).' },
+        freeze: { id: 'freeze', name: 'Zmrazení času', max: 2, icon: 'hourglass', mark: '10 s', art: 'boss-zmrazeni', place: 'boss',
+            what: 'U otázky v souboji s Bossem týdne zastaví čas na 10 sekund. Bonus za rychlost se počítá bez nich.',
+            how: 'Za každý dohraný souboj s Bossem týdne (los mezi čtyřmi pomůckami do souboje).' },
+        heart: { id: 'heart', name: 'Srdce navíc', max: 1, icon: 'heart', mark: '+1', art: 'boss-srdce', place: 'boss',
+            what: 'V souboji s Bossem týdne máš čtyři srdce místo tří.',
+            how: 'Za každý dohraný souboj s Bossem týdne (los mezi čtyřmi pomůckami do souboje).' },
+        free_hint: { id: 'free_hint', name: 'Nápověda zdarma', max: 2, icon: 'lightbulb', mark: '+', art: 'boss-napoveda', place: 'boss',
+            what: 'U otázky v souboji s Bossem týdne odemkne další nápovědu a vrátí ti 5 sekund, takže bonus za rychlost neklesne.',
+            how: 'Za každý dohraný souboj s Bossem týdne (los mezi čtyřmi pomůckami do souboje).' },
+        attempt: { id: 'attempt', name: 'Další pokus', max: 1, icon: 'repeat', mark: '+1', art: 'boss-pokus', place: 'boss',
+            what: 'Čtvrtý pokus na Bosse týdne, když tři základní došly a boss ještě stojí.',
+            how: 'První výhra nad Bossem týdne (jednou za týden).' }
+    });
     const ITEM_IDS = Object.keys(ITEMS).filter(kind => !ITEMS[kind].place);
     // Pomůcky do Dobývání, které databáze zná: Ankh vzkříšení jen se schématem 39 (zásoba má revive)
     const itemIdsFor = (items) => ITEM_IDS.filter(kind => kind !== 'revive' || (items && typeof items.revive === 'number'));
@@ -159,6 +178,12 @@
     const grantNews = (grant) => {
         if (!grant || !ITEMS[grant.kind] || grant.already) return { kind: null };
         const item = ITEMS[grant.kind];
+        // Pomůcky do souboje s Bossem týdne (blok 49)
+        if (item.place === 'boss') {
+            if (grant.granted) return { kind: 'new', title: `Nová pomůcka: ${item.name}`, text: `${item.what} Máš ${grant.count} z ${item.max}. Do souboje ji vezmeš před jeho začátkem.` };
+            if (grant.full) return { kind: 'full', text: `${item.name} už máš naplno, tahle propadla.` };
+            return { kind: null };
+        }
         if (grant.kind === 'chain_rescue') {
             const why = grant.source && MILESTONE_TEXT[grant.source] && grant.at ? `${MILESTONE_TEXT[grant.source](grant.at)} ` : '';
             if (grant.granted) return { kind: 'new', title: `Nová pomůcka: ${item.name}`, text: `${why}V Řetězovce dne zachrání řetěz ještě jednou, když už je Záchrana použitá.` };
