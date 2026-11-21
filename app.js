@@ -7752,6 +7752,21 @@
     // Postavička (look.js, icons/avatars): základní obrázek a přes něj vrstvy přebarvených částí v jedné buňce mřížky. Zabere 82 % kolečka,
     // takže je celá vidět i s obrysem (obrázky jsou skoro čtvercové); velikost se bere z kolečka, ne z písma. Hodnota, která není postavička,
     // dá prázdný text (vykreslí se jako emoji).
+    // Boti v Dobývání (schéma 42, avatar 🤖): robotí postavička místo emoji. Robosova Mudrlátko a Super Mudrlant mají svou, ostatní boti
+    // jednu ze šesti robotích zvířat podle id; barva plátování podle barvy profilu bota (docs/OBRAZKY.md §37, scripts/avatar-icons.py)
+    const ROBOT_ANIMALS = ['rliska', 'rmedv', 'rkocka', 'rzelva', 'rchobo', 'rdrak'];
+    const ROBOT_NO_RED = new Set(['rdrak', 'rsova1']);
+    const ROBOT_COLORS = { emerald: 4, sky: 6, violet: 7, rose: 8, amber: 3, teal: 5, orange: 2, indigo: 6 };
+    const botHash = (text) => [...String(text || '')].reduce((sum, letter) => (Math.imul(sum, 31) + letter.charCodeAt(0)) >>> 0, 7);
+    const botArt = (player, sizeClass = 'h-[82%] w-[82%]') => {
+        if (!player || !(player.bot || player.avatar === '🤖')) return '';
+        const key = botHash(player.id || player.display_name || player.name);
+        const id = player.bot === 'easy' ? 'rsova1' : player.bot === 'hard' ? 'rsova3' : ROBOT_ANIMALS[key % ROBOT_ANIMALS.length];
+        let color = ROBOT_COLORS[player.color] || 1 + (key >>> 3) % 9;
+        if (color === 1 && ROBOT_NO_RED.has(id)) color = 0;
+        const layers = color ? [`icons/avatars/${id}-1${color}.webp`] : [];
+        return `<span data-avatar-art="${id}" class="grid shrink-0 ${sizeClass}">${[`icons/avatars/${id}.webp`, ...layers].map((src, index) => `<img src="${src}" alt=""${index ? ' data-avatar-layer' : ''} draggable="false" class="pointer-events-none h-full w-full select-none object-contain [grid-area:1/1]">`).join('')}</span>`;
+    };
     const avatarArt = (value, sizeClass = 'h-[82%] w-[82%]') => {
         const picture = Look && Look.avatarPicture ? Look.avatarPicture(value) : null;
         if (!picture) return '';
@@ -7792,7 +7807,7 @@
         const label = linked ? `data-player-id="${escapeHtml(player.id)}" role="button" tabindex="0" aria-label="Profil hráče ${escapeHtml(playerName(player))}${badge ? `, prestiž ${prestige}` : ''}"`
             : badge ? `role="img" aria-label="Prestiž ${prestige}"` : 'aria-hidden="true"';
         const place = badge && !/(?:^|\s)(?:absolute|fixed)(?=\s|$)/.test(size) ? ' relative' : '';
-        return `<span ${label} class="flex shrink-0 items-center justify-center rounded-full ${size} ${avatarBg(isMe && !player.draft && myProfile && myProfile.color ? myProfile.color : player && player.color)}${frame}${place}${linked ? ' cursor-pointer' : ''}">${owlHtml || avatarArt(player && player.avatar) || escapeHtml((player && player.avatar) || '🦊')}${badge}</span>`;
+        return `<span ${label} class="flex shrink-0 items-center justify-center rounded-full ${size} ${avatarBg(isMe && !player.draft && myProfile && myProfile.color ? myProfile.color : player && player.color)}${frame}${place}${linked ? ' cursor-pointer' : ''}">${owlHtml || botArt(player) || avatarArt(player && player.avatar) || escapeHtml((player && player.avatar) || '🦊')}${badge}</span>`;
     };
     // Téma výzvy: „mix“ (všechna), jedno téma, nebo víc témat oddělených čárkou
     const challengeTopicIds = (topic) => topic === 'mix' ? TOPICS.map(item => item.id) : String(topic).split(',').filter(id => TOPIC_BY_ID[id]);

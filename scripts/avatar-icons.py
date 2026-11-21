@@ -462,6 +462,14 @@ NEW_CHARACTERS = {
     'hermel': {'src': 'hermelin', 'parts': [
         {'title': 'Koruna', 'rules': [{'hue': (35, 60), 'smin': 0.5, 'vmin': 0.55, 'box': [(0.25, 0.0, 0.65, 0.3)]}]},
         {'title': 'Sýr uvnitř', 'rules': [{'hue': (38, 62), 'smin': 0.25, 'vmin': 0.6, 'box': [(0.4, 0.4, 0.78, 0.68)]}]}]},
+    'rchobo': {'src': 'bot-chobo', 'parts': [{'title': 'Plátování', 'rules': [{'hue': (335, 15), 'smin': 0.35, 'vmin': 0.25}]}]},
+    'rdrak': {'src': 'bot-drak', 'parts': [{'title': 'Plátování', 'rules': [{'hue': (335, 15), 'smin': 0.35, 'vmin': 0.25}]}]},
+    'rzelva': {'src': 'bot-zelva', 'parts': [{'title': 'Plátování', 'rules': [{'hue': (335, 15), 'smin': 0.35, 'vmin': 0.25}]}]},
+    'rkocka': {'src': 'bot-kocka', 'parts': [{'title': 'Plátování', 'rules': [{'hue': (335, 15), 'smin': 0.35, 'vmin': 0.25}]}]},
+    'rmedv': {'src': 'bot-medv', 'parts': [{'title': 'Plátování', 'rules': [{'hue': (335, 15), 'smin': 0.35, 'vmin': 0.25}]}]},
+    'rliska': {'src': 'bot-liska', 'parts': [{'title': 'Plátování', 'rules': [{'hue': (335, 15), 'smin': 0.35, 'vmin': 0.25}]}]},
+    'rsova3': {'src': 'bot-sova3', 'parts': [{'title': 'Plátování', 'rules': [{'hue': (335, 15), 'smin': 0.35, 'vmin': 0.25}]}]},
+    'rsova1': {'src': 'bot-sova1', 'parts': [{'title': 'Plátování', 'rules': [{'hue': (335, 15), 'smin': 0.35, 'vmin': 0.25}]}]},
     'brokik': {'src': 'brokolik', 'parts': [
         {'title': 'Bunda', 'rules': [{'hue': (190, 240), 'smin': 0.12, 'vmin': 0.25, 'box': [(0.15, 0.6, 1.0, 1.0)]}]},
         {'title': 'Podšívka', 'rules': [{'hue': (310, 350), 'smin': 0.4, 'vmin': 0.35, 'box': [(0.25, 0.55, 0.95, 0.9)]}]}]},
