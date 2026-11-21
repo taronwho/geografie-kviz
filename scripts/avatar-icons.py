@@ -470,7 +470,7 @@ NEW_CHARACTERS = {
     'rliska': {'src': 'bot-liska', 'parts': [{'title': 'Plátování', 'rules': [{'hue': (335, 15), 'smin': 0.35, 'vmin': 0.25}]}]},
     'rsova3': {'src': 'bot-sova3', 'parts': [{'title': 'Plátování', 'rules': [{'hue': (335, 15), 'smin': 0.35, 'vmin': 0.25}]}]},
     'rsova1': {'src': 'bot-sova1', 'parts': [{'title': 'Plátování', 'rules': [{'hue': (335, 15), 'smin': 0.35, 'vmin': 0.25}]}]},
-    'rmrav': {'src': 'bot-mrav', 'holes': True, 'parts': [{'title': 'Plátování', 'rules': [{'hue': (335, 15), 'smin': 0.35, 'vmin': 0.25}]}]},
+    'rkudla': {'src': 'bot-kudlanka', 'holes': True, 'parts': [{'title': 'Plátování', 'rules': [{'hue': (335, 15), 'smin': 0.35, 'vmin': 0.25}]}]},
     'rslon': {'src': 'bot-slon', 'parts': [{'title': 'Plátování', 'rules': [{'hue': (335, 15), 'smin': 0.35, 'vmin': 0.25}]}]},
     'rbouri': {'src': 'bot-bouri', 'parts': [{'title': 'Plátování', 'rules': [{'hue': (335, 15), 'smin': 0.35, 'vmin': 0.25}]}]},
     'rstras': {'src': 'bot-stras', 'parts': [{'title': 'Plátování', 'rules': [{'hue': (335, 15), 'smin': 0.35, 'vmin': 0.25}]}]},

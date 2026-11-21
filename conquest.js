@@ -2971,7 +2971,7 @@
         <button type="button" data-cq-step="${key}" data-delta="1" ${value >= max ? 'disabled' : ''} class="flex h-8 w-9 items-center justify-center rounded-md disabled:opacity-30" aria-label="Víc"><i data-lucide="plus" class="h-4 w-4"></i></button></div>`;
     // Robotí postavičky botů (docs/OBRAZKY.md §37, scripts/avatar-icons.py): Robosova Mudrlátko a Super Mudrlant mají svou, ostatní boti
     // jednoho z robotů podle id; barva plátování podle barvy vlajky (jinak profilu) bota. Robot bez vrstvy barvy 1 má vínovou jako základ.
-    const ROBOT_POOL = ['rliska', 'rmedv', 'rkocka', 'rzelva', 'rchobo', 'rdrak', 'rmrav', 'rslon', 'rbouri', 'rstras', 'rpanen', 'rhodin', 'rzubar', 'rhlub', 'rcert',
+    const ROBOT_POOL = ['rliska', 'rmedv', 'rkocka', 'rzelva', 'rchobo', 'rdrak', 'rkudla', 'rslon', 'rbouri', 'rstras', 'rpanen', 'rhodin', 'rzubar', 'rhlub', 'rcert',
         'rmor', 'rlout', 'rpauk', 'rklaun', 'rbrouk', 'rhrub', 'rlekar', 'rpest', 'rmask', 'rrez', 'rblaz'];
     const ROBOT_NO_RED = new Set(['rdrak', 'rsova1', 'rslon', 'rlout', 'rbrouk', 'rlekar', 'rpest', 'rmask', 'rrez', 'rblaz']);
     const ROBOT_FLAG_COLORS = { cervena: 1, oranzova: 2, zluta: 3, zelena: 4, tyrkysova: 5, nebeska: 6, modra: 6, fialova: 7, ruzova: 8, hneda: 2, bila: 9, cerna: 9 };
