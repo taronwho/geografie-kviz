@@ -4306,7 +4306,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no speech bubble, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: Husita, a Hussite goose warrior. A big white goose with an orange beak open as if loudly honking, fierce angry eyebrows, wearing a round medieval iron helmet. One wing holds a medieval spiked flail (a ball with spikes on a chain), the other holds a small wooden shield painted with a simple red chalice symbol and no letters. Fierce, noisy, comic medieval mood.
 ```
 
-#### 482. `bot-klaun.png` – Robo-klaun – čeká na dodání
+#### 482. `bot-klaun.png` – Robo-klaun – ✅ dodáno, zapojeno (`rklaun`, app.js botArt)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -4314,7 +4314,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single creepy-but-funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no speech bubble, no watermark, no blood, no gore. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon or robot character. The robot's main body plating must be one clean flat wine-red color (the app recolors this plating into other colors), all other parts in metal grey, gold and glowing cyan. Character: A creepy robot clown with a round wine-red metal head and a permanently painted wide grin made of grey metal teeth, one glowing cyan eye and one slightly flickering dim cyan eye, a small wine-red top hat with a gold spring on top, a grey ruff collar, and a bunch of three metal balloons floating behind. Unsettling but silly mood. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 483. `bot-panenka.png` – Robo-panenka – čeká na dodání
+#### 483. `bot-panenka.png` – Robo-panenka – ✅ dodáno, zapojeno (`rpanen`, app.js botArt)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -4322,7 +4322,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single creepy-but-funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no speech bubble, no watermark, no blood, no gore. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon or robot character. The robot's main body plating must be one clean flat wine-red color (the app recolors this plating into other colors), all other parts in metal grey, gold and glowing cyan. Character: A creepy robot porcelain doll with a wine-red metal bonnet and dress plating, a pale grey metal face with a small hairline crack, big round glowing cyan glass eyes that look slightly too wide open, rosy gold-ringed cheeks, a tiny gold key sticking out of her shoulder, and a stiff little smile. Haunted-toy mood, cute and eerie. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 484. `bot-strasak.png` – Robo-strašák – čeká na dodání
+#### 484. `bot-strasak.png` – Robo-strašák – ✅ dodáno, zapojeno (`rstras`, app.js botArt)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -4330,7 +4330,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single creepy-but-funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no speech bubble, no watermark, no blood, no gore. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon or robot character. The robot's main body plating must be one clean flat wine-red color (the app recolors this plating into other colors), all other parts in metal grey, gold and glowing cyan. Character: A creepy robot scarecrow with a wine-red metal patchwork coat and a floppy wine-red hat, a grey sack-like metal head with stitched cross-shaped cyan glowing eyes and a zigzag smile, straw-like gold wires sticking out of the sleeves and collar, and a small grey robot crow perched on its shoulder. Spooky, silly harvest mood. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 485. `bot-pavouk.png` – Robo-pavouk – čeká na dodání
+#### 485. `bot-pavouk.png` – Robo-pavouk – ✅ dodáno, zapojeno (`rpauk`, app.js botArt)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -4338,7 +4338,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single creepy-but-funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no speech bubble, no watermark, no blood, no gore. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon or robot character. The robot's main body plating must be one clean flat wine-red color (the app recolors this plating into other colors), all other parts in metal grey, gold and glowing cyan. Character: A creepy robot spider with a round wine-red metal body shell, six glowing cyan eyes of different sizes in two rows, grey jointed mechanical legs with gold joints raised around it like a frame, tiny fangs made of grey metal, and a thin gold thread hanging from its body. Eerie but cute, shown from the front. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 486. `bot-loutka.png` – Robo-loutka – čeká na dodání
+#### 486. `bot-loutka.png` – Robo-loutka – ✅ dodáno, zapojeno (`rlout`, app.js botArt)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -4346,7 +4346,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single creepy-but-funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no speech bubble, no watermark, no blood, no gore. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon or robot character. The robot's main body plating must be one clean flat wine-red color (the app recolors this plating into other colors), all other parts in metal grey, gold and glowing cyan. Character: A creepy robot marionette puppet with a wine-red wooden-looking metal torso plating, visible round metal joints at the shoulders and neck, a painted fixed smile on a grey face, glowing cyan eyes, and thin gold strings going up from its head and hands to a wooden grey control bar at the top of the frame. Stiff, uncanny, funny mood. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 487. `bot-doktor.png` – Robo-morový doktor – čeká na dodání
+#### 487. `bot-doktor.png` – Robo-morový doktor – ✅ dodáno, zapojeno (`rmor`, app.js botArt)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -4354,7 +4354,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single creepy-but-funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no speech bubble, no watermark, no blood, no gore. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon or robot character. The robot's main body plating must be one clean flat wine-red color (the app recolors this plating into other colors), all other parts in metal grey, gold and glowing cyan. Character: A creepy robot plague doctor with a long grey metal bird-beak mask, round glowing cyan lens eyes, a wine-red metal wide-brimmed hat and cloak plating, a gold buckle collar, and little cyan glass vials on a belt. Mysterious, slightly sinister but cartoonish mood, no real symbols. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 488. `bot-hlubina.png` – Robo-hlubinná ryba – čeká na dodání
+#### 488. `bot-hlubina.png` – Robo-hlubinná ryba – ✅ dodáno, zapojeno (`rhlub`, app.js botArt)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -4362,7 +4362,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single creepy-but-funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no speech bubble, no watermark, no blood, no gore. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon or robot character. The robot's main body plating must be one clean flat wine-red color (the app recolors this plating into other colors), all other parts in metal grey, gold and glowing cyan. Character: A creepy robot deep-sea anglerfish with a big round wine-red metal body shell, a wide grey metal mouth full of tiny pointed grey teeth in a happy grin, one round glowing cyan eye, and a long antenna with a glowing cyan lantern bulb dangling in front of it, gold rivets and small fins. Eerie but friendly mood. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 489. `bot-zubar.png` – Robo-zubař – čeká na dodání
+#### 489. `bot-zubar.png` – Robo-zubař – ✅ dodáno, zapojeno (`rzubar`, app.js botArt)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -4370,7 +4370,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single creepy-but-funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no speech bubble, no watermark, no blood, no gore. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon or robot character. The robot's main body plating must be one clean flat wine-red color (the app recolors this plating into other colors), all other parts in metal grey, gold and glowing cyan. Character: A creepy robot dentist with a wine-red metal head and coat plating, a sterile grey face mask pulled down under a wide grin made of shiny grey teeth, a round head mirror with a glowing cyan center on the forehead, one hand holding a small dental mirror and the other a tiny whirring drill with gold details. Nervous-making but funny mood. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 490. `bot-hodinar.png` – Robo-hodinář – čeká na dodání
+#### 490. `bot-hodinar.png` – Robo-hodinář – ✅ dodáno, zapojeno (`rhodin`, app.js botArt)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -4378,7 +4378,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single creepy-but-funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no speech bubble, no watermark, no blood, no gore. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon or robot character. The robot's main body plating must be one clean flat wine-red color (the app recolors this plating into other colors), all other parts in metal grey, gold and glowing cyan. Character: A creepy robot clockmaker whose head is an antique round clock face with a wine-red metal casing and two stiff thin hands, glowing cyan eyes where the numbers would be (no numbers), exposed gold gears turning in his chest, a small grey metal cuckoo bird peeking out of a door in his forehead, and a monocle on one eye. Eerie, mysterious but charming mood. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 491. `bot-skrinka.png` – Robo-čertík z krabičky – čeká na dodání
+#### 491. `bot-skrinka.png` – Robo-čertík z krabičky – ✅ dodáno, zapojeno (`rcert`, app.js botArt)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -4425,6 +4425,10 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 ```text
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 28 px icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. It must look like a magical item from a fantasy boss-arena game. Subject: An open brown leather adventurer's backpack with brass buckles and straps standing slightly tilted, with four magical items sticking out of the opening that look like the other item icons: a red boxing glove, a small frozen golden stopwatch in ice, a glossy red heart with tiny wings and a glowing light bulb with a ribbon, plus a few golden sparkles. Colors: brown leather, brass gold, red, icy blue, warm yellow. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
+
+#### 492b. Robotí postavičky od zadavatele (bez promptů) – ✅ dodáno, zapojeno
+
+Deset dalších robotů vymyslel zadavatel sám: `rmrav` (mravenec), `rslon` (plačící slon), `rbouri` (zlobr se jiskřícími výboji), `rbrouk` (vystrašený brouk), `rhrub` (hrubián), `rlekar` (lékař s hadicí a tabletem), `rpest` (zahradník se zářícím srdcem), `rmask` (maškara), `rrez` (smutný rezavec) a `rblaz` (šílenec se šrouby). Zdroje `branding/ikony/avatar-bot-<jméno>.png`, zapojení stejné jako u ostatních robotů (app.js botArt).
 
 ## Co udělám po dodání
 
