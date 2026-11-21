@@ -394,7 +394,7 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         await tab.click('[data-me-tab="profile"]');
         await tab.waitForSelector('#profile-name');
         // Otevřená je skupina s vybraným obrázkem (liška = Zvířátka, 20 základních emoji zdarma)
-        assert.deepEqual(await tab.$$eval('[data-pic-group]', nodes => nodes.map(node => [node.textContent.trim(), node.getAttribute('aria-selected')])), [['Mudrlant', 'false'], ['Postavičky', 'false'], ['Legendy', 'false'], ['Roboti', 'false'], ['Zvířátka', 'true']]);
+        assert.deepEqual(await tab.$$eval('[data-pic-group]', nodes => nodes.map(node => [node.textContent.trim(), node.getAttribute('aria-selected')])), [['Mudrlant', 'false'], ['Postavy', 'false'], ['Legendy', 'false'], ['Roboti', 'false'], ['Zvířátka', 'true']]);
         assert.equal(await tab.locator('[data-avatar-strip] > button').count(), 20);
         assert.equal(await tab.getAttribute('[data-pick-avatar="🦊"]', 'aria-pressed'), 'true');
         await tab.click('[data-pic-group="postavicky"]');

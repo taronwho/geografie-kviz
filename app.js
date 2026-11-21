@@ -1381,7 +1381,7 @@
     // --- Profil → profilový obrázek: čtyři skupiny (Mudrlant = moje sova a sovy titulů, Postavičky = odměny, Legendy = legendární postavičky
     // za diplomy témat, Zvířátka = základní emoji zdarma) a pod nimi jedna řada barev: pozadí, nebo vybraná část postavičky (čipy nad řadou
     // říkají, co se přebarvuje). Legendy mají vlastní skupinu: 14 dlaždic jsou dvě řady, Postavičky tak zůstanou na třech řadách ---
-    const PICTURE_GROUPS = [['mudrlant', 'Mudrlant'], ['postavicky', 'Postavičky'], ['legendy', 'Legendy'], ['roboti', 'Roboti'], ['zviratka', 'Zvířátka']];
+    const PICTURE_GROUPS = [['mudrlant', 'Mudrlant'], ['postavicky', 'Postavy'], ['legendy', 'Legendy'], ['roboti', 'Roboti'], ['zviratka', 'Zvířátka']];
     let pictureGroup = null; // otevřená skupina; null = ta, ve které je vybraný obrázek
     let colorTarget = 'bg'; // co řada barev přebarvuje: 'bg' (pozadí) nebo číslo části postavičky (1, 2)
     let hueOpen = false; // místo barev pozadí je vidět posuvník všech odstínů
