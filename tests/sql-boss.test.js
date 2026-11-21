@@ -92,7 +92,9 @@ test('SQL: Boss týdne', { skip: !available && 'PostgreSQL není dostupný' }, a
         denied(submit(A, 0, 100, false, NOW, '2026-11-10'), /Tenhle boss už odešel/, 'týden začíná pondělím');
         // První pokus
         let me = json(submit(A, 0, 430, false));
-        assert.deepEqual(me, { week: WEEK, attempts: 1, best_damage: 430, defeated: false, bonus_claimed: false, first_win: false });
+        const { att_item: att, win_item: win, extra, ...core } = me;
+        assert.deepEqual(core, { week: WEEK, attempts: 1, best_damage: 430, defeated: false, bonus_claimed: false, first_win: false });
+        assert.deepEqual([att.granted, win, extra], [true, undefined, false], 'útěcha za pokus, Další pokus až za výhru');
         // Opakované odeslání téhož pokusu (ztracená odpověď) nic nezmění
         me = json(submit(A, 0, 430, false));
         assert.equal(me.attempts, 1);
@@ -133,7 +135,7 @@ test('SQL: Boss týdne', { skip: !available && 'PostgreSQL není dostupný' }, a
         // A vyhrál, B prohrál (3 pokusy), C vyhrál, D prohrál (1 pokus)
         const s = stats(A);
         assert.deepEqual({ ...s, me: undefined }, { week: WEEK, players: 4, defeated: 2, defeated_pct: 50, reached: true, over: false, me: undefined });
-        assert.deepEqual(s.me, { week: WEEK, attempts: 3, best_damage: 700, defeated: true, bonus_claimed: false });
+        assert.deepEqual(s.me, { week: WEEK, attempts: 3, best_damage: 700, defeated: true, bonus_claimed: false, extra: false });
         assert.equal(stats(E).me, null, 'hráč, který nehrál, nemá řádek');
         // Minulý týden (bez hráčů) a jen 12 týdnů zpět
         assert.deepEqual(stats(A, NOW, '2026-11-02'), { week: '2026-11-02', players: 0, defeated: 0, defeated_pct: 0, reached: false, over: true, me: null });
@@ -175,7 +177,7 @@ test('SQL: Boss týdne', { skip: !available && 'PostgreSQL není dostupný' }, a
         denied(submit(D, 0, 90, false), /Příliš mnoho pokusů/);
         denied(psql(dbName, `insert into boss_results (user_id, week, best_damage, defeated, attempts) values ('${E}', '2026-11-10', 10, false, 1);`), /boss_results_values/, 'týden je pondělí');
         denied(psql(dbName, `insert into boss_results (user_id, week, best_damage, defeated, attempts) values ('${E}', '${WEEK}', 700, false, 1);`), /boss_results_values/, 'výhra = 700');
-        denied(psql(dbName, `insert into boss_results (user_id, week, best_damage, defeated, attempts) values ('${E}', '${WEEK}', 10, false, 4);`), /boss_results_values/, 'nejvýš 3 pokusy');
+        denied(psql(dbName, `insert into boss_results (user_id, week, best_damage, defeated, attempts) values ('${E}', '${WEEK}', 10, false, 5);`), /boss_results_values/, 'nejvýš 4 pokusy (3 + Další pokus)');
     });
 
     await t.test('export dat a smazání účtu', () => {
@@ -203,5 +205,42 @@ test('SQL: Boss týdne', { skip: !available && 'PostgreSQL není dostupný' }, a
         const win = json(submit(E, 1, hp, true, now, week));
         assert.equal(win.defeated, true);
         assert.equal(win.best_damage, hp);
+    });
+
+    await t.test('výbava a Další pokus (blok 49): výbava se odečte jednou, nejvýš dvě pomůcky, čtvrtý pokus jen s předmětem', () => {
+        q(`delete from boss_results where user_id = '${E}'`);
+        q(`delete from boss_equips where user_id = '${E}'`);
+        q(`delete from player_items where user_id = '${E}'`);
+        q(`insert into player_items (user_id, kind, count) values ('${E}', 'double_hit', 2), ('${E}', 'fifty', 1), ('${E}', 'heart', 1)`);
+        const stock = (kind) => Number(q(`select coalesce((select count from player_items where user_id = '${E}' and kind = '${kind}'), 0)`));
+        const equip = (idx, kinds) => as(E, `select boss_equip('${WEEK}', ${idx}, array[${kinds.map(kind => `'${kind}'`).join(',')}]::text[]);`);
+        denied(equip(0, ['double_hit', 'fifty', 'heart']), /nejvýš dvě/);
+        denied(equip(0, ['extra_move']), /vzít nejde/);
+        denied(equip(0, ['freeze']), /nemáš/);
+        assert.equal(stock('double_hit'), 2, 'neúspěšná výbava nic neodečte');
+        denied(equip(1, ['heart']), /dalšího souboje/);
+        const first = json(equip(0, ['double_hit', 'fifty']));
+        assert.deepEqual([first.kinds, first.already, first.items.double_hit, first.items.fifty], [['double_hit', 'fifty'], false, 1, 0]);
+        const again = json(equip(0, ['heart']));
+        assert.deepEqual([again.kinds, again.already], [['double_hit', 'fifty'], true], 'výbava k pokusu se nemění');
+        assert.equal(stock('heart'), 1, 'opakované volání nic neodečte');
+        // Tři pokusy, pak Další pokus
+        for (let idx = 0; idx < 3; idx++) ok(submit(E, idx, 100, false));
+        denied(as(E, `select boss_use_attempt('${WEEK}');`), /nemáš/);
+        q(`insert into player_items (user_id, kind, count) values ('${E}', 'attempt', 1) on conflict (user_id, kind) do update set count = 1`);
+        const extra = json(as(E, `select boss_use_attempt('${WEEK}');`));
+        assert.deepEqual([extra.extra, extra.attempts, extra.items.attempt], [true, 3, 0]);
+        denied(as(E, `select boss_use_attempt('${WEEK}');`), /už máš/);
+        const fourth = json(submit(E, 3, 150, false));
+        assert.deepEqual([fourth.attempts, fourth.best_damage, fourth.extra], [4, 150, true]);
+        denied(submit(E, 4, 10, false), /Neplatný výsledek/);
+        // Výhra dá Další pokus jen jednou za týden (a útěchu za každý pokus)
+        q(`delete from boss_results where user_id = '${E}'`);
+        q(`delete from player_item_grants where user_id = '${E}'`);
+        q(`delete from player_items where user_id = '${E}'`);
+        const win = json(submit(E, 0, 700, true));
+        assert.equal(win.win_item.kind, 'attempt');
+        assert.ok(['double_hit', 'freeze', 'heart', 'free_hint'].includes(win.att_item.kind));
+        assert.equal(stock('attempt'), 1);
     });
 });

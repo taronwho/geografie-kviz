@@ -2944,6 +2944,27 @@
         <button type="button" data-cq-step="${key}" data-delta="-1" ${value <= min ? 'disabled' : ''} class="flex h-8 w-9 items-center justify-center rounded-md disabled:opacity-30" aria-label="Méně"><i data-lucide="minus" class="h-4 w-4"></i></button>
         <span class="min-w-0 truncate text-center text-[13px] font-black"><output class="text-[16px]" data-cq-value="${key}">${value}</output> ${esc(unit)}</span>
         <button type="button" data-cq-step="${key}" data-delta="1" ${value >= max ? 'disabled' : ''} class="flex h-8 w-9 items-center justify-center rounded-md disabled:opacity-30" aria-label="Víc"><i data-lucide="plus" class="h-4 w-4"></i></button></div>`;
+    // Robotí postavičky botů (docs/OBRAZKY.md §37, scripts/avatar-icons.py): Robosova Mudrlátko a Super Mudrlant mají svou, ostatní boti
+    // jednoho z robotů podle id; barva plátování podle barvy vlajky (jinak profilu) bota. Robot bez vrstvy barvy 1 má vínovou jako základ.
+    const ROBOT_POOL = ['rliska', 'rmedv', 'rkocka', 'rzelva', 'rchobo', 'rdrak', 'rmrav', 'rslon', 'rbouri', 'rstras', 'rpanen', 'rhodin', 'rzubar', 'rhlub', 'rcert',
+        'rmor', 'rlout', 'rpauk', 'rklaun', 'rbrouk', 'rhrub', 'rlekar', 'rpest', 'rmask', 'rrez', 'rblaz'];
+    const ROBOT_NO_RED = new Set(['rdrak', 'rsova1', 'rslon', 'rlout', 'rbrouk', 'rlekar', 'rpest', 'rmask', 'rrez', 'rblaz']);
+    const ROBOT_FLAG_COLORS = { cervena: 1, oranzova: 2, zluta: 3, zelena: 4, tyrkysova: 5, nebeska: 6, modra: 6, fialova: 7, ruzova: 8, hneda: 2, bila: 9, cerna: 9 };
+    const ROBOT_PROFILE_COLORS = { emerald: 4, sky: 6, violet: 7, rose: 8, amber: 3, teal: 5, orange: 2, indigo: 6 };
+    const botHash = (text) => [...String(text || '')].reduce((sum, letter) => (Math.imul(sum, 31) + letter.charCodeAt(0)) >>> 0, 7);
+    const robotOf = (player) => {
+        const key = botHash(player && (player.id || player.display_name || player.name));
+        const id = player && player.bot === 'easy' ? 'rsova1' : player && player.bot === 'hard' ? 'rsova3' : ROBOT_POOL[key % ROBOT_POOL.length];
+        let color = ROBOT_FLAG_COLORS[player && player.flag_color] || ROBOT_PROFILE_COLORS[player && player.color] || 1 + (key >>> 3) % 9;
+        if (color === 1 && ROBOT_NO_RED.has(id)) color = 0;
+        return { id, color };
+    };
+    const botFaceHtml = (player, cls = 'h-8 w-8') => {
+        if (!player || !(player.bot || player.avatar === '🤖')) return '';
+        const { id, color } = robotOf(player);
+        const sources = [`icons/avatars/${id}.webp`, ...(color ? [`icons/avatars/${id}-1${color}.webp`] : [])];
+        return `<span data-bot-face="${id}" aria-hidden="true" class="grid shrink-0 ${cls}">${sources.map((src, index) => `<img src="${src}" alt=""${index ? ' data-avatar-layer' : ''} draggable="false" class="pointer-events-none h-full w-full select-none object-contain [grid-area:1/1]">`).join('')}</span>`;
+    };
     // Štítek bota (blok 42): ikona robota a obtížnost; short = jen ikona (úzké řádky pořadí), jméno obtížnosti zůstane pro čtečku
     const botBadgeHtml = (level, { short = false, cls = '' } = {}) => {
         const item = BOT_BY_ID[level];
@@ -3220,7 +3241,7 @@
         const draw = avatarFn(avatar);
         const owner = Boolean(me && botsOn && (game.admin !== undefined ? game.admin : game.creator && !game.preset));
         const rows = (game.players || []).map(player => `<li class="flex items-center gap-2 rounded-2xl bg-white p-1.5 pr-2.5 shadow-sm short:py-1 dark:bg-slate-800 ${player.me ? 'ring-2 ring-brand-600 dark:ring-brand-400' : ''}" ${player.bot ? `data-cq-bot-row="${esc(player.id)}"` : ''}>
-                ${pennantSvg(player.flag_color, player.emblem, 'h-7 w-9')}<span class="flex min-w-0 flex-1 items-center gap-1.5"><span class="min-w-0 truncate text-[13.5px] font-bold text-slate-800 dark:text-slate-100">${esc(player.display_name || 'Hráč')}${player.me ? ' (ty)' : ''}</span>${botBadgeHtml(player.bot)}${player.admin && !player.bot ? adminBadgeHtml() : ''}</span>
+                ${player.bot ? `<span class="relative h-8 w-9 shrink-0">${botFaceHtml(player, 'h-8 w-8')}${pennantSvg(player.flag_color, player.emblem, 'absolute -bottom-0.5 -right-0.5 h-3.5 w-[1.15rem]')}</span>` : pennantSvg(player.flag_color, player.emblem, 'h-7 w-9')}<span class="flex min-w-0 flex-1 items-center gap-1.5"><span class="min-w-0 truncate text-[13.5px] font-bold text-slate-800 dark:text-slate-100">${esc(player.display_name || 'Hráč')}${player.me ? ' (ty)' : ''}</span>${botBadgeHtml(player.bot)}${player.admin && !player.bot ? adminBadgeHtml() : ''}</span>
                 <span class="flex shrink-0 items-center gap-1 text-[11.5px] font-black ${player.ready ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400'}"><i data-lucide="${player.ready ? 'circle-check' : 'clock'}" class="h-4 w-4"></i>${player.bot ? '<span class="sr-only">Chce hrát</span>' : player.ready ? 'Chce hrát' : 'Čeká'}</span>
                 ${player.bot && owner ? `<button type="button" data-cq="bot-remove" data-bot="${esc(player.id)}" class="-my-1 -mr-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 active:scale-95 dark:text-slate-400" aria-label="Odebrat bota ${esc(player.display_name || '')}"><i data-lucide="x" class="h-4 w-4"></i></button>` : ''}</li>`).join('');
         const invitedRows = (me ? game.invited || [] : []).map(friend => `<li data-cq-invited="${esc(friend.id)}" class="flex items-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 p-0.5 pl-1.5 pr-2 dark:border-slate-600">
@@ -3377,11 +3398,11 @@
             const bar = `<span class="cq-bar mt-0.5 block h-1 overflow-hidden rounded-full" aria-hidden="true"><svg viewBox="0 0 100 1" preserveAspectRatio="none" class="block h-full w-full"><rect width="${count ? Math.max(2, share) : 0}" height="1" fill="${player.color.hex}"/></svg></span>`;
             const label = `${player.place}. ${name}: ${pointsWord(player.score)}, ${territoriesWord(count)}${regions ? `, ${regionsWord(regions)}` : ''}`;
             if (compact) {
-                return `<li class="cq-rank-row${player.me ? ' cq-rank-me' : ''} flex min-w-0 items-center gap-1.5 rounded-lg px-1 py-0.5" aria-label="${esc(label)}">${medal}${pennantSvg(player.flag_color, player.emblem, 'h-4 w-5 shrink-0')}
+                return `<li class="cq-rank-row${player.me ? ' cq-rank-me' : ''} flex min-w-0 items-center gap-1.5 rounded-lg px-1 py-0.5" aria-label="${esc(label)}">${medal}${player.bot ? botFaceHtml(player, 'h-5 w-5') : pennantSvg(player.flag_color, player.emblem, 'h-4 w-5 shrink-0')}
                     <span class="min-w-0 flex-1"><span class="flex items-center gap-1"><span class="min-w-0 flex-1 truncate text-[12px] font-bold text-slate-800 dark:text-slate-100">${esc(name)}</span>${botBadgeHtml(player.bot, { short: true })}${movesChip(view, player, true)}<b class="shrink-0 text-[13px] font-black text-slate-900 dark:text-white">${player.score}</b></span>${bar}</span></li>`;
             }
             const detail = `${territoriesWord(count)}${regions ? ` · ${regionsWord(regions)}` : ''}`;
-            return `<li class="cq-rank-row${player.me ? ' cq-rank-me' : ''} flex min-w-0 items-center gap-2 rounded-xl px-1.5 py-1 short:py-0.5" aria-label="${esc(label)}">${medal}${pennantSvg(player.flag_color, player.emblem, 'h-5 w-[1.6rem] shrink-0')}
+            return `<li class="cq-rank-row${player.me ? ' cq-rank-me' : ''} flex min-w-0 items-center gap-2 rounded-xl px-1.5 py-1 short:py-0.5" aria-label="${esc(label)}">${medal}${player.bot ? botFaceHtml(player, 'h-6 w-[1.6rem]') : pennantSvg(player.flag_color, player.emblem, 'h-5 w-[1.6rem] shrink-0')}
                 <span class="min-w-0 flex-1"><span class="flex items-center gap-1.5"><span class="min-w-0 truncate text-[13.5px] font-black text-slate-800 dark:text-slate-100">${esc(name)}</span>${botBadgeHtml(player.bot, { short: true })}<span class="min-w-0 flex-1 truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${esc(detail)}</span>${movesChip(view, player)}</span>${bar}</span>
                 <span class="flex w-9 shrink-0 flex-col items-end leading-none"><b class="text-[17px] font-black text-slate-900 dark:text-white">${player.score}</b><span class="mt-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-500 short:hidden dark:text-slate-400">${esc(pointsWord(player.score).replace(/^\d+ /, ''))}</span></span></li>`;
         }).join('');
@@ -3854,7 +3875,7 @@
         reviveOn, outOfGame, shieldLeft, shieldSeconds, reviveWhy, reviveTargets, reviveOfferHtml, reviveBarHtml, reviveLayerHtml, reviveChipHtml, reviveRowHtml, gameOut, movesLeft,
         buildQuestion, prepareQuestion, completeQuestion, isFullQuestion, moveTitle, accusativeOf, ROUND_TIMEOUT, formPlan, FORM_IDS, GROUPS, RELATIONAL_CAP, MUDRLANT_IDS, nearDuplicate,
         answerKey, familyPlan, kindsFor, placesOf, poolsOf, formsOf, FAMILY_IDS, FAMILY_DOMAIN, DOMAINS, FAMILY_CAP, flagUrl, flagFallback, THUMB, feedItems, replaySteps, capturedWord, hatchPattern, levelIcon, iconMarkup,
-        pennantSvg, pennantGroup, emblemSvg, sealSvg, mapSvg, thumbSvg, marksFor, clockText, localTime, roundHtml, roundChipHtml, ROUND_COUNTDOWN, fastPeriod, battleWaitHtml, battleResultHtml, joinedHtml, fightersHtml, siegeChipsHtml, RISK_TEXT, homeCardHtml, homeTile, hubHtml, mineHtml, FINISHED_PAGE, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,
+        pennantSvg, pennantGroup, emblemSvg, sealSvg, mapSvg, thumbSvg, marksFor, clockText, localTime, roundHtml, roundChipHtml, ROUND_COUNTDOWN, fastPeriod, battleWaitHtml, battleResultHtml, joinedHtml, fightersHtml, siegeChipsHtml, RISK_TEXT, homeCardHtml, homeTile, hubHtml, mineHtml, FINISHED_PAGE, botFaceHtml, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,
         gameScreenHtml, playersStripHtml, recentHtml, sheetHtml, devBarHtml, questionHtml, feedHtml, resultHtml, helpHtml, HELP_TABS, mapTitle, paramChips,
         // Pozvánky přátel (blok 24)
         friendsPickerHtml, inviteCardHtml, inviteLine, invitePromptHtml
