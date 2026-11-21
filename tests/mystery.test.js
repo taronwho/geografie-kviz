@@ -590,3 +590,10 @@ test('sdílení a pořadí: místo výzvy „rychleji“ čas uhodnutí; v pořa
     assert.match(html, /data-mystery-row="b"[\s\S]*nevyřešeno/);
     assert.doesNotMatch(html.split('data-mystery-row="b"')[1], /data-mystery-time/);
 });
+
+test('vzorec a značka jsou silný fakt: přijdou až za větami popisu a za souvislostí, ne mezi prvními nápovědami', () => {
+    const facts = (label, value) => ({ n: 1, parts: [{ type: 'facts', facts: [{ label, value }] }] });
+    assert.ok(M.revealScore(facts('Vzorec', 'Ag')) > M.revealScore(facts('Hustota', '10,5 g/cm³')) + 1);
+    assert.ok(M.revealScore(facts('Značka', 'Au')) > M.revealScore({ n: 1, parts: [{ type: 'related', name: 'Kutná Hora', strong: false }] }));
+    assert.ok(M.revealScore(facts('Vzorec', 'Ag')) > M.revealScore({ n: 1, parts: [{ type: 'text', text: 'Je to kov, který se používá na šperky a mince, objevený před staletími.' }] }));
+});
