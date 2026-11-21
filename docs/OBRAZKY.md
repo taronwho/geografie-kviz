@@ -4428,7 +4428,7 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 
 #### 492b. Robotí postavičky od zadavatele (bez promptů) – ✅ dodáno, zapojeno
 
-Deset dalších robotů vymyslel zadavatel sám: `rmrav` (mravenec), `rslon` (plačící slon), `rbouri` (zlobr se jiskřícími výboji), `rbrouk` (vystrašený brouk), `rhrub` (hrubián), `rlekar` (lékař s hadicí a tabletem), `rpest` (zahradník se zářícím srdcem), `rmask` (maškara), `rrez` (smutný rezavec) a `rblaz` (šílenec se šrouby). Zdroje `branding/ikony/avatar-bot-<jméno>.png`, zapojení stejné jako u ostatních robotů (app.js botArt).
+Deset dalších robotů vymyslel zadavatel sám: `rkudla` (kudlanka nábožná), `rslon` (plačící slon), `rbouri` (zlobr se jiskřícími výboji), `rbrouk` (vystrašený brouk), `rhrub` (hrubián), `rlekar` (lékař s hadicí a tabletem), `rpest` (zahradník se zářícím srdcem), `rmask` (maškara), `rrez` (smutný rezavec) a `rblaz` (šílenec se šrouby). Zdroje `branding/ikony/avatar-bot-<jméno>.png`, zapojení stejné jako u ostatních robotů (app.js botArt).
 
 ## Co udělám po dodání
 

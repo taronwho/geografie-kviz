@@ -1849,7 +1849,7 @@ test('boti mají robotí postavičku: Mudrlátko a Super Mudrlant svou, ostatní
     assert.equal(face({ id: 'abc', bot: 'medium', flag_color: 'zelena' }), face({ id: 'abc', bot: 'medium', flag_color: 'zelena' }), 'stejný bot má vždy stejného robota');
     assert.equal(face({ id: 'u1', display_name: 'Jana' }), '');
     const fs = require('node:fs');
-    for (const robot of ['rsova1', 'rsova3', 'rliska', 'rmedv', 'rkocka', 'rzelva', 'rchobo', 'rdrak', 'rmrav', 'rpauk', 'rklaun', 'rblaz']) assert.ok(fs.existsSync(`icons/avatars/${robot}.webp`), robot);
+    for (const robot of ['rsova1', 'rsova3', 'rliska', 'rmedv', 'rkocka', 'rzelva', 'rchobo', 'rdrak', 'rkudla', 'rpauk', 'rklaun', 'rblaz']) assert.ok(fs.existsSync(`icons/avatars/${robot}.webp`), robot);
     const lobby = C.lobbyDetailHtml({ game: { id: 'g', players: [{ id: 'b1', display_name: 'Otazník', bot: 'medium', flag_color: 'fialova', emblem: 'lev', ready: true }], max_players: 4, status: 'lobby' } });
     assert.match(lobby, /data-bot-face/);
 });
