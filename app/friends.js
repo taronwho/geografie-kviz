@@ -1,0 +1,307 @@
+// Přátelé, reakce po zápase a moderace (nahlášení, blokování): čistá logika a vykreslení částí bez stavu aplikace. Data drží databáze
+// (supabase/schema.sql, sekce „Sociální vrstva“) přes social.js; app.js sem jen posílá řádky a pomocné funkce (avatarHtml, escapeHtml) a napojuje klepnutí.
+(function (root, factory) {
+    const api = factory();
+    if (typeof module === 'object' && module.exports) module.exports = api;
+    else root.MudrlantFriends = api;
+})(typeof self !== 'undefined' ? self : this, () => {
+    'use strict';
+    // Základní reakce má každý; další se odemykají úrovní, odznakem, stupněm Sezóny Mudrlanta nebo pozváním kamarádů (EXTRA_REACTIONS).
+    // Server (blok 32 ve schema.sql, check_reaction a unlock_catalog) přijme jen reakci, kterou má odesílatel odemčenou.
+    const REACTIONS = ['👍', '🔥', '😅', '🤝'];
+    // level = od úrovně, badge = za odznak (i vyšší stupeň téže skupiny), season = stupeň Sezóny Mudrlanta (10 = Truhla v půli sezóny
+    // s druhým rámečkem měsíce, 20 = Sezónní truhla s titulem Šampion sezóny; pozná se podle těchto věcí mezi dárky), referral = odměna
+    // za pozvané kamarády (referral.js, klíč odměny ze serveru)
+    const EXTRA_REACTIONS = [
+        { emoji: '😮', label: 'Wow', level: 5 },
+        { emoji: '🧠', label: 'Chytrá hlava', level: 15 },
+        { emoji: '🦉', label: 'Mudrlantsky', level: 30 },
+        { emoji: '🙌', label: 'Klobouk dolů', level: 50 },
+        { emoji: '🎯', label: 'Přesná trefa', badge: 'strelec', badgeTitle: 'Střelec' },
+        { emoji: '💪', label: 'Silný soupeř', badge: 'vyzvy-25', badgeTitle: 'Zkušený bojovník' },
+        { emoji: '🎉', label: 'Oslava', season: 10 },
+        { emoji: '👑', label: 'Královská hra', season: 20 },
+        { emoji: '🤗', label: 'Vítej mezi námi', referral: 'pritel-3' }
+    ];
+    const ALL_REACTIONS = [...REACTIONS, ...EXTRA_REACTIONS.map(item => item.emoji)];
+    const REACTION_LABELS = { '👍': 'Dobrá hra', '🔥': 'Paráda', '😅': 'Těsně', '🤝': 'Odveta?', ...Object.fromEntries(EXTRA_REACTIONS.map(item => [item.emoji, item.label])) };
+    // Vítězné efekty: animace přes obrazovku výsledku, kterou po vyhrané výzvě uvidí vítěz i poražený (vítězův zvolený efekt,
+    // profiles.victory_fx). Odemykají se stejně jako reakce; animace jsou třídy .vfx-* v src/input.css (CSP: bez vložených stylů).
+    const VICTORY_EFFECTS = [
+        { id: 'konfety', title: 'Konfety', level: 5 },
+        { id: 'hvezdy', title: 'Hvězdný déšť', level: 20 },
+        { id: 'ohnostroj', title: 'Ohňostroj', level: 40 },
+        { id: 'koruna', title: 'Zlatá koruna', badge: 'vyhry-25', badgeTitle: 'Šampion' },
+        { id: 'blesky', title: 'Blesky', badge: 'vyhry-v-rade-5', badgeTitle: 'Pětka v řadě' },
+        { id: 'sezona', title: 'Sezónní záře', season: 20 },
+        { id: 'srdicka', title: 'Srdíčka přátel', referral: 'pritel-3' }
+    ];
+    const findEffect = (id) => VICTORY_EFFECTS.find(item => item.id === id) || null;
+    // Je reakce nebo efekt odemčený? ctx = { level, badges: { id: den }, gifts: { frames: [], titles: [] }, referral: [klíče odměn] }
+    const SEASON_MID = /^sezona-(0[1-9]|1[0-2])-b$/;
+    const seasonReached = (tier, gifts) => {
+        const g = gifts && typeof gifts === 'object' ? gifts : {};
+        if (tier >= 20) return Array.isArray(g.titles) && g.titles.includes('sampion-sezony');
+        return Array.isArray(g.frames) && g.frames.some(id => SEASON_MID.test(id));
+    };
+    const perkUnlocked = (item, ctx = {}) => {
+        if (!item) return false;
+        if (item.level) return Number(ctx.level) >= item.level;
+        if (item.badge) return Boolean(ctx.badges && ctx.badges[item.badge]);
+        if (item.season) return seasonReached(item.season, ctx.gifts);
+        if (item.referral) return Array.isArray(ctx.referral) && ctx.referral.includes(item.referral);
+        return true;
+    };
+    const unlockedReactions = (ctx = {}) => [...REACTIONS, ...EXTRA_REACTIONS.filter(item => perkUnlocked(item, ctx)).map(item => item.emoji)];
+    const unlockedEffects = (ctx = {}) => VICTORY_EFFECTS.filter(item => perkUnlocked(item, ctx)).map(item => item.id);
+    // Jak se odemyká (text pro hráče)
+    const perkHow = (item) => (item.level ? `Úroveň ${item.level}` : item.badge ? `Odznak ${item.badgeTitle || item.badge}`
+        : item.season ? (item.season >= 20 ? 'Celá cesta Sezóny Mudrlanta (20. stupeň)' : 'Sezóna Mudrlanta, 10. stupeň')
+            : item.referral ? 'Pozvi 3 kamarády' : 'Od začátku');
+    const FRIEND_LIMIT = 200;
+    const DAY = 86400000;
+    const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+    // Nadpis oddílu a čip mají stejný styl jako na ostatních záložkách (app.js SEC_LABEL a CHIP)
+    const LABEL = "flex items-center gap-1.5 px-1 text-[11px] font-black uppercase tracking-[0.12em] text-slate-500 before:h-3 before:w-1 before:shrink-0 before:rounded-full before:bg-brand-600 before:content-[''] dark:text-slate-400 dark:before:bg-brand-400";
+
+    // --- Aktivita ---
+    // Podle poslední návštěvy (profiles.last_seen): today (do 24 h), recent (do týdne), away (déle), unknown (nikdy / starší databáze)
+    const activity = (lastSeen, now = Date.now()) => {
+        const time = lastSeen ? new Date(lastSeen).getTime() : NaN;
+        if (!Number.isFinite(time)) return { level: 'unknown', text: '' };
+        const days = Math.max(0, Math.floor((now - time) / DAY));
+        if (days === 0) return { level: 'today', text: 'aktivní dnes' };
+        if (days === 1) return { level: 'recent', text: 'aktivní včera' };
+        if (days < 7) return { level: 'recent', text: `před ${days} dny` };
+        if (days < 30) return { level: 'away', text: `před ${Math.floor(days / 7)} ${Math.floor(days / 7) === 1 ? 'týdnem' : 'týdny'}` };
+        return { level: 'away', text: 'dlouho nehrál' };
+    };
+    const DOT = { today: 'bg-emerald-500', recent: 'bg-amber-400', away: 'bg-slate-300 dark:bg-slate-600', unknown: '' };
+    const activityDot = (level, extra = '') => DOT[level] ? `<span aria-hidden="true" class="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-white dark:ring-slate-800 ${DOT[level]} ${extra}"></span>` : '';
+
+    // --- Jména a bilance ---
+    // Dlouhé jméno zkrátit (ať se pás nerozjede): „Lenka Dvořáková“ → „Lenka Dv…“
+    const shortName = (name, max = 9) => {
+        const text = String(name || 'Hráč').trim();
+        return text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`;
+    };
+    const plural = (count, one, few, many) => `${count} ${count === 1 ? one : count >= 2 && count <= 4 ? few : many}`;
+    // Vzájemná bilance: „3 : 1“ (výhry : prohry) a pod ní slovy
+    const balanceText = (row) => {
+        const played = (row.wins || 0) + (row.losses || 0) + (row.draws || 0);
+        if (!played) return '';
+        return `${row.wins}:${row.losses}${row.draws ? ` (${plural(row.draws, 'remíza', 'remízy', 'remíz')})` : ''}`;
+    };
+
+    // --- Rozdělení řádků z friends_list ---
+    // friends = přijatá přátelství (nejdřív aktivní), incoming = žádosti pro mě, outgoing = moje odeslané
+    const split = (rows) => {
+        const list = Array.isArray(rows) ? rows : [];
+        return {
+            friends: list.filter(row => row.status === 'accepted'),
+            incoming: list.filter(row => row.status === 'pending' && row.direction === 'in'),
+            outgoing: list.filter(row => row.status === 'pending' && row.direction === 'out')
+        };
+    };
+    // Vztah k hráči: none (nic), friend, out (moje žádost čeká), in (jeho žádost čeká na mě); null řádky (starší databáze) = none
+    const relation = (rows, otherId) => {
+        const row = (Array.isArray(rows) ? rows : []).find(item => item.id === otherId);
+        if (!row) return 'none';
+        if (row.status === 'accepted') return 'friend';
+        return row.direction === 'in' ? 'in' : 'out';
+    };
+    const atLimit = (rows) => (Array.isArray(rows) ? rows : []).length >= FRIEND_LIMIT;
+
+    // --- Vykreslení ---
+    // Tlačítko v profilu hráče: Přidat do přátel / Žádost odeslána / Přijmout žádost / Odebrat z přátel
+    const FRIEND_BUTTON = {
+        none: { action: 'add', icon: 'user-plus', label: 'Přidat do přátel', tone: 'btn-3d-light bg-white text-slate-800 dark:bg-slate-800 dark:text-slate-100' },
+        out: { action: 'cancel', icon: 'clock', label: 'Žádost odeslána', tone: 'bg-slate-100 text-slate-500 dark:bg-slate-800/60 dark:text-slate-400' },
+        in: { action: 'accept', icon: 'user-check', label: 'Přijmout žádost', tone: 'btn-3d bg-emerald-600 text-white' },
+        friend: { action: 'remove', icon: 'user-minus', label: 'Odebrat z přátel', tone: 'bg-slate-100 text-slate-600 dark:bg-slate-800/60 dark:text-slate-300' }
+    };
+    const friendButton = (state, { busy = false, blocked = false } = {}) => {
+        if (blocked) return '';
+        const item = FRIEND_BUTTON[state] || FRIEND_BUTTON.none;
+        return `<button type="button" data-friend="${item.action}" ${busy ? 'disabled' : ''} class="flex min-h-[2.5rem] min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl px-3 text-[13px] font-black disabled:opacity-50 ${item.tone}"><i data-lucide="${item.icon}" class="h-4 w-4 shrink-0"></i><span class="truncate">${busy ? 'Chvilku…' : item.label}</span></button>`;
+    };
+    // Menu „⋯“ v profilu: Nahlásit, Zablokovat / Odblokovat
+    const moreButton = (open) => `<button type="button" data-more aria-label="Další možnosti" aria-expanded="${open}" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-600 shadow-sm active:scale-95 dark:bg-slate-800 dark:text-slate-300"><i data-lucide="ellipsis" class="h-5 w-5"></i></button>`;
+    const moreMenu = (blocked) => `
+        <div data-more-menu role="menu" class="grid grid-cols-2 gap-1.5">
+            <button type="button" role="menuitem" data-report class="flex min-h-[2.5rem] items-center justify-center gap-1.5 rounded-xl bg-white px-2 text-[12px] font-black text-slate-700 shadow-sm active:scale-[0.98] dark:bg-slate-800 dark:text-slate-200"><i data-lucide="flag" class="h-4 w-4"></i> Nahlásit</button>
+            <button type="button" role="menuitem" data-block="${blocked ? 'off' : 'on'}" class="flex min-h-[2.5rem] items-center justify-center gap-1.5 rounded-xl px-2 text-[12px] font-black shadow-sm active:scale-[0.98] ${blocked ? 'bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-200' : 'bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-200'}"><i data-lucide="${blocked ? 'circle-check' : 'ban'}" class="h-4 w-4"></i> ${blocked ? 'Odblokovat' : 'Zablokovat'}</button>
+        </div>`;
+    // Potvrzení bloku
+    const blockConfirm = (name, busy = false) => `
+        <div data-block-confirm class="rounded-2xl bg-rose-50 p-3 dark:bg-rose-900/30">
+            <p class="text-[13px] font-bold leading-snug text-rose-800 dark:text-rose-100">Zablokovat hráče ${esc(name)}? Nenajde tě v hledání, nevyzve tě a nevybere se ti jako náhodný soupeř. Přátelství skončí.</p>
+            <div class="mt-2 grid grid-cols-2 gap-1.5">
+                <button type="button" data-block-cancel class="min-h-[2.5rem] rounded-xl bg-white text-[13px] font-black text-slate-700 dark:bg-slate-800 dark:text-slate-200">Zpět</button>
+                <button type="button" data-block-go ${busy ? 'disabled' : ''} class="min-h-[2.5rem] rounded-xl bg-rose-600 text-[13px] font-black text-white disabled:opacity-50">${busy ? 'Blokuju…' : 'Zablokovat'}</button>
+            </div>
+        </div>`;
+    const blockedNote = (name) => `<p class="flex items-center justify-center gap-1.5 rounded-2xl bg-slate-100 px-3 py-2 text-[12px] font-bold text-slate-600 dark:bg-slate-800/60 dark:text-slate-300"><i data-lucide="ban" class="h-4 w-4"></i> Hráče ${esc(name)} máš zablokovaného.</p>`;
+    // Formulář nahlášení: důvody jako čipy, poznámka do 300 znaků
+    const reportBody = (reasons, chosen, note = '', { busy = false } = {}) => `
+        <form id="report-form" class="flex flex-col gap-3" autocomplete="off">
+            <p class="text-xs leading-snug text-slate-500 dark:text-slate-400">Nahlášení vidí jen správce hry. Vyber důvod, případně připiš, co se stalo.</p>
+            <div role="radiogroup" aria-label="Důvod" class="flex flex-wrap gap-1.5">${reasons.map(item => `<button type="button" role="radio" aria-checked="${chosen === item.id}" data-reason="${esc(item.id)}" class="min-h-[2.5rem] rounded-xl border-2 px-2.5 text-[13px] font-bold ${chosen === item.id ? 'border-brand-600 bg-brand-50 text-brand-900 dark:bg-brand-900/40 dark:text-brand-100' : 'border-transparent bg-white text-slate-600 dark:bg-slate-800 dark:text-slate-300'}">${esc(item.label)}</button>`).join('')}</div>
+            <textarea id="report-note" maxlength="300" rows="3" placeholder="Poznámka (nepovinná)" class="w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">${esc(note)}</textarea>
+            <button type="submit" data-report-send ${busy || !chosen ? 'disabled' : ''} class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-brand-700 px-4 py-3 text-base font-black text-white disabled:opacity-50"><i data-lucide="flag" class="h-5 w-5"></i> ${busy ? 'Odesílám…' : 'Odeslat nahlášení'}</button>
+        </form>`;
+    const reasonLabel = (reasons, id) => ((reasons || []).find(item => item.id === id) || {}).label || id;
+
+    // Pás přátel na záložce Soupeři: pár avatarů s tečkou aktivity (klepnutí otevře profil, h.register uloží hráče pro profil), „+N“ na
+    // ostatní a kolik přátel je dnes aktivních; nadpis a tlačítko s plusem (add) otevírají okno Přátelé (hledání hráčů, Pozvi kamarády).
+    // max = kolik avatarů se vejde vedle sebe i na úzký displej; bez přátel a bez add se neukáže nic
+    const friendsStrip = (friends, h, now = Date.now(), { add = false, max = 3 } = {}) => {
+        const list = friends || [];
+        if (!list.length && !add) return '';
+        const active = list.filter(row => activity(row.last_seen, now).level === 'today').length;
+        const BUBBLE = 'flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:scale-95';
+        const items = list.slice(0, max).map(row => {
+            if (h.register) h.register(row);
+            const act = activity(row.last_seen, now);
+            return `<button type="button" data-player-id="${esc(row.id)}" title="${esc(row.display_name)}${act.text ? ` · ${act.text}` : ''}" aria-label="Profil hráče ${esc(row.display_name)}" class="relative shrink-0 rounded-full active:scale-95">${h.avatarHtml(row, 'h-11 w-11 text-xl')}${activityDot(act.level)}</button>`;
+        }).join('');
+        const rest = list.length - Math.min(list.length, max);
+        const more = rest > 0 ? `<button type="button" data-action="friends-open" data-friends-more aria-label="Další přátelé: ${rest}" class="${BUBBLE} bg-slate-200 text-[12.5px] font-black text-slate-700 dark:bg-slate-700 dark:text-slate-200">+${rest}</button>` : '';
+        const plus = add ? `<button type="button" data-action="friends-open" data-friends-add aria-label="Přidat přátele" title="Najít hráče nebo pozvat kamarády" class="${BUBBLE} border-2 border-dashed border-slate-300 text-slate-500 dark:border-slate-600 dark:text-slate-400"><i data-lucide="user-plus" class="h-5 w-5"></i></button>` : '';
+        const head = `Přátelé <span class="font-bold normal-case tracking-normal">· ${list.length}</span>`;
+        return `
+            <div id="friends-section" class="flex shrink-0 flex-col gap-1.5 short:gap-1">
+                ${add ? `<button type="button" data-action="friends-open" class="-my-2 flex min-h-[2.5rem] w-fit items-center gap-0.5 rounded-lg ${LABEL}">${head}<i data-lucide="chevron-right" class="h-3.5 w-3.5"></i></button>` : `<p class="${LABEL}">${head}</p>`}
+                <div class="flex items-center gap-2.5">
+                    ${list.length ? `<div id="friends-strip" class="flex min-w-0 items-center gap-2.5 pl-1.5" aria-label="Přátelé">${items}</div>` : ''}${more}${plus}
+                    ${list.length ? '' : '<span class="min-w-0 flex-1 text-[12.5px] font-semibold leading-snug text-slate-500 dark:text-slate-400">Najdi hráče podle přezdívky nebo pozvi kamarády</span>'}
+                    ${active ? `<span data-friends-active class="ml-auto flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-white px-3 text-[12px] font-black leading-none text-slate-700 shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700/70"><span class="h-2 w-2 rounded-full bg-emerald-500"></span>${active} dnes ${active === 1 ? 'aktivní' : active <= 4 ? 'aktivní' : 'aktivních'}</span>` : ''}
+                </div>
+            </div>`;
+    };
+    // Žádosti o přátelství do sekce „Čekají na tebe“: „X tě chce mít v přátelích · Přijmout / Odmítnout“
+    const requestRows = (incoming, h) => (incoming || []).slice(0, 5).map(row => {
+        if (h.register) h.register(row);
+        return `
+        <div data-friend-request="${esc(row.id)}" data-wait="friend" class="flex min-h-[3.5rem] items-center gap-3 rounded-[1.15rem] bg-white px-3 py-2 shadow-sm ring-1 ring-slate-200/80 max-[379px]:gap-2 max-[379px]:px-2.5 short:min-h-[3.1rem] short:py-1.5 dark:bg-slate-800/80 dark:ring-slate-700/70">
+            ${h.avatarHtml(row, 'h-10 w-10 text-xl short:h-9 short:w-9', true)}
+            <span class="min-w-0 flex-1"><span class="block truncate text-[15px] font-extrabold leading-tight text-slate-800 dark:text-slate-100">${esc(row.display_name)}</span><span class="block truncate text-[12px] font-semibold leading-tight text-slate-500 max-[379px]:text-[11.5px] dark:text-slate-400">tě chce mít v přátelích</span></span>
+            <button type="button" data-action="friend-decline" data-id="${esc(row.id)}" aria-label="Odmítnout žádost od ${esc(row.display_name)}" title="Odmítnout" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 ring-1 ring-slate-200 active:scale-95 short:h-9 short:w-9 dark:bg-slate-700/70 dark:text-slate-300 dark:ring-slate-600"><i data-lucide="x" class="h-4 w-4"></i></button>
+            <button type="button" data-action="friend-accept" data-id="${esc(row.id)}" data-cta aria-label="Přijmout žádost od ${esc(row.display_name)}" class="btn-3d flex h-10 w-[6rem] shrink-0 items-center gap-1 whitespace-nowrap rounded-xl bg-brand-700 pl-2.5 pr-1.5 text-[13px] font-black leading-none text-white short:h-9"><i data-lucide="check" class="h-4 w-4 shrink-0"></i><span data-cta-label class="min-w-0 flex-1 text-center">Přijmout</span></button>
+        </div>`;
+    }).join('');
+    // Rychlý výběr přátel ve formuláři nové výzvy (nad hledáním): popisek a vedle něj řada čipů s avatarem a jménem, data-pick-opp jako výsledky hledání
+    const quickFriends = (friends, h) => {
+        if (!friends || !friends.length) return '';
+        return `
+            <div id="quick-friends" class="mt-2 flex items-center gap-2">
+                <p class="shrink-0 pl-1 text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Přátelé</p>
+                <div class="-my-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-1 py-1">${friends.slice(0, 20).map(row => `<button type="button" data-pick-opp="${esc(row.id)}" class="flex max-w-[9rem] shrink-0 items-center gap-1.5 rounded-xl bg-white py-1 pl-1 pr-2.5 text-left shadow-sm active:scale-[0.98] dark:bg-slate-800">${h.avatarHtml(row, 'h-7 w-7 text-sm')}<span class="truncate text-[12px] font-bold text-slate-800 dark:text-slate-100">${esc(shortName(row.display_name, 12))}</span></button>`).join('')}</div>
+            </div>`;
+    };
+    // Řada reakcí po zápase; chosen = moje už poslaná reakce, unlocked = reakce, které hráč má (výchozí jen základní). Víc reakcí se zalomí
+    // do dvou řad; more = odkaz na přehled všech reakcí a vítězných efektů (data-action="reactions-info")
+    const reactionBar = (toId, chosen = null, { busy = false, name = '', unlocked = REACTIONS, more = false } = {}) => {
+        const list = ALL_REACTIONS.filter(emoji => (unlocked || REACTIONS).includes(emoji) || emoji === chosen);
+        return `
+        <div data-reactions class="flex flex-col items-center gap-1.5 rounded-2xl bg-white p-2.5 shadow-sm dark:bg-slate-800">
+            <p class="text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">${chosen ? `Reakce odeslána: ${esc(REACTION_LABELS[chosen] ? REACTION_LABELS[chosen].toLowerCase() : chosen)}` : `Pošli reakci${name ? ` hráči ${esc(shortName(name, 14))}` : ''}`}</p>
+            <div class="flex flex-wrap justify-center gap-2">${list.map(emoji => `<button type="button" data-action="react" data-emoji="${emoji}" data-to="${esc(toId)}" aria-label="${esc(REACTION_LABELS[emoji])}" aria-pressed="${chosen === emoji}" title="${esc(REACTION_LABELS[emoji])}" ${busy ? 'disabled' : ''} class="flex h-11 w-11 items-center justify-center rounded-full text-2xl active:scale-90 disabled:opacity-50 ${chosen === emoji ? 'bg-brand-100 ring-2 ring-brand-600 dark:bg-brand-900/50' : chosen ? 'bg-slate-50 opacity-50 dark:bg-slate-700/60' : 'bg-slate-100 dark:bg-slate-700'}">${emoji}</button>`).join('')}</div>
+            ${more ? `<button type="button" data-action="reactions-info" class="-mb-1 flex min-h-[2rem] items-center gap-1 px-2 text-[11px] font-black text-brand-700 dark:text-brand-300"><i data-lucide="sparkles" class="h-3.5 w-3.5"></i>Další reakce a vítězné efekty (${list.length}/${ALL_REACTIONS.length})</button>` : ''}
+        </div>`;
+    };
+    // Malý emoji soupeřovy reakce (řádek poslední výzvy, profil)
+    const reactionBadge = (emoji, name = '') => emoji && ALL_REACTIONS.includes(emoji) ? `<span data-reaction-badge="${emoji}" title="${esc(name ? `${name}: ${REACTION_LABELS[emoji]}` : REACTION_LABELS[emoji])}" aria-label="Reakce ${esc(REACTION_LABELS[emoji])}" class="shrink-0 text-sm leading-none">${emoji}</span>` : '';
+    // Reakce k výzvě od soupeře (to = já): emoji nebo null
+    const reactionFor = (reactions, challengeId, meId) => {
+        const row = (reactions || []).find(item => item.challenge_id === challengeId && item.to_id === meId && item.emoji);
+        return row ? row.emoji : null;
+    };
+    const myReactionFor = (reactions, target, meId) => {
+        const row = (reactions || []).find(item => item.from_id === meId && item.emoji && (target.challengeId ? item.challenge_id === target.challengeId : item.match_id === target.matchId));
+        return row ? row.emoji : null;
+    };
+    // --- Vítězné efekty ---
+    // Vrstva přes obrazovku výsledku (nepřekáží klepnutí, po chvíli zmizí): kousky efektu (jejich polohu, zpoždění a dráhu dávají
+    // třídy .vfx-<id> .vfx-piece:nth-child(n) v src/input.css) a popisek. S omezeným pohybem jen krátká záře (CSS).
+    const EFFECT_PIECES = 14;
+    const EFFECT_GLYPHS = { konfety: '', hvezdy: '★', ohnostroj: '', koruna: '', blesky: '⚡', sezona: '✦', srdicka: '❤' };
+    const effectHtml = (id, { caption = '' } = {}) => {
+        const item = findEffect(id);
+        if (!item) return '';
+        const piece = `<span class="vfx-piece">${EFFECT_GLYPHS[item.id] || ''}</span>`;
+        return `<div data-victory-fx="${item.id}" class="vfx vfx-${item.id}" aria-hidden="true">${item.id === 'koruna' ? '<span class="vfx-crown">👑</span>' : ''}${piece.repeat(EFFECT_PIECES)}${caption ? `<span class="vfx-caption">${esc(caption)}</span>` : ''}</div>`;
+    };
+    // Okno Reakce a vítězné efekty: všechny reakce (zamčené šedé s tím, jak je získat) a výběr vítězného efektu s náhledem.
+    // ctx jako u perkUnlocked; chosen = id zvoleného efektu ('' = žádný); canSave = přihlášený s databází, která efekt uloží
+    const perksHtml = (ctx, { chosen = '', busy = false, canSave = true } = {}) => {
+        const reactions = unlockedReactions(ctx);
+        const effects = unlockedEffects(ctx);
+        const reactionTile = (emoji) => {
+            const item = EXTRA_REACTIONS.find(entry => entry.emoji === emoji);
+            const open = reactions.includes(emoji);
+            const how = item ? perkHow(item) : 'Od začátku';
+            return `<li data-perk-reaction="${emoji}" data-unlocked="${open}" title="${esc(`${REACTION_LABELS[emoji]}: ${open ? 'odemčeno' : how}`)}" aria-label="${esc(`Reakce ${REACTION_LABELS[emoji]}${open ? '' : ` (zamčeno: ${how})`}`)}" class="flex min-w-0 flex-col items-center gap-0.5 rounded-xl px-0.5 py-1 text-center ${open ? 'bg-white shadow-sm dark:bg-slate-800' : 'bg-slate-100 dark:bg-slate-800/50'}">
+                <span class="text-[1.4rem] leading-none ${open ? '' : 'opacity-40 grayscale'}">${emoji}</span>
+                <span class="block w-full truncate text-[10px] font-black leading-tight text-slate-700 dark:text-slate-200">${esc(REACTION_LABELS[emoji])}</span>
+                ${open ? '' : `<span class="block w-full truncate text-[9px] font-bold leading-tight text-slate-500 dark:text-slate-400">${esc(item ? (item.level ? `úr. ${item.level}` : item.badge ? 'odznak' : item.season ? `sezóna ${item.season}.` : 'pozvánky') : '')}</span>`}
+            </li>`;
+        };
+        const effectTile = (item) => {
+            const open = item ? effects.includes(item.id) : true;
+            const id = item ? item.id : '';
+            const on = chosen === id;
+            const title = item ? item.title : 'Bez efektu';
+            const how = item ? perkHow(item) : '';
+            return `<button type="button" ${open ? `data-fx-pick="${id}"` : `data-fx-locked="${id}" aria-disabled="true"`} role="radio" aria-checked="${on}" ${busy || !canSave ? 'disabled' : ''} aria-label="${esc(`${title}${open ? '' : ` (zamčeno: ${how})`}`)}" class="flex min-h-[2.75rem] min-w-0 items-center gap-1.5 rounded-xl px-2 py-1 text-left active:scale-[0.98] disabled:opacity-60 ${on ? 'bg-brand-700 text-white ring-2 ring-gold-400' : open ? 'bg-white text-slate-800 shadow-sm dark:bg-slate-800 dark:text-slate-100' : 'bg-slate-100 text-slate-500 dark:bg-slate-800/50 dark:text-slate-400'}">
+                <span class="vfx-swatch vfx-swatch-${id || 'zadny'} h-6 w-6 shrink-0 rounded-full${open ? '' : ' opacity-40 grayscale'}" aria-hidden="true"></span>
+                <span class="min-w-0 flex-1"><span class="block truncate text-[12px] font-black leading-tight">${esc(title)}</span>${open ? '' : `<span class="block truncate text-[10px] font-bold leading-tight">${esc(how)}</span>`}</span>
+                ${!open ? '<i data-lucide="lock" class="h-3.5 w-3.5 shrink-0"></i>' : on ? '<i data-lucide="check" class="h-4 w-4 shrink-0"></i>' : ''}
+            </button>`;
+        };
+        const current = findEffect(chosen);
+        return `
+            <div class="flex flex-col gap-2.5" data-perks-dialog>
+                <section>
+                    <h3 class="${LABEL} mb-1">Reakce po zápase <span class="font-bold normal-case tracking-normal">· ${reactions.length} z ${ALL_REACTIONS.length}</span></h3>
+                    <ul class="grid grid-cols-5 gap-1">${ALL_REACTIONS.map(reactionTile).join('')}</ul>
+                </section>
+                <section>
+                    <div class="mb-1 flex items-center justify-between gap-2"><h3 class="${LABEL}">Vítězný efekt</h3>${current && effects.includes(current.id) ? `<button type="button" data-fx-preview="${current.id}" class="-my-1 flex min-h-[2rem] items-center gap-1 rounded-lg px-1.5 text-[11px] font-black text-brand-700 dark:text-brand-300"><i data-lucide="play" class="h-3.5 w-3.5"></i>Náhled</button>` : ''}</div>
+                    <p class="mb-1.5 px-1 text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400">${canSave ? 'Po vyhrané výzvě ho uvidíš ty i soupeř.' : 'Vítězný efekt se ukládá do účtu: přihlas se (a správce musí mít v databázi nejnovější schema.sql).'}</p>
+                    <div role="radiogroup" aria-label="Vítězný efekt" class="grid grid-cols-2 gap-1">${[null, ...VICTORY_EFFECTS].map(effectTile).join('')}</div>
+                </section>
+            </div>`;
+    };
+
+    // Seznam zablokovaných (Nastavení → Profil)
+    const blockedList = (list, h) => {
+        if (list === null) return '<p class="text-sm font-semibold text-slate-500 dark:text-slate-400">Blokování zatím není k dispozici.</p>';
+        if (!list.length) return '<p class="text-sm text-slate-500 dark:text-slate-400">Nikoho zablokovaného nemáš. Zablokovat hráče jde v jeho profilu přes menu ⋯.</p>';
+        return `<ul id="blocked-list" class="flex flex-col gap-1.5">${list.map(row => `
+            <li class="flex items-center gap-2.5 rounded-2xl bg-white p-2 shadow-sm dark:bg-slate-800">
+                ${h.avatarHtml(row.player, 'h-9 w-9 text-lg')}
+                <span class="min-w-0 flex-1 truncate text-[13px] font-black text-slate-800 dark:text-slate-100">${esc(row.player.display_name || 'Hráč')}</span>
+                <button type="button" data-unblock="${esc(row.id)}" class="flex h-9 shrink-0 items-center rounded-xl bg-slate-100 px-3 text-[12px] font-black text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">Odblokovat</button>
+            </li>`).join('')}</ul>`;
+    };
+    // Dev panel: nahlášení hráči (reporter, reported, důvod, čas) s tlačítkem Vyřešeno
+    const when = (iso) => { const date = new Date(iso); return Number.isFinite(date.getTime()) ? `${date.getDate()}. ${date.getMonth() + 1}. ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}` : ''; };
+    const devReports = (rows, reasons, h) => {
+        if (!rows.length) return '<p class="text-sm text-slate-500 dark:text-slate-400">Žádná nahlášení.</p>';
+        return `<ul id="dev-reports" class="flex flex-col gap-1.5">${rows.map(row => {
+            const reported = { id: row.reported_id, display_name: row.reported_name, avatar: row.reported_avatar, color: row.reported_color };
+            if (h.register) h.register(reported);
+            const done = Boolean(row.resolved_at);
+            return `
+            <li data-report-id="${esc(row.id)}" class="flex items-center gap-2.5 rounded-2xl bg-white p-2 shadow-sm dark:bg-slate-800 ${done ? 'opacity-60' : ''}">
+                ${h.avatarHtml(reported, 'h-9 w-9 text-lg', true)}
+                <span class="min-w-0 flex-1 text-[12px] leading-tight"><span class="block truncate font-black text-slate-800 dark:text-slate-100">${esc(row.reported_name)} <span class="font-bold text-rose-700 dark:text-rose-300">· ${esc(reasonLabel(reasons, row.reason))}</span></span><span class="block truncate font-semibold text-slate-500 dark:text-slate-400">od ${esc(row.reporter_name)} · ${esc(when(row.created_at))}${row.note ? ` · ${esc(row.note)}` : ''}</span></span>
+                ${done ? '<span class="shrink-0 text-[11px] font-black text-emerald-700 dark:text-emerald-400">vyřešeno</span>' : `<button type="button" data-resolve="${esc(row.id)}" class="flex h-9 shrink-0 items-center rounded-xl bg-emerald-600 px-2.5 text-[12px] font-black text-white active:scale-95">Vyřešeno</button>`}
+            </li>`;
+        }).join('')}</ul>`;
+    };
+
+    return { REACTIONS, EXTRA_REACTIONS, ALL_REACTIONS, REACTION_LABELS, VICTORY_EFFECTS, findEffect, perkUnlocked, unlockedReactions, unlockedEffects, perkHow, effectHtml, perksHtml, FRIEND_LIMIT, activity, shortName, balanceText, split, relation, atLimit, friendButton, moreButton, moreMenu, blockConfirm, blockedNote, reportBody, reasonLabel,
+        friendsStrip, requestRows, quickFriends, reactionBar, reactionBadge, reactionFor, myReactionFor, blockedList, devReports };
+});

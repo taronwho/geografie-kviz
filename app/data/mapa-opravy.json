@@ -1,0 +1,26 @@
+{
+  "source": "Kontrola mapy (scripts/audit-mapa.mjs): místa, která se na mapě neptají (skip: QID → důvod), a opravené polohy (points: QID → [šířka, délka], notes: QID → důvod opravy). Polohy a místa konání ověřeny na Wikidatech (P625, P276, P36).",
+  "generated": "2026-11-10",
+  "skip": {
+    "Q186444": "Smlouva o nešíření jaderných zbraní byla podepsána současně ve Washingtonu, Londýně a Moskvě – jedno místo na mapě nemá.",
+    "Q309029": "Koupě Aljašky: otázka „kde se to stalo“ míří na Aljašku, ale bod je místo podpisu smlouvy ve Washingtonu.",
+    "Q321032": "Basilejsko-ferrarsko-florentský koncil zasedal postupně v Basileji, Ferraře a Florencii – jedno místo na mapě nemá.",
+    "Q461426": "Lošinj není na podkladové mapě nakreslený (v měřítku mapy splývá s Cresem) – zvýraznění ve výsledku by nebylo vidět.",
+    "Q155868": "Hadí ostrov (0,17 km²) na podkladové mapě není – hráč by hledal místo, které nevidí.",
+    "Q1130771": "Syvaš je na podkladové mapě nakreslený jako pevnina – zvýraznění zálivu ve výsledku by nebylo vidět.",
+    "Q5605": "Viselský záliv je na podkladové mapě nakreslený jako pevnina – zvýraznění zálivu ve výsledku by nebylo vidět.",
+    "Q312433": "Schlei (úzký záliv, 55 km²) je na podkladové mapě nakreslený jako pevnina – zvýraznění ve výsledku by nebylo vidět."
+  },
+  "points": {
+    "Q172991": [46.067, 11.117],
+    "Q1042": [-4.624, 55.454],
+    "Q672": [-8.505, 179.117],
+    "Q709": [7.092, 171.38]
+  },
+  "notes": {
+    "Q172991": "Tridentský koncil zasedal v Tridentu (Trento, Wikidata Q3376); data měla Bolognu (44,494; 11,343), kam se koncil přesunul jen na čas.",
+    "Q1042": "Seychely: bod státu z Wikidat (−7,1; 52,767) leží v oceánu 384 km od ostrovů; poloha hlavního města Victoria (Q3940) na ostrově Mahé.",
+    "Q672": "Tuvalu: bod státu z Wikidat (−7,475; 178,006) leží v oceánu 172 km od nakreslených ostrovů; poloha hlavního města Funafuti (Q34126).",
+    "Q709": "Marshallovy ostrovy: bod státu z Wikidat (9,82; 169,29) leží v oceánu 283 km od nakreslených ostrovů; poloha hlavního města Majuro (Q12919)."
+  }
+}
