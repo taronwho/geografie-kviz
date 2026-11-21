@@ -89,6 +89,8 @@
             action: { kind: 'settings', tab: 'profile', label: 'Ukázat postavičky' }, used: (u) => Boolean(u.visited.characters) },
         { id: 'legendy', icon: 'graduation-cap', after: 55, title: 'Legendární postavičky', text: 'Když získáš diplom z tématu (všech 5 hvězdiček), odemkne se ti legendární postavička pro profilový obrázek. Každé téma má vlastní. Najdeš je na záložce Já v řádku Profil, v části Profilový obrázek pod Legendy.',
             action: { kind: 'settings', tab: 'profile', label: 'Ukázat Legendy' }, ready: (u) => num(u.maxStars) >= 3, used: (u) => Boolean(u.visited.legends) },
+        { id: 'roboti', icon: 'bot', account: true, after: 70, title: 'Roboti jako postavičky', text: 'Poraž robota (bota v Dobývání) třikrát a získáš ho jako profilovku. Každý bot je jiný robot. Až budeš mít všech 26, odemknou se i Robosovy. Roboty najdeš v Profilu pod Roboti, u zamčených je vidět postup.',
+            action: { kind: 'settings', tab: 'profile', label: 'Ukázat roboty' }, ready: (u) => u.conquest && num(u.counters.conquestWins) > 0, used: (u) => Boolean(u.visited.robots) },
         { id: 'sady', icon: 'sparkles', after: 65, title: 'Celý look tématu', text: 'Každé téma má sadu tří doplňků pro Mudrlanta: za 3 hvězdičky v tématu, za 300 a za 1000 správných odpovědí. Když Mudrlanta oblékneš do celé sady, získá look tématu (třeba Cestovatel), který uvidí i ostatní. Sady najdeš na záložce Postup v Mistrovství u témat.',
             action: { kind: 'progress', label: 'Postup' }, ready: (u) => num(u.maxStars) >= 3, used: (u) => Boolean(u.visited.looks) },
         { id: 'skupiny', icon: 'users', art: 'skupiny', multi: true, account: true, after: 25, title: 'Skupiny', text: 'Založ si skupinu s kamarády, rodinou nebo spolužáky. Budete mít společné výzvy, vlastní týdenní žebříček a přehled, kdo z vás hrál. Ostatní pozveš odkazem.',
@@ -162,7 +164,7 @@
 
     const EMPTY = { seen: [], day: '', n: 0, lastAt: 0, off: false, visited: {} };
     // Navštívené části hry (tip o nich už není potřeba): Učení, Postup, Vzhled, Diplomy, Sezóna, Album, Vitrína, Kronika týdne, skupina Postavičky…
-    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle', 'gold', 'conquest', 'bets', 'conquestInvite', 'poll', 'referral', 'perks', 'robeColor', 'characters', 'tourShare'];
+    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle', 'gold', 'conquest', 'bets', 'conquestInvite', 'poll', 'referral', 'perks', 'robeColor', 'characters', 'tourShare', 'robots'];
     const parse = (value) => {
         const v = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
         const visited = {};

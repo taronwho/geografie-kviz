@@ -98,7 +98,14 @@ stejně jako po čase (pořadí, odměny, pomník vítěze, upozornění).
 ## Obrázky
 
 Robotí postavičky (docs/OBRAZKY.md §37, č. 459–468) jsou zapojené v `app.js` (`botArt`, v `avatarHtml`): bot s avatarem 🤖 se vykreslí jako
-robot. Robosova Mudrlátko (`rsova1`) a Super Mudrlant (`rsova3`) mají svou postavičku, ostatní boti jeden z 26 robotů
+robot. Robosova Mudrlátko (`rmudra`) a Super Mudrlant (`rsuper`) mají svou postavičku, ostatní boti jeden z 26 robotů
 (zvířata `rliska`, `rmedv`, `rkocka`, `rzelva`, `rchobo`, `rdrak` a dvacet dalších, seznam `ROBOT_ANIMALS`) podle id a barva plátování podle barvy profilu bota. Obrázky jsou
 `icons/avatars/r*.webp` a vrstvy barev `r*-1<barva>.webp` (`scripts/avatar-icons.py`). Chybí Robosova Mudrlant (č. 460) a Robo-tučňák
 (č. 466): střední boti zatím berou zvířata.
+
+## Robotí postavičky jako odměna (profilovky)
+
+- **Pravidlo:** robota hráč porazí třikrát (ve skončené započítané hře skončí před botem s tímto robotem, každý robot se počítá nejvýš jednou za hru) a odemkne se mu jako profilový obrázek (Profil → Roboti). Oba Robosovy (`rmudra` Mudrlátko, `rsuper` Super Mudrlant) až po všech 26 robotech.
+- **Kde se počítá:** `conquest.js` `defeatedRobots` (po `conquest_claim`, `conquest-ui.js` `claim`), `rewards.js` `noteRobots` (`robots` = porážky 0–3, po třetí dar v `gifts.avatars`), `app.js` `noteRobotWins` (hláška, uložení, synchronizace do `profiles.rewards`). Robot botovi se přiděluje podle jeho id jen na zařízení, server ho nezná, proto se porážky drží v odměnách jako diplomy (kontrola soudržnosti, ne ochrana).
+- **Server:** `unlock_catalog_more()` (blok 35) má řádky `('avatars', 'r…', 'gift')`; starší databáze je nezná a uloží robota volně.
+- **Obrázek:** `look.js` `ROBOT_AVATARS` (jedna část Plátování, barvy 1–9, u robotů bez červené vrstvy 2–9), v albu jako bonus (nepočítá se do procent), ve výběru obrázku skupina Roboti s postupem na zamčených dlaždicích (0/3, Robosovy x/26).

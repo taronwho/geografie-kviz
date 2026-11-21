@@ -1843,13 +1843,22 @@ test('Moje hry: dohrané hry od nejnovější, ukáže se prvních pět a dalš�
 
 test('boti mají robotí postavičku: Mudrlátko a Super Mudrlant svou, ostatní robota podle id, barva podle vlajky; člověk nic', () => {
     const face = (player) => C.botFaceHtml(player);
-    assert.match(face({ id: 'a', bot: 'easy', flag_color: 'modra' }), /rsova1\.webp[^]*rsova1-16\.webp/);
-    assert.match(face({ id: 'a', bot: 'hard', flag_color: 'cervena' }), /rsova3\.webp[^]*rsova3-11\.webp/);
+    assert.match(face({ id: 'a', bot: 'easy', flag_color: 'modra' }), /rmudra\.webp[^]*rmudra-16\.webp/);
+    assert.match(face({ id: 'a', bot: 'hard', flag_color: 'cervena' }), /rsuper\.webp[^]*rsuper-11\.webp/);
     assert.match(face({ id: 'abc', bot: 'medium', flag_color: 'zelena' }), /data-bot-face="r[a-z0-9]+"[^]*-14\.webp/);
     assert.equal(face({ id: 'abc', bot: 'medium', flag_color: 'zelena' }), face({ id: 'abc', bot: 'medium', flag_color: 'zelena' }), 'stejný bot má vždy stejného robota');
     assert.equal(face({ id: 'u1', display_name: 'Jana' }), '');
     const fs = require('node:fs');
-    for (const robot of ['rsova1', 'rsova3', 'rliska', 'rmedv', 'rkocka', 'rzelva', 'rchobo', 'rdrak', 'rkudla', 'rpauk', 'rklaun', 'rblaz']) assert.ok(fs.existsSync(`icons/avatars/${robot}.webp`), robot);
+    for (const robot of ['rmudra', 'rsuper', 'rliska', 'rmedv', 'rkocka', 'rzelva', 'rchobo', 'rdrak', 'rkudla', 'rpauk', 'rklaun', 'rblaz']) assert.ok(fs.existsSync(`icons/avatars/${robot}.webp`), robot);
     const lobby = C.lobbyDetailHtml({ game: { id: 'g', players: [{ id: 'b1', display_name: 'Otazník', bot: 'medium', flag_color: 'fialova', emblem: 'lev', ready: true }], max_players: 4, status: 'lobby' } });
     assert.match(lobby, /data-bot-face/);
+});
+
+test('defeatedRobots: roboti botů, které hráč porazil (jednou každý, Robosovy ne)', () => {
+    const bots = [{ id: 'b1', bot: 'medium', place: 3, score: 4 }, { id: 'b2', bot: 'medium', place: 4, score: 2 }, { id: 'b3', bot: 'easy', place: 2, score: 9 }, { id: 'h1', place: 1, score: 12 }, { id: 'b4', bot: 'medium', place: 1, score: 99 }];
+    const robotId = (id) => C.robotOf({ id, bot: 'medium' }).id;
+    assert.deepEqual(C.defeatedRobots(bots.slice(0, 4), 1).sort(), [robotId('b1'), robotId('b2')].filter((id, i, list) => list.indexOf(id) === i).sort());
+    assert.deepEqual(C.defeatedRobots(bots.slice(0, 4), 3), [robotId('b2')]);
+    assert.deepEqual(C.defeatedRobots(bots.slice(0, 4), 4), []);
+    assert.deepEqual(C.defeatedRobots(bots, 0), []);
 });

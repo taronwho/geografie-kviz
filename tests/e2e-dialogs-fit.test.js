@@ -545,6 +545,14 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
                 await tab.waitForSelector('[data-pick-part="1:0"]');
                 await settled();
             });
+            // Roboti z Dobývání: zamčení s postupem (0/3), vybraný robot z daru
+            await scene(tab, 'Nastavení – Profil (Roboti)', size, async () => {
+                await settingsTab('profile');
+                await tab.click('[data-pic-group="roboti"]');
+                await tab.waitForSelector('[data-locked-avatar="rkudla"]');
+                assert.match(await tab.textContent('[data-locked-avatar="rkudla"]'), /0\/3/);
+                await settled();
+            });
             await scene(tab, 'Nastavení – Profil (všechny barvy)', size, async () => { await settingsTab('profile'); await tab.click('[data-pick-hue-open]'); await tab.waitForSelector('[data-pick-hue]'); await settled(); });
             // Celý look (Cestovatel): zlatý štítek pod sovou, otevřená ruka s paletou barev globusu
             await scene(tab, 'Nastavení – Mudrlant (celý look)', size, async () => {

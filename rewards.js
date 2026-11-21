@@ -26,6 +26,8 @@
     const MIN_PROTECTED = 3;
     const FREEZE_EVERY = 7;
     const CHEST_XP = 250;
+    // Robotí postavičky (look.js ROBOT_AVATARS): robot se odemkne po tolika porážkách v Dobývání
+    const ROBOT_WINS = 3;
     const NEAREST = 6;
     // Druhy věcí v truhle (klíče katalogu look.js) a jak se jmenují v textech
     const GIFT_CATEGORIES = ['accessories', 'colors', 'frames', 'robes', 'themes'];
@@ -66,7 +68,7 @@
     };
     const lastDays = (list, limit) => [...new Set((Array.isArray(list) ? list : []).filter(isDay))].sort().slice(-limit);
     const REWARD = /^(?:xp|(accessories|colors|frames|robes|themes):[a-z0-9-]{1,30})$/;
-    const empty = () => ({ v: 1, gifts: Object.fromEntries(OWN_CATEGORIES.map(category => [category, []])), chests: {}, ready: [], freezes: 0, freezesAt: 0, frozen: [], earned: [], checked: '', diplomas: {}, name: '', season: null, past: null });
+    const empty = () => ({ v: 1, gifts: Object.fromEntries(OWN_CATEGORIES.map(category => [category, []])), chests: {}, ready: [], freezes: 0, freezesAt: 0, frozen: [], earned: [], checked: '', diplomas: {}, robots: {}, name: '', season: null, past: null });
 
     // --- Sezóna (season.js): { id: 'RRRR-MM', startXp, claimed: { stupeň: odměna } }, minulá sezóna navíc endXp ---
     // Odměna stupně: části spojené „+“: 'kategorie:id' (věc), 'freeze' (ochrana série), 'xp:N'
@@ -117,6 +119,8 @@
         state.checked = isDay(data.checked) ? data.checked : '';
         const diplomas = data.diplomas && typeof data.diplomas === 'object' && !Array.isArray(data.diplomas) ? data.diplomas : {};
         state.diplomas = Object.fromEntries(Object.entries(diplomas).filter(([topic, day]) => ID.test(topic) && isDay(day)));
+        const robots = data.robots && typeof data.robots === 'object' && !Array.isArray(data.robots) ? data.robots : {};
+        state.robots = Object.fromEntries(Object.entries(robots).filter(([id, count]) => ID.test(id) && Number.isFinite(Number(count)) && Number(count) > 0).map(([id, count]) => [id, Math.min(ROBOT_WINS, Math.floor(Number(count)))]));
         state.name = typeof data.name === 'string' ? data.name.replace(/\s+/g, ' ').trim().slice(0, 30) : '';
         state.season = cleanSeason(data.season);
         state.past = cleanSeason(data.past, true);
@@ -147,7 +151,7 @@
             // noGift: odměna jen za svůj cíl (Bílý talár až na úrovni 100), truhla ani sezóna ji nedají dřív;
             // rare: vzácný dárek jen z truhly (rareCandidates), mezi běžné věci (ani do Sezóny) nepatří; diploma: legendární postavička jen za diplom;
             // postavičky (CHEST_ONLY_CATEGORIES) jen ty z truhly (chest), ne za úroveň
-            .filter(item => !item.badge && !item.diploma && !item.noGift && !item.league && !item.rare && (item.chest || (!CHEST_ONLY_CATEGORIES.includes(category) && (item.level || 1) > 1)) && !s.gifts[category].includes(item.id) && !Look.isUnlocked(item, { ...ctx, gifts: null }))
+            .filter(item => !item.badge && !item.diploma && !item.robot && !item.noGift && !item.league && !item.rare && (item.chest || (!CHEST_ONLY_CATEGORIES.includes(category) && (item.level || 1) > 1)) && !s.gifts[category].includes(item.id) && !Look.isUnlocked(item, { ...ctx, gifts: null }))
             .map(item => ({ category, item })))
             .sort((a, b) => giftRank(a.item) - giftRank(b.item) || CHEST_CATEGORIES.indexOf(a.category) - CHEST_CATEGORIES.indexOf(b.category));
     };
@@ -249,6 +253,31 @@
         if (!fresh.length || !isDay(today)) return { state: s, fresh: [] };
         return { state: { ...s, diplomas: { ...s.diplomas, ...Object.fromEntries(fresh.map(topic => [topic, today])) } }, fresh };
     };
+    // Roboti (hra s boty v Dobývání): porážky v robots ({ id robota: počet, nejvýš ROBOT_WINS }); po třetí porážce je robot postavička
+    // (dar v gifts.avatars), po všech 26 oba Robosovy. Vrací { state, news: [{ id, title, count, unlocked, final }] } za roboty, kterých se týká porážka
+    const robotPool = () => (Look ? Look.AVATARS.filter(item => item.robot && !item.robotAll) : []);
+    const noteRobots = (state, defeated) => {
+        let s = parse(state);
+        const pool = new Map(robotPool().map(item => [item.id, item]));
+        const news = [];
+        for (const id of [...new Set(Array.isArray(defeated) ? defeated : [])].filter(id => pool.has(id))) {
+            const before = s.robots[id] || 0;
+            if (before >= ROBOT_WINS) continue;
+            const count = before + 1;
+            s = { ...s, robots: { ...s.robots, [id]: count } };
+            if (count >= ROBOT_WINS && !s.gifts.avatars.includes(id)) s = { ...s, gifts: { ...s.gifts, avatars: [...s.gifts.avatars, id] } };
+            news.push({ id, title: pool.get(id).title, count, unlocked: count >= ROBOT_WINS, final: false });
+        }
+        const all = robotPool().every(item => s.gifts.avatars.includes(item.id));
+        if (all) {
+            const bosses = Look.AVATARS.filter(item => item.robotAll && !s.gifts.avatars.includes(item.id));
+            if (bosses.length) {
+                s = { ...s, gifts: { ...s.gifts, avatars: [...s.gifts.avatars, ...bosses.map(item => item.id)] } };
+                bosses.forEach(item => news.push({ id: item.id, title: item.title, count: ROBOT_WINS, unlocked: true, final: true }));
+            }
+        }
+        return { state: s, news };
+    };
     const setName = (state, name) => ({ ...parse(state), name: String(name || '').replace(/\s+/g, ' ').trim().slice(0, 30) });
 
     // --- Odměny za sérii dní: stupně skupiny odznaků „serie“ (quiz-core), ke kterým patří věc z katalogu (look.js: rámečky Jiskra
@@ -267,7 +296,7 @@
     // --- Účet: co se ukládá do profiles.rewards a jak se spojí se zařízením ---
     const payload = (state) => {
         const s = parse(state);
-        return { v: 1, gifts: s.gifts, chests: s.chests, ready: s.ready, freezes: s.freezes, freezesAt: s.freezesAt, frozen: s.frozen, earned: s.earned, diplomas: s.diplomas, season: s.season, past: s.past };
+        return { v: 1, gifts: s.gifts, chests: s.chests, ready: s.ready, freezes: s.freezes, freezesAt: s.freezesAt, frozen: s.frozen, earned: s.earned, diplomas: s.diplomas, robots: s.robots, season: s.season, past: s.past };
     };
     // Sjednocení: věci, truhly, zachráněné dny a diplomy se sčítají (u diplomu dřívější den); počet ochran platí z novější změny;
     // sezóna: tatáž sezóna = menší startXp a sjednocené stupně, novější sezóna nahradí starší (ta zůstane jako past)
@@ -287,6 +316,7 @@
             frozen: [...local.frozen, ...remote.frozen],
             earned: [...new Set([...remote.earned, ...local.earned])].sort((a, b) => a.slice(2).localeCompare(b.slice(2))),
             diplomas,
+            robots: Object.fromEntries([...new Set([...Object.keys(local.robots), ...Object.keys(remote.robots)])].map(id => [id, Math.max(local.robots[id] || 0, remote.robots[id] || 0)])),
             ...mergeSeasons([local.season, local.past, remote.season, remote.past])
         });
     };
@@ -506,7 +536,7 @@
     return {
         KEY, MAX_FREEZES, MIN_PROTECTED, FREEZE_EVERY, CHEST_XP, NEAREST, GIFT_CATEGORIES, CHEST_CATEGORIES, CHEST_ONLY_CATEGORIES, OWN_CATEGORIES, KIND_NAMES, DIPLOMA_NAMES, SEASON_TIERS, SEASON_REWARD, cleanSeason, mergeSeasons,
         isDay, addDays, formatDay, isoWeek, empty, parse, gifts, owns, pendingChest, addChest, candidates, RARE_CHANCE, rareCandidates, pickGift, openChest, chestReward,
-        earnFreeze, streakEndingAt, bridgedStreak, checkFreeze, streakFreeze, diplomaTitle, noteDiplomas, setName, payload, merge, samePayload, isEmpty,
+        earnFreeze, streakEndingAt, bridgedStreak, checkFreeze, streakFreeze, diplomaTitle, noteDiplomas, ROBOT_WINS, robotPool, noteRobots, setName, payload, merge, samePayload, isEmpty,
         nextStreakReward, streakRewardText, streakRewardHtml,
         freezeWord, freezeChip, freezeArt, chestSvg, previewHtml, chestHtml, progressHtml, freezeHelpHtml, chestHelpHtml, diplomasHtml, diplomaDialogHtml
     };

@@ -282,3 +282,22 @@ test('Truhla Mudrlanta a pomůcka do Dobývání: ISO týden jako na serveru a �
     assert.match(html, /data-chest-pomucka[^>]*>[\s\S]*data-test-art="fifty"[\s\S]*A navíc pomůcka do Dobývání: 50\/50<\/p>/);
     assert.doesNotMatch(html, /style=/);
 });
+
+test('roboti: třetí porážka robota ho dá jako postavičku, po všech 26 i oba Robosovy; porážky se slučují nejvyšším počtem', () => {
+    const Look = require('../look.js');
+    const pool = Rewards.robotPool().map(item => item.id);
+    assert.equal(pool.length, 26);
+    let state = Rewards.empty();
+    let result = Rewards.noteRobots(state, ['rkudla', 'rkudla', 'rmudra', 'neznamy']);
+    assert.deepEqual(result.news.map(entry => [entry.id, entry.count, entry.unlocked]), [['rkudla', 1, false]], 'duplicita ve hře se počítá jednou, Robosovy a neznámé se nepočítají');
+    result = Rewards.noteRobots(Rewards.noteRobots(result.state, ['rkudla']).state, ['rkudla']);
+    assert.deepEqual(result.news.map(entry => [entry.id, entry.count, entry.unlocked]), [['rkudla', 3, true]]);
+    assert.ok(result.state.gifts.avatars.includes('rkudla'));
+    assert.deepEqual(Rewards.noteRobots(result.state, ['rkudla']).news, [], 'víc než tři se nepočítá');
+    assert.deepEqual(Rewards.merge(result.state, { robots: { rkudla: 1, rliska: 2 } }).robots, { rkudla: 3, rliska: 2 });
+    assert.equal(Rewards.parse(Rewards.payload(result.state)).robots.rkudla, 3);
+    state = result.state;
+    for (const id of pool) for (let n = 0; n < 3; n++) state = Rewards.noteRobots(state, [id]).state;
+    assert.ok(['rmudra', 'rsuper'].every(id => state.gifts.avatars.includes(id)), 'Robosovy za všech 26');
+    assert.ok(pool.every(id => Look.isUnlocked(Look.find('avatars', id), { level: 1, badges: {}, gifts: state.gifts })));
+});

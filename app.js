@@ -1346,7 +1346,19 @@
     // Popis odznaku jako doplněk věty: „(v Bleskovce 12 správných odpovědí za 60 sekund)“
     const badgeGoalText = (badge) => badge.text.charAt(0).toLocaleLowerCase('cs') + badge.text.slice(1).replace(/\.$/, '');
     const pillIcon = (name) => `<i data-lucide="${name}" class="my-px h-2.5 w-2.5"></i>`;
-    const lockPill = (item) => `<span class="${LOCK_PILL}">${item.diploma ? pillIcon('graduation-cap') : item.badge ? pillIcon('medal') : item.source === 'season' ? `${item.seasonTier || 20}.&nbsp;st.`
+    // Robotí postavičky (rewards.js noteRobots): kolik porážek robota hráč má (z ROBOT_WINS), u Robosov kolik z 26 robotů má
+    const robotProgress = (item) => {
+        const state = Rewards ? loadRewards() : null;
+        if (!state) return { have: 0, need: item.robotAll ? 26 : 3 };
+        if (item.robotAll) return { have: Rewards.robotPool().filter(robot => state.gifts.avatars.includes(robot.id)).length, need: Rewards.robotPool().length };
+        return { have: state.gifts.avatars.includes(item.id) ? Rewards.ROBOT_WINS : state.robots[item.id] || 0, need: Rewards.ROBOT_WINS };
+    };
+    const robotLockText = (item) => {
+        const { have, need } = robotProgress(item);
+        return item.robotAll ? `${item.title} se odemkne, až porazíš všech ${need} robotů v Dobývání (zatím ${have}).`
+            : `${item.title} se odemkne, když ho porazíš třikrát v Dobývání ve hře s boty (zatím ${have}×).`;
+    };
+    const lockPill = (item) => `<span class="${LOCK_PILL}">${item.robot ? (({ have, need }) => `${have}/${need}`)(robotProgress(item)) : item.diploma ? pillIcon('graduation-cap') : item.badge ? pillIcon('medal') : item.source === 'season' ? `${item.seasonTier || 20}.&nbsp;st.`
         : item.chest || item.rare ? pillIcon('sparkles') : item.referral ? pillIcon('user-plus') : item.prestige ? pillIcon('star') : `úr.&nbsp;${item.level}`}</span>`;
     // Dlaždice sov titulů v Profilu → Mudrlant (hned za „Moje sova“): sova v mé barvě obleku, oříznutá do kolečka jako v profilovce;
     // dosažené jdou vybrat, vyšší jsou zašedlé s úrovní, od které se odemknou, a klepnutí jen řekne, kdy to bude
@@ -1368,7 +1380,7 @@
     // --- Profil → profilový obrázek: čtyři skupiny (Mudrlant = moje sova a sovy titulů, Postavičky = odměny, Legendy = legendární postavičky
     // za diplomy témat, Zvířátka = základní emoji zdarma) a pod nimi jedna řada barev: pozadí, nebo vybraná část postavičky (čipy nad řadou
     // říkají, co se přebarvuje). Legendy mají vlastní skupinu: 14 dlaždic jsou dvě řady, Postavičky tak zůstanou na třech řadách ---
-    const PICTURE_GROUPS = [['mudrlant', 'Mudrlant'], ['postavicky', 'Postavičky'], ['legendy', 'Legendy'], ['zviratka', 'Zvířátka']];
+    const PICTURE_GROUPS = [['mudrlant', 'Mudrlant'], ['postavicky', 'Postavičky'], ['legendy', 'Legendy'], ['roboti', 'Roboti'], ['zviratka', 'Zvířátka']];
     let pictureGroup = null; // otevřená skupina; null = ta, ve které je vybraný obrázek
     let colorTarget = 'bg'; // co řada barev přebarvuje: 'bg' (pozadí) nebo číslo části postavičky (1, 2)
     let hueOpen = false; // místo barev pozadí je vidět posuvník všech odstínů
@@ -1376,7 +1388,7 @@
     const pictureGroupOf = (draft) => {
         if (draft.owl && Owl && Owl.owlAvatarHtml) return 'mudrlant';
         const item = !Social.AVATARS.includes(draft.avatar) && Look && Look.avatarItem ? Look.avatarItem(draft.avatar) : null;
-        return !item ? 'zviratka' : item.diploma ? 'legendy' : 'postavicky';
+        return !item ? 'zviratka' : item.diploma ? 'legendy' : item.robot ? 'roboti' : 'postavicky';
     };
     // Dlaždice postavičky (vybraná v barvách z rozpracované volby) nebo odměny, která zatím obrázek nemá (emoji).
     // Odemčená legendární postavička má zlatý lem (LEGEND_OFF), zamčená je šedá jako ostatní
@@ -1397,6 +1409,9 @@
         return items.map(characterTile).join('')
             + `<p data-legend-note class="col-span-full flex items-center gap-1 self-center justify-self-stretch px-1 text-[11px] font-semibold leading-tight text-slate-500 dark:text-slate-400"><i data-lucide="graduation-cap" class="h-3.5 w-3.5 shrink-0 text-gold-600 dark:text-gold-300"></i><span>Legendární postavička za diplom tématu (plné mistrovství, 5 hvězdiček).</span></p>`;
     };
+    // Skupina Roboti: roboti z Dobývání (look.js ROBOT_AVATARS); zamčený ukazuje postup porážek, Robosovy až za všechny
+    const robotTiles = () => Look.ROBOT_AVATARS.map(characterTile).join('')
+        + `<p data-robot-note class="col-span-full flex items-center gap-1 self-center justify-self-stretch px-1 text-[11px] font-semibold leading-tight text-slate-500 dark:text-slate-400"><i data-lucide="bot" class="h-3.5 w-3.5 shrink-0 text-rose-600 dark:text-rose-300"></i><span>Robota získáš, když ho v Dobývání porazíš třikrát.</span></p>`;
     const pictureTiles = (group) => {
         if (group === 'mudrlant') {
             const on = Boolean(meDraft.owl && !meDraft.pose);
@@ -1406,8 +1421,9 @@
         // legendární (diploma) mají vlastní skupinu
         // Postavička běžící Sezóny (měsíc podle Prahy) je vidět i zamčená: šedá s textem „Získáš v Sezóně Mudrlanta (20. stupeň)“
         const seasonMonth = Season ? Season.monthOf(Season.seasonOf(Season.pragueDay())) : 0;
-        if (group === 'postavicky') return Look ? Look.AVATARS.filter(item => !item.diploma && (!item.exclusive || item.month === seasonMonth || Look.isUnlocked(item, lookContext()) || (myProfile && Look.avatarItem(myProfile.avatar) === item))).map(characterTile).join('') : '';
+        if (group === 'postavicky') return Look ? Look.AVATARS.filter(item => !item.diploma && !item.robot && (!item.exclusive || item.month === seasonMonth || Look.isUnlocked(item, lookContext()) || (myProfile && Look.avatarItem(myProfile.avatar) === item))).map(characterTile).join('') : '';
         if (group === 'legendy') return Look ? legendTiles() : '';
+        if (group === 'roboti') return Look ? robotTiles() : '';
         return Social.AVATARS.map(emoji => {
             const on = !meDraft.owl && emoji === meDraft.avatar;
             return `<button type="button" data-pick-avatar="${emoji}" aria-label="Obrázek ${emoji}" aria-pressed="${on}" class="${AVATAR_TILE} ${on ? AVATAR_ON : AVATAR_OFF}">${emoji}</button>`;
@@ -2026,7 +2042,7 @@
             return `
             <form id="profile-form" class="flex flex-col gap-2 short:gap-1.5" autocomplete="off">
                 <section data-picture aria-label="Profilový obrázek" class="flex min-w-0 flex-col gap-1.5 rounded-2xl bg-white p-1.5 shadow-sm dark:bg-slate-800">
-                    <div role="tablist" aria-label="Profilový obrázek" class="grid ${pictureGroups().length > 3 ? 'grid-cols-4' : 'grid-cols-3'} gap-0.5 rounded-xl bg-slate-100 p-0.5 dark:bg-slate-900/60">${pictureGroups().map(([id, label]) => `<button type="button" role="tab" data-pic-group="${id}" aria-selected="${group === id}" class="min-h-[2.25rem] min-w-0 truncate rounded-[0.6rem] px-1 text-[12px] font-black max-[380px]:px-0.5 max-[380px]:text-[11.5px] ${group === id ? 'bg-white text-brand-800 shadow-sm ring-1 ring-slate-200 dark:bg-slate-700 dark:text-white dark:ring-slate-600' : 'text-slate-600 dark:text-slate-300'}">${label}</button>`).join('')}</div>
+                    <div role="tablist" aria-label="Profilový obrázek" class="grid ${pictureGroups().length > 4 ? 'grid-cols-5' : pictureGroups().length > 3 ? 'grid-cols-4' : 'grid-cols-3'} gap-0.5 rounded-xl bg-slate-100 p-0.5 dark:bg-slate-900/60">${pictureGroups().map(([id, label]) => `<button type="button" role="tab" data-pic-group="${id}" aria-selected="${group === id}" class="min-h-[2.25rem] min-w-0 truncate rounded-[0.6rem] ${pictureGroups().length > 4 ? 'px-0.5 text-[11px]' : 'px-1 text-[12px] max-[380px]:px-0.5 max-[380px]:text-[11.5px]'} font-black ${group === id ? 'bg-white text-brand-800 shadow-sm ring-1 ring-slate-200 dark:bg-slate-700 dark:text-white dark:ring-slate-600' : 'text-slate-600 dark:text-slate-300'}">${label}</button>`).join('')}</div>
                     <div data-avatar-strip data-group="${group}" class="grid max-h-[9.125rem] min-h-[7.75rem] grid-cols-[repeat(auto-fill,minmax(2.5rem,1fr))] content-start justify-items-center gap-0.5 overflow-y-auto overscroll-contain">${pictureTiles(group)}</div>
                     ${pictureColors()}
                 </section>
@@ -2251,6 +2267,7 @@
                 pictureGroup = groupButton.dataset.picGroup;
                 if (pictureGroup === 'legendy') touchTip('legends');
                 if (pictureGroup === 'postavicky') touchTip('characters');
+                if (pictureGroup === 'roboti') touchTip('robots');
                 openSettings(meNote, `[data-pic-group="${pictureGroup}"]`);
                 return;
             }
@@ -2392,6 +2409,7 @@
                 const item = Look.avatarItem(locked.dataset.lockedAvatar);
                 const topic = item && item.diploma ? TOPIC_BY_ID[item.diploma] : null;
                 if (item) openSettings(item.diploma ? (topic && Rewards ? `${item.title} se odemkne diplomem „${Rewards.diplomaTitle(topic)}“ (plné mistrovství tématu ${topic.title}).` : `${item.title}: ${Look.unlockText(item)}.`)
+                    : item.robot ? robotLockText(item)
                     : item.source === 'season' ? `${item.title}: ${seasonAvatarText(item)}.`
                     : item.badge ? `${item.title} se odemkne odznakem „${(BADGE_BY_ID[item.badge] || {}).title || item.badge}“${BADGE_BY_ID[item.badge] ? ` (${badgeGoalText(BADGE_BY_ID[item.badge])})` : ''}.`
                     : Number.isFinite(item.level) ? `${item.title} se odemkne na úrovni ${item.level}.` : `${item.title}: ${avatarUnlockText(item)}.`, `[data-locked-avatar="${locked.dataset.lockedAvatar}"]`);
@@ -5204,6 +5222,17 @@
         if (!Rewards) return;
         writeJson(Rewards.KEY, state);
         if (Look) Look.setGifts(Rewards.gifts(state));
+    };
+    // Roboti poražení ve hře s boty: porážky do odměn (po třetí je robot postavička, po všech 26 i oba Robosovy) a hláška
+    const noteRobotWins = (ids) => {
+        if (!Rewards || !Look) return;
+        const { state, news } = Rewards.noteRobots(loadRewards(), ids);
+        if (!news.length) return;
+        saveRewards(state);
+        const fresh = news.filter(entry => entry.unlocked);
+        showToast(fresh.length ? `Nová robotí postavička: ${fresh.map(entry => entry.title).join(', ')}! Najdeš ji v Profilu pod Roboti.`
+            : `${news[0].title}: poražen ${news[0].count}× ze 3${news.length > 1 ? ` (a další roboti)` : ''}.`);
+        syncRewards();
     };
     // Dny zachráněné ochranou série: série dnešních otázek i Kvízu dne přes ně pokračují
     const frozenDays = () => (Rewards ? loadRewards().frozen : []);
@@ -12928,6 +12957,8 @@
             shareCard: ShareCard, shareImageCounted, robeNow, appUrl, appName: APP_NAME, sound: Sound, isLoading: () => isLoading,
             // Celá Řetězovka: pomůcka 50/50 do Dobývání (blok 30); milník Řetězovky: Záchrana navíc (blok 37)
             itemGranted: (grant) => celebrateItem(grant),
+            // Poražení roboti (hra s boty): počítají se do robotích postaviček (rewards.js noteRobots)
+            robotsBeaten: (ids) => noteRobotWins(ids),
             // Pomůcka Záchrana navíc (blok 37): zásoba ze serveru (null = nevíme nebo databáze ji nezná), načtení, použití a pečeť
             rescueStock: () => (itemStock && typeof itemStock.chain_rescue === 'number' ? itemStock.chain_rescue : null),
             loadItems: () => refreshItemStock(),

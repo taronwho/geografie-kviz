@@ -237,6 +237,18 @@
         { id: 'hermel', title: 'Hermelín', badge: 'perfektni-vyzvy-5', parts: ['Koruna', 'Sýr uvnitř'], colors: [[1, 4, 5, 6, 7, 8, 9], [1, 4, 5, 6, 7, 8, 9]] }
     ];
     AVATARS.push(...NEW_AVATARS);
+    // Robotí postavičky z Dobývání (docs/DOBYVANI-BOTI.md): robot se odemkne, když ho hráč porazí třikrát (rewards.js noteRobots; dar v účtu),
+    // oba Robosovy (rmudra = Mudrlátko, rsuper = Super Mudrlant) až se všemi 26 roboty. Obrázek má jednu část, Plátování (barvy jako u bota);
+    // roboti bez vrstvy červené (ROBOT_NO_RED v conquest.js) mají barvy 2–9. Do procent alba se nepočítají (bonus).
+    const ROBOT_NO_RED_IDS = ['rdrak', 'rmudra', 'rslon', 'rlout', 'rbrouk', 'rlekar', 'rpest', 'rmask', 'rrez', 'rblaz'];
+    const ROBOT_AVATARS = [
+        ['rliska', 'Robo-liška'], ['rmedv', 'Robo-medvěd'], ['rkocka', 'Robo-kočka'], ['rzelva', 'Robo-želva'], ['rchobo', 'Robo-chobotnice'], ['rdrak', 'Robo-drak'],
+        ['rkudla', 'Robo-kudlanka'], ['rslon', 'Robo-slon'], ['rbouri', 'Robo-zlobr'], ['rstras', 'Robo-strašák'], ['rpanen', 'Robo-panenka'], ['rhodin', 'Robo-hodinář'],
+        ['rzubar', 'Robo-zubař'], ['rhlub', 'Robo-hlubinná ryba'], ['rcert', 'Robo-čertík'], ['rmor', 'Robo-morový doktor'], ['rlout', 'Robo-loutka'], ['rpauk', 'Robo-pavouk'],
+        ['rklaun', 'Robo-klaun'], ['rbrouk', 'Robo-brouk'], ['rhrub', 'Robo-hrubián'], ['rlekar', 'Robo-lékař'], ['rpest', 'Robo-zahradník'], ['rmask', 'Robo-maškara'],
+        ['rrez', 'Robo-rezavec'], ['rblaz', 'Robo-šílenec'], ['rmudra', 'Robosova Mudrlátko', true], ['rsuper', 'Robosova Super Mudrlant', true]
+    ].map(([id, title, all]) => ({ id, title, robot: true, ...(all ? { robotAll: true } : {}), bonus: true, parts: ['Plátování'], colors: [ROBOT_NO_RED_IDS.includes(id) ? [2, 3, 4, 5, 6, 7, 8, 9] : ALL] }));
+    AVATARS.push(...ROBOT_AVATARS);
     // Témata diplomů legendárních postaviček (název pro „Diplom: Zeměpis“; app.js a rewards.js mají vlastní seznam témat)
     const DIPLOMA_TOPICS = {
         zemepis: 'Zeměpis', vlajky: 'Vlajky a znaky', historie: 'Historie', mytologie: 'Mytologie', biologie: 'Biologie', geologie: 'Geologie', chemie: 'Chemie',
@@ -562,7 +574,7 @@
         if (!item) return false;
         if (devAll && !(ctx && ctx.gifts === null)) return true;
         if (ctx && isGift(item, ctx.gifts !== undefined ? ctx.gifts : giftState)) return true;
-        if (item.exclusive || item.chest || item.rare) return false;
+        if (item.exclusive || item.chest || item.rare || item.robot) return false;
         if (item.referral) return perkReferral(ctx).some(key => item.referral.includes(key));
         if (item.prestige) return perkPrestige(ctx) >= item.prestige;
         if (item.league) return leagueUnlocked(item, ctx);
@@ -574,6 +586,7 @@
         : item.referral ? (item.referral.includes('pritel-10') ? 'Pozvi 10 kamarádů (Soupeři → Přátelé → Pozvi kamarády)' : item.referral.includes('pritel-3') ? 'Pozvi 3 kamarády (Soupeři → Přátelé → Pozvi kamarády)'
             : 'Pozvi kamaráda, nebo přijď na jeho pozvánku (Soupeři → Přátelé → Pozvi kamarády)')
         : item.prestige ? `${item.prestige > 1 ? `${item.prestige}. prestiž` : 'Prestiž'} po úrovni 100 (Postup → Úrovně a tituly)`
+        : item.robot ? (item.robotAll ? 'Poraz v Dobývání všech 26 robotů (boti ve hře)' : 'Poraz ho třikrát v Dobývání (hra s boty)')
         : item.rare ? 'Vzácný dárek z Truhly Mudrlanta' : item.chest ? 'Z Truhly Mudrlanta' : item.diploma ? `Diplom: ${DIPLOMA_TOPICS[item.diploma] || item.diploma}`
             : item.league ? `Ligová sezóna: vrchol ${item.leagueName}` : item.badge ? `Odznak: ${badgeTitle || item.badge}` : `Úroveň ${item.level}`;
     const categoryOf = (item) => CATEGORY_OF.get(item) || null;
@@ -728,7 +741,7 @@
         // Legendární postavičky za diplom tématu
         DIPLOMA_TOPICS, isLegendary, rewardsForDiploma,
         // Další postavičky (č. 317–408)
-        NEW_AVATARS,
+        NEW_AVATARS, ROBOT_AVATARS,
         // Sezóna a série dní
         SEASON_MONTHS, SEASON_ADJECTIVES, SEASON_FRAMES, SEASON_MID_FRAMES, SEASON_AVATARS, STREAK_FRAMES, TITLES, SEASON_BUNDLES, seasonBundle, seasonMidFrame, titleItem,
         // Rámečky ligových sezón (schéma 18)
