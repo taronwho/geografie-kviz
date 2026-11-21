@@ -222,3 +222,18 @@ test('série Kvízu dne přes den zachráněný ochranou (rewards.js) pokračuje
     assert.equal(DQ.streakOf(days, '2026-11-08', ['2026-11-06']), 3, 'dnes ještě nehráno');
     assert.equal(DQ.streakOf(['2026-11-05'], '2026-11-08', ['2026-11-06']), 0, 'dva vynechané dny');
 });
+
+test('Kvíz dne od 30. 11. 2026: kategorie podle odmocniny z počtu položek, dřívější dny po starém', () => {
+    const items = [...Array.from({ length: 4 }, (_, i) => ({ q: `Qs${i}`, n: `S${i}`, c: 'mala', k: 1 })), ...Array.from({ length: 400 }, (_, i) => ({ q: `Qv${i}`, n: `V${i}`, c: 'velka', k: 1 }))];
+    const data = { items, categories: ['mala', 'velka'] };
+    const share = (startYear, startMonth, startDay) => {
+        let small = 0;
+        for (let n = 0; n < 400; n++) {
+            const day = new Date(Date.UTC(startYear, startMonth, startDay + n)).toISOString().slice(0, 10);
+            if (DQ.pickFor(day, 0, 'x', 0, data).c === 'mala') small++;
+        }
+        return small / 400;
+    };
+    assert.ok(Math.abs(share(2024, 0, 1) - 0.5) < 0.1);
+    assert.ok(share(2026, 11, 1) < 0.2);
+});

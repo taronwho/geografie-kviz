@@ -322,6 +322,7 @@
     const seedFor = (week, attempt) => `mudrlant-boss-${week}-${attempt}`;
     const questionSeed = (week, attempt, slot, tries = 0) => `${seedFor(week, attempt)}:otazka:${slot}${tries ? `:r${tries}` : ''}`;
 
+    const BALANCED_FROM = '2026-11-30';
     // --- Plán otázek ---
     // Třetiny známosti známých položek v každé kategorii (0 nejznámější, 2 nejméně známé), jako v daily-quiz.js
     const tierCache = typeof WeakMap === 'function' ? new WeakMap() : null;
@@ -352,7 +353,10 @@
         const present = new Set(pool.map(item => item.c));
         const categories = [...(categoryOrder || []).filter(key => present.has(key)), ...[...present].filter(key => !(categoryOrder || []).includes(key)).sort()];
         const rng = seededRandom(`${seedFor(week, attempt)}:${slot}:kategorie`);
-        const category = categories.length ? categories[Math.floor(rng() * categories.length)] : null;
+        // Od týdne BALANCED_FROM podle odmocniny z počtu položek (malá kategorie nedostane stejný podíl jako velká); dřívější týdny po starém
+        const weights = categories.map(key => Math.sqrt(Math.max(1, pool.filter(item => item.c === key).length)));
+        const pickWeighted = () => { let target = rng() * weights.reduce((sum, weight) => sum + weight, 0); for (let i = 0; i < categories.length; i++) { target -= weights[i]; if (target < 0) return categories[i]; } return categories[categories.length - 1]; };
+        const category = !categories.length ? null : String(week) >= BALANCED_FROM ? pickWeighted() : categories[Math.floor(rng() * categories.length)];
         const skip = new Set(used || []);
         const ordered = (group) => group.filter(item => !skip.has(item.q))
             .map(item => ({ item, key: hash32(`${seedFor(week, attempt)}|${slot}|${item.q}`) }))

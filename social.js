@@ -194,13 +194,15 @@
     // Konec semínka nové výzvy: výzva smí mít otázky „Ukaž na mapě“ (question-map.js MULTIPLAYER_SEED_MARK); výzvy starších verzí aplikace
     // ho nemají a zůstanou bez mapy na všech zařízeních
     const CHALLENGE_SEED_MARK = '.mapa';
+    // Střední část semínka nové výzvy: kategorie se losují podle odmocniny z počtu položek (app.js challengeBalanced); starší výzvy ji nemají
+    const CHALLENGE_BALANCED_MARK = '.kat';
     // Odpovídání ve výzvě je vždy výběr z možností (psaní jen ve hře pro jednoho hráče; psanou výzvu databáze od schématu 31 odmítne)
     const createChallenge = async (userId, { topic, count, invitedId = null, includeHard = false, level = null, categories = [] }) => {
         if (!COUNTS.includes(count)) throw new SocialError('Neplatný počet otázek.', 400);
         const wanted = [1, 2, 3].includes(level) ? level : includeHard ? 2 : 1;
         for (let attempt = 0; attempt < 4; attempt++) {
             const id = newCode();
-            const body = { id, creator_id: userId, topic, seed: `vyzva-${id}-${Date.now().toString(36)}${CHALLENGE_SEED_MARK}`, count, invited_id: invitedId, include_hard: wanted >= 2, categories: (categories || []).slice(0, 20), variant: 'choices' };
+            const body = { id, creator_id: userId, topic, seed: `vyzva-${id}-${Date.now().toString(36)}${CHALLENGE_BALANCED_MARK}${CHALLENGE_SEED_MARK}`, count, invited_id: invitedId, include_hard: wanted >= 2, categories: (categories || []).slice(0, 20), variant: 'choices' };
             try {
                 const rows = await request('POST', 'challenges', { body: wanted === 3 && !levelMissing ? { ...body, level: 3 } : body, prefer: 'return=representation' });
                 return rows[0];
@@ -1526,7 +1528,7 @@
         return row && typeof row.victory_fx === 'string' ? row.victory_fx : '';
     });
 
-    return { AVATARS, allAvatars, cleanAvatar, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, cleanPrestigeLevel, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
+    return { CHALLENGE_BALANCED_MARK, AVATARS, allAvatars, cleanAvatar, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, cleanPrestigeLevel, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
         tournamentTick, getTournaments, tournamentArchive, tournamentPoll, voteTournamentTheme, ARCHIVE_PAGE, inTournament, devTournament, devClientErrors, isDevAdmin, schemaVersion, reportQuestion, getQuestionReports, deleteQuestionReport, exportMyData, deleteMyAccount, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen,
         challengeProgress, saveChallengeProgress, tournamentAnswers, saveTournamentAnswer, claimTournamentXp, cleanAnswerLabel,
         // Rozpis otázek (schéma 10)

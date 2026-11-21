@@ -65,7 +65,7 @@ test('výběr: téma dne se střídá (každé jednou za 14 dní, nikdy dva dny 
     const items = [];
     for (let i = 0; i < 40; i++) items.push({ q: `Q${i}`, n: `Věc ${i}`, c: i % 2 ? 'a' : 'b', k: i < 30 ? 1 : 0, im: i % 5 === 0 ? 'Mapa.svg' : `Foto_${i}.jpg`, ih: 'ab', f: i % 7 === 0 ? {} : { x: i }, ...(i === 2 ? { nq: 1 } : {}) });
     const picks = new Set();
-    for (const day of days) {
+    for (const day of days.filter(day => day < '2026-11-24')) {
         const item = M.pickItem(day, 'zemepis', items);
         picks.add(item.q);
         assert.equal(item.k, 1);
@@ -600,4 +600,13 @@ test('vzorec a značka: sílu určuje délka a známost, ne jen popisek (Ag u zn
     assert.ok(M.revealScore(facts('Vzorec', 'Al₂Si₂O₅(OH)₄')) < M.revealScore(related), 'dlouhý vzorec minerálu nikomu nic neřekne');
     assert.ok(M.revealScore(facts('Vzorec', 'Hf', { known: false })) < M.revealScore(facts('Vzorec', 'Ag')), 'značka neznámého prvku je slabší');
     assert.ok(M.revealScore(facts('Vzorec', 'NaCl')) > M.revealScore(facts('Vzorec', 'Ca₅(PO₄)₃F')));
+});
+
+test('tajemná otázka: od 24. 11. aspoň 12 kandidátů (vlajky bez fotek se nesmí točit na třech), dřívější dny beze změny', () => {
+    const flags = Array.from({ length: 30 }, (_, i) => ({ q: `Q${i + 1}`, n: `Vlajka ${i}`, c: 'v', k: 1, im: `Flag_${i}.svg`, f: { x: i, y: i } }));
+    flags[0] = { ...flags[0], im: 'Foto.jpg', ih: 'ab' };
+    assert.equal(M.candidatesOf(flags, '2026-11-20').length, 1);
+    assert.equal(M.candidatesOf(flags, '2026-11-24').length, 30);
+    const picked = new Set(Array.from({ length: 30 }, (_, i) => M.pickItem(M.addDays('2026-11-24', i), 'vlajky', flags).q));
+    assert.ok(picked.size >= 12, `různé vlajky ${picked.size}`);
 });
