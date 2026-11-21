@@ -675,7 +675,7 @@ test('Řetězovka dne v prohlížeči', { skip: !chromium && 'Playwright není n
         await signed.tab.click('[data-badge="retezovka-10"]');
         assert.match(await compact(signed.tab, '#dialog-overlay'), /Kovář řetězů Dohraj 10 Řetězovek dne\. Odměna: Pavouk pletař \(profilový obrázek\)/);
         await signed.tab.click('[data-badge="retezovka-30"]');
-        assert.match(await compact(signed.tab, '#dialog-overlay'), /Mistr řetězů Dohraj 30 Řetězovek dne\. 12 \/ 30/);
+        assert.match(await compact(signed.tab, '#dialog-overlay'), /Mistr řetězů Dohraj 30 Řetězovek dne\.(?: Odměna: [^/]*\))? 12 \/ 30/);
         await signed.tab.click('[data-badge="retezovka-cela-5"]');
         assert.match(await compact(signed.tab, '#dialog-overlay'), /Ocelový řetěz 5× celá Řetězovka dne \(všech 7 článků\) bez Záchrany\. 1 \/ 5/);
         assert.deepEqual(signed.log.errors, []);

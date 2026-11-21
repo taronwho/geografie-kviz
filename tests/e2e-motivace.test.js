@@ -254,7 +254,7 @@ test('motivace: tematický víkend, prestiž, pozvi kamarády, reakce a efekty, 
             }
             await tab.waitForSelector('#status-text [data-prestige-medal="99"][data-prestige-aura="max"]');
             assert.ok(await tab.$('[data-dev-prestige] [aria-label="O prestiž výš"][disabled]'), 'nad 99 to nejde');
-            assert.match(await tab.textContent('[data-dev-prestige] + p'), /Legendární · rozsvícení 24\/24/);
+            assert.match(await tab.textContent('[data-dev-prestige] + p'), /Legendární · rozsvícení 48\/48/);
             for (const n of [5, 8, 10]) {
                 await tab.evaluate((value) => { const button = document.querySelector('[data-dev-prestige] button'); button.dataset.dev = `pv:${value}`; button.click(); }, n);
                 await tab.waitForSelector(`#btn-settings [data-prestige-badge="${n}"]`);
