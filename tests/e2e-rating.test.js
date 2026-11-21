@@ -223,6 +223,19 @@ test('rating, ligy a týdenní žebříček', { skip: !chromium && 'Playwright n
         assert.deepEqual(log.csp, []);
         await context.close();
     });
+    await t.test('profilové tlačítko hned po spuštění ukáže poslední známý obrázek, ne výchozí (profil ze serveru ještě nedorazil)', async () => {
+        const db = newDb();
+        const snapshot = { id: 'u-1', display_name: 'Jana Nováková', avatar: '🐙', color: 'sky' };
+        const { context, tab, log } = await setup(browser, { ...login('tok-u1'), 'mudrlant.profileSnapshot': JSON.stringify(snapshot) });
+        await backend(context, db);
+        await context.route('**/rest/v1/profiles*', () => { /* profil se nenačte */ });
+        await tab.goto(`${ORIGIN}/`);
+        await waitForHome(tab);
+        assert.match(await tab.textContent('#btn-settings'), /🐙/);
+        assert.doesNotMatch(await tab.textContent('#btn-settings'), /🦊/);
+        assert.deepEqual(log.errors, []);
+        await context.close();
+    });
     for (const viewport of [{ width: 360, height: 640 }, { width: 390, height: 780 }]) {
         await t.test(`vysvětlení lig z karty i z týdenního žebříčku (${viewport.width}x${viewport.height})`, async () => {
             const db = newDb();

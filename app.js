@@ -8815,12 +8815,16 @@
 
     // Profil v záhlaví: obrázek hráče, bez přihlášení tlačítko k přihlášení; bez nastaveného Supabase se neukáže
     // Jediné tlačítko vpravo nahoře: po přihlášení obrázek hráče, jinak ozubené kolečko; otevře okno Nastavení s profilem
+    const PROFILE_SNAPSHOT_KEY = 'mudrlant.profileSnapshot';
     const updateProfileButton = () => {
         const button = document.getElementById('btn-settings');
         if (!button) return;
         const user = Auth && Auth.isConfigured() && Social ? signedUser() : null;
         if (user) {
-            const profile = myProfile || { id: user.id, display_name: user.name, avatar: '🦊', color: 'emerald' };
+            // Než se načte profil ze serveru, ukáže se poslední známý z tohoto zařízení (jinak by chvíli svítil výchozí obrázek)
+            if (myProfile && myProfile.id === user.id) writeJson(PROFILE_SNAPSHOT_KEY, myProfile);
+            const snapshot = myProfile ? null : readJson(PROFILE_SNAPSHOT_KEY);
+            const profile = myProfile || (snapshot && snapshot.id === user.id ? snapshot : null) || { id: user.id, display_name: user.name, avatar: '🦊', color: 'emerald' };
             button.className = 'shrink-0 rounded-full shadow-md ring-2 ring-white transition-all active:scale-95 dark:ring-slate-700';
             button.innerHTML = avatarHtml(profile, 'h-11 w-11 text-2xl');
             button.setAttribute('aria-label', `Nastavení: ${playerName(profile)}`);
