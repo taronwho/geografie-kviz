@@ -123,3 +123,33 @@ test('stejnost: Řetězovka dne je pro dva hráče s vlastními kopiemi dat stej
         assert.deepEqual(chainFor(second, day), a, day);
     }
 });
+
+test('rotace dnešních otázek: v kategorii se položky nezopakují, dokud nepřijdou všechny; stejné pro všechny a nezávislé na pořadí dat', () => {
+    const items = Array.from({ length: 400 }, (_, i) => ({ q: `Q${i + 1}`, c: i < 6 ? 'mala' : 'velka', k: 1 }));
+    const categories = ['mala', 'velka'];
+    const day = (n) => new Date(Date.UTC(2026, 10, 24 + n)).toISOString().slice(0, 10);
+    const pick = (n, list = items) => core.dailyPick(list, { seed: `t-${day(n)}`, categories, rotation: { prefix: 't-', day: day(n), from: day(0) } });
+    const picked = Array.from({ length: 80 }, (_, n) => pick(n));
+    // malá kategorie má 6 položek: každých 6 jejích výskytů jsou všechny různé
+    const small = picked.filter(item => item.c === 'mala');
+    for (let start = 0; start + 6 <= small.length; start += 6) assert.equal(new Set(small.slice(start, start + 6).map(item => item.q)).size, 6, `cyklus malé kategorie od ${start}`);
+    const big = picked.filter(item => item.c === 'velka');
+    assert.equal(new Set(big.map(item => item.q)).size, big.length, 'velká kategorie se za 80 dnů neopakuje');
+    assert.ok(small.length < 80 * 0.3, 'malá kategorie dostane méně otázek než při rovnoměrném losu (odmocnina z počtu)');
+    assert.deepEqual(picked.map((item, n) => pick(n, [...items].reverse()).q), picked.map(item => item.q), 'nezávisí na pořadí dat');
+    // před začátkem rotace a bez ní platí původní los
+    const before = core.dailyPick(items, { seed: `t-${day(-3)}`, categories, rotation: { prefix: 't-', day: day(-3), from: day(0) } });
+    assert.equal(before.q, core.dailyPick(items, { seed: `t-${day(-3)}`, categories }).q);
+});
+
+test('trénink: vyvážený los kategorií dává malé kategorii méně otázek než rovnoměrný', () => {
+    const items = [...Array.from({ length: 4 }, (_, i) => ({ q: `Qs${i}`, c: 'mala' })), ...Array.from({ length: 400 }, (_, i) => ({ q: `Qv${i}`, c: 'velka' }))];
+    const share = (options) => {
+        const rng = core.createSeededRandom('vyvazeny');
+        let small = 0;
+        for (let i = 0; i < 2000; i++) if (core.pickItem(items, rng, [], ['mala', 'velka'], null, options).c === 'mala') small++;
+        return small / 2000;
+    };
+    assert.ok(Math.abs(share({}) - 0.5) < 0.05);
+    assert.ok(share({ balanced: true }) < 0.15, 'sqrt(4) : sqrt(400) = 1 : 10');
+});

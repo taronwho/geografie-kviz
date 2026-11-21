@@ -1644,13 +1644,16 @@
     // OSCE, РСФСР) – otázkou se stane, jen když jiná není
     // weightOf(item) = volitelná váha položky uvnitř kategorie (kalibrace obtížnosti z answer-stats.js, jen trénink bez semínka);
     // bez ní (dnešní otázky, výzvy, turnaje) se losuje rovnoměrně a se stejnými voláními rng jako dřív
-    const pickItem = (allItems, rng, recentIds = [], categoryOrder = [], weightOf = null) => {
+    // options.balanced (trénink): kategorie se losuje podle odmocniny z počtu položek (malá kategorie – kolonie, Amerika, zkameněliny – nedostane
+    // stejný podíl otázek jako velká, jinak by se její položky opakovaly dokola); bez ní rovnoměrně jako dřív (dnešní otázky, výzvy, turnaje)
+    const pickItem = (allItems, rng, recentIds = [], categoryOrder = [], weightOf = null, options = {}) => {
         const pickOne = (list) => weightOf ? pickWeighted(list, weightOf, rng) : pickRandom(list, rng);
         const askable = allItems.filter(item => !item.nq);
         const pool = askable.length ? askable : allItems;
         const present = new Set(pool.map(item => item.c));
         const categoryKeys = [...categoryOrder.filter(key => present.has(key)), ...[...present].filter(key => !categoryOrder.includes(key))];
-        const categoryKey = pickRandom(categoryKeys, rng);
+        const sizes = new Map(categoryKeys.map(key => [key, pool.filter(item => item.c === key).length]));
+        const categoryKey = options && options.balanced ? pickWeighted(categoryKeys, key => Math.sqrt(sizes.get(key)), rng) : pickRandom(categoryKeys, rng);
         const inCategory = pool.filter(item => item.c === categoryKey);
         const recent = new Map(recentIds.map((id, index) => [id, index]));
         const fresh = inCategory.filter(item => !recent.has(item.q));
@@ -1671,7 +1674,47 @@
     // z těžších položek (úroveň 2, vlastní los), jinak ze známých; kategorie losem ze semínka (každá stejně často, pořadí z tématu),
     // v ní položka s nejmenším otiskem (semínko + id): nová nebo odebraná položka změní výběr jen tam, kde by sama vyhrála.
     // Nezávisí na nastavení hráče, jeho úrovni, historii ani na Wikipedii.
-    const dailyPick = (items, { seed, categories = [], hardShare = 0.1 } = {}) => {
+    // rotation = { prefix, day, from } (od dne from, YYYY-MM-DD): v každé kategorii se položky střídají v pořadí podle otisku a žádná se neopakuje,
+    // dokud nepřijdou všechny (pak nové pořadí). Počítá se přehráním dnů od from podle semínek (kategorie i těžká otázka se losují stejně jako bez
+    // rotace), takže je to pořád stejné pro všechny; prefix = semínko bez dne. Dny před from a volání bez rotation: původní los
+    const addDay = (day, count) => new Date(Date.parse(`${day}T00:00:00Z`) + count * 86400000).toISOString().slice(0, 10);
+    const dailyPick = (items, { seed, categories = [], hardShare = 0.1, rotation = null } = {}) => {
+        if (rotation && rotation.prefix !== undefined && rotation.day >= rotation.from) return dailyRotate(items, { categories, hardShare, ...rotation });
+        return dailyPickOnce(items, { seed, categories, hardShare });
+    };
+    const dailyRotate = (items, { prefix, day, from, categories = [], hardShare = 0.1 }) => {
+        const list = (items || []).filter(item => item && item.q);
+        const poolOf = (hard) => {
+            const harder = hard ? list.filter(item => levelOf(item) === 2) : [];
+            const base = harder.length ? harder : list.filter(item => item.k === 1);
+            const askable = base.filter(item => !item.nq);
+            return askable.length ? askable : base.length ? base : list;
+        };
+        const hasHarder = list.some(item => levelOf(item) === 2);
+        const pools = [poolOf(false), poolOf(true)];
+        const keysOf = pools.map(pool => { const present = new Set(pool.map(item => item.c)); return [...categories.filter(key => present.has(key)), ...[...present].filter(key => !categories.includes(key)).sort()]; });
+        const sizes = pools.map(pool => { const counts = new Map(); pool.forEach(item => counts.set(item.c, (counts.get(item.c) || 0) + 1)); return counts; });
+        const used = new Map();
+        for (let current = from; current <= day; current = addDay(current, 1)) {
+            const seed = `${prefix}${current}`;
+            const hard = createSeededRandom(`${seed}:tezka`)() < hardShare ? 1 : 0;
+            const kind = hard && hasHarder ? 1 : 0;
+            const keys = keysOf[kind];
+            if (!keys.length) return null;
+            // Kategorie podle odmocniny z počtu položek (malá, třeba kolonie, nedostane tolik otázek, aby se jejích pár položek nevracelo dokola)
+            const category = pickWeighted(keys, key => Math.sqrt(sizes[kind].get(key) || 1), createSeededRandom(`${seed}:kategorie`));
+            const slot = `${kind}|${category}`;
+            const count = used.get(slot) || 0;
+            used.set(slot, count + 1);
+            if (current !== day) continue;
+            const inCategory = pools[kind].filter(item => item.c === category);
+            const cycle = Math.floor(count / inCategory.length);
+            const order = inCategory.map(item => ({ item, hash: hashText(`${prefix}rotace|${slot}|${cycle}|${item.q}`) })).sort((a, b) => a.hash - b.hash || String(a.item.q).localeCompare(String(b.item.q)));
+            return order[count % inCategory.length].item;
+        }
+        return null;
+    };
+    const dailyPickOnce = (items, { seed, categories = [], hardShare = 0.1 } = {}) => {
         const list = (items || []).filter(item => item && item.q);
         const hard = createSeededRandom(`${seed}:tezka`)() < hardShare;
         const harder = hard ? list.filter(item => levelOf(item) === 2) : [];
