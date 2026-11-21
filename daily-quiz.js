@@ -122,6 +122,15 @@
     };
     // Položka pro jednu pozici: kategorie losem (každá kategorie tématu stejně často), v ní položka s nejmenším otiskem (semínko dne + id).
     // Otisk místo pořadí: když přibudou nové položky, změní se výběr jen tam, kde nová položka vyhraje. exclude = id, která už padla.
+    // Od tohoto dne se kategorie losuje podle odmocniny z počtu položek (malá kategorie nedostane stejný podíl jako velká, její položky se pak
+    // nevracejí dokola); dřívější dny zůstávají, jak byly
+    const BALANCED_FROM = '2026-11-30';
+    const weightedCategory = (categories, pool, rng) => {
+        const weights = categories.map(key => Math.sqrt(Math.max(1, pool.filter(item => item.c === key).length)));
+        let target = rng() * weights.reduce((sum, weight) => sum + weight, 0);
+        for (let i = 0; i < categories.length; i++) { target -= weights[i]; if (target < 0) return categories[i]; }
+        return categories[categories.length - 1];
+    };
     const pickFor = (day, slot, topicId, tier, data, exclude = new Set()) => {
         const items = (data && data.items) || [];
         if (!items.length) return null;
@@ -135,7 +144,7 @@
         const order = (data.categories || []).filter(key => present.has(key));
         const categories = [...order, ...[...present].filter(key => !order.includes(key))];
         const rng = seededRandom(`${seedFor(day)}:${slot}:${topicId}:kategorie`);
-        const category = categories[Math.floor(rng() * categories.length)];
+        const category = String(day) >= BALANCED_FROM ? weightedCategory(categories, pool, rng) : categories[Math.floor(rng() * categories.length)];
         const fresh = (list) => list.filter(item => !exclude.has(item.q));
         const candidates = [pool.filter(item => item.c === category), pool, base, items].map(fresh).find(list => list.length) || pool;
         let best = null;

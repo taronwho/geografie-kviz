@@ -323,3 +323,17 @@ test('životy bosse: do 22. 11. 2026 vždy 700, pak 700 až 1000 po 50, většin
     assert.equal(status.max, Boss.hpForWeek('2026-11-23'));
     assert.equal(status.hp, status.max - 110);
 });
+
+test('bossové otázky od týdne 30. 11. 2026: kategorie podle odmocniny z počtu položek, dřívější týdny po starém', () => {
+    const items = [...Array.from({ length: 4 }, (_, i) => ({ q: `Qs${i}`, n: `S${i}`, c: 'mala', k: 1 })), ...Array.from({ length: 400 }, (_, i) => ({ q: `Qv${i}`, n: `V${i}`, c: 'velka', k: 1 }))];
+    const share = (from) => {
+        let small = 0;
+        for (let n = 0; n < 100; n++) {
+            const week = new Date(Date.UTC(from.year, from.month, from.day + 7 * n)).toISOString().slice(0, 10);
+            if (Boss.candidatesFor(week, 1, 0, items, ['mala', 'velka'])[0].c === 'mala') small++;
+        }
+        return small / 100;
+    };
+    assert.ok(Math.abs(share({ year: 2024, month: 5, day: 1 }) - 0.5) < 0.15, 'dřív rovnoměrně');
+    assert.ok(share({ year: 2026, month: 10, day: 30 }) < 0.2, 'nově malá kategorie asi 1 : 10');
+});

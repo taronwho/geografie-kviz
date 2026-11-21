@@ -144,6 +144,8 @@
     // bez nich postupně volnější výběr
     // Od 13. 11. 2026 jen nejznámější čtvrtina kategorie a aspoň dva fakty; dřívější dny (už rozehrané) zůstávají, jak byly
     const EASY_FROM = '2026-11-13';
+    const POOL_FROM = '2026-11-24';
+    const MIN_POOL = 12;
     const candidatesOf = (items, day = EASY_FROM) => {
         const easy = String(day) >= EASY_FROM;
         const list = (items || []).filter(item => item && item.q && item.n);
@@ -161,7 +163,8 @@
             list.filter(item => !item.nq),
             list
         ];
-        return tiers.find(tier => tier.length) || [];
+        // Od 24. 11. 2026 aspoň MIN_POOL kandidátů (u vlajek bez fotek jich byly jen tři, tajemná otázka se pořád opakovala): jinak volnější výběr
+        return (String(day) >= POOL_FROM && tiers.slice(0, 5).find(tier => tier.length >= MIN_POOL)) || tiers.find(tier => tier.length) || [];
     };
     // Položka dne v tématu: nejmenší otisk (semínko dne + id), takže nová data změní výběr jen tam, kde nová položka vyhraje
     const pickItem = (day, topicId, items) => {

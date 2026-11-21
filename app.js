@@ -7270,7 +7270,7 @@
             const tiered = filterItems(base, { tier: game.kind === 'survival' ? Modes.survivalTier(game.asked, Math.random) : settings.tier });
             const candidates = tiered.length ? tiered : base;
             const fresh = candidates.filter(item => !game.seen.has(`${topicId}:${item.q}`));
-            const item = pickItem(fresh.length ? fresh : candidates, Math.random, history, ctx.topic.categories.map(category => category.key));
+            const item = pickItem(fresh.length ? fresh : candidates, Math.random, history, ctx.topic.categories.map(category => category.key), null, { balanced: true });
             if (!item) continue;
             game.seen.add(`${topicId}:${item.q}`);
             const data = await createRoundData(item, ctx, Math.random);
@@ -10681,6 +10681,10 @@
     });
     // Smí výzva (zápas turnaje) mít otázky na mapě: výzva nové aplikace (konec semínka), turnaj od týdne MULTIPLAYER_TOURNAMENTS_FROM
     // (tournament.maps z tournamentChallengeDef); výzvy a turnaje starších verzí aplikace ne (viz question-map.js)
+    // Výzva s vyváženým losem kategorií (odmocnina z počtu položek): nová výzva podle konce semínka (social.js CHALLENGE_BALANCED_MARK), zápas
+    // turnaje podle týdne turnaje; starší výzvy a turnaje se losují po starém na všech zařízeních
+    const CATEGORY_BALANCE_FROM = '2026-11-30';
+    const challengeBalanced = (c) => Boolean(c && (c.tournament ? c.tournament.balanced === true : typeof c.seed === 'string' && c.seed.includes(Social.CHALLENGE_BALANCED_MARK)));
     const challengeAllowsMaps = (c) => Boolean(MapQuestion && c && (c.tournament ? c.tournament.maps === true : MapQuestion.seedAllowsMaps(c.seed)));
     // Výběr otázek výzvy (i zápasu turnaje): stejná otázka pro všechny, položku určuje semínko výzvy a pořadí; u jednoho tématu se dřívější
     // otázky nezopakují. Stejná položka bývá ve dvou tématech (stavba v Architektuře i Zeměpisu): v Mixu a turnaji se nezopakuje ani napříč tématy.
@@ -10698,7 +10702,7 @@
             const unused = all.filter(candidate => !usedIds.has(candidate.q));
             const pool = unused.length ? unused : all;
             const keys = ctx.topic.categories.map(category => category.key).filter(key => !c.categories.length || c.categories.includes(key));
-            return pickItem(pool.length ? pool : ctx.items.filter(candidate => candidate.k === 1), rng, history, keys);
+            return pickItem(pool.length ? pool : ctx.items.filter(candidate => candidate.k === 1), rng, history, keys, null, { balanced: challengeBalanced(c) });
         };
         // Číselná otázka (Seřaď, Odhadni číslo): vlastní řada náhodných čísel ze semínka otázky (výběr položky se nemění)
         // a jen položky, které výzva nabízí a které v ní ještě nebyly; všichni hráči tak dostanou stejnou
@@ -10886,7 +10890,7 @@
     const challengeQuestionList = (def) => {
         const c = { ...def, level: challengeLevel(def), categories: Array.isArray(def.categories) ? def.categories : [] };
         const tour = c.tournament;
-        const key = [c.topic, c.seed, c.count, c.level, c.categories.join(','), tour ? `${tour.seedBase}:${tour.round}:${tour.maps === true}` : '', c.theme || ''].join('|');
+        const key = [c.topic, c.seed, c.count, c.level, c.categories.join(','), tour ? `${tour.seedBase}:${tour.round}:${tour.maps === true}:${tour.balanced === true}` : '', c.theme || ''].join('|');
         if (!breakdownQuestions.has(key)) {
             let complete = false;
             const promise = (async () => {
@@ -11082,7 +11086,7 @@
         const local = !spectator && challenge && challenge.tournament && challenge.tournament.mid === mid ? challenge.results : null;
         openBreakdown({
             def: { topic: view.tournament.topic, seed: `${view.tournament.seed}-r${match.round}`, count: Tournament.QUESTIONS, level: theme ? theme.level : 1, categories: [], theme: theme ? theme.id : null,
-                tournament: { seedBase: view.tournament.seed, round: match.round, maps: tournamentMaps(view.tournament) } },
+                tournament: { seedBase: view.tournament.seed, round: match.round, maps: tournamentMaps(view.tournament), balanced: tournamentBalanced(view.tournament) } },
             players, load: () => Social.tournamentDetails(mid), local, viewAs: spectator ? match.p1 : null, back
         });
     };
@@ -14533,6 +14537,8 @@
     // entries = přihlášení hráči: soupeř se uloží k zápasu (záhlaví otázky ho ukáže, i kdyby se turnaje nenačetly)
     // Turnaj s otázkami na mapě (od týdne MULTIPLAYER_TOURNAMENTS_FROM, question-map.js): pro všechny hráče stejně podle týdne turnaje
     const tournamentMaps = (tournament) => Boolean(MapQuestion && MapQuestion.tournamentAllowsMaps(tournament));
+    // Od turnaje s týdnem od BALANCED_FROM se kategorie losují podle odmocniny z počtu položek (shodně na všech zařízeních podle týdne turnaje)
+    const tournamentBalanced = (tournament) => Boolean(tournament) && typeof tournament.week_start === 'string' && tournament.week_start.slice(0, 10) >= CATEGORY_BALANCE_FROM;
     // Speciální turnaj (schéma 31): otázky jen z položek tématu (theme, tournament.js THEMES) a do obtížnosti tématu (level), ať stačí na všechna kola
     const tournamentChallengeDef = (tournament, state, entries = []) => {
         const opponent = state.opponent ? (entries || []).find(entry => entry.user_id === state.opponent) : null;
@@ -14541,7 +14547,7 @@
             code: 'turnaj', topic: tournament.topic, seed: `${tournament.seed}-r${state.round}`, count: Tournament.QUESTIONS, variant: 'choices', include_hard: false,
             ...(theme ? { level: theme.level, theme: theme.id } : {}),
             tournament: { tid: tournament.id, mid: state.matchId, round: state.round, name: state.roundName, seedBase: tournament.seed, opponent: opponent && opponent.player ? opponent.player : null,
-                maps: tournamentMaps(tournament) }
+                maps: tournamentMaps(tournament), balanced: tournamentBalanced(tournament) }
         };
     };
     // Pokračování rozehraného zápasu od první nezodpovězené otázky; server měří čas od začátku zápasu. Odpovědi se vezmou ze serveru (schéma 3),
@@ -14570,6 +14576,7 @@
         const def = { ...(local || tournamentChallengeDef(view.tournament, view.state, view.entries)) };
         // Zápas rozehraný ve starší verzi aplikace (bez údaje o mapě): údaj podle týdne turnaje, jako u nově začatého
         if (def.tournament && typeof def.tournament.maps !== 'boolean') def.tournament = { ...def.tournament, maps: tournamentMaps(view.tournament) };
+        if (def.tournament && typeof def.tournament.balanced !== 'boolean') def.tournament = { ...def.tournament, balanced: tournamentBalanced(view.tournament) };
         def.results = Array.from({ length: def.count }, (_, index) => (local && local.results[index]) || null);
         // Odpovědi ze serveru platí (mohly přibýt na jiném zařízení); bez spojení se pokračuje podle zařízení
         const user = signedUser();
