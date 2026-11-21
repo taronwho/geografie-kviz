@@ -97,6 +97,8 @@ stejně jako po čase (pořadí, odměny, pomník vítěze, upozornění).
 
 ## Obrázky
 
-Robotí postavičky (docs/OBRAZKY.md §37, č. 459–468) zatím nejsou: bot má avatar 🤖 a štítek s ikonou bota v barvě obtížnosti
-(zelená Mudrlátko, fialová Mudrlant, vínová Super Mudrlant). Pro zapojení stačí doplnit `conquest.js` `BOT_ART` (obtížnost →
-seznam obrázků) a vykreslit je místo ikony v `botBadgeHtml` a v okně Boti.
+Robotí postavičky (docs/OBRAZKY.md §37, č. 459–468) jsou zapojené v `app.js` (`botArt`, v `avatarHtml`): bot s avatarem 🤖 se vykreslí jako
+robot. Robosova Mudrlátko (`rsova1`) a Super Mudrlant (`rsova3`) mají svou postavičku, ostatní boti jedno ze šesti robotích zvířat
+(`rliska`, `rmedv`, `rkocka`, `rzelva`, `rchobo`, `rdrak`) podle id a barva plátování podle barvy profilu bota. Obrázky jsou
+`icons/avatars/r*.webp` a vrstvy barev `r*-1<barva>.webp` (`scripts/avatar-icons.py`). Chybí Robosova Mudrlant (č. 460) a Robo-tučňák
+(č. 466): střední boti zatím berou zvířata.
