@@ -7754,8 +7754,10 @@
     // dá prázdný text (vykreslí se jako emoji).
     // Boti v Dobývání (schéma 42, avatar 🤖): robotí postavička místo emoji. Robosova Mudrlátko a Super Mudrlant mají svou, ostatní boti
     // jednu ze šesti robotích zvířat podle id; barva plátování podle barvy profilu bota (docs/OBRAZKY.md §37, scripts/avatar-icons.py)
-    const ROBOT_ANIMALS = ['rliska', 'rmedv', 'rkocka', 'rzelva', 'rchobo', 'rdrak'];
-    const ROBOT_NO_RED = new Set(['rdrak', 'rsova1']);
+    const ROBOT_ANIMALS = ['rliska', 'rmedv', 'rkocka', 'rzelva', 'rchobo', 'rdrak', 'rmrav', 'rslon', 'rbouri', 'rstras', 'rpanen', 'rhodin', 'rzubar', 'rhlub', 'rcert',
+        'rmor', 'rlout', 'rpauk', 'rklaun', 'rbrouk', 'rhrub', 'rlekar', 'rpest', 'rmask', 'rrez', 'rblaz'];
+    // Robot, jehož původní vínová barva je základní obrázek (barva 1 vrstvou není)
+    const ROBOT_NO_RED = new Set(['rdrak', 'rsova1', 'rslon', 'rlout', 'rbrouk', 'rlekar', 'rpest', 'rmask', 'rrez', 'rblaz']);
     const ROBOT_COLORS = { emerald: 4, sky: 6, violet: 7, rose: 8, amber: 3, teal: 5, orange: 2, indigo: 6 };
     const botHash = (text) => [...String(text || '')].reduce((sum, letter) => (Math.imul(sum, 31) + letter.charCodeAt(0)) >>> 0, 7);
     const botArt = (player, sizeClass = 'h-[82%] w-[82%]') => {
