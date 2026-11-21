@@ -33,7 +33,7 @@ const QUESTION = { kind: 'capital', prompt: 'Které město je hlavním městem R
 
 test('pravidla: strop a názvy stejné jako na serveru; 50/50 jen u 4 textových nebo obrázkových možností; odebere vždy dvě špatné', () => {
     const schema = fs.readFileSync(path.join(ROOT, 'supabase', 'schema.sql'), 'utf8');
-    assert.match(schema, /player_item_cap\(item text\) returns integer\s+language sql immutable as \$\$ select case item when 'extra_move' then 1 when 'fifty' then 2 when 'chain_rescue' then 1 when 'revive' then 3 end \$\$;/);
+    assert.match(schema, /player_item_cap\(item text\) returns integer\s+language sql immutable as \$\$ select case item when 'extra_move' then 1 when 'fifty' then 2 when 'chain_rescue' then 1 when 'revive' then 3 when 'double_hit' then 2 when 'freeze' then 2 when 'heart' then 1 when 'free_hint' then 2 when 'attempt' then 1 end \$\$;/);
     assert.deepEqual(C.ITEM_IDS, ['extra_move', 'fifty', 'revive'], 'Záchrana navíc (blok 37) patří do Řetězovky, ne do pruhu Dobývání');
     assert.deepEqual([C.ITEMS.revive.max, C.ITEMS.revive.name, C.ITEMS.revive.place], [3, 'Ankh vzkříšení', undefined]);
     assert.deepEqual(C.itemIdsFor({ extra_move: 0, fifty: 0 }), ['extra_move', 'fifty'], 'databáze bez bloku 39: bez Ankh vzkříšení');
@@ -210,14 +210,14 @@ test('social.js: zásoba, zisk ze sezóny a truhly, Tah navíc a 50/50; zisk v B
     });
     try {
         // Bez chain_rescue v odpovědi = databáze bez bloku 37 (Záchrana navíc se nenabídne)
-        assert.deepEqual(await Social.playerItemsMine(), { extra_move: 1, fifty: 1, max: { extra_move: 1, fifty: 2, chain_rescue: 1, revive: 3 } }, 'strop i v aplikaci');
+        assert.deepEqual(await Social.playerItemsMine(), { extra_move: 1, fifty: 1, max: { extra_move: 1, fifty: 2, chain_rescue: 1, revive: 3, double_hit: 2, freeze: 2, heart: 1, free_hint: 2, attempt: 1 } }, 'strop i v aplikaci');
         const claimed = await Social.playerItemsClaim('season', 'season:2026-11:5');
         assert.deepEqual(calls.pop(), { name: 'player_items_claim', body: { source: 'season', key: 'season:2026-11:5' } });
-        assert.deepEqual(claimed, { kind: 'fifty', granted: true, full: false, already: false, count: 1, max: 2, lucky: true, items: { extra_move: 0, fifty: 1, max: { extra_move: 1, fifty: 2, chain_rescue: 1, revive: 3 } } });
+        assert.deepEqual(claimed, { kind: 'fifty', granted: true, full: false, already: false, count: 1, max: 2, lucky: true, items: { extra_move: 0, fifty: 1, max: { extra_move: 1, fifty: 2, chain_rescue: 1, revive: 3, double_hit: 2, freeze: 2, heart: 1, free_hint: 2, attempt: 1 } } });
         const used = await Social.conquestUseExtra(GAME);
         assert.deepEqual(calls.pop(), { name: 'conquest_use_extra', body: { game: GAME } });
-        assert.deepEqual(used.items, { extra_move: 0, fifty: 1, max: { extra_move: 1, fifty: 2, chain_rescue: 1, revive: 3 }, extra_used: true, fifty_used: false, can_extra: false, extra_block: 'Tah navíc jde v jedné hře použít jen jednou.' });
-        assert.deepEqual(await Social.conquestUseFifty(GAME, { target: 'Q40' }), { removed: null, items: { extra_move: 0, fifty: 0, max: { extra_move: 1, fifty: 2, chain_rescue: 1, revive: 3 } }, fifty_used: true });
+        assert.deepEqual(used.items, { extra_move: 0, fifty: 1, max: { extra_move: 1, fifty: 2, chain_rescue: 1, revive: 3, double_hit: 2, freeze: 2, heart: 1, free_hint: 2, attempt: 1 }, extra_used: true, fifty_used: false, can_extra: false, extra_block: 'Tah navíc jde v jedné hře použít jen jednou.' });
+        assert.deepEqual(await Social.conquestUseFifty(GAME, { target: 'Q40' }), { removed: null, items: { extra_move: 0, fifty: 0, max: { extra_move: 1, fifty: 2, chain_rescue: 1, revive: 3, double_hit: 2, freeze: 2, heart: 1, free_hint: 2, attempt: 1 } }, fifty_used: true });
         assert.deepEqual(calls.pop().body, { game: GAME, siege: null, target: 'Q40' });
         assert.deepEqual((await Social.conquestUseFifty(GAME, { siege: SIEGE })).removed, [3, 0]);
         assert.deepEqual(calls.pop().body, { game: GAME, siege: SIEGE, target: null });

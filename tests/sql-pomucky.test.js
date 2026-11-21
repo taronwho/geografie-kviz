@@ -9,6 +9,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+// Pomůcky do bossů (blok 49) a jejich stropy; v zásobě jsou vždy (0, dokud je hráč nemá)
+const NEW_ZERO = { double_hit: 0, freeze: 0, heart: 0, free_hint: 0, attempt: 0 };
+const MAX = { extra_move: 1, fifty: 2, chain_rescue: 1, revive: 3, double_hit: 2, freeze: 2, heart: 1, free_hint: 2, attempt: 1 };
 
 const host = process.env.PGHOST || '/tmp';
 const port = process.env.PGPORT || '5439';
@@ -110,7 +113,7 @@ test('SQL: pomůcky do Dobývání', { skip: !available && 'PostgreSQL není dos
         for (const sql of ['select player_items_mine();', `select player_items_claim('season', 'season:2026-11:5');`, 'select * from player_items;']) denied(as(null, sql, 'anon'), null, sql);
         denied(as(null, 'select player_items_mine();'), /Přihlas se/);
         // Startovní Ankh vzkříšení (blok 39) přijde s prvním načtením zásoby
-        assert.deepEqual(json(as(A, 'select player_items_mine();')), { extra_move: 0, fifty: 0, chain_rescue: 0, revive: 1, max: { extra_move: 1, fifty: 2, chain_rescue: 1, revive: 3 } });
+        assert.deepEqual(json(as(A, 'select player_items_mine();')), { extra_move: 0, fifty: 0, chain_rescue: 0, revive: 1, ...NEW_ZERO, max: MAX });
         // Strop: Tah navíc nejvýš 1, 50/50 nejvýš 2, Ankh vzkříšení nejvýš 3 (ani správce databáze víc nezapíše)
         for (const [kind, count] of [['extra_move', 2], ['fifty', 3], ['fifty', -1], ['chain_rescue', 2], ['revive', 4], ['jiny', 1]]) {
             const r = psql(dbName, `insert into player_items (user_id, kind, count) values ('${E}', '${kind}', ${count})`);
@@ -143,7 +146,7 @@ test('SQL: pomůcky do Dobývání', { skip: !available && 'PostgreSQL není dos
         const full = json(as(A, `select boss_submit('2026-11-16', 0, 700, true);`));
         assert.deepEqual(pick(full.item), ['extra_move', false, true, false, 1]);
         assert.deepEqual(mine(A), [1, 0]);
-        assert.equal(q(`select string_agg(key || '=' || granted, ',' order by key) from player_item_grants where user_id = '${A}'`), 'boss:2026-11-09=true,boss:2026-11-16=false,starter=true');
+        assert.equal(q(`select string_agg(key || '=' || granted, ',' order by key) from player_item_grants where user_id = '${A}'`), 'boss:2026-11-09=true,boss:2026-11-16=false,bossatt:2026-11-09:0=true,bossatt:2026-11-09:1=true,bossatt:2026-11-09:2=true,bossatt:2026-11-16:0=true,bosswin:2026-11-09=true,bosswin:2026-11-16=false,starter=true');
     });
 
     await t.test('Kvíz dne bez chyby: 50/50 nejvýš jednou za ISO týden; s plnou zásobou se v týdnu zkusí znovu; s chybou nic', () => {
@@ -190,7 +193,7 @@ test('SQL: pomůcky do Dobývání', { skip: !available && 'PostgreSQL není dos
         clock = '2026-11-20T10:00:00Z';
         const r5 = json(claim(D, 'season', 'season:2026-11:5'));
         assert.deepEqual(pick(r5), ['fifty', true, false, false, 1]);
-        assert.deepEqual(r5.items, { extra_move: 0, fifty: 1, chain_rescue: 0, revive: 0, max: { extra_move: 1, fifty: 2, chain_rescue: 1, revive: 3 } });
+        assert.deepEqual(r5.items, { extra_move: 0, fifty: 1, chain_rescue: 0, revive: 0, ...NEW_ZERO, max: MAX });
         assert.deepEqual(pick(json(claim(D, 'season', 'season:2026-11:5'))), ['fifty', true, false, true, 1], 'jednou za klíč (druhé zařízení dostane totéž)');
         assert.deepEqual(pick(json(claim(D, 'season', 'season:2026-11:15'))), ['extra_move', true, false, false, 1]);
         // Minulý měsíc ještě jde (dovybrání), starší ne; jiné stupně, tvary a zdroje ne
@@ -414,7 +417,7 @@ test('SQL: pomůcky do Dobývání', { skip: !available && 'PostgreSQL není dos
         assert.deepEqual([lazy.place, lazy.item], [1, undefined]);
         assert.deepEqual(mine(D)[1], 1);
         // Lobby ukáže zásobu
-        assert.deepEqual(json(as(D, 'select conquest_lobby();')).items, { extra_move: 0, fifty: 1, chain_rescue: 0, revive: 1, max: { extra_move: 1, fifty: 2, chain_rescue: 1, revive: 3 } });
+        assert.deepEqual(json(as(D, 'select conquest_lobby();')).items, { extra_move: 0, fifty: 1, chain_rescue: 0, revive: 1, ...NEW_ZERO, max: MAX });
     });
 
     await t.test('Záchrana navíc (blok 37): 12. stupeň Sezóny, Truhla Mudrlanta 5 % ze stejného losu, Zlatá truhla 20 % jednou za týden; strop 1', () => {
