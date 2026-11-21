@@ -226,7 +226,15 @@
         { id: 'chrest', title: 'Chřestýš', badge: 'tema-mytologie-100', parts: ['Hrot', 'Chřestítko'], colors: [ALL, [1, 4, 5, 6, 7, 8, 9]] },
         { id: 'celerb', title: 'Celerbrita', badge: 'hvezdy-2', parts: ['Řetěz', 'Kožíšek'], colors: [[1, 4, 5, 6, 7, 8, 9], ALL] },
         { id: 'candid', title: 'Candidát', badge: 'uroven-20', parts: ['Oblek', 'Šerpa a kravata'], colors: [ALL, [2, 3, 4, 5, 6, 7, 8, 9]] },
-        { id: 'hrozny', title: 'Hroznýš', badge: 'tema-fyzika-100', parts: ['Fialové hrozny', 'Lístky'], colors: [ALL, ALL] }
+        { id: 'hrozny', title: 'Hroznýš', badge: 'tema-fyzika-100', parts: ['Fialové hrozny', 'Lístky'], colors: [ALL, ALL] },
+        { id: 'sob', title: 'Slaboduchý sob', badge: 'odpovedi-500', parts: ['Lžíce', 'Sušenka'], colors: [[1, 3, 4, 5, 6, 7, 8, 9], [1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'cocka', title: 'Čočka', badge: 'tema-vlajky-100', parts: ['Čočka', 'Baret'], colors: [ALL, [1, 2, 3, 4, 5, 6, 7, 8]] },
+        { id: 'pazitk', title: 'Pažitka', badge: 'dokonale-7', parts: ['Čelenka', 'Květ'], colors: [[2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 9]] },
+        { id: 'brusin', title: 'Brusinka', badge: 'zbehly-mytologie-5', parts: ['Peří', 'Medailon'], colors: [[1, 2, 3, 4, 6, 7, 8, 9], [1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'pivonk', title: 'Pivoňka', badge: 'zbehly-biologie-5', parts: ['Pivo', 'Lístky'], colors: [[1, 4, 5, 6, 7, 8, 9], ALL] },
+        { id: 'kaprad', title: 'Kapradí', badge: 'zbehly-zemepis-5', parts: ['Klobouk', 'Plášť'], colors: [[1, 2, 3, 4, 5, 6, 7, 8], ALL] },
+        { id: 'husita', title: 'Husita', badge: 'zbehly-historie-5', parts: ['Přilba', 'Kalich'], colors: [ALL, [3, 4, 5, 6, 7, 8, 9]] },
+        { id: 'hermel', title: 'Hermelín', badge: 'perfektni-vyzvy-5', parts: ['Koruna', 'Sýr uvnitř'], colors: [[1, 4, 5, 6, 7, 8, 9], [1, 4, 5, 6, 7, 8, 9]] }
     ];
     AVATARS.push(...NEW_AVATARS);
     // Témata diplomů legendárních postaviček (název pro „Diplom: Zeměpis“; app.js a rewards.js mají vlastní seznam témat)
