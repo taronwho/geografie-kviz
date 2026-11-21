@@ -109,7 +109,8 @@
     // 39 = Dobývání: pomůcka Ankh vzkříšení místo automatického Návratu do hry (conquest_use_revive, ochrana 60 s, zásoba revive; zisk startovní,
     // za započítanou hru, sérii Kvízu dne, 8. stupeň Sezóny a truhly; se starší databází se hráč bez území vrátí sám jako dřív).
     const REQUIRED_SCHEMA = 49;
-    const HISTORY_SIZE = 200;
+    // Naposledy hrané položky (trénink se jim vyhýbá, dokud nejsou vyčerpané všechny v kategorii)
+    const HISTORY_SIZE = 1500;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
     const PHOTO_TIMEOUT = 8000;
@@ -6586,6 +6587,8 @@
     // otiskem, takže nová položka v datech změní výběr jen tam, kde vyhraje) a otázka se nevyměňuje za jinou kvůli chudému popisu – výměna
     // závisela na tom, jestli se hráči načetla Wikipedie. Dřívější dny (už rozehrané) vybírá původní los, ať se nezmění.
     const DAILY_STABLE_FROM = '2026-11-17';
+    // Od tohoto dne se dnešní otázky v každé kategorii střídají bez opakování, dokud nepřijdou všechny položky (quiz-core.js dailyPick, rotation)
+    const DAILY_ROTATION_FROM = '2026-11-24';
     // Kontext tématu, jak vypadal ve hraný den (core.itemsAsOf: změna úrovní známosti platí od svého dne); bez změn tentýž objekt
     const asOfContexts = new WeakMap();
     const ctxAsOf = (ctx, day) => {
@@ -6637,7 +6640,7 @@
             }
             const ctx = ctxAsOf(await loadTopic(topicId), today);
             if (today >= DAILY_STABLE_FROM) {
-                const item = pickDailyItem(ctx.items, { seed: dailySeed(ctx.topic, today), categories: ctx.topic.categories.map(c => c.key), hardShare: DAILY_HARD_SHARE });
+                const item = pickDailyItem(ctx.items, { seed: dailySeed(ctx.topic, today), categories: ctx.topic.categories.map(c => c.key), hardShare: DAILY_HARD_SHARE, rotation: { prefix: dailySeed(ctx.topic, ''), day: today, from: DAILY_ROTATION_FROM } });
                 return { item, ctx, rng: createSeededRandom(dailySeed(ctx.topic, today)), dailyDate: today, snapshotSeed, stable: true };
             }
             const rng = createSeededRandom(attempt ? `${dailySeed(ctx.topic, today)}:r${attempt}` : dailySeed(ctx.topic, today));
@@ -6753,7 +6756,7 @@
             }
             if (pool.kind === 'collection') {
                 ctx = await loadTopic(pool.topic);
-                item = pickItem(collectionItems(ctx, pool.collection), Math.random, history, ctx.topic.categories.map(c => c.key));
+                item = pickItem(collectionItems(ctx, pool.collection), Math.random, history, ctx.topic.categories.map(c => c.key), null, { balanced: true });
                 // Okruh, který v nových datech už není (nebo je prázdný): celé téma
                 if (!item) {
                     showToast('Tenhle okruh teď nic neobsahuje, hraju celé téma');
@@ -6774,14 +6777,14 @@
                     const tiered = filterItems(all, { tier: settings.tier });
                     const choices = tiered.length >= 8 ? tiered : all;
                     if (!choices.length) { groups = groups.filter(other => other !== group); continue; }
-                    const pickedItem = pickItem(choices, Math.random, history, ctx.topic.categories.map(c => c.key));
+                    const pickedItem = pickItem(choices, Math.random, history, ctx.topic.categories.map(c => c.key), null, { balanced: true });
                     if (pickedItem && MapQuestion.buildQuestion(pickedItem, ctx, map)) item = pickedItem;
                 }
             }
             if (pool.kind === 'topic' || pool.kind === 'mix') {
                 ctx = await loadTopic(pool.kind === 'topic' ? pool.topic : pickRandom(settings.topics, Math.random));
                 // Trénink bez semínka: mírná kalibrace obtížnosti podle odpovědí ostatních (pravidlo v answer-stats.js)
-                item = pickItem(playableItems(ctx), Math.random, history, ctx.topic.categories.map(c => c.key), answerStatsWeigher(ctx.topic.id));
+                item = pickItem(playableItems(ctx), Math.random, history, ctx.topic.categories.map(c => c.key), answerStatsWeigher(ctx.topic.id), { balanced: true });
                 // Tu a tam Seřaď nebo Odhadni číslo z vybraných kategorií (v okruzích, chybách a opakování z učení ne)
                 numeric = numericPlan(ctx, item, playableItems(ctx), Math.random);
                 // Tu a tam Časové souvislosti (Co bylo dřív, Mohli se potkat…) – ne místo číselné otázky
