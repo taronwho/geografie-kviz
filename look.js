@@ -231,7 +231,7 @@
         { id: 'cocka', title: 'Čočka', badge: 'tema-vlajky-100', parts: ['Čočka', 'Baret'], colors: [ALL, [1, 2, 3, 4, 5, 6, 7, 8]] },
         { id: 'pazitk', title: 'Pažitka', badge: 'dokonale-7', parts: ['Čelenka', 'Květ'], colors: [[2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 9]] },
         { id: 'brusin', title: 'Brusinka', badge: 'zbehly-mytologie-5', parts: ['Peří', 'Medailon'], colors: [[1, 2, 3, 4, 6, 7, 8, 9], [1, 4, 5, 6, 7, 8, 9]] },
-        { id: 'pivonk', title: 'Pivoňka', badge: 'zbehly-biologie-5', parts: ['Pivo', 'Lístky'], colors: [[1, 4, 5, 6, 7, 8, 9], ALL] },
+        { id: 'pivonk', title: 'Pivoňka', badge: 'zbehly-biologie-5', parts: ['Pivo', 'Květ'], colors: [[1, 4, 5, 6, 7, 8, 9], [2, 3, 4, 5, 6, 7, 9]] },
         { id: 'kaprad', title: 'Kapradí', badge: 'zbehly-zemepis-5', parts: ['Klobouk', 'Plášť'], colors: [[1, 2, 3, 4, 5, 6, 7, 8], ALL] },
         { id: 'husita', title: 'Husita', badge: 'zbehly-historie-5', parts: ['Přilba', 'Kalich'], colors: [ALL, [3, 4, 5, 6, 7, 8, 9]] },
         { id: 'hermel', title: 'Hermelín', badge: 'perfektni-vyzvy-5', parts: ['Koruna', 'Sýr uvnitř'], colors: [[1, 4, 5, 6, 7, 8, 9], [1, 4, 5, 6, 7, 8, 9]] }
