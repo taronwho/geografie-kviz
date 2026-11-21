@@ -1840,3 +1840,16 @@ test('Moje hry: dohrané hry od nejnovější, ukáže se prvních pět a dalš�
     assert.equal([...all.matchAll(/data-cq-game=/g)].length, 8);
     assert.doesNotMatch(all, /data-cq-more/);
 });
+
+test('boti mají robotí postavičku: Mudrlátko a Super Mudrlant svou, ostatní robota podle id, barva podle vlajky; člověk nic', () => {
+    const face = (player) => C.botFaceHtml(player);
+    assert.match(face({ id: 'a', bot: 'easy', flag_color: 'modra' }), /rsova1\.webp[^]*rsova1-16\.webp/);
+    assert.match(face({ id: 'a', bot: 'hard', flag_color: 'cervena' }), /rsova3\.webp[^]*rsova3-11\.webp/);
+    assert.match(face({ id: 'abc', bot: 'medium', flag_color: 'zelena' }), /data-bot-face="r[a-z0-9]+"[^]*-14\.webp/);
+    assert.equal(face({ id: 'abc', bot: 'medium', flag_color: 'zelena' }), face({ id: 'abc', bot: 'medium', flag_color: 'zelena' }), 'stejný bot má vždy stejného robota');
+    assert.equal(face({ id: 'u1', display_name: 'Jana' }), '');
+    const fs = require('node:fs');
+    for (const robot of ['rsova1', 'rsova3', 'rliska', 'rmedv', 'rkocka', 'rzelva', 'rchobo', 'rdrak', 'rmrav', 'rpauk', 'rklaun', 'rblaz']) assert.ok(fs.existsSync(`icons/avatars/${robot}.webp`), robot);
+    const lobby = C.lobbyDetailHtml({ game: { id: 'g', players: [{ id: 'b1', display_name: 'Otazník', bot: 'medium', flag_color: 'fialova', emblem: 'lev', ready: true }], max_players: 4, status: 'lobby' } });
+    assert.match(lobby, /data-bot-face/);
+});

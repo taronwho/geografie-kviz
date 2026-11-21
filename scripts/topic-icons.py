@@ -101,6 +101,9 @@ def cut(path, name=''):
     im = Image.fromarray(np.dstack([rgb, alpha * 255]).round().astype(np.uint8), 'RGBA')
     return im.crop(im.getchannel('A').point(lambda v: 255 if v > 8 else 0).getbbox())
 
+# Předměty do souboje s bossem týdne (docs/BOSS-PREDMETY.md): samolepky s krémovým okrajem
+STICKER |= {'boss-zmrazeni', 'boss-napoveda', 'boss-dvojity-uder', 'boss-srdce', 'boss-vybava', 'boss-pokus'}
+
 # Zavřená Zlatá truhla: teplá záře kolem truhly má skoro barvu krémového okraje, takže by v ikoně zůstala jako šedý lem.
 # Předmět se proto vymezí tmavě vínovým obrysem kresby (výplň od okraje obrázku se přes něj nedostane) a k němu se přidá
 # krémový okraj těsně vně; záře a jiskry kolem zmizí, okraj se jen lehce změkčí.

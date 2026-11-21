@@ -108,7 +108,7 @@
     // milníky Řetězovky, 12. stupeň Sezóny, Truhlu Mudrlanta, Zlatou truhlu a společný cíl Bosse; se starší databází se nenabídne).
     // 39 = Dobývání: pomůcka Ankh vzkříšení místo automatického Návratu do hry (conquest_use_revive, ochrana 60 s, zásoba revive; zisk startovní,
     // za započítanou hru, sérii Kvízu dne, 8. stupeň Sezóny a truhly; se starší databází se hráč bez území vrátí sám jako dřív).
-    const REQUIRED_SCHEMA = 48;
+    const REQUIRED_SCHEMA = 49;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -7752,22 +7752,10 @@
     // Postavička (look.js, icons/avatars): základní obrázek a přes něj vrstvy přebarvených částí v jedné buňce mřížky. Zabere 82 % kolečka,
     // takže je celá vidět i s obrysem (obrázky jsou skoro čtvercové); velikost se bere z kolečka, ne z písma. Hodnota, která není postavička,
     // dá prázdný text (vykreslí se jako emoji).
-    // Boti v Dobývání (schéma 42, avatar 🤖): robotí postavička místo emoji. Robosova Mudrlátko a Super Mudrlant mají svou, ostatní boti
-    // jednu ze šesti robotích zvířat podle id; barva plátování podle barvy profilu bota (docs/OBRAZKY.md §37, scripts/avatar-icons.py)
-    const ROBOT_ANIMALS = ['rliska', 'rmedv', 'rkocka', 'rzelva', 'rchobo', 'rdrak', 'rmrav', 'rslon', 'rbouri', 'rstras', 'rpanen', 'rhodin', 'rzubar', 'rhlub', 'rcert',
-        'rmor', 'rlout', 'rpauk', 'rklaun', 'rbrouk', 'rhrub', 'rlekar', 'rpest', 'rmask', 'rrez', 'rblaz'];
-    // Robot, jehož původní vínová barva je základní obrázek (barva 1 vrstvou není)
-    const ROBOT_NO_RED = new Set(['rdrak', 'rsova1', 'rslon', 'rlout', 'rbrouk', 'rlekar', 'rpest', 'rmask', 'rrez', 'rblaz']);
-    const ROBOT_COLORS = { emerald: 4, sky: 6, violet: 7, rose: 8, amber: 3, teal: 5, orange: 2, indigo: 6 };
-    const botHash = (text) => [...String(text || '')].reduce((sum, letter) => (Math.imul(sum, 31) + letter.charCodeAt(0)) >>> 0, 7);
+    // Boti v Dobývání (schéma 42, avatar 🤖): robotí postavička místo emoji (conquest.js botFaceHtml)
     const botArt = (player, sizeClass = 'h-[82%] w-[82%]') => {
-        if (!player || !(player.bot || player.avatar === '🤖')) return '';
-        const key = botHash(player.id || player.display_name || player.name);
-        const id = player.bot === 'easy' ? 'rsova1' : player.bot === 'hard' ? 'rsova3' : ROBOT_ANIMALS[key % ROBOT_ANIMALS.length];
-        let color = ROBOT_COLORS[player.color] || 1 + (key >>> 3) % 9;
-        if (color === 1 && ROBOT_NO_RED.has(id)) color = 0;
-        const layers = color ? [`icons/avatars/${id}-1${color}.webp`] : [];
-        return `<span data-avatar-art="${id}" class="grid shrink-0 ${sizeClass}">${[`icons/avatars/${id}.webp`, ...layers].map((src, index) => `<img src="${src}" alt=""${index ? ' data-avatar-layer' : ''} draggable="false" class="pointer-events-none h-full w-full select-none object-contain [grid-area:1/1]">`).join('')}</span>`;
+        const Conquest = window.MudrlantConquest;
+        return Conquest && Conquest.botFaceHtml ? Conquest.botFaceHtml(player, sizeClass) : '';
     };
     const avatarArt = (value, sizeClass = 'h-[82%] w-[82%]') => {
         const picture = Look && Look.avatarPicture ? Look.avatarPicture(value) : null;

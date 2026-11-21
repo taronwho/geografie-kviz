@@ -3900,6 +3900,8 @@ create table if not exists public.boss_results (
     defeated boolean not null default false,
     attempts smallint not null default 0,
     bonus_claimed boolean not null default false,
+    -- pomůcka Další pokus (blok 49): čtvrtý pokus v týdnu
+    extra boolean not null default false,
     -- volání boss_submit v tomto týdnu (limit proti zahlcení, opakované odeslání téhož pokusu)
     calls smallint not null default 0,
     created_at timestamptz not null default now(),
@@ -3924,9 +3926,10 @@ end;
 $$;
 revoke all on function public.boss_week_hp(date) from public, anon;
 grant execute on function public.boss_week_hp(date) to authenticated;
+alter table public.boss_results add column if not exists extra boolean not null default false;
 alter table public.boss_results drop constraint if exists boss_results_values;
 alter table public.boss_results add constraint boss_results_values check (
-    extract(isodow from week) = 1 and attempts between 1 and 3 and best_damage between 0 and 1000 and defeated = (best_damage = public.boss_week_hp(week))
+    extract(isodow from week) = 1 and attempts between 1 and 4 and best_damage between 0 and 1000 and defeated = (best_damage = public.boss_week_hp(week))
     and calls between 0 and 1000);
 create index if not exists boss_results_week on public.boss_results (week, defeated);
 alter table public.boss_results enable row level security;
@@ -3949,7 +3952,7 @@ $$;
 create or replace function public.boss_json(r public.boss_results, w date) returns jsonb
 language sql stable set search_path = public as $$
     select jsonb_build_object('week', w, 'attempts', coalesce(r.attempts, 0), 'best_damage', coalesce(r.best_damage, 0), 'defeated', coalesce(r.defeated, false),
-        'bonus_claimed', coalesce(r.bonus_claimed, false))
+        'bonus_claimed', coalesce(r.bonus_claimed, false), 'extra', coalesce(r.extra, false))
 $$;
 
 -- Dohraný souboj: týden (pondělí; ten běžící, nebo minulý ještě 30 minut po půlnoci), idx = kolikátý pokus (0–2), uštědřené poškození
@@ -3958,23 +3961,25 @@ $$;
 -- (blok 30, klíč boss:<týden>): item = { kind, granted, full, count, max }, jen u odeslání s first_win.
 create or replace function public.boss_submit(for_week date, idx integer, damage integer, is_defeated boolean) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare uid uuid := auth.uid(); t timestamptz := public.boss_now(); r public.boss_results; first boolean; item jsonb;
+declare uid uuid := auth.uid(); t timestamptz := public.boss_now(); r public.boss_results; first boolean; item jsonb; attkey text; attitem jsonb; winitem jsonb; cap integer;
 begin
     if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
     if for_week is null or for_week not in (public.boss_week(t), public.boss_week(t - interval '30 minutes')) then
         raise exception 'Tenhle boss už odešel. Tento týden je nový.' using errcode = '22023';
     end if;
-    if idx is null or idx < 0 or idx > 2 or damage is null or damage < 0 or damage > public.boss_week_hp(for_week) or is_defeated is null or is_defeated <> (damage = public.boss_week_hp(for_week)) then
+    if idx is null or idx < 0 or idx > 3 or damage is null or damage < 0 or damage > public.boss_week_hp(for_week) or is_defeated is null or is_defeated <> (damage = public.boss_week_hp(for_week)) then
         raise exception 'Neplatný výsledek souboje.' using errcode = '22023';
     end if;
     select * into r from public.boss_results where user_id = uid and week = for_week for update;
     if r.calls >= 30 then raise exception 'Příliš mnoho pokusů o uložení. Zkus to příští týden.' using errcode = '22023'; end if;
+    cap := 3 + case when coalesce(r.extra, false) then 1 else 0 end;
+    if idx >= cap then raise exception 'Neplatný výsledek souboje.' using errcode = '22023'; end if;
     if idx < coalesce(r.attempts, 0) then
         -- Opakované odeslání: pokus už je uložený, nic se nemění
         update public.boss_results set calls = calls + 1 where user_id = uid and week = for_week returning * into r;
         return public.boss_json(r, for_week) || jsonb_build_object('first_win', false);
     end if;
-    if coalesce(r.attempts, 0) >= 3 then raise exception 'Pokusy na tento týden došly.' using errcode = '22023'; end if;
+    if coalesce(r.attempts, 0) >= cap then raise exception 'Pokusy na tento týden došly.' using errcode = '22023'; end if;
     first := is_defeated and not coalesce(r.defeated, false);
     if r.user_id is null then
         -- První pokus v týdnu založí řádek (souběžný první pokus z druhého zařízení skončí chybou klíče a aplikace stav načte znovu)
@@ -3994,8 +3999,16 @@ begin
     if first and to_regprocedure('public.player_item_grant(uuid, text, text, boolean)') is not null then
         item := public.player_item_grant(uid, 'extra_move', 'boss:' || for_week, false);
     end if;
+    -- Blok 49: každý dohraný pokus dá útěchu (los: Dvojitý úder, Zmrazení času, Srdce navíc nebo Nápověda zdarma), první výhra navíc Další pokus
+    if to_regprocedure('public.player_item_grant(uuid, text, text, boolean)') is not null then
+        attkey := 'bossatt:' || for_week || ':' || idx;
+        attitem := public.player_item_grant(uid, (array['double_hit', 'freeze', 'heart', 'free_hint'])[1 + public.player_item_roll(uid, attkey) % 4], attkey, false);
+        if first then winitem := public.player_item_grant(uid, 'attempt', 'bosswin:' || for_week, false); end if;
+    end if;
     return public.boss_json(r, for_week) || jsonb_build_object('first_win', first)
-        || case when item is not null then jsonb_build_object('item', item) else '{}'::jsonb end;
+        || case when item is not null then jsonb_build_object('item', item) else '{}'::jsonb end
+        || case when attitem is not null then jsonb_build_object('att_item', attitem) else '{}'::jsonb end
+        || case when winitem is not null then jsonb_build_object('win_item', winitem) else '{}'::jsonb end;
 end;
 $$;
 
@@ -7083,8 +7096,8 @@ create table if not exists public.player_items (
 );
 alter table public.player_items drop constraint if exists player_items_values;
 -- Záchrana navíc do Řetězovky ('chain_rescue', nejvýš 1) přibyla v bloku 37, Ankh vzkříšení do Dobývání ('revive', nejvýš 3) v bloku 39
-alter table public.player_items add constraint player_items_values check (kind in ('extra_move', 'fifty', 'chain_rescue', 'revive') and count >= 0
-    and count <= case kind when 'fifty' then 2 when 'revive' then 3 else 1 end);
+alter table public.player_items add constraint player_items_values check (kind in ('extra_move', 'fifty', 'chain_rescue', 'revive', 'double_hit', 'freeze', 'heart', 'free_hint', 'attempt') and count >= 0
+    and count <= case kind when 'fifty' then 2 when 'revive' then 3 when 'double_hit' then 2 when 'freeze' then 2 when 'free_hint' then 2 else 1 end);
 -- Odkud pomůcky přišly: jeden řádek na hráče a klíč zdroje; granted = false: pomůcka nepřibyla (plná zásoba, nebo v truhle nevyšel los)
 create table if not exists public.player_item_grants (
     user_id uuid not null references public.profiles (id) on delete cascade,
@@ -7098,8 +7111,8 @@ alter table public.player_item_grants drop constraint if exists player_item_gran
 -- Klíče Záchrany navíc (blok 37): gold:<RRRR-Wtt> (Zlatá truhla), bossbonus:<týden> (společný cíl Bosse), season:<RRRR-MM>:12,
 -- chain-days:<počet> a chain-clean:<počet> (milníky Řetězovky dne). Klíče Ankh vzkříšení (blok 39): starter (jednou na začátek),
 -- revive:<hra> (započítaná hra Dobývání s body), daily-streak:<dny> (milníky série Kvízu dne), season:<RRRR-MM>:8, chest:<týden>, gold:<týden>
-alter table public.player_item_grants add constraint player_item_grants_values check (kind in ('extra_move', 'fifty', 'chain_rescue', 'revive')
-    and key ~ '^(boss:\d{4}-\d{2}-\d{2}|bossbonus:\d{4}-\d{2}-\d{2}|daily:\d{4}-W\d{2}|chain:\d{4}-W\d{2}|chest:\d{4}-W\d{2}|gold:\d{4}-W\d{2}|season:\d{4}-\d{2}:(5|8|12|15)|conquest:[0-9a-f-]{36}|chain-days:\d{1,3}|chain-clean:\d{1,3}|starter|revive:[0-9a-f-]{36}|daily-streak:\d{1,3})$');
+alter table public.player_item_grants add constraint player_item_grants_values check (kind in ('extra_move', 'fifty', 'chain_rescue', 'revive', 'double_hit', 'freeze', 'heart', 'free_hint', 'attempt')
+    and key ~ '^(boss:\d{4}-\d{2}-\d{2}|bossatt:\d{4}-\d{2}-\d{2}:[0-3]|bosswin:\d{4}-\d{2}-\d{2}|boss:\d{4}-\d{2}-\d{2}|bossbonus:\d{4}-\d{2}-\d{2}|daily:\d{4}-W\d{2}|chain:\d{4}-W\d{2}|chest:\d{4}-W\d{2}|gold:\d{4}-W\d{2}|season:\d{4}-\d{2}:(5|8|12|15)|conquest:[0-9a-f-]{36}|chain-days:\d{1,3}|chain-clean:\d{1,3}|starter|revive:[0-9a-f-]{36}|daily-streak:\d{1,3})$');
 alter table public.player_items enable row level security;
 alter table public.player_item_grants enable row level security;
 drop policy if exists "pomůcky: vlastní řádky" on public.player_items;
@@ -7122,7 +7135,7 @@ create or replace function public.player_items_week(d date) returns text
 language sql immutable as $$ select to_char(d, 'IYYY-"W"IW') $$;
 -- Strop zásoby: Tah navíc 1, 50/50 2, Záchrana navíc 1 (blok 37), Ankh vzkříšení 3 (blok 39; stejně conquest.js ITEMS), jiný druh null
 create or replace function public.player_item_cap(item text) returns integer
-language sql immutable as $$ select case item when 'extra_move' then 1 when 'fifty' then 2 when 'chain_rescue' then 1 when 'revive' then 3 end $$;
+language sql immutable as $$ select case item when 'extra_move' then 1 when 'fifty' then 2 when 'chain_rescue' then 1 when 'revive' then 3 when 'double_hit' then 2 when 'freeze' then 2 when 'heart' then 1 when 'free_hint' then 2 when 'attempt' then 1 end $$;
 -- Zásoba hráče: { extra_move, fifty, chain_rescue, revive, max: { extra_move, fifty, chain_rescue, revive } }
 create or replace function public.player_items_json(uid uuid) returns jsonb
 language sql stable set search_path = public as $$
@@ -7130,8 +7143,14 @@ language sql stable set search_path = public as $$
         'fifty', coalesce((select i.count from public.player_items i where i.user_id = uid and i.kind = 'fifty'), 0),
         'chain_rescue', coalesce((select i.count from public.player_items i where i.user_id = uid and i.kind = 'chain_rescue'), 0),
         'revive', coalesce((select i.count from public.player_items i where i.user_id = uid and i.kind = 'revive'), 0),
+        'double_hit', coalesce((select i.count from public.player_items i where i.user_id = uid and i.kind = 'double_hit'), 0),
+        'freeze', coalesce((select i.count from public.player_items i where i.user_id = uid and i.kind = 'freeze'), 0),
+        'heart', coalesce((select i.count from public.player_items i where i.user_id = uid and i.kind = 'heart'), 0),
+        'free_hint', coalesce((select i.count from public.player_items i where i.user_id = uid and i.kind = 'free_hint'), 0),
+        'attempt', coalesce((select i.count from public.player_items i where i.user_id = uid and i.kind = 'attempt'), 0),
         'max', jsonb_build_object('extra_move', public.player_item_cap('extra_move'), 'fifty', public.player_item_cap('fifty'), 'chain_rescue', public.player_item_cap('chain_rescue'),
-            'revive', public.player_item_cap('revive')))
+            'revive', public.player_item_cap('revive'), 'double_hit', public.player_item_cap('double_hit'), 'freeze', public.player_item_cap('freeze'),
+            'heart', public.player_item_cap('heart'), 'free_hint', public.player_item_cap('free_hint'), 'attempt', public.player_item_cap('attempt')))
 $$;
 -- Pomůcka ze zdroje key (volají ji jen funkce serveru): jednou za klíč. Vrací { kind, granted (přibyla), full (zásoba už byla plná),
 -- already (klíč už byl použitý: granted říká, jak to tehdy dopadlo), count (zásoba teď), max }, u bota a neznámého druhu null.
@@ -9671,6 +9690,71 @@ revoke all on function public.conquest_add_bots(uuid, integer, text), public.con
 grant execute on function public.conquest_add_bots(uuid, integer, text), public.conquest_remove_bot(uuid, uuid), public.dev_conquest_add_bots(uuid, integer) to authenticated;
 -- ===== 42: Dobývání – boti pro všechny (tři obtížnosti, hrají jako lidé) — KONEC BLOKU =====
 
+-- ===== 49: Boss týdne – výbava a předměty do souboje =====
+-- Před soubojem si hráč vezme nejvýš dvě pomůcky (Dvojitý úder, 50/50, Zmrazení času, Srdce navíc, Nápověda zdarma): boss_equip je odečte
+-- ze zásoby a zapíše výbavu k pokusu (opakované volání téhož pokusu nic dalšího neodečte). Další pokus (boss_use_attempt) odemkne čtvrtý
+-- pokus v týdnu, až základní tři došly. Útěchu za dohraný pokus a Další pokus za první výhru dává boss_submit.
+create table if not exists public.boss_equips (
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    week date not null,
+    idx smallint not null check (idx between 0 and 3),
+    kinds text[] not null,
+    created_at timestamptz not null default now(),
+    primary key (user_id, week, idx)
+);
+alter table public.boss_equips enable row level security;
+revoke all on public.boss_equips from public, anon, authenticated;
+-- Odečtení jedné pomůcky ze zásoby (true = byla)
+create or replace function public.player_item_spend(uid uuid, item text) returns boolean
+language plpgsql set search_path = public as $$
+begin
+    update public.player_items set count = count - 1, updated_at = public.player_items_now() where user_id = uid and kind = item and count > 0;
+    return found;
+end;
+$$;
+create or replace function public.boss_equip(for_week date, idx integer, kinds text[]) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); t timestamptz := public.boss_now(); r public.boss_results; ex public.boss_equips; chosen text[]; k text; cap integer;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if for_week is null or for_week <> public.boss_week(t) then raise exception 'Tenhle boss už odešel. Tento týden je nový.' using errcode = '22023'; end if;
+    if idx is null or idx < 0 or idx > 3 then raise exception 'Neplatný souboj.' using errcode = '22023'; end if;
+    select coalesce(array_agg(distinct x order by x), '{}') into chosen from unnest(coalesce(kinds, '{}')) x;
+    if exists (select 1 from unnest(chosen) x where x not in ('double_hit', 'fifty', 'freeze', 'heart', 'free_hint')) then raise exception 'Tuhle pomůcku do souboje vzít nejde.' using errcode = '22023'; end if;
+    if coalesce(array_length(chosen, 1), 0) > 2 then raise exception 'Do souboje jdou nejvýš dvě pomůcky.' using errcode = '22023'; end if;
+    select * into ex from public.boss_equips b where b.user_id = uid and b.week = for_week and b.idx = boss_equip.idx;
+    if ex.user_id is not null then return jsonb_build_object('kinds', ex.kinds, 'already', true, 'items', public.player_items_json(uid)); end if;
+    select * into r from public.boss_results where user_id = uid and week = for_week;
+    cap := 3 + case when coalesce(r.extra, false) then 1 else 0 end;
+    if idx <> coalesce(r.attempts, 0) or idx >= cap or coalesce(r.defeated, false) then
+        raise exception 'Výbavu jde vzít jen do dalšího souboje.' using errcode = '22023';
+    end if;
+    foreach k in array chosen loop
+        if not public.player_item_spend(uid, k) then raise exception 'Tuhle pomůcku nemáš.' using errcode = 'P0001'; end if;
+    end loop;
+    insert into public.boss_equips (user_id, week, idx, kinds) values (uid, for_week, idx, chosen);
+    return jsonb_build_object('kinds', chosen, 'already', false, 'items', public.player_items_json(uid));
+end;
+$$;
+create or replace function public.boss_use_attempt(for_week date) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); t timestamptz := public.boss_now(); r public.boss_results;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if for_week is null or for_week <> public.boss_week(t) then raise exception 'Tenhle boss už odešel. Tento týden je nový.' using errcode = '22023'; end if;
+    select * into r from public.boss_results where user_id = uid and week = for_week for update;
+    if r.user_id is null or r.attempts < 3 then raise exception 'Další pokus jde použít, až dojdou ty základní.' using errcode = '22023'; end if;
+    if r.extra then raise exception 'Další pokus už máš.' using errcode = '22023'; end if;
+    if r.defeated then raise exception 'Boss už je poražený.' using errcode = '22023'; end if;
+    if not public.player_item_spend(uid, 'attempt') then raise exception 'Další pokus nemáš.' using errcode = 'P0001'; end if;
+    update public.boss_results set extra = true, updated_at = t where user_id = uid and week = for_week returning * into r;
+    return public.boss_json(r, for_week) || jsonb_build_object('items', public.player_items_json(uid));
+end;
+$$;
+revoke all on function public.player_item_spend(uuid, text), public.boss_equip(date, integer, text[]), public.boss_use_attempt(date) from public, anon, authenticated;
+grant execute on function public.boss_equip(date, integer, text[]), public.boss_use_attempt(date) to authenticated;
+-- ===== 49: Boss týdne – výbava a předměty do souboje — KONEC BLOKU =====
+
 -- ===== Verze schématu =====
 -- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.
 -- Aplikace ho po přihlášení porovná a správci (dev_admins nebo vývojářský režim) ukáže v Nastavení, že má schéma spustit znovu;
@@ -9810,10 +9894,11 @@ grant execute on function public.conquest_add_bots(uuid, integer, text), public.
 -- 44: Dobývání – bitva čeká na přidání botů nejvýš 10 s (conquest_bot_join_window, conquest_bot_react_delay do 9 s); lidé se přidají, dokud někdo
 --     z útočníků neodpověděl; obrana strážní věží má vlastní termín defend_until (15 s / 30 s).
 -- 45: Boss týdne – životy bosse 700 až 1000 podle týdne (boss_week_hp, od 23. 11. 2026), základní poškození 80; boss_results a boss_submit s nimi.
--- 48: osm dalších postaviček (Slaboduchý sob, Čočka, Pažitka, Brusinka, Pivoňka, Kapradí, Husita, Hermelín za odznaky Odpovědi, Vlajky, Dokonalé dny, Zběhlost a Dokonalé výzvy).
--- 47: postavičky Žampion, Chřestýš, Celerbrita, Candidát a Hroznýš (odznaky Přemožitel Ampéra, Mytologie 100, Hvězdy 2, Úroveň 20 a Fyzika 100).
 -- 46: postavička Brokolík (avatars/brokik za odznak tema-chemie-100, unlock_catalog_more).
+-- 47: postavičky Žampion, Chřestýš, Celerbrita, Candidát a Hroznýš (odznaky Přemožitel Ampéra, Mytologie 100, Hvězdy 2, Úroveň 20 a Fyzika 100).
+-- 48: osm dalších postaviček (Slaboduchý sob, Čočka, Pažitka, Brusinka, Pivoňka, Kapradí, Husita, Hermelín za odznaky Odpovědi, Vlajky, Dokonalé dny, Zběhlost a Dokonalé výzvy).
+-- 49: Boss týdne – výbava a předměty do souboje (boss_equips, boss_equip, boss_use_attempt, útěcha a Další pokus v boss_submit, pět nových druhů pomůcek).
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 48 $$;
+language sql immutable as $$ select 49 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;
