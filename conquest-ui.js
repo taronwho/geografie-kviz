@@ -747,6 +747,12 @@
                     const reward = C.rewardFor(result);
                     rewards.set(id, reward);
                     if (reward.xp || reward.badge) deps.award({ ...reward, place: result.place });
+                    // Roboti (hra s boty): poražení boti se počítají do robotích postaviček (rewards.js noteRobots)
+                    if (deps.robotsBeaten && result.eligible && result.place) {
+                        const players = game && game.id === id ? game.state.players : ((await Social.conquestState(id).catch(() => null)) || {}).players;
+                        const robots = C.defeatedRobots(players, result.place);
+                        if (robots.length) deps.robotsBeaten(robots);
+                    }
                     // Pomůcka 50/50 za výhru (blok 30) a Ankh vzkříšení za započítanou hru s body (blok 39)
                     if (result.item) { noteStock(result.item.kind, result.item.count); if (deps.itemGranted) deps.itemGranted(result.item); }
                     if (result.revive_item) { noteStock(result.revive_item.kind, result.revive_item.count); if (deps.itemGranted) deps.itemGranted(result.revive_item); }

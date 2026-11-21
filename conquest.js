@@ -2973,13 +2973,13 @@
     // jednoho z robotů podle id; barva plátování podle barvy vlajky (jinak profilu) bota. Robot bez vrstvy barvy 1 má vínovou jako základ.
     const ROBOT_POOL = ['rliska', 'rmedv', 'rkocka', 'rzelva', 'rchobo', 'rdrak', 'rkudla', 'rslon', 'rbouri', 'rstras', 'rpanen', 'rhodin', 'rzubar', 'rhlub', 'rcert',
         'rmor', 'rlout', 'rpauk', 'rklaun', 'rbrouk', 'rhrub', 'rlekar', 'rpest', 'rmask', 'rrez', 'rblaz'];
-    const ROBOT_NO_RED = new Set(['rdrak', 'rsova1', 'rslon', 'rlout', 'rbrouk', 'rlekar', 'rpest', 'rmask', 'rrez', 'rblaz']);
+    const ROBOT_NO_RED = new Set(['rdrak', 'rmudra', 'rslon', 'rlout', 'rbrouk', 'rlekar', 'rpest', 'rmask', 'rrez', 'rblaz']);
     const ROBOT_FLAG_COLORS = { cervena: 1, oranzova: 2, zluta: 3, zelena: 4, tyrkysova: 5, nebeska: 6, modra: 6, fialova: 7, ruzova: 8, hneda: 2, bila: 9, cerna: 9 };
     const ROBOT_PROFILE_COLORS = { emerald: 4, sky: 6, violet: 7, rose: 8, amber: 3, teal: 5, orange: 2, indigo: 6 };
     const botHash = (text) => [...String(text || '')].reduce((sum, letter) => (Math.imul(sum, 31) + letter.charCodeAt(0)) >>> 0, 7);
     const robotOf = (player) => {
         const key = botHash(player && (player.id || player.display_name || player.name));
-        const id = player && player.bot === 'easy' ? 'rsova1' : player && player.bot === 'hard' ? 'rsova3' : ROBOT_POOL[key % ROBOT_POOL.length];
+        const id = player && player.bot === 'easy' ? 'rmudra' : player && player.bot === 'hard' ? 'rsuper' : ROBOT_POOL[key % ROBOT_POOL.length];
         let color = ROBOT_FLAG_COLORS[player && player.flag_color] || ROBOT_PROFILE_COLORS[player && player.color] || 1 + (key >>> 3) % 9;
         if (color === 1 && ROBOT_NO_RED.has(id)) color = 0;
         return { id, color };
@@ -2989,6 +2989,14 @@
         const { id, color } = robotOf(player);
         const sources = [`icons/avatars/${id}.webp`, ...(color ? [`icons/avatars/${id}-1${color}.webp`] : [])];
         return `<span data-bot-face="${id}" aria-hidden="true" class="grid shrink-0 ${cls}">${sources.map((src, index) => `<img src="${src}" alt=""${index ? ' data-avatar-layer' : ''} draggable="false" class="pointer-events-none h-full w-full select-none object-contain [grid-area:1/1]">`).join('')}</span>`;
+    };
+    // Roboti poražení ve skončené hře (hráč skončil před nimi): id robotů z ROBOT_POOL (Robosovy se počítají až za všechny), každý jednou;
+    // players = hráči hry s place a score (server), myPlace = místo hráče
+    const defeatedRobots = (players, myPlace) => {
+        const place = Number(myPlace);
+        if (!Number.isFinite(place) || place < 1) return [];
+        const ranked = rank((players || []).map(player => ({ ...player, score: Number.isFinite(player.score) ? player.score : 0 })));
+        return [...new Set(ranked.filter(player => player.bot && player.place > place).map(player => robotOf(player).id).filter(id => ROBOT_POOL.includes(id)))];
     };
     // Štítek bota (blok 42): ikona robota a obtížnost; short = jen ikona (úzké řádky pořadí), jméno obtížnosti zůstane pro čtečku
     const botBadgeHtml = (level, { short = false, cls = '' } = {}) => {
@@ -3900,7 +3908,7 @@
         reviveOn, outOfGame, shieldLeft, shieldSeconds, reviveWhy, reviveTargets, reviveOfferHtml, reviveBarHtml, reviveLayerHtml, reviveChipHtml, reviveRowHtml, gameOut, movesLeft,
         buildQuestion, prepareQuestion, completeQuestion, isFullQuestion, moveTitle, accusativeOf, ROUND_TIMEOUT, formPlan, FORM_IDS, GROUPS, RELATIONAL_CAP, MUDRLANT_IDS, nearDuplicate,
         answerKey, familyPlan, kindsFor, placesOf, poolsOf, formsOf, FAMILY_IDS, FAMILY_DOMAIN, DOMAINS, FAMILY_CAP, flagUrl, flagFallback, THUMB, feedItems, replaySteps, capturedWord, hatchPattern, levelIcon, iconMarkup,
-        pennantSvg, pennantGroup, emblemSvg, sealSvg, mapSvg, thumbSvg, marksFor, clockText, localTime, roundHtml, roundChipHtml, ROUND_COUNTDOWN, fastPeriod, battleWaitHtml, battleResultHtml, joinedHtml, fightersHtml, siegeChipsHtml, RISK_TEXT, homeCardHtml, homeTile, hubHtml, mineHtml, FINISHED_PAGE, botFaceHtml, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,
+        robotOf, defeatedRobots, pennantSvg, pennantGroup, emblemSvg, sealSvg, mapSvg, thumbSvg, marksFor, clockText, localTime, roundHtml, roundChipHtml, ROUND_COUNTDOWN, fastPeriod, battleWaitHtml, battleResultHtml, joinedHtml, fightersHtml, siegeChipsHtml, RISK_TEXT, homeCardHtml, homeTile, hubHtml, mineHtml, FINISHED_PAGE, botFaceHtml, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,
         gameScreenHtml, playersStripHtml, recentHtml, sheetHtml, devBarHtml, questionHtml, feedHtml, resultHtml, helpHtml, HELP_TABS, mapTitle, paramChips,
         // Pozvánky přátel (blok 24)
         friendsPickerHtml, inviteCardHtml, inviteLine, invitePromptHtml

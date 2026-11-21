@@ -10,7 +10,7 @@ const Social = require('../social.js');
 const core = require('../quiz-core.js');
 
 const ROOT = path.join(__dirname, '..');
-const CHARACTERS = Look.AVATARS.filter(item => item.parts);
+const CHARACTERS = Look.AVATARS.filter(item => item.parts && !item.robot);
 // Odměny, které postavičky nahradily (dřívější emoji v look.js): emoji → [id, odemčení]
 const REPLACED = {
     '🦅': ['cervik', { level: 3 }], '🐺': ['axolot', { level: 8 }], '🦈': ['kaktus', { level: 13 }], '🐉': ['drak', { level: 20 }], '🦖': ['mamut', { level: 28 }],
@@ -21,7 +21,7 @@ const REPLACED = {
 };
 
 test('katalog: postavičky s 1–2 částmi (21 místo emoji odměn, 84 dalších, 12 sezónních, 14 legendárních), id do 6 písmen, žádná odměna už není emoji', () => {
-    assert.equal(CHARACTERS.length, Look.AVATARS.length);
+    assert.equal(CHARACTERS.length, Look.AVATARS.length - Look.ROBOT_AVATARS.length);
     assert.equal(Look.AVATARS.filter(item => item.was).length, 21);
     assert.equal(Look.AVATARS.filter(item => item.source === 'season').length, 12);
     assert.equal(CHARACTERS.filter(item => !item.diploma && !item.exclusive).length, 21 + 84);
@@ -189,7 +189,7 @@ test('sezónní postavičky: jedna za každý měsíc jen ze Sezónní truhly, �
     // Výběr obrázku v Nastavení ukazuje sezónní postavičky vlastněné (nebo uloženou v profilu) a postavičku běžící Sezóny zašedlou
     // s textem „Získáš v Sezóně Mudrlanta (20. stupeň)“ (blok 32; ostatní měsíce skryté, jako sezónní rámečky)
     const app = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
-    assert.match(app, /group === 'postavicky'\) return Look \? Look\.AVATARS\.filter\(item => !item\.diploma && \(!item\.exclusive \|\| item\.month === seasonMonth \|\| Look\.isUnlocked\(item, lookContext\(\)\)/);
+    assert.match(app, /group === 'postavicky'\) return Look \? Look\.AVATARS\.filter\(item => !item\.diploma && !item\.robot && \(!item\.exclusive \|\| item\.month === seasonMonth \|\| Look\.isUnlocked\(item, lookContext\(\)\)/);
     assert.match(app, /Získáš v Sezóně Mudrlanta \(\$\{item\.seasonTier \|\| \(Season \? Season\.BUNDLE_TIER : 20\)\}\. stupeň\)/);
     // Zdroje obrázků jsou v branding/ikony (scripts/avatar-icons.py)
     for (const item of SEASONAL) assert.ok(fs.existsSync(path.join(ROOT, 'branding', 'ikony', `avatar-${item.id}.png`)), item.id);
@@ -403,5 +403,20 @@ test('další postavičky: odměny z různých částí hry, odznaky existují, 
     for (const item of Look.NEW_AVATARS) {
         assert.match(script, new RegExp(`'${item.id}': \\{'src': '`), item.id);
         for (const part of item.parts) assert.ok(script.includes(`'title': '${part}'`), `${item.id}: ${part}`);
+    }
+});
+
+test('robotí postavičky: 26 robotů a oba Robosovy, jedna část Plátování, id z písmen, obrázky a barvy podle vrstev, odemykají se jen darem', () => {
+    const robots = Look.ROBOT_AVATARS;
+    assert.equal(robots.length, 28);
+    assert.equal(robots.filter(item => item.robotAll).length, 2);
+    for (const item of robots) {
+        assert.match(item.id, /^[a-z]{1,6}$/, item.id);
+        assert.deepEqual(item.parts, ['Plátování']);
+        assert.ok(fs.existsSync(path.join(ROOT, 'icons', 'avatars', `${item.id}.webp`)), `${item.id}.webp`);
+        for (const color of item.colors[0]) assert.ok(fs.existsSync(path.join(ROOT, 'icons', 'avatars', `${item.id}-1${color}.webp`)), `${item.id}-1${color}.webp`);
+        assert.equal(Look.isUnlocked(item, { level: 100, badges: {}, gifts: null }), false, `${item.id} jen darem`);
+        assert.equal(Look.isUnlocked(item, { level: 1, badges: {}, gifts: { avatars: [item.id] } }), true);
+        assert.equal(Look.avatarCode(`${item.id}${item.colors[0][0]}`), `${item.id}${item.colors[0][0]}`);
     }
 });

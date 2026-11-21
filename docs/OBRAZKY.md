@@ -4122,7 +4122,7 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 
 Obrázky botů v Dobývání (soupeři, které si hráč přidá do hry). Robosovy podle obtížnosti (Mudrlátko, Mudrlant, Super Mudrlant) a další robotí zvířata. Plátování těla je vždy jedna čistá vínová barva: aplikace z ní vyrobí barevné varianty (`scripts/avatar-icons.py`), každý bot ve hře tak může mít jinou barvu. Ostatní díly kovově šedé, zlaté a svítící tyrkysové.
 
-#### 459. `bot-sova-1.png` – Robosova Mudrlátko (lehká) – ✅ dodáno, zapojeno (`rsova1`, app.js botArt)
+#### 459. `bot-sova-1.png` – Robosova Mudrlátko (lehká) – ✅ dodáno, zapojeno (`rmudra`, app.js botArt)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -4138,7 +4138,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon or robot character. The robot's main body plating must be one clean flat wine-red color (the app recolors this plating into other colors), all other parts in metal grey, gold and glowing cyan. Character: A confident robot owl with sleek wine-red metal plating, glowing cyan visor eyes, two metal ear-tuft antennas, a small round monocle lens over one eye with a thin chain, a metal academic cap, a gentle confident smile and a small glowing book-shaped chip on its chest. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 461. `bot-sova-3.png` – Robosova Super Mudrlant (těžká) – ✅ dodáno, zapojeno (`rsova3`, app.js botArt)
+#### 461. `bot-sova-3.png` – Robosova Super Mudrlant (těžká) – ✅ dodáno, zapojeno (`rsuper`, app.js botArt)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 

@@ -394,7 +394,7 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         await tab.click('[data-me-tab="profile"]');
         await tab.waitForSelector('#profile-name');
         // Otevřená je skupina s vybraným obrázkem (liška = Zvířátka, 20 základních emoji zdarma)
-        assert.deepEqual(await tab.$$eval('[data-pic-group]', nodes => nodes.map(node => [node.textContent.trim(), node.getAttribute('aria-selected')])), [['Mudrlant', 'false'], ['Postavičky', 'false'], ['Legendy', 'false'], ['Zvířátka', 'true']]);
+        assert.deepEqual(await tab.$$eval('[data-pic-group]', nodes => nodes.map(node => [node.textContent.trim(), node.getAttribute('aria-selected')])), [['Mudrlant', 'false'], ['Postavičky', 'false'], ['Legendy', 'false'], ['Roboti', 'false'], ['Zvířátka', 'true']]);
         assert.equal(await tab.locator('[data-avatar-strip] > button').count(), 20);
         assert.equal(await tab.getAttribute('[data-pick-avatar="🦊"]', 'aria-pressed'), 'true');
         await tab.click('[data-pic-group="postavicky"]');
@@ -405,7 +405,7 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         // (podle dnešního měsíce, od schématu 32), ostatní sezónní jen když je hráč má
         const seasonal = new Set(require('../look.js').AVATARS.filter(item => item.exclusive).map(item => item.id));
         const shown = await tab.$$eval('[data-pick-avatar], [data-locked-avatar]', nodes => nodes.map(node => node.dataset.pickAvatar || node.dataset.lockedAvatar));
-        assert.equal(shown.filter(id => !seasonal.has(id)).length, 21 + 70, `91 postaviček za úrovně, odznaky a další odměny: ${shown.join(', ')}`);
+        assert.equal(shown.filter(id => !seasonal.has(id)).length, 21 + require('../look.js').NEW_AVATARS.length, `91 postaviček za úrovně, odznaky a další odměny: ${shown.join(', ')}`);
         assert.ok(shown.filter(id => seasonal.has(id)).length <= 1, `nejvýš jedna sezónní (běžící Sezóna): ${shown.join(', ')}`);
         for (const id of shown.filter(id => seasonal.has(id))) assert.equal(await tab.locator(`[data-locked-avatar="${id}"]`).count(), 1, 'sezónní postavička běžící Sezóny je zamčená');
         assert.equal(await tab.locator('[data-avatar-strip] [data-locked-avatar="albatr"], [data-avatar-strip] [data-pick-avatar="albatr"]').count(), 0);
@@ -526,7 +526,7 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         await tab.click('[data-me-tab="profile"]');
         await tab.click('[data-pic-group="postavicky"]');
         await tab.waitForSelector('[data-pick-avatar="drakpa"]');
-        assert.equal(await tab.locator('[data-pick-avatar], [data-locked-avatar]').count(), 21 + 70 + 1);
+        assert.equal(await tab.locator('[data-pick-avatar], [data-locked-avatar]').count(), 21 + require('../look.js').NEW_AVATARS.length + 1);
         assert.equal(await tab.locator('[data-pick-avatar="caj"], [data-locked-avatar="caj"], [data-locked-avatar="drakpa"], [data-locked-avatar="ramp"]').count(), 0);
         assert.equal(await tab.getAttribute('[data-pick-avatar="drakpa"]', 'title'), 'Papírový drak');
         assert.equal(await tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return box.scrollHeight <= box.clientHeight; }), true, 'okno bez posouvání');
@@ -569,7 +569,7 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         await nav.settings(tab);
         await tab.click('[data-me-tab="profile"]');
         await tab.waitForSelector('[data-pic-group="postavicky"][aria-selected="true"]');
-        assert.equal(await tab.locator('[data-pick-avatar], [data-locked-avatar]').count(), 21 + 70 + 12);
+        assert.equal(await tab.locator('[data-pick-avatar], [data-locked-avatar]').count(), 21 + require('../look.js').NEW_AVATARS.length + 12);
         assert.deepEqual(await tab.$$eval('[data-pick-avatar]', nodes => nodes.slice(-12).map(node => node.dataset.pickAvatar)), seasonal, 'sezónní po řadě měsíců za ostatními');
         const box = () => tab.evaluate(() => {
             const strip = document.querySelector('[data-avatar-strip]');

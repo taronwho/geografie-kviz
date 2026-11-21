@@ -8536,7 +8536,15 @@ language sql immutable set search_path = public as $$
         ('avatars', 'tchyne', 'badge:retezovka-cela-5'), ('avatars', 'kuryr', 'level:45'), ('avatars', 'kocov', 'badge:serie-60'), ('avatars', 'gauc', 'badge:dny-100'),
         ('avatars', 'podnaj', 'badge:dobyvatel-25'), ('avatars', 'upir', 'badge:boss-reziser'), ('avatars', 'plivak', 'badge:boss-rytir'),
         ('avatars', 'bricho', 'badge:boss-olympan'), ('avatars', 'papous', 'badge:boss-maestro'), ('avatars', 'syr', 'badge:vsechna-temata-1'),
-        ('avatars', 'prd', 'gift'), ('avatars', 'jednor', 'gift'), ('avatars', 'kure', 'referral:pritel-10'), ('avatars', 'smrtka', 'prestige:2'), ('avatars', 'brokik', 'badge:tema-chemie-100'), ('avatars', 'zampio', 'badge:boss-amper'), ('avatars', 'chrest', 'badge:tema-mytologie-100'), ('avatars', 'celerb', 'badge:hvezdy-2'), ('avatars', 'candid', 'badge:uroven-20'), ('avatars', 'hrozny', 'badge:tema-fyzika-100'), ('avatars', 'sob', 'badge:odpovedi-500'), ('avatars', 'cocka', 'badge:tema-vlajky-100'), ('avatars', 'pazitk', 'badge:dokonale-7'), ('avatars', 'brusin', 'badge:zbehly-mytologie-5'), ('avatars', 'pivonk', 'badge:zbehly-biologie-5'), ('avatars', 'kaprad', 'badge:zbehly-zemepis-5'), ('avatars', 'husita', 'badge:zbehly-historie-5'), ('avatars', 'hermel', 'badge:perfektni-vyzvy-5')
+        ('avatars', 'prd', 'gift'), ('avatars', 'jednor', 'gift'), ('avatars', 'kure', 'referral:pritel-10'), ('avatars', 'smrtka', 'prestige:2'), ('avatars', 'brokik', 'badge:tema-chemie-100'), ('avatars', 'zampio', 'badge:boss-amper'), ('avatars', 'chrest', 'badge:tema-mytologie-100'), ('avatars', 'celerb', 'badge:hvezdy-2'), ('avatars', 'candid', 'badge:uroven-20'), ('avatars', 'hrozny', 'badge:tema-fyzika-100'), ('avatars', 'sob', 'badge:odpovedi-500'), ('avatars', 'cocka', 'badge:tema-vlajky-100'), ('avatars', 'pazitk', 'badge:dokonale-7'), ('avatars', 'brusin', 'badge:zbehly-mytologie-5'), ('avatars', 'pivonk', 'badge:zbehly-biologie-5'), ('avatars', 'kaprad', 'badge:zbehly-zemepis-5'), ('avatars', 'husita', 'badge:zbehly-historie-5'), ('avatars', 'hermel', 'badge:perfektni-vyzvy-5'),
+        -- Robotí postavičky z Dobývání (look.js ROBOT_AVATARS): 'gift' = dar v účtu za porážky robotů (rewards.js noteRobots)
+        ('avatars', 'rliska', 'gift'), ('avatars', 'rmedv', 'gift'), ('avatars', 'rkocka', 'gift'), ('avatars', 'rzelva', 'gift'),
+        ('avatars', 'rchobo', 'gift'), ('avatars', 'rdrak', 'gift'), ('avatars', 'rkudla', 'gift'), ('avatars', 'rslon', 'gift'),
+        ('avatars', 'rbouri', 'gift'), ('avatars', 'rstras', 'gift'), ('avatars', 'rpanen', 'gift'), ('avatars', 'rhodin', 'gift'),
+        ('avatars', 'rzubar', 'gift'), ('avatars', 'rhlub', 'gift'), ('avatars', 'rcert', 'gift'), ('avatars', 'rmor', 'gift'),
+        ('avatars', 'rlout', 'gift'), ('avatars', 'rpauk', 'gift'), ('avatars', 'rklaun', 'gift'), ('avatars', 'rbrouk', 'gift'),
+        ('avatars', 'rhrub', 'gift'), ('avatars', 'rlekar', 'gift'), ('avatars', 'rpest', 'gift'), ('avatars', 'rmask', 'gift'),
+        ('avatars', 'rrez', 'gift'), ('avatars', 'rblaz', 'gift'), ('avatars', 'rmudra', 'gift'), ('avatars', 'rsuper', 'gift')
     ) as t (cat, item, rule);
 $$;
 revoke all on function public.unlock_catalog_more() from public, anon, authenticated;

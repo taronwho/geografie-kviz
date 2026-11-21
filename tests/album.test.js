@@ -55,7 +55,7 @@ test('sekce v pořadí a počty z katalogu: věci od začátku se nepočítají,
     // Bonusové postavičky (za pozvané kamarády a prestiž) jako bonusové rámečky: jen když je hráč má, do procent se nepočítají;
     // Ježek krejčí za album na 50 % se ukáže, ale nepočítá (jako rámeček Sběratelský)
     assert.equal(sectionOf(album, 'avatars').total, Look.AVATARS.filter(item => !item.bonus && !item.album && Album.availability(item, 'avatars', TODAY) !== 'upcoming').length);
-    assert.equal(sectionOf(album, 'avatars').total, Look.AVATARS.length - 11 - 5 - 1, 'jedenáct sezónních postaviček je zatím skrytých, pět bonusových chybějících se neukazuje (Kosatka, Avokádo, Kaktus, Kuře influencer, Smrtka), Ježek krejčí je odměna za album');
+    assert.equal(sectionOf(album, 'avatars').total, Look.AVATARS.length - 11 - 5 - 1 - Look.ROBOT_AVATARS.length, 'roboti jsou bonus, jedenáct sezónních postaviček je zatím skrytých, pět bonusových chybějících se neukazuje (Kosatka, Avokádo, Kaktus, Kuře influencer, Smrtka), Ježek krejčí je odměna za album');
     const jezek = sectionOf(album, 'avatars').entries.find(entry => entry.id === 'jezek');
     assert.deepEqual([jezek.state, jezek.counted], ['reward', false]);
     assert.equal(Album.howText(jezek), 'Odměna za album sbírky na 50\u00a0% spolu s titulem „Velká sbírka“.');
