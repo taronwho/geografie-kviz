@@ -438,6 +438,30 @@ NEW_CHARACTERS = {
     'hrozny': {'src': 'hroznys', 'parts': [
         {'title': 'Fialové hrozny', 'rules': [{'hue': (290, 350), 'smin': 0.2, 'vmin': 0.25}]},
         {'title': 'Lístky', 'rules': [{'hue': (80, 150), 'smin': 0.45, 'vmin': 0.3, 'box': [(0.3, 0.0, 0.75, 0.25)]}]}]},
+    'sob': {'src': 'sob', 'parts': [
+        {'title': 'Lžíce', 'rules': [{'hue': (20, 50), 'smin': 0.35, 'vmin': 0.5, 'box': [(0.4, 0.62, 1.0, 1.0)]}]},
+        {'title': 'Sušenka', 'rules': [{'hue': (20, 50), 'smin': 0.35, 'vmin': 0.5, 'box': [(0.0, 0.58, 0.45, 0.8)]}]}]},
+    'cocka': {'src': 'cocka', 'parts': [
+        {'title': 'Čočka', 'rules': [{'hue': (45, 80), 'smin': 0.25, 'vmin': 0.3, 'box': [(0.2, 0.2, 1.0, 1.0)]}]},
+        {'title': 'Baret', 'mode': 'tint', 'rules': [{'smin': 0, 'smax': 0.3, 'vmin': 0.12, 'vmax': 0.5, 'box': [(0.4, 0.1, 0.85, 0.35)]}]}]},
+    'pazitk': {'src': 'pazitka', 'parts': [
+        {'title': 'Čelenka', 'rules': [{'hue': (340, 20), 'smin': 0.45, 'vmin': 0.4, 'box': [(0.3, 0.25, 0.7, 0.45)]}]},
+        {'title': 'Květ', 'rules': [{'hue': (250, 320), 'smin': 0.15, 'vmin': 0.4, 'box': [(0.5, 0.05, 0.8, 0.3)]}]}]},
+    'brusin': {'src': 'brusinka', 'parts': [
+        {'title': 'Peří', 'rules': [{'hue': (160, 205), 'smin': 0.4, 'vmin': 0.35, 'box': [(0.15, 0.0, 0.85, 0.5)]}]},
+        {'title': 'Medailon', 'rules': [{'hue': (35, 60), 'smin': 0.5, 'vmin': 0.55, 'box': [(0.35, 0.72, 0.65, 1.0)]}]}]},
+    'pivonk': {'src': 'pivonka', 'parts': [
+        {'title': 'Pivo', 'rules': [{'hue': (28, 55), 'smin': 0.6, 'vmin': 0.6, 'box': [(0.7, 0.3, 1.0, 0.7)]}]},
+        {'title': 'Lístky', 'rules': [{'hue': (80, 150), 'smin': 0.35, 'vmin': 0.3}]}]},
+    'kaprad': {'src': 'kapradi', 'parts': [
+        {'title': 'Klobouk', 'rules': [{'hue': (205, 245), 'smin': 0.3, 'vmin': 0.25, 'box': [(0.25, 0.0, 0.85, 0.42)]}]},
+        {'title': 'Plášť', 'rules': [{'hue': (340, 20), 'smin': 0.4, 'vmin': 0.3, 'box': [(0.25, 0.55, 0.95, 1.0)]}]}]},
+    'husita': {'src': 'husita', 'parts': [
+        {'title': 'Přilba', 'mode': 'tint', 'rules': [{'smin': 0, 'smax': 0.2, 'vmin': 0.3, 'vmax': 0.75, 'box': [(0.3, 0.0, 0.85, 0.35)]}]},
+        {'title': 'Kalich', 'rules': [{'hue': (345, 15), 'smin': 0.55, 'vmin': 0.5, 'box': [(0.6, 0.55, 1.0, 0.95)]}]}]},
+    'hermel': {'src': 'hermelin', 'parts': [
+        {'title': 'Koruna', 'rules': [{'hue': (35, 60), 'smin': 0.5, 'vmin': 0.55, 'box': [(0.25, 0.0, 0.65, 0.3)]}]},
+        {'title': 'Sýr uvnitř', 'rules': [{'hue': (38, 62), 'smin': 0.25, 'vmin': 0.6, 'box': [(0.4, 0.4, 0.78, 0.68)]}]}]},
     'brokik': {'src': 'brokolik', 'parts': [
         {'title': 'Bunda', 'rules': [{'hue': (190, 240), 'smin': 0.12, 'vmin': 0.25, 'box': [(0.15, 0.6, 1.0, 1.0)]}]},
         {'title': 'Podšívka', 'rules': [{'hue': (310, 350), 'smin': 0.4, 'vmin': 0.35, 'box': [(0.25, 0.55, 0.95, 0.9)]}]}]},

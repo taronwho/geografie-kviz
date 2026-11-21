@@ -4250,6 +4250,62 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no speech bubble, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: Hroznýš, a boa constrictor made of grapes. A big friendly green-and-purple boa snake whose whole body looks like a bunch of round grapes, with a few green leaves and a curly vine tendril on its head, coiled in a loose spiral and gently wrapped around a small wine glass held in front of it. Half-closed relaxed eyes, a sly happy grin, flicking forked tongue. Chilled, tipsy, funny mood.
 ```
 
+#### 475. `avatar-cocka.png` – Čočka (čočka + čočka objektivu) – ✅ dodáno, zapojeno (`cocka`, odznak Vlajky 100)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no speech bubble, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: Čočka, a lentil photographer. A flat round green-brown lentil with a glossy highlight as the body and head, big happy eyes and a wide grin, wearing a small flat beret and a camera strap around its body. It proudly holds up a big vintage camera with an oversized round glass lens that has a shiny white lens flare sparkle. Creative, enthusiastic, slightly nerdy mood.
+```
+
+#### 476. `avatar-pazitka.png` – Pažitka (pažitka + paže) – ✅ dodáno, zapojeno (`pazitk`, odznak Dokonalé dny)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no speech bubble, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: Pažitka, a bodybuilder chive. A bundle of thin bright-green chive stalks as spiky hair with one small round lilac chive flower on top, a determined grin and a sweatband around the forehead. Two huge cartoon bulging muscular arms flexing in a double-biceps pose, one hand also gripping a small dumbbell. Strong, proud, slightly silly mood.
+```
+
+#### 477. `avatar-brusinka.png` – Brusinka (brusinka + Inka) – ✅ dodáno, zapojeno (`brusin`, odznak Zběhlost Mytologie)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no speech bubble, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: Brusinka, a cranberry warrior in the style of an Inca chief. A round shiny deep-red cranberry with a happy confident face, wearing a tall colorful feathered headdress in turquoise, orange and yellow and a round golden sun medallion on a cord around its neck. Friendly, brave, playful mood (a funny stylized cartoon, no weapons).
+```
+
+#### 478. `avatar-pivonka.png` – Pivoňka (pivo + pivoňka) – ✅ dodáno, zapojeno (`pivonk`, odznak Zběhlost Biologie)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no speech bubble, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: Pivoňka, a tipsy peony. A large fluffy pink peony flower with layered petals around a cute rosy face, slightly blushing cheeks and half-closed happy eyes, a little crown of white beer foam on top of the petals. She holds a big glass beer mug overflowing with foam in one hand and lifts it in a cheerful toast. Merry, relaxed, slightly tipsy mood.
+```
+
+#### 479. `avatar-hermelin.png` – Hermelín (hermelín sýr + hermelín zvíře) – ✅ dodáno, zapojeno (`hermel`, odznak Dokonalé výzvy)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no speech bubble, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: Hermelín, a royal cheese. A round white-rind camembert-style cheese wheel as the head and body with a wedge cut out showing the soft creamy yellow inside, small pointed ermine ears and little whiskers, a smug noble expression with half-closed eyes. He wears a luxurious white ermine-fur cape with black tail-tip spots and a small golden crown. Pompous, dignified, funny mood.
+```
+
+#### 480. `avatar-kapradi.png` – Kapradí (kapr radí) – ✅ dodáno, zapojeno (`kaprad`, odznak Zběhlost Zeměpis)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no speech bubble, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: Kapradí, a wise carp advisor. A big golden-orange carp standing upright like a person, with two long barbels like a mustache on the upper lip, a bushy white beard, small round glasses and a tall pointed sage hat with a small green fern sprig tucked into the hat band. One fin raises the index finger as if giving advice, the other holds a rolled scroll without writing. Wise, calm, slightly know-it-all mood.
+```
+
+#### 481. `avatar-husita.png` – Husita (husa + husita) – ✅ dodáno, zapojeno (`husita`, odznak Zběhlost Historie)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no speech bubble, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: Husita, a Hussite goose warrior. A big white goose with an orange beak open as if loudly honking, fierce angry eyebrows, wearing a round medieval iron helmet. One wing holds a medieval spiked flail (a ball with spikes on a chain), the other holds a small wooden shield painted with a simple red chalice symbol and no letters. Fierce, noisy, comic medieval mood.
+```
+
 ## Co udělám po dodání
 
 1. Uložím soubory do `branding/ikony/`, vyříznu pozadí (`python3 scripts/topic-icons.py …`) a u sov vyrobím barvy obleku (`python3 scripts/owl-robes.py`).

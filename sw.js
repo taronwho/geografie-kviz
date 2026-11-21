@@ -22,7 +22,7 @@ const AVATAR_ART = ['cervik', 'axolot', 'kaktus', 'drak', 'mamut', 'meduza', 'le
     'krysa', 'dynak',
     // č. 379–408 (absurdní)
     'kafe', 'holubz', 'kachna', 'slepic', 'nuget', 'kaktik', 'husa', 'tousto', 'racek', 'sandal', 'aligat', 'zralok', 'snob', 'rohlik', 'komar', 'trpas',
-    'tchyne', 'kuryr', 'kocov', 'gauc', 'podnaj', 'upir', 'plivak', 'bricho', 'papous', 'syr', 'prd', 'jednor', 'kure', 'smrtka', 'brokik', 'zampio', 'chrest', 'celerb', 'candid', 'hrozny',
+    'tchyne', 'kuryr', 'kocov', 'gauc', 'podnaj', 'upir', 'plivak', 'bricho', 'papous', 'syr', 'prd', 'jednor', 'kure', 'smrtka', 'brokik', 'zampio', 'chrest', 'celerb', 'candid', 'hrozny', 'sob', 'cocka', 'pazitk', 'brusin', 'pivonk', 'kaprad', 'husita', 'hermel',
     // Sezónní postavičky ze Sezónní truhly (look.js SEASON_AVATARS)
     'ramp', 'kobliz', 'snezen', 'kapka', 'pampel', 'vysved', 'meloun', 'hvezda', 'aktovk', 'drakpa', 'caj', 'pernik'];
 // Obrázkové rámečky profilu (icons/frames/<id>.webp); stejný seznam má look.js (FRAMES s art: true), hlídá tests/look-frames.test.js
