@@ -1837,9 +1837,14 @@
         const siegeKey = (sieges) => JSON.stringify((sieges || []).map(siege => [siege.id, siege.participants ? siege.participants.length : 0, Boolean(siege.can_join), Boolean(siege.answered),
             (siege.participants || []).filter(player => player.fifty).map(player => player.id)]));
         // Posun hodin serveru proti zařízení (odhad ze středu dotazu); všechny termíny bitev jsou serverové
+        const SLOW_CALL_MS = 3000;
+        let lastSlowNote = 0;
         const serverCall = async (work) => {
             const sentAt = Date.now();
             const result = await work();
+            const took = Date.now() - sentAt;
+            // Pomalá odpověď serveru (odeslání odpovědi, stav bitvy): hráč uvidí, že se čeká na server, a ne že aplikace visí (nejvýš jednou za 30 s)
+            if (took >= SLOW_CALL_MS && sentAt - lastSlowNote > 30000 && active()) { lastSlowNote = sentAt; deps.showToast(`Server odpověděl až za ${Math.round(took / 100) / 10} s. Zkontroluj připojení.`); }
             const time = Date.parse((result && result.now) || '');
             if (game && Number.isFinite(time)) game.offset = time - (sentAt + Date.now()) / 2;
             return result;
