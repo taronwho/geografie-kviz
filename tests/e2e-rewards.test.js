@@ -172,6 +172,9 @@ test('odměny: truhla, ochrana série, diplomy, sdílení obrázku', { skip: !ch
         const { context, tab, problems } = await open({ viewport: { width: 360, height: 640 }, seed: { 'mudrlant.stats': { daily: { zemepis: daily }, practice: {} }, 'mudrlant.rewards': { freezes: 1 }, 'mudrlant.progress': { xp: 100, counters: { bestStreak: 3 }, badges: {} } } });
         await tab.waitForSelector('#celebration');
         assert.match(await tab.textContent('#celebration'), /Ochrana série zabrala/);
+        // Hláška řekne, proč: která série včera nevyšla a jak byla dlouhá
+        assert.match(await tab.textContent('#celebration'), /Nevyšlo: Dnešní otázka z tématu Zeměpis: nebyla zodpovězená \(série 3 dny\)/);
+        assert.deepEqual((await storage(tab, 'mudrlant.freezeLog')).map(entry => entry.day), [dayKey(-1)]);
         await shot(tab, 'ochrana-zabrala-360-light');
         const rewards = await storage(tab, 'mudrlant.rewards');
         assert.equal(rewards.freezes, 0);
