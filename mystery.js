@@ -745,7 +745,9 @@
         }
         const fallbacks = [
             { title: 'Délka odpovědi', icon: 'ruler', parts: [{ type: 'note', text: `Odpověď má ${plural(wordCount(name), 'slovo', 'slova', 'slov')}.` }] },
-            ...(topicTitle ? [{ title: 'Téma', icon: 'tag', parts: [{ type: 'note', text: `Hledáš něco z tématu ${topicTitle}${data && data.typeLabel ? ` (${String(data.typeLabel).toLocaleLowerCase('cs')})` : ''}.` }] }] : [])
+            // Téma a druh už říká první nápověda (Co hledáme); druhá záložní je počet písmen ve slovech (bez písmen samotných)
+            { title: 'Počet písmen', icon: 'type', parts: [{ type: 'note', text: wordCount(name) > 1
+                ? `Slova mají ${String(name).trim().split(/\s+/).map(letterCount).join(', ')} písmen.` : `Odpověď má ${plural(letterCount(name), 'písmeno', 'písmena', 'písmen')}.` }] }
         ];
         const slots = [];
         if (chosen.length <= middle) {

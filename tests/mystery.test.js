@@ -114,12 +114,13 @@ test('nápovědy: osm od nejslabší po nejsilnější, poslední ostrá fotka (
     const facts = clues.flatMap(clue => clue.parts.filter(part => part.type === 'facts').flatMap(part => part.facts.map(fact => fact.label)));
     assert.deepEqual([...facts].sort(), ['Prvovýstup', 'Pohoří', 'Stát', 'Výška'].sort());
     assert.ok(!JSON.stringify(clues).includes('Matterhorn'), 'odpověď není v žádné nápovědě');
-    // Chudá data: jen počet slov (žádná písmena ani konce odpovědi), bez fotky není rozmazaná fotka
+    // Chudá data: počet slov a počet písmen ve slovech (žádná písmena ani konce odpovědi), téma se neopakuje (říká ho už první nápověda); bez fotky není rozmazaná fotka
     const poor = M.buildClues(roundData({ name: 'Karel IV.', hints: [], questionText: '', photoUrl: null, question: { choices: [] } }), { topicTitle: 'Historie' });
     assert.equal(poor.length, 8);
     assert.ok(!poor.some(clue => clue.parts.some(part => part.type === 'photo')));
     assert.match(JSON.stringify(poor), /Odpověď má 2 slova\./);
-    assert.doesNotMatch(JSON.stringify(poor), /písmen|končí na/);
+    assert.match(JSON.stringify(poor), /Slova mají 5, 2 písmen\./);
+    assert.doesNotMatch(JSON.stringify(poor), /začíná na|končí na|Hledáš něco z tématu/);
     assert.equal(poor[7].parts[0].type, 'note', 'bez fotky závěrečná poznámka');
     // Obrázek otázky (obraz, vlajka) je fotkou nápovědy
     const shown = M.buildClues(roundData({ hints: [], questionImage: { url: 'https://upload.wikimedia.org/obraz.jpg' } }));
