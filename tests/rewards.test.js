@@ -154,12 +154,14 @@ test('ochrana série: zachrání právě jeden vynechaný den série aspoň tř�
     assert.equal(used.day, '2026-11-06');
     assert.deepEqual(used.saved, ['zemepis']);
     assert.equal(used.state.freezes, 0);
-    assert.deepEqual(used.state.frozen, ['2026-11-06']);
+    assert.deepEqual(used.state.frozenQuiz, ['2026-11-06']);
+    assert.deepEqual(used.state.frozen, [], 'starý seznam (platil pro všechny série) se nerozšiřuje');
     // Série přes zachráněný den pokračuje, ten den se nepočítá
-    assert.equal(Rewards.bridgedStreak(series[0].ok, '2026-11-07', used.state.frozen), 3);
+    assert.equal(Rewards.bridgedStreak(series[0].ok, '2026-11-07', Rewards.frozenForQuiz(used.state)), 3);
     const results = { '2026-11-03': { correct: true }, '2026-11-04': { correct: true }, '2026-11-05': { correct: true }, '2026-11-07': { correct: true } };
     assert.equal(core.computeStreak(results, '2026-11-07'), 1, 'bez ochrany jen dnešek');
-    assert.equal(core.computeStreak(results, '2026-11-07', used.state.frozen), 4, 's ochranou');
+    assert.equal(core.computeStreak(results, '2026-11-07', Rewards.frozenForQuiz(used.state)), 4, 's ochranou');
+    assert.equal(core.computeStreak(results, '2026-11-07', Rewards.frozenForTopic(used.state, 'zemepis')), 1, 'automatická ochrana Kvízu dne se na dnešní otázky nevztahuje');
     // Jednou denně
     assert.equal(Rewards.checkFreeze(used.state, '2026-11-07', series).used, false);
     // Dva vynechané dny: nic
@@ -171,7 +173,7 @@ test('ochrana série: zachrání právě jeden vynechaný den série aspoň tř�
     assert.equal(short.used, false);
     // Bez ochrany nic
     assert.equal(Rewards.checkFreeze(Rewards.empty(), '2026-11-07', series).used, false);
-    // Jedna ochrana zachrání den pro všechny série najednou
+    // Jedna ochrana zachrání den pro všechny série, které jí předá volající (aplikace automaticky jen Kvíz dne)
     const both = Rewards.checkFreeze(state, '2026-11-07', [...series, { id: 'kviz-dne', ok: okDays(['2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05']) }]);
     assert.deepEqual(both.saved, ['zemepis', 'kviz-dne']);
     assert.equal(both.state.freezes, 0);
@@ -309,4 +311,77 @@ test('záznam ochrany série: kdy a proč zabrala (jen platné záznamy, nejvý�
     assert.match(html, /21\. 11\. 2026<\/b>: Kvíz dne: nebyl dohraný \(série 8 dní\); &lt;b&gt;x&lt;\/b&gt;/);
     assert.equal((Rewards.freezeLogHtml(Array.from({ length: 9 }, (_, i) => ({ day: `2026-11-${10 + i}`, reasons: ['a'] }))).match(/<li/g) || []).length, 5);
     assert.match(Rewards.freezeHelpHtml(1, 3, [{ day: '2026-11-21', reasons: ['a'] }]), /data-freeze-log/);
+});
+
+test('ruční záchrana série dnešních otázek: jen včerejšek, série aspoň tři dny, jedna ochrana na jedno téma, ostatní témata a Kvíz dne nic', () => {
+    const topics = [
+        { id: 'zemepis', ok: okDays(['2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20', '2026-11-22']) },
+        { id: 'fyzika', ok: okDays(['2026-11-18', '2026-11-19', '2026-11-20']) },
+        { id: 'chemie', ok: okDays(['2026-11-19', '2026-11-20']) },
+        { id: 'hudba', ok: okDays(['2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20', '2026-11-21']) }
+    ];
+    const state = Rewards.earnFreeze(Rewards.earnFreeze(Rewards.empty(), 'c:2026-11-02', 10).state, 'c:2026-11-09', 11).state;
+    assert.equal(state.freezes, 2);
+    // Včera (21. 11.) nevyšel Zeměpis (série 4) a Fyzika (3); Chemie má jen 2 dny, Hudba včera vyšla
+    assert.deepEqual(Rewards.rescuable(state, '2026-11-22', topics), [{ id: 'zemepis', day: '2026-11-21', length: 4 }, { id: 'fyzika', day: '2026-11-21', length: 3 }]);
+    assert.deepEqual(Rewards.rescuable(Rewards.empty(), '2026-11-22', topics), [], 'bez ochrany nic');
+    assert.deepEqual(Rewards.rescuable(state, '2026-11-23', topics).map(item => item.id), ['hudba'], 'dva vynechané dny v řadě (Fyzika, Zeměpis včera vyšel) nezachrání, jen Hudba včera nevyšla poprvé');
+    const first = Rewards.rescueTopic(state, '2026-11-22', topics[0], 50);
+    assert.deepEqual([first.saved, first.day, first.length, first.state.freezes, first.state.freezesAt], [true, '2026-11-21', 4, 1, 50]);
+    assert.deepEqual(first.state.frozenTopics, { zemepis: ['2026-11-21'] });
+    assert.deepEqual(first.state.frozen, []);
+    assert.deepEqual(first.state.frozenQuiz, []);
+    // Série přes zachráněný den pokračuje jen v tomto tématu
+    assert.equal(Rewards.bridgedStreak(topics[0].ok, '2026-11-22', Rewards.frozenForTopic(first.state, 'zemepis')), 5);
+    assert.equal(Rewards.bridgedStreak(topics[1].ok, '2026-11-22', Rewards.frozenForTopic(first.state, 'fyzika')), 0, 'jiné téma zůstává přerušené');
+    assert.equal(Rewards.bridgedStreak(topics[0].ok, '2026-11-22', Rewards.frozenForQuiz(first.state)), 1, 'Kvíz dne ji nevidí');
+    // Podruhé totéž téma nejde, druhé téma ano a pak už ochrana došla
+    assert.equal(Rewards.rescueTopic(first.state, '2026-11-22', topics[0], 60).saved, false);
+    assert.deepEqual(Rewards.rescuable(first.state, '2026-11-22', topics).map(item => item.id), ['fyzika']);
+    const second = Rewards.rescueTopic(first.state, '2026-11-22', topics[1], 70);
+    assert.equal(second.saved, true);
+    assert.equal(second.state.freezes, 0);
+    assert.equal(Rewards.rescueTopic(second.state, '2026-11-22', topics[2], 80).saved, false);
+    // Série, které nevyšly dřív nebo vyšly, nejdou zachránit
+    assert.equal(Rewards.rescueTopic(state, '2026-11-22', topics[3], 90).saved, false);
+    assert.equal(Rewards.rescueTopic(state, '2026-11-22', { id: 'zemepis', ok: () => true }, 90).saved, false);
+});
+
+test('ochrana série: starý seznam dnů platí pro všechny série dál, nové seznamy se ukládají, slučují a čistí', () => {
+    const old = Rewards.parse({ frozen: ['2026-11-10'], freezes: 1 });
+    assert.deepEqual(Rewards.frozenForQuiz(old), ['2026-11-10']);
+    assert.deepEqual(Rewards.frozenForTopic(old, 'zemepis'), ['2026-11-10'], 'dny zachráněné starší verzí platí pro všechny série');
+    const state = Rewards.parse({ frozen: ['2026-11-10'], frozenQuiz: ['2026-11-12', 'zitra'], frozenTopics: { zemepis: ['2026-11-11', 'blbost'], 'ZLE ID': ['2026-11-11'], fyzika: [] } });
+    assert.deepEqual(state.frozenQuiz, ['2026-11-12']);
+    assert.deepEqual(state.frozenTopics, { zemepis: ['2026-11-11'] });
+    assert.deepEqual(Rewards.frozenForTopic(state, 'zemepis'), ['2026-11-10', '2026-11-11']);
+    assert.deepEqual(Rewards.frozenForTopic(state, 'fyzika'), ['2026-11-10']);
+    assert.deepEqual(Rewards.frozenForQuiz(state), ['2026-11-10', '2026-11-12']);
+    const payload = Rewards.payload(state);
+    assert.deepEqual([payload.frozenQuiz, payload.frozenTopics], [['2026-11-12'], { zemepis: ['2026-11-11'] }]);
+    const merged = Rewards.merge(state, { frozenQuiz: ['2026-11-13'], frozenTopics: { zemepis: ['2026-11-14'], fyzika: ['2026-11-15'] }, freezes: 0 });
+    assert.deepEqual(merged.frozenQuiz, ['2026-11-12', '2026-11-13']);
+    assert.deepEqual(merged.frozenTopics, { zemepis: ['2026-11-11', '2026-11-14'], fyzika: ['2026-11-15'] });
+    assert.equal(Rewards.isEmpty({ frozenTopics: { zemepis: ['2026-11-11'] } }), false);
+    assert.equal(Rewards.isEmpty({ frozenQuiz: ['2026-11-11'] }), false);
+    // Nápověda: tlačítko Zachránit sérii jen když něco jde zachránit
+    assert.doesNotMatch(Rewards.freezeHelpHtml(1, 3, [], 0), /data-action="streak-rescue"/);
+    assert.match(Rewards.freezeHelpHtml(1, 3, [], 2), /data-action="streak-rescue"[^]*Zachránit sérii \(2\)/);
+});
+
+test('truhla se vzácnou postavičkou: záznam o truhle přežije uložení a načtení (jinak by se truhla v účtu ztratila a jiné zařízení ji otevřelo znovu)', () => {
+    const state = Rewards.parse({ ready: ['2026-11-16'], freezes: 0 });
+    // rng = 0,95: hod na vzácnou věc uspěje (≥ 0,9); druhý hod vybere první vzácnou věc podle pořadí v katalogu
+    let calls = 0;
+    const rng = () => (calls++ === 0 ? 0.95 : 0.99);
+    const opened = Rewards.openChest(state, '2026-11-16', { level: 100, badges: {}, gifts: null }, { rng, now: 5 });
+    assert.equal(opened.opened, true);
+    assert.equal(opened.gift.category, 'avatars', 'vzácná postavička');
+    const stored = Rewards.parse(Rewards.payload(opened.state));
+    assert.equal(stored.chests['2026-11-16'], `avatars:${opened.gift.item.id}`);
+    assert.deepEqual(stored.ready, []);
+    assert.ok(stored.gifts.avatars.includes(opened.gift.item.id));
+    // Druhé zařízení, které truhlu ještě vidí jako čekající, ji po sloučení znovu neotevře
+    assert.deepEqual(Rewards.merge(stored, { ready: ['2026-11-16'] }).ready, []);
+    assert.equal(Rewards.chestReward(stored, '2026-11-16').item.id, opened.gift.item.id);
 });

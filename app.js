@@ -3272,7 +3272,7 @@
         const tiles = TOPICS.map(topic => {
             const status = dailyStatus(topic.id, stats);
             const result = (stats.daily[topic.id] || {})[today];
-            const streak = topicStreak(stats.daily[topic.id], today);
+            const streak = topicStreak(stats.daily[topic.id], today, topic.id);
             const mark = !result ? '<span aria-hidden="true" class="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-gold-500"></span>'
                 : `<span aria-hidden="true" class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full text-white ${result.correct ? 'bg-emerald-600' : 'bg-rose-600'}"><i data-lucide="${result.correct ? 'check' : 'x'}" class="h-3 w-3 stroke-[3]"></i></span>`;
             return `
@@ -3356,6 +3356,16 @@
             items.push({
                 strip: actionRow({ id: 'gold-chest-row', attrs: 'data-action="gold-chest"', art: uiArt('zlata-truhla', ROW_ART), title: 'Zlatá truhla', text: 'Čeká za pět zlatých střípků', cta: 'Otevřít', icon: 'chevron-right', gold: true }),
                 chip: `<button type="button" data-action="gold-chest" class="${HOME_CHIP}">${uiArt('zlata-truhla', CHIP_ART)}<span class="truncate">Zlatá truhla</span><span aria-hidden="true" class="h-2 w-2 shrink-0 rounded-full bg-gold-500"></span></button>`
+            });
+        }
+        // Včera nevyšla série tématu Dnešních otázek a hráč má ochranu: nabídka Zachránit sérii (ochrana se u Dnešních otázek sama nepoužije)
+        const rescue = Rewards ? rescuableTopics() : [];
+        if (rescue.length) {
+            const names = rescue.slice(0, 2).map(item => `${TOPIC_BY_ID[item.id].shortTitle || TOPIC_BY_ID[item.id].title} (${plural(item.length, 'den', 'dny', 'dní')})`).join(', ') + (rescue.length > 2 ? ` a další ${rescue.length - 2}` : '');
+            items.push({
+                strip: actionRow({ id: 'streak-rescue-row', attrs: 'data-action="streak-rescue"', art: Rewards.freezeArt(ROW_ART), title: 'Zachránit sérii?', text: escapeHtml(`Včera nevyšla série: ${names}`),
+                    cta: 'Zachránit', icon: 'chevron-right', gold: true, wrap: true }),
+                chip: `<button type="button" data-action="streak-rescue" data-chip class="${HOME_CHIP}">${Rewards.freezeArt(CHIP_ART)}<span class="truncate">Zachránit sérii</span><span aria-hidden="true" class="h-2 w-2 shrink-0 rounded-full bg-gold-500"></span></button>`
             });
         }
         const weekend = weekendNow();
@@ -4218,11 +4228,11 @@
             return `
                 <section class="${CARD} flex flex-col gap-2 p-3">
                     <div class="grid grid-cols-3 gap-1 text-center">
-                        <div><p class="text-xl font-black text-slate-800 dark:text-slate-100">${topicStreak(stats.daily[data.topic])}</p><p class="flex items-center justify-center gap-1 ${label}">${uiArt('serie', 'h-5 w-5')}Série</p></div>
+                        <div><p class="text-xl font-black text-slate-800 dark:text-slate-100">${topicStreak(stats.daily[data.topic], undefined, data.topic)}</p><p class="flex items-center justify-center gap-1 ${label}">${uiArt('serie', 'h-5 w-5')}Série</p></div>
                         <div><p class="text-xl font-black text-slate-800 dark:text-slate-100">${results.length}</p><p class="${label}">Hráno</p></div>
                         <div><p class="text-xl font-black text-slate-800 dark:text-slate-100">${wins}</p><p class="${label}">Uhodnuto</p></div>
                     </div>
-                    ${streakRewardLine(topicStreak(stats.daily[data.topic]), 'justify-center')}
+                    ${streakRewardLine(topicStreak(stats.daily[data.topic], undefined, data.topic), 'justify-center')}
                     <div class="grid grid-cols-2 gap-2">
                         <button type="button" data-action="share" aria-label="Sdílet výsledek" class="flex min-w-0 items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-bold text-white shadow-md transition-all active:scale-95 ${styleOf(TOPIC_BY_ID[data.topic]).button}">
                             <i data-lucide="share-2" class="h-4 w-4 shrink-0"></i> Sdílet
@@ -5235,9 +5245,11 @@
             : `${news[0].title}: poražen ${news[0].count}× ze 3${news.length > 1 ? ` (a další roboti)` : ''}.`);
         syncRewards();
     };
-    // Dny zachráněné ochranou série: série dnešních otázek i Kvízu dne přes ně pokračují
-    const frozenDays = () => (Rewards ? loadRewards().frozen : []);
-    const topicStreak = (results, today = getDayKey()) => computeStreak(results || {}, today, frozenDays());
+    // Dny zachráněné ochranou série: starší platí pro všechny série, nové jen pro Kvíz dne (použije se sama) nebo pro jedno téma Dnešních otázek
+    // (hráč ji použije ručně, viz openStreakRescue); série přes ně pokračují
+    const frozenQuizDays = () => (Rewards ? Rewards.frozenForQuiz(loadRewards()) : []);
+    const frozenTopicDays = (topicId) => (Rewards ? Rewards.frozenForTopic(loadRewards(), topicId) : []);
+    const topicStreak = (results, today, topicId) => computeStreak(results || {}, today || getDayKey(), frozenTopicDays(topicId));
     // Řádek „Další odměna za sérii: Stovka za 100 dní (zbývá 37)“ (rewards.js); prázdný, když už má hráč všechny odměny za sérii
     const nextStreakReward = (streak, badges = loadProgress().badges) => {
         if (!Rewards || !Look) return null;
@@ -5246,27 +5258,25 @@
     };
     const streakRewardLine = (streak, cls = '') => { const next = nextStreakReward(streak); return next ? Rewards.streakRewardHtml(next, chestHelpers(), cls) : ''; };
     // Nejdelší běžící série dnešních otázek (přes všechna témata), podle ní se počítá odznak série
-    const longestStreak = () => { const stats = loadStats(); return Math.max(0, ...TOPICS.map(topic => topicStreak(stats.daily[topic.id]))); };
+    const longestStreak = () => { const stats = loadStats(); return Math.max(0, ...TOPICS.map(topic => topicStreak(stats.daily[topic.id], undefined, topic.id))); };
     // Popisek štítku série na úvodu (úvod je bez posouvání plný, řádek se tam nevejde)
     const streakRewardTitle = (streak, badges) => { const next = nextStreakReward(streak, badges); return `Série ${streak} ${streak === 1 ? 'den' : streak <= 4 ? 'dny' : 'dní'}${next ? ` · ${Rewards.streakRewardText(next)}` : ''}`; };
-    const quizStreakOf = (played, today) => (DailyQuiz ? DailyQuiz.streakOf(played, today, frozenDays()) : 0);
+    const quizStreakOf = (played, today) => (DailyQuiz ? DailyQuiz.streakOf(played, today, frozenQuizDays()) : 0);
     // Počítadla odměn (otevřené truhly, použité ochrany, sdílené obrázky) jsou s ostatními počítadly postupu (tipy, odznaky)
     const bumpCounter = (key, by = 1) => {
         const progress = loadProgress();
         progress.counters[key] = (progress.counters[key] || 0) + by;
         saveProgress(progress);
     };
-    // Ochrana série: jednou denně po spuštění; včera nevyšla žádná série aspoň tří dní → ochrana ji zachrání (rewards.js)
+    // Ochrana série. Kvíz dne: jednou denně po spuštění; včera nevyšel a před ním běžela série aspoň tří dní → ochrana se použije sama (rewards.js).
+    // Dnešní otázky se samy nechrání: když včera nevyšla série tématu, nabídne se Zachránit sérii (openStreakRescue) a hráč ochranu použije ručně
     const FREEZE_LOG_KEY = 'mudrlant.freezeLog';
+    const logFreeze = (day, reasons) => writeJson(FREEZE_LOG_KEY, [{ day, reasons }, ...(readJson(FREEZE_LOG_KEY) || [])].slice(0, 10));
     const checkStreakFreeze = () => {
-        if (!Rewards || devActive()) return;
+        if (!Rewards || !DailyQuiz || devActive()) return;
         try {
-            const stats = loadStats();
-            const quizDays = new Set(DailyQuiz ? DailyQuiz.playedDays(quizState(), DailyQuiz.pragueDay()) : []);
-            const series = [
-                ...TOPICS.map(topic => ({ id: topic.id, ok: (day) => Boolean(((stats.daily[topic.id] || {})[day] || {}).correct) })),
-                { id: 'kviz-dne', ok: (day) => quizDays.has(day) }
-            ];
+            const quizDays = new Set(DailyQuiz.playedDays(quizState(), DailyQuiz.pragueDay()));
+            const series = [{ id: 'kviz-dne', ok: (day) => quizDays.has(day) }];
             const before = loadRewards();
             const result = Rewards.checkFreeze(before, getDayKey(), series);
             if (result.state.checked === before.checked) return;
@@ -5274,23 +5284,57 @@
             if (!result.used) return;
             bumpCounter('freezesUsed');
             const left = result.state.freezes;
-            // Proč ochrana zabrala: které série včera nevyšly (téma Dnešních otázek: nezodpovězená nebo nesprávná odpověď, Kvíz dne: nehrán) a jak dlouhé byly
-            const dayBefore = Rewards.addDays(result.day, -1);
-            const reasons = result.saved.map(id => {
-                const entry = series.find(item => item.id === id);
-                const length = entry ? Rewards.streakEndingAt(entry.ok, dayBefore, before.frozen) : 0;
-                const topic = TOPIC_BY_ID[id];
-                const played = topic ? (stats.daily[id] || {})[result.day] : null;
-                const what = topic ? `Dnešní otázka z tématu ${topic.title}` : 'Kvíz dne';
-                const why = topic ? (played ? 'odpověď nebyla správná' : 'nebyla zodpovězená') : 'nebyl dohraný';
-                return `${what}: ${why} (série ${plural(length, 'den', 'dny', 'dní')})`;
-            });
-            const log = [{ day: result.day, reasons }, ...(readJson(FREEZE_LOG_KEY) || [])].slice(0, 10);
-            writeJson(FREEZE_LOG_KEY, log);
-            const shownReasons = reasons.slice(0, 3).join('; ') + (reasons.length > 3 ? ` a ${reasons.length - 3} dalších` : '');
-            showCelebration('serie', 'Ochrana série zabrala', `Zachráněný den ${Rewards.formatDay(result.day)}. Nevyšlo: ${shownReasons}. ${left ? `Zbývá ${left} ${Rewards.freezeWord(left)}.` : 'Další ochranu získáš z truhly nebo za 7 dní v řadě.'}`);
+            // Proč ochrana zabrala: Kvíz dne včera nebyl dohraný a jak dlouhá série to byla
+            const length = Rewards.streakEndingAt(series[0].ok, Rewards.addDays(result.day, -1), Rewards.frozenForQuiz(before));
+            const reason = `Kvíz dne: nebyl dohraný (série ${plural(length, 'den', 'dny', 'dní')})`;
+            logFreeze(result.day, [reason]);
+            showCelebration('serie', 'Ochrana série zabrala', `Zachráněný den ${Rewards.formatDay(result.day)}. Nevyšlo: ${reason}. ${left ? `Zbývá ${left} ${Rewards.freezeWord(left)}.` : 'Další ochranu získáš z truhly nebo za 7 dní v řadě.'}`);
             syncRewards();
         } catch (error) { console.error(error); }
+    };
+    // Série Dnešních otázek, které jde teď ručně zachránit: včera nevyšly, před tím běžely aspoň tři dny a ochrana je k mání ([{ id, day, length }])
+    const topicSeries = (stats) => TOPICS.map(topic => ({ id: topic.id, ok: (day) => Boolean(((stats.daily[topic.id] || {})[day] || {}).correct) }));
+    const rescuableTopics = () => (Rewards && !devActive() ? Rewards.rescuable(loadRewards(), getDayKey(), topicSeries(loadStats())) : []);
+    // Proč včera nevyšla série tématu: otázka nebyla zodpovězená, nebo odpověď nebyla správná
+    const topicMissText = (topicId, day, stats) => ((stats.daily[topicId] || {})[day] ? 'odpověď nebyla správná' : 'nebyla zodpovězená');
+    // Zachrání sérii tématu ochranou (spotřebuje jednu); vrátí true, když se to povedlo
+    const rescueStreak = (topicId) => {
+        const topic = TOPIC_BY_ID[topicId];
+        if (!Rewards || !topic || devActive()) return false;
+        const stats = loadStats();
+        const result = Rewards.rescueTopic(loadRewards(), getDayKey(), topicSeries(stats).find(entry => entry.id === topicId), Date.now());
+        if (!result.saved) { showToast('Tuhle sérii teď zachránit nejde.'); return false; }
+        saveRewards(result.state);
+        bumpCounter('freezesUsed');
+        logFreeze(result.day, [`Dnešní otázka z tématu ${topic.title}: ${topicMissText(topicId, result.day, stats)} (série ${plural(result.length, 'den', 'dny', 'dní')}), zachráněno ručně`]);
+        syncRewards();
+        return true;
+    };
+    // Okno Zachránit sérii: série Dnešních otázek, které včera nevyšly, s důvodem a tlačítkem; každá záchrana spotřebuje jednu ochranu
+    const openStreakRescue = () => {
+        const list = rescuableTopics();
+        if (!list.length) { closeDialog(); paintTab(); showToast('Teď není co zachraňovat.'); return; }
+        const stats = loadStats();
+        const rows = list.map(item => {
+            const topic = TOPIC_BY_ID[item.id];
+            return `<li><button type="button" data-action="rescue-topic" data-topic="${item.id}" class="flex w-full items-center gap-2.5 rounded-2xl bg-white p-2 text-left shadow-sm ring-1 ring-slate-200/70 active:scale-[0.99] dark:bg-slate-800/70 dark:ring-slate-700/70">
+                ${topicIcon(topic, 'h-9 w-9 shrink-0', `rounded-lg p-1 ${styleOf(topic).soft}`, 'h-6 w-6')}
+                <span class="min-w-0 flex-1"><span class="block truncate text-[14px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(topic.title)}</span>
+                    <span class="block text-[12px] font-semibold leading-tight text-slate-500 dark:text-slate-400">Série ${plural(item.length, 'den', 'dny', 'dní')} · včera ${escapeHtml(topicMissText(item.id, item.day, stats))}</span></span>
+                <span class="shrink-0 rounded-xl bg-brand-700 px-2.5 py-1.5 text-[12px] font-black text-white">Zachránit</span></button></li>`;
+        }).join('');
+        const freezes = loadRewards().freezes;
+        showDialog('Zachránit sérii', `<div data-streak-rescue class="flex flex-col gap-2">
+            <p class="text-[13px] font-semibold leading-snug text-slate-600 dark:text-slate-300">Včera ti nevyšla série v těchto tématech. Ochrana série (máš ${freezes}) zachrání jeden den jedné série, ostatní zůstanou přerušené.</p>
+            <ul class="flex max-h-[14rem] flex-col gap-1.5 overflow-y-auto overscroll-contain">${rows}</ul>
+            <button type="button" data-close class="${SECONDARY_BUTTON}">Nechat být</button></div>`, { onClick: (event) => {
+            const button = event.target.closest('[data-action="rescue-topic"]');
+            if (!button || !TOPIC_BY_ID[button.dataset.topic]) return;
+            if (!rescueStreak(button.dataset.topic)) return;
+            showToast(`Série v tématu ${TOPIC_BY_ID[button.dataset.topic].title} je zachráněná.`);
+            paintTab();
+            if (rescuableTopics().length) openStreakRescue(); else closeDialog();
+        } });
     };
     // Nová ochrana za 7 dní v řadě (dnešní otázky: d, Kvíz dne: q); nad strop 2 se nepřidá
     const earnStreakFreeze = (source, day, streak) => {
@@ -5482,7 +5526,8 @@
     };
     const openFreezeHelp = () => {
         if (!Rewards) return;
-        showDialog('Série a ochrana série', `${Rewards.freezeHelpHtml(loadRewards().freezes, dayStreakNow(), readJson(FREEZE_LOG_KEY) || [])}${streakRewardLine(longestStreak(), 'mt-2.5 rounded-xl bg-white px-2.5 py-2 shadow-sm dark:bg-slate-800')}${dialogBackButton('mt-3')}`);
+        showDialog('Série a ochrana série', `${Rewards.freezeHelpHtml(loadRewards().freezes, dayStreakNow(), readJson(FREEZE_LOG_KEY) || [], rescuableTopics().length)}${streakRewardLine(longestStreak(), 'mt-2.5 rounded-xl bg-white px-2.5 py-2 shadow-sm dark:bg-slate-800')}${dialogBackButton('mt-3')}`,
+            { onClick: (event) => { if (event.target.closest('[data-action="streak-rescue"]')) openStreakRescue(); } });
     };
     const lastChestText = (state) => {
         const week = Object.keys(state.chests).sort().pop();
@@ -6115,10 +6160,10 @@
         if (mode === 'daily' && current.dailyDate && round.dailyFirst !== false) {
             parts.push({ label: 'za dnešní otázku tématu', xp: DAILY_XP });
             if (round.correct) {
-                const streak = topicStreak(stats.daily[current.topic]);
+                const streak = topicStreak(stats.daily[current.topic], undefined, current.topic);
                 if (streak > 1) parts.push({ label: `za sérii ${streak} dní v řadě`, xp: streakXp(streak) });
             }
-            const dayStreak = topicStreak(stats.daily[current.topic]);
+            const dayStreak = topicStreak(stats.daily[current.topic], undefined, current.topic);
             counters.bestStreak = Math.max(counters.bestStreak, dayStreak);
             if (round.correct && [3, 7, 14, 30, 60, 100, 200, 365].includes(dayStreak)) {
                 // S výhledem na další odměnu za sérii (odznaky do této délky se počítají jako získané, dostane je hráč právě teď)
@@ -6244,7 +6289,7 @@
             topic,
             dayKey,
             result,
-            streak: topicStreak(results),
+            streak: topicStreak(results, undefined, current.topic),
             url: `${window.location.origin}${window.location.pathname}`
         });
         // Sdílení (systémové, jinak schránka) je pro celou aplikaci v share-card.js
@@ -11978,7 +12023,7 @@
         if (!result) return null;
         const topic = TOPIC_BY_ID[current.topic];
         const levels = `nápovědy ${result.hintLevel - 1}/${(result.levelCount || result.hintLevel) - 1}`;
-        const streak = topicStreak(results);
+        const streak = topicStreak(results, undefined, current.topic);
         return { kicker: `Dnešní otázka · ${topic.title}`, headline: result.correct ? 'Správně!' : 'Tentokrát ne', detail: result.correct ? `${formatPoints(result.points)} · ${levels}` : levels,
             grid: null, note: streak ? `Série ${plural(streak, 'den', 'dny', 'dní')} v řadě` : '', day: dayKey, robe: robeNow(), pose: result.correct ? 'radost' : 'smutek', url: appUrl(), appName: APP_NAME };
     };
@@ -15038,6 +15083,7 @@
         'season-claim': () => openSeasonReveal(),
         'season-open': () => openSeason(),
         'freeze-info': () => openFreezeHelp(),
+        'streak-rescue': () => openStreakRescue(),
         'clear-mistakes': () => clearMistakes(),
         'gold-chest': () => openChestOverlay(true),
         'gold-info': () => openGoldInfo(),

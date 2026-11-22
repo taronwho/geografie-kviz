@@ -167,30 +167,74 @@ test('odměny: truhla, ochrana série, diplomy, sdílení obrázku', { skip: !ch
         await context.close();
     });
 
-    await t.test('ochrana série: vynechaný den se zachrání sám, série dnešních otázek trvá', async () => {
+    await t.test('ochrana série: Kvíz dne se zachrání sám, série dnešních otázek se samy nechrání', async () => {
         const daily = Object.fromEntries([-4, -3, -2].map(offset => [dayKey(offset), { correct: true, points: 4, hintLevel: 1, levelCount: 4 }]));
-        const { context, tab, problems } = await open({ viewport: { width: 360, height: 640 }, seed: { 'mudrlant.stats': { daily: { zemepis: daily }, practice: {} }, 'mudrlant.rewards': { freezes: 1 }, 'mudrlant.progress': { xp: 100, counters: { bestStreak: 3 }, badges: {} } } });
+        const quizDays = Object.fromEntries([-4, -3, -2].map(offset => [dayKey(offset), { answered: 10, correct: 6, score: 20, time_ms: 100000, bitmap: 0, done: true }]));
+        const { context, tab, problems } = await open({ viewport: { width: 360, height: 640 }, seed: { 'mudrlant.stats': { daily: { zemepis: daily }, practice: {} }, 'mudrlant.dailyQuiz': { v: 1, days: quizDays, attempt: null },
+            'mudrlant.rewards': { freezes: 1 }, 'mudrlant.progress': { xp: 100, counters: { bestStreak: 3 }, badges: {} } } });
         await tab.waitForSelector('#celebration');
         assert.match(await tab.textContent('#celebration'), /Ochrana série zabrala/);
-        // Hláška řekne, proč: která série včera nevyšla a jak byla dlouhá
-        assert.match(await tab.textContent('#celebration'), /Nevyšlo: Dnešní otázka z tématu Zeměpis: nebyla zodpovězená \(série 3 dny\)/);
+        // Hláška řekne, proč: Kvíz dne včera nebyl dohraný a jak dlouhá série to byla
+        assert.match(await tab.textContent('#celebration'), /Nevyšlo: Kvíz dne: nebyl dohraný \(série 3 dny\)/);
         assert.deepEqual((await storage(tab, 'mudrlant.freezeLog')).map(entry => entry.day), [dayKey(-1)]);
         await shot(tab, 'ochrana-zabrala-360-light');
         const rewards = await storage(tab, 'mudrlant.rewards');
         assert.equal(rewards.freezes, 0);
-        assert.deepEqual(rewards.frozen, [dayKey(-1)]);
+        assert.deepEqual(rewards.frozenQuiz, [dayKey(-1)]);
+        assert.deepEqual(rewards.frozen || [], [], 'starý seznam pro všechny série se nerozšiřuje');
         assert.equal((await storage(tab, 'mudrlant.progress')).counters.freezesUsed, 1);
         await clearCelebrations(tab);
         await tab.evaluate(() => document.getElementById('btn-home').click());
         await nav.waitForHome(tab);
         await nav.dailySheet(tab);
-        assert.match(await tab.textContent('#daily-sheet [data-action="daily"][data-topic="zemepis"]'), /3/, 'série 3 dní přes zachráněný den');
+        // Zachráněný den neplatí pro Dnešní otázky: série Zeměpisu je přerušená (včera nevyšla)
+        assert.doesNotMatch(await tab.textContent('#daily-sheet [data-action="daily"][data-topic="zemepis"]'), /3/, 'série dnešních otázek se přes zachráněný den nepřenesla');
         await tab.keyboard.press('Escape');
-        assert.equal(await tab.locator('[data-freeze-chip]').count(), 0, 'bez ochrany štít není');
         // Další spuštění téhož dne už nic nespotřebuje
         await tab.reload();
         await nav.waitForHome(tab);
         assert.equal((await storage(tab, 'mudrlant.rewards')).freezes, 0);
+        assert.deepEqual(problems, []);
+        await context.close();
+    });
+
+    await t.test('ochrana série: série dnešních otázek zachrání hráč ručně (Zachránit sérii), bez ochrany se nenabídne', async () => {
+        const daily = Object.fromEntries([-4, -3, -2].map(offset => [dayKey(offset), { correct: true, points: 4, hintLevel: 1, levelCount: 4 }]));
+        const seed = (freezes) => ({ 'mudrlant.stats': { daily: { zemepis: daily }, practice: {} }, 'mudrlant.rewards': { freezes }, 'mudrlant.progress': { xp: 100, counters: { bestStreak: 3 }, badges: {} } });
+        // Bez ochrany: nic se nenabídne
+        const none = await open({ viewport: { width: 360, height: 640 }, seed: seed(0) });
+        assert.equal(await none.tab.locator('[data-action="streak-rescue"]').count(), 0);
+        await none.context.close();
+        const { context, tab, problems } = await open({ viewport: { width: 360, height: 640 }, seed: seed(1) });
+        // Samo se nic nepoužije
+        assert.equal(await tab.locator('#celebration').count(), 0);
+        assert.equal((await storage(tab, 'mudrlant.rewards')).freezes, 1);
+        assert.equal(await tab.locator('[data-action="streak-rescue"]').count() > 0, true, 'nabídka Zachránit sérii');
+        assert.equal(await noScroll(tab), true, 'úvod se vejde bez posouvání i s nabídkou');
+        await shot(tab, 'zachranit-serii-360-light');
+        // Z okna Série a ochrana série (klepnutí na štít v hlavičce) jde sérii zachránit taky
+        await tab.click('#streak-chip');
+        await tab.waitForSelector('[data-freeze-help] [data-action="streak-rescue"]');
+        assert.match(await tab.textContent('[data-freeze-help]'), /Zachránit sérii \(1\)/);
+        assert.match(await tab.textContent('[data-freeze-help]'), /u Dnešních otázek ji použiješ ručně/);
+        await shot(tab, 'serie-napoveda-zachranit-360-light');
+        await tab.click('[data-freeze-help] [data-action="streak-rescue"]');
+        await tab.waitForSelector('[data-streak-rescue]');
+        assert.match(await tab.textContent('[data-streak-rescue]'), /Zeměpis[^]*Série 3 dny · včera nebyla zodpovězená/);
+        assert.equal(await tab.locator('#dialog-overlay').evaluate(box => box.firstElementChild.scrollHeight - box.firstElementChild.clientHeight) <= 24, true, 'okno se vejde');
+        await shot(tab, 'zachranit-serii-okno-360-light');
+        await tab.click('[data-action="rescue-topic"][data-topic="zemepis"]');
+        await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
+        const rewards = await storage(tab, 'mudrlant.rewards');
+        assert.equal(rewards.freezes, 0);
+        assert.deepEqual(rewards.frozenTopics, { zemepis: [dayKey(-1)] });
+        assert.deepEqual(rewards.frozenQuiz || [], []);
+        assert.equal((await storage(tab, 'mudrlant.progress')).counters.freezesUsed, 1);
+        assert.match((await storage(tab, 'mudrlant.freezeLog'))[0].reasons[0], /Zeměpis: nebyla zodpovězená \(série 3 dny\), zachráněno ručně/);
+        assert.equal(await tab.locator('[data-action="streak-rescue"]').count(), 0, 'nabídka zmizela');
+        await nav.dailySheet(tab);
+        assert.match(await tab.textContent('#daily-sheet [data-action="daily"][data-topic="zemepis"]'), /3/, 'série 3 dny přes zachráněný den');
+        await tab.keyboard.press('Escape');
         assert.deepEqual(problems, []);
         await context.close();
     });
@@ -240,7 +284,7 @@ test('odměny: truhla, ochrana série, diplomy, sdílení obrázku', { skip: !ch
             assert.match(await tab.textContent('[data-diploma-count]'), /\d+ \/ 14/);
             await tab.click('[data-rewards-info="freeze"]');
             await tab.waitForSelector('[data-freeze-help]');
-            assert.match(await tab.textContent('[data-freeze-help]'), /jeden den vynecháš/);
+            assert.match(await tab.textContent('[data-freeze-help]'), /u Dnešních otázek ji použiješ ručně/);
             await shot(tab, `ochrana-vysvetleni-${tag}`);
             await tab.keyboard.press('Escape');
             await tab.waitForSelector('#dialog-overlay', { state: 'detached' });

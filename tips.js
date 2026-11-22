@@ -67,7 +67,7 @@
             action: { kind: 'challenges', label: 'Zobrazit' }, ready: (u) => num(u.counters.challenges) >= 3, used: (u) => num(u.counters.wins) >= 8 },
         { id: 'obrazek', icon: 'share-2', after: 34, title: 'Sdílej obrázek', text: 'Výsledek Kvízu dne, dnešních otázek, Bleskovky, Přežití i vyhrané výzvy můžeš sdílet jako obrázek s tvým Mudrlantem. Stačí u výsledku klepnout na Sdílet obrázek.',
             ready: (u) => num(u.counters.quizDone) + num(u.counters.blitzGames) + num(u.counters.survivalGames) + num(u.counters.dailyCorrect) > 0, used: (u) => num(u.counters.sharedImages) > 0 },
-        { id: 'ochrana', icon: 'shield-check', after: 38, title: 'Ochrana série', text: 'Když jeden den nehraješ, ochrana série se použije sama a tvoje série dnešních otázek i Kvízu dne se nepřeruší. Najednou můžeš mít nejvýš dvě. Získáš je za 7 dní hraní v řadě a často i v Truhle Mudrlanta.',
+        { id: 'ochrana', icon: 'shield-check', after: 38, title: 'Ochrana série', text: 'Když vynecháš Kvíz dne, ochrana série se použije sama a série se nepřeruší. U Dnešních otázek ji použiješ ručně: když ti včera nevyšla série tématu, na záložce Dnes se nabídne Zachránit sérii. Máš nejvýš dvě, získáš je za 7 dní v řadě a v Truhle.',
             ready: (u) => num(u.counters.bestStreak) >= 2 || num(u.counters.quizBestStreak) >= 2 || num(u.freezes) > 0, used: (u) => num(u.counters.freezesUsed) > 0 },
         { id: 'cile', icon: 'target', after: 45, title: 'Týdenní cíle', text: 'Na záložce Postup máš každý týden tři nové cíle. Když splníš všechny tři, dostaneš bonusové XP, odznak a Truhlu Mudrlanta s novou věcí pro Mudrlanta.',
             action: { kind: 'goals', label: 'Ukázat cíle' }, used: (u) => num(u.counters.weeksDone) > 0 },
