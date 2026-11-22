@@ -2965,7 +2965,8 @@
         ['chemie', 'Chemie', ['Laborant', 'Chemik', 'Alchymista', 'Profesor chemie', 'Pán prvků']], ['fyzika', 'Fyzika', ['Experimentátor', 'Fyzik', 'Pán energie', 'Astrofyzik', 'Pán vesmíru']],
         ['umeni', 'Výtvarné umění', ['Divák galerie', 'Znalec umění', 'Mecenáš', 'Kurátor', 'Pán galerií']], ['architektura', 'Architektura', ['Stavitel', 'Architekt', 'Pán katedrál', 'Urbanista', 'Pán měst']],
         ['hudba', 'Hudba', ['Posluchač', 'Hudebník', 'Mistr tónů', 'Skladatel', 'Pán symfonií']], ['literatura', 'Literatura', ['Čtenář', 'Knihomol', 'Literát', 'Redaktor', 'Pán knihovny']],
-        ['film', 'Film', ['Divák', 'Filmař', 'Režisér', 'Producent', 'Pán Hollywoodu']], ['sport', 'Sport', ['Fanoušek', 'Sportovec', 'Šampion sportu', 'Trenér', 'Pán stadionů']]
+        ['film', 'Film', ['Divák', 'Filmař', 'Režisér', 'Producent', 'Pán Hollywoodu']], ['sport', 'Sport', ['Fanoušek', 'Sportovec', 'Šampion sportu', 'Trenér', 'Pán stadionů']],
+        ['technika', 'Technika a vynálezy', ['Šikula', 'Technik', 'Konstruktér', 'Inženýr', 'Pán strojů']]
     ];
     TOPIC_BADGES.forEach(([topic, label, names]) => addGroup(`tema-${topic}`, label, 'medal', (c) => (c.topics || {})[topic] || 0,
         (g) => `${g} správných odpovědí v tématu ${label}.`, [T(25, names[0]), T(100, names[1]), T(300, names[2]), T(600, names[3]), T(1000, names[4])], { topic }));
@@ -2976,7 +2977,7 @@
     const SKILL_TITLES = {
         zemepis: 'Navigátor', vlajky: 'Praporečník', historie: 'Pamětník', mytologie: 'Posel bohů', biologie: 'Lovec motýlů', geologie: 'Havíř',
         chemie: 'Pyrotechnik', fyzika: 'Geniální šílenec', umeni: 'Malíř', architektura: 'Stavbyvedoucí', hudba: 'Pěvecká hvězda',
-        literatura: 'Básník', film: 'Kinomaniak', sport: 'Olympionik'
+        literatura: 'Básník', film: 'Kinomaniak', sport: 'Olympionik', technika: 'Vynálezce'
     };
     const SKILL_RANKS = {
         zemepis: ['Mapař', 'Kapitán', 'Admirál', 'Magellan'], vlajky: ['Stožárník', 'Standartonoš', 'Praporní mistr', 'Velitel praporů'],
@@ -2985,7 +2986,8 @@
         chemie: ['Míchač', 'Destilatér', 'Nobelista', 'Mendělejev'], fyzika: ['Měřič', 'Teoretik', 'Newton', 'Einstein'],
         umeni: ['Skicář', 'Impresionista', 'Mistr štětce', 'Velikán umění'], architektura: ['Zedník', 'Projektant', 'Hlavní architekt', 'Pán věží'],
         hudba: ['Zpěvák', 'Kapelník', 'Virtuos', 'Maestro'], literatura: ['Rýmovník', 'Spisovatel', 'Dramatik', 'Laureát'],
-        film: ['Komparzista', 'Herec', 'Scenárista', 'Oscarový'], sport: ['Běžec', 'Závodník', 'Medailista', 'Legenda sportu']
+        film: ['Komparzista', 'Herec', 'Scenárista', 'Oscarový'], sport: ['Běžec', 'Závodník', 'Medailista', 'Legenda sportu'],
+        technika: ['Mechanik', 'Strojník', 'Patentový expert', 'Génius techniky']
     };
     TOPIC_BADGES.forEach(([topic, label]) => addGroup(`zbehly-${topic}`, `Zběhlost: ${label}`, 'medal',
         (c, x) => Math.max(((c.topicBest || {})[topic]) || 0, (((x && x.topicStars) || {})[topic] || 0) >= SKILL_STARS ? SKILL_RUN : 0),

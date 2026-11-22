@@ -34,7 +34,7 @@
 
     const PERSON_CATEGORIES = {
         historie: ['panovnik', 'statnik', 'osobnost'], fyzika: ['fyzici', 'astronomove'], chemie: ['chemici'], umeni: ['umelci', 'fotografove', 'ilustratori'],
-        literatura: ['spisovatele'], hudba: ['skladatele', 'hudebnici'], film: ['herci', 'reziseri'], architektura: ['architekti'], sport: ['sportovci']
+        literatura: ['spisovatele'], hudba: ['skladatele', 'hudebnici'], film: ['herci', 'reziseri'], architektura: ['architekti'], sport: ['sportovci'], technika: ['vynalezci']
     };
     // Přístroje z kategorie Mise a přístroje, u kterých rok z Wikidat odpovídá vynálezu (u cívky, diody či generátoru ne)
     const INSTRUMENTS = new Set(['Barometr', 'Elektromotor', 'Elektronový mikroskop', 'Voltův sloup', 'Leydenská láhev', 'Foucaultovo kyvadlo', 'Transformátor',
@@ -118,6 +118,8 @@
         let by = f.by || '';
         let byq = f.byq || f.bq || '';
         if (topicId === 'fyzika' && item.c === 'vynalezy') kd = 'vynalez';
+        // Technika: jen vynálezy s ručně ověřeným rokem (scripts/lib/technika-sources.mjs INVENTION_FACTS)
+        if (topicId === 'technika' && item.c === 'vynalezy') kd = 'vynalez';
         if (topicId === 'fyzika' && item.c === 'mise') kd = item.ty === 'přístroj' ? (INSTRUMENTS.has(item.n) ? 'vynalez' : null) : SPACE.includes(item.ty) ? 'mise' : null;
         if (topicId === 'fyzika' && item.c === 'vesmir' && f.disc && y >= 1600 && BODIES.includes(item.ty)) { kd = 'teleso'; by = f.disc; }
         if (topicId === 'chemie' && item.c === 'prvky' && y >= 1650 && !ELEMENT_SKIP.has(item.n)) { kd = 'prvek'; by = f.disc || ''; }
@@ -816,7 +818,7 @@
 
     // --- Kvíz dne: jedna až dvě otázky denně, na pozicích s tématem, které Časové souvislosti umí ---
 
-    const QUIZ_TOPICS = new Set(['historie', 'fyzika', 'chemie', 'umeni', 'literatura', 'hudba', 'film', 'architektura', 'sport', 'biologie']);
+    const QUIZ_TOPICS = new Set(['historie', 'fyzika', 'chemie', 'umeni', 'literatura', 'hudba', 'film', 'architektura', 'sport', 'biologie', 'technika']);
     const SECOND_SHARE = 0.35;
     // slots = témata otázek dne podle pořadí; vrátí pozice s Časovými souvislostmi (nikdy první dvě, ty jsou nejsnazší)
     const quizSlots = (day, topics) => {

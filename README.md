@@ -1,10 +1,10 @@
 # Mudrlant
 
-Kvízová aplikace s tématy **Zeměpis**, **Historie**, **Biologie**, **Chemie**, **Fyzika**, **Geologie**, **Vlajky a znaky**, **Mytologie**, **Výtvarné umění**, **Architektura**, **Hudba**, **Literatura**, **Film** a **Sport**. Všechna témata fungují stejně.
+Kvízová aplikace s tématy **Zeměpis**, **Historie**, **Biologie**, **Chemie**, **Fyzika**, **Geologie**, **Vlajky a znaky**, **Mytologie**, **Výtvarné umění**, **Architektura**, **Hudba**, **Literatura**, **Film**, **Sport** a **Technika a vynálezy**. Všechna témata fungují stejně.
 
 **Navigace** – hlavní obrazovky jsou záložky spodní lišty a žádná se neposouvá (podrobnosti se otevírají o klepnutí hlouběji):
 **Dnes** (dnešní výzvy Kvíz dne, Řetězovka, Tajemná otázka a Boss týdne, karta Dnešní otázky s výběrem tématu, truhla a příležitostné pruhy),
-**Hrát** (Mix, 14 témat a režimy Bleskovka, Přežití, Na mapě a Učení), **Soupeři** (Čeká na tebe, dlaždice Výzvy, Dobývání, Turnaje a Skupiny
+**Hrát** (Mix, 15 témat a režimy Bleskovka, Přežití, Na mapě a Učení), **Soupeři** (Čeká na tebe, dlaždice Výzvy, Dobývání, Turnaje a Skupiny
 s vlastními okny, pás přátel), **Postup** (úroveň, Sezóna, cíle týdne, odznaky, mistrovství, album…) a **Já** (profil, Mudrlant, nastavení hry,
 upozornění, účet). Při hře se lišta schová. Zvolená záložka se pamatuje do zavření aplikace (`sessionStorage`), začíná se na záložce Dnes.
 
@@ -63,6 +63,7 @@ Základní otázka je „Co je to?“ podle kategorie (Který prvek to je?, Kdo 
 | Literatura | Kdo to napsal? Kdo tuto postavu vymyslel? Ve kterém století žil či dílo vzniklo? |
 | Film | Kdo film režíroval? Ve kterém desetiletí měl premiéru? U animovaných filmů Které studio film natočilo?, u seriálů Kdo seriál vytvořil (napsal scénář)? a Ve kterém desetiletí se začal vysílat? |
 | Sport | Ve kterém sportu se proslavil(a)? Kde se konaly olympijské hry? Které hry to jsou? Co je to za sport (podle fotky)? Který klub, stadion, okruh nebo soutěž to je (podle země, mapy, kapacity a fotky)? |
+| Technika a vynálezy | Auto, vlak, letadlo, loď, přístroj či stroj jsou vidět hned (fotka): Co je to za auto (vlak, letadlo…)? Kdo to vyrobil (vyvinul)? Ve kterém desetiletí poprvé vzlétlo (přišlo na trh)? U firem a automobilek Ze které země pochází? a Ve kterém desetiletí byla založena? Dále vynálezci a průkopníci, internet a software, elektrárny, letiště, metra a kosmodromy (slepá mapa) |
 
 **Ukaž na mapě** (`question-map.js`): „Kde leží Kilimandžáro?“, „Kde stojí Karlštejn?“ – hráč klepne na slepou mapu (obrysy bez popisků),
 tip může klepnutím přesunout, mapu přiblížit tlačítky +/−, kolečkem nebo dvěma prsty a posunout tažením, pak **Potvrdit**.
@@ -308,6 +309,7 @@ npm run build:historie   # data/historie.json
 npm run build:biologie   # data/biologie.json
 npm run build:chemie     # data/chemie.json
 npm run build:fyzika     # data/fyzika.json
+npm run build:technika   # data/technika.json (ruční seznamy a třídy Wikidat, lib/technika-sources.mjs; bez položek jiných témat)
 npm run build:vynalezy   # data/vynalezy.json (slavné objevy a vynálezy, roky ověřené proti Wikidatům)
 npm run build:souvislosti # data/souvislosti.json (Časové souvislosti; po datech témat a build:vynalezy; známost podle návštěvnosti české Wikipedie)
 npm run build:reky      # data/zemepis.json, pole ca: další státy řek (průběh řeky proti hranicím Natural Earth 1:10m, Wikidata P205 a P131)

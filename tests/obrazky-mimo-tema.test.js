@@ -11,7 +11,7 @@ const { spawnSync } = require('node:child_process');
 const core = require('../quiz-core.js');
 
 const ROOT = path.join(__dirname, '..');
-const TOPICS = ['zemepis', 'architektura', 'historie', 'biologie', 'chemie', 'fyzika', 'geologie', 'hudba', 'literatura', 'sport', 'umeni', 'film'];
+const TOPICS = ['zemepis', 'architektura', 'historie', 'biologie', 'chemie', 'fyzika', 'geologie', 'hudba', 'literatura', 'sport', 'umeni', 'film', 'technika'];
 const load = (id) => ({ topic: require(`../topics/${id}.js`), items: JSON.parse(fs.readFileSync(path.join(ROOT, 'data', `${id}.json`), 'utf8')).items });
 const loaded = Object.fromEntries(TOPICS.map(id => [id, load(id)]));
 const find = (id, name, category) => loaded[id].items.find(item => item.n === name && (!category || item.c === category));

@@ -15,7 +15,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const core = require('../quiz-core.js');
 const Time = require('../time-questions.js');
 const args = Object.fromEntries(process.argv.slice(2).map(arg => { const m = /^--([^=]+)(?:=(.*))?$/.exec(arg); return m ? [m[1], m[2] ?? 'true'] : [arg, 'true']; }));
-const TOPICS = ['historie', 'fyzika', 'chemie', 'umeni', 'literatura', 'hudba', 'film', 'architektura', 'sport', 'biologie'];
+const TOPICS = ['historie', 'fyzika', 'chemie', 'umeni', 'literatura', 'hudba', 'film', 'architektura', 'sport', 'biologie', 'technika'];
 const topics = args.topic ? args.topic.split(',') : TOPICS;
 const runs = Number(args.runs || 300);
 const sample = Number(args.sample || 0);

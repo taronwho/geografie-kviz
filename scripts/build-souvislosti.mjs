@@ -16,7 +16,7 @@ const require = createRequire(import.meta.url);
 const Time = require('../time-questions.js');
 const ROOT = new URL('../', import.meta.url);
 // Pořadí určuje, ke kterému tématu patří osoba, která je ve dvou (Leonardo da Vinci: Výtvarné umění, ne Fyzika)
-const TOPICS = ['historie', 'umeni', 'literatura', 'hudba', 'film', 'architektura', 'fyzika', 'chemie', 'sport'];
+const TOPICS = ['historie', 'umeni', 'literatura', 'hudba', 'film', 'architektura', 'fyzika', 'chemie', 'sport', 'technika'];
 
 const people = [];
 const dated = [];

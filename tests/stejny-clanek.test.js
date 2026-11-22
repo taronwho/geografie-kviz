@@ -12,7 +12,7 @@ const core = require('../quiz-core.js');
 const C = require('../conquest.js');
 
 const ROOT = path.join(__dirname, '..');
-const TOPICS = ['architektura', 'biologie', 'chemie', 'film', 'fyzika', 'geologie', 'historie', 'hudba', 'literatura', 'mytologie', 'sport', 'umeni', 'vlajky', 'zemepis'];
+const TOPICS = ['architektura', 'biologie', 'chemie', 'film', 'fyzika', 'geologie', 'historie', 'hudba', 'literatura', 'mytologie', 'sport', 'umeni', 'vlajky', 'zemepis', 'technika'];
 const read = (id) => JSON.parse(fs.readFileSync(path.join(ROOT, 'data', `${id}.json`), 'utf8'));
 const fyzika = read('fyzika');
 const byName = (data, name) => data.items.find(item => item.n === name);

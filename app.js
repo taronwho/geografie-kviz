@@ -327,6 +327,11 @@
             button: 'bg-stone-700 hover:bg-stone-800 shadow-stone-700/25', tile: 'from-stone-700 to-stone-800', text: 'text-stone-700 dark:text-stone-300',
             accent: 'border-stone-500', on: 'border-stone-500 bg-stone-50 text-stone-800 dark:bg-stone-900/30 dark:text-stone-200', tab: 'bg-stone-700 text-white'
         },
+        cyan: {
+            soft: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/50 dark:text-cyan-300', solid: 'border-cyan-500 bg-cyan-700',
+            button: 'bg-cyan-700 hover:bg-cyan-800 shadow-cyan-700/25', tile: 'from-cyan-700 to-sky-900', text: 'text-cyan-700 dark:text-cyan-400',
+            accent: 'border-cyan-500', on: 'border-cyan-500 bg-cyan-50 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-200', tab: 'bg-cyan-700 text-white'
+        },
         yellow: {
             soft: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300', solid: 'border-yellow-500 bg-yellow-700',
             button: 'bg-yellow-700 hover:bg-yellow-800 shadow-yellow-700/25', tile: 'from-yellow-700 to-amber-900', text: 'text-yellow-700 dark:text-yellow-400',
@@ -2852,7 +2857,7 @@
     // Témata na domovské obrazovce a v učení ve skupinách (téma, které v žádné není, přibude do poslední)
     const TOPIC_GROUPS = [
         { label: 'Svět a dějiny', ids: ['zemepis', 'vlajky', 'historie', 'mytologie'] },
-        { label: 'Příroda a věda', ids: ['biologie', 'geologie', 'chemie', 'fyzika'] },
+        { label: 'Příroda a věda', ids: ['biologie', 'geologie', 'chemie', 'fyzika', 'technika'] },
         { label: 'Kultura a sport', ids: ['umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport'] }
     ];
     const groupedTopics = () => {
@@ -4349,7 +4354,7 @@
         if (mode === 'quiz') return quizNextLabel();
         if (mode === 'daily') {
             const next = nextDailyTopic(current && current.topic);
-            return next ? `Další dnešní: ${next.title}` : 'Hotovo – zpět do menu';
+            return next ? `Další dnešní: ${next.shortTitle || next.title}` : 'Hotovo – zpět do menu';
         }
         if (pool.kind === 'mistakes') {
             const remaining = loadMistakes().length;
@@ -6966,6 +6971,8 @@
         return items.filter(item => learned.has(item.q)).length;
     };
 
+    // „Moje chyby“ vyplní zbytek posledního řádku mřížky čtyř sloupců (celé názvy tříd kvůli Tailwindu)
+    const MISTAKES_SPAN = ['col-span-4', 'col-span-3', 'col-span-2', 'col-span-1'];
     const renderLearnHome = () => {
         const mistakes = loadMistakes();
         const card = (topic) => `
@@ -6998,9 +7005,9 @@
             ${reviewSection}
             <div class="grid max-h-[22rem] flex-1 grid-cols-4 auto-rows-fr gap-2">
                 ${tiles}
-                <button type="button" data-action="learn-mistakes" class="col-span-2 flex min-h-[4rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl border border-rose-200 bg-rose-50 p-2 text-center shadow-sm transition-all active:scale-[0.98] dark:border-rose-900/60 dark:bg-rose-900/20">
+                <button type="button" data-action="learn-mistakes" class="${MISTAKES_SPAN[TOPICS.length % 4]} flex min-h-[4rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl border border-rose-200 bg-rose-50 p-2 text-center shadow-sm transition-all active:scale-[0.98] dark:border-rose-900/60 dark:bg-rose-900/20">
                     ${uiArt('chyby', 'h-11 w-11')}
-                    <span class="text-[11.5px] font-black leading-tight text-slate-800 dark:text-slate-100">Moje chyby${mistakes.length ? ` (${mistakes.length})` : ''}<span class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">Co ti nevyšlo, ze všech témat</span></span>
+                    <span class="text-[11.5px] font-black leading-tight text-slate-800 dark:text-slate-100">Moje chyby${mistakes.length ? ` (${mistakes.length})` : ''}${TOPICS.length % 4 === 3 ? '' : '<span class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">Co ti nevyšlo, ze všech témat</span>'}</span>
                 </button>
             </div>`;
     };

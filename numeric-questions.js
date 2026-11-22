@@ -167,6 +167,15 @@
         { id: 'sport-sportoviste-kapacita', topic: 'sport', category: 'sportoviste', key: 'capacity', unit: 'seats', gap: ratio(1.3), filter: has(['stadion', 'aréna']), detail: detailOf('city', 'loc'),
             order: { desc: ['Seřaď od největšího', 'Stadiony a haly podle počtu míst'], asc: ['Seřaď od nejmenšího', 'Stadiony a haly podle počtu míst'] } },
         born('sport', 'sportovci', 'Sportovci', detailOf('sport', 'land')),
+        // Technika a vynálezy
+        born('technika', 'vynalezci', 'Vynálezci a průkopníci'),
+        dated('technika', 'letadla', 'year', 'Seřaď od nejstaršího', 'Letadla podle roku prvního letu', detailOf('mk', 'land'), { title: 'V jakém roce toto letadlo poprvé vzlétlo?', when: (item) => item.k === 1 }),
+        dated('technika', 'elektronika', 'year', 'Seřaď od nejstaršího', 'Přístroje podle roku uvedení na trh', detailOf('mk', 'land')),
+        dated('technika', 'firmy', 'from', 'Seřaď od nejstarší', 'Firmy podle roku založení', detailOf('land')),
+        { id: 'technika-elektrarny-vykon', topic: 'technika', category: 'stavby', key: 'mw', unit: 'plain', gap: ratio(1.4), filter: (item) => /elektrárna$/u.test(item.ty || ''), detail: countriesOf,
+            order: { desc: ['Seřaď od nejvýkonnější', 'Elektrárny podle výkonu v MW'], asc: ['Seřaď od nejméně výkonné', 'Elektrárny podle výkonu v MW'] } },
+        { id: 'technika-lode-delka', topic: 'technika', category: 'lode', key: 'len', unit: 'm', gap: ratio(1.2), detail: (item) => item.ty,
+            order: { desc: ['Seřaď od nejdelší', 'Lodě podle délky'], asc: ['Seřaď od nejkratší', 'Lodě podle délky'] } },
         // Výtvarné umění
         dated('umeni', 'obrazy', 'year', 'Seřaď od nejstaršího', 'Obrazy podle roku vzniku', detailOf('by'), { title: 'V jakém roce tento obraz vznikl?', when: (item) => item.f.year >= 1000 }),
         dated('umeni', 'sochy', 'year', 'Seřaď od nejstarší', 'Sochy podle roku vzniku', detailOf('by')),

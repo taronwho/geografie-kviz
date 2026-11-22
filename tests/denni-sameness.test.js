@@ -14,8 +14,8 @@ const Boss = require('../boss.js');
 const Chain = require('../chain.js');
 
 const ROOT = path.join(__dirname, '..');
-const TOPICS = ['zemepis', 'vlajky', 'historie', 'mytologie', 'biologie', 'geologie', 'chemie', 'fyzika', 'umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport'];
-const GROUPS = [['zemepis', 'vlajky', 'historie', 'mytologie'], ['biologie', 'geologie', 'chemie', 'fyzika'], ['umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport']];
+const TOPICS = ['zemepis', 'vlajky', 'historie', 'mytologie', 'biologie', 'geologie', 'chemie', 'fyzika', 'umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport', 'technika'];
+const GROUPS = [['zemepis', 'vlajky', 'historie', 'mytologie'], ['biologie', 'geologie', 'chemie', 'fyzika', 'technika'], ['umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport']];
 const raw = Object.fromEntries(TOPICS.map(id => [id, fs.readFileSync(path.join(ROOT, 'data', `${id}.json`), 'utf8')]));
 const modules = Object.fromEntries(TOPICS.map(id => [id, require(path.join(ROOT, 'topics', `${id}.js`))]));
 const countries = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'countries.json'), 'utf8')).countries;

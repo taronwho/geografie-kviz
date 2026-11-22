@@ -8,7 +8,7 @@
     'use strict';
     const TOPIC_LABELS = {
         zemepis: 'Zeměpis', vlajky: 'Vlajky a znaky', historie: 'Historie', mytologie: 'Mytologie', biologie: 'Biologie', geologie: 'Geologie',
-        chemie: 'Chemie', fyzika: 'Fyzika', umeni: 'Výtvarné umění', architektura: 'Architektura', hudba: 'Hudba', literatura: 'Literatura', film: 'Film', sport: 'Sport',
+        chemie: 'Chemie', fyzika: 'Fyzika', umeni: 'Výtvarné umění', architektura: 'Architektura', hudba: 'Hudba', literatura: 'Literatura', film: 'Film', sport: 'Sport', technika: 'Technika a vynálezy',
         // Slavné objevy a vynálezy pro otázky Časové souvislosti (data/vynalezy.json)
         vynalezy: 'Objevy a vynálezy'
     };

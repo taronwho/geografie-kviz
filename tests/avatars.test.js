@@ -200,13 +200,15 @@ const LEGENDARY = {
     zemepis: 'albatr', vlajky: 'gryf', historie: 'slon', mytologie: 'sfinga', biologie: 'jelen', geologie: 'golem', chemie: 'liska',
     fyzika: 'chobot', umeni: 'pav', architektura: 'bobr', hudba: 'vlk', literatura: 'kndrak', film: 'panda', sport: 'klokan'
 };
+// Témata s diplomem, jejichž legendární postavička se teprve kreslí (docs/OBRAZKY.md č. 511 Mravenec konstruktér): do dodání obrázku bez ní
+const PENDING_LEGENDARY = ['technika'];
 
 test('legendární postavičky: jedna za diplom každého tématu, odemyká je jen diplom (ne úroveň, odznak, truhla ani Sezóna)', () => {
     const Rewards = require('../rewards.js');
     const Album = require('../album.js');
     const legendary = Look.AVATARS.filter(item => item.diploma);
     assert.deepEqual(Object.fromEntries(legendary.map(item => [item.diploma, item.id])), LEGENDARY);
-    assert.deepEqual(Object.keys(LEGENDARY).sort(), Object.keys(Rewards.DIPLOMA_NAMES).sort(), 'každé téma s diplomem má svou');
+    assert.deepEqual(Object.keys(LEGENDARY).sort(), Object.keys(Rewards.DIPLOMA_NAMES).filter(topic => !PENDING_LEGENDARY.includes(topic)).sort(), 'každé téma s diplomem má svou (kromě čekajících na obrázek)');
     assert.deepEqual(Object.keys(Look.DIPLOMA_TOPICS).sort(), Object.keys(Rewards.DIPLOMA_NAMES).sort());
     const everything = { level: 100, badges: Object.fromEntries(core.BADGES.map(badge => [badge.id, '2026-11-01'])), gifts: null };
     for (const item of legendary) {

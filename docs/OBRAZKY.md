@@ -4430,6 +4430,58 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 
 Deset dalších robotů vymyslel zadavatel sám: `rkudla` (kudlanka nábožná), `rslon` (plačící slon), `rbouri` (zlobr se jiskřícími výboji), `rbrouk` (vystrašený brouk), `rhrub` (hrubián), `rlekar` (lékař s hadicí a tabletem), `rpest` (zahradník se zářícím srdcem), `rmask` (maškara), `rrez` (smutný rezavec) a `rblaz` (šílenec se šrouby). Zdroje `branding/ikony/avatar-bot-<jméno>.png`, zapojení stejné jako u ostatních robotů (app.js botArt).
 
+## 39. Téma Technika a vynálezy (č. 510–514)
+
+Nové téma `technika` (`topics/technika.js`). Do dodání obrázků má téma čárovou ikonu ozubeného kola (Lucide `cog`, `app.js` `TOPIC_ART` ho zatím nemá),
+diplom za mistrovství je bez legendární postavičky a sada doplňků Mudrlanta chybí (odznaky Zběhlost: Technika a vynálezy, Konstruktér a Pán strojů
+zatím nic neodemykají). Čísla 510–514 jsou volená s rezervou, aby se nesrazila s jiným novým tématem; při slučování je jde přečíslovat.
+
+**Po dodání:** `technika.png` → `branding/ikony/`, `python3 scripts/topic-icons.py technika`, doplnit `technika` do `TOPIC_ART` v `app.js`
+a do seznamu ikon v `sw.js`. Postavička → `branding/ikony/avatar-mravenec.png`, `scripts/avatar-icons.py`, záznam v `look.js` (`diploma: 'technika'`)
+a ve `supabase/schema.sql` (`('avatars', 'mraven', 'diploma:technika')`, nová verze schématu). Doplňky → `branding/doplnky/<id>.jpg`,
+`scripts/owl-accessories.py`, `look.js` ACCESSORIES (`badge: 'zbehly-technika'`, `tema-technika-300`, `tema-technika-1000`), `TOPIC_LOOKS.technika = 'Vynálezce'`
+a odměny v `schema.sql`.
+
+#### 510. `technika.png` – Ikona tématu Technika a vynálezy
+
+Kam: dlaždice tématu na záložce Hrát, v Učení a v Mixu, štítek tématu, medaile odznaků tématu a diplom. Zobrazí se 28–48 px, proto jednoduchý tvar. Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A big shiny brass cog wheel with a glowing yellow light bulb in its center hole and a small steel wrench crossing diagonally behind the cog, a few tiny sparkles around the bulb. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 511. `avatar-mravenec.png` – Mravenec konstruktér (Technika a vynálezy, legendární postavička za diplom)
+
+Id `mraven`, části k přebarvení: Kombinéza, Záře. Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. LEGENDARY edition: a heroic, supremely confident original character shown from the chest up, big expressive face looking at the viewer, ornate gold trim on its outfit, a dramatic golden rim light, a radiant aura burst in its signature color behind it (inside the sticker border) and a few floating sparkles, still readable as a tiny 40 px profile picture (simple bold shapes). Centered, filling about 88 % of the frame. Plain solid flat dark grey background, color #2d3034, outside the sticker. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon, game or movie character. Character: A brilliant ant inventor and engineer in a blue mechanic's overall with golden buttons, round brass goggles pushed up on its forehead, proudly holding a big golden wrench, a small glowing light bulb hovering between its antennae, brass gears turning in the aura behind it. Signature color: electric cyan and brass gold. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 512. `klic` – Francouzský klíč (ruka, zběhlost v tématu)
+
+Odemkne: odznak Vynálezce – 12 správně v řadě nebo 3 hvězdy mistrovství v tématu (`zbehly-technika`). Přiložit: `branding/sova-original.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A big shiny adjustable wrench held up confidently in the owl's raised wing, like a proud mechanic, no text.
+```
+
+#### 513. `ozubene-kolo` – Ozubené kolo na řetízku (krk)
+
+Odemkne: odznak Konstruktér – 300 správných odpovědí v tématu (`tema-technika-300`). Přiložit: `branding/sova-original.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A shiny metal cog wheel pendant hanging on a short chain around the owl's neck, resting on its chest like a medal, no text.
+```
+
+#### 514. `celovka` – Čelovka (hlava)
+
+Odemkne: odznak Pán strojů – 1000 správných odpovědí v tématu (`tema-technika-1000`). Přiložit: `branding/sova-original.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A sturdy elastic head strap with a round bright headlamp on the forehead, worn over the owl's academic cap, the lamp glowing with a soft white beam pointing slightly forward, no text.
+```
+
 ## Co udělám po dodání
 
 1. Uložím soubory do `branding/ikony/`, vyříznu pozadí (`python3 scripts/topic-icons.py …`) a u sov vyrobím barvy obleku (`python3 scripts/owl-robes.py`).

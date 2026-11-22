@@ -223,7 +223,7 @@
     const KIND_LABELS = {
         name: 'název', location: 'stát', century: 'století', taxon: 'řád či čeleď', symbol: 'značka', formula: 'vzorec', unit: 'jednotka',
         usymbol: 'značka jednotky', measures: 'veličina', hardness: 'tvrdost', group: 'skupina hornin', style: 'sloh či směr', architect: 'architekt',
-        author: 'autor', period: 'období', director: 'režisér', decade: 'desetiletí', counterpart: 'protějšek', myth: 'mytologie', sport: 'sport', host: 'pořadatel',
+        author: 'autor', period: 'období', director: 'režisér', decade: 'desetiletí', counterpart: 'protějšek', myth: 'mytologie', sport: 'sport', host: 'pořadatel', maker: 'výrobce',
         map: 'na mapě', estimate: 'odhad čísla', order: 'seřazení'
     };
     const kindLabel = (kind) => (Object.prototype.hasOwnProperty.call(KIND_LABELS, kind) ? KIND_LABELS[kind] : String(kind || ''));
