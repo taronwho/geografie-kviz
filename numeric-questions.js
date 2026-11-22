@@ -167,6 +167,8 @@
         { id: 'sport-sportoviste-kapacita', topic: 'sport', category: 'sportoviste', key: 'capacity', unit: 'seats', gap: ratio(1.3), filter: has(['stadion', 'aréna']), detail: detailOf('city', 'loc'),
             order: { desc: ['Seřaď od největšího', 'Stadiony a haly podle počtu míst'], asc: ['Seřaď od nejmenšího', 'Stadiony a haly podle počtu míst'] } },
         born('sport', 'sportovci', 'Sportovci', detailOf('sport', 'land')),
+        // Jídlo a pití
+        born('jidlo', 'kuchari', 'Kuchaři a gastronomové'),
         // Výtvarné umění
         dated('umeni', 'obrazy', 'year', 'Seřaď od nejstaršího', 'Obrazy podle roku vzniku', detailOf('by'), { title: 'V jakém roce tento obraz vznikl?', when: (item) => item.f.year >= 1000 }),
         dated('umeni', 'sochy', 'year', 'Seřaď od nejstarší', 'Sochy podle roku vzniku', detailOf('by')),

@@ -97,6 +97,27 @@ test('okno otázky: nápovědy z úvodu článku a vzhled na malých telefonech'
         }
     });
 
+    await t.test('Jídlo a pití: dnešní otázka i se všemi nápovědami bez posouvání, po odpovědi tlačítko dál vidět (390×780, 360×640, světlý i tmavý režim)', async () => {
+        for (const [width, height] of [[390, 780], [360, 640]]) {
+            for (const colorScheme of ['light', 'dark']) {
+                const { context, tab, problems } = await open({ extract: RICH, width, height, colorScheme, topic: 'jidlo' });
+                assert.equal(await tab.locator('[data-action="choice"]').count(), 4, 'čtyři možnosti');
+                for (let guard = 0; guard < 8 && await tab.locator('[data-action="hint"]').count(); guard++) {
+                    await tab.click('[data-action="hint"]');
+                    await tab.waitForTimeout(250);
+                    assert.ok(await overflow(tab) <= 1, `nápověda ${guard + 1} se vejde ${width}×${height} ${colorScheme}`);
+                }
+                await tab.click('[data-action="choice"] >> nth=0');
+                await tab.waitForSelector('[data-verdict]', { timeout: 15000 });
+                // Výsledek se smí posouvat (fotka, mapa, fakta), tlačítko dál je ale vidět hned
+                const button = await tab.evaluate(() => { const b = document.querySelector('[data-action="next"], [data-action="daily-home"]').getBoundingClientRect(); return { bottom: b.bottom, height: innerHeight }; });
+                assert.ok(button.bottom <= button.height + 0.5, `výsledek: tlačítko dál je vidět ${width}×${height} ${colorScheme}`);
+                assert.deepEqual(problems, []);
+                await context.close();
+            }
+        }
+    });
+
     await t.test('chudý úvod: bez dalších vět, první fakta hned v okně a nikde se neopakují', async () => {
         const { context, tab, problems } = await open({ extract: THIN, width: 360, height: 640, colorScheme: 'dark', topic: 'fyzika' });
         const data = await readRound(tab);

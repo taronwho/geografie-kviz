@@ -206,7 +206,11 @@ test('legendární postavičky: jedna za diplom každého tématu, odemyká je j
     const Album = require('../album.js');
     const legendary = Look.AVATARS.filter(item => item.diploma);
     assert.deepEqual(Object.fromEntries(legendary.map(item => [item.diploma, item.id])), LEGENDARY);
-    assert.deepEqual(Object.keys(LEGENDARY).sort(), Object.keys(Rewards.DIPLOMA_NAMES).sort(), 'každé téma s diplomem má svou');
+    // Téma, jehož legendární postavička se teprve kreslí (docs/OBRAZKY.md č. 511 Medvěd šéfkuchař), ji do dodání obrázků nemá:
+    // bez obrázků a vrstev barev by postavička nešla vykreslit – po dodání téma ze seznamu ubrat a postavičku přidat do LEGENDARY
+    const PENDING_LEGENDARY = ['jidlo'];
+    assert.deepEqual(Object.keys(LEGENDARY).sort(), Object.keys(Rewards.DIPLOMA_NAMES).filter(topic => !PENDING_LEGENDARY.includes(topic)).sort(), 'každé téma s diplomem má svou');
+    assert.ok(PENDING_LEGENDARY.every(topic => Look.rewardsForDiploma(topic).length === 0), 'čekající téma zatím za diplom postavičku nedává');
     assert.deepEqual(Object.keys(Look.DIPLOMA_TOPICS).sort(), Object.keys(Rewards.DIPLOMA_NAMES).sort());
     const everything = { level: 100, badges: Object.fromEntries(core.BADGES.map(badge => [badge.id, '2026-11-01'])), gifts: null };
     for (const item of legendary) {

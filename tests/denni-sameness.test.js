@@ -1,7 +1,7 @@
 // Stejnost denních módů pro všechny hráče (bez prohlížeče; v prohlížeči celé otázky porovnává scripts/audit-denni.mjs a tests/e2e-denni-audit.test.js).
 // Dva hráči téhož dne: jiné časové pásmo telefonu (Praha v poledne × UTC ve 23:30 = 0:30 v Praze), vlastní kopie dat (jiná identita objektů),
 // jiné nastavení, úroveň a historie (výběr je nebere – funkce je ani nedostanou). Porovná se den, Kvíz dne (plán deseti otázek), Dnešní otázky
-// všech 14 témat, Tajemná otázka, Boss týdne a Řetězovka. Dál: výběr Dnešních otázek nezávisí na pořadí položek a nová/odebraná položka ho
+// všech 15 témat, Tajemná otázka, Boss týdne a Řetězovka. Dál: výběr Dnešních otázek nezávisí na pořadí položek a nová/odebraná položka ho
 // změní jen tam, kde by sama vyhrála; změna úrovní v datech (ku/xs) nezmění den, který už začal (core.itemsAsOf).
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -14,8 +14,8 @@ const Boss = require('../boss.js');
 const Chain = require('../chain.js');
 
 const ROOT = path.join(__dirname, '..');
-const TOPICS = ['zemepis', 'vlajky', 'historie', 'mytologie', 'biologie', 'geologie', 'chemie', 'fyzika', 'umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport'];
-const GROUPS = [['zemepis', 'vlajky', 'historie', 'mytologie'], ['biologie', 'geologie', 'chemie', 'fyzika'], ['umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport']];
+const TOPICS = ['zemepis', 'vlajky', 'historie', 'mytologie', 'biologie', 'geologie', 'chemie', 'fyzika', 'umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport', 'jidlo'];
+const GROUPS = [['zemepis', 'vlajky', 'historie', 'mytologie'], ['biologie', 'geologie', 'chemie', 'fyzika'], ['umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport', 'jidlo']];
 const raw = Object.fromEntries(TOPICS.map(id => [id, fs.readFileSync(path.join(ROOT, 'data', `${id}.json`), 'utf8')]));
 const modules = Object.fromEntries(TOPICS.map(id => [id, require(path.join(ROOT, 'topics', `${id}.js`))]));
 const countries = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'countries.json'), 'utf8')).countries;

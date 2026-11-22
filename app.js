@@ -327,6 +327,11 @@
             button: 'bg-stone-700 hover:bg-stone-800 shadow-stone-700/25', tile: 'from-stone-700 to-stone-800', text: 'text-stone-700 dark:text-stone-300',
             accent: 'border-stone-500', on: 'border-stone-500 bg-stone-50 text-stone-800 dark:bg-stone-900/30 dark:text-stone-200', tab: 'bg-stone-700 text-white'
         },
+        fuchsia: {
+            soft: 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/50 dark:text-fuchsia-300', solid: 'border-fuchsia-500 bg-fuchsia-700',
+            button: 'bg-fuchsia-700 hover:bg-fuchsia-800 shadow-fuchsia-700/25', tile: 'from-fuchsia-700 to-purple-900', text: 'text-fuchsia-700 dark:text-fuchsia-400',
+            accent: 'border-fuchsia-500', on: 'border-fuchsia-500 bg-fuchsia-50 text-fuchsia-800 dark:bg-fuchsia-900/30 dark:text-fuchsia-200', tab: 'bg-fuchsia-700 text-white'
+        },
         yellow: {
             soft: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300', solid: 'border-yellow-500 bg-yellow-700',
             button: 'bg-yellow-700 hover:bg-yellow-800 shadow-yellow-700/25', tile: 'from-yellow-700 to-amber-900', text: 'text-yellow-700 dark:text-yellow-400',
@@ -2853,7 +2858,7 @@
     const TOPIC_GROUPS = [
         { label: 'Svět a dějiny', ids: ['zemepis', 'vlajky', 'historie', 'mytologie'] },
         { label: 'Příroda a věda', ids: ['biologie', 'geologie', 'chemie', 'fyzika'] },
-        { label: 'Kultura a sport', ids: ['umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport'] }
+        { label: 'Kultura a sport', ids: ['umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport', 'jidlo'] }
     ];
     const groupedTopics = () => {
         const groups = TOPIC_GROUPS.map(group => ({ label: group.label, topics: TOPICS.filter(topic => group.ids.includes(topic.id)) }));

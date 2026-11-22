@@ -376,7 +376,8 @@
         film: { cats: ['filmy', 'animovane', 'serialy'], keys: ['year'], ends: ['end'], kind: 'made' },
         sport: { cats: ['olympiady', 'kluby', 'sportoviste', 'souteze', 'sporty'], keys: ['year', 'opened', 'from'], kind: 'made', events: ['olympiady'] },
         fyzika: { cats: ['vesmir', 'vynalezy', 'mise', 'pojmy'], keys: ['year'], kind: 'found', inventions: ['vynalezy'], events: ['mise'] },
-        chemie: { cats: ['prvky'], keys: ['year'], kind: 'found' }
+        chemie: { cats: ['prvky'], keys: ['year'], kind: 'found' },
+        jidlo: { cats: ['pokrmy', 'sladkosti', 'syry', 'napoje', 'alkohol'], keys: ['year'], kind: 'made' }
     };
     const ERA_LABELS = { made: 'Doba vzniku', event: 'Doba', found: 'Doba objevu', invent: 'Doba vzniku' };
     const madeOf = (item, topicId) => {

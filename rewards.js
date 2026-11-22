@@ -274,7 +274,7 @@
     const DIPLOMA_NAMES = {
         zemepis: 'zeměpisu', vlajky: 'vlajek a znaků', historie: 'historie', mytologie: 'mytologie', biologie: 'biologie', geologie: 'geologie',
         chemie: 'chemie', fyzika: 'fyziky', umeni: 'výtvarného umění', architektura: 'architektury', hudba: 'hudby', literatura: 'literatury',
-        film: 'filmu', sport: 'sportu'
+        film: 'filmu', sport: 'sportu', jidlo: 'jídla a pití'
     };
     const diplomaTitle = (topic) => `Mistr ${DIPLOMA_NAMES[topic && topic.id] || (topic && topic.title ? topic.title.toLocaleLowerCase('cs') : 'oboru')}`;
     // Nové diplomy podle hvězd mistrovství ({ téma: hvězdy }, plné = full): vrátí { state, fresh: [téma] }

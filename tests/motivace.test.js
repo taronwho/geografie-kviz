@@ -25,9 +25,16 @@ const block = SQL.slice(SQL.indexOf('-- ===== 32: Motivace'), SQL.indexOf('-- ==
 const noInlineStyle = (html, label) => assert.doesNotMatch(html, /\sstyle=/, `${label}: bez vložených stylů (CSP)`);
 
 test('tematický víkend: pevný rozpis každý druhý víkend, pátek 18:00 až neděle 24:00 v Praze, 2× XP jen za téma víkendu', () => {
-    assert.equal(Weekend.ROTATION.length, 14);
-    assert.equal(new Set(Weekend.ROTATION).size, 14);
+    assert.equal(Weekend.ROTATION.length, 15);
+    assert.equal(new Set(Weekend.ROTATION).size, 15);
     for (const topic of Weekend.ROTATION) assert.ok(Weekend.GENITIVE[topic], topic);
+    // Nové téma (Jídlo a pití) přibylo až od 3. kola: první dvě kola po 14 tématech zůstala, jak byla ohlášená
+    assert.deepEqual(Weekend.ROTATION_STEPS, [{ from: 0, count: 14 }, { from: 28, count: 15 }]);
+    assert.equal(Weekend.topicOf('2027-01-15'), 'sport', 'poslední víkend 2. kola');
+    assert.equal(Weekend.topicOf('2027-01-29'), 'historie', '3. kolo začíná znovu historií');
+    assert.equal(Weekend.topicOf('2027-08-13'), 'jidlo');
+    assert.equal(Weekend.titleOf('jidlo'), 'Víkend jídla a pití');
+    assert.equal(Weekend.topicOf('2027-08-27'), 'historie', 'po jídle znovu od začátku');
     assert.equal(Weekend.topicOf(Weekend.EPOCH), Weekend.ROTATION[0]);
     assert.equal(Weekend.topicOf('2026-01-09'), null, 'lichý víkend bez tématu');
     assert.equal(Weekend.topicOf('2026-01-16'), Weekend.ROTATION[1]);
@@ -46,7 +53,7 @@ test('tematický víkend: pevný rozpis každý druhý víkend, pátek 18:00 až
     assert.equal(Weekend.multiplier('historie', new Date('2026-11-21T12:00:00Z')), 1);
     assert.equal(Weekend.multiplier('film', new Date('2026-11-20T10:00:00Z')), 1, 'v pátek dopoledne ještě ne');
     assert.deepEqual(Weekend.upcoming(new Date('2026-11-14T12:00:00Z'), 2).map(item => item.topic), ['film', 'mytologie']);
-    // Všechny víkendy roku: téma má každý druhý a pořadí se opakuje po 14 tématech
+    // Všechny víkendy roku: téma má každý druhý (v roce 2026 se pořadí opakuje po 14 tématech)
     const year = [];
     for (let day = Date.UTC(2026, 0, 2); day < Date.UTC(2027, 0, 1); day += 7 * 86400000) year.push(Weekend.topicOf(new Date(day).toISOString().slice(0, 10)));
     assert.equal(year.filter(Boolean).length, Math.ceil(year.length / 2));

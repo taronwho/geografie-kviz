@@ -34,7 +34,7 @@
 
     const PERSON_CATEGORIES = {
         historie: ['panovnik', 'statnik', 'osobnost'], fyzika: ['fyzici', 'astronomove'], chemie: ['chemici'], umeni: ['umelci', 'fotografove', 'ilustratori'],
-        literatura: ['spisovatele'], hudba: ['skladatele', 'hudebnici'], film: ['herci', 'reziseri'], architektura: ['architekti'], sport: ['sportovci']
+        literatura: ['spisovatele'], hudba: ['skladatele', 'hudebnici'], film: ['herci', 'reziseri'], architektura: ['architekti'], sport: ['sportovci'], jidlo: ['kuchari']
     };
     // Přístroje z kategorie Mise a přístroje, u kterých rok z Wikidat odpovídá vynálezu (u cívky, diody či generátoru ne)
     const INSTRUMENTS = new Set(['Barometr', 'Elektromotor', 'Elektronový mikroskop', 'Voltův sloup', 'Leydenská láhev', 'Foucaultovo kyvadlo', 'Transformátor',

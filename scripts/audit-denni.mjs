@@ -36,7 +36,7 @@ const askedIds = new Set();
 const dataVersion = (pathname, version) => {
     const file = path.join(ROOT, pathname);
     const raw = fs.readFileSync(file);
-    if (version !== 'v2' || !/^\/data\/(zemepis|historie|biologie|chemie|fyzika|vlajky|mytologie|geologie|umeni|architektura|hudba|literatura|film|sport)\.json$/.test(pathname)) return raw;
+    if (version !== 'v2' || !/^\/data\/(zemepis|historie|biologie|chemie|fyzika|vlajky|mytologie|geologie|umeni|architektura|hudba|literatura|film|sport|jidlo)\.json$/.test(pathname)) return raw;
     const data = JSON.parse(raw);
     data.items = data.items.filter(item => !askedIds.has(item.q)).map((item, i) => {
         if (i % 3 === 0 && item.im) { const copy = { ...item }; delete copy.im; delete copy.ih; return copy; }
