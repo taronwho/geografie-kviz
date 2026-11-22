@@ -611,3 +611,10 @@ test('tajemná otázka: od 24. 11. aspoň 12 kandidátů (vlajky bez fotek se ne
     const picked = new Set(Array.from({ length: 30 }, (_, i) => M.pickItem(M.addDays('2026-11-24', i), 'vlajky', flags).q));
     assert.ok(picked.size >= 12, `různé vlajky ${picked.size}`);
 });
+
+test('vědecký název je u známé položky silný fakt (až za větou popisu), u méně známé slabší', () => {
+    const facts = (label, value, extra = {}) => ({ n: 1, parts: [{ type: 'facts', facts: [{ label, value, ...extra }] }] });
+    const sentence = { n: 1, parts: [{ type: 'text', text: 'Využívá se jako koření i jako léčivá bylina.' }] };
+    assert.ok(M.revealScore(facts('Vědecký název', 'Origanum vulgare')) > M.revealScore(sentence));
+    assert.ok(M.revealScore(facts('Vědecký název', 'Origanum vulgare', { known: false })) < M.revealScore(facts('Vědecký název', 'Origanum vulgare')));
+});
