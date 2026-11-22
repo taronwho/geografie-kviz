@@ -87,6 +87,8 @@
         // a vlastní talár neznají, takže ukážou vínovou sovu
         if (parsed && parsed.robe === Look.ROBE_CUSTOM) parts.push(`robec=${parsed.robeColor || Look.ROBE_COLOR_DEFAULT}`);
         if (parsed && parsed.pose) parts.push(`pose=${parsed.pose}`);
+        // Stupeň stárnutí (Mudrlant stárne, 'age=2' … 'age=5'); starší aplikace klíč nezná a ukáže dnešní sovu
+        if (parsed && parsed.age > 1) parts.push(`age=${parsed.age}`);
         // „Bez monoklu“ v obličeji je jen 'face=bez-monoklu' (bez barvy); starší aplikace ho nezná a ukáže sovu s monoklem
         if (parsed) for (const slot of ORDER) if (parsed.acc[slot]) parts.push(parsed.acc[slot].id === Look.NO_MONOCLE ? `${slot}=${Look.NO_MONOCLE}` : `${slot}=${parsed.acc[slot].id}.${parsed.acc[slot].color}${parsed.acc[slot].flag ? `.${parsed.acc[slot].flag}` : ''}`);
         return parts.join(';').slice(0, OWL_MAX);
@@ -110,6 +112,7 @@
         const acc = {};
         let pose = null;
         let robeColor = null;
+        let age = 1;
         let known = false;
         const takeRobe = (id) => { if (Look.find('robes', id)) { robe = id; known = true; } };
         // Sova titulu: jen titul-1 … titul-11 (Look.POSES), první platná; jiná hodnota se zahodí
@@ -132,12 +135,14 @@
                 if (key === 'robe') takeRobe(value);
                 else if (key === 'robec') robeColor = robeColor || Look.cleanRobeColor(value);
                 else if (key === 'pose') takePose(value);
+                else if (key === 'age') age = Look.cleanAge ? Look.cleanAge(value) : 1;
                 else if (Look.SLOTS.some(slot => slot.id === key)) { const [id, color, flag] = value.split('.'); takeAcc(key, id, color === undefined ? 'original' : color, flag); }
             }
         } else if (input && typeof input === 'object') {
             takeRobe(input.robe);
             robeColor = Look.cleanRobeColor(input.robeColor);
             takePose(input.pose);
+            if (Look.cleanAge && input.age !== undefined) age = Look.cleanAge(input.age);
             const source = input.acc && typeof input.acc === 'object' ? input.acc : {};
             for (const slot of Look.SLOTS) { const entry = source[slot.id]; if (entry && typeof entry === 'object') takeAcc(slot.id, entry.id, entry.color, entry.flag); }
             known = true;
@@ -145,6 +150,7 @@
         if (!known) return null;
         const result = pose ? { robe, acc, pose } : { robe, acc };
         if (robe === Look.ROBE_CUSTOM) result.robeColor = robeColor || Look.ROBE_COLOR_DEFAULT;
+        if (age > 1) result.age = age;
         return result;
     }
     // Sova titulu v kolečku obrázku hráče: ilustrace icons/topics/sova-titul-<n>[-<barva>].webp (barva obleku jako u loga, bez doplňků)
@@ -172,7 +178,7 @@
         if (!parsed) return '';
         if (parsed.pose) return poseHtml(parsed.pose, parsed.robe, parsed.robeColor);
         const file = robeFile(parsed.robe);
-        const src = `${logoBase(parsed.acc)}${file === 'vinova' ? '' : `-${file}`}.webp`;
+        const src = `${logoBase(parsed.acc, parsed.age || 1)}${file === 'vinova' ? '' : `-${file}`}.webp`;
         return `<span class="relative inline-flex shrink-0 ${wrapClass}${maskClass(parsed.acc)}"><img data-keep${robeColorAttr(parsed.robe, parsed.robeColor)} src="${src}" alt="" class="${imgClass}">${layersHtml(parsed.acc, 'data-keep')}</span>`;
     };
 
@@ -195,7 +201,9 @@
     const maskClass = (acc) => `${hidesHat(acc) ? ' owl-nohat' : ''}${hidesHand(acc) ? ' owl-nohand' : ''}`;
     // Logo s monoklem, nebo bez něj („Bez monoklu“ nebo doplněk v obličeji, který ho nahradí; Look.monocleShown); bez přípony .webp,
     // barvu obleku k ní přidá look-robes.js (u mé sovy) nebo owlAvatarHtml (u cizí)
-    const logoBase = (acc) => (Look && Look.monocleShown && !Look.monocleShown(acc) ? 'icons/logo-bez-monoklu' : 'icons/logo');
+    // Stárnoucí sova (age 2–5): icons/logo-vek<n>[-bez-monoklu]; bez age moje sova podle dní ve hře (Look.ageStage)
+    const myAge = () => (Look && Look.ageStage ? Look.ageStage() : 1);
+    const logoBase = (acc, age = myAge()) => `icons/logo${age > 1 ? `-vek${age}` : ''}${Look && Look.monocleShown && !Look.monocleShown(acc) ? '-bez-monoklu' : ''}`;
     const logoHtml = (wrapClass, imgClass, acc = currentAcc()) =>
         `<span data-owl class="relative inline-flex shrink-0 ${wrapClass}${maskClass(acc)}"><img src="${logoBase(acc)}.webp" alt="" class="${imgClass}">${layersHtml(acc)}</span>`;
 
@@ -211,7 +219,7 @@
             const logo = wrapper.querySelector('img');
             // Přebarvená sova (vlastní barva obleku) má adresu blob: a původní obrázek v data-owl-base
             const src = logo ? logo.getAttribute('data-owl-base') || logo.getAttribute('src') || '' : '';
-            const next = src.replace(/^icons\/logo(?:-bez-monoklu)?(?=[-.])/, logoBase(acc));
+            const next = src.replace(/^icons\/logo(?:-vek\d)?(?:-bez-monoklu)?(?=[-.])/, logoBase(acc));
             if (logo && next !== src) { logo.removeAttribute('data-owl-base'); logo.removeAttribute('data-owl-tint'); logo.setAttribute('src', next); }
         });
     };
@@ -258,6 +266,14 @@
             <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm dark:bg-slate-800">${icon}</span><span class="min-w-0 flex-1 truncate text-[12px] font-black leading-tight">${slot.title}</span></button>`;
     };
 
+    // Mudrlant stárne: pod sovou její podoba (nebo kdy zestárne), celé v popisku
+    const ageCaption = () => {
+        if (!Look || !Look.ageInfo) return '';
+        const info = Look.ageInfo();
+        const short = info.stage > 1 ? info.title : info.next ? `Zestárne za ${info.next.left} dní` : info.title;
+        const full = `${info.title}${info.next ? `. Mudrlant stárne s tebou: za ${info.next.left} dní hraní z něj bude ${info.next.title}.` : '. Víc už nezestárne.'}`;
+        return `<span data-owl-age="${info.stage}" title="${escapeHtml(full)}" class="mt-0.5 block max-w-full truncate text-center text-[10px] font-bold leading-tight text-slate-500 dark:text-slate-400"><span class="sr-only">${escapeHtml(full)}</span><span aria-hidden="true">${escapeHtml(short)}</span></span>`;
+    };
     const render = (ctx) => {
         const acc = ctx.prefs.acc || {};
         const open = openSlotOf(acc);
@@ -265,7 +281,7 @@
         // Sova uprostřed, místa (hlava, obličej | krk, ruka) kolem ní; vybrané místo ukáže pod sovou své doplňky
         const owl = `<div data-owl-slots class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1.5">
             <div class="flex min-w-0 flex-col gap-1.5">${slotChip(left1, acc, open === left1.id, false)}${slotChip(left2, acc, open === left2.id, false)}</div>
-            <div class="flex w-[6.25rem] justify-center pt-4 short:w-[5.25rem] short:pt-3">${logoHtml('', 'h-20 w-auto drop-shadow-lg short:h-16', acc)}</div>
+            <div class="flex w-[6.25rem] flex-col items-center pt-4 short:w-[5.25rem] short:pt-3">${logoHtml('', 'h-20 w-auto drop-shadow-lg short:h-16', acc)}${ageCaption()}</div>
             <div class="flex min-w-0 flex-col gap-1.5">${slotChip(right1, acc, open === right1.id, true)}${slotChip(right2, acc, open === right2.id, true)}</div>
         </div>`;
         const chosen = acc[open] ? acc[open].id : 'none';

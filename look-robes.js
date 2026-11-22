@@ -12,7 +12,7 @@
     const CUSTOM = Look.ROBE_CUSTOM;
     const ROBE_IDS = Look.ROBES.map(robe => robe.id).filter(id => id !== 'vinova' && id !== CUSTOM);
     // Pózy sovy včetně sov titulů (sova-titul-1 … 11) a logo bez monoklu (icons/logo-bez-monoklu.webp, look-owl.js)
-    const OWL_SRC = /^(icons\/(?:logo(?:-bez-monoklu)?|topics\/sova-[a-z0-9-]+?))(?:-(?:zelena|modra|ruzova|fialova|cerna|zlata|bila))?\.webp$/;
+    const OWL_SRC = /^(icons\/(?:logo(?:-vek\d)?(?:-bez-monoklu)?|topics\/sova-[a-z0-9-]+?))(?:-(?:zelena|modra|ruzova|fialova|cerna|zlata|bila))?\.webp$/;
     const owlSrc = (src, robe) => {
         const match = OWL_SRC.exec(src || '');
         return match ? `${match[1]}${robe && ROBE_IDS.includes(robe) ? `-${robe}` : ''}.webp` : null;

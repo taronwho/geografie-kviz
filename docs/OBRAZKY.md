@@ -4436,3 +4436,11 @@ Deset dalších robotů vymyslel zadavatel sám: `rkudla` (kudlanka nábožná),
 2. Zapojím je: sovy titulů do Úrovní a titulů, erby lig do výzev a žebříčku, symboly do medailí (zamčené jako zašedlý náhled), dlaždice do Více hráčů, úvodu a Učení, sovu s žárovkou do tipů, banner s nápisem pro Google Play, truhlu do okna Truhla Mudrlanta a pruhu Cíle týdne, štít ochrany série k sérii a do Mého postupu.
 3. Nové módy (č. 206–263): vyměním konstanty `ART` v modulech. Sovám vyrobím barvy obleku, bossům ne (nepřebarvují se). Textury převedu do WebP bez vyříznutí pozadí a nahradím jimi CSS přechody, rámeček Dobyvatel zpracuji jako ostatní obrázkové rámečky (`python3 scripts/frame-images.py`).
 4. Prověřím snímky na 360–412 px ve světlém i tmavém režimu a doplním test, že všechny obrázky existují.
+
+## Mudrlant stárne (sova podle dní ve hře) – ✅ dodáno, zapojeno
+
+Zdroje `branding/sova-vek-2.jpg` … `sova-vek-5.jpg` (úprava `branding/sova-bez-monoklu.jpg`, stejná póza): Zkušený mudrc (365 dní hraní),
+Šedivějící mudrc (730), Stařešina (1095), Pradávný Mudrlant (1825). `python3 scripts/owl-age.py` z nich vyrobí `icons/logo-vek<n>.webp`
+(monokl přenesený z původní sovy) a `icons/logo-vek<n>-bez-monoklu.webp` v rámu loga, barvy obleku
+`ONLY=logo-vek2,logo-vek2-bez-monoklu,… python3 scripts/owl-robes.py` (oči se nepřebarví). Stupně a texty: `look.js AGE_STAGES`,
+zobrazení `look-owl.js` (část `age=n` v textu sovy), oslava `app.js noteAge`, náhled ve vývojářském režimu (Věk sovy).

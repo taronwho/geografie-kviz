@@ -1203,12 +1203,16 @@
         return `<div data-dev-prestige class="mt-1.5 flex items-center gap-1"><span class="mr-auto text-[11px] font-black text-amber-800 dark:text-amber-200">Prestiž: náhled</span>${step(-10, 'O deset prestiží níž', '◀◀')}${step(-1, 'O prestiž níž', '◀')}<span class="flex min-w-[4.5rem] items-center justify-center gap-1 text-[12px] font-black tabular-nums text-slate-800 dark:text-slate-100"><span data-dev-prestige-value>${n}</span>${n ? Prestige.medalHtml(n, 'h-6 w-6') : ''}</span>${step(1, 'O prestiž výš', '▶')}${step(10, 'O deset prestiží výš', '▶▶')}</div>`
             + (n ? `<p class="mt-0.5 text-right text-[10px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(Prestige.tierName(n))}${Prestige.litSteps(n) ? ` · rozsvícení ${Prestige.litSteps(n)}/${Prestige.LIT_REGIONS.length * 4}` : ''}</p>` : '');
     };
+    // Mudrlant stárne: náhled podoby sovy ve vývojářském režimu (jen v zařízení, do účtu se neuloží; Podle dní = skutečný stupeň)
+    let devAgeNow = null;
+    const devAgeRow = () => `<div data-dev-age class="mt-1.5 flex flex-wrap items-center gap-1"><span class="mr-auto text-[11px] font-black text-amber-800 dark:text-amber-200">Věk sovy: náhled</span>${[[null, 'Podle dní'], ...Look.AGE_STAGES.map(item => [item.stage, String(item.stage)])].map(([stage, text]) => `<button type="button" data-dev="age:${stage === null ? 'auto' : stage}" aria-pressed="${devAgeNow === stage}" title="${escapeHtml(stage === null ? 'Podle dní ve hře' : Look.AGE_STAGES[stage - 1].title)}" class="min-w-[2rem] rounded-lg px-1.5 py-1 text-[11px] font-black ${devAgeNow === stage ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'}">${text}</button>`).join('')}</div>`;
     const renderDevPanel = () => !devOn() ? '' : `
         <div class="mt-3 rounded-2xl border-2 border-dashed border-amber-400/70 p-2.5">
             <p class="mb-1.5 flex items-center justify-between text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400"><span>Vývojářský režim</span><span class="font-bold normal-case tracking-normal">${devActive() ? 'zkušební postup' : 'tvůj postup'}</span></p>
             ${Social ? `<p data-dev-schema class="mb-1.5 text-[11px] font-semibold leading-snug ${schemaHave === REQUIRED_SCHEMA ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-800 dark:text-amber-200'}">Databáze: ${schemaHave === undefined ? 'verze schématu zatím nezjištěna' : schemaHave === null ? 'schéma bez verze (starší než 1)' : `schéma ${schemaHave}`} · aplikace potřebuje ${REQUIRED_SCHEMA}${schemaHave === REQUIRED_SCHEMA ? ' ✓' : schemaHave === undefined ? '' : schemaHave > REQUIRED_SCHEMA ? ' – aplikace je starší, obnov ji' : ' – spusť supabase/schema.sql'}</p>` : ''}
             <div class="flex flex-wrap gap-1">${[['all', 'Odemknout úplně vše'], ['chest', 'Otevřít Truhlu Mudrlanta'], ['season', 'Sezóna: všech 20 stupňů'], ['max', 'Vše (úr. 100)'], ['level:10', 'Úr. 10'], ['level:25', 'Úr. 25'], ['level:50', 'Úr. 50'], ['level:75', 'Úr. 75'], ['badges', 'Všechny odznaky'], ['nobadges', 'Žádné odznaky'], ['nostars', 'Vymazat hvězdičky'], ['bulb', 'Vrátit žárovku'], ['tips', 'Obnovit tipy'], ['gold', 'Příští otázka zlatá'], ['gold-chest', 'Otevřít Zlatou truhlu'], ...(Prestige ? [['prestige', 'Prestiž na zkoušku']] : [])].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${label}</button>`).join('')}${devActive() ? '<button type="button" data-dev="restore" class="rounded-lg bg-amber-700 px-2 py-1 text-[11px] font-black text-white active:scale-95">Vrátit můj postup</button>' : ''}</div>
             ${Prestige ? devPrestigeRow() : ''}
+            ${Look && Look.setDevAge ? devAgeRow() : ''}
             ${Social ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Turnaj (boti)</p>
             <div class="flex flex-wrap gap-1">${[['tour-bots', '+31 botů'], ['tour-start', 'Spustit hned'], ['tour-play', 'Boti odehrají kolo'], ['tour-next', 'Další kolo'], ['tour-reset', 'Smazat odehraný turnaj'], ['tour-clear', 'Smazat boty']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-900 active:scale-95 dark:bg-emerald-900/50 dark:text-emerald-100">${label}</button>`).join('')}</div>
             <p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Speciální turnaj a hlasování</p>
@@ -1276,6 +1280,8 @@
         // Rámečky za pozvané kamarády a prestiž (blok 32): vyzvednuté odměny a prestiž ze zařízení (sjednocené se serverem)
         if (Look && Look.setPerks) Look.setPerks({ referral: loadPerks().referral, prestige: loadPrestige().n });
         const levelLabel = Prestige && loadPrestige().n ? levelLabelOf(prestigeView(progress.xp)) : '';
+        // Mudrlant stárne podle dní ve hře (look.js AGE_STAGES)
+        if (Look && Look.setAgeDays) Look.setAgeDays(progress.counters.days);
         return { level, levelLabel, badges: progress.badges, diplomas, user, profile: user ? myProfile : null, avatarHtml, prefs: Look ? Look.prefs({ level, badges: progress.badges, diplomas }) : {} };
     };
     // Titul u mého jména podle volby ve Vzhledu: úroveň a její titul (výchozí), nic, nebo název získaného odznaku
@@ -2396,6 +2402,13 @@
             if (devButton && devButton.dataset.dev === 'gold-chest' && Gold) { devApply('gold-chest'); saveGold({ ...loadGold(), ready: loadGold().ready + 1 }); closeSettings(); updateControlsUI(); openChestOverlay(true); return; }
             if (devButton && devButton.dataset.dev === 'season') { devApply('season'); closeSettings(); updateControlsUI(); openSeason(); return; }
             // Prestiž: náhled: hlavička, můj obrázek i Nastavení hned s medailonem zvoleného stupně
+            if (devButton && devButton.dataset.dev.startsWith('age:') && Look && Look.setDevAge) {
+                const value = devButton.dataset.dev.slice(4);
+                devAgeNow = value === 'auto' ? null : Look.cleanAge(value);
+                Look.setDevAge(devAgeNow);
+                if (Owl && Owl.refresh) Owl.refresh(Look.prefs(lookContext()).acc || {});
+                paintTab(); openSettings(); return;
+            }
             if (devButton && devButton.dataset.dev.startsWith('pv:')) { devApply(devButton.dataset.dev); applyLook(); updateControlsUI(); paintTab(); openSettings(); return; }
             if (devButton && devButton.dataset.dev === 'prestige') { devApply('prestige'); applyLook(); closeSettings(); updateControlsUI(); openLevels(); return; }
             if (devButton) { devApply(devButton.dataset.dev); updateControlsUI(); openSettings(`Hotovo: ${devButton.textContent.trim()}`, `[data-dev="${devButton.dataset.dev}"]`); return; }
@@ -3468,6 +3481,7 @@
         checkStreakFreeze();
         noteDiplomas(topicStarsNow());
         noteAlbum();
+        noteAge();
         settleGoals();
         // Sezóna: založí se (nebo přejde do nového měsíce) a zapamatuje se stupeň, ať se nový stupeň během hry oslaví
         noteSeasonTier();
@@ -7839,7 +7853,7 @@
     const ownOwlText = (pose) => {
         if (!Owl || !Owl.encodeOwl || !Look) return '';
         const ctx = lookContext();
-        return Owl.encodeOwl({ ...ctx.prefs, pose: Owl.allowedPose(pose, ctx.level) });
+        return Owl.encodeOwl({ ...ctx.prefs, pose: Owl.allowedPose(pose, ctx.level), age: Look.ageStageOf ? Look.ageStageOf(loadProgress().counters.days) : 1 });
     };
     const myOwlText = () => Look ? ownOwlText(Look.prefs(lookContext()).pose) : '';
     // Postavička (look.js, icons/avatars): základní obrázek a přes něj vrstvy přebarvených částí v jedné buňce mřížky. Zabere 82 % kolečka,
@@ -10060,6 +10074,27 @@
     const albumDueBadges = (progress) => (Album ? Album.dueBadges(albumInput(progress)).filter(id => !progress.badges[id]) : []);
     // Kontrola na úvodu, v Mém postupu a v albu: dosažený milník (třeba po truhle nebo po synchronizaci s účtem) se připíše a oslaví hned.
     // Jen odznaky alba – ostatní odznaky přibývají při hře (grantBadges), tady se nepřepočítávají
+    // Mudrlant stárne (look.js AGE_STAGES): když sova po dalších dnech hraní dosáhne nového stupně, oslava s novou podobou a uložení do účtu.
+    // První spuštění s touto funkcí jen zapamatuje stupeň (dnešní hráči začínají na prvním, nic se neslaví zpětně)
+    const AGE_KEY = 'mudrlant.ageSeen';
+    const noteAge = () => {
+        if (!Look || !Look.ageInfo || devActive()) return;
+        try {
+            const days = loadProgress().counters.days;
+            const before = Look.ageStage();
+            Look.setAgeDays(days);
+            // Sovy vykreslené dřív (hlavička při startu) dostanou podobu podle dní
+            if (Look.ageStage() !== before && Owl && Owl.refresh) Owl.refresh((Look.prefs(lookContext()).acc) || {});
+            const info = Look.ageInfo(days);
+            const seen = Number(readJson(AGE_KEY)) || 0;
+            if (seen && info.stage <= seen) return;
+            writeJson(AGE_KEY, info.stage);
+            if (!seen || info.stage < 2) return;
+            const art = Owl && Owl.logoHtml ? `<span class="-my-4 flex h-20 shrink-0">${Owl.logoHtml('', 'h-20 w-auto drop-shadow-lg')}</span>` : '';
+            showCelebration('radost', 'Mudrlant zestárl', `Po ${plural(days, 'dni', 'dnech', 'dnech')} hraní je z tvého Mudrlanta ${info.title}. ${info.next ? `Další podobu získá za ${plural(info.next.left, 'den', 'dny', 'dní')} hraní.` : 'Víc už nezestárne, je legendární.'}`, 'badge', art);
+            saveOwlToAccount();
+        } catch (error) { console.error(error); }
+    };
     const noteAlbum = () => {
         if (!Album) return;
         try {
