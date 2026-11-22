@@ -248,7 +248,8 @@
     // Fakt, který říká, kde to je nebo odkud to je (stát, město, kraj), nebo jméno, se kterým to souvisí, prozradí víc než číslo:
     // přijde až po mapě; slavné dílo, kapela nebo hlavní město skoro až před fotkou
     const PLACE_LABELS = new Set(['Stát', 'Státy', 'Země', 'Země původu', 'Země vynálezce', 'Místo', 'Místo vzniku', 'Město', 'Kraj', 'Hlavní město', 'Pořadatel', 'Umístění', 'Naleziště v Česku', 'Známá naleziště']);
-    // Vědecký a latinský název bývá odpovědi podobný (Canis familiaris, Hydrogenium)
+    // Vědecký a latinský název bývá odpovědi podobný (Canis familiaris, Hydrogenium, Origanum vulgare = oregano): u známé položky silný
+    // fakt (až za větami popisu jako značka), u méně známé slabší
     const NAME_LABELS = new Set(['Vědecký název', 'Latinsky']);
     // Vzorec nebo značka (Ag, NaCl): jak moc prozradí odpověď, záleží na tom, jak je krátký a jestli je položka známá. Značka prvku nebo
     // jednoduchý vzorec známé věci ji skoro řekne (přijde až za větami popisu), u nepříliš známé věci nebo dlouhého vzorce minerálu
@@ -258,7 +259,7 @@
         const length = String(value).replace(/[\s_{}]/g, '').length;
         return length <= 2 ? (known ? 1.2 : 0.5) : length <= 5 ? (known ? 1 : 0.45) : (known ? 0.5 : 0.25);
     };
-    const labelScore = (label, fact = null) => (SYMBOL_LABELS.has(label) ? (fact ? symbolStrength(fact.value, fact.known !== false) : 1.2) : STRONG_RELATED.has(label) ? 1 : NAME_LABELS.has(label) ? 0.4 : PLACE_LABELS.has(label) || RELATED_LABELS.includes(label) ? 0.2 : label === 'Kontinent' ? 0.05 : 0);
+    const labelScore = (label, fact = null) => (SYMBOL_LABELS.has(label) ? (fact ? symbolStrength(fact.value, fact.known !== false) : 1.2) : STRONG_RELATED.has(label) ? 1 : NAME_LABELS.has(label) ? (fact && fact.known === false ? 0.45 : 1) : PLACE_LABELS.has(label) || RELATED_LABELS.includes(label) ? 0.2 : label === 'Kontinent' ? 0.05 : 0);
     const factScore = (fact) => 0.12 + (/\p{Lu}/u.test(fact.value) ? 0.12 : 0) + ((String(fact.value).match(YEAR) || []).length ? 0.06 : 0) + labelScore(fact.label, fact);
     // Nejsilnější fakt, který ještě smí být v první nápovědě (číslo, rok, obecné slovo nebo jedno jméno – ne stát, dílo ani rodiče)
     const OPENER_MAX = 0.3;
