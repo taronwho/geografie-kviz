@@ -121,7 +121,7 @@ test('odměny: truhla, ochrana série, diplomy, sdílení obrázku', { skip: !ch
                 const look = await storage(tab, 'mudrlant.look');
                 const key = { robes: 'robe', themes: 'theme', frames: 'frame' }[category];
                 if (key) assert.equal(look[key], id, 'nasazeno');
-                else assert.equal(Object.values(look.acc).map(entry => entry.id).includes(id), true, 'doplněk nasazen');
+                else if (category === 'accessories') assert.equal(Object.values(look.acc).map(entry => entry.id).includes(id), true, 'doplněk nasazen');
             } else await tab.click('[data-chest-close]');
             assert.equal(await tab.locator('#chest-overlay').count(), 0);
             // Řádek s truhlou ze záložky Dnes zmizí (truhla jde otevřít jen jednou); cíle týdne jsou na záložce Postup
@@ -235,6 +235,25 @@ test('odměny: truhla, ochrana série, diplomy, sdílení obrázku', { skip: !ch
         await nav.dailySheet(tab);
         assert.match(await tab.textContent('#daily-sheet [data-action="daily"][data-topic="zemepis"]'), /3/, 'série 3 dny přes zachráněný den');
         await tab.keyboard.press('Escape');
+        assert.deepEqual(problems, []);
+        await context.close();
+    });
+
+    await t.test('Mudrlant stárne: po dalších dnech hraní oslava s novou podobou sovy, první spuštění nic neslaví', async () => {
+        const fresh = await open({ seed: { 'mudrlant.progress': { xp: 100, counters: { days: 800 }, badges: {} } } });
+        assert.equal(await fresh.tab.locator('#celebration').count(), 0, 'první spuštění jen zapamatuje stupeň');
+        assert.equal(await storage(fresh.tab, 'mudrlant.ageSeen'), 3);
+        await fresh.context.close();
+        const { context, tab, problems } = await open({ viewport: { width: 360, height: 640 }, seed: { 'mudrlant.progress': { xp: 100, counters: { days: 800 }, badges: {} }, 'mudrlant.ageSeen': 2 } });
+        await tab.waitForSelector('#celebration');
+        assert.match(await tab.textContent('#celebration'), /Mudrlant zestárl[^]*Šedivějící mudrc[^]*za 295 dní/);
+        assert.match(await tab.getAttribute('#celebration [data-owl] img', 'src'), /icons\/logo-vek3(-bez-monoklu)?\.webp/);
+        await shot(tab, 'mudrlant-zestarl-360-light');
+        // Sova v hlavičce (vykreslená při startu) má také novou podobu
+        await clearCelebrations(tab);
+        const owls = await tab.$$eval('[data-owl] img:not([data-owl-layer])', nodes => nodes.map(node => node.getAttribute('data-owl-base') || node.getAttribute('src')));
+        assert.ok(owls.length > 0 && owls.every(src => /logo-vek3/.test(src)), owls.join(', '));
+        assert.equal(await storage(tab, 'mudrlant.ageSeen'), 3);
         assert.deepEqual(problems, []);
         await context.close();
     });

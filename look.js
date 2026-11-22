@@ -546,6 +546,29 @@
     const findPose = (id) => POSES.find(pose => pose.id === id) || null;
     const CATALOG = { themes: THEMES, robes: ROBES, frames: FRAMES, avatars: AVATARS, accessories: ACCESSORIES, colors: ACC_COLORS.filter(color => color.level > 1) };
     CATALOG.titles = TITLES;
+    // Mudrlant stárne (icons/logo-vek<n>.webp, scripts/owl-age.py): stupeň podle počtu dní ve hře (progress.counters.days, app.js setAgeDays),
+    // jen sova s doplňky (sovy titulů nestárnou). Stupeň 1 je dnešní sova; posledních pět let hraní.
+    const AGE_STAGES = [
+        { stage: 1, days: 0, title: 'Mudrlant' },
+        { stage: 2, days: 365, title: 'Zkušený mudrc' },
+        { stage: 3, days: 730, title: 'Šedivějící mudrc' },
+        { stage: 4, days: 1095, title: 'Stařešina' },
+        { stage: 5, days: 1825, title: 'Pradávný Mudrlant' }
+    ];
+    const ageStageOf = (days) => { const value = Math.max(0, Math.floor(Number(days) || 0)); return [...AGE_STAGES].reverse().find(item => value >= item.days).stage; };
+    const cleanAge = (value) => { const n = Math.floor(Number(value)); return n >= 1 && n <= AGE_STAGES.length ? n : 1; };
+    let ageDays = 0;
+    let devAge = null;
+    const setAgeDays = (days) => { ageDays = Math.max(0, Math.floor(Number(days) || 0)); };
+    // Vývojářský náhled (app.js, jen v zařízení): stupeň nastavený ručně, null = podle dní
+    const setDevAge = (stage) => { devAge = stage === null || stage === undefined ? null : cleanAge(stage); };
+    const ageStage = () => devAge || ageStageOf(ageDays);
+    // { stage, title, next: { stage, title, days, left } | null }
+    const ageInfo = (days = ageDays) => {
+        const stage = devAge || ageStageOf(days);
+        const next = AGE_STAGES.find(item => item.stage === stage + 1) || null;
+        return { stage, title: AGE_STAGES[stage - 1].title, next: next ? { ...next, left: Math.max(0, next.days - Math.floor(Number(days) || 0)) } : null };
+    };
     const DEFAULTS = { theme: 'vinova', robe: 'vinova', frame: 'zadny', title: 'level', acc: {}, pose: null, robeColor: ROBE_COLOR_DEFAULT };
 
     // Barva doplňku: z katalogu (odemčená) nebo vlastní odstín z palety (když je paleta odemčená)
@@ -736,7 +759,7 @@
     // Vlastní titul (ne odznak) podle id, nebo null
     const titleItem = (id) => find('titles', id);
 
-    return { ROBE_CUSTOM, cleanRobeColor, ROBE_COLOR_DEFAULT, setGifts, isGift: (item) => isGift(item, giftState), categoryOf, CATALOG, THEMES, ROBES, FRAMES, AVATARS, AVATAR_COLORS, ACCESSORIES, SLOTS, ACC_COLORS, NO_MONOCLE, monocleShown, POSES, findPose, customHue, colorOk, flagOk, DEFAULTS, isUnlocked, unlockText, find, normalize, prefs, setPref, onChange, register, getSections, apply, newRewards, rewardsAtLevel, REWARD_KINDS, settingsTab, settingsPlace, rewardsForBadge, badgeRewardText,
+    return { AGE_STAGES, ageStageOf, cleanAge, setAgeDays, setDevAge, ageStage, ageInfo, ROBE_CUSTOM, cleanRobeColor, ROBE_COLOR_DEFAULT, setGifts, isGift: (item) => isGift(item, giftState), categoryOf, CATALOG, THEMES, ROBES, FRAMES, AVATARS, AVATAR_COLORS, ACCESSORIES, SLOTS, ACC_COLORS, NO_MONOCLE, monocleShown, POSES, findPose, customHue, colorOk, flagOk, DEFAULTS, isUnlocked, unlockText, find, normalize, prefs, setPref, onChange, register, getSections, apply, newRewards, rewardsAtLevel, REWARD_KINDS, settingsTab, settingsPlace, rewardsForBadge, badgeRewardText,
         migrateAvatar, parseAvatar, formatAvatar, avatarCode, avatarPicture, avatarItem, partColors,
         // Legendární postavičky za diplom tématu
         DIPLOMA_TOPICS, isLegendary, rewardsForDiploma,

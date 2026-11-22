@@ -36,6 +36,12 @@ AREAS = {
     },
 }
 
+# Stárnoucí Mudrlant (scripts/owl-age.py): oči mají do červena jdoucí hnědou duhovku, kterou by přebarvení talárem zabarvilo
+# (zelené nebo modré oči); oblast očí se proto nepřebarví (logo 258 × 320, sova je na všech stupních na stejném místě)
+for _n in (2, 3, 4, 5):
+    for _name in (f'logo-vek{_n}', f'logo-vek{_n}-bez-monoklu'):
+        AREAS[_name] = {'in': [(0, 0, 258, 320)], 'out': [(78, 128, 192, 166)]}
+
 def rgb_to_hsv(a):
     r, g, b = a[..., 0], a[..., 1], a[..., 2]
     mx, mn = a.max(-1), a.min(-1)
@@ -132,7 +138,8 @@ wanted = sys.argv[1:] or list(ROBES)
 unknown = [robe for robe in wanted if robe not in ROBES]
 if unknown: sys.exit(f'Neznámá barva: {", ".join(unknown)} (známé: {", ".join(ROBES)})')
 # Logo sovy bez monoklu (icons/logo-bez-monoklu.webp ze scripts/owl-accessories.py --logo) má stejné barvy obleku jako logo
-sources = [os.path.join(root, 'logo.webp'), os.path.join(root, 'logo-bez-monoklu.webp')] + sorted(glob.glob(os.path.join(root, 'topics', 'sova-*.webp')))
+# Mudrlant stárne (scripts/owl-age.py): logo-vek<n>.webp a logo-vek<n>-bez-monoklu.webp
+sources = [os.path.join(root, 'logo.webp'), os.path.join(root, 'logo-bez-monoklu.webp')] + [p for p in sorted(glob.glob(os.path.join(root, 'logo-vek*.webp'))) if not any(p.endswith(f'-{c}.webp') for c in ROBES)] + sorted(glob.glob(os.path.join(root, 'topics', 'sova-*.webp')))
 only = set(filter(None, os.environ.get('ONLY', '').split(',')))
 for path in sources:
     base = os.path.splitext(os.path.basename(path))[0]

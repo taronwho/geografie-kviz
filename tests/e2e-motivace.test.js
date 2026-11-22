@@ -261,6 +261,12 @@ test('motivace: tematický víkend, prestiž, pozvi kamarády, reakce a efekty, 
             }
             await tab.evaluate(() => document.querySelector('[data-dev-prestige]').scrollIntoView({ block: 'center' }));
             await shot(tab, `prestiz-nahled-${colorScheme}`);
+            // Mudrlant stárne: náhled podoby sovy (stupeň 5 = Pradávný Mudrlant), Podle dní vrátí skutečnou
+            await tab.evaluate(() => document.querySelector('[data-dev-age] [data-dev="age:5"]').click());
+            await tab.waitForFunction(() => [...document.querySelectorAll('[data-owl] > img')].some(img => /logo-vek5/.test(img.getAttribute('data-owl-base') || img.getAttribute('src'))));
+            assert.equal(await tab.getAttribute('[data-dev-age] [data-dev="age:5"]', 'aria-pressed'), 'true');
+            await tab.evaluate(() => document.querySelector('[data-dev-age] [data-dev="age:auto"]').click());
+            await tab.waitForFunction(() => ![...document.querySelectorAll('[data-owl] > img')].some(img => /logo-vek/.test(img.getAttribute('data-owl-base') || img.getAttribute('src'))));
             assert.ok(!db.calls.includes('prestige_up'), 'náhled se serveru neptá');
             await tab.click('[data-dev="restore"]');
             await tab.waitForFunction(() => localStorage.getItem('mudrlant.prestige') === null && !document.querySelector('#status-text [data-prestige-medal], #btn-settings [data-prestige-badge]'));

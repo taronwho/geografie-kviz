@@ -56,7 +56,14 @@
             out: [[137, 54, 150, 72], [174, 54, 188, 72], [156, 248, 169, 272]]
         }
     };
-    const areaFor = (src) => { const m = /sova-(titul-\d+)\.webp$/.exec(String(src || '')); return m && AREAS[`sova-${m[1]}`] ? AREAS[`sova-${m[1]}`] : null; };
+    // Stárnoucí Mudrlant (icons/logo-vek<n>[-bez-monoklu].webp, scripts/owl-age.py): oči se nepřebarví (jako AREAS ve scripts/owl-robes.py;
+    // logo má šířku 258, souřadnice jsou přepočtené na 320)
+    const AGE_AREA = { in: [[0, 0, 320, 320]], out: [[97, 128, 238, 166]] };
+    const areaFor = (src) => {
+        if (/logo-vek\d(?:-bez-monoklu)?\.webp$/.test(String(src || ''))) return AGE_AREA;
+        const m = /sova-(titul-\d+)\.webp$/.exec(String(src || ''));
+        return m && AREAS[`sova-${m[1]}`] ? AREAS[`sova-${m[1]}`] : null;
+    };
     const insideArea = (area, x, y, width, height) => {
         const sx = x * 320 / width;
         const sy = y * 320 / height;
