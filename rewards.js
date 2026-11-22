@@ -38,7 +38,7 @@
     // patří k úrovni (Kapybara v lázních je jen z truhly, Zmrzlinový kornout vzácný dárek)
     const CHEST_ONLY_CATEGORIES = ['avatars'];
     const CHEST_CATEGORIES = [...GIFT_CATEGORIES, ...CHEST_ONLY_CATEGORIES];
-    const LIMITS = { chests: 80, ready: 12, frozen: 90, earned: 40 };
+    const LIMITS = { chests: 80, ready: 12, frozen: 90, frozenTopic: 30, frozenTopics: 30, earned: 40 };
 
     // --- Dny (RRRR-MM-DD) ---
     const DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -67,8 +67,8 @@
         return [...new Set((Array.isArray(list) ? list : []).filter(id => typeof id === 'string' && ID.test(id) && (!known || known.includes(id))))];
     };
     const lastDays = (list, limit) => [...new Set((Array.isArray(list) ? list : []).filter(isDay))].sort().slice(-limit);
-    const REWARD = /^(?:xp|(accessories|colors|frames|robes|themes):[a-z0-9-]{1,30})$/;
-    const empty = () => ({ v: 1, gifts: Object.fromEntries(OWN_CATEGORIES.map(category => [category, []])), chests: {}, ready: [], freezes: 0, freezesAt: 0, frozen: [], earned: [], checked: '', diplomas: {}, robots: {}, name: '', season: null, past: null });
+    const REWARD = /^(?:xp|(accessories|colors|frames|robes|themes|avatars):[a-z0-9-]{1,30})$/;
+    const empty = () => ({ v: 1, gifts: Object.fromEntries(OWN_CATEGORIES.map(category => [category, []])), chests: {}, ready: [], freezes: 0, freezesAt: 0, frozen: [], frozenQuiz: [], frozenTopics: {}, earned: [], checked: '', diplomas: {}, robots: {}, name: '', season: null, past: null });
 
     // --- Sezóna (season.js): { id: 'RRRR-MM', startXp, claimed: { stupeň: odměna } }, minulá sezóna navíc endXp ---
     // Odměna stupně: části spojené „+“: 'kategorie:id' (věc), 'freeze' (ochrana série), 'xp:N'
@@ -115,6 +115,10 @@
         state.freezes = whole(data.freezes, MAX_FREEZES);
         state.freezesAt = whole(data.freezesAt, 1e13);
         state.frozen = lastDays(data.frozen, LIMITS.frozen);
+        state.frozenQuiz = lastDays(data.frozenQuiz, LIMITS.frozen);
+        const topicDays = data.frozenTopics && typeof data.frozenTopics === 'object' && !Array.isArray(data.frozenTopics) ? data.frozenTopics : {};
+        state.frozenTopics = Object.fromEntries(Object.entries(topicDays).filter(([topic]) => ID.test(topic))
+            .map(([topic, days]) => [topic, lastDays(days, LIMITS.frozenTopic)]).filter(([, days]) => days.length).slice(0, LIMITS.frozenTopics));
         state.earned = [...new Set((Array.isArray(data.earned) ? data.earned : []).filter(key => typeof key === 'string' && KEY_PATTERN.test(key)))].slice(-LIMITS.earned);
         state.checked = isDay(data.checked) ? data.checked : '';
         const diplomas = data.diplomas && typeof data.diplomas === 'object' && !Array.isArray(data.diplomas) ? data.diplomas : {};
@@ -223,17 +227,44 @@
     };
     // Série k dnešku (dnešek se počítá, jen když je splněný; jinak se počítá od včerejška) se zachráněnými dny
     const bridgedStreak = (ok, today, frozen = []) => streakEndingAt(ok, ok(today) ? today : addDays(today, -1), frozen);
-    // Kontrola po spuštění (jednou denně): včerejšek se nevyšel a před ním běžela série aspoň MIN_PROTECTED dní → použije se ochrana.
+    // Dny zachráněné ochranou série, které platí pro danou sérii: starší (frozen, ochrana tehdy platila pro všechny série) a nové jen pro Kvíz dne
+    // (frozenQuiz, použije se sama) nebo jen pro jedno téma Dnešních otázek (frozenTopics, hráč ji použije ručně)
+    const frozenForQuiz = (state) => { const s = parse(state); return [...s.frozen, ...s.frozenQuiz]; };
+    const frozenForTopic = (state, topic) => { const s = parse(state); return [...s.frozen, ...(s.frozenTopics[topic] || [])]; };
+    // Automatická ochrana po spuštění (jednou denně) jen pro Kvíz dne: včerejšek nevyšel a před ním běžela série aspoň MIN_PROTECTED dní → použije
+    // se ochrana a den se zapíše do frozenQuiz. Série dnešních otázek se samy nechrání, ty zachrání hráč ručně (rescuable, rescueTopic).
     // series = [{ id, ok(day) }]. Vrátí { state, used, day, saved: [id série] }
     const checkFreeze = (state, today, series, now = Date.now()) => {
         const s = parse(state);
         if (!isDay(today) || s.checked === today) return { state: s, used: false, day: null, saved: [] };
         const checked = { ...s, checked: today };
         const day = addDays(today, -1);
-        if (s.frozen.includes(day) || s.freezes < 1) return { state: checked, used: false, day: null, saved: [] };
-        const saved = (series || []).filter(entry => !entry.ok(day) && streakEndingAt(entry.ok, addDays(day, -1), s.frozen) >= MIN_PROTECTED).map(entry => entry.id);
+        const bridged = frozenForQuiz(s);
+        if (bridged.includes(day) || s.freezes < 1) return { state: checked, used: false, day: null, saved: [] };
+        const saved = (series || []).filter(entry => !entry.ok(day) && streakEndingAt(entry.ok, addDays(day, -1), bridged) >= MIN_PROTECTED).map(entry => entry.id);
         if (!saved.length) return { state: checked, used: false, day: null, saved: [] };
-        return { state: { ...checked, freezes: s.freezes - 1, freezesAt: now, frozen: lastDays([...s.frozen, day], LIMITS.frozen) }, used: true, day, saved };
+        return { state: { ...checked, freezes: s.freezes - 1, freezesAt: now, frozenQuiz: lastDays([...s.frozenQuiz, day], LIMITS.frozen) }, used: true, day, saved };
+    };
+    // Série dnešních otázek, které jde ručně zachránit ochranou: včerejšek nevyšel (a není už zachráněný) a před ním běžela série aspoň MIN_PROTECTED
+    // dní; ochrana musí být k mání. topics = [{ id, ok(day) }]. Vrátí [{ id, day, length }] od nejdelší série
+    const rescuable = (state, today, topics) => {
+        const s = parse(state);
+        if (!isDay(today) || s.freezes < 1) return [];
+        const day = addDays(today, -1);
+        return (topics || []).map(entry => {
+            const bridged = frozenForTopic(s, entry.id);
+            if (!ID.test(String(entry.id)) || entry.ok(day) || bridged.includes(day)) return null;
+            const length = streakEndingAt(entry.ok, addDays(day, -1), bridged);
+            return length >= MIN_PROTECTED ? { id: entry.id, day, length } : null;
+        }).filter(Boolean).sort((a, b) => b.length - a.length);
+    };
+    // Ruční záchrana jedné série dnešních otázek: spotřebuje jednu ochranu a zapíše včerejšek do frozenTopics tohoto tématu. Vrátí { state, saved, day, length }
+    const rescueTopic = (state, today, entry, now = Date.now()) => {
+        const s = parse(state);
+        const found = rescuable(s, today, [entry])[0];
+        if (!found) return { state: s, saved: false, day: null, length: 0 };
+        const days = lastDays([...(s.frozenTopics[found.id] || []), found.day], LIMITS.frozenTopic);
+        return { state: { ...s, freezes: s.freezes - 1, freezesAt: now, frozenTopics: { ...s.frozenTopics, [found.id]: days } }, saved: true, day: found.day, length: found.length };
     };
     // Série dosáhla násobku 7 dní: ochrana za zdroj (q = Kvíz dne, d = dnešní otázky) a den
     const streakFreeze = (state, source, day, streak, now = Date.now()) => (streak > 0 && streak % FREEZE_EVERY === 0 ? earnFreeze(state, `${source}:${day}`, now) : { state: parse(state), gained: false });
@@ -296,7 +327,7 @@
     // --- Účet: co se ukládá do profiles.rewards a jak se spojí se zařízením ---
     const payload = (state) => {
         const s = parse(state);
-        return { v: 1, gifts: s.gifts, chests: s.chests, ready: s.ready, freezes: s.freezes, freezesAt: s.freezesAt, frozen: s.frozen, earned: s.earned, diplomas: s.diplomas, robots: s.robots, season: s.season, past: s.past };
+        return { v: 1, gifts: s.gifts, chests: s.chests, ready: s.ready, freezes: s.freezes, freezesAt: s.freezesAt, frozen: s.frozen, frozenQuiz: s.frozenQuiz, frozenTopics: s.frozenTopics, earned: s.earned, diplomas: s.diplomas, robots: s.robots, season: s.season, past: s.past };
     };
     // Sjednocení: věci, truhly, zachráněné dny a diplomy se sčítají (u diplomu dřívější den); počet ochran platí z novější změny;
     // sezóna: tatáž sezóna = menší startXp a sjednocené stupně, novější sezóna nahradí starší (ta zůstane jako past)
@@ -314,6 +345,9 @@
             ready: [...local.ready, ...remote.ready].filter(week => !chests[week]),
             freezes: newer.freezes, freezesAt: newer.freezesAt,
             frozen: [...local.frozen, ...remote.frozen],
+            frozenQuiz: [...local.frozenQuiz, ...remote.frozenQuiz],
+            frozenTopics: Object.fromEntries([...new Set([...Object.keys(local.frozenTopics), ...Object.keys(remote.frozenTopics)])]
+                .map(topic => [topic, [...(local.frozenTopics[topic] || []), ...(remote.frozenTopics[topic] || [])]])),
             earned: [...new Set([...remote.earned, ...local.earned])].sort((a, b) => a.slice(2).localeCompare(b.slice(2))),
             diplomas,
             robots: Object.fromEntries([...new Set([...Object.keys(local.robots), ...Object.keys(remote.robots)])].map(id => [id, Math.max(local.robots[id] || 0, remote.robots[id] || 0)])),
@@ -463,8 +497,10 @@
         return !rows.length ? '' : `<div data-freeze-log><b>Kdy ochrana zabrala:</b>
             <ul class="mt-0.5 flex flex-col gap-1">${rows.map(entry => `<li class="rounded-xl bg-sky-50 px-2 py-1 dark:bg-sky-900/30"><b>${esc(formatDay(entry.day))}</b>: ${entry.reasons.map(esc).join('; ')}</li>`).join('')}</ul></div>`;
     };
-    const freezeHelpHtml = (freezes, streak = null, log = []) => `
+    // rescue = kolik sérií Dnešních otázek jde teď ručně zachránit (tlačítko nahoře, jen když nějaká jde)
+    const freezeHelpHtml = (freezes, streak = null, log = [], rescue = 0) => `
         <div class="flex flex-col gap-2 text-[13px] leading-snug text-slate-700 dark:text-slate-200" data-freeze-help>
+            ${rescue > 0 ? `<button type="button" data-action="streak-rescue" class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-brand-700 px-4 py-2.5 text-[14px] font-black text-white">${freezeArt('h-6 w-6')} Zachránit sérii (${rescue})</button>` : ''}
             <div class="grid grid-cols-2 gap-1.5" data-streak-now>
                 ${streak === null ? '' : `<p class="flex items-center gap-1.5 rounded-2xl bg-amber-50 p-2 font-bold text-amber-900 dark:bg-amber-900/30 dark:text-amber-100"><img src="icons/topics/serie.webp" alt="" class="-my-1 h-8 w-8 shrink-0 object-contain drop-shadow-sm"><span class="min-w-0 leading-tight">Série<br><b class="text-[15px]">${streak ? daysWordOf(streak) : 'zatím žádná'}</b></span></p>`}
                 <p class="${streak === null ? 'col-span-2 ' : ''}flex items-center gap-1.5 rounded-2xl bg-sky-50 p-2 font-bold text-sky-900 dark:bg-sky-900/30 dark:text-sky-100">${freezeArt('h-8 w-8 -my-1')}<span class="min-w-0 leading-tight">Ochrana série<br><b class="text-[15px]">${freezes} z ${MAX_FREEZES}</b></span></p>
@@ -478,7 +514,7 @@
                     <li>Za 7, 30, 100 a 365 dní Kvízu dne Ankh vzkříšení do Dobývání.</li>
                 </ul>
             </div>
-            <p><b>Ochrana série:</b> když jeden den vynecháš, sama se použije a všechny série ti zůstanou. Chrání série od ${MIN_PROTECTED} dní, dva vynechané dny v řadě nezachrání. Dostaneš ji za každých ${FREEZE_EVERY} dní v řadě a z Truhly Mudrlanta, mít můžeš nejvýš ${MAX_FREEZES}.</p>
+            <p><b>Ochrana série:</b> u Kvízu dne se po vynechaném dni použije sama, u Dnešních otázek ji použiješ ručně (nabídne se ti). Chrání série od ${MIN_PROTECTED} dní, dva vynechané dny v řadě nezachrání. Dostaneš ji za každých ${FREEZE_EVERY} dní v řadě a z Truhly Mudrlanta, mít můžeš nejvýš ${MAX_FREEZES}.</p>
             ${freezeLogHtml(log)}
         </div>`;
     const chestHelpHtml = (lastReward) => `
@@ -543,7 +579,7 @@
     return {
         KEY, MAX_FREEZES, MIN_PROTECTED, FREEZE_EVERY, CHEST_XP, NEAREST, GIFT_CATEGORIES, CHEST_CATEGORIES, CHEST_ONLY_CATEGORIES, OWN_CATEGORIES, KIND_NAMES, DIPLOMA_NAMES, SEASON_TIERS, SEASON_REWARD, cleanSeason, mergeSeasons,
         isDay, addDays, formatDay, isoWeek, empty, parse, gifts, owns, pendingChest, addChest, candidates, RARE_CHANCE, rareCandidates, pickGift, openChest, chestReward,
-        earnFreeze, streakEndingAt, bridgedStreak, checkFreeze, streakFreeze, diplomaTitle, noteDiplomas, ROBOT_WINS, robotPool, noteRobots, setName, payload, merge, samePayload, isEmpty,
+        earnFreeze, streakEndingAt, bridgedStreak, checkFreeze, streakFreeze, diplomaTitle, noteDiplomas, frozenForQuiz, frozenForTopic, rescuable, rescueTopic, ROBOT_WINS, robotPool, noteRobots, setName, payload, merge, samePayload, isEmpty,
         nextStreakReward, streakRewardText, streakRewardHtml,
         freezeWord, freezeChip, freezeArt, freezeLogHtml, chestSvg, previewHtml, chestHtml, progressHtml, freezeHelpHtml, chestHelpHtml, diplomasHtml, diplomaDialogHtml
     };
