@@ -301,3 +301,12 @@ test('roboti: třetí porážka robota ho dá jako postavičku, po všech 26 i o
     assert.ok(['rmudra', 'rsuper'].every(id => state.gifts.avatars.includes(id)), 'Robosovy za všech 26');
     assert.ok(pool.every(id => Look.isUnlocked(Look.find('avatars', id), { level: 1, badges: {}, gifts: state.gifts })));
 });
+
+test('záznam ochrany série: kdy a proč zabrala (jen platné záznamy, nejvýš pět, text se escapuje)', () => {
+    assert.equal(Rewards.freezeLogHtml([]), '');
+    assert.equal(Rewards.freezeLogHtml([{ day: 'nesmysl', reasons: ['x'] }, { day: '2026-11-21', reasons: [] }]), '');
+    const html = Rewards.freezeLogHtml([{ day: '2026-11-21', reasons: ['Kvíz dne: nebyl dohraný (série 8 dní)', '<b>x</b>'] }]);
+    assert.match(html, /21\. 11\. 2026<\/b>: Kvíz dne: nebyl dohraný \(série 8 dní\); &lt;b&gt;x&lt;\/b&gt;/);
+    assert.equal((Rewards.freezeLogHtml(Array.from({ length: 9 }, (_, i) => ({ day: `2026-11-${10 + i}`, reasons: ['a'] }))).match(/<li/g) || []).length, 5);
+    assert.match(Rewards.freezeHelpHtml(1, 3, [{ day: '2026-11-21', reasons: ['a'] }]), /data-freeze-log/);
+});

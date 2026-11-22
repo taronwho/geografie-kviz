@@ -5257,6 +5257,7 @@
         saveProgress(progress);
     };
     // Ochrana série: jednou denně po spuštění; včera nevyšla žádná série aspoň tří dní → ochrana ji zachrání (rewards.js)
+    const FREEZE_LOG_KEY = 'mudrlant.freezeLog';
     const checkStreakFreeze = () => {
         if (!Rewards || devActive()) return;
         try {
@@ -5273,7 +5274,21 @@
             if (!result.used) return;
             bumpCounter('freezesUsed');
             const left = result.state.freezes;
-            showCelebration('serie', 'Ochrana série zabrala', `Včerejší den je zachráněný, série ti zůstala. ${left ? `Zbývá ${left} ${Rewards.freezeWord(left)}.` : 'Další ochranu získáš z truhly nebo za 7 dní v řadě.'}`);
+            // Proč ochrana zabrala: které série včera nevyšly (téma Dnešních otázek: nezodpovězená nebo nesprávná odpověď, Kvíz dne: nehrán) a jak dlouhé byly
+            const dayBefore = Rewards.addDays(result.day, -1);
+            const reasons = result.saved.map(id => {
+                const entry = series.find(item => item.id === id);
+                const length = entry ? Rewards.streakEndingAt(entry.ok, dayBefore, before.frozen) : 0;
+                const topic = TOPIC_BY_ID[id];
+                const played = topic ? (stats.daily[id] || {})[result.day] : null;
+                const what = topic ? `Dnešní otázka z tématu ${topic.title}` : 'Kvíz dne';
+                const why = topic ? (played ? 'odpověď nebyla správná' : 'nebyla zodpovězená') : 'nebyl dohraný';
+                return `${what}: ${why} (série ${plural(length, 'den', 'dny', 'dní')})`;
+            });
+            const log = [{ day: result.day, reasons }, ...(readJson(FREEZE_LOG_KEY) || [])].slice(0, 10);
+            writeJson(FREEZE_LOG_KEY, log);
+            const shownReasons = reasons.slice(0, 3).join('; ') + (reasons.length > 3 ? ` a ${reasons.length - 3} dalších` : '');
+            showCelebration('serie', 'Ochrana série zabrala', `Zachráněný den ${Rewards.formatDay(result.day)}. Nevyšlo: ${shownReasons}. ${left ? `Zbývá ${left} ${Rewards.freezeWord(left)}.` : 'Další ochranu získáš z truhly nebo za 7 dní v řadě.'}`);
             syncRewards();
         } catch (error) { console.error(error); }
     };
@@ -5467,7 +5482,7 @@
     };
     const openFreezeHelp = () => {
         if (!Rewards) return;
-        showDialog('Série a ochrana série', `${Rewards.freezeHelpHtml(loadRewards().freezes, dayStreakNow())}${streakRewardLine(longestStreak(), 'mt-2.5 rounded-xl bg-white px-2.5 py-2 shadow-sm dark:bg-slate-800')}${dialogBackButton('mt-3')}`);
+        showDialog('Série a ochrana série', `${Rewards.freezeHelpHtml(loadRewards().freezes, dayStreakNow(), readJson(FREEZE_LOG_KEY) || [])}${streakRewardLine(longestStreak(), 'mt-2.5 rounded-xl bg-white px-2.5 py-2 shadow-sm dark:bg-slate-800')}${dialogBackButton('mt-3')}`);
     };
     const lastChestText = (state) => {
         const week = Object.keys(state.chests).sort().pop();

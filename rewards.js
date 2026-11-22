@@ -457,13 +457,19 @@
     // streak = nejdelší běžící série dní (null = neukazovat). XP za sérii: quiz-core.js streakXp a daily-quiz.js (2 XP za den, strop 10 dní);
     // rámečky za sérii: look.js (Jiskra, Plamenný, Stovka, Věčný oheň); Ankh vzkříšení za sérii Kvízu dne: blok 39 ve schema.sql
     const daysWordOf = (count) => `${count} ${count === 1 ? 'den' : count >= 2 && count <= 4 ? 'dny' : 'dní'}`;
-    const freezeHelpHtml = (freezes, streak = null) => `
+    // Kdy a proč ochrana zabrala (poslední záznamy ze zařízení): [{ day: zachráněný den, reasons: ['Dnešní otázka z Geologie: odpověď nebyla správná (série 9 dní)', …] }]
+    const freezeLogHtml = (log) => {
+        const rows = (Array.isArray(log) ? log : []).filter(entry => entry && isDay(entry.day) && Array.isArray(entry.reasons) && entry.reasons.length).slice(0, 5);
+        return !rows.length ? '' : `<div data-freeze-log><b>Kdy ochrana zabrala:</b>
+            <ul class="mt-0.5 flex flex-col gap-1">${rows.map(entry => `<li class="rounded-xl bg-sky-50 px-2 py-1 dark:bg-sky-900/30"><b>${esc(formatDay(entry.day))}</b>: ${entry.reasons.map(esc).join('; ')}</li>`).join('')}</ul></div>`;
+    };
+    const freezeHelpHtml = (freezes, streak = null, log = []) => `
         <div class="flex flex-col gap-2 text-[13px] leading-snug text-slate-700 dark:text-slate-200" data-freeze-help>
             <div class="grid grid-cols-2 gap-1.5" data-streak-now>
                 ${streak === null ? '' : `<p class="flex items-center gap-1.5 rounded-2xl bg-amber-50 p-2 font-bold text-amber-900 dark:bg-amber-900/30 dark:text-amber-100"><img src="icons/topics/serie.webp" alt="" class="-my-1 h-8 w-8 shrink-0 object-contain drop-shadow-sm"><span class="min-w-0 leading-tight">Série<br><b class="text-[15px]">${streak ? daysWordOf(streak) : 'zatím žádná'}</b></span></p>`}
                 <p class="${streak === null ? 'col-span-2 ' : ''}flex items-center gap-1.5 rounded-2xl bg-sky-50 p-2 font-bold text-sky-900 dark:bg-sky-900/30 dark:text-sky-100">${freezeArt('h-8 w-8 -my-1')}<span class="min-w-0 leading-tight">Ochrana série<br><b class="text-[15px]">${freezes} z ${MAX_FREEZES}</b></span></p>
             </div>
-            <p data-streak-what><b>Série</b> = kolik dní v řadě hraješ. Každé téma Dnešních otázek má svou sérii (stačí v něm každý den odpovědět na dnešní otázku), Kvíz dne má vlastní (stačí ho každý den dohrát). Plamen nahoře ukazuje tvou nejdelší. Když den vynecháš, série spadne na nulu.</p>
+            <p data-streak-what><b>Série</b> = kolik dní v řadě hraješ. Každé téma Dnešních otázek má svou sérii (stačí v něm každý den správně odpovědět na dnešní otázku), Kvíz dne má vlastní (stačí ho každý den dohrát). Plamen nahoře ukazuje tvou nejdelší. Vynechaný den ji vynuluje.</p>
             <div data-streak-gives><b>Co ti série dá:</b>
                 <ul class="mt-0.5 flex list-disc flex-col gap-0.5 pl-5 marker:text-amber-500">
                     <li>Víc XP: +2 XP za každý den série ke každé dnešní otázce i ke Kvízu dne, nejvýš +20 XP.</li>
@@ -473,6 +479,7 @@
                 </ul>
             </div>
             <p><b>Ochrana série:</b> když jeden den vynecháš, sama se použije a všechny série ti zůstanou. Chrání série od ${MIN_PROTECTED} dní, dva vynechané dny v řadě nezachrání. Dostaneš ji za každých ${FREEZE_EVERY} dní v řadě a z Truhly Mudrlanta, mít můžeš nejvýš ${MAX_FREEZES}.</p>
+            ${freezeLogHtml(log)}
         </div>`;
     const chestHelpHtml = (lastReward) => `
         <div class="flex flex-col gap-2 text-[13px] leading-snug text-slate-700 dark:text-slate-200" data-chest-help>
@@ -538,6 +545,6 @@
         isDay, addDays, formatDay, isoWeek, empty, parse, gifts, owns, pendingChest, addChest, candidates, RARE_CHANCE, rareCandidates, pickGift, openChest, chestReward,
         earnFreeze, streakEndingAt, bridgedStreak, checkFreeze, streakFreeze, diplomaTitle, noteDiplomas, ROBOT_WINS, robotPool, noteRobots, setName, payload, merge, samePayload, isEmpty,
         nextStreakReward, streakRewardText, streakRewardHtml,
-        freezeWord, freezeChip, freezeArt, chestSvg, previewHtml, chestHtml, progressHtml, freezeHelpHtml, chestHelpHtml, diplomasHtml, diplomaDialogHtml
+        freezeWord, freezeChip, freezeArt, freezeLogHtml, chestSvg, previewHtml, chestHtml, progressHtml, freezeHelpHtml, chestHelpHtml, diplomasHtml, diplomaDialogHtml
     };
 });
