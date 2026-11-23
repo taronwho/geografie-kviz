@@ -6,12 +6,16 @@
 // 3. krok: zápis v UNESCO a okruhy pro systematické učení
 // 4. krok: úrovně obtížnosti (scripts/lib/zemepis-levels.mjs) – u míst v Česku podle návštěvnosti článků na české Wikipedii
 // 5. krok: další státy řek (pole ca, scripts/lib/zemepis-reky.mjs) – podle průběhu v data/mapa-tvary.json a Wikidat
+// 6. krok: rozšíření (scripts/lib/zemepis-rozsireni.mjs) – památky UNESCO, národní parky, moře a fakta (rekordy, hloubka, jazyky)
+//
+// Jen 6. krok nad hotovými daty (existující položky zůstanou, přidají se nové): node scripts/build-zemepis.mjs --doplnit
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { sparql, id, round, values, parsePoint, imageFields, cached, inBatches, readCountries, writeTopic, sleep, CZECHIA, buildingTypeFromName } from './lib/wikidata.mjs';
 import { czechPageviews, cachedByKey, assignLevels, levelSummary } from './lib/zemepis-levels.mjs';
 import { addRiverCountries } from './lib/zemepis-reky.mjs';
+import { extendZemepis } from './lib/zemepis-rozsireni.mjs';
 
 const require = createRequire(import.meta.url);
 const { getContinent, normalizeAnswer } = require('../quiz-core.js');
@@ -87,6 +91,19 @@ const LANDMARK_OVER_CITY = new Set(['Q15661340', 'Q839954']);
 const WORLD_HERITAGE_SITE = 'Q9259';
 
 const countries = readCountries();
+
+// Výpis rozšíření: nové položky po kategoriích a co se vynechalo
+const printExtension = (report) => {
+    for (const [category, list] of Object.entries(report.added)) console.log(`Nové v kategorii ${category}: ${list.length}\n  ${list.join('\n  ')}`);
+    if (report.promoted.length) console.log(`Spodní hranice známých povýšila: ${report.promoted.join(', ')}`);
+    console.log(`Vynecháno: ${report.skipped.length}\n  ${report.skipped.join('\n  ')}`);
+};
+if (process.argv.includes('--doplnit')) {
+    const data = JSON.parse(readFileSync(new URL('../data/zemepis.json', import.meta.url), 'utf8'));
+    printExtension(await extendZemepis({ items: data.items, collections: data.collections, countries }));
+    writeTopic('zemepis', { collections: data.collections, items: data.items });
+    process.exit(0);
+}
 
 // --- 1. krok: kandidáti podle typů ---
 // Mezipaměť podle nastavení typů: přidaný typ (záliv) se do starého seznamu kandidátů nepromítne
@@ -522,5 +539,8 @@ console.log(levelSummary('Česko (bez státu)', czechSamples));
 
 // --- 5. krok: státy, kterými řeka také teče (pramen, hranice, povodí), ale nejsou v co ---
 await addRiverCountries(items, countries);
+
+// --- 6. krok: památky UNESCO, národní parky, moře a fakta ---
+printExtension(await extendZemepis({ items, collections, countries }));
 
 writeTopic('zemepis', { collections, items });

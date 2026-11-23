@@ -67,7 +67,8 @@ Základní otázka je „Co je to?“ podle kategorie (Který prvek to je?, Kdo 
 **Ukaž na mapě** (`question-map.js`): „Kde leží Kilimandžáro?“, „Kde stojí Karlštejn?“ – hráč klepne na slepou mapu (obrysy bez popisků),
 tip může klepnutím přesunout, mapu přiblížit tlačítky +/−, kolečkem nebo dvěma prsty a posunout tažením, pak **Potvrdit**.
 Ptá se jen na místa, která jsou na mapě bod: ze zeměpisu města, vrcholy a sopky, jezera a nádrže, ostrovy, stavby, vodopády,
-jeskyně, skály a národní parky (ne řeky, pohoří, souostroví ani moře), ze sportu stadiony, haly a okruhy. Výřez je pevný pro celou
+jeskyně, skály, národní parky a památky UNESCO typu historické město, centrum či naleziště (ne řeky, pohoří, souostroví, kulturní
+krajiny ani moře), ze sportu stadiony, haly a okruhy. Výřez je pevný pro celou
 oblast, ať nic neprozradí: kontinent (Evropa od Islandu po Ural, Afrika, Asie, Severní Amerika bez Havaje, Jižní Amerika, Austrálie
 a Oceánie), u míst v Česku celé Česko s kraji a hlavními řekami. Místo mimo výřez, ostrov, který na mapě není, stejné jméno
 na dvou místech a stavba ve velkém českém městě („kde je Praha“) se nekladou. **Body** podle vzdálenosti po zemském povrchu:
@@ -303,7 +304,7 @@ npm run build:world      # data/world.json (Natural Earth 1:110m)
 npm run build:mapa       # data/mapa.json (Natural Earth 1:50m, ostrovy a jezera z otázek 1:10m, Česko 1:10m s kraji a řekami; po datech témat)
 npm run build:regiony    # data/regiony.json (Natural Earth 1:10m: regiony států z okruhu Regiony států a české kraje; po build:vlajky)
 npm run build:casti      # data/regiony.json, cities: hranice pražských městských částí a Vltava (OpenStreetMap přes Nominatim; po build:regiony; RIVERS_ONLY=1 jen řeky)
-npm run build:zemepis    # data/zemepis.json
+npm run build:zemepis    # data/zemepis.json (-- --doplnit: jen památky UNESCO, národní parky, moře a fakta k hotovým datům)
 npm run build:historie   # data/historie.json
 npm run build:biologie   # data/biologie.json
 npm run build:chemie     # data/chemie.json
