@@ -9771,6 +9771,102 @@ revoke all on function public.player_item_spend(uuid, text), public.boss_equip(d
 grant execute on function public.boss_equip(date, integer, text[]), public.boss_use_attempt(date) to authenticated;
 -- ===== 49: Boss týdne – výbava a předměty do souboje — KONEC BLOKU =====
 
+-- ===== 50: Týdenní turnaj se nezruší – chybějící místa do 8 hráčů doplní boti =====
+-- Když se do týdenního turnaje (i speciálního) přihlásí aspoň jeden hráč, ale méně než 8, turnaj se nezruší: chybějící místa doplní boti
+-- (uživatelé bott-…@bots.invalid, dev_is_bot je pozná, hrají sami každý den od 9:00 jako vývojářští boti). Bez jediného přihlášeného
+-- se turnaj dál zruší. Vývojářské „Smazat boty“ maže jen vývojářské boty bot-… a turnaje s nimi, turnaje s doplněnými boty nechá.
+-- Jednorázově: týdenní turnaj tohoto týdne, který se už zrušil kvůli málo hráčům, se znovu otevře a spustí s boty.
+create or replace function public.tournament_fill_bots(tid uuid, need integer) returns integer
+language plpgsql security definer set search_path = public as $$
+declare i integer; uid uuid; made integer := 0;
+    names text[] := array['Adam', 'Barbora', 'Cyril', 'Dana', 'Emil', 'Fanda', 'Gita', 'Honza', 'Ivana', 'Jirka', 'Klára', 'Libor', 'Marta', 'Nikola', 'Ondra', 'Petra', 'Radek', 'Soňa', 'Tomáš', 'Viktor', 'Alena', 'Bořek', 'David', 'Eliška', 'Filip', 'Hugo', 'Jakub', 'Kamila'];
+    colors text[] := array['emerald', 'sky', 'violet', 'rose', 'amber', 'teal', 'orange', 'indigo'];
+begin
+    for i in 1 .. greatest(0, least(need, 8)) loop
+        uid := gen_random_uuid();
+        insert into auth.users (id, email, raw_user_meta_data)
+            values (uid, 'bott-' || uid || '@bots.invalid', jsonb_build_object('full_name', 'Bot ' || names[1 + floor(random() * array_length(names, 1))::integer]));
+        update public.profiles set avatar = '🤖', color = colors[1 + floor(random() * 8)::integer] where id = uid;
+        insert into public.tournament_entries (tournament_id, user_id, joined_at) values (tid, uid, now() + i * interval '1 millisecond');
+        made := made + 1;
+    end loop;
+    return made;
+end;
+$$;
+revoke all on function public.tournament_fill_bots(uuid, integer) from public, anon, authenticated;
+
+create or replace function public.tournament_start(tid uuid, force boolean default false) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+    t public.tournaments; n integer; s integer := 8; k integer := 3; e record; i integer;
+    ids uuid[];
+begin
+    select * into t from public.tournaments where id = tid for update;
+    if t.status <> 'open' then return; end if;
+    select count(*) into n from public.tournament_entries where tournament_id = tid;
+    -- Málo hráčů: chybějící místa do 8 doplní boti; bez jediného přihlášeného se turnaj zruší
+    if n >= 1 and n < 8 then
+        perform public.tournament_fill_bots(tid, 8 - n);
+        select count(*) into n from public.tournament_entries where tournament_id = tid;
+    end if;
+    if n < 8 then
+        update public.tournaments set status = 'cancelled' where id = tid;
+        for e in select user_id from public.tournament_entries where tournament_id = tid loop
+            perform public.tournament_notice(e.user_id, tid, 'cancelled', n::text);
+        end loop;
+        return;
+    end if;
+    while s * 2 <= least(n, t.capacity) loop s := s * 2; k := k + 1; end loop;
+    update public.tournament_entries set status = 'playing'
+        where tournament_id = tid and user_id in (select user_id from public.tournament_entries where tournament_id = tid order by joined_at, user_id limit s);
+    for e in select user_id from public.tournament_entries where tournament_id = tid and status = 'registered' loop
+        perform public.tournament_notice(e.user_id, tid, 'excluded_full', s::text);
+    end loop;
+    update public.tournament_entries set status = 'excluded' where tournament_id = tid and status = 'registered';
+    if t.kind = 'special' then
+        update public.tournaments set status = 'running', size = s, rounds = k,
+            starts_at = case when force then date_trunc('minute', public.tournament_now()) else greatest(t.starts_at, date_trunc('minute', public.tournament_now())) end
+            where id = tid;
+        update public.tournaments set started_on = (starts_at at time zone 'Europe/Prague')::date where id = tid;
+    else
+        update public.tournaments set status = 'running', size = s, rounds = k, started_on = case when force then public.tournament_today() else greatest(t.week_start, public.tournament_today()) end where id = tid;
+    end if;
+    select array_agg(user_id order by md5(user_id::text || t.seed)) into ids from public.tournament_entries where tournament_id = tid and status = 'playing';
+    for i in 1 .. s / 2 loop
+        insert into public.tournament_matches (tournament_id, round, slot, p1, p2) values (tid, 1, i, ids[2 * i - 1], ids[2 * i]);
+    end loop;
+end;
+$$;
+
+create or replace function public.dev_tournament_clear_bots() returns integer
+language plpgsql security definer set search_path = public as $$
+declare removed integer;
+begin
+    perform public.dev_check();
+    delete from public.tournaments where status <> 'open' and id in (select e.tournament_id from public.tournament_entries e
+        join auth.users u on u.id = e.user_id where u.email like 'bot-%@bots.invalid');
+    if to_regclass('public.conquest_games') is not null then
+        delete from public.conquest_games where status <> 'lobby' and id in (select pl.game_id from public.conquest_players pl join auth.users u on u.id = pl.user_id
+            where u.email like 'bot-%@bots.invalid');
+    end if;
+    delete from auth.users where email like 'bot-%@bots.invalid';
+    get diagnostics removed = row_count;
+    return removed;
+end;
+$$;
+
+-- Jednorázově: týdenní turnaj tohoto týdne zrušený kvůli málo hráčům se znovu otevře a hned spustí s boty (upozornění na zrušení zmizí)
+do $$
+declare t record; monday date := public.tournament_today() - (extract(isodow from public.tournament_today())::integer - 1);
+begin
+    for t in select id from public.tournaments where status = 'cancelled' and kind is distinct from 'special' and week_start = monday loop
+        update public.tournaments set status = 'open' where id = t.id;
+        update public.tournament_notices set seen = true where tournament_id = t.id and kind = 'cancelled';
+        perform public.tournament_start(t.id);
+    end loop;
+end $$;
+-- ===== 50: Týdenní turnaj se nezruší — KONEC BLOKU =====
+
 -- ===== Verze schématu =====
 -- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.
 -- Aplikace ho po přihlášení porovná a správci (dev_admins nebo vývojářský režim) ukáže v Nastavení, že má schéma spustit znovu;
@@ -9914,7 +10010,7 @@ grant execute on function public.boss_equip(date, integer, text[]), public.boss_
 -- 47: postavičky Žampion, Chřestýš, Celerbrita, Candidát a Hroznýš (odznaky Přemožitel Ampéra, Mytologie 100, Hvězdy 2, Úroveň 20 a Fyzika 100).
 -- 48: osm dalších postaviček (Slaboduchý sob, Čočka, Pažitka, Brusinka, Pivoňka, Kapradí, Husita, Hermelín za odznaky Odpovědi, Vlajky, Dokonalé dny, Zběhlost a Dokonalé výzvy).
 -- 49: Boss týdne – výbava a předměty do souboje (boss_equips, boss_equip, boss_use_attempt, útěcha a Další pokus v boss_submit, pět nových druhů pomůcek).
--- 50: nová témata Technika a vynálezy a Jídlo a pití (odznaky tema-technika-*, zbehly-technika-*, tema-jidlo-*, zbehly-jidlo-* v badge_catalog a badge_tiers).
+-- 50: turnaj se nezruší, chybějící místa do 8 doplní boti (tournament_fill_bots, tournament_start); nová témata Technika a vynálezy a Jídlo a pití (odznaky tema-technika-*, zbehly-technika-*, tema-jidlo-*, zbehly-jidlo-* v badge_catalog a badge_tiers).
 create or replace function public.schema_version() returns integer
 language sql immutable as $$ select 50 $$;
 revoke all on function public.schema_version() from public, anon;

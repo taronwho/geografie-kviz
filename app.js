@@ -2547,9 +2547,10 @@
     };
 
     // Na nízkém displeji (short:) nižší přepínače bez ozdobné ikony tématu: výběr se vejde bez posouvání
-    const chooserToggle = (attribute, value, isOn, icon, label, on) => `
-        <button type="button" ${attribute}="${escapeHtml(value)}" aria-pressed="${isOn}" class="flex min-h-[2.75rem] items-center gap-1.5 rounded-xl border-2 px-2 py-1 text-left text-[13px] font-bold leading-tight transition-colors active:scale-[0.98] short:min-h-[2.5rem] short:py-0.5 ${isOn ? on : TOGGLE_OFF}">
-            <i data-lucide="${isOn ? 'square-check-big' : 'square'}" class="h-4 w-4 shrink-0"></i>
+    // Mix (compact) má na nízkém displeji 16 témat ve třech sloupcích bez zaškrtávátka: stav ukáže barva (a aria-pressed)
+    const chooserToggle = (attribute, value, isOn, icon, label, on, compact = false) => `
+        <button type="button" ${attribute}="${escapeHtml(value)}" aria-pressed="${isOn}" class="flex min-h-[2.75rem] items-center gap-1.5 rounded-xl border-2 px-2 py-1 text-left text-[13px] font-bold leading-tight transition-colors active:scale-[0.98] short:min-h-[2.5rem] short:py-0.5 ${compact ? 'short:px-1 short:text-[11px] short:[overflow-wrap:anywhere]' : ''} ${isOn ? on : TOGGLE_OFF}">
+            <i data-lucide="${isOn ? 'square-check-big' : 'square'}" class="h-4 w-4 shrink-0 ${compact ? 'short:hidden' : ''}"></i>
             <i data-lucide="${icon}" class="h-4 w-4 shrink-0 opacity-70 short:hidden"></i>
             <span class="min-w-0">${escapeHtml(label)}</span>
         </button>`;
@@ -2562,7 +2563,7 @@
         const style = styleOf(topic);
         // Po „Zrušit vše“ (chooser.empty) není vybrané nic; první klepnutí vybere jen to jedno
         const options = isMix
-            ? TOPICS.map(other => chooserToggle('data-chooser-topic', other.id, !chooser.empty && settings.topics.includes(other.id), other.icon, other.title, styleOf(other).on)).join('')
+            ? TOPICS.map(other => chooserToggle('data-chooser-topic', other.id, !chooser.empty && settings.topics.includes(other.id), other.icon, other.title, styleOf(other).on, TOPICS.length > 14)).join('')
             : topic.categories.map(category => chooserToggle('data-chooser-category', category.key, !chooser.empty && selectedCategories(topic).includes(category.key), category.icon, category.label, style.on)).join('');
         // Překreslení po klepnutí bez úvodní animace a se stejným posunutím
         const previous = overlay.firstElementChild;
@@ -2595,7 +2596,7 @@
                     <h3 class="${SETTINGS_HEADING}">${isMix ? 'Témata' : 'Kategorie'}</h3>
                     <span class="-my-3 flex"><button type="button" data-chooser-all class="rounded-lg px-2 py-3 text-xs font-bold ${style.text} underline-offset-2 hover:underline">Vybrat vše</button><button type="button" data-chooser-none class="rounded-lg px-2 py-3 text-xs font-bold text-slate-500 underline-offset-2 hover:underline dark:text-slate-400">Zrušit vše</button></span>
                 </div>
-                <div class="grid grid-cols-2 gap-1.5 short:gap-1 tiny:gap-0.5" role="group" aria-label="${isMix ? 'Témata' : 'Kategorie'}">${options}</div>
+                <div class="grid grid-cols-2 gap-1.5 short:gap-1 tiny:gap-0.5 ${isMix && TOPICS.length > 14 ? 'short:grid-cols-3' : ''}" role="group" aria-label="${isMix ? 'Témata' : 'Kategorie'}">${options}</div>
                 <h3 class="${SETTINGS_HEADING} mb-1.5 mt-3 short:mb-1 short:mt-1.5 tiny:mt-1">Obtížnost</h3>
                 <div class="grid grid-cols-3 gap-1.5" role="group" aria-label="Obtížnost">${renderTierButtons(style.on, isMix ? null : topic, true, true, true)}</div>
             </div>`;
@@ -3287,7 +3288,8 @@
             </section>`;
     };
     // Okno Dnešní otázky: všech 14 témat se stavem dne a sérií; klepnutí spustí dnešní otázku tématu (zodpovězenou ukáže znovu).
-    // Tři sloupce: do čtyř by se na telefonu nevešly celé názvy („Vlajky a znaky“, „Architektura“)
+    // Tři sloupce: do čtyř by se na telefonu nevešly celé názvy („Vlajky a znaky“, „Architektura“); na nízkém displeji bez řádku
+    // se stavem (ten ukáže tečka či fajfka v rohu a popisek pro čtečku), ať se všech 16 témat vejde bez posouvání
     const openDailySheet = () => {
         const { stats, today, answered } = dailyStats();
         const badges = loadProgress().badges;
@@ -3302,7 +3304,7 @@
                 <button type="button" data-action="daily" data-topic="${topic.id}" title="Dnešní otázka – ${escapeHtml(topic.title)}" aria-label="Dnešní otázka – ${escapeHtml(topic.title)}: ${escapeHtml(status.text)}" class="relative flex min-h-[4.25rem] min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl bg-white px-0.5 py-1.5 shadow-sm ring-1 ring-slate-200/70 transition-transform active:scale-95 short:min-h-[3.6rem] short:py-1 dark:bg-slate-800 dark:ring-slate-700/70">
                     ${topicIcon(topic, 'h-8 w-8 short:h-7 short:w-7', `rounded-lg p-1 ${styleOf(topic).soft}`, 'h-5 w-5')}
                     <span class="block max-w-full truncate text-[10.5px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(topic.shortTitle || topic.title)}</span>
-                    <span class="block max-w-full truncate text-[10px] font-bold leading-tight ${status.tone}">${status.text}</span>
+                    <span class="block max-w-full truncate text-[10px] font-bold leading-tight short:hidden ${status.tone}">${status.text}</span>
                     ${mark}
                     ${streak ? `<span class="absolute -left-1 -top-1.5 flex items-center rounded-lg bg-slate-900/85 py-px pl-0 pr-1.5 text-[10px] font-black text-white shadow ring-1 ring-white/20" title="${escapeHtml(streakRewardTitle(streak, badges))}">${uiArt('serie', 'h-4 w-4')}${streak}</span>` : ''}
                 </button>`;
@@ -7952,8 +7954,8 @@
                     </button>
                     <ul class="grid grid-cols-2 gap-1.5 short:gap-1">${TOPICS.map(topic => {
                         const off = blocked.includes(topic.id);
-                        return `<li><button type="button" data-accept-topic="${topic.id}" role="switch" aria-checked="${!off}" class="btn-3d-light flex min-h-[2.5rem] w-full items-center gap-2 rounded-xl p-2 text-left short:py-1 ${off ? 'bg-slate-100 opacity-70 dark:bg-slate-800/60' : 'bg-white dark:bg-slate-800'}">
-                            ${topicIcon(topic, 'h-8 w-8 short:h-7 short:w-7', `rounded-lg p-1.5 short:p-1 ${styleOf(topic).soft}`, 'h-5 w-5')}
+                        return `<li><button type="button" data-accept-topic="${topic.id}" role="switch" aria-checked="${!off}" class="btn-3d-light flex min-h-[2.5rem] w-full items-center gap-2 rounded-xl p-2 text-left short:min-h-[2.125rem] short:py-0.5 ${off ? 'bg-slate-100 opacity-70 dark:bg-slate-800/60' : 'bg-white dark:bg-slate-800'}">
+                            ${topicIcon(topic, 'h-8 w-8 short:h-6 short:w-6', `rounded-lg p-1.5 short:p-1 ${styleOf(topic).soft}`, 'h-5 w-5 short:h-4 short:w-4')}
                             <span class="min-w-0 flex-1 text-[11.5px] font-black leading-tight ${off ? 'text-slate-500 line-through dark:text-slate-400' : 'text-slate-800 dark:text-slate-100'}">${escapeHtml(topic.title)}</span>
                             <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${off ? 'bg-slate-300 text-white dark:bg-slate-600' : 'bg-emerald-500 text-white'}"><i data-lucide="${off ? 'ban' : 'check'}" class="h-3 w-3"></i></span>
                         </button></li>`;

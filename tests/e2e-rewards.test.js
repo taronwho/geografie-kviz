@@ -300,7 +300,7 @@ test('odměny: truhla, ochrana série, diplomy, sdílení obrázku', { skip: !ch
             await tab.keyboard.press('Escape');
             assert.doesNotMatch(await tab.textContent('#tab-postup'), /sláva/, 'odznak jen pro slávu neuvádí odměnu');
             assert.match(await tab.textContent('[data-freeze-count]'), /1 z 2/);
-            assert.match(await tab.textContent('[data-diploma-count]'), /\d+ \/ 15/);
+            assert.match(await tab.textContent('[data-diploma-count]'), /\d+ \/ 16/);
             await tab.click('[data-rewards-info="freeze"]');
             await tab.waitForSelector('[data-freeze-help]');
             assert.match(await tab.textContent('[data-freeze-help]'), /u Dnešních otázek ji použiješ ručně/);
