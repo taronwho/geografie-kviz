@@ -1,5 +1,5 @@
-// Téma Biologie: savci, ptáci, plazi a obojživelníci, ryby, hmyz, další bezobratlí, rostliny, houby, pravěcí tvorové, plemena psů a koček
-// a lidské tělo (data/biologie.json)
+// Téma Biologie: savci, ptáci, plazi a obojživelníci, ryby, hmyz, další bezobratlí, rostliny, houby, pravěcí tvorové, plemena psů a koček,
+// lidské tělo a člověk a zdraví – nemoci, lékařství, slavní lékaři a psychologie (data/biologie.json)
 (function (root, factory) {
     const isNode = typeof module === 'object' && module.exports;
     const topic = factory(isNode ? require('../quiz-core.js') : root.MudrlantCore);
@@ -8,7 +8,8 @@
 })(typeof self !== 'undefined' ? self : this, (core) => {
     'use strict';
 
-    const { formatFacts, formatNumber, censorName, shuffle, normalizeAnswer, buildCountryChoices, countryAnswers, censorCountry, getCountryAliases, findAnswerCountry } = core;
+    const { formatFacts, formatNumber, formatYear, censorName, shuffle, normalizeAnswer, buildCountryChoices, countryAnswers, censorCountry, getCountryAliases, findAnswerCountry,
+        personSimilarity } = core;
 
     const ANIMAL = { question: 'Co je to za zvíře?', placeholder: 'Napiš název zvířete…' };
     const CATEGORIES = [
@@ -22,12 +23,21 @@
         { key: 'houby', label: 'Houby', one: 'houba', icon: 'sprout', question: 'Co je to za houbu?', placeholder: 'Napiš název houby…' },
         { key: 'pravek', label: 'Pravěcí tvorové', one: 'pravěký tvor', icon: 'hourglass', question: 'Co je to za pravěkého tvora?', placeholder: 'Napiš název…' },
         { key: 'plemena', label: 'Plemena psů a koček', one: 'plemeno', icon: 'cat', question: 'Co je to za plemeno?', placeholder: 'Napiš název plemene…' },
-        { key: 'telo', label: 'Lidské tělo', one: 'část těla', icon: 'person-standing', question: 'Která část těla to je?', placeholder: 'Napiš název…' }
+        { key: 'telo', label: 'Lidské tělo', one: 'část těla', icon: 'person-standing', question: 'Která část těla to je?', placeholder: 'Napiš název…' },
+        // Člověk a zdraví (scripts/lib/biologie-zdravi.mjs); otázku podle druhu položky upřesní questionTitle
+        { key: 'nemoci', label: 'Nemoci', one: 'nemoc', icon: 'thermometer', question: 'Jaká nemoc to je?', placeholder: 'Napiš název nemoci…' },
+        { key: 'lekarstvi', label: 'Lékařství', one: 'pojem z lékařství', icon: 'syringe', question: 'Co je to?', placeholder: 'Napiš název…' },
+        { key: 'lekari', label: 'Slavní lékaři', one: 'lékař', icon: 'stethoscope', question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } },
+        { key: 'psychologie', label: 'Psychologie', one: 'pojem z psychologie', icon: 'brain', question: 'Kdo nebo co to je?', placeholder: 'Napiš název nebo jméno…' }
     ].map(category => ({ sort: { by: 'name' }, ...category }));
     const isPlantLike = (item) => item.c === 'rostliny' || item.c === 'houby';
     // Plemena a lidské tělo nejsou druhy ve stromu taxonů: nemají řád ani čeleď, mají vlastní fakta a nápovědy
     const isBreed = (item) => item.c === 'plemena';
     const isBody = (item) => item.c === 'telo';
+    // Člověk a zdraví: nemoci, lékařství, lékaři a psychologie (osobnosti mají rok narození, pojmy ne)
+    const HEALTH = new Set(['nemoci', 'lekarstvi', 'lekari', 'psychologie']);
+    const isHealth = (item) => HEALTH.has(item.c);
+    const isHealthPerson = (item) => (item.c === 'lekari' || item.c === 'psychologie') && (item.f || {}).born !== undefined;
 
     // Jak často se místo „Co je to za zvíře?“ ptáme „Do kterého řádu patří?“ (u rostlin a hub na čeleď)
     const TAXON_QUIZ_SHARE = 0.3;
@@ -229,10 +239,107 @@
         return (f.sys && f.sys === g.sys ? 3 : 0) + (f.part && f.part === g.part ? 3 : 0);
     };
 
+    // --- Člověk a zdraví: nemoci, lékařství, slavní lékaři a psychologie ---
+    const list = (value) => [].concat(value).filter(Boolean).join(', ');
+    // Otázka podle druhu položky (u kategorie je obecná): lékařský obor, lék, přístroj; fobie, jev, experiment; osobnost
+    const KIND_QUESTIONS = {
+        obory: 'Který lékařský obor to je?', leky: 'Co je to za lék či skupinu léků?', pristroje: 'Co je to za přístroj či pomůcku?',
+        lecba: 'Co je to za vyšetření, léčbu či pojem z medicíny?', pojmy: 'Jaký pojem z psychologie to je?', zkresleni: 'Jaký psychologický jev to je?',
+        experimenty: 'Jaký psychologický experiment či test to je?', fobie: 'Jaká fobie to je?', smery: 'Co je to za obor, směr či terapii v psychologii?'
+    };
+    const questionTitle = (item) => {
+        if (!isHealth(item)) return null;
+        if (isHealthPerson(item)) return 'Kdo to je?';
+        if (item.c === 'nemoci') return item.ty === 'duševní porucha' ? 'Jaká duševní porucha to je?' : null;
+        return KIND_QUESTIONS[(item.f || {}).kind] || null;
+    };
+    const PATHOGENS = { virus: 'virus', bakterie: 'bakterie', parazit: 'parazit', houba: 'houba (plíseň, kvasinka)', prion: 'prion' };
+    const diseaseFacts = (item, mode) => {
+        const f = item.f || {};
+        const facts = formatFacts(item, [['grp', 'Skupina nemocí', v => v], ['spec', 'Lékařský obor', list], ['loc', 'Postihuje', list], ['sym', 'Příznaky', list]]);
+        if (f.pt) facts.push({ label: 'Původce', value: f.cause ? `${PATHOGENS[f.pt] || f.pt} (${f.cause})` : PATHOGENS[f.pt] || f.pt });
+        facts.push(...formatFacts(item, [['tr', 'Přenáší se', list]]));
+        if (f.vac) facts.push({ label: 'Očkování', value: 'existuje' });
+        // Kód klasifikace nemocí jen po odpovědi
+        if (mode === 'result' || mode === 'card') facts.push(...formatFacts(item, [['icd', 'Kód MKN-10', v => v]]));
+        return facts;
+    };
+    const medicineFacts = (item) => {
+        const f = item.f || {};
+        return formatFacts(item, [['org', 'Zabývá se orgány', list], ['dis', 'Léčí třeba', list], ['treats', 'Léčí', list],
+            ['by', 'Spojeno se jménem', list], ['year', f.kind === 'pristroje' ? 'Rok vynálezu' : f.kind === 'lecba' ? 'Poprvé' : 'Rok objevu', v => String(v)]]);
+    };
+    const personFacts = (item) => {
+        const f = item.f || {};
+        const facts = formatFacts(item, [['born', 'Narození', formatYear], ['died', 'Úmrtí', formatYear], ['land', 'Země', v => v], ['field', 'Obor', list],
+            ['known', 'Známé objevy a díla', list]], ['born', 'died']);
+        if (f.nobel) facts.push({ label: 'Nobelova cena', value: 'za fyziologii a lékařství' });
+        return facts;
+    };
+    const conceptFacts = (item) => formatFacts(item, [['by', 'Spojeno se jménem', list], ['year', 'Poprvé popsáno', v => String(v)]]);
+    const healthFacts = (item, mode) => item.c === 'nemoci' ? diseaseFacts(item, mode) : item.c === 'lekarstvi' ? medicineFacts(item)
+        : isHealthPerson(item) ? personFacts(item) : conceptFacts(item);
+    // Nápovědy nemoci: skupina a obor, příznaky a co postihuje, původce a přenos, nakonec snímek původce z mikroskopu
+    // Poslední nápověda: počet slov názvu (jako u chemických pojmů) – pojem bez faktů a fotky tak nezůstane bez nápovědy
+    const wordCountHint = (item) => {
+        const words = item.n.split(/\s+/).length;
+        return { kind: 'facts', label: 'délka názvu', icon: 'type', facts: [{ label: 'Název má', value: `${words} ${words === 1 ? 'slovo' : words < 5 ? 'slova' : 'slov'}` }] };
+    };
+    const healthHints = (item, type) => {
+        if (isHealthPerson(item)) return null;
+        if (item.c === 'nemoci') {
+            const facts = diseaseFacts(item, type);
+            const pick = (...labels) => facts.filter(fact => labels.includes(fact.label));
+            return [{ kind: 'facts', facts: pick('Skupina nemocí', 'Lékařský obor') },
+                { kind: 'facts', label: 'příznaky', icon: 'thermometer', facts: pick('Příznaky', 'Postihuje') },
+                { kind: 'facts', label: 'původce', icon: 'microscope', facts: pick('Původce', 'Přenáší se', 'Očkování') },
+                { kind: 'photo' }, wordCountHint(item)];
+        }
+        return [{ kind: 'facts', facts: healthFacts(item, type) }, { kind: 'photo' }, wordCountHint(item)];
+    };
+    // Časová osa lékaře či psychologa s milníky medicíny
+    const MEDICINE_EVENTS = [
+        [1543, 'Vesaliova anatomie', 1], [1628, 'objev krevního oběhu', 1], [1796, 'první očkování proti neštovicím', 1], [1846, 'první operace v narkóze', 1],
+        [1882, 'objev původce tuberkulózy', 1], [1895, 'objev rentgenového záření', 1], [1901, 'první Nobelovy ceny', 1], [1921, 'objev inzulinu', 1],
+        [1928, 'objev penicilinu', 1], [1953, 'struktura DNA', 1], [1967, 'první transplantace srdce', 1], [1980, 'vymýcení pravých neštovic', 1],
+        [1492, 'objevení Ameriky'], [1618, 'začátek třicetileté války'], [1914, 'začátek 1. světové války'], [1939, 'začátek 2. světové války'],
+        [1969, 'přistání na Měsíci'], [1989, 'pád Berlínské zdi']
+    ];
+    const personTimeline = (item) => {
+        const f = item.f || {};
+        if (f.born === undefined || f.died === undefined) return null;
+        return { type: 'timeline', spans: [{ kind: 'life', from: f.born, to: f.died }], points: [], hide: item.n, anchors: MEDICINE_EVENTS };
+    };
+    // Nesprávné možnosti: nemoc ze stejné skupiny (MKN-10), se stejným původcem a oborem; v lékařství a psychologii stejný druh
+    // (obor k oborům, fobie k fobiím); osobnosti stejného pohlaví a doby, nejlépe ze stejné země
+    const shared = (a, b) => [].concat(a || []).some(value => [].concat(b || []).includes(value));
+    const healthSimilarity = (item, other) => {
+        const f = item.f || {};
+        const g = other.f || {};
+        if (isHealthPerson(item) !== isHealthPerson(other)) return -100;
+        if (isHealthPerson(item)) {
+            return personSimilarity(item, other) + (Boolean(f.nobel) === Boolean(g.nobel) ? 1 : 0) + (f.land && f.land === g.land ? 3 : 0)
+                + ((item.cz === 1) === (other.cz === 1) ? 0 : -3);
+        }
+        if (item.c === 'nemoci') {
+            return (f.grp && f.grp === g.grp ? 4 : 0) + (f.pt && f.pt === g.pt ? 2 : 0) + (shared(f.spec, g.spec) ? 2 : 0) + (shared(f.loc, g.loc) ? 1 : 0)
+                + (Boolean(f.tr) === Boolean(g.tr) ? 0.5 : 0);
+        }
+        return (f.kind === g.kind ? 6 : -50) + (shared(f.treats, g.treats) || shared(f.org, g.org) ? 1 : 0);
+    };
+    // Psaná odpověď i jiným českým názvem (cukrovka, borelióza, zelený zákal) – jen když tak nejmenuje jiná položka
+    const takenNames = new WeakMap();
+    const healthAliases = (item, ctx) => {
+        const aliases = item.al || [];
+        if (!aliases.length || !ctx || !ctx.items) return [...aliases];
+        if (!takenNames.has(ctx.items)) takenNames.set(ctx.items, new Set(ctx.items.map(other => normalizeAnswer(other.n))));
+        return aliases.filter(alias => !takenNames.get(ctx.items).has(normalizeAnswer(alias)));
+    };
+
     // Hlavní obrázek, na kterém není živý organismus (pravidlo quiz-core.js offSubjectRule, audit npm run audit:obrazky): poštovní
     // známka nebo mince (často s názvem druhu), u žijících druhů kostra či lebka (kudu, vorvaňovec, netopýr)
     const offSubjectPhoto = core.offSubjectRule({
-        words: { '*': ['stamp', 'briefmarke', 'znamka', 'coin', 'banknote', 'logo'] },
+        words: { '*': ['stamp', 'briefmarke', 'znamka', 'coin', 'banknote', 'logo'], lekari: core.OFF_SUBJECT.memorial, psychologie: core.OFF_SUBJECT.memorial },
         ids: ['Q139487', 'Q629227', 'Q301862', 'Q398445']
     });
 
@@ -250,15 +357,17 @@
             next: 'Další otázka',
             atlas: 'Atlas přírody',
             placeholder: 'Napiš název…',
-            tierKnown: 'Známá zvířata, rostliny, houby, plemena a části těla',
+            tierKnown: 'Známá zvířata, rostliny, houby, plemena, tělo a nemoci',
             czechBadge: 'Žije v Česku'
         },
         categories: CATEGORIES,
         offSubjectPhoto,
+        questionTitle,
 
         // Nesprávné možnosti: nejbližší příbuzní (stejná čeleď, pak řád), podobné jméno (sýkora k sýkorám)
         // a stejný původ (k naší přírodě naše druhy, k exotickým exotické)
         similarity: (item, other) => {
+            if (isHealth(item)) return healthSimilarity(item, other);
             if (isBreed(item)) return breedSimilarity(item, other);
             if (isBody(item)) return bodySimilarity(item, other);
             const f = item.f || {};
@@ -268,12 +377,12 @@
             if ((item.cz === 1) === (other.cz === 1)) score += 1;
             return score;
         },
-        nameAliases,
+        nameAliases: (item, ctx) => isHealth(item) ? healthAliases(item, ctx) : nameAliases(item, ctx),
 
         // Občas „Do kterého řádu patří?“ – název je vidět, možnosti jsou jiné řády stejné třídy (u rostlin čeledi stejného řádu či třídy)
         specialQuestion: (item, ctx, rng) => {
             if (isBreed(item)) return rng() < BREED_COUNTRY_SHARE ? breedCountryQuestion(item, ctx, rng) : null;
-            if (isBody(item)) return null;
+            if (isBody(item) || isHealth(item)) return null;
             if (!(rng() < TAXON_QUIZ_SHARE)) return null;
             const level = taxonLevel(item);
             const f = item.f || {};
@@ -329,6 +438,7 @@
             return id ? { topic: 'zemepis', id } : null;
         },
         hints: (item, ctx, type) => {
+            if (isHealth(item)) return healthHints(item, type);
             if (isBreed(item)) return breedHints(item, type);
             if (isBody(item)) return bodyHints(item, type);
             if (type === 'taxon') return taxonHints(item, ctx);
@@ -337,14 +447,18 @@
                 { kind: 'facts', label: 'vědecký název', icon: 'microscope', facts: lat ? [{ label: 'Vědecký název', value: lat }] : [] }];
         },
         // Mapa rozšíření z Wikimedia Commons
-        visual: (item) => rangeMapOf(item),
-        facts: (item, ctx, mode) => factsOf(item, mode),
+        visual: (item) => isHealthPerson(item) ? personTimeline(item) : rangeMapOf(item),
+        facts: (item, ctx, mode) => isHealth(item) ? healthFacts(item, mode) : factsOf(item, mode),
         subtitle: (item) => {
             const f = item.f || {};
+            if (isHealthPerson(item)) return [`${formatYear(f.born)}–${f.died !== undefined ? formatYear(f.died) : ''}`, f.land].filter(Boolean).join(' · ');
+            if (item.c === 'nemoci') return [item.ty, f.grp].filter(Boolean).join(' · ');
+            if (isHealth(item)) return item.ty || '';
             if (isBreed(item)) return [item.ty, f.land].filter(Boolean).join(' · ');
             if (isBody(item)) return [item.ty, f.sys].filter(Boolean).join(' · ');
             return [f.lat, f.cls].filter(Boolean).join(' · ') || (CATEGORIES.find(category => category.key === item.c) || {}).one || '';
         },
-        isCzech: (item) => item.cz === 1
+        // Štítek „Žije v Česku“ jen u druhů; čeští lékaři a psychologové mají Česko jako zemi
+        isCzech: (item) => item.cz === 1 && !isHealthPerson(item)
     };
 });

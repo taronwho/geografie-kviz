@@ -1316,7 +1316,12 @@
         const nameLike = (segment) => segment.split(/\s+/).every(word => /^[\p{Lu}\d[]/u.test(word) || SUBJECT_PARTICLES.has(word.toLowerCase()));
         const masked = [];
         const kept = [];
-        segments.forEach((segment, index) => (index === 0 || aliasMarked(segment) || nameLike(segment) || relates(segment) || PRONUNCIATION.test(segment) ? masked : kept).push(segment));
+        // Výčet jiných názvů za podmětem končící „X nebo Y“ („[***], feferonka, kajenský pepř nebo cayenský pepř, je…“): všechna krátká
+        // slova výčtu až po „nebo“ jsou názvy, i malým písmenem
+        const shortWords = (part) => part.split(/\s+/).filter(Boolean).length <= 3;
+        const orIndex = segments.findIndex((segment, index) => index > 0 && /\s(?:nebo|či)\s/u.test(segment) && segment.split(/\s+(?:nebo|či)\s+/u).every(shortWords));
+        const listed = (index) => orIndex > 0 && index <= orIndex && segments.slice(1, index + 1).every(part => part.split(/\s+(?:nebo|či)\s+/u).every(shortWords));
+        segments.forEach((segment, index) => (index === 0 || aliasMarked(segment) || nameLike(segment) || relates(segment) || PRONUNCIATION.test(segment) || listed(index) ? masked : kept).push(segment));
         const aliases = masked.flatMap(segment => unmarked(segment).split(INNER_ALIAS)).map(unmarked).filter(part => /\p{Lu}/u.test(part.replaceAll('[***]', '')));
         return { text: `${prefix ? `${prefix} ` : ''}[***]${kept.map(part => `, ${part}`).join('')}${kept.length ? ',' : ''} ${value.slice(verb.index)}`, aliases };
     };

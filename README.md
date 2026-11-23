@@ -46,11 +46,11 @@ Základní otázka je „Co je to?“ podle kategorie (Který prvek to je?, Kdo 
 | --- | --- |
 | Zeměpis | Ve kterém státě to je? |
 | Historie | Ve kterém století začal vládnout? (narodila se, nastoupil do úřadu, odehrálo se, vznikl) – vždy jeden okamžik, ať na přelomu století nejsou správně dvě odpovědi. U událostí (smlouvy, kongresy, koncily, katastrofy, výpravy, atentáty) i Ve kterém dnešním státě se to stalo (byla podepsána)? |
-| Biologie | Do kterého řádu (u rostlin a hub čeledi) patří? U plemen psů a koček Ze které země plemeno pochází? Lidské tělo (kosti, svaly, orgány, žlázy) podle kresby, soustavy a latinského názvu |
+| Biologie | Do kterého řádu (u rostlin a hub čeledi) patří? U plemen psů a koček Ze které země plemeno pochází? Lidské tělo (kosti, svaly, orgány, žlázy) podle kresby, soustavy a latinského názvu. Člověk a zdraví: nemoci (skupina podle MKN-10, příznaky, původce a přenos, jen snímky z mikroskopu), lékařství (obory, léky, přístroje, vyšetření a léčba), slavní lékaři a psychologie (psychologové, pojmy, jevy, fobie a experimenty) |
 | Chemie | Jakou značku má tento prvek? Jaký vzorec má tato látka? |
 | Fyzika | Jaká je jednotka SI této veličiny? Jakou značku má tato jednotka? Co měří tato jednotka? Který zákon, jev či částice to je? Co je to za těleso, sondu nebo přístroj? (veličiny, jednotky, zákony a jevy, částice, vesmír, mise, fyzici a astronomové) |
 | Vlajky a znaky | Vlajka či znak jsou vidět hned: Čí je to vlajka? Čí je to znak? (státy, české kraje a města, organizace) |
-| Chemie | Jakou značku má tento prvek? Jaký vzorec má tato látka? Jaká reakce, pojem či metoda to je? (prvky, látky, reakce a procesy, pojmy a metody, chemici) |
+| Chemie | Jakou značku má tento prvek? Jaký vzorec má tato látka? Jaká reakce, pojem či metoda to je? (prvky, látky, reakce a procesy, pojmy a metody, chemici s Nobelovou cenou – rok a za co, materiály a suroviny) |
 | Fyzika | Jaká je jednotka SI této veličiny? Jakou značku má tato jednotka? Co měří tato jednotka? U vynálezů Kdo to vynalezl? a Ve kterém století (od roku 1900 desetiletí) to bylo vynalezeno? |
 | Vlajky a znaky | Vlajka či znak jsou vidět hned: Čí je to vlajka? Čí je to znak? (státy, české kraje, města a obce, regiony států, velká města světa, zaniklé státy, území a organizace) |
 | Mytologie | Jak se jmenuje v římské/řecké mytologii? Ze které mytologie je? |
@@ -61,7 +61,7 @@ Základní otázka je „Co je to?“ podle kategorie (Který prvek to je?, Kdo 
 | Architektura | Stavba je vidět hned: Jaký je to sloh? Kdo ji navrhl? (u mostů, věží, muzeí a dalších staveb bez jasného slohu název; k tomu architektonické prvky a architekti) |
 | Hudba | Kdo to složil? Do kterého hudebního období patří? U oper a muzikálů i Ve kterém století měla premiéru? |
 | Literatura | Kdo to napsal? Kdo tuto postavu vymyslel? Ve kterém století žil či dílo vzniklo? |
-| Film | Kdo film režíroval? Ve kterém desetiletí měl premiéru? U animovaných filmů Které studio film natočilo?, u seriálů Kdo seriál vytvořil (napsal scénář)? a Ve kterém desetiletí se začal vysílat? |
+| Film | Kdo film režíroval? Ve kterém desetiletí měl premiéru? U animovaných filmů Které studio film natočilo?, u seriálů Kdo seriál vytvořil (napsal scénář)? a Ve kterém desetiletí se začal vysílat?, u večerníčků Kdo večerníček vytvořil (napsal předlohu)?, u televizních pořadů Kdo pořad moderoval?, u komiksů a anime Kdo postavu vytvořil? a Ve kterém desetiletí se postava poprvé objevila? |
 | Sport | Ve kterém sportu se proslavil(a)? Kde se konaly olympijské hry? Které hry to jsou? Co je to za sport (podle fotky)? Který klub, stadion, okruh nebo soutěž to je (podle země, mapy, kapacity a fotky)? |
 | Technika a vynálezy | Auto, vlak, letadlo, loď, přístroj či stroj jsou vidět hned (fotka): Co je to za auto (vlak, letadlo…)? Kdo to vyrobil (vyvinul)? Ve kterém desetiletí poprvé vzlétlo (přišlo na trh)? U firem a automobilek Ze které země pochází? a Ve kterém desetiletí byla založena? Dále vynálezci a průkopníci, internet a software, elektrárny, letiště, metra a kosmodromy (slepá mapa) |
 | Jídlo a pití | Ze které země pochází tento pokrm (sýr, nápoj, kuchař)? (pokrmy, pečivo a sladkosti, sýry, ovoce a ořechy, zelenina a luštěniny, koření a bylinky, káva, čaj a nealko, víno, pivo a destiláty, kuchaři a gastronomové; u rostlin čeleď a vědecký název v nápovědách) |
@@ -69,7 +69,8 @@ Základní otázka je „Co je to?“ podle kategorie (Který prvek to je?, Kdo 
 **Ukaž na mapě** (`question-map.js`): „Kde leží Kilimandžáro?“, „Kde stojí Karlštejn?“ – hráč klepne na slepou mapu (obrysy bez popisků),
 tip může klepnutím přesunout, mapu přiblížit tlačítky +/−, kolečkem nebo dvěma prsty a posunout tažením, pak **Potvrdit**.
 Ptá se jen na místa, která jsou na mapě bod: ze zeměpisu města, vrcholy a sopky, jezera a nádrže, ostrovy, stavby, vodopády,
-jeskyně, skály a národní parky (ne řeky, pohoří, souostroví ani moře), ze sportu stadiony, haly a okruhy. Výřez je pevný pro celou
+jeskyně, skály, národní parky a památky UNESCO typu historické město, centrum či naleziště (ne řeky, pohoří, souostroví, kulturní
+krajiny ani moře), ze sportu stadiony, haly a okruhy. Výřez je pevný pro celou
 oblast, ať nic neprozradí: kontinent (Evropa od Islandu po Ural, Afrika, Asie, Severní Amerika bez Havaje, Jižní Amerika, Austrálie
 a Oceánie), u míst v Česku celé Česko s kraji a hlavními řekami. Místo mimo výřez, ostrov, který na mapě není, stejné jméno
 na dvou místech a stavba ve velkém českém městě („kde je Praha“) se nekladou. **Body** podle vzdálenosti po zemském povrchu:
@@ -305,9 +306,9 @@ npm run build:world      # data/world.json (Natural Earth 1:110m)
 npm run build:mapa       # data/mapa.json (Natural Earth 1:50m, ostrovy a jezera z otázek 1:10m, Česko 1:10m s kraji a řekami; po datech témat)
 npm run build:regiony    # data/regiony.json (Natural Earth 1:10m: regiony států z okruhu Regiony států a české kraje; po build:vlajky)
 npm run build:casti      # data/regiony.json, cities: hranice pražských městských částí a Vltava (OpenStreetMap přes Nominatim; po build:regiony; RIVERS_ONLY=1 jen řeky)
-npm run build:zemepis    # data/zemepis.json
+npm run build:zemepis    # data/zemepis.json (-- --doplnit: jen památky UNESCO, národní parky, moře a fakta k hotovým datům)
 npm run build:historie   # data/historie.json
-npm run build:biologie   # data/biologie.json
+npm run build:biologie   # data/biologie.json (node scripts/build-biologie.mjs --zdravi obnoví jen nemoci, lékařství, lékaře a psychologii)
 npm run build:chemie     # data/chemie.json
 npm run build:fyzika     # data/fyzika.json
 npm run build:technika   # data/technika.json (ruční seznamy a třídy Wikidat, lib/technika-sources.mjs; bez položek jiných témat)

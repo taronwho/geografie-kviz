@@ -234,10 +234,11 @@ test('dny před NEW_FROM: původní generátor beze změny (snímek), nový od N
     const snapshot = JSON.parse(read('tests/chain-legacy-snapshot.json'));
     const old = Chain.legacy();
     const oldSources = Object.fromEntries(old.SOURCES.map(topic => [topic, sources[topic]]));
+    const freeze = JSON.parse(read(Chain.LEGACY_FREEZE_FILE));
     assert.equal(Chain.NEW_FROM, '2026-11-15');
     assert.ok(Chain.isLegacyDay('2026-11-14') && !Chain.isLegacyDay('2026-11-15') && !Chain.isLegacyDay('2027-01-01'));
-    for (const [day, chain] of Object.entries(snapshot.full)) assert.deepEqual(JSON.parse(JSON.stringify(Chain.legacyDailyChain(oldSources, countries, day))), chain, day);
-    for (const [day, hash] of Object.entries(snapshot.hashes)) assert.equal(crypto.createHash('sha256').update(JSON.stringify(Chain.legacyDailyChain(oldSources, countries, day))).digest('hex'), hash, day);
+    for (const [day, chain] of Object.entries(snapshot.full)) assert.deepEqual(JSON.parse(JSON.stringify(Chain.legacyDailyChain(oldSources, countries, day, freeze))), chain, day);
+    for (const [day, hash] of Object.entries(snapshot.hashes)) assert.equal(crypto.createHash('sha256').update(JSON.stringify(Chain.legacyDailyChain(oldSources, countries, day, freeze))).digest('hex'), hash, day);
     // Uložený pokus starého dne (bez nových údajů) se načte a vykreslí
     const attempt = Chain.newAttempt('2026-11-14', 'host', snapshot.full['2026-11-14']);
     const state = Chain.parseState(JSON.parse(JSON.stringify({ attempt })));
@@ -543,7 +544,7 @@ test('soubory aplikace: index.html, service worker, nasazení, Tailwind a app.js
     assert.match(read('.github/workflows/pages.yml'), /\bchain\.js chain-legacy\.js\b/);
     // Původní generátor se v prohlížeči načte jen podle potřeby (dny před NEW_FROM), vazby z Wikidat s grafem
     assert.doesNotMatch(index, /chain-legacy\.js/);
-    assert.match(app, /loadExtra: \(\) => loadChainExtra\(\), loadScript: \(src\) => loadScript\(src\), chainSubject,/);
+    assert.match(app, /loadExtra: \(\) => loadChainExtra\(\), loadLegacyFreeze: \(\) => loadChainLegacyFreeze\(\), loadScript: \(src\) => loadScript\(src\), chainSubject,/);
     assert.match(app, /Chain\.subjectText\(raw, source, later\)/);
     const extraData = JSON.parse(read(Chain.EXTRA_FILE));
     for (const rel of ['born', 'died', 'spouse', 'parent', 'teacher', 'successor', 'range', 'endemic', 'depicts']) assert.ok(extraData.edges[rel].length > 0, `data/retezovka.json: ${rel}`);

@@ -208,7 +208,10 @@
             jezero: ['jezero', 'přehradní nádrž', 'laguna', 'moře', 'zátoka', 'průliv'],
             ostrov: ['ostrov', 'souostroví'],
             stavba: true,
-            priroda: ['vodopád', 'jeskyně', 'skála', 'skalní suk', 'národní park', 'chráněná krajinná oblast', 'národní přírodní rezervace', 'poušť', 'poloostrov']
+            priroda: ['vodopád', 'jeskyně', 'skála', 'skalní suk', 'národní park', 'chráněná krajinná oblast', 'národní přírodní rezervace', 'poušť', 'poloostrov'],
+            // Památky UNESCO: historická města, naleziště a centra jsou na mapě bod (rozsáhlé krajiny a cesty ne)
+            dedictvi: ['historické město', 'historické centrum', 'historická vesnice', 'starověké město', 'archeologická lokalita', 'skalní umění', 'náměstí', 'poutní místo',
+                'zahrada a park', 'botanická zahrada', 'pohřebiště', 'jeskynní chrámy']
         },
         sport: { sportoviste: true },
         // Bitvy v jednom místě (ne války, tažení a revoluce) a události s jedním místem (konference, smlouva, havárie…)
@@ -216,7 +219,8 @@
             bitva: ['bitva', 'námořní bitva', 'obléhání', 'útok', 'letecké bombardování města', 'bombardování', 'kobercové bombardování', 'vojenská operace'],
             udalosti: ['havárie', 'mírová smlouva', 'zemětřesení', 'smlouva', 'konference', 'masakr', 'koncil', 'požár', 'atentát', 'proces', 'výbuch sopky', 'korunovace', 'tsunami']
         },
-        architektura: { stavby: true },
+        // Tunel je na mapě čára, ne bod – na mapě se neptá
+        architektura: { stavby: true, hrady: true, mosty: ['most'], mrakodrapy: true },
         // Technika: letiště, elektrárny a kosmodromy (metro a tunel jsou čára přes celé město či hory, ne bod)
         technika: { stavby: ['letiště', 'jaderná elektrárna', 'vodní elektrárna', 'tepelná elektrárna', 'kosmodrom'] },
         vlajky: { regiony: true }
@@ -244,7 +248,8 @@
         { id: 'more', label: 'Moře a zálivy', topics: ['zemepis'], test: item => item.c === 'jezero' && ['moře', 'zátoka', 'průliv'].includes(item.ty) },
         { id: 'ostrovy', label: 'Ostrov', topics: ['zemepis'], test: item => item.c === 'ostrov' },
         { id: 'priroda', label: 'Příroda', topics: ['zemepis'], test: item => item.c === 'priroda' },
-        { id: 'stavby', label: 'Stavba', topics: ['zemepis', 'architektura', 'technika'], test: item => item.c === 'stavba' || item.c === 'stavby' },
+        { id: 'stavby', label: 'Stavba', topics: ['zemepis', 'architektura', 'technika'], test: item => ['stavba', 'stavby', 'hrady', 'mosty', 'mrakodrapy'].includes(item.c) },
+        { id: 'pamatky', label: 'Památka UNESCO', topics: ['zemepis'], test: item => item.c === 'dedictvi' },
         { id: 'bitvy', label: 'Bitva', topics: ['historie'], test: item => item.c === 'bitva' },
         { id: 'udalosti', label: 'Událost', topics: ['historie'], test: item => item.c === 'udalosti' },
         { id: 'regiony', label: 'Region', topics: ['vlajky'], test: item => item.c === 'regiony' },
@@ -480,7 +485,7 @@
             if (/smlouva|dohoda/iu.test(name)) return `Kde byla podepsána ${name}?`;
             return `${name} – kde se to stalo?`;
         }
-        const standing = ((item.c === 'stavba' || item.c === 'stavby') && !LYING_BUILDINGS.has(item.ty)) || item.c === 'sportoviste';
+        const standing = (['stavba', 'stavby', 'hrady', 'mosty', 'mrakodrapy'].includes(item.c) && !LYING_BUILDINGS.has(item.ty)) || item.c === 'sportoviste';
         return `${standing ? 'Kde stojí' : 'Kde leží'} ${name}?`;
     };
 

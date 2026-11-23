@@ -368,12 +368,12 @@
     // found = objev, invent = vynález) a kategorie, kde rok opravdu je rokem vzniku (u hory nebo parku znamená něco jiného)
     const MADE = {
         zemepis: { cats: ['mesto', 'stavba'], keys: ['year'], kind: 'made' },
-        architektura: { cats: ['stavby'], keys: ['y'], kind: 'made' },
+        architektura: { cats: ['stavby', 'hrady', 'mosty', 'mrakodrapy'], keys: ['y'], kind: 'made' },
         historie: { cats: ['bitva', 'udalosti', 'rise'], keys: ['year', 'from'], ends: ['end', 'to'], kind: 'event' },
         hudba: { cats: ['kapely', 'opery', 'dila'], keys: ['year', 'from'], kind: 'made' },
         literatura: { cats: ['dila'], keys: ['year'], kind: 'made' },
         umeni: { cats: ['sochy', 'obrazy'], keys: ['year'], kind: 'made' },
-        film: { cats: ['filmy', 'animovane', 'serialy'], keys: ['year'], ends: ['end'], kind: 'made' },
+        film: { cats: ['filmy', 'animovane', 'serialy', 'porady', 'vecernicky', 'komiksy'], keys: ['year'], ends: ['end'], kind: 'made' },
         sport: { cats: ['olympiady', 'kluby', 'sportoviste', 'souteze', 'sporty'], keys: ['year', 'opened', 'from'], kind: 'made', events: ['olympiady'] },
         fyzika: { cats: ['vesmir', 'vynalezy', 'mise', 'pojmy'], keys: ['year'], kind: 'found', inventions: ['vynalezy'], events: ['mise'] },
         chemie: { cats: ['prvky'], keys: ['year'], kind: 'found' },

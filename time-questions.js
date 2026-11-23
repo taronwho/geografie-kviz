@@ -130,8 +130,8 @@
         if (topicId === 'hudba' && item.c === 'opery') kd = /opera/u.test(item.ty || '') ? 'opera' : 'skladba';
         if (topicId === 'umeni' && (item.c === 'obrazy' || item.c === 'sochy') && !f.ya && !f.yc) kd = item.c === 'obrazy' ? 'obraz' : 'socha';
         if (topicId === 'film' && (item.c === 'filmy' || item.c === 'animovane')) { kd = 'film'; by = firstOf(f.dir); byq = f.dirq || ''; }
-        if (topicId === 'film' && item.c === 'serialy') { kd = 'serial'; by = ''; byq = ''; }
-        if (topicId === 'architektura' && item.c === 'stavby') {
+        if (topicId === 'film' && (item.c === 'serialy' || item.c === 'vecernicky')) { kd = 'serial'; by = ''; byq = ''; }
+        if (topicId === 'architektura' && ['stavby', 'hrady', 'mosty', 'mrakodrapy'].includes(item.c)) {
             y = f.y;
             kd = y >= BUILDING_FROM && y % 100 !== 0 && !BUILDING_SKIP.test(item.ty || 'undefined') && item.ty ? 'stavba' : null;
             by = f.arch || '';

@@ -609,7 +609,9 @@ test('otázky ze všech témat: vztahové otázky (správná možnost vazbu spl�
         'Toskánské velkovévodství': ['Itálie'], 'Florentská republika': ['Itálie'], Florencie: ['Itálie'], 'Neapolské království': ['Itálie'], 'Sicilské království': ['Itálie'],
         'Spojené provincie nizozemské': ['Nizozemsko'], 'Gdaňsk': ['Polsko'], 'starověký Egypt': ['Egypt'], 'Ptolemaiovský Egypt': ['Egypt'] };
     const landNames = (land) => (Array.isArray(land) ? land : String(land || '').split(/,\s*/)).filter(Boolean).flatMap(name => LAND[name] || [name]);
-    const SOURCES = { city: ['zemepis:mesto'], building: ['zemepis:stavba', 'architektura:stavby'], castle: ['zemepis:stavba', 'architektura:stavby'], mountain: ['zemepis:hora'], lake: ['zemepis:jezero'],
+    // Stavby Architektury jsou ve čtyřech kategoriích (stavby, hrady a zámky, mosty a tunely, mrakodrapy)
+    const ARCHITECTURE_BUILDINGS = ['architektura:stavby', 'architektura:hrady', 'architektura:mosty', 'architektura:mrakodrapy'];
+    const SOURCES = { city: ['zemepis:mesto'], building: ['zemepis:stavba', ...ARCHITECTURE_BUILDINGS], castle: ['zemepis:stavba', ...ARCHITECTURE_BUILDINGS], mountain: ['zemepis:hora'], lake: ['zemepis:jezero'],
         island: ['zemepis:ostrov'], nature: ['zemepis:priroda'], river: ['zemepis:reka'], region: ['vlajky:regiony'], writer: ['literatura:spisovatele'], musician: ['hudba:skladatele', 'hudba:hudebnici'],
         band: ['hudba:kapely'], artist: ['umeni:umelci', 'umeni:fotografove', 'umeni:ilustratori'], architect: ['architektura:architekti'], filmmaker: ['film:reziseri'], actor: ['film:herci'],
         athlete: ['sport:sportovci'], ruler: ['historie:statnik', 'historie:panovnik'], politician: ['historie:statnik', 'historie:osobnost'], historic: ['historie:osobnost'],
@@ -1556,7 +1558,7 @@ test('obrázek: jeden obrázek a čtyři možnosti textem; rodiny, kde obrázek 
         // Fotka správné odpovědi: skutečná fotka (.jpg, .webp), u staveb Architektury, obrazů a soch a vlajek obrázek otázky
         const src = byKey.get(`${question.request.topic}:${question.request.q}`);
         assert.ok(src && src.im && src.ih, where);
-        const shown = (question.request.topic === 'architektura' && src.c === 'stavby') || question.request.topic === 'umeni' || question.request.topic === 'vlajky';
+        const shown = (question.request.topic === 'architektura' && ['stavby', 'hrady', 'mosty', 'mrakodrapy'].includes(src.c)) || question.request.topic === 'umeni' || question.request.topic === 'vlajky';
         assert.ok(shown || core.isRealPhoto(src.im), `${where}: ${src.im}`);
         if (question.family === 'lake' || question.family === 'river') assert.equal(src.k, 1, `jezero a řeka jen známé: ${where}`);
         // Doplněná otázka: jen obrázek (a štítek druhu), možnosti beze změny

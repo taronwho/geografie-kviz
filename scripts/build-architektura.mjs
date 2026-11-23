@@ -1,6 +1,8 @@
 // Téma Architektura: data/architektura.json z Wikidat (přes QLever) – stavby s jasným slohem, architektonické slohy, architekti
 // Spuštění: npm run build:architektura (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování;
 // potřebuje data/countries.json a data/zemepis.json – z měst zeměpisu se bere město stavby).
+// Jen kategorie Hrady a zámky, Mosty a tunely a Mrakodrapy (přesun ze staveb a nové položky, scripts/lib/architektura-kategorie.mjs)
+// nad zveřejněnými daty, bez nového stahování ostatního: node scripts/build-architektura.mjs --kategorie
 // Položky, které v data/architektura.json už jsou, zůstávají, pokud je pravidla pořád berou (kvóty a limity se na ně nevztahují),
 // a dosud známé položky se nestanou expertními.
 import { readFileSync, existsSync } from 'node:fs';
@@ -8,6 +10,7 @@ import { landByDescription } from './lib/nationality.mjs';
 import { assignLevels, levelSummary, fameOf, fameQuantiles, czechPageviewsBatch } from './lib/umeni-levels.mjs';
 import { cachedByKey } from './lib/zemepis-levels.mjs';
 import { qlever, id, values, parsePoint, imageFields, yearOf, compact, cached, inBatches, writeTopic, readCountries, CZECHIA, buildingTypeFromName } from './lib/wikidata.mjs';
+import { BUILDING_TYPES, BUILDING_CATEGORIES, extendCategories } from './lib/architektura-kategorie.mjs';
 
 const ARCHITECT = 'Q42973';
 const FEMALE = 'Q6581072';
@@ -111,19 +114,7 @@ const ELEMENTS = ['oblouk', 'kupole', 'sloup', 'schodiště', 'komín', 'balkon'
     'piano nobile', 'padací mříž', 'žebro', 'kyma', 'zvonice', 'ochoz', 'věžička', 'portál (architektura)', 'predella', 'pastofórium', 'koruna'];
 const ELEMENT_MIN_SL = 24;
 
-// Druh stavby podle českých názvů typů (P31): první pravidlo v pořadí, které některý typ splní
-const BUILDING_TYPES = [
-    [/katedrál/, 'katedrála'], [/bazilik|basilica/, 'bazilika'], [/mešit/, 'mešita'], [/synagog/, 'synagoga'],
-    [/klášter|monastýr|opatství|lávra/, 'klášter'], [/kapl/, 'kaple'], [/kostel|cerkev|kostelík/, 'kostel'], [/chrám/, 'chrám'],
-    [/přehrad/, 'přehrada'], [/most|viadukt|akvadukt/, 'most'],
-    [/hrad|pevnost|fort/, 'hrad'], [/zámek|letohrádek|rezidence/, 'zámek'], [/palác/, 'palác'], [/radnic/, 'radnice'], [/parlament/, 'budova parlamentu'],
-    [/amfiteátr|divadl|opera|odeon|koncertní sál/, 'divadlo'], [/stadion|aréna/, 'stadion'],
-    [/mrakodrap|výšková budova/, 'mrakodrap'], [/věž|rozhledna|vysílač|maják/, 'věž'], [/nádraží|stanice/, 'nádraží'],
-    [/vítězný oblouk|brán/, 'brána'], [/mauzoleum|hrobka|krematori/, 'hrobka'], [/hradb/, 'hradby'], [/vila/, 'vila'], [/muze|galeri/, 'muzeum'],
-    [/knihovn/, 'knihovna'], [/univerzit|škol|akademi/, 'škola'], [/nemocnic/, 'nemocnice'], [/hotel/, 'hotel'],
-    [/obchodní dům|obchodní centrum|bazar|tržnic/, 'obchodní dům'], [/kancelář|administrativní/, 'kancelářská budova'],
-    [/dům|budova/, 'budova']
-];
+// Druh stavby podle českých názvů typů (P31): BUILDING_TYPES ve scripts/lib/architektura-kategorie.mjs
 // Co není stavba se slohem: socha, obelisk, člověk vždy; náměstí, ulice, zeď či pomník jen tehdy, když není zároveň budovou
 // (Karlův most je i ulicí)
 const NOT_BUILDING = /^(socha|obrovitá socha|skulptura|člověk|obelisk|hraniční bod)$/;
@@ -155,6 +146,97 @@ const nearestCity = (point) => {
     const best = CITY_POINTS.reduce((found, city) => !found || km(city) < km(found) ? city : found, null);
     return best && km(best) < 12 ? best.n : undefined;
 };
+
+// --- Okruhy (i pro --kategorie) ---
+// Stavby jsou ve čtyřech kategoriích: stavby, hrady, mosty a mrakodrapy (BUILDING_CATEGORIES)
+const inBuildings = (item) => BUILDING_CATEGORIES.has(item.c);
+const IN_PRAGUE = (item) => item.la >= 49.94 && item.la <= 50.18 && item.lo >= 14.22 && item.lo <= 14.71;
+const styleOf = (item) => item.c === 'slohy' ? item.f.key : (item.f || {}).st;
+const byStyles = (...keys) => (item) => keys.includes(styleOf(item));
+const BY_YEAR = { by: 'y' };
+const COLLECTIONS = [
+    { id: 'cesko', label: 'Česká architektura', text: 'Stavby v Česku a čeští architekti', sort: BY_YEAR, test: item => item.cz === 1 },
+    { id: 'praha', label: 'Praha', text: 'Stavby v Praze', sort: BY_YEAR, test: item => inBuildings(item) && item.cz === 1 && IN_PRAGUE(item) },
+    { id: 'cesti-architekti', label: 'Čeští architekti', sort: BY_YEAR, test: item => item.c === 'architekti' && item.cz === 1 },
+    { id: 'unesco', label: 'Světové dědictví UNESCO', sort: BY_YEAR, test: item => inBuildings(item) && item.f.unesco === 1 },
+    { id: 'hrady-zamky', label: 'Hrady, zámky a paláce', sort: BY_YEAR, test: item => inBuildings(item) && CASTLE_TYPES.has(item.ty) },
+    { id: 'chramy', label: 'Kostely, kláštery a mešity', sort: BY_YEAR,
+        test: item => inBuildings(item) && (CHURCH_TYPES.has(item.ty) || ['mešita', 'synagoga'].includes(item.ty)) },
+    { id: 'mosty', label: 'Mosty a přehrady', text: 'Karlův most, Golden Gate, Tower Bridge…', sort: BY_YEAR, test: item => inBuildings(item) && ['most', 'přehrada'].includes(item.ty) },
+    { id: 'veze', label: 'Věže a mrakodrapy', text: 'Eiffelova věž, Burdž Chalífa, Empire State Building…', sort: BY_YEAR, test: item => inBuildings(item) && ['věž', 'mrakodrap', 'maják'].includes(item.ty) },
+    { id: 'muzea-divadla', label: 'Muzea, divadla a veřejné budovy', text: 'Louvre, opera, knihovny, radnice, stadiony', sort: BY_YEAR,
+        test: item => inBuildings(item) && ['muzeum', 'divadlo', 'knihovna', 'stadion', 'radnice', 'budova parlamentu'].includes(item.ty) },
+    { id: 'prvky', label: 'Architektonické prvky', text: 'Oblouk, klenba, kupole, sloup, apsida…', sort: { by: 'name' }, test: item => item.c === 'prvky' },
+    { id: 'starovek', label: 'Antika a Byzanc', text: 'Řecká a římská antika, byzantský sloh', sort: BY_YEAR, test: byStyles('recko', 'rim', 'byzantsky') },
+    { id: 'islamska', label: 'Islámská architektura', sort: BY_YEAR, test: byStyles('islamska') },
+    { id: 'romansky', label: 'Románský sloh', sort: BY_YEAR, test: byStyles('romansky') },
+    { id: 'gotika', label: 'Gotika', sort: BY_YEAR, test: byStyles('gotika') },
+    { id: 'renesance', label: 'Renesance', sort: BY_YEAR, test: byStyles('renesance') },
+    { id: 'baroko', label: 'Baroko a rokoko', text: 'I barokní gotika', sort: BY_YEAR, test: byStyles('baroko', 'rokoko', 'barokni-gotika') },
+    { id: 'klasicismus', label: 'Klasicismus a empír', sort: BY_YEAR, test: byStyles('klasicismus', 'empir') },
+    { id: 'historismus', label: 'Historismus', text: 'Novogotika, novorenesance, novobaroko…', sort: BY_YEAR,
+        test: byStyles('historismus', 'novogotika', 'novoromansky', 'novorenesance', 'novobaroko', 'novobyzantsky') },
+    { id: 'secese', label: 'Secese', sort: BY_YEAR, test: byStyles('secese') },
+    { id: 'moderna', label: 'Moderna 20. století', text: 'Kubismus, art deco, funkcionalismus, socialistický realismus', sort: BY_YEAR,
+        test: byStyles('kubismus', 'artdeco', 'funkcionalismus', 'socrealismus') },
+    { id: 'soucasna', label: 'Současná architektura', text: 'Brutalismus, postmodernismus, high-tech, dekonstruktivismus', sort: BY_YEAR,
+        test: byStyles('brutalismus', 'postmodernismus', 'hightech', 'dekonstruktivismus') },
+    { id: 'ceske-hrady', label: 'České hrady a zámky', text: 'Karlštejn, Křivoklát, Hluboká, Lednice…', sort: BY_YEAR, test: item => item.c === 'hrady' && item.cz === 1 }
+];
+const groupsOf = (item) => COLLECTIONS.filter(collection => collection.test(item)).map(collection => collection.id);
+
+// --- Nové kategorie nad zveřejněnými daty (--kategorie): přesun ze staveb a nové položky z Wikidat ---
+// Sloh nové stavby jen z tabulky STYLES (bez dotazu na nadřazené slohy) a s rokem, který k němu sedí; zřícenina středověké
+// a pozdější stavby sloh neukáže
+const NOW_YEAR = new Date().getFullYear();
+const firstYear = (list) => {
+    const years = (list || []).map(yearOf).filter(year => year !== undefined);
+    return years.length ? Math.min(...years) : undefined;
+};
+const newStyleOf = (detail, types) => {
+    const keys = new Set((detail.style || []).map(q => STYLE_OF_QID.get(q) ?? (VAGUE_STYLES.has(q) ? null : 'jiny')).filter(Boolean));
+    if (!keys.size || keys.has('jiny')) return null;
+    for (const [a, b, main] of MAIN_OF_PAIR) {
+        if (keys.has(a) && keys.has(b)) {
+            keys.delete(a);
+            keys.delete(b);
+            keys.add(main);
+        }
+    }
+    if (keys.size !== 1) return null;
+    const key = [...keys][0];
+    const style = STYLE_BY_KEY.get(key);
+    if (style.from >= 1000 && types.some(label => RUIN.test(label))) return null;
+    const fits = (year) => year !== undefined && year <= NOW_YEAR && year >= style.from - STYLE_MARGIN(style) && year <= style.to + Math.min(60, STYLE_MARGIN(style));
+    const year = [firstYear(detail.year), firstYear(detail.open)].find(fits);
+    return year === undefined ? null : { st: key, y: year };
+};
+// Město nové stavby: první město zeměpisu ve správním zařazení, jinak nejbližší do 12 km, jinak obec, ve které stavba leží
+const newCityOf = (direct, point, parents, labels) => {
+    let level = direct;
+    for (let depth = 0; depth < 5 && level.length; depth++) {
+        const city = level.find(q => CITIES.has(q));
+        if (city) return CITIES.get(city);
+        level = level.flatMap(q => parents.get(q) || []);
+    }
+    const near = nearestCity(point);
+    if (near) return near;
+    const label = direct.map(q => labels.get(q)).find(Boolean);
+    return label && !/\d|obvod|okres|kraj|distrikt|čtvrť|provincie|region|hrabství|oblast|county/iu.test(label) ? label : undefined;
+};
+const extendOptions = { published: PUBLISHED_ITEMS, zemepis, countries, styleOf: newStyleOf, groupsOf, cityOf: newCityOf };
+const collectionsOut = COLLECTIONS.map(({ test, ...collection }) => collection);
+if (process.argv.includes('--kategorie')) {
+    const items = await extendCategories({ items: PUBLISHED_ITEMS.map(item => structuredClone(item)), ...extendOptions });
+    // Okruhy znovu u všech položek (přesunuté stavby v nich zůstávají – okruhy počítají se všemi kategoriemi staveb)
+    for (const item of items) {
+        const groups = groupsOf(item);
+        if (groups.length) item.g = groups;
+        else delete item.g;
+    }
+    writeTopic('architektura', { collections: collectionsOut, items });
+    process.exit(0);
+}
 
 // --- 1. krok: stavby s uvedeným slohem, fotkou a českým článkem (známé ve světě a české i méně známé) ---
 const buildingCandidates = await cached('architektura-candidates', async () => {
@@ -607,44 +689,12 @@ for (const item of items) {
     if (item.f && item.f.st && !styleKeys.has(item.f.st)) delete item.f.st;
 }
 
-// --- Okruhy ---
-const IN_PRAGUE = (item) => item.la >= 49.94 && item.la <= 50.18 && item.lo >= 14.22 && item.lo <= 14.71;
-const styleOf = (item) => item.c === 'slohy' ? item.f.key : (item.f || {}).st;
-const byStyles = (...keys) => (item) => keys.includes(styleOf(item));
-const BY_YEAR = { by: 'y' };
-const COLLECTIONS = [
-    { id: 'cesko', label: 'Česká architektura', text: 'Stavby v Česku a čeští architekti', sort: BY_YEAR, test: item => item.cz === 1 },
-    { id: 'praha', label: 'Praha', text: 'Stavby v Praze', sort: BY_YEAR, test: item => item.c === 'stavby' && item.cz === 1 && IN_PRAGUE(item) },
-    { id: 'cesti-architekti', label: 'Čeští architekti', sort: BY_YEAR, test: item => item.c === 'architekti' && item.cz === 1 },
-    { id: 'unesco', label: 'Světové dědictví UNESCO', sort: BY_YEAR, test: item => item.c === 'stavby' && item.f.unesco === 1 },
-    { id: 'hrady-zamky', label: 'Hrady, zámky a paláce', sort: BY_YEAR, test: item => item.c === 'stavby' && CASTLE_TYPES.has(item.ty) },
-    { id: 'chramy', label: 'Kostely, kláštery a mešity', sort: BY_YEAR,
-        test: item => item.c === 'stavby' && (CHURCH_TYPES.has(item.ty) || ['mešita', 'synagoga'].includes(item.ty)) },
-    { id: 'mosty', label: 'Mosty a přehrady', text: 'Karlův most, Golden Gate, Tower Bridge…', sort: BY_YEAR, test: item => item.c === 'stavby' && ['most', 'přehrada'].includes(item.ty) },
-    { id: 'veze', label: 'Věže a mrakodrapy', text: 'Eiffelova věž, Burdž Chalífa, Empire State Building…', sort: BY_YEAR, test: item => item.c === 'stavby' && ['věž', 'mrakodrap', 'maják'].includes(item.ty) },
-    { id: 'muzea-divadla', label: 'Muzea, divadla a veřejné budovy', text: 'Louvre, opera, knihovny, radnice, stadiony', sort: BY_YEAR,
-        test: item => item.c === 'stavby' && ['muzeum', 'divadlo', 'knihovna', 'stadion', 'radnice', 'budova parlamentu'].includes(item.ty) },
-    { id: 'prvky', label: 'Architektonické prvky', text: 'Oblouk, klenba, kupole, sloup, apsida…', sort: { by: 'name' }, test: item => item.c === 'prvky' },
-    { id: 'starovek', label: 'Antika a Byzanc', text: 'Řecká a římská antika, byzantský sloh', sort: BY_YEAR, test: byStyles('recko', 'rim', 'byzantsky') },
-    { id: 'islamska', label: 'Islámská architektura', sort: BY_YEAR, test: byStyles('islamska') },
-    { id: 'romansky', label: 'Románský sloh', sort: BY_YEAR, test: byStyles('romansky') },
-    { id: 'gotika', label: 'Gotika', sort: BY_YEAR, test: byStyles('gotika') },
-    { id: 'renesance', label: 'Renesance', sort: BY_YEAR, test: byStyles('renesance') },
-    { id: 'baroko', label: 'Baroko a rokoko', text: 'I barokní gotika', sort: BY_YEAR, test: byStyles('baroko', 'rokoko', 'barokni-gotika') },
-    { id: 'klasicismus', label: 'Klasicismus a empír', sort: BY_YEAR, test: byStyles('klasicismus', 'empir') },
-    { id: 'historismus', label: 'Historismus', text: 'Novogotika, novorenesance, novobaroko…', sort: BY_YEAR,
-        test: byStyles('historismus', 'novogotika', 'novoromansky', 'novorenesance', 'novobaroko', 'novobyzantsky') },
-    { id: 'secese', label: 'Secese', sort: BY_YEAR, test: byStyles('secese') },
-    { id: 'moderna', label: 'Moderna 20. století', text: 'Kubismus, art deco, funkcionalismus, socialistický realismus', sort: BY_YEAR,
-        test: byStyles('kubismus', 'artdeco', 'funkcionalismus', 'socrealismus') },
-    { id: 'soucasna', label: 'Současná architektura', text: 'Brutalismus, postmodernismus, high-tech, dekonstruktivismus', sort: BY_YEAR,
-        test: byStyles('brutalismus', 'postmodernismus', 'hightech', 'dekonstruktivismus') }
-];
+// --- Okruhy (COLLECTIONS výš) ---
 for (const item of items) {
-    const groups = COLLECTIONS.filter(collection => collection.test(item)).map(collection => collection.id);
+    const groups = groupsOf(item);
     if (groups.length) item.g = groups;
 }
-const collections = COLLECTIONS.map(({ test, ...collection }) => collection);
+const collections = collectionsOut;
 
 // --- Úrovně obtížnosti (scripts/lib/umeni-levels.mjs) ---
 // Sláva = geometrický průměr návštěvnosti článku české Wikipedie (60 dní přepočtených na rok) a počtu jazykových verzí (české ×1,3).
@@ -683,4 +733,11 @@ console.log('stavby bez slohu podle druhu:', JSON.stringify(perType));
 console.log('stavby podle slohu:', JSON.stringify(perStyle));
 console.log(`otázka na architekta možná u ${items.filter(item => item.f && item.f.aq).length} staveb`);
 
-writeTopic('architektura', { collections, items });
+// --- Kategorie Hrady a zámky, Mosty a tunely a Mrakodrapy: přesun ze staveb a nové položky (scripts/lib/architektura-kategorie.mjs) ---
+const finalItems = await extendCategories({ items, ...extendOptions });
+for (const item of finalItems) {
+    const groups = groupsOf(item);
+    if (groups.length) item.g = groups;
+    else delete item.g;
+}
+writeTopic('architektura', { collections, items: finalItems });

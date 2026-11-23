@@ -22,7 +22,7 @@ const topics = args.topic ? args.topic.split(',').filter(id => TOPIC_IDS.include
 // Druh toho, co má obrázek ukázat, podle kategorie (jinak 'thing': pojem, látka, jednotka – tam se obrázek nehodnotí)
 const KIND = {
     zemepis: { mesto: 'city', stavba: 'building', hora: 'nature', reka: 'nature', jezero: 'nature', ostrov: 'nature', priroda: 'nature', stat: 'country' },
-    architektura: { stavby: 'building', architekti: 'person' },
+    architektura: { stavby: 'building', hrady: 'building', mosty: 'building', mrakodrapy: 'building', architekti: 'person' },
     historie: { statnik: 'person', osobnost: 'person', panovnik: 'person', bitva: 'event', udalosti: 'event' },
     biologie: Object.fromEntries(['savci', 'rostliny', 'ptaci', 'ryby', 'hmyz', 'plazi', 'pravek', 'houby', 'bezobratli', 'plemena'].map(c => [c, 'organism'])),
     chemie: { chemici: 'person' },
