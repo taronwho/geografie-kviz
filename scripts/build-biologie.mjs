@@ -1,11 +1,32 @@
 // Téma Biologie: data/biologie.json z Wikidat – savci, ptáci, plazi a obojživelníci, ryby, hmyz, další bezobratlí, rostliny, houby,
 // pravěcí tvorové, plemena psů a koček a lidské tělo (plemena a tělo sestaví scripts/lib/biologie-extra.mjs). Strom taxonů je velký, proto dotazy jdou přes QLever (query.wikidata.org na nich vyprší).
 // Úrovně obtížnosti (Základní / Mudrlant / Expert) podle jazykových verzí a návštěvnosti článků na české Wikipedii
-// v každém okruhu zvlášť určí scripts/lib/biologie-levels.mjs.
+// v každém okruhu zvlášť určí scripts/lib/biologie-levels.mjs. Oblast „člověk a zdraví“ (nemoci, lékařství, slavní lékaři, psychologie)
+// sestaví scripts/lib/biologie-zdravi.mjs – samotnou ji doplní či obnoví node scripts/build-biologie.mjs --zdravi (ostatní kategorie
+// v data/biologie.json zůstanou beze změny; celý build potřebuje návštěvnost české Wikipedie).
 // Spuštění: npm run build:biologie (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování)
+import { readFileSync, existsSync } from 'node:fs';
 import { qlever, id, values, imageFields, compact, cached, inBatches, writeTopic, sleep } from './lib/wikidata.mjs';
 import { buildBreeds, buildBody, EXTRA_COLLECTIONS } from './lib/biologie-extra.mjs';
 import { assignLevels, czechPageviews, levelSummary } from './lib/biologie-levels.mjs';
+import { buildHealth, HEALTH_CATEGORIES, HEALTH_COLLECTIONS } from './lib/biologie-zdravi.mjs';
+
+// Položky oblasti „člověk a zdraví“, které už v tématu jsou, zůstávají (postup hráčů), i když by je limit už nevzal
+const PUBLISHED_FILE = new URL('../data/biologie.json', import.meta.url);
+const PUBLISHED = existsSync(PUBLISHED_FILE) ? JSON.parse(readFileSync(PUBLISHED_FILE, 'utf8')) : { items: [], collections: [] };
+const HEALTH = new Set(HEALTH_CATEGORIES);
+const HEALTH_COLLECTION_IDS = new Set(HEALTH_COLLECTIONS.map(collection => collection.id));
+const publishedHealth = new Set(PUBLISHED.items.filter(item => HEALTH.has(item.c)).map(item => item.q));
+const healthFor = (others) => buildHealth({
+    takenIds: new Set(others.map(item => item.q)), takenNames: new Set(others.map(item => item.n.toLowerCase())),
+    takenImages: new Set(others.map(item => item.im).filter(Boolean)), published: publishedHealth
+});
+if (process.argv.includes('--zdravi')) {
+    const kept = PUBLISHED.items.filter(item => !HEALTH.has(item.c));
+    const health = await healthFor(kept);
+    writeTopic('biologie', { collections: [...PUBLISHED.collections.filter(collection => !HEALTH_COLLECTION_IDS.has(collection.id)), ...health.collections], items: [...kept, ...health.items] });
+    process.exit(0);
+}
 
 const RANK = { class: 'Q37517', order: 'Q36602', family: 'Q35409', genus: 'Q34740', species: 'Q7432' };
 
@@ -442,6 +463,10 @@ console.log(`Povýšeno na známé kvůli okruhům: ${promoted.length}`);
 for (const key of [...new Set(items.map(item => item.c))]) console.log('  ' + levelSummary(key, items.filter(item => item.c === key)));
 console.log('  ' + levelSummary('celkem', items));
 for (const item of items) delete item._;
+// Člověk a zdraví: vlastní úrovně (scripts/lib/biologie-zdravi.mjs)
+const health = await healthFor(items);
+items.push(...health.items);
+collections.push(...health.collections);
 
 for (const category of [...CATEGORIES, { key: 'plemena' }, { key: 'telo' }]) {
     const inCategory = items.filter(item => item.c === category.key);

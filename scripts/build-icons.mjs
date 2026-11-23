@@ -34,7 +34,9 @@ const ICONS = [
     // Pomůcka Vzkříšení do Dobývání (conquest.js ITEMS.revive; zástupná pečeť do dodání obrázku č. 361)
     'heart-pulse',
     // Boti v Dobývání (conquest.js BOT_LEVELS; štítek bota do dodání obrázků č. 459–468)
-    'bot'
+    'bot',
+    // Biologie – člověk a zdraví: Lékařství, Slavní lékaři, Psychologie
+    'syringe', 'stethoscope', 'brain'
 ];
 
 const toPascalCase = (name) => name.replace(/(^|-)(\w)/g, (_, __, letter) => letter.toUpperCase());

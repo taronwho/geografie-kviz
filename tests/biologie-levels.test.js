@@ -79,7 +79,8 @@ test('biologie – nové položky splňují pravidla kvality', () => {
     assert.equal(new Set(names).size, names.length, 'jména se v kategorii neopakují');
     for (const item of data.items) {
         assert.ok(item.t && item.n, `${item.q}: článek a jméno`);
-        if (!['telo', 'pravek'].includes(item.c)) {
+        // Části těla, pravěcí tvorové, nemoci, lékařství a psychologické pojmy fotku mít nemusí (drastické fotky nemocí se vynechávají)
+        if (!['telo', 'pravek', 'nemoci', 'lekarstvi', 'psychologie'].includes(item.c)) {
             assert.ok(item.im, `${item.n}: fotka`);
             assert.notEqual(item.n.toLowerCase(), String((item.f || {}).lat || '').toLowerCase(), `${item.n}: jen vědecké jméno`);
         }
