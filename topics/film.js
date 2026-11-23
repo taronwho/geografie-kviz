@@ -1,4 +1,4 @@
-// Téma Film: filmy, animované filmy, seriály, režiséři, herci a herečky (data/film.json)
+// Téma Film: filmy, animované filmy, seriály, režiséři, herci a herečky, televizní pořady, večerníčky, komiksy a anime (data/film.json)
 (function (root, factory) {
     const isNode = typeof module === 'object' && module.exports;
     const topic = factory(isNode ? require('../quiz-core.js') : root.MudrlantCore);
@@ -15,12 +15,22 @@
         { key: 'animovane', label: 'Animované filmy', one: 'animovaný film', icon: 'wand-sparkles', question: 'Který animovaný film to je?', placeholder: 'Napiš název filmu…', sort: { by: 'y' } },
         { key: 'serialy', label: 'Seriály', one: 'seriál', icon: 'popcorn', question: 'Který seriál to je?', placeholder: 'Napiš název seriálu…', sort: { by: 'y' } },
         { key: 'reziseri', label: 'Režiséři', one: 'režisér', icon: 'video', ...PERSON },
-        { key: 'herci', label: 'Herci a herečky', one: 'herec', icon: 'drama', ...PERSON }
+        { key: 'herci', label: 'Herci a herečky', one: 'herec', icon: 'drama', ...PERSON },
+        { key: 'porady', label: 'Televizní pořady', one: 'pořad', icon: 'mic-vocal', question: 'Který pořad to je?', placeholder: 'Napiš název pořadu…', sort: { by: 'y' } },
+        { key: 'vecernicky', label: 'Večerníčky', one: 'večerníček', icon: 'moon', question: 'Který večerníček to je?', placeholder: 'Napiš název večerníčku…', sort: { by: 'y' } },
+        { key: 'komiksy', label: 'Komiksy a anime', one: 'komiks', icon: 'zap', question: 'Co je to?', placeholder: 'Napiš název nebo jméno…', sort: { by: 'y' } }
     ];
-    // Film i animovaný film (otázky na režii a desetiletí premiéry); seriál má vlastní fakta a otázku na tvůrce
+    // Film i animovaný film (otázky na režii a desetiletí premiéry); seriál, večerníček a televizní pořad mají vysílání, stanici
+    // a otázku na tvůrce (u pořadu na moderátora)
     const isFilm = (item) => item.c === 'filmy' || item.c === 'animovane';
-    const isSeries = (item) => item.c === 'serialy';
-    const isWork = (item) => isFilm(item) || isSeries(item);
+    const SERIES_LIKE = new Set(['serialy', 'vecernicky', 'porady']);
+    const isSeries = (item) => SERIES_LIKE.has(item.c);
+    // Komiksy a anime: postavy a týmy (Superman, X-Men, Pikachu) a díla (komiksové série a stripy, manga, anime seriály)
+    const isComic = (item) => item.c === 'komiksy';
+    const isCharacter = (item) => isComic(item) && /postav|tým|klub/u.test(item.ty || '');
+    const isWork = (item) => isFilm(item) || isSeries(item) || isComic(item);
+    // Stejný druh díla (nesprávné možnosti, nápověda „ve stejné době“): filmy s filmy, jinak stejná kategorie, postavy s postavami
+    const sameKind = (a, b) => isFilm(a) ? isFilm(b) : a.c === b.c && isCharacter(a) === isCharacter(b);
 
     // Jak často se u filmu ptáme na režiséra a na desetiletí premiéry (jinak na název)
     const DIRECTOR_QUIZ_SHARE = 0.25;
@@ -28,6 +38,8 @@
     // U animovaného filmu režie, studio a desetiletí, u seriálu tvůrce a desetiletí začátku vysílání (hranice podílů)
     const ANIMATED_SHARES = { director: 0.2, studio: 0.4, decade: 0.6 };
     const SERIES_SHARES = { creator: 0.25, decade: 0.45 };
+    // U komiksu a anime tvůrce a desetiletí prvního vydání (prvního výskytu postavy)
+    const COMIC_SHARES = { creator: 0.25, decade: 0.45 };
     const THIS_YEAR = new Date().getFullYear();
     const withoutDiacritics = (text) => text.normalize('NFD').replace(/\p{M}/gu, '');
     const list = (values) => [].concat(values || []).join(', ');
@@ -108,23 +120,63 @@
 
     // --- Fakta ---
     // Roky vysílání seriálu: „1977–1981“, běžící „od 2016“
-    const airedLabel = (f) => f.end !== undefined ? `${f.year}–${f.end}` : `od ${f.year}`;
+    // (u večerníčku bez konce jen rok začátku – večerníčky mají omezený počet dílů, „od 1975“ by vypadalo, že se točí dál)
+    const airedLabel = (f, item) => f.end !== undefined ? `${f.year}–${f.end}` : item && item.c === 'vecernicky' ? String(f.year) : `od ${f.year}`;
     const seasonsLabel = (count) => `${count} ${count === 1 ? 'řada' : count < 5 ? 'řady' : 'řad'}`;
     const episodesLabel = (count) => `${count} ${count === 1 ? 'díl' : count < 5 ? 'díly' : 'dílů'}`;
-    const authorLabel = (f) => f.byk === 'scénář' ? 'Scénář' : 'Tvůrce';
+    const authorLabel = (f) => f.byk === 'scénář' ? 'Scénář' : f.byk === 'předloha' ? 'Předloha' : 'Tvůrce';
+    // Lidé seriálu: herci, u animovaného večerníčku hlasy (vypravěč), u pořadu moderátoři
+    const peopleOf = (item) => {
+        const f = item.f || {};
+        if (item.c === 'porady') return { label: 'Moderace', hint: 'moderace', icon: 'mic-vocal', list: f.host || [] };
+        if (item.c === 'vecernicky' && item.ty !== 'hraný seriál') return { label: (f.cast || []).length > 1 ? 'Hlasy' : 'Hlas', hint: 'hlasy', icon: 'users', list: f.cast || [] };
+        if (isComic(item)) return { label: 'Hlasy', hint: 'hlasy', icon: 'users', list: f.cast || [] };
+        return { label: 'Hrají', hint: 'hrají', icon: 'users', list: f.cast || [] };
+    };
+    const rozsah = (f) => [f.seasons > 1 ? seasonsLabel(f.seasons) : '', f.eps ? episodesLabel(f.eps) : ''].filter(Boolean).join(', ');
+    // Tvůrci komiksu nebo postavy (u anime seriálu přesunutého ze seriálů jeden tvůrce)
+    const creatorsOf = (item) => [].concat((item.f || {}).by || []);
+    // Rok komiksu: první výskyt postavy, první vydání díla, u anime seriálu vysílání
+    const comicYearFact = (item) => {
+        const f = item.f || {};
+        if (item.ty === 'anime seriál') return { label: 'Vysílání', value: airedLabel(f) };
+        if (!isCharacter(item) && f.end !== undefined) return { label: 'Vydávání', value: `${f.year}–${f.end}` };
+        return { label: 'Poprvé', value: String(f.year) };
+    };
     const factsOf = (item, mode) => {
         const f = item.f || {};
         const answered = mode === 'result' || mode === 'card';
         if (isSeries(item)) {
             const facts = [];
-            if (mode !== 'decade' && f.year !== undefined) facts.push({ label: 'Vysílání', value: airedLabel(f) });
+            if (mode !== 'decade' && f.year !== undefined) facts.push({ label: 'Vysílání', value: airedLabel(f, item) });
+            // Žánr pořadu je jeho druh (vidět u otázky), mezi fakty by se opakoval
+            if (f.gen && list(f.gen) !== item.ty) facts.push({ label: 'Žánr', value: list(f.gen) });
+            if (f.land) facts.push({ label: 'Země', value: list(f.land) });
+            if (f.bw) facts.push({ label: 'Obraz', value: 'černobílý' });
+            if (f.seasons > 1 || f.eps) facts.push({ label: 'Rozsah', value: rozsah(f) });
+            if (f.net && mode !== 'decade') facts.push({ label: item.c === 'porady' ? 'Stanice' : 'Vysílala', value: list(f.net) });
+            // Tvůrce, režie a herci (hlasy, moderátoři) jsou samostatné nápovědy, mezi fakty až po odpovědi
+            if (answered && f.by) facts.push({ label: authorLabel(f), value: f.by });
+            if (answered && f.dir && item.c === 'vecernicky') facts.push({ label: 'Režie', value: list(f.dir) });
+            const people = peopleOf(item);
+            if (answered && people.list.length) facts.push({ label: people.label, value: list(people.list) });
+            return facts;
+        }
+        if (isComic(item)) {
+            const facts = [];
+            if (mode !== 'decade' && f.year !== undefined) facts.push(comicYearFact(item));
             if (f.gen) facts.push({ label: 'Žánr', value: list(f.gen) });
             if (f.land) facts.push({ label: 'Země', value: list(f.land) });
-            if (f.seasons > 1 || f.eps) facts.push({ label: 'Rozsah', value: [f.seasons > 1 ? seasonsLabel(f.seasons) : '', f.eps ? episodesLabel(f.eps) : ''].filter(Boolean).join(', ') });
+            if (f.pub) facts.push({ label: 'Vydavatel', value: f.pub });
+            if (f.studio) facts.push({ label: 'Studio', value: f.studio });
+            if (f.seasons > 1 || f.eps) facts.push({ label: 'Rozsah', value: rozsah(f) });
             if (f.net && mode !== 'decade') facts.push({ label: 'Vysílala', value: list(f.net) });
-            // Tvůrce a herci jsou samostatné nápovědy, mezi fakty až po odpovědi
-            if (answered && f.by) facts.push({ label: authorLabel(f), value: f.by });
-            if (answered && f.cast) facts.push({ label: 'Hrají', value: list(f.cast) });
+            // Tvůrci, vlastní jméno postavy a herci z filmů jsou samostatné nápovědy, mezi fakty až po odpovědi
+            const creators = creatorsOf(item);
+            if (answered && creators.length) facts.push({ label: creators.length > 1 ? 'Tvůrci' : 'Tvůrce', value: list(creators) });
+            if (answered && f.real) facts.push({ label: 'Vlastním jménem', value: f.real });
+            if (answered && f.act) facts.push({ label: 'Ve filmech', value: list(f.act) });
+            if (answered && f.cast) facts.push({ label: 'Hlasy', value: list(f.cast) });
             return facts;
         }
         if (isFilm(item)) {
@@ -210,9 +262,19 @@
             answerLabel: director.n
         };
     };
+    // Otázka na desetiletí podle druhu: film premiéra, seriál, večerníček, pořad a anime začátek vysílání, komiks první vydání,
+    // postava první výskyt
+    const DECADE_TITLES = { 'postavy': 'Ve kterém desetiletí se postavy poprvé objevily?', 'postava': 'Ve kterém desetiletí se postava poprvé objevila?', 'tým': 'Ve kterém desetiletí tým vznikl?',
+        'klub': 'Ve kterém desetiletí klub vznikl?', 'manga': 'Ve kterém desetiletí začala manga vycházet?' };
+    const decadeTitle = (item) => {
+        if (isSeries(item) || item.ty === 'anime seriál') return 'Ve kterém desetiletí se začal vysílat?';
+        if (!isComic(item)) return 'Ve kterém desetiletí měl premiéru?';
+        const key = Object.keys(DECADE_TITLES).find(word => (item.ty || '').includes(word));
+        return key ? DECADE_TITLES[key] : 'Ve kterém desetiletí začal komiks vycházet?';
+    };
     const decadeQuestion = (item, rng) => {
         const f = item.f || {};
-        const title = isSeries(item) ? 'Ve kterém desetiletí se začal vysílat?' : 'Ve kterém desetiletí měl premiéru?';
+        const title = decadeTitle(item);
         // Jen jisté desetiletí (premiéra ani natáčení nejsou na přelomu) a název bez letopočtu
         if (!f.dq || f.year === undefined || f.year < 1900 || /\d{4}/.test(item.n)) return null;
         const decade = decadeOf(f.year);
@@ -233,7 +295,7 @@
     // Známé filmy (u seriálu seriály) z let kolem premiéry (bez letopočtu v názvu) – nápověda k desetiletí
     const contemporaries = (item, ctx) => {
         const f = item.f || {};
-        return (ctx.items || []).filter(other => isWork(other) && isSeries(other) === isSeries(item) && other.q !== item.q && other.k === 1 && !/\d/.test(other.n)
+        return (ctx.items || []).filter(other => isWork(other) && sameKind(item, other) && other.q !== item.q && other.k === 1 && !/\d/.test(other.n)
             && Math.abs(((other.f || {}).year ?? Infinity) - f.year) <= 2)
             .sort((a, b) => ((b.cz === 1) === (item.cz === 1) ? 1 : 0) - ((a.cz === 1) === (item.cz === 1) ? 1 : 0)
                 || Math.abs(a.f.year - f.year) - Math.abs(b.f.year - f.year))
@@ -252,31 +314,135 @@
         const words = String(name || '').split(' ');
         return words.length >= 2 && words[words.length - 1].length >= 3 ? words[words.length - 1] : null;
     };
-    const creatorAnswers = (name, ctx) => {
+    // Všechna jména tvůrců a moderátorů v kategorii (příjmení jako psaná odpověď jen tehdy, když ho nemá nikdo jiný)
+    const peopleNames = (other) => isComic(other) ? creatorsOf(other) : other.c === 'porady' ? (other.f.host || []) : [].concat(other.f.by || []);
+    const creatorAnswers = (name, ctx, category = 'serialy') => {
         const surname = creatorSurname(name);
-        const shared = surname && ((ctx && ctx.items) || []).some(other => isSeries(other) && other.f.by && other.f.by !== name
-            && normalizeAnswer(creatorSurname(other.f.by) || '') === normalizeAnswer(surname));
+        const shared = surname && ((ctx && ctx.items) || []).some(other => other.c === category && peopleNames(other).some(otherName => otherName !== name
+            && normalizeAnswer(creatorSurname(otherName) || '') === normalizeAnswer(surname)));
         return [name, ...(surname && !shared ? [surname] : [])];
+    };
+    // Jméno (tvůrce, moderátora) v názvu by odpověď prozradilo: Columbo, Show Jana Krause
+    const revealsName = (item, names) => [].concat(names).some(name => censorName(item.n, name).includes('[***]')
+        || core.factRevealsAnswer({ label: '', value: name }, [item.n]));
+    const CREATOR_TITLES = {
+        serialy: { 'scénář': 'Kdo napsal scénář seriálu?', 'tvůrce': 'Kdo seriál vytvořil?' },
+        vecernicky: { 'scénář': 'Kdo napsal scénář večerníčku?', 'předloha': 'Kdo napsal předlohu večerníčku?', 'tvůrce': 'Kdo večerníček vytvořil?' }
     };
     const creatorQuestion = (item, ctx, rng) => {
         const f = item.f || {};
-        // Jméno tvůrce v názvu seriálu (Columbo) by odpověď prozradilo
-        if (!f.by || !ctx.items || censorName(item.n, f.by).includes('[***]')) return null;
-        const candidates = ctx.items.filter(other => isSeries(other) && other.q !== item.q && other.f.by && other.f.byk === f.byk && normalizeAnswer(other.f.by) !== normalizeAnswer(f.by));
+        if (!f.by || !ctx.items || revealsName(item, f.by)) return null;
+        // Seriál: tvůrci (scenáristé) jiných seriálů; večerníček: autoři jiných večerníčků (předloha, scénář i tvůrce)
+        const candidates = ctx.items.filter(other => other.c === item.c && other.q !== item.q && other.f.by && (item.c !== 'serialy' || other.f.byk === f.byk)
+            && normalizeAnswer(other.f.by) !== normalizeAnswer(f.by));
         const wrong = takeDistinct(rankBySimilarity(candidates, other => seriesScore(item, other), rng), 3, new Set([normalizeAnswer(f.by)]), other => other.f.by).map(other => other.f.by);
         if (wrong.length < 3) return null;
+        const titles = CREATOR_TITLES[item.c] || CREATOR_TITLES.serialy;
         return {
             type: 'creator',
-            title: f.byk === 'scénář' ? 'Kdo napsal scénář seriálu?' : 'Kdo seriál vytvořil?',
+            title: titles[f.byk] || titles['tvůrce'],
             showName: true,
             choices: shuffle([f.by, ...wrong], rng).map(name => ({ id: `tvurce-${name}`, label: name, correct: name === f.by })),
-            accepted: creatorAnswers(f.by, ctx),
+            accepted: creatorAnswers(f.by, ctx, item.c),
             placeholder: 'Napiš jméno…',
             answerLabel: f.by
         };
     };
-    // Další seriály téhož tvůrce (nápověda k otázce na tvůrce)
-    const otherSeriesOf = (item, ctx) => (ctx.items || []).filter(other => isSeries(other) && other.q !== item.q && other.f.by === item.f.by).slice(0, 2).map(other => other.n);
+    // Další seriály (večerníčky) téhož tvůrce (nápověda k otázce na tvůrce)
+    const otherSeriesOf = (item, ctx) => (ctx.items || []).filter(other => other.c === item.c && other.q !== item.q && other.f.by === item.f.by).slice(0, 2).map(other => other.n);
+
+    // Moderátor pořadu: nesprávné možnosti jsou moderátoři podobných pořadů (stejná doba, země a druh), ne další moderátoři téhož pořadu
+    const hostQuestion = (item, ctx, rng) => {
+        const hosts = (item.f || {}).host || [];
+        if (!hosts.length || !ctx.items || revealsName(item, hosts)) return null;
+        const own = new Set(hosts.map(normalizeAnswer));
+        const candidates = ctx.items.filter(other => other.c === 'porady' && other.q !== item.q && (other.f.host || []).length && !other.f.host.some(name => own.has(normalizeAnswer(name))));
+        const wrong = takeDistinct(rankBySimilarity(candidates, other => seriesScore(item, other), rng), 3, new Set(own), other => other.f.host[0]).map(other => other.f.host[0]);
+        if (wrong.length < 3) return null;
+        return {
+            type: 'host',
+            title: 'Kdo pořad moderoval?',
+            showName: true,
+            choices: shuffle([hosts[0], ...wrong], rng).map(name => ({ id: `moderator-${name}`, label: name, correct: name === hosts[0] })),
+            accepted: [...new Set(hosts.flatMap(name => creatorAnswers(name, ctx, 'porady')))],
+            placeholder: 'Napiš jméno…',
+            answerLabel: hosts[0]
+        };
+    };
+    const otherShowsOf = (item, ctx) => {
+        const own = new Set(((item.f || {}).host || []).map(normalizeAnswer));
+        return (ctx.items || []).filter(other => other.c === 'porady' && other.q !== item.q && (other.f.host || []).some(name => own.has(normalizeAnswer(name))) && !revealsName(other, other.f.host))
+            .slice(0, 2).map(other => other.n);
+    };
+
+    // --- Komiksy a anime ---
+    // Podobnost: postava k postavě a dílo k dílu (druh je vidět u otázky), stejný vydavatel, země a doba, české k českým
+    const comicScore = (item, other) => {
+        const f = item.f || {};
+        const g = other.f || {};
+        return (isCharacter(item) === isCharacter(other) ? 0 : -20) + (f.pub && f.pub === g.pub ? 3 : 0) + ((f.land || [])[0] && (f.land || [])[0] === (g.land || [])[0] ? 2 : 0)
+            + yearCloseness(f.year, g.year) + ((item.cz === 1) === (other.cz === 1) ? 3 : -3) + ((item.sx === 'f') === (other.sx === 'f') ? 1 : 0)
+            - (creatorsOf(item).some(name => creatorsOf(other).includes(name)) ? 2 : 0);
+    };
+    const CREATOR_COMIC_TITLES = [['tým', 'Kdo tým vytvořil?'], ['klub', 'Kdo klub vymyslel?'], ['postav', 'Kdo postavu vytvořil?'], ['manga', 'Kdo mangu vytvořil?'],
+        ['anime', 'Kdo seriál vytvořil?']];
+    const comicCreatorTitle = (item) => (CREATOR_COMIC_TITLES.find(([word]) => (item.ty || '').includes(word)) || [null, 'Kdo komiks vytvořil?'])[1];
+    // Tvůrce komiksu nebo postavy: správná je první ze jmen (Stan Lee u Spider-Mana), nesprávné jsou tvůrci jiných komiksů,
+    // nikdy spolutvůrce (Steve Ditko); psát jde kterékoli ze jmen
+    const comicCreatorQuestion = (item, ctx, rng) => {
+        const own = creatorsOf(item);
+        if (!own.length || !ctx.items || revealsName(item, own)) return null;
+        const ownKeys = new Set(own.map(normalizeAnswer));
+        const candidates = ctx.items.filter(other => isComic(other) && other.q !== item.q && creatorsOf(other).length && !creatorsOf(other).some(name => ownKeys.has(normalizeAnswer(name))));
+        const wrong = takeDistinct(rankBySimilarity(candidates, other => comicScore(item, other), rng), 3, new Set(ownKeys), other => creatorsOf(other)[0]).map(other => creatorsOf(other)[0]);
+        if (wrong.length < 3) return null;
+        return {
+            type: 'creator',
+            title: comicCreatorTitle(item),
+            showName: true,
+            choices: shuffle([own[0], ...wrong], rng).map(name => ({ id: `tvurce-${name}`, label: name, correct: name === own[0] })),
+            accepted: [...new Set(own.flatMap(name => creatorAnswers(name, ctx, 'komiksy')))],
+            placeholder: 'Napiš jméno…',
+            answerLabel: own[0]
+        };
+    };
+    // Další komiksy a postavy téhož tvůrce (nápověda k otázce na tvůrce)
+    const otherComicsOf = (item, ctx) => {
+        const own = new Set(creatorsOf(item).map(normalizeAnswer));
+        return (ctx.items || []).filter(other => isComic(other) && other.q !== item.q && creatorsOf(other).some(name => own.has(normalizeAnswer(name))) && other.k === 1)
+            .slice(0, 2).map(other => other.n);
+    };
+    // Nápovědy ke komiksu: o komiksu (rok, země, vydavatel) → tvůrci → vlastní jméno a herci z filmů (u postavy);
+    // u otázky na tvůrce jeho další komiksy, u desetiletí známé komiksy (postavy) z té doby
+    const comicHints = (item, ctx, type) => {
+        const f = item.f || {};
+        const creators = creatorsOf(item);
+        const creatorHint = { kind: 'facts', label: creators.length > 1 ? 'tvůrci' : 'tvůrce', icon: 'pen-line',
+            facts: creators.length && !revealsName(item, creators) ? [{ label: creators.length > 1 ? 'Tvůrci' : 'Tvůrce', value: list(creators) }] : [] };
+        const personFacts = [...(f.real ? [{ label: 'Vlastním jménem', value: f.real }] : []), ...(f.act ? [{ label: 'Ve filmech', value: f.act.join(', ') }] : []),
+            ...(f.cast ? [{ label: 'Hlasy', value: f.cast.slice(0, 3).join(', ') }] : [])].filter(fact => !revealsName(item, fact.value));
+        const personLabel = !isCharacter(item) ? 'hlasy' : f.real && f.act ? 'jméno a filmy' : f.real ? 'vlastní jméno' : 've filmech';
+        const personHint = { kind: 'facts', label: personLabel, icon: 'users', facts: personFacts };
+        if (type === 'creator') {
+            const others = otherComicsOf(item, ctx);
+            return [
+                { kind: 'facts', label: 'o komiksu', icon: 'zap', facts: factsOf(item, 'creator') },
+                personHint,
+                { kind: 'facts', label: 'další díla', icon: 'book-open', facts: others.length ? [{ label: 'Další díla', value: others.join(', ') }] : [] }
+            ];
+        }
+        if (type === 'decade') {
+            const same = contemporaries(item, ctx);
+            return [
+                { kind: 'facts', label: 'země a vydavatel', icon: 'zap', facts: factsOf(item, 'decade') },
+                { kind: 'visual', spec: blindTimelineOf(item) },
+                creatorHint,
+                personHint,
+                { kind: 'facts', label: 've stejné době', icon: 'calendar-range', facts: same.length ? [{ label: 'Ve stejné době', value: same.join(', ') }] : [] }
+            ];
+        }
+        return [{ kind: 'facts', facts: factsOf(item, 'name') }, creatorHint, personHint];
+    };
 
     // Studio animovaného filmu: nesprávné možnosti jsou studia, která točila ve stejné době (k Pixaru DreamWorks a Blue Sky, ne Disney –
     // filmy Pixaru vydával Disney, byla by to druhá správná odpověď)
@@ -315,22 +481,40 @@
 
     // Nápovědy k seriálu: o seriálu (vysílání, žánr, země, rozsah, stanice) → herci → tvůrce; u otázky na tvůrce jeho další seriály,
     // u desetiletí známé seriály z té doby
+    // Popisky nápověd podle kategorie: o seriálu / večerníčku / pořadu, další seriály / večerníčky / pořady
+    const SERIES_WORDS = {
+        serialy: { about: 'o seriálu', others: 'další seriály', Others: 'Další seriály', icon: 'popcorn' },
+        vecernicky: { about: 'o večerníčku', others: 'další večerníčky', Others: 'Další večerníčky', icon: 'moon' },
+        porady: { about: 'o pořadu', others: 'další pořady', Others: 'Další pořady', icon: 'mic-vocal' }
+    };
     const seriesHints = (item, ctx, type) => {
         const f = item.f || {};
-        const castHint = { kind: 'facts', label: 'hrají', icon: 'users', facts: f.cast ? [{ label: 'Hrají', value: f.cast.slice(0, 3).join(', ') }] : [] };
-        const authorHint = { kind: 'facts', label: f.byk === 'scénář' ? 'scénář' : 'tvůrce', icon: 'pen-line', facts: f.by ? [{ label: authorLabel(f), value: f.by }] : [] };
+        const words = SERIES_WORDS[item.c] || SERIES_WORDS.serialy;
+        const people = peopleOf(item);
+        const shown = people.list.slice(0, 3).join(', ');
+        const castHint = { kind: 'facts', label: people.hint, icon: people.icon, facts: shown && !revealsName(item, people.list.slice(0, 3)) ? [{ label: people.label, value: shown }] : [] };
+        // U večerníčku je autor i režie (Václav Čtvrtek, Zdeněk Smetana); bez autora jen režie
+        const authorFacts = [...(f.by ? [{ label: authorLabel(f), value: f.by }] : []), ...(item.c === 'vecernicky' && f.dir ? [{ label: 'Režie', value: list(f.dir) }] : [])];
+        const authorHint = { kind: 'facts', label: f.byk === 'scénář' ? 'scénář' : f.byk === 'předloha' ? 'předloha' : !f.by && item.c === 'vecernicky' ? 'režie' : 'tvůrce', icon: 'pen-line', facts: authorFacts };
+        if (type === 'host') {
+            const others = otherShowsOf(item, ctx);
+            return [
+                { kind: 'facts', label: words.about, icon: words.icon, facts: factsOf(item, 'host') },
+                { kind: 'facts', label: words.others, icon: 'clapperboard', facts: others.length ? [{ label: words.Others, value: others.join(', ') }] : [] }
+            ];
+        }
         if (type === 'creator') {
             const others = otherSeriesOf(item, ctx);
             return [
-                { kind: 'facts', label: 'o seriálu', icon: 'popcorn', facts: factsOf(item, 'creator') },
+                { kind: 'facts', label: words.about, icon: words.icon, facts: factsOf(item, 'creator') },
                 castHint,
-                { kind: 'facts', label: 'další seriály', icon: 'clapperboard', facts: others.length ? [{ label: 'Další seriály', value: others.join(', ') }] : [] }
+                { kind: 'facts', label: words.others, icon: 'clapperboard', facts: others.length ? [{ label: words.Others, value: others.join(', ') }] : [] }
             ];
         }
         if (type === 'decade') {
             const same = contemporaries(item, ctx);
             return [
-                { kind: 'facts', label: 'žánr a země', icon: 'popcorn', facts: factsOf(item, 'decade') },
+                { kind: 'facts', label: 'žánr a země', icon: words.icon, facts: factsOf(item, 'decade') },
                 { kind: 'visual', spec: blindTimelineOf(item) },
                 castHint,
                 authorHint,
@@ -339,6 +523,9 @@
         }
         return [{ kind: 'facts', facts: factsOf(item, 'name') }, castHint, authorHint];
     };
+
+    const QUESTION_TITLES = [['postavy', 'Které postavy to jsou?'], ['postava', 'Která postava to je?'], ['tým', 'Který tým to je?'], ['klub', 'Který klub to je?'],
+        ['manga', 'Která manga to je?'], ['anime', 'Které anime to je?']];
 
     // Hlavní obrázek osobnosti, který ji neukazuje (hrob, pamětní deska, známka; quiz-core.js offSubjectRule, npm run audit:obrazky)
     const offSubjectPhoto = core.offSubjectRule({ words: { herci: core.OFF_SUBJECT.memorial, reziseri: core.OFF_SUBJECT.memorial } });
@@ -357,7 +544,7 @@
             next: 'Další otázka',
             atlas: 'Filmový atlas',
             placeholder: 'Napiš odpověď…',
-            tierKnown: 'Slavné filmy, seriály, režiséři a herci'
+            tierKnown: 'Slavné filmy, seriály, režiséři, herci, pořady a komiksy'
         },
         categories: CATEGORIES,
         offSubjectPhoto,
@@ -368,6 +555,7 @@
             const f = item.f || {};
             const g = other.f || {};
             if (!isWork(item)) return personScore(item, other);
+            if (isComic(item)) return comicScore(item, other);
             if (isSeries(item)) return seriesScore(item, other) + ((f.gen || [])[0] && (g.gen || []).includes(f.gen[0]) ? 2 : 0) - (f.by && f.by === g.by ? 3 : 0);
             return yearCloseness(f.year, g.year) + ((f.land || [])[0] && (f.land || [])[0] === (g.land || [])[0] ? 2 : 0)
                 + ((f.gen || [])[0] && (g.gen || []).includes(f.gen[0]) ? 2 : 0) + ((item.cz === 1) === (other.cz === 1) ? 2 : 0)
@@ -380,8 +568,15 @@
         specialQuestion: (item, ctx, rng) => {
             if (isSeries(item)) {
                 const roll = rng();
-                if (roll < SERIES_SHARES.creator) return creatorQuestion(item, ctx, rng);
+                if (roll < SERIES_SHARES.creator) return item.c === 'porady' ? hostQuestion(item, ctx, rng) : creatorQuestion(item, ctx, rng);
                 if (roll < SERIES_SHARES.decade) return decadeQuestion(item, rng);
+                return null;
+            }
+            // Komiks a anime: „Kdo postavu vytvořil?“, „Ve kterém desetiletí se postava poprvé objevila?“
+            if (isComic(item)) {
+                const roll = rng();
+                if (roll < COMIC_SHARES.creator) return comicCreatorQuestion(item, ctx, rng);
+                if (roll < COMIC_SHARES.decade) return decadeQuestion(item, rng);
                 return null;
             }
             if (item.c === 'animovane') {
@@ -402,6 +597,7 @@
         // známé filmy z té doby
         hints: (item, ctx, type) => {
             if (isSeries(item)) return seriesHints(item, ctx, type);
+            if (isComic(item)) return comicHints(item, ctx, type);
             if (!isFilm(item)) return null;
             const f = item.f || {};
             const director = directorOf(item, ctx);
@@ -445,7 +641,9 @@
                 return director ? censorName(text, [director.n, director.t, ...personAliases(director, ctx)].join(', ')) : null;
             }
             if (type === 'decade') return hideYears(text);
-            if (type === 'creator' && item.f && item.f.by) return censorName(text, creatorAnswers(item.f.by, ctx).join(', '));
+            if (type === 'creator' && isComic(item)) return censorName(text, creatorsOf(item).flatMap(name => creatorAnswers(name, ctx, 'komiksy')).join(', '));
+            if (type === 'creator' && item.f && item.f.by) return censorName(text, creatorAnswers(item.f.by, ctx, item.c).join(', '));
+            if (type === 'host') return censorName(text, (item.f.host || []).flatMap(name => creatorAnswers(name, ctx, 'porady')).join(', '));
             if (type === 'studio') return censorName(text, STUDIO_WORDS.join(', '));
             return null;
         },
@@ -460,9 +658,12 @@
         // Osa: u filmaře život s milníky filmu; u filmu jen po odpovědi (rok je mezi fakty)
         visual: (item, ctx, mode) => !isWork(item) || mode === 'result' || mode === 'card' ? timelineOf(item) : null,
         facts: (item, ctx, mode) => factsOf(item, mode),
+        // Otázka podle druhu: postava, tým, manga, anime, komiks (kategorie Komiksy a anime je smíšená)
+        questionTitle: (item) => isComic(item) ? (QUESTION_TITLES.find(([word]) => (item.ty || '').includes(word)) || [null, 'Který komiks to je?'])[1] : null,
         subtitle: (item) => {
             const f = item.f || {};
-            if (isSeries(item)) return [airedLabel(f), (f.land || [])[0]].filter(Boolean).join(' · ');
+            if (isComic(item)) return [f.year, f.pub || (f.land || [])[0]].filter(Boolean).join(' · ');
+            if (isSeries(item)) return [f.year !== undefined ? airedLabel(f, item) : '', (f.land || [])[0]].filter(Boolean).join(' · ');
             if (isFilm(item)) return [f.year, (f.dir || [])[0]].filter(Boolean).join(' · ');
             const life = f.died !== undefined ? `${formatYear(f.born)}–${formatYear(f.died)}` : `nar. ${formatYear(f.born)}`;
             return [life, f.land].filter(Boolean).join(' · ');

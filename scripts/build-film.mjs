@@ -1,9 +1,27 @@
-// Téma Film: data/film.json z Wikidat – filmy, režiséři, herci a herečky
+// Téma Film: data/film.json z Wikidat – filmy, režiséři, herci a herečky, seriály; rozšíření (scripts/lib/film-rozsireni.mjs):
+// televizní pořady, večerníčky, komiksy a anime
 // Spuštění: npm run build:film (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování)
+// Jen rozšíření nad hotovým data/film.json (ostatní položky se nestahují ani nemění): FILM_ONLY=rozsireni node scripts/build-film.mjs
+import { readFileSync } from 'node:fs';
 import { sparql, qlever, id, values, imageFields, yearOf, compact, cached, inBatches, writeTopic, statementOrder } from './lib/wikidata.mjs';
 import { landsByDescription } from './lib/nationality.mjs';
 import { cachedByKey, knownFloor } from './lib/zemepis-levels.mjs';
 import { filmPageviews, fameRanks, assignLevels, levelSummary } from './lib/film-levels.mjs';
+import { buildExtra, mergeExtra, extraSummary, moveCandidates } from './lib/film-rozsireni.mjs';
+
+// Rozšíření: přesuny seriálů do nových kategorií, nové položky a okruhy; pak zápis data/film.json
+async function addExtra({ collections, items }) {
+    const extra = await buildExtra({ existing: items });
+    for (const item of moveCandidates(items, extra)) console.warn(`  rozšíření: seriál ${item.n} (${item.q}) by patřil do nové kategorie – doplnit do MOVED?`);
+    const merged = mergeExtra({ collections, items }, extra);
+    console.log(`Rozšíření: přesunuto ${merged.moved.length} (${merged.moved.map(item => `${item.n} → ${item.c}`).join(', ')}), nových ${extra.items.length}`);
+    extraSummary(merged.items);
+    writeTopic('film', { collections: merged.collections, items: merged.items });
+}
+if (process.env.FILM_ONLY === 'rozsireni') {
+    await addExtra(JSON.parse(readFileSync(new URL('../data/film.json', import.meta.url), 'utf8')));
+    process.exit(0);
+}
 
 const HUMAN = 'Q5';
 const FEMALE = 'Q6581072';
@@ -802,4 +820,4 @@ for (const group of levelGroups) {
 }
 for (const item of items) delete item._;
 
-writeTopic('film', { collections, items });
+await addExtra({ collections, items });
