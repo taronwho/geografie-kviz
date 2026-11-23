@@ -340,6 +340,8 @@ language sql immutable set search_path = public as $$
         'zlatokop-10', 'zlatokop-50', 'zlatokop-100',
         -- Schéma 21: Boss týdne (emblémy poražených bossů)
         'boss-kapitan', 'boss-rytir', 'boss-alchymista', 'boss-amper', 'boss-maestro', 'boss-druid', 'boss-olympan', 'boss-reziser',
+        -- Schéma 51: emblémy dalších bossů týdne předem (do hry je pustí až scripts/boss-zapoj.mjs, až budou mít obrázky)
+        'boss-herold', 'boss-permonik', 'boss-stavitel', 'boss-malir', 'boss-kronikar', 'boss-trener', 'boss-vynalezce', 'boss-sefkuchar',
         -- Schéma 21: Dobývání (vyhrané hry)
         'dobyvatel', 'dobyvatel-3', 'dobyvatel-10', 'dobyvatel-25', 'dobyvatel-50',
         -- Schéma 21: Kamarádské sázky (rozhodnuté sázky a vyhrané sázky v řadě)
@@ -7807,7 +7809,15 @@ language sql immutable set search_path = public as $$
         ('boss-maestro', array['boss-maestro']),
         ('boss-druid', array['boss-druid']),
         ('boss-olympan', array['boss-olympan']),
-        ('boss-reziser', array['boss-reziser'])
+        ('boss-reziser', array['boss-reziser']),
+        ('boss-herold', array['boss-herold']),
+        ('boss-permonik', array['boss-permonik']),
+        ('boss-stavitel', array['boss-stavitel']),
+        ('boss-malir', array['boss-malir']),
+        ('boss-kronikar', array['boss-kronikar']),
+        ('boss-trener', array['boss-trener']),
+        ('boss-vynalezce', array['boss-vynalezce']),
+        ('boss-sefkuchar', array['boss-sefkuchar'])
     ) as t (grp, tiers);
 $$;
 -- Má hráč odznak (přímo, nebo vyšší stupeň téže skupiny)?
@@ -10022,7 +10032,10 @@ end $$;
 -- 50: turnaj se nezruší, chybějící místa do 8 doplní boti (tournament_fill_bots, tournament_start); nová témata Technika a vynálezy a Jídlo a pití (odznaky tema-technika-*, zbehly-technika-*, tema-jidlo-*, zbehly-jidlo-* v badge_catalog a badge_tiers);
 --     jejich odměny v unlock_catalog(): legendární postavičky Mravenec konstruktér (mraven, diploma:technika) a Medvěd šéfkuchař (medved, diploma:jidlo),
 --     sady doplňků klic, ozubene-kolo, celovka (zbehly-technika, tema-technika-300, -1000) a kucharska-cepice, kucharsky-satek, panev (zbehly-jidlo, tema-jidlo-300, -1000).
+-- 51: emblémy osmi dalších bossů týdne v katalogu odznaků předem (boss-herold, boss-permonik, boss-stavitel, boss-malir, boss-kronikar,
+--     boss-trener, boss-vynalezce, boss-sefkuchar v badge_catalog() a badge_tiers()). Do hry (rotace, quiz-core.js BOSS_EMBLEMS) je pustí
+--     až scripts/boss-zapoj.mjs, až budou mít obrázky; server je tak uloží hned od prvního souboje bez dalšího spuštění schématu.
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 50 $$;
+language sql immutable as $$ select 51 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

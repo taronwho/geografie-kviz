@@ -14,6 +14,7 @@ const Social = require('../social.js');
 const Look = require('../look.js');
 const Owl = require('../look-owl.js');
 const Core = require('../quiz-core.js');
+const Boss = require('../boss.js');
 const Album = require('../album.js');
 const Rewards = require('../rewards.js');
 const RobeColor = require('../robe-color.js');
@@ -217,7 +218,10 @@ test('katalog odemčení v databázi odpovídá look.js a friends.js; úrovně a
     assert.deepEqual(levels, Core.LEVEL_XP);
     const tiers = [...block.slice(block.indexOf('function public.badge_tiers()'), block.indexOf('as t (grp, tiers)')).matchAll(/\('([a-z0-9-]+)', array\[([^\]]+)\]\)/g)]
         .map(m => [m[1], m[2].split(',').map(id => id.trim().replace(/'/g, ''))]);
-    assert.deepEqual(tiers, Core.BADGE_GROUPS.map(group => [group.id, group.badges.map(badge => badge.id)]));
+    // Navíc jen emblémy bossů, kteří čekají na obrázky (boss.js PENDING, blok 51), a to na konci
+    const pending = Boss.PENDING.map(boss => Boss.badgeId(boss.id));
+    assert.deepEqual(tiers.filter(([id]) => !pending.includes(id)), Core.BADGE_GROUPS.map(group => [group.id, group.badges.map(badge => badge.id)]));
+    assert.deepEqual(tiers.filter(([id]) => pending.includes(id)), pending.map(id => [id, [id]]));
 });
 
 test('album: rámečky za pozvánky a prestiž jen když je hráč má, do procent se nepočítají', () => {

@@ -23,10 +23,11 @@ const CSP = fs.readFileSync(path.join(ROOT, '_headers'), 'utf8').match(/Content-
 const PHOTO = fs.readFileSync(path.join(ROOT, 'icons', 'topics', 'sova-vitej.webp'));
 const CONFIG = 'window.MUDRLANT_CONFIG = { supabaseUrl: "https://proj.supabase.co", supabaseAnonKey: "anon-key" };';
 const REQUIRED_SCHEMA = Number(/const REQUIRED_SCHEMA = (\d+);/.exec(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8'))[1]);
-// Týden 9.–15. 11. 2026: boss Kapitán Mudrlant (Zeměpis – testovací data ho mají); čtvrtek 12. 11. ve 13:00 pražského času (UTC+1)
-const WEEK = '2034-05-15';
-const NEXT_WEEK = '2034-05-22';
-const NOW = new Date('2034-05-18T12:00:00Z');
+// Týden s bossem Kapitánem Mudrlantem (Zeměpis – testovací data ho mají) a 950 životy (s nimi počítá zjednodušená databáze níž):
+// první takový od 15. 5. 2034 (dnes právě ten), takže test vydrží i přidání dalších bossů do rotace (scripts/boss-zapoj.mjs); čtvrtek v poledne UTC
+const WEEK = (() => { let week = '2034-05-15'; while (Boss.bossForWeek(week).id !== 'kapitan' || Boss.hpForWeek(week) !== 950) week = Boss.addWeeks(week, 1); return week; })();
+const NEXT_WEEK = Boss.addWeeks(WEEK, 1);
+const NOW = new Date(Date.parse(`${WEEK}T12:00:00Z`) + 3 * 86400000);
 const SHOTS = process.env.BOSS_SHOTS || '';
 
 const serveFile = (pathname) => {
@@ -456,7 +457,7 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         await tab.click('[data-action="boss-open"]');
         await tab.waitForSelector('#boss-intro');
         assert.equal(await tab.$('[data-action="boss-start"]'), null);
-        assert.match(await compact(tab, '[data-boss-next]'), /V pondělí přijde Rytíř Mudrlant/);
+        assert.ok((await compact(tab, '[data-boss-next]')).includes(`V pondělí přijde ${Boss.bossForWeek(NEXT_WEEK).name}`));
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();
@@ -570,15 +571,15 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         assert.deepEqual(log.csp, []);
         await context.close();
 
-        // Příští týden: společný bonus za minulý týden (jednou) i pomůcka Záchrana navíc do Řetězovky (blok 37), boss Rytíř Mudrlant
+        // Příští týden: společný bonus za minulý týden (jednou) i pomůcka Záchrana navíc do Řetězovky (blok 37), boss příštího týdne
         db.bonus = { xp: 50, item: { kind: 'chain_rescue', granted: true, full: false, already: false, count: 1, max: 1 } };
         // XP z účtu (falešný profil má 100) + společný bonus
         const xpBefore = 100;
-        const later = await open(browser, login('tok-u1'), { viewport: { width: 390, height: 780 }, db, time: new Date('2034-05-22T09:00:00Z') });
-        await later.tab.waitForFunction(() => JSON.parse(localStorage.getItem('mudrlant.boss') || '{"claims":{}}').claims['u-1'] === '2034-05-15');
+        const later = await open(browser, login('tok-u1'), { viewport: { width: 390, height: 780 }, db, time: new Date(`${NEXT_WEEK}T09:00:00Z`) });
+        await later.tab.waitForFunction((week) => JSON.parse(localStorage.getItem('mudrlant.boss') || '{"claims":{}}').claims['u-1'] === week, WEEK);
         // Bonus se zkouší za minulý týden jednou: 2. 11. (při prvním otevření, cíl nesplněn) a 9. 11. (splněno: +50 XP)
         const claim = db.calls.filter(call => call.name === 'boss_claim_bonus');
-        assert.deepEqual(claim.map(call => call.body), [{ for_week: '2034-05-08' }, { for_week: WEEK }]);
+        assert.deepEqual(claim.map(call => call.body), [{ for_week: Boss.addWeeks(WEEK, -1) }, { for_week: WEEK }]);
         assert.equal((await progress(later.tab)).xp, xpBefore + 50);
         await later.tab.waitForSelector('#celebration');
         assert.match(await compact(later.tab, '#celebration'), /Společná výhra!/);
@@ -586,7 +587,7 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         await later.tab.waitForFunction(() => /Nová pomůcka: Záchrana navíc/.test((document.getElementById('celebration') || {}).textContent || ''), null, { timeout: 15000 });
         assert.equal(await later.tab.locator('#celebration .cq-item-chain_rescue').count(), 1, 'pečeť Záchrany navíc');
         assert.match(await compact(later.tab, '#boss-card'), /3 pokusy/);
-        assert.match(await later.tab.getAttribute('#boss-card', 'aria-label'), /Rytíř Mudrlant/);
+        assert.ok((await later.tab.getAttribute('#boss-card', 'aria-label')).includes(Boss.bossForWeek(NEXT_WEEK).name));
         await later.tab.reload();
         await later.tab.waitForSelector('#boss-card');
         await wait(later.tab, 2000);

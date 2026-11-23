@@ -19,19 +19,12 @@
     // --- Obrázky (icons/topics/<název>.webp) na jednom místě ---
     // Pořadí stupňů: [1 Plná síla, 2 Zraněný, 3 V koncích, 4 Poražený]. Kdyby některý stupeň neměl vlastní obrázek (stejný jako stupeň 1),
     // změnu ukáží efekty a filtr (třídy boss-standin-* v src/input.css).
-    const ART = {
-        // Ilustrace bossů (docs/OBRAZKY.md č. 215–230 a 244–259, scripts/boss-art.py): Plná síla, Zraněný, V koncích, Poražený
-        kapitan: ['boss-kapitan', 'boss-kapitan-zraneny', 'boss-kapitan-vkoncich', 'boss-kapitan-porazeny'],
-        rytir: ['boss-rytir', 'boss-rytir-zraneny', 'boss-rytir-vkoncich', 'boss-rytir-porazeny'],
-        alchymista: ['boss-alchymista', 'boss-alchymista-zraneny', 'boss-alchymista-vkoncich', 'boss-alchymista-porazeny'],
-        amper: ['boss-amper', 'boss-amper-zraneny', 'boss-amper-vkoncich', 'boss-amper-porazeny'],
-        maestro: ['boss-maestro', 'boss-maestro-zraneny', 'boss-maestro-vkoncich', 'boss-maestro-porazeny'],
-        druid: ['boss-druid', 'boss-druid-zraneny', 'boss-druid-vkoncich', 'boss-druid-porazeny'],
-        olympan: ['boss-olympan', 'boss-olympan-zraneny', 'boss-olympan-vkoncich', 'boss-olympan-porazeny'],
-        reziser: ['boss-reziser', 'boss-reziser-zraneny', 'boss-reziser-vkoncich', 'boss-reziser-porazeny'],
-        // Arény (pozadí úvodu a výsledku souboje na výšku): každý boss vlastní (č. 231 jeviště Maestra, 268–274 ostatní)
-        arena: { kapitan: 'arena-kapitan', rytir: 'arena-rytir', alchymista: 'arena-alchymista', amper: 'arena-amper', maestro: 'arena-maestro', druid: 'arena-druid', olympan: 'arena-olympan', reziser: 'arena-reziser' }
-    };
+    // Ilustrace bossů (docs/OBRAZKY.md č. 215–230 a 244–259, nových bossů č. 520–551; scripts/boss-art.py): boss-<id>, boss-<id>-zraneny,
+    // boss-<id>-vkoncich, boss-<id>-porazeny. Arény (pozadí úvodu a výsledku souboje na výšku): arena-<id> (č. 231 a 268–274, nových č. 552–559).
+    // Obrázky má každý boss ze soupisky (ROSTER); do hry se boss dostane, až je v rotaci (ROTATION), a tam ho zařadí scripts/boss-zapoj.mjs,
+    // teprve když všech pět obrázků v icons/topics je.
+    const STAGE_ART = (id) => [`boss-${id}`, `boss-${id}-zraneny`, `boss-${id}-vkoncich`, `boss-${id}-porazeny`];
+    const artNames = (id) => [...STAGE_ART(id), `arena-${id}`];
     const arenaOf = (boss) => (boss && ART.arena && ART.arena[boss.id]) || '';
 
     // --- Pravidla ---
@@ -68,13 +61,14 @@
     const COMMUNITY_SHARE = 0.5;
     const KEY = 'mudrlant.boss';
     const HISTORY_WEEKS = 16;
-    // Týden, kdy začal Kapitán (první v rotaci); rotace jde dál po týdnech v pořadí BOSSES
+    // Týden, kdy začal Kapitán (první v rotaci); od něj se počítá pořadové číslo týdne (weekSerial, životy bosse) a první úsek rotace
     const ROTATION_START = '2026-11-09';
 
     // --- Bossové: id, jméno (1. a 4. pád), krátký 2. pád do titulu, téma, povaha a hlášky ---
     // intro = úvodní řeč (3 varianty), hit = zásah, taunt = posměšek po chybě hráče podle stupně (1 nafoukaný, 2 nervózní, 3 zoufalý),
     // stage = hláška při přechodu do stupně 2 a 3, defeat = porážka bosse, win = boss vyhrál. Texty neoslovují hráče v minulém čase (rod).
-    const BOSSES = [
+    // ROSTER = všichni připravení bossové; ve hře (BOSSES) jsou jen ti z rotace (ROTATION níž), ostatní čekají na obrázky (PENDING).
+    const ROSTER = [
         {
             id: 'kapitan', name: 'Kapitán Mudrlant', whom: 'Kapitána Mudrlanta', title: 'Přemožitel Kapitána', topic: 'zemepis', epithet: 'Mořský vlk',
             intro: [
@@ -234,9 +228,190 @@
             },
             defeat: ['Střih! Konec! Tohle drama vyhrála hlavní hvězda. Oscar je tvůj!', 'Padá opona… Bravo! Takový konec bych nenatočil ani já.'],
             win: ['Střih! Šťastný konec pro režiséra. Zkus to znovu, natočíme pokračování!', 'A je to v plechovce! Dnes vítězí režie.']
+        },
+        // --- Další bossové (docs/OBRAZKY.md oddíl 41, č. 520–559): do rotace je zařadí scripts/boss-zapoj.mjs, až budou mít všechny obrázky ---
+        {
+            id: 'herold', name: 'Herold', whom: 'Herolda', title: 'Přemožitel Herolda', topic: 'vlajky', epithet: 'Královský hlasatel',
+            intro: [
+                'Trararáá! Z rozkazu Jeho Veličenstva ohlašuji souboj! Znám každou vlajku od Andorry po Zimbabwe a každý erb i s jeho lvem.',
+                'Prapory vzhůru! Viděl jsem víc vlajek, než má vítr nápadů. Hádej barvy, pruhy a hvězdy, jestli si troufáš!',
+                'Ticho, ať je slyšet fanfára! Dnes se ukáže, kdo pozná lva od gryfa a Čad od Rumunska. Nápověda: já ano.'
+            ],
+            hit: ['Au! Spadl mi prapor na zobák!', 'Trarará… au! Fanfára se zadrhla!', 'Můj erb dostal ránu!'],
+            taunt: {
+                1: ['Ha! Tohle by poznal i orel ze státního znaku!', 'Vedle! Tahle odpověď je pomíchaná jako vlajka po vyprání.', 'Trararáá! Ohlašuji chybu na celé náměstí!'],
+                2: ['Uf… chyba. Prapor ještě vlaje, i když trochu nakřivo.', 'Ha! Ale… proč se mi třese žerď?'],
+                3: ['Chyba! Rychle, vztyčit prapor! Ještě se nevzdávám!', 'Ještě troubím! Sice falešně, ale troubím!']
+            },
+            stage: {
+                2: ['Au! Můj plášť s erbem je celý pomačkaný!', 'Fanfára mi zabublala! Tohle se u dvora nesmí!'],
+                3: ['Prapor je na cáry… ale stažený ještě není!', 'Lev z mého erbu se schoval za štít. Zbabělec!']
+            },
+            defeat: ['Ohlašuji vítěze! Trararáá! Tvé jméno poneseme na všech praporech.', 'Vytahuji bílou vlajku… Tu znám ze všech nejlíp. Gratuluju!'],
+            win: ['Trararáá! Vítězí Herold! Přijď zas, až se naučíš všechny pruhy a hvězdy.', 'Prapory vlají na mé straně. Příště si vezmi atlas vlajek!']
+        },
+        {
+            id: 'permonik', name: 'Permoník', whom: 'Permoníka', title: 'Přemožitel Permoníka', topic: 'geologie', epithet: 'Pán podzemí',
+            intro: [
+                'Zdař bůh! Vítej v mé štole. Kopu tu tisíc let a každý kámen znám jménem. Dnes zjistíme, jestli máš v hlavě žulu, nebo písek.',
+                'Rozsviť lucernu a pozor na hlavu! Deset otázek leží hluboko pod zemí a já je hlídám jako poklad.',
+                'Krumpáč nabroušený, lucerna svítí! Diamant má tvrdost deset a moje otázky… taky deset!'
+            ],
+            hit: ['Au! Spadl mi strop na čepici!', 'Ouvej, kámen úrazu!', 'Tohle otřáslo celou štolou!'],
+            taunt: {
+                1: ['Cha! Tohle ví každý oblázek v potoce!', 'Vedle jak hlušina! Kopej hlouběji.', 'Špatně! Tvoje odpověď se právě rozpadla na prach.'],
+                2: ['Uf… chyba. Aspoň si na chvilku opřu krumpáč.', 'Ha! Ale… proč se mi sype štola?'],
+                3: ['Chyba! Rychle, podpěry! Ještě mě to nezavalilo!', 'Ještě kopu! Pomalu, ale kopu!']
+            },
+            stage: {
+                2: ['Au! Lucerna mi zablikala a čepice je samý prach!', 'Tohle byl pořádný otřes! Seismograf by se zbláznil!'],
+                3: ['Krumpáč je tupý jako pískovec… ale ještě se nedám!', 'Zával na obzoru! Ale permoník se z podzemí nevzdává!']
+            },
+            defeat: ['Zavalen! Tvoje znalosti jsou tvrdší než diamant. Poklad je tvůj!', 'Zdař bůh a sbohem… Tohle byl skutečný drahokam mezi výkony!'],
+            win: ['Zdař bůh! Štola zůstává moje. Přijď zas, až se prokopeš hlouběji!', 'Kámen na kameni zůstal stát. Dnes vítězí permoník!']
+        },
+        {
+            id: 'stavitel', name: 'Mistr stavitel', whom: 'Mistra stavitele', title: 'Přemožitel Mistra stavitele', topic: 'architektura', epithet: 'Pán lešení',
+            intro: [
+                'Pozor, stavba! Postavil jsem katedrálu, dva hrady a jednu kůlnu na zahradě. Dnes stavím deset otázek a každá drží jako beton!',
+                'Vítej na mém staveništi! Nasaď si přilbu a do plánů mi nekoukej. Gotika, baroko, funkcionalismus… znám každý sloup.',
+                'Základy jsou položené, lešení stojí! Teď se ukáže, jestli tvoje vědění unese i střechu.'
+            ],
+            hit: ['Au! Spadla mi cihla na nohu!', 'Ouha, praskla mi klenba!', 'Lešení se mi zakymácelo!'],
+            taunt: {
+                1: ['Cha! Tohle by věděl i učeň, co míchá maltu!', 'Vedle! Taková stavba by nevydržela ani do kolaudace.', 'Špatně! Na tomhle bych nepostavil ani psí boudu.'],
+                2: ['Uf… chyba. Aspoň stihnu podepřít tenhle sloup.', 'Ha! Ale… proč se mi naklání komín?'],
+                3: ['Chyba! Rychle, ještě jednu podpěru! Stavba stojí!', 'Ještě nespadla ani střecha! Teda… jen trochu.']
+            },
+            stage: {
+                2: ['Au! Můj plán je potrhaný a pravítko zlomené!', 'Tohle nebylo ve stavebním povolení!'],
+                3: ['Fasáda opadává… ale nosná zeď ještě drží!', 'Moje věž se naklání jako ta v Pise!']
+            },
+            defeat: ['Bourám se… Tvoje vědění má pevnější základy než moje katedrála.', 'Kolaudace neprošla! Tahle stavba teď patří tobě.'],
+            win: ['Stavba stojí a mistr taky! Přijď zas, až si přečteš plány.', 'Zkolaudováno! Dnes vítězí mistr stavitel.']
+        },
+        {
+            id: 'malir', name: 'Malíř', whom: 'Malíře', title: 'Přemožitel Malíře', topic: 'umeni', epithet: 'Mistr štětce',
+            intro: [
+                'Ach, múza mě políbila! Dnes namaluji deset otázek a ty budeš můj model. Jen se neusmívej tak záhadně, to už tu jednou bylo!',
+                'Vítej v mém ateliéru! Znám každý obraz od jeskyně po galerii. Hádej dobře, jinak tě přemaluji na zátiší!',
+                'Paleta připravená, štětec namočený! Uvidíme, jestli tvoje znalosti mají barvu, nebo jsou jen šedá skvrna.'
+            ],
+            hit: ['Au! Kaňka přímo na plátno!', 'Ach ne, zlomil se mi štětec!', 'Moje paleta! Barvy se slévají!'],
+            taunt: {
+                1: ['Cha! Tohle by poznala i moje paleta!', 'Vedle! Přesné asi jako kubistický portrét.', 'Špatně! Tohle bych přetřel bílou barvou.'],
+                2: ['Uf… chyba. Aspoň stihnu domalovat stín.', 'Ha! Ale… proč se mi třese ruka se štětcem?'],
+                3: ['Chyba! Rychle, ještě jeden tah štětcem! Obraz není hotový!', 'Ještě maluju! Trochu rozmazaně, ale maluju!']
+            },
+            stage: {
+                2: ['Au! Barva mi stříká až na baret!', 'Můj obraz má kaňku! To je teď moderní umění?'],
+                3: ['Plátno je samá díra… ale podpis tam ještě není!', 'Došla mi modrá, zelená i trpělivost!']
+            },
+            defeat: ['Ó, nádhera! Tohle je mistrovské dílo a podpis na něm patří tobě!', 'Odkládám štětec… Tvoje znalosti by visely v každé galerii.'],
+            win: ['Hotovo, podepsáno, pověšeno! Dnes vítězí malíř. Přijď zas!', 'Další mistrovské dílo do mé sbírky! Příště zkus víc barev.']
+        },
+        {
+            id: 'kronikar', name: 'Kronikář', whom: 'Kronikáře', title: 'Přemožitel Kronikáře', topic: 'literatura', epithet: 'Strážce příběhů',
+            intro: [
+                'Vítej v mé knihovně! Zapisuji každý příběh, co kdy kdo napsal. Dnešní kapitola se jmenuje Souboj a její konec napíšeš ty.',
+                'Pst, tady se šeptá! Přečetl jsem všechny knihy světa a dvě jsem i napsal. Deset otázek a žádné listování na konec!',
+                'Brk je namočený, kronika otevřená! Každou tvou chybu zapíšu krasopisem, aby ji četla i pravnoučata.'
+            ],
+            hit: ['Au! Zlomil se mi brk!', 'Ouha, vypadla mi stránka!', 'Kapitola se mi rozsypala!'],
+            taunt: {
+                1: ['Cha! Tohle stojí hned na první stránce!', 'Vedle! Zapíšu to do kroniky mezi kuriozity.', 'Špatně! Takový konec by neprošel ani v brakovém románu.'],
+                2: ['Uf… chyba. Aspoň stihnu otočit list.', 'Ha! Ale… proč se mi rozpíjí inkoust?'],
+                3: ['Chyba! Rychle, ještě jednu kapitolu! Příběh nekončí!', 'Ještě píšu! Roztřeseným písmem, ale píšu!']
+            },
+            stage: {
+                2: ['Au! Moje kronika má oslí uši!', 'Inkoust mi vyšplíchl na plášť! To je ale nečekaný zvrat!'],
+                3: ['Došel mi inkoust… ale poslední slovo ještě nepadlo!', 'Vidím slovo Konec… ne, ne, to je jen kaňka!']
+            },
+            defeat: ['Zapisuji do kroniky: dnes jsem byl poražen. A tvé jméno píšu zlatým písmem!', 'Zavírám knihu… Tenhle příběh má šťastný konec, jen ne pro mě.'],
+            win: ['Zapsáno a podtrženo: vítězí kronikář! Přijď zas, příběh pokračuje.', 'Konec prvního dílu! Ve druhém to třeba dopadne jinak.']
+        },
+        {
+            id: 'trener', name: 'Trenér', whom: 'Trenéra', title: 'Přemožitel Trenéra', topic: 'sport', epithet: 'Věčný šampion',
+            intro: [
+                'Píííp! Konec rozcvičky! Mám tolik medailí, že mě z nich bolí krk. Deset otázek a ani o jednu míň!',
+                'Vítej na stadionu! Dnes tě proženu deseti otázkami. Kdo neví, dělá dvacet kliků!',
+                'Na místa, připravit, pozor… otázka! Žádné vymlouvání, žádné střídání, hraje se do posledního hvizdu.'
+            ],
+            hit: ['Au! Gól do mé sítě!', 'Píííp! Faul na trenéra!', 'Stopky mi vypadly z ruky!'],
+            taunt: {
+                1: ['Cha! Tohle ví každý míč na hřišti!', 'Vedle! To byla tyčka, a ještě ta ze sousedního hřiště.', 'Špatně! Za to máš kolečko kolem stadionu.'],
+                2: ['Uf… chyba. Aspoň chytím druhý dech.', 'Ha! Ale… proč mě píchá v boku?'],
+                3: ['Chyba! Rychle, iontový nápoj! Ještě nejsem v cíli!', 'Ještě běžím! Šnečím tempem, ale běžím!']
+            },
+            stage: {
+                2: ['Au! Natáhl jsem si sval i tepláky!', 'Píšťalka mi chrčí! Tohle je proti pravidlům!'],
+                3: ['Dochází mi dech… ale do cíle doběhnu!', 'Červená karta na obzoru! Ale z hřiště ještě neodcházím!']
+            },
+            defeat: ['Píííp! Konec zápasu! Zlatá medaile patří tobě.', 'Poražen na celé čáře… Takový výkon nemám ani na tréninku!'],
+            win: ['Píííp! Vítězí trenér! Přijď zas, trénink začíná v šest ráno.', 'Zlato zůstává doma! Příště víc tréninku a míň oddechu.']
+        },
+        {
+            id: 'vynalezce', name: 'Vynálezce', whom: 'Vynálezce', title: 'Přemožitel Vynálezce', topic: 'technika', epithet: 'Génius s robotem',
+            intro: [
+                'Heuréka! Vítej v mé dílně! Tohle je Šroubek, můj robot. Spočítá, kolik otázek zvládneš. Prý žádnou.',
+                'Pozor, nešlápni na ozubené kolo! Sestrojil jsem deset otázek a na každou mám patent.',
+                'Páky nahoru, páru do kotle! Šroubku, zapni počítadlo. Tohle bude nejchytřejší souboj od vynálezu knihtisku!'
+            ],
+            hit: ['Au! Vyletěl mi šroubek!', 'Bzz… cvak! Prototyp nefunguje!', 'Ozubené kolo se mi zaseklo!'],
+            taunt: {
+                1: ['Cha! Tohle by spočítal i Šroubek, a ten umí jen do tří.', 'Vedle! Tohle řešení si patentovat nedám.', 'Špatně! Šroubku, zapiš to mezi nepovedené pokusy.'],
+                2: ['Uf… chyba. Aspoň stihnu dotáhnout matičku.', 'Ha! Ale… proč Šroubkovi bliká kontrolka?'],
+                3: ['Chyba! Rychle, náhradní díly! Ještě se nerozpadám!', 'Ještě to šlape! Skřípe to, kouří se z toho, ale šlape!']
+            },
+            stage: {
+                2: ['Au! Šroubek mi utekl a kolečka se rozkutálela!', 'Z mé dílny se kouří! To nebylo v návodu!'],
+                3: ['Prototyp se rozpadá… ale nápad mi ještě zbyl!', 'Šroubku, zachraň mě! Šroubku? Kam zase jedeš?!']
+            },
+            defeat: ['Heuréka… teda au! Tvoje znalosti jsou ten největší vynález. Gratuluju!', 'Systém selhal, robot se vzdává a já taky. Patent na výhru je tvůj!'],
+            win: ['Heuréka! Vynález funguje a vítězí vynálezce! Přijď zas, Šroubek se těší.', 'Zkouška se zdařila! Příště si přines lepší nářadí.']
+        },
+        {
+            id: 'sefkuchar', name: 'Šéfkuchař', whom: 'Šéfkuchaře', title: 'Přemožitel Šéfkuchaře', topic: 'jidlo', epithet: 'Mistr plotny',
+            intro: [
+                'Vítej v mé kuchyni! Dnes vařím deset otázek, pořádně opepřených. Kdo neví, myje nádobí!',
+                'Zástěru na sebe a pozor, pánev je horká! Znám recepty z celého světa, od svíčkové po sushi. Uvidíme, jestli nemáš znalosti nedovařené!',
+                'Pokličky cinkají, polévka bublá! Dnešní menu: deset otázek a na zákusek tvoje porážka.'
+            ],
+            hit: ['Au! Spálil jsem si křídlo o pánev!', 'Ouvej, připálilo se mi to!', 'Vypadla mi vařečka!'],
+            taunt: {
+                1: ['Cha! Tohle ví každý knedlík!', 'Vedle! Tahle odpověď je přesolená.', 'Špatně! Tohle bych nenaservíroval ani v jídelně.'],
+                2: ['Uf… chyba. Aspoň stihnu zamíchat omáčku.', 'Ha! Ale… proč se mi sráží šlehačka?'],
+                3: ['Chyba! Rychle, ještě špetku soli! Ještě nejsem dovařený!', 'Ještě vařím! Trochu připáleně, ale vařím!']
+            },
+            stage: {
+                2: ['Au! Polévka mi vykypěla i s pokličkou!', 'Moje čepice spadla do těsta! Tohle v receptu není!'],
+                3: ['Pánev je prázdná a sporák vychladl… ale poslední chod ještě přijde!', 'Kdo mi snědl recept?! Vařím zpaměti!']
+            },
+            defeat: ['Sundávám čepici… Tvoje znalosti jsou lahůdka hodná pěti hvězdiček!', 'Připálil jsem to! Dnes vládne kuchyni někdo jiný. Dobrou chuť!'],
+            win: ['Dovařeno! Dnes vítězí šéfkuchař. Přijď zas, mám ještě dezert!', 'Menu dne: tvoje porážka s oblohou! Příště si přines vlastní vařečku.']
         }
     ];
+    const ROSTER_BY_ID = Object.fromEntries(ROSTER.map(boss => [boss.id, boss]));
+
+    // --- Rotace: úseky po týdnech ---
+    // Od týdne from se po týdnech střídají bossové ids (v týdnu from ids[0], další týden ids[1] … a dokola); úsek platí do začátku dalšího.
+    // Nový úsek smí začít jen v budoucím týdnu, takže boss žádného už proběhlého ani běžícího týdne se nezmění (hlídá tests/boss.test.js).
+    // Blok mezi značkami přepisuje scripts/boss-zapoj.mjs (extendRotation níž), až mají noví bossové všechny obrázky; ručně ho neupravuj.
+    // @rotace-zacatek
+    const ROTATION = [
+        { from: '2026-11-09', ids: ['kapitan', 'rytir', 'alchymista', 'amper', 'maestro', 'druid', 'olympan', 'reziser'] }
+    ];
+    // @rotace-konec
+    // Bossové ve hře: ze všech úseků rotace v pořadí, v jakém do ní přišli (stejné pořadí má BOSS_EMBLEMS v quiz-core.js);
+    // ostatní ze soupisky čekají na obrázky (PENDING) a ve hře nejsou vůbec (Síň bossů, emblémy, odznaky, uložený stav)
+    const ACTIVE_IDS = [...new Set(ROTATION.flatMap(segment => segment.ids))].filter(id => ROSTER_BY_ID[id]);
+    const BOSSES = ACTIVE_IDS.map(id => ROSTER_BY_ID[id]);
+    const PENDING = ROSTER.filter(boss => !ACTIVE_IDS.includes(boss.id));
     const BY_ID = Object.fromEntries(BOSSES.map(boss => [boss.id, boss]));
+    const ART = {
+        ...Object.fromEntries(ROSTER.map(boss => [boss.id, STAGE_ART(boss.id)])),
+        arena: Object.fromEntries(ROSTER.map(boss => [boss.id, `arena-${boss.id}`]))
+    };
     // Stupně bosse podle zbývajících životů
     const STAGES = [
         { stage: 1, name: 'Plná síla' },
@@ -286,7 +461,36 @@
         for (let bit = 26; bit < 32; bit += 1) steps += (h >>> bit) & 1;
         return HP_MIN + HP_STEP * steps;
     };
-    const bossForWeek = (week) => BOSSES[((weekSerial(week) % BOSSES.length) + BOSSES.length) % BOSSES.length];
+    // Boss týdne podle úseků rotace (týden před prvním úsekem jako by první úsek běžel i dřív); rotationIdFor počítá s libovolnými úseky
+    const weeksBetween = (from, week) => Math.round((dayNumber(week) - dayNumber(from)) / 7);
+    const rotationIdFor = (rotation, week) => {
+        const segment = [...rotation].reverse().find(entry => entry.from <= week) || rotation[0];
+        const count = segment.ids.length;
+        return segment.ids[((weeksBetween(segment.from, week) % count) + count) % count];
+    };
+    const bossForWeek = (week) => BY_ID[rotationIdFor(ROTATION, week)];
+    // Nový úsek rotace od budoucího týdne from s novými bossy addIds (scripts/boss-zapoj.mjs): noví se střídají s dosavadními v pořadí,
+    // v jakém by dosavadní úsek pokračoval, takže od týdne from přijde hned nový boss a ten z minulého týdne je v kole až poslední.
+    // Dřívější úseky zůstanou, jak byly. Vrátí novou rotaci; při chybě (týden není pondělí, není po začátku posledního úseku, nic nového) hodí výjimku.
+    const extendRotation = (rotation, addIds, from) => {
+        const last = rotation[rotation.length - 1];
+        if (!isWeek(from)) throw new Error(`Týden ${from} není pondělí.`);
+        if (from <= last.from) throw new Error(`Nový úsek rotace musí začít po ${last.from}.`);
+        const known = new Set(rotation.flatMap(segment => segment.ids));
+        const unknown = (addIds || []).filter(id => !ROSTER_BY_ID[id]);
+        if (unknown.length) throw new Error(`Neznámí bossové: ${unknown.join(', ')}.`);
+        const fresh = [...new Set(addIds || [])].filter(id => !known.has(id));
+        if (!fresh.length) throw new Error('Žádný nový boss do rotace.');
+        const shift = weeksBetween(last.from, from);
+        const count = last.ids.length;
+        const next = last.ids.map((_, index) => last.ids[(((shift + index) % count) + count) % count]);
+        const ids = [];
+        for (let index = 0; index < Math.max(fresh.length, next.length); index++) {
+            if (index < fresh.length) ids.push(fresh[index]);
+            if (index < next.length) ids.push(next[index]);
+        }
+        return [...rotation.map(segment => ({ from: segment.from, ids: [...segment.ids] })), { from, ids }];
+    };
     // „9.–15. 11.“ nebo „30. 11. – 6. 12.“
     const weekLabel = (week) => {
         if (!isWeek(week)) return '';
@@ -800,7 +1004,7 @@
 
     return {
         ART, HP_MIN, HP_MAX, hpForWeek, KINDS, LOADOUT_MAX, FREEZE_MS, FREE_HINT_MS, HEARTS_MAX, attemptCap, grantExtraAttempt, fightStatusOf, BASE_DAMAGE, SPEED_BONUS, FULL_BONUS_MS, ZERO_BONUS_MS, HEARTS, QUESTIONS, ATTEMPTS, TYPED_SLOTS, HALF_TIME_FROM, TIME_MS, TYPED_TIME_MS, TIERS,
-        WIN_XP, COMMUNITY_XP, COMMUNITY_SHARE, KEY, ROTATION_START, BOSSES, BY_ID, STAGES, TRICKS,
+        WIN_XP, COMMUNITY_XP, COMMUNITY_SHARE, KEY, ROTATION_START, ROTATION, ROSTER, ROSTER_BY_ID, PENDING, BOSSES, BY_ID, STAGES, TRICKS, artNames, rotationIdFor, extendRotation,
         pragueDay, mondayOf, isWeek, weekOf, addWeeks, weekSerial, bossForWeek, weekLabel, formatDay, attemptsWord, attemptsLeftText,
         hash32, seededRandom, seedFor, questionSeed, tiersOf, candidatesFor,
         isTyped, isHalfTime, timeLimit, trickOf, speedBonus, damageFor, hpPercent, stageOf, stageName, fightStatus, artFor, isStandIn, pickLine, lineFor,

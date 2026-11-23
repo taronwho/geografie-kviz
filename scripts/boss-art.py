@@ -1,9 +1,10 @@
-# Bossové týdne (docs/OBRAZKY.md č. 215–230, 244–259) a jejich arény (č. 231, 268–274).
+# Bossové týdne (docs/OBRAZKY.md č. 215–230, 244–259, nových bossů č. 520–551) a jejich arény (č. 231, 268–274, 552–559).
+# Nové bosse zapojuje scripts/boss-zapoj.mjs, který tenhle skript sám spustí pro chybějící obrázky.
 #  - branding/ikony/boss-<id>[-zraneny|-vkoncich|-porazeny].png → icons/topics/boss-….webp (SIZE × SIZE, průhledné pozadí).
 #    Pozadí se vyřízne jako u ikon (scripts/topic-icons.py cut()) s jednou výjimkou: díra uvnitř postavy (mezera mezi křídlem
 #    a tělem) je průhledná, jen když ji lemuje teplý krémový okraj samolepky. Frak Maestra nebo svetr Režiséra mají skoro barvu
 #    pozadí a lemuje je bílá košile nebo tmavá linka, takže zůstanou. Postava stojí u spodního okraje (v aréně na zemi).
-#  - branding/areny/arena-<id>.jpg → icons/topics/arena-<id>.webp (na výšku, šířka ARENA_W).
+#  - branding/areny/arena-<id>.jpg (nebo .png) → icons/topics/arena-<id>.webp (na výšku, šířka ARENA_W).
 # Spuštění: python3 scripts/boss-art.py [jméno …] [--preview=soubor.png]   (Pillow, numpy)
 import os, sys, glob, importlib.util
 from PIL import Image
@@ -64,7 +65,9 @@ def portrait(name):
     return canvas
 
 def arena(name):
-    im = Image.open(os.path.join(root, 'branding', 'areny', name + '.jpg')).convert('RGB')
+    src = os.path.join(root, 'branding', 'areny', name + '.jpg')
+    if not os.path.exists(src): src = os.path.join(root, 'branding', 'areny', name + '.png')
+    im = Image.open(src).convert('RGB')
     im = im.resize((ARENA_W, round(im.height * ARENA_W / im.width)), Image.LANCZOS)
     out = os.path.join(root, 'icons', 'topics', name + '.webp')
     im.save(out, 'WEBP', quality=78, method=6)
@@ -75,8 +78,8 @@ if __name__ == '__main__':
     preview = next((x.split('=', 1)[1] for x in sys.argv[1:] if x.startswith('--preview=')), None)
     names = args or sorted(os.path.splitext(os.path.basename(p))[0] for p in glob.glob(os.path.join(root, 'branding', 'ikony', 'boss-*.png')))
     tiles = [portrait(n) for n in names if n.startswith('boss-')]
-    for p in sorted(glob.glob(os.path.join(root, 'branding', 'areny', 'arena-*.jpg'))):
-        n = os.path.splitext(os.path.basename(p))[0]
+    arenas = sorted({os.path.splitext(os.path.basename(p))[0] for p in glob.glob(os.path.join(root, 'branding', 'areny', 'arena-*.jpg')) + glob.glob(os.path.join(root, 'branding', 'areny', 'arena-*.png'))})
+    for n in arenas:
         if not args or n in args: arena(n)
     if preview and tiles:
         cols = 4
