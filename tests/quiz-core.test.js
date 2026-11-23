@@ -643,7 +643,7 @@ test('odznaky: skupiny se stupni, podmínky podle počítadel a postupu', () => 
     // Limit databáze (profiles_badges_len v supabase/schema.sql): nejvýš 500 odznaků a 12 000 znaků
     assert.ok(compact.length <= 500 && compact.join(',').length <= 12000, 'vejde se do limitu databáze');
     assert.ok(compact.filter(id => core.isAlbumBadge(id)).length <= 10, 'album sbírky přidá nejvýš deset skupin');
-    assert.ok(compact.filter(id => core.isBossBadge(id)).length <= 14, 'bossové týdne přidají nejvýš čtrnáct emblémů (jeden na téma)');
+    assert.ok(compact.filter(id => core.isBossBadge(id)).length <= 16, 'bossové týdne přidají nejvýš šestnáct emblémů (jeden na téma)');
     assert.deepEqual(core.earnedBadgeIds({}, { ...x, bosses: { kapitan: '2026-11-09' } }), ['boss-kapitan'], 'emblém za poraženého bosse');
     assert.deepEqual([...core.expandBadges(compact)].sort(), [...many].sort());
     assert.deepEqual(core.expandBadges(['stovka']).sort(), ['odpovedi-10', 'odpovedi-50', 'prvni-krok', 'stovka'].sort());

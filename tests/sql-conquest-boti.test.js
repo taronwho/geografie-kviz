@@ -73,7 +73,7 @@ test('SQL: boti v Dobývání (blok 42)', { skip: !available && 'PostgreSQL nen�
     q([[A, 'Alfa'], [B, 'Beta'], [C, 'Gama'], [D, 'Delta']].map(([uid, name], i) => `insert into auth.users (id, email, raw_user_meta_data) values ('${uid}', 'u${i + 1}@example.com', '{"full_name": "${name}"}');`).join('\n'));
 
     await t.test('verze 43; přidat a odebrat boty smí jen přihlášený, pomocné funkce nikdo; jména botů', () => {
-        assert.equal(last(ok(as(A, 'select schema_version();'))), '50');
+        assert.equal(last(ok(as(A, 'select schema_version();'))), /const REQUIRED_SCHEMA = (\d+);/.exec(require('node:fs').readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8'))[1]);
         const can = (role, fn) => q(`select has_function_privilege('${role}', 'public.${fn}', 'execute')`);
         for (const fn of ['conquest_add_bots(uuid, integer, text)', 'conquest_remove_bot(uuid, uuid)']) {
             assert.deepEqual([can('authenticated', fn), can('anon', fn), can('public', fn)], ['t', 'f', 'f'], fn);

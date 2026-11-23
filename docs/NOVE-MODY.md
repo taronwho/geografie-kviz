@@ -165,7 +165,7 @@ Co ukáže obrazovka otázky (listopad 2026; Řetězovka, č. 6, má vlastní pr
 
 ## 10. Boss týdne (Výzva od Mudrlanta)
 
-- **Bossové**: každý týden (ISO týden, pražský čas) je jiný boss, Mudrlant v převleku s vlastní povahou. Rotuje osm bossů a seznam půjde rozšířit na všech 14 témat:
+- **Bossové**: každý týden (ISO týden, pražský čas) je jiný boss, Mudrlant v převleku s vlastní povahou. Rotuje osm bossů; dalších osm (pro zbylá témata, takže boss má každé ze 16 témat) je v `boss.js` připravených (`ROSTER`) a do rotace je zařadí `scripts/boss-zapoj.mjs`, až budou mít obrázky (docs/OBRAZKY.md oddíl 41, č. 520–559). Rotace jde po úsecích (`ROTATION`): nový úsek začne vždy až od budoucího týdne, takže proběhlé ani běžící týdny se nezmění, a noví bossové se v něm střídají s dosavadními:
 
 | id | Jméno | Téma | Povaha |
 |---|---|---|---|
@@ -177,6 +177,14 @@ Co ukáže obrazovka otázky (listopad 2026; Řetězovka, č. 6, má vlastní pr
 | `druid` | Druid | Biologie | Klidný mudrc lesa, vtipkuje o houbách |
 | `olympan` | Olympan | Mytologie | Hromovládce, hřmí a vyhrožuje bleskem |
 | `reziser` | Režisér | Film | Dramatik, každou otázku „natáčí“ znovu |
+| `herold` | Herold | Vlajky a znaky | Královský hlasatel, všechno ohlašuje fanfárou *(čeká na obrázky)* |
+| `permonik` | Permoník | Geologie | Pán podzemí, hlídá poklady ve štole, zdraví „Zdař bůh!“ *(čeká na obrázky)* |
+| `stavitel` | Mistr stavitel | Architektura | Pán lešení, staví katedrály i kůlny, všechno kolauduje *(čeká na obrázky)* |
+| `malir` | Malíř | Výtvarné umění | Mistr štětce, temperamentní umělec, každá otázka je mistrovské dílo *(čeká na obrázky)* |
+| `kronikar` | Kronikář | Literatura | Strážce příběhů, každou chybu zapíše krasopisem *(čeká na obrázky)* |
+| `trener` | Trenér | Sport | Věčný šampion s píšťalkou, kdo neví, dělá kliky *(čeká na obrázky)* |
+| `vynalezce` | Vynálezce | Technika a vynálezy | Génius s robotem Šroubkem, na každou otázku má patent *(čeká na obrázky)* |
+| `sefkuchar` | Šéfkuchař | Jídlo a pití | Mistr plotny, vaří otázky pořádně opepřené *(čeká na obrázky)* |
 
 - **Úvod souboje**:
   - aréna na pozadí;

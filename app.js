@@ -108,7 +108,9 @@
     // milníky Řetězovky, 12. stupeň Sezóny, Truhlu Mudrlanta, Zlatou truhlu a společný cíl Bosse; se starší databází se nenabídne).
     // 39 = Dobývání: pomůcka Ankh vzkříšení místo automatického Návratu do hry (conquest_use_revive, ochrana 60 s, zásoba revive; zisk startovní,
     // za započítanou hru, sérii Kvízu dne, 8. stupeň Sezóny a truhly; se starší databází se hráč bez území vrátí sám jako dřív).
-    const REQUIRED_SCHEMA = 50;
+    // 51 = Emblémy dalších bossů týdne (boss-herold … boss-sefkuchar) v katalogu odznaků předem (se starší databází se emblém nového bosse
+    // do účtu neuloží, zůstane jen v zařízení).
+    const REQUIRED_SCHEMA = 51;
     // Naposledy hrané položky (trénink se jim vyhýbá, dokud nejsou vyčerpané všechny v kategorii)
     const HISTORY_SIZE = 1500;
     const REQUEST_TIMEOUT = 12000;

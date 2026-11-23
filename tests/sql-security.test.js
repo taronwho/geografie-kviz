@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const core = require('../quiz-core.js');
+const Boss = require('../boss.js');
 const { challengeProgressSql } = require('./sql-play.js');
 
 const host = process.env.PGHOST || '/tmp';
@@ -58,7 +59,8 @@ test('SQL: zneužití (RLS, oprávnění, XP, odznaky, limity)', { skip: !availa
 
     await t.test('katalog odznaků v databázi odpovídá aplikaci', () => {
         const inDb = q(`select unnest(badge_catalog())`).split('\n').sort();
-        assert.deepEqual(inDb, core.BADGES.map(badge => badge.id).sort());
+        // Navíc jen emblémy bossů, kteří čekají na obrázky (boss.js PENDING): server je zná předem (blok 51)
+        assert.deepEqual(inDb, [...core.BADGES.map(badge => badge.id), ...Boss.PENDING.map(boss => Boss.badgeId(boss.id))].sort());
         assert.ok(core.xpForLevel(core.MAX_LEVEL) <= 500000, 'strop XP v databázi musí pojmout nejvyšší úroveň');
     });
 

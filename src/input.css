@@ -685,6 +685,15 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 .boss-theme-druid { --boss: 52 211 153; --boss-2: 9 54 38; }
 .boss-theme-olympan { --boss: 253 186 116; --boss-2: 30 27 85; }
 .boss-theme-reziser { --boss: 251 113 133; --boss-2: 76 12 35; }
+/* Další bossové (ve hře až s obrázky, scripts/boss-zapoj.mjs) */
+.boss-theme-herold { --boss: 129 140 248; --boss-2: 30 27 75; }
+.boss-theme-permonik { --boss: 232 121 249; --boss-2: 74 4 78; }
+.boss-theme-stavitel { --boss: 251 146 60; --boss-2: 67 32 8; }
+.boss-theme-malir { --boss: 34 211 238; --boss-2: 8 51 68; }
+.boss-theme-kronikar { --boss: 147 197 253; --boss-2: 23 37 84; }
+.boss-theme-trener { --boss: 248 113 113; --boss-2: 69 10 10; }
+.boss-theme-vynalezce { --boss: 45 212 191; --boss-2: 4 47 46; }
+.boss-theme-sefkuchar { --boss: 254 215 170; --boss-2: 67 20 7; }
 .boss-arena {
     --boss: 251 113 133; --boss-2: 76 12 35;
     background-color: #120a10;

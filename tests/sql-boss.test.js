@@ -59,8 +59,10 @@ test('SQL: Boss týdne', { skip: !available && 'PostgreSQL není dostupný' }, a
 
     await t.test('tabulka s pravidly řádků, emblémy bossů v katalogu odznaků, týden = pondělí v Praze', () => {
         assert.equal(q(`select relrowsecurity from pg_class where oid = 'public.boss_results'::regclass`), 't');
-        assert.equal(q(`select count(*) from unnest(badge_catalog()) b where b like 'boss-%'`), String(Boss.BOSSES.length));
-        for (const boss of Boss.BOSSES) assert.equal(q(`select '${Boss.badgeId(boss.id)}' = any (badge_catalog())`), 't', boss.id);
+        // Katalog zná emblémy všech bossů ze soupisky, i těch, kteří čekají na obrázky (blok 51), ať se uloží hned po zapojení
+        assert.equal(q(`select count(*) from unnest(badge_catalog()) b where b like 'boss-%'`), String(Boss.ROSTER.length));
+        for (const boss of Boss.ROSTER) assert.equal(q(`select '${Boss.badgeId(boss.id)}' = any (badge_catalog())`), 't', boss.id);
+        for (const boss of Boss.ROSTER) assert.equal(q(`select array_to_string(tiers, ',') from badge_tiers() where grp = '${Boss.badgeId(boss.id)}'`), Boss.badgeId(boss.id), boss.id);
         // Stejný týden jako boss.js weekOf: neděle 23:59 ještě starý, pondělí 0:00 nový (i v letním čase)
         for (const iso of ['2026-11-15T22:59:00Z', '2026-11-15T23:00:00Z', '2026-03-29T21:30:00Z', '2026-03-29T22:30:00Z', '2027-01-01T10:00:00Z']) {
             assert.equal(q(`select boss_week('${iso}'::timestamptz)`), Boss.weekOf(new Date(iso).getTime()), iso);

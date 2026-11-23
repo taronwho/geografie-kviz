@@ -30,31 +30,93 @@ test('týdny v pražském čase: pondělí ISO týdne, přelom neděle a ponděl
     assert.equal(Boss.weekLabel('2026-11-30'), '30. 11. – 6. 12.');
 });
 
-test('rotace: osm bossů po sobě, každý týden jiný, stejná pro všechny', () => {
-    assert.equal(Boss.BOSSES.length, 8);
+test('rotace: osm bossů po sobě, každý týden jiný, stejná pro všechny; proběhlé týdny se nemění', () => {
+    // První úsek rotace (od Kapitána 9. 11. 2026) zůstává navždy, jak byl
+    assert.deepEqual(Boss.ROTATION[0], { from: Boss.ROTATION_START, ids: ['kapitan', 'rytir', 'alchymista', 'amper', 'maestro', 'druid', 'olympan', 'reziser'] });
     assert.equal(Boss.bossForWeek(Boss.ROTATION_START).id, 'kapitan');
-    const ids = Array.from({ length: 16 }, (_, i) => Boss.bossForWeek(Boss.addWeeks(Boss.ROTATION_START, i)).id);
-    assert.deepEqual(ids.slice(0, 8), ['kapitan', 'rytir', 'alchymista', 'amper', 'maestro', 'druid', 'olympan', 'reziser']);
-    assert.deepEqual(ids.slice(8), ids.slice(0, 8), 'po osmi týdnech znovu od začátku');
+    // Už proběhlé a běžící týdny (k 23. 11. 2026): boss se nesmí změnit, ani když přibudou noví bossové
+    const played = { '2026-11-02': 'reziser', '2026-11-09': 'kapitan', '2026-11-16': 'rytir', '2026-11-23': 'alchymista' };
+    for (const [week, id] of Object.entries(played)) assert.equal(Boss.bossForWeek(week).id, id, week);
+    const first = Boss.ROTATION[1] ? Boss.ROTATION[1].from : '2099-01-05';
+    const ids = Array.from({ length: 16 }, (_, i) => Boss.addWeeks(Boss.ROTATION_START, i)).filter(week => week < first).map(week => Boss.bossForWeek(week).id);
+    assert.deepEqual(ids, [...Boss.ROTATION[0].ids, ...Boss.ROTATION[0].ids].slice(0, ids.length), 'v prvním úseku po osmi týdnech znovu od začátku');
     assert.equal(Boss.bossForWeek(Boss.addWeeks(Boss.ROTATION_START, -1)).id, 'reziser', 'i před začátkem rotace');
-    for (let i = 1; i < 30; i++) assert.notEqual(Boss.bossForWeek(Boss.addWeeks('2026-01-05', i)).id, Boss.bossForWeek(Boss.addWeeks('2026-01-05', i - 1)).id);
+    for (let i = 1; i < 300; i++) assert.notEqual(Boss.bossForWeek(Boss.addWeeks('2026-01-05', i)).id, Boss.bossForWeek(Boss.addWeeks('2026-01-05', i - 1)).id);
+    // Úseky rotace: po sobě, každý od pondělí, jen bossové ze soupisky, každý úsek má každého bosse jednou a obsahuje všechny dřívější
+    Boss.ROTATION.forEach((segment, index) => {
+        assert.ok(Boss.isWeek(segment.from) && (!index || segment.from > Boss.ROTATION[index - 1].from), segment.from);
+        assert.equal(new Set(segment.ids).size, segment.ids.length);
+        assert.ok(segment.ids.every(id => Boss.ROSTER_BY_ID[id]));
+        if (index) assert.ok(Boss.ROTATION[index - 1].ids.every(id => segment.ids.includes(id)), 'bossové z rotace nemizí');
+    });
+    assert.ok(Boss.ROTATION.slice(1).every(segment => segment.from > '2026-11-23'), 'nový úsek až od týdne po 23. 11. 2026');
+    // Každý týden má bosse ze hry
+    for (let i = -10; i < 200; i++) assert.ok(Boss.BY_ID[Boss.bossForWeek(Boss.addWeeks(Boss.ROTATION_START, i)).id]);
+});
+
+test('noví bossové: v rotaci až od budoucího týdne, proběhlé týdny beze změny, střídají se s dosavadními', () => {
+    const base = [Boss.ROTATION[0]];
+    const added = ['herold', 'permonik', 'stavitel', 'malir', 'kronikar', 'trener', 'vynalezce', 'sefkuchar'];
+    const from = '2026-11-30';
+    const next = Boss.extendRotation(base, added, from);
+    assert.deepEqual(next[0], base[0], 'první úsek beze změny');
+    assert.equal(next.length, 2);
+    // Před začátkem nového úseku je boss každého týdne stejný jako dřív
+    for (let i = -60; i < 3; i++) {
+        const week = Boss.addWeeks(Boss.ROTATION_START, i);
+        assert.ok(week < from);
+        assert.equal(Boss.rotationIdFor(next, week), Boss.rotationIdFor(base, week), week);
+    }
+    // Od nového úseku hned nový boss, každý týden jiný, v každém kole všech šestnáct a boss minulého týdne až na konci kola
+    assert.equal(Boss.rotationIdFor(next, from), 'herold');
+    const round = Array.from({ length: 16 }, (_, i) => Boss.rotationIdFor(next, Boss.addWeeks(from, i)));
+    assert.equal(new Set(round).size, 16);
+    assert.equal(round[15], Boss.rotationIdFor(base, Boss.addWeeks(from, -1)));
+    assert.deepEqual(round.filter((_, i) => i % 2 === 0), added, 'noví se střídají s dosavadními');
+    assert.deepEqual(round.filter((_, i) => i % 2 === 1), Array.from({ length: 8 }, (_, i) => Boss.rotationIdFor(base, Boss.addWeeks(from, i))), 'dosavadní v pořadí, jak by šli');
+    for (let i = 1; i < 100; i++) assert.notEqual(Boss.rotationIdFor(next, Boss.addWeeks(from, i)), Boss.rotationIdFor(next, Boss.addWeeks(from, i - 1)));
+    assert.deepEqual(Array.from({ length: 16 }, (_, i) => Boss.rotationIdFor(next, Boss.addWeeks(from, 16 + i))), round, 'další kolo stejně');
+    // Po jednom: další úsek zase jen do budoucna, dřívější zůstanou
+    const one = Boss.extendRotation(base, ['trener'], from);
+    assert.deepEqual(one[1].ids, ['trener', ...Array.from({ length: 8 }, (_, i) => Boss.rotationIdFor(base, Boss.addWeeks(from, i)))]);
+    const two = Boss.extendRotation(one, ['herold'], '2027-01-04');
+    for (let i = 0; i < 20; i++) { const week = Boss.addWeeks('2026-11-02', i); if (week < '2027-01-04') assert.equal(Boss.rotationIdFor(two, week), Boss.rotationIdFor(one, week), week); }
+    assert.equal(Boss.rotationIdFor(two, '2027-01-04'), 'herold');
+    // Chyby: ne pondělí, ne po začátku posledního úseku, nic nového, neznámý boss
+    assert.throws(() => Boss.extendRotation(base, added, '2026-12-01'), /pondělí/);
+    assert.throws(() => Boss.extendRotation(base, added, Boss.ROTATION_START), /po 2026-11-09/);
+    assert.throws(() => Boss.extendRotation(one, ['herold'], from), /po 2026-11-30/);
+    assert.throws(() => Boss.extendRotation(base, ['kapitan'], from), /Žádný nový/);
+    assert.throws(() => Boss.extendRotation(base, ['neznamy'], from), /Neznámí/);
 });
 
 test('bossové: témata, povahy, obrázky stupňů a emblémy v quiz-core', () => {
     const topics = fs.readdirSync(path.join(ROOT, 'topics')).map(file => file.replace(/\.js$/, ''));
-    assert.deepEqual(Boss.BOSSES.map(boss => [boss.id, boss.topic]), [['kapitan', 'zemepis'], ['rytir', 'historie'], ['alchymista', 'chemie'], ['amper', 'fyzika'],
-        ['maestro', 'hudba'], ['druid', 'biologie'], ['olympan', 'mytologie'], ['reziser', 'film']]);
-    for (const boss of Boss.BOSSES) {
-        assert.ok(topics.includes(boss.topic), `${boss.id}: téma ${boss.topic}`);
+    // Soupiska: osm původních a osm dalších, každé téma má právě jednoho bosse
+    assert.deepEqual(Boss.ROSTER.map(boss => [boss.id, boss.topic]), [['kapitan', 'zemepis'], ['rytir', 'historie'], ['alchymista', 'chemie'], ['amper', 'fyzika'],
+        ['maestro', 'hudba'], ['druid', 'biologie'], ['olympan', 'mytologie'], ['reziser', 'film'],
+        ['herold', 'vlajky'], ['permonik', 'geologie'], ['stavitel', 'architektura'], ['malir', 'umeni'], ['kronikar', 'literatura'], ['trener', 'sport'],
+        ['vynalezce', 'technika'], ['sefkuchar', 'jidlo']]);
+    assert.deepEqual(Boss.ROSTER.map(boss => boss.topic).sort(), [...topics].sort(), 'boss pro každé téma');
+    assert.deepEqual([...Boss.BOSSES, ...Boss.PENDING].map(boss => boss.id).sort(), Boss.ROSTER.map(boss => boss.id).sort());
+    assert.deepEqual(Boss.BOSSES.slice(0, 8).map(boss => boss.id), Boss.ROTATION[0].ids, 'původní bossové napřed');
+    for (const boss of Boss.ROSTER) {
         assert.ok(boss.name && boss.whom && boss.epithet && /^Přemožitel /.test(boss.title), boss.id);
+        assert.match(boss.id, /^[a-z]+$/, `${boss.id}: id do odznaku boss-<id>`);
+        assert.deepEqual(Boss.artNames(boss.id), [...Boss.ART[boss.id], Boss.ART.arena[boss.id]]);
         assert.equal(Boss.ART[boss.id].length, 4, `${boss.id}: obrázek pro každý stupeň`);
-        for (let stage = 1; stage <= 4; stage++) {
-            const name = Boss.artFor(boss.id, stage);
-            assert.ok(fs.existsSync(path.join(ROOT, 'icons', 'topics', `${name}.webp`)), `${boss.id} stupeň ${stage}: ${name}.webp`);
-        }
-        assert.notEqual(Boss.artFor(boss.id, 4), Boss.artFor(boss.id, 1), `${boss.id}: poražený má vlastní obrázek`);
     }
-    // Emblémy: odznaky boss-<id> se stejnými jmény a tituly, v databázi v katalogu odznaků
+    // Ve hře je boss jen se všemi obrázky (čtyři stupně a aréna); kdo je nemá, čeká mimo rotaci, Síň bossů i emblémy
+    for (const boss of Boss.BOSSES) {
+        for (const name of Boss.artNames(boss.id)) assert.ok(fs.existsSync(path.join(ROOT, 'icons', 'topics', `${name}.webp`)), `${boss.id}: ${name}.webp`);
+        assert.notEqual(Boss.artFor(boss.id, 4), Boss.artFor(boss.id, 1), `${boss.id}: poražený má vlastní obrázek`);
+        assert.ok(topics.includes(boss.topic), `${boss.id}: téma ${boss.topic}`);
+    }
+    for (const boss of Boss.PENDING) {
+        assert.ok(!Boss.BY_ID[boss.id] && !Boss.isBossBadge(Boss.badgeId(boss.id)) && !Core.BADGE_BY_ID[Boss.badgeId(boss.id)], `${boss.id} čeká mimo hru`);
+        for (let i = 0; i < 400; i++) assert.notEqual(Boss.bossForWeek(Boss.addWeeks(Boss.ROTATION_START, i)).id, boss.id);
+    }
+    // Emblémy: odznaky boss-<id> se stejnými jmény a tituly, v databázi v katalogu odznaků (i čekající bossové, ať je server uloží hned)
     assert.deepEqual(Core.BOSS_EMBLEMS.map(([id, name, whom, title]) => ({ id, name, whom, title })), Boss.BOSSES.map(({ id, name, whom, title }) => ({ id, name, whom, title })));
     const sql = fs.readFileSync(path.join(ROOT, 'supabase', 'schema.sql'), 'utf8');
     for (const boss of Boss.BOSSES) {
@@ -62,18 +124,28 @@ test('bossové: témata, povahy, obrázky stupňů a emblémy v quiz-core', () =
         assert.ok(badge && badge.title === boss.title, `odznak ${boss.id}`);
         assert.ok(Boss.isBossBadge(badge.id) && Core.isBossBadge(badge.id));
         assert.equal(Boss.bossOfBadge(badge.id), boss);
-        assert.ok(sql.includes(`'${badge.id}'`), `${badge.id} v badge_catalog()`);
     }
+    for (const boss of Boss.ROSTER) {
+        assert.ok(sql.includes(`'${Boss.badgeId(boss.id)}'`), `${Boss.badgeId(boss.id)} v badge_catalog()`);
+        assert.ok(sql.includes(`('${Boss.badgeId(boss.id)}', array['${Boss.badgeId(boss.id)}'])`), `${Boss.badgeId(boss.id)} v badge_tiers()`);
+    }
+    // Mezipaměť (sw.js): obrázky přesně bossů ve hře (chybějící soubor by rozbil instalaci service workeru)
+    const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+    const cached = /\.\.\.\[([^\]]*)\]\.flatMap\(id => \[`boss-\$\{id\}`/.exec(sw)[1].match(/'([a-z]+)'/g).map(id => id.slice(1, -1));
+    assert.deepEqual(cached, Boss.BOSSES.map(boss => boss.id));
     assert.ok(!Boss.isBossBadge('boss-neznamy') && !Boss.isBossBadge('detektiv'));
     // Zástupný obrázek ve stupni 2 a 3 dostane filtr (do dodání ilustrací)
     assert.equal(Boss.isStandIn('kapitan', 1), false);
     assert.equal(Boss.isStandIn('kapitan', 2), Boss.artFor('kapitan', 2) === Boss.artFor('kapitan', 1));
     assert.equal(Boss.isStandIn('kapitan', 4), false);
+    // Barvy bosse (boss-theme-<id>) má v CSS každý ze soupisky
+    const css = fs.readFileSync(path.join(ROOT, 'src', 'input.css'), 'utf8');
+    for (const boss of Boss.ROSTER) assert.match(css, new RegExp(`\\.boss-theme-${boss.id} \\{ --boss: \\d+ \\d+ \\d+; --boss-2: \\d+ \\d+ \\d+; \\}`), boss.id);
 });
 
-test('hlášky: všechny skupiny a varianty, čeština bez oslovení v minulém čase, bez opakování', () => {
+test('hlášky: všechny skupiny a varianty, čeština bez oslovení v minulém čase, bez opakování (i u bossů, kteří čekají na obrázky)', () => {
     const all = [];
-    for (const boss of Boss.BOSSES) {
+    for (const boss of Boss.ROSTER) {
         assert.equal(boss.intro.length, 3, `${boss.id}: tři úvodní řeči`);
         assert.ok(boss.hit.length >= 2, `${boss.id}: zásahy`);
         for (const stage of [1, 2, 3]) assert.ok(boss.taunt[stage].length >= 2, `${boss.id}: posměšky ve stupni ${stage}`);
@@ -299,7 +371,7 @@ test('HTML: úvod, souboj, výsledek a síň bez inline stylů, texty escapovan�
     assert.match(Boss.introHtml({ boss, week: '2026-11-09', used: 3, community: '', next: Boss.BY_ID.rytir }), /V pondělí přijde Rytíř Mudrlant/);
     assert.match(Boss.resultHtml({ boss, status, n: 1, used: 1, best: 80, line: '' }), /data-action="boss-again"/);
     assert.ok(!/data-action="boss-again"/.test(Boss.resultHtml({ boss, status, n: 3, used: 3, best: 80, line: '' })), 'bez pokusů už ne');
-    assert.equal((Boss.hallHtml({ week: '2026-11-09' }, {}).match(/data-boss-hall=/g) || []).length, 8);
+    assert.equal((Boss.hallHtml({ week: '2026-11-09' }, {}).match(/data-boss-hall=/g) || []).length, Boss.BOSSES.length, 'v Síni jen bossové ve hře');
     // Všechny obrázky bosse se nepřebarví podle obleku Mudrlanta (data-keep)
     assert.ok([...html.matchAll(/<img [^>]*>/g)].every(match => match[0].includes('data-keep')));
 });
