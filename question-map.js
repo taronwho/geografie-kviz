@@ -217,6 +217,8 @@
             udalosti: ['havárie', 'mírová smlouva', 'zemětřesení', 'smlouva', 'konference', 'masakr', 'koncil', 'požár', 'atentát', 'proces', 'výbuch sopky', 'korunovace', 'tsunami']
         },
         architektura: { stavby: true },
+        // Technika: letiště, elektrárny a kosmodromy (metro a tunel jsou čára přes celé město či hory, ne bod)
+        technika: { stavby: ['letiště', 'jaderná elektrárna', 'vodní elektrárna', 'tepelná elektrárna', 'kosmodrom'] },
         vlajky: { regiony: true }
     };
     // Státy, řeky, pohoří a regiony se doplní do zeměpisu (jen s obrysem)
@@ -242,7 +244,7 @@
         { id: 'more', label: 'Moře a zálivy', topics: ['zemepis'], test: item => item.c === 'jezero' && ['moře', 'zátoka', 'průliv'].includes(item.ty) },
         { id: 'ostrovy', label: 'Ostrov', topics: ['zemepis'], test: item => item.c === 'ostrov' },
         { id: 'priroda', label: 'Příroda', topics: ['zemepis'], test: item => item.c === 'priroda' },
-        { id: 'stavby', label: 'Stavba', topics: ['zemepis', 'architektura'], test: item => item.c === 'stavba' || item.c === 'stavby' },
+        { id: 'stavby', label: 'Stavba', topics: ['zemepis', 'architektura', 'technika'], test: item => item.c === 'stavba' || item.c === 'stavby' },
         { id: 'bitvy', label: 'Bitva', topics: ['historie'], test: item => item.c === 'bitva' },
         { id: 'udalosti', label: 'Událost', topics: ['historie'], test: item => item.c === 'udalosti' },
         { id: 'regiony', label: 'Region', topics: ['vlajky'], test: item => item.c === 'regiony' },

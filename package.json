@@ -29,6 +29,8 @@
     "build:literatura": "node scripts/build-literatura.mjs",
     "build:film": "node scripts/build-film.mjs",
     "build:sport": "node scripts/build-sport.mjs",
+    "build:technika": "node scripts/build-technika.mjs",
+    "build:jidlo": "node scripts/build-jidlo.mjs",
     "build:vynalezy": "node scripts/build-vynalezy.mjs",
     "build:souvislosti": "node scripts/build-souvislosti.mjs",
     "build:retezovka": "node scripts/build-retezovka.mjs",

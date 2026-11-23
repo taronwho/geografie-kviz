@@ -253,7 +253,7 @@ test('chemie: „Pojmenován po“ ze stejného kořene jako prvek odpověď nep
 });
 
 test('data: popis z Wikidat nemá rozbité závorky ani dvojité mezery', () => {
-    for (const topic of ['zemepis', 'historie', 'biologie', 'chemie', 'fyzika', 'geologie', 'architektura', 'umeni', 'hudba', 'film', 'literatura', 'sport', 'mytologie', 'vlajky']) {
+    for (const topic of ['zemepis', 'historie', 'biologie', 'chemie', 'fyzika', 'geologie', 'architektura', 'umeni', 'hudba', 'film', 'literatura', 'sport', 'mytologie', 'vlajky', 'technika']) {
         for (const item of load(topic).items) {
             for (const key of ['d', 'ty']) {
                 const value = item[key];

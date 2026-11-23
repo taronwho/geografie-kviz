@@ -326,14 +326,14 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
             assert.ok(await side('#daily-card [data-action="play-daily"]') >= 36, `${scheme} / ${scene}: tlačítko Hrát vše`);
             assert.ok(await side('#app-nav [data-nav]') >= 44, `${scheme} / ${scene}: tlačítka spodní lišty`);
             assert.deepEqual(await tab.$$eval('#app-nav [data-nav]', buttons => buttons.map(button => button.textContent.replace(/\s+/g, ' ').trim())), ['Dnes', 'Hrát', 'Soupeři', 'Postup', 'Já']);
-            // Okno Dnešní otázky: 14 témat, dlaždice aspoň 40 px
+            // Okno Dnešní otázky: 16 témat, dlaždice aspoň 40 px
             await nav.dailySheet(tab);
             await check(tab, `${scene}: Dnešní otázky`, scheme);
-            assert.equal(await tab.locator('#daily-sheet [data-action="daily"]').count(), 14);
+            assert.equal(await tab.locator('#daily-sheet [data-action="daily"]').count(), 16);
             assert.ok(await side('#daily-sheet [data-action="daily"]') >= 39.5, `${scheme} / ${scene}: dnešní otázka tématu`);
             await tab.keyboard.press('Escape');
             await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
-            // Hrát: Mix, 14 témat a režimy
+            // Hrát: Mix, 16 témat a režimy
             await nav.go(tab, 'hrat');
             await check(tab, `${scene}: Hrát`, scheme);
             await fitsScreen(tab, `${scene}: Hrát`, scheme);
@@ -348,7 +348,7 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
                     count: document.querySelectorAll('#topic-grid [data-action="play-topic"]').length
                 };
             });
-            assert.equal(sizes.count, 14);
+            assert.equal(sizes.count, 16);
             assert.ok(sizes.tiles >= 44, `${scheme} / ${scene}: dlaždice tématu ${sizes.tiles} px`);
             assert.ok(sizes.icons >= 28, `${scheme} / ${scene}: ikona tématu ${sizes.icons} px`);
             assert.ok(sizes.labels >= 10, `${scheme} / ${scene}: popisek tématu ${sizes.labels} px`);

@@ -252,7 +252,9 @@
     // Témata diplomů legendárních postaviček (název pro „Diplom: Zeměpis“; app.js a rewards.js mají vlastní seznam témat)
     const DIPLOMA_TOPICS = {
         zemepis: 'Zeměpis', vlajky: 'Vlajky a znaky', historie: 'Historie', mytologie: 'Mytologie', biologie: 'Biologie', geologie: 'Geologie', chemie: 'Chemie',
-        fyzika: 'Fyzika', umeni: 'Výtvarné umění', architektura: 'Architektura', hudba: 'Hudba', literatura: 'Literatura', film: 'Film', sport: 'Sport'
+        fyzika: 'Fyzika', umeni: 'Výtvarné umění', architektura: 'Architektura', hudba: 'Hudba', literatura: 'Literatura', film: 'Film', sport: 'Sport',
+        technika: 'Technika a vynálezy',
+        jidlo: 'Jídlo a pití'
     };
     const isLegendary = (item) => Boolean(item && item.diploma);
     // Barvy částí postaviček (číslo = číslice v uloženém obrázku, 0 = původní barva; pořadí = PALETTE ve scripts/avatar-icons.py).
@@ -381,7 +383,7 @@
     const TOPIC_LOOKS = {
         zemepis: 'Cestovatel', vlajky: 'Praporečník', historie: 'Vojevůdce', mytologie: 'Hrdina bájí', biologie: 'Přírodovědec', geologie: 'Badatel podzemí',
         chemie: 'Šílený chemik', fyzika: 'Génius', umeni: 'Umělec', architektura: 'Stavitel', hudba: 'Rocková hvězda', literatura: 'Spisovatel',
-        film: 'Filmový fanoušek', sport: 'Trenér'
+        film: 'Filmový fanoušek', sport: 'Trenér', jidlo: 'Šéfkuchař'
     };
     const LOOK_MIN_PIECES = 2;
     // Všechny looky: [{ topic, title, topicTitle, pieces: topicSet(topic) }] (jen sady aspoň se dvěma kusy)

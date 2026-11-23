@@ -627,7 +627,7 @@ test('odznaky: skupiny se stupni, podmínky podle počítadel a postupu', () => 
     // Vyšší stupeň zahrnuje nižší
     const some = core.earnedBadgeIds({ correct: 120 }, x);
     assert.deepEqual(some, ['prvni-krok', 'odpovedi-10', 'odpovedi-50', 'stovka']);
-    const topics = Object.fromEntries(['zemepis', 'vlajky', 'historie', 'mytologie', 'biologie', 'geologie', 'chemie', 'fyzika', 'umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport'].map(id => [id, 1000]));
+    const topics = Object.fromEntries(['zemepis', 'vlajky', 'historie', 'mytologie', 'biologie', 'geologie', 'chemie', 'fyzika', 'umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport', 'technika', 'jidlo'].map(id => [id, 1000]));
     const stars = Object.fromEntries(Object.keys(topics).map(id => [id, 5]));
     const topics12 = Object.fromEntries(Object.keys(topics).map(id => [id, 100]));
     // Celé album sbírky (procenta celé sbírky a sekcí dosazuje album.js)

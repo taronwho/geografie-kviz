@@ -163,10 +163,10 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await waitForHome(tab);
         // Záložka Dnes: karta Dnešní otázky s počtem hotových témat a Hrát vše; jednotlivá témata jsou v okně po klepnutí na kartu
         assert.equal(await nav.currentTab(tab), 'dnes');
-        assert.match(await tab.textContent('#daily-card'), /0\/14 témat[\s\S]*Hrát vše/);
+        assert.match(await tab.textContent('#daily-card'), /0\/16 témat[\s\S]*Hrát vše/);
         await nav.dailySheet(tab);
         assert.match(await tab.textContent('#daily-sheet [data-action="daily"][data-topic="zemepis"]'), /čeká/);
-        assert.match(await tab.textContent('#daily-sheet [data-action="play-daily"]'), /Hrát vše\s*· zbývá 14/);
+        assert.match(await tab.textContent('#daily-sheet [data-action="play-daily"]'), /Hrát vše\s*· zbývá 16/);
         // Hlavička: sova z loga, název a úroveň
         assert.equal(await tab.textContent('#status-text'), 'MudrlantÚr. 1 · Zvědavec');
         assert.equal(await tab.getAttribute('#status-badge', 'aria-label'), 'Mudrlant · 16. 10. – můj postup');
@@ -271,14 +271,14 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click('[data-action="daily-home"]');
         await waitForHome(tab);
         // Zeměpis je odehraný a série běží (čip v hlavičce); karta pokračuje ve zbývajících dnešních otázkách
-        assert.match(await tab.textContent('#daily-card'), /1\/14 témat[\s\S]*Hrát dál/);
+        assert.match(await tab.textContent('#daily-card'), /1\/16 témat[\s\S]*Hrát dál/);
         // Čip série v hlavičce: plamen s počtem dní (zlatý při běžící sérii) a štít s počtem ochran série
         assert.equal(await tab.getAttribute('#streak-chip', 'data-streak'), '1');
         assert.equal((await tab.textContent('#streak-chip [data-streak-part]')).trim(), '1');
         assert.match(await tab.getAttribute('#streak-chip', 'aria-label'), /^Série: 1 den v řadě/);
         await nav.dailySheet(tab);
         assert.match(await tab.textContent('#daily-sheet [data-action="daily"][data-topic="zemepis"]'), /1 bod\s*1/);
-        assert.match(await tab.textContent('#daily-sheet [data-action="play-daily"]'), /Hrát dál\s*· zbývá 13/);
+        assert.match(await tab.textContent('#daily-sheet [data-action="play-daily"]'), /Hrát dál\s*· zbývá 15/);
 
         // Odehraná dnešní otázka zůstane uložená i po obnovení stránky
         const requestsBefore = wikiFor(log, data.title);
@@ -326,10 +326,10 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         // (jen ty, které něco dávají; odznak jen pro slávu řádek s odměnou nemá)
         for (const text of await tab.locator('#tab-postup [data-badge-reward]').allTextContents()) assert.match(text, /^Odměna: /);
         assert.doesNotMatch(await tab.textContent('#tab-postup'), /sláva/);
-        // Mistrovství: dlaždice otevře mřížku všech 14 témat, klepnutí na téma vysvětlí hvězdičky a vrátí se zpět
+        // Mistrovství: dlaždice otevře mřížku všech 16 témat, klepnutí na téma vysvětlí hvězdičky a vrátí se zpět
         await tab.click('#tab-postup [data-open-mastery-all]');
         await tab.waitForSelector('#dialog-overlay [data-mastery-dialog]');
-        assert.equal(await tab.locator('#dialog-overlay [data-mastery]').count(), 14, 'mistrovství všech témat');
+        assert.equal(await tab.locator('#dialog-overlay [data-mastery]').count(), 16, 'mistrovství všech témat');
         await tab.click('[data-mastery="zemepis"]');
         await tab.waitForSelector('#dialog-overlay [data-mastery-info]');
         const mastery = await tab.textContent('#dialog-overlay');
@@ -682,7 +682,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
         await nav.go(tab, 'hrat');
-        assert.equal(await tab.locator('#topic-grid [data-action="play-topic"]').count(), 14, '14 dlaždic témat');
+        assert.equal(await tab.locator('#topic-grid [data-action="play-topic"]').count(), 16, '16 dlaždic témat');
         assert.equal((await tab.textContent('[data-action="play-topic"][data-topic="zemepis"]')).trim(), 'Zeměpis', 'na dlaždici jen název');
 
         // Okno s výběrem: výchozí všechny kategorie, poslední vypnout nejde
@@ -1696,7 +1696,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await one.tab.click('[data-accept-topic="vlajky"]');
         await acceptSaved('[data-accept-topic="vlajky"]', 'false');
         assert.deepEqual(db.profiles['u-1'].blocked_topics, ['vlajky']);
-        assert.match(await one.tab.textContent('#dialog-overlay'), /Přijímáš: 13 z 14 témat/);
+        assert.match(await one.tab.textContent('#dialog-overlay'), /Přijímáš: 15 z 16 témat/);
         await one.tab.click('[data-accept-all]');
         await one.tab.waitForFunction(() => !document.querySelector('[data-accept-all]') && /Uloženo/.test(document.getElementById('dialog-overlay').textContent));
         assert.equal(await one.tab.getAttribute('[data-accept-topic="vlajky"]', 'aria-checked'), 'true');
@@ -1849,7 +1849,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await waitForQuestion(one.tab);
         const trimmed = Object.values(db.challenges).find(c => c.invited_id === 'u-2' && c.topic.includes(',') && !c.topic.includes('zemepis') && c.count === 5);
         assert.ok(trimmed, 'Mix bez zeměpisu');
-        assert.equal(trimmed.topic.split(',').length, 13);
+        assert.equal(trimmed.topic.split(',').length, 15);
         delete db.challenges[trimmed.id];
         await one.tab.click('#btn-home');
         await waitForHome(one.tab);

@@ -8,7 +8,7 @@ import { articleTargets, addArticleTargets } from './lib/clanky.mjs';
 
 const require = createRequire(import.meta.url);
 const core = require('../quiz-core.js');
-const TOPICS = ['architektura', 'biologie', 'chemie', 'film', 'fyzika', 'geologie', 'historie', 'hudba', 'literatura', 'mytologie', 'sport', 'umeni', 'vlajky', 'zemepis'];
+const TOPICS = ['architektura', 'biologie', 'chemie', 'film', 'fyzika', 'geologie', 'historie', 'hudba', 'literatura', 'mytologie', 'sport', 'umeni', 'vlajky', 'zemepis', 'technika', 'jidlo'];
 const files = Object.fromEntries(TOPICS.map(id => [id, new URL(`../data/${id}.json`, import.meta.url)]));
 const data = Object.fromEntries(TOPICS.map(id => [id, JSON.parse(readFileSync(files[id], 'utf8'))]));
 const titles = TOPICS.flatMap(id => data[id].items.map(item => item.t));

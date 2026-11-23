@@ -732,7 +732,7 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         const db = newDb();
         db.profiles['u-1'].blocked_topics = ['historie', 'sport'];
         const { context, tab, log } = await start(db);
-        await tab.waitForFunction(() => /12 z 14 témat/.test(document.querySelector('[data-action="open-accept"]').textContent));
+        await tab.waitForFunction(() => /14 z 16 témat/.test(document.querySelector('[data-action="open-accept"]').textContent));
         const other = await context.newPage();
         await other.goto(`${ORIGIN}/licence.html`);
         await other.evaluate((auth) => localStorage.setItem('mudrlant.auth', auth), login('tok-u2')['mudrlant.auth']);

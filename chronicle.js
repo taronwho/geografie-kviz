@@ -230,7 +230,7 @@
         zemepis: 'Zeměpisný cestovatel týdne', vlajky: 'Vlajkonoš týdne', historie: 'Strážce dějin týdne', mytologie: 'Znalec bájí týdne',
         biologie: 'Přírodovědec týdne', geologie: 'Badatel podzemí týdne', chemie: 'Alchymista týdne', fyzika: 'Génius fyziky týdne',
         umeni: 'Galerijní duše týdne', architektura: 'Stavitel týdne', hudba: 'Hudební duše týdne', literatura: 'Knihomol týdne',
-        film: 'Filmový fanoušek týdne', sport: 'Sportovní duše týdne'
+        film: 'Filmový fanoušek týdne', sport: 'Sportovní duše týdne', technika: 'Vynálezce týdne', jidlo: 'Gurmán týdne'
     };
     // Titul týdne podle jednoduchých pravidel (první, které platí); owl = póza sovy (icons/topics/sova-<owl>.webp)
     // titles = { téma: název tématu } pro text

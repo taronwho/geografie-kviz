@@ -205,8 +205,9 @@
     // Barvy témat (Tailwind 700 a 900 podle topic.color)
     const TOPIC_COLORS = {
         emerald: ['#047857', '#064e3b'], blue: ['#1d4ed8', '#1e3a8a'], amber: ['#b45309', '#78350f'], indigo: ['#4338ca', '#312e81'], lime: ['#4d7c0f', '#365314'],
-        yellow: ['#a16207', '#713f12'], sky: ['#0369a1', '#0c4a6e'], violet: ['#6d28d9', '#4c1d95'], orange: ['#c2410c', '#7c2d12'], stone: ['#57534e', '#292524'],
-        pink: ['#be185d', '#831843'], teal: ['#0f766e', '#134e4a'], rose: ['#be123c', '#881337'], red: ['#b91c1c', '#7f1d1d']
+        yellow: ['#a16207', '#713f12'], sky: ['#0369a1', '#0c4a6e'], violet: ['#6d28d9', '#4c1d95'], orange: ['#c2410c', '#7c2d12'], stone: ['#57534e', '#292524'], cyan: ['#0e7490', '#164e63'],
+        pink: ['#be185d', '#831843'], teal: ['#0f766e', '#134e4a'], rose: ['#be123c', '#881337'], red: ['#b91c1c', '#7f1d1d'],
+        fuchsia: ['#a21caf', '#701a75']
     };
     const TOPIC_ID = /^[a-z0-9-]{1,30}$/;
     // input = { kind: 'diploma', topic: { id, title, color }, title ('Mistr zeměpisu'), name, day, known (počet položek), robe, url, appName }

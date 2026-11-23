@@ -160,7 +160,13 @@
         { id: 'reakce-plus', icon: 'sparkles', multi: true, account: true, after: 40, title: 'Nové reakce a vítězné efekty', text: 'S vyšší úrovní, odznaky a Sezónou Mudrlanta odemykáš další reakce po zápase a vítězné efekty. Efekt, který si vybereš, uvidíš ty i soupeř po tvé vyhrané výzvě.',
             action: { kind: 'multi', label: 'Soupeři' }, ready: (u) => u.perks && num(u.counters.challenges) >= 3, used: (u) => Boolean(u.visited.perks) },
         { id: 'barva-obleku', icon: 'sparkles', after: 30, title: 'Vlastní barva obleku', text: 'Od úrovně 20 si na záložce Já v řádku Mudrlant namícháš vlastní barvu obleku: posuvníky odstínu a světlosti. Stínování i obrys sovy zůstanou.',
-            action: { kind: 'settings', label: 'Nastavení', tab: 'owl' }, ready: (u) => num(u.level) >= 20, used: (u) => Boolean(u.visited.robeColor) }
+            action: { kind: 'settings', label: 'Nastavení', tab: 'owl' }, ready: (u) => num(u.level) >= 20, used: (u) => Boolean(u.visited.robeColor) },
+        // Nové téma: kdo v něm už odpověděl správně, tip nepotřebuje
+        { id: 'technika', icon: 'cog', after: 5, title: 'Nové téma Technika a vynálezy', text: 'Na záložce Hrát přibylo téma Technika a vynálezy: vynálezci, auta, vlaky, letadla, lodě, počítače, software, elektrárny a slavné firmy. Poznáš Tatru 87 nebo Concorde podle fotky?',
+            action: { kind: 'play', label: 'Na záložku Hrát' }, used: (u) => num((u.counters.topics || {}).technika) > 0 },
+        // Nové téma Jídlo a pití (topics/jidlo.js): kdo v něm už odpověděl správně, tip nepotřebuje
+        { id: 'jidlo', icon: 'utensils', after: 5, title: 'Nové téma Jídlo a pití', text: 'Na záložce Hrát přibylo téma Jídlo a pití: pokrmy, sýry, ovoce, zelenina, koření, káva a čaj, víno, pivo i slavní kuchaři. Poznáš svíčkovou, hermelín nebo espresso?',
+            action: { kind: 'play', label: 'Na záložku Hrát' }, used: (u) => num((u.counters.topics || {}).jidlo) > 0 }
     ];
     const BY_ID = new Map(TIPS.map(tip => [tip.id, tip]));
 

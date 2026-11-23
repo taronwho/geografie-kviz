@@ -183,12 +183,15 @@ test('SQL: týdenní turnaje', { skip: !available && 'PostgreSQL není dostupný
         denied(psql(dbName, `set role anon; select tournament_tick();`));
     });
 
-    await t.test('pod 8 přihlášených se turnaj zruší a hráči dostanou zprávu', () => {
+    await t.test('pod 8 přihlášených se turnaj nezruší: chybějící místa doplní boti', () => {
         const next = q(`select id from tournaments where status = 'open'`);
         for (let n = 1; n <= 5; n++) ok(as(id(n), THU, `select tournament_join('${next}');`));
         tick('2026-11-16');
-        assert.equal(q(`select status from tournaments where id = '${next}'`), 'cancelled');
-        assert.equal(q(`select count(*) from tournament_notices where kind = 'cancelled' and tournament_id = '${next}'`), '5');
+        assert.equal(q(`select status || ':' || size from tournaments where id = '${next}'`), 'running:8');
+        assert.equal(q(`select count(*) from tournament_entries e join auth.users u on u.id = e.user_id where e.tournament_id = '${next}' and u.email like 'bott-%@bots.invalid'`), '3');
+        assert.equal(q(`select count(*) from tournament_matches where tournament_id = '${next}' and round = 1`), '4');
+        assert.equal(q(`select count(*) from tournament_notices where kind = 'cancelled' and tournament_id = '${next}'`), '0');
+        assert.equal(q(`select bool_and(dev_is_bot(e.user_id)) from tournament_entries e join auth.users u on u.id = e.user_id where e.tournament_id = '${next}' and u.email like 'bott-%'`), 't');
     });
 
     await t.test('plný turnaj má nejvýš 128 míst a 128 hráčů dá 7 kol', () => {

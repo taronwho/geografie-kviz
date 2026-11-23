@@ -2951,7 +2951,7 @@
         [T(100, 'Sto poznaných'), T(500, 'Pět set poznaných'), T(1000, 'Tisíc poznaných'), T(3000, 'Tři tisíce poznaných'), T(5000, 'Pět tisíc poznaných'), T(10000, 'Deset tisíc poznaných')]);
     // Všestrannost: v kolika různých tématech hráč už správně odpověděl; hvězdy mistrovství v nějakém tématu a ve všech tématech
     const starsText = (g) => `${g} ${g === 1 ? 'hvězdu' : g < 5 ? 'hvězdy' : 'hvězd'}`;
-    addGroup('vsestrannost', 'Všestrannost', 'globe', (c) => Object.keys(c.topics || {}).length, (g) => g >= 14 ? `Správná odpověď ve všech ${g} tématech.` : `Správná odpověď v ${g} různých tématech.`,
+    addGroup('vsestrannost', 'Všestrannost', 'globe', (c) => Object.keys(c.topics || {}).length, (g) => `Správná odpověď v ${g} různých tématech.`,
         [T(3, 'Rozhlížející se'), T(6, 'Všímavý'), T(9, 'Rozhledný'), T(12, 'Znalec mnoha oborů'), T(14, 'Všestranný', 'vsestranny')]);
     addGroup('hvezdy', 'Hvězdy mistrovství', 'star', (c, x) => Math.max(0, ...Object.values(x.topicStars || {})), (g) => `Získej ${starsText(g)} mistrovství v některém tématu.`,
         [T(1, 'První hvězda'), T(2, 'Dvě hvězdy'), T(3, 'Hvězdář', 'hvezdar'), T(4, 'Hvězda první velikosti'), T(5, 'Mistr oboru', 'mistr-oboru')]);
@@ -2965,7 +2965,9 @@
         ['chemie', 'Chemie', ['Laborant', 'Chemik', 'Alchymista', 'Profesor chemie', 'Pán prvků']], ['fyzika', 'Fyzika', ['Experimentátor', 'Fyzik', 'Pán energie', 'Astrofyzik', 'Pán vesmíru']],
         ['umeni', 'Výtvarné umění', ['Divák galerie', 'Znalec umění', 'Mecenáš', 'Kurátor', 'Pán galerií']], ['architektura', 'Architektura', ['Stavitel', 'Architekt', 'Pán katedrál', 'Urbanista', 'Pán měst']],
         ['hudba', 'Hudba', ['Posluchač', 'Hudebník', 'Mistr tónů', 'Skladatel', 'Pán symfonií']], ['literatura', 'Literatura', ['Čtenář', 'Knihomol', 'Literát', 'Redaktor', 'Pán knihovny']],
-        ['film', 'Film', ['Divák', 'Filmař', 'Režisér', 'Producent', 'Pán Hollywoodu']], ['sport', 'Sport', ['Fanoušek', 'Sportovec', 'Šampion sportu', 'Trenér', 'Pán stadionů']]
+        ['film', 'Film', ['Divák', 'Filmař', 'Režisér', 'Producent', 'Pán Hollywoodu']], ['sport', 'Sport', ['Fanoušek', 'Sportovec', 'Šampion sportu', 'Trenér', 'Pán stadionů']],
+        ['technika', 'Technika a vynálezy', ['Šikula', 'Technik', 'Konstruktér', 'Inženýr', 'Pán strojů']],
+        ['jidlo', 'Jídlo a pití', ['Ochutnávač', 'Labužník', 'Gurmán', 'Sommelier', 'Pán kuchyně']]
     ];
     TOPIC_BADGES.forEach(([topic, label, names]) => addGroup(`tema-${topic}`, label, 'medal', (c) => (c.topics || {})[topic] || 0,
         (g) => `${g} správných odpovědí v tématu ${label}.`, [T(25, names[0]), T(100, names[1]), T(300, names[2]), T(600, names[3]), T(1000, names[4])], { topic }));
@@ -2976,7 +2978,7 @@
     const SKILL_TITLES = {
         zemepis: 'Navigátor', vlajky: 'Praporečník', historie: 'Pamětník', mytologie: 'Posel bohů', biologie: 'Lovec motýlů', geologie: 'Havíř',
         chemie: 'Pyrotechnik', fyzika: 'Geniální šílenec', umeni: 'Malíř', architektura: 'Stavbyvedoucí', hudba: 'Pěvecká hvězda',
-        literatura: 'Básník', film: 'Kinomaniak', sport: 'Olympionik'
+        literatura: 'Básník', film: 'Kinomaniak', sport: 'Olympionik', technika: 'Vynálezce', jidlo: 'Mlsná huba'
     };
     const SKILL_RANKS = {
         zemepis: ['Mapař', 'Kapitán', 'Admirál', 'Magellan'], vlajky: ['Stožárník', 'Standartonoš', 'Praporní mistr', 'Velitel praporů'],
@@ -2985,7 +2987,9 @@
         chemie: ['Míchač', 'Destilatér', 'Nobelista', 'Mendělejev'], fyzika: ['Měřič', 'Teoretik', 'Newton', 'Einstein'],
         umeni: ['Skicář', 'Impresionista', 'Mistr štětce', 'Velikán umění'], architektura: ['Zedník', 'Projektant', 'Hlavní architekt', 'Pán věží'],
         hudba: ['Zpěvák', 'Kapelník', 'Virtuos', 'Maestro'], literatura: ['Rýmovník', 'Spisovatel', 'Dramatik', 'Laureát'],
-        film: ['Komparzista', 'Herec', 'Scenárista', 'Oscarový'], sport: ['Běžec', 'Závodník', 'Medailista', 'Legenda sportu']
+        film: ['Komparzista', 'Herec', 'Scenárista', 'Oscarový'], sport: ['Běžec', 'Závodník', 'Medailista', 'Legenda sportu'],
+        technika: ['Mechanik', 'Strojník', 'Patentový expert', 'Génius techniky'],
+        jidlo: ['Kuchtík', 'Kuchař', 'Šéfkuchař', 'Michelinská hvězda']
     };
     TOPIC_BADGES.forEach(([topic, label]) => addGroup(`zbehly-${topic}`, `Zběhlost: ${label}`, 'medal',
         (c, x) => Math.max(((c.topicBest || {})[topic]) || 0, (((x && x.topicStars) || {})[topic] || 0) >= SKILL_STARS ? SKILL_RUN : 0),
