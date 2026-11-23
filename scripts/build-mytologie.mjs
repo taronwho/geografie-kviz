@@ -97,7 +97,7 @@ const BAD_ALIASES = new Set(['Klekánice', 'Apis', 'Era', 'Gera', 'Héire', 'Mo�
     // Bouřňák je pták, Kalydónský lov báje, Rhodos ostrov, Šejtan jiný ďábel (Šajtán) a anděl smrti je Azrael
     'Bouřňák', 'Kalydónský kanec', 'Kalydónský lov', 'Rhodos', 'Šejtan', 'Anděl smrti']);
 // Psané odpovědi navíc: běžné kratší či počeštěné tvary
-const MANUAL_ALIASES = { 'Přemysl Oráč': ['Přemysl'], 'Mínótauros': ['Minotaur'], Kerberos: ['Kerber'], 'Jehuda ben Becalel': ['Maharal'], 'Mistr Hanuš': ['Hanuš'],
+const MANUAL_ALIASES = { Sfinx: ['Sfinga'], 'Přemysl Oráč': ['Přemysl'], 'Mínótauros': ['Minotaur'], Kerberos: ['Kerber'], 'Jehuda ben Becalel': ['Maharal'], 'Mistr Hanuš': ['Hanuš'],
     'Juraj Jánošík': ['Jánošík'], 'Dalibor z Kozojed': ['Dalibor'] };
 // Chybné nebo chybějící pohlaví ve Wikidatech (Šu a Heh jsou bohové, Elpis a Ninkasi bohyně)
 const MALE = new Set(['Šu', 'Heh', 'Hapi', 'Hemen', 'Bhaga', 'Pohvizd', 'Enkimdu']);

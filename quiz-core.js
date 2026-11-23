@@ -842,6 +842,20 @@
     // překlepem nebo pádem (Slovinsko × Slovensko, Irák × Irán)
     const rivalNames = new Set();
     const registerNames = (names) => (names || []).forEach(name => { const key = normalizeAnswer(name); if (key.length >= 3) rivalNames.add(key); });
+    // Skoro správně (Tajemná otázka): špatná psaná odpověď o kousek dál, než překlepy dovolí („Sfinga“, „Sphinx“ u Sfinx).
+    // Bez mezer porovná s každým přijímaným názvem: nejvýš o 1 víc úprav než tolerance (aspoň 2), méně než polovina délky.
+    const isNearMiss = (input, question) => {
+        if (!question || question.match) return false;
+        const given = normalizeAnswer(input).replace(/ /g, '');
+        if (given.length < 4) return false;
+        const accepted = question.accepted || [];
+        return [...accepted, ...accepted.flatMap(headlessForms)].some(answer => {
+            const expected = normalizeAnswer(answer).replace(/ /g, '');
+            if (expected.length < 4 || expected === given) return false;
+            const distance = levenshtein(given, expected);
+            return distance <= Math.max(2, wordTolerance(expected) + 1) && distance * 2 < expected.length;
+        });
+    };
     // Odpověď podle druhu otázky: match = 'century' | 'symbol' | 'formula', jinak názvy s tolerancí překlepů a jiného pádu
     // (i bez obecného slova na začátku, headlessForms) a případně i přesné značky
     const checkAnswer = (input, question) => {
@@ -3855,7 +3869,7 @@
         JOINING_WORDS, distinctiveTokens, structureLeaks, sealStructure, contentWords, newWords, addsInformation, commonChoiceText,
         choicePoints, choicesView, fitMapToChoices, FIT_SHARE, WORLD_MIN_SPAN, buildHints, planRound, MIN_DESCRIPTION_WORDS, MIN_EXCERPT_WORDS,
         composeRound, swapSimilar, clueFactsOf, contradicts, identifyAnswer, clueFor, pickClue, clueCandidates, uniqueChoices, uniqueInfo, needsUniqueness, wrongItemsOf, isSpecificText, parseClueFact,
-        setCountries, landOf, landsOf, landFromDescription, cultureDistance, CULTURE_GROUPS, cultureScore, cultureLandsFor, getWordStems, censorName, mergeCensored, swallowAliases, censorCountry, isKnownCountry, processWikiText, stripFactSentences, takeLeadFacts, normalizeAnswer, levenshtein, isAnswerMatch, registerNames, isSymbolMatch, isCenturyMatch, isFormulaMatch, formulaCounts, checkAnswer,
+        setCountries, landOf, landsOf, landFromDescription, cultureDistance, CULTURE_GROUPS, cultureScore, cultureLandsFor, getWordStems, censorName, mergeCensored, swallowAliases, censorCountry, isKnownCountry, processWikiText, stripFactSentences, takeLeadFacts, normalizeAnswer, levenshtein, isAnswerMatch, isNearMiss, registerNames, isSymbolMatch, isCenturyMatch, isFormulaMatch, formulaCounts, checkAnswer,
         inCollection, filterItems, levelOf, tierLevel, pickItem, sortItems, getCountryNames, getContinent, continentAt, getCountryAliases,
         distanceKm, nearness, STATE_STEPS, sharesGroup, eraNearness, personSimilarity, rankBySimilarity, takeDistinct, isNamePart, nameStems, sameNameStem,
         buildItemChoices, buildCountryChoices, sameArticle, namedIn, choiceConflict, replaceConflicts, findAnswerItem, findAnswerCountry, updateMistakes, nameAnswers, countryAnswers,
