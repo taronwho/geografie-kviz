@@ -46,7 +46,7 @@ Základní otázka je „Co je to?“ podle kategorie (Který prvek to je?, Kdo 
 | --- | --- |
 | Zeměpis | Ve kterém státě to je? |
 | Historie | Ve kterém století začal vládnout? (narodila se, nastoupil do úřadu, odehrálo se, vznikl) – vždy jeden okamžik, ať na přelomu století nejsou správně dvě odpovědi. U událostí (smlouvy, kongresy, koncily, katastrofy, výpravy, atentáty) i Ve kterém dnešním státě se to stalo (byla podepsána)? |
-| Biologie | Do kterého řádu (u rostlin a hub čeledi) patří? U plemen psů a koček Ze které země plemeno pochází? Lidské tělo (kosti, svaly, orgány, žlázy) podle kresby, soustavy a latinského názvu |
+| Biologie | Do kterého řádu (u rostlin a hub čeledi) patří? U plemen psů a koček Ze které země plemeno pochází? Lidské tělo (kosti, svaly, orgány, žlázy) podle kresby, soustavy a latinského názvu. Člověk a zdraví: nemoci (skupina podle MKN-10, příznaky, původce a přenos, jen snímky z mikroskopu), lékařství (obory, léky, přístroje, vyšetření a léčba), slavní lékaři a psychologie (psychologové, pojmy, jevy, fobie a experimenty) |
 | Chemie | Jakou značku má tento prvek? Jaký vzorec má tato látka? |
 | Fyzika | Jaká je jednotka SI této veličiny? Jakou značku má tato jednotka? Co měří tato jednotka? Který zákon, jev či částice to je? Co je to za těleso, sondu nebo přístroj? (veličiny, jednotky, zákony a jevy, částice, vesmír, mise, fyzici a astronomové) |
 | Vlajky a znaky | Vlajka či znak jsou vidět hned: Čí je to vlajka? Čí je to znak? (státy, české kraje a města, organizace) |
@@ -307,7 +307,7 @@ npm run build:regiony    # data/regiony.json (Natural Earth 1:10m: regiony stát
 npm run build:casti      # data/regiony.json, cities: hranice pražských městských částí a Vltava (OpenStreetMap přes Nominatim; po build:regiony; RIVERS_ONLY=1 jen řeky)
 npm run build:zemepis    # data/zemepis.json
 npm run build:historie   # data/historie.json
-npm run build:biologie   # data/biologie.json
+npm run build:biologie   # data/biologie.json (node scripts/build-biologie.mjs --zdravi obnoví jen nemoci, lékařství, lékaře a psychologii)
 npm run build:chemie     # data/chemie.json
 npm run build:fyzika     # data/fyzika.json
 npm run build:technika   # data/technika.json (ruční seznamy a třídy Wikidat, lib/technika-sources.mjs; bez položek jiných témat)

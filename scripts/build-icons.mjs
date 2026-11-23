@@ -40,7 +40,9 @@ const ICONS = [
     // Téma Jídlo a pití (topics/jidlo.js: ikona tématu a kategorií)
     'utensils', 'soup', 'croissant', 'milk', 'apple', 'carrot', 'leafy-green', 'coffee', 'wine', 'chef-hat',
     // Architektura: kategorie Mosty a tunely
-    'bridge'
+    'bridge',
+    // Biologie – člověk a zdraví: Lékařství, Slavní lékaři, Psychologie
+    'syringe', 'stethoscope', 'brain'
 ];
 
 const toPascalCase = (name) => name.replace(/(^|-)(\w)/g, (_, __, letter) => letter.toUpperCase());
