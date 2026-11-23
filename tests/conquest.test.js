@@ -695,11 +695,14 @@ test('otázky ze všech témat: vztahové otázky (správná možnost vazbu spl�
         return value * (/miliard/.test(label) ? 1e9 : /milion/.test(label) ? 1e6 : /tisíc/.test(label) ? 1e3 : 1);
     };
     const checked = {};
-    // Otázky Mudrlanta každé formy zvlášť (i vzácné rodiny a úroveň 3): Evropa, Asie, Česko
+    // Otázky Mudrlanta každé formy zvlášť (i vzácné rodiny a úroveň 3): Evropa, Asie, Česko. Letopočty se dvěma semínky – letopočet
+    // filmu je vzácný a s jedním semínkem by na něj stačilo, aby nové položky jiného tématu (astronomové Fyziky) změnily los území
     const mudrlantQuestions = [];
     for (const id of ['evropa', 'asie', 'cesko']) for (const form of ['text', 'facts', 'photo', 'year', 'estimate']) for (const item of maps[id].t) for (const level of [0, 1, 2, 3]) {
-        const question = C.buildQuestion({ data: maps[id], territory: item.id, level, topics: t, seed: `mudrlant|${form}`, only: form });
-        if (question) mudrlantQuestions.push({ map: id, item, level, question });
+        for (const seed of form === 'year' ? ['mudrlant|year', 'mudrlant|letopocet'] : [`mudrlant|${form}`]) {
+            const question = C.buildQuestion({ data: maps[id], territory: item.id, level, topics: t, seed, only: form });
+            if (question) mudrlantQuestions.push({ map: id, item, level, question });
+        }
     }
     const topicOfItem = new Map(ALL_TOPICS.flatMap(topic => t[topic].map(it => [it, topic])));
     const YEAR_FIELDS = ['born', 'year', 'from', 'opened', 'y'];

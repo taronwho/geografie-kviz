@@ -1,12 +1,29 @@
 // Téma Fyzika: data/fyzika.json z Wikidat (přes QLever) – fyzikální veličiny, jednotky, zákony a jevy, částice, vesmír, kosmické mise a přístroje,
 // fyzici a astronomové
 // Spuštění: npm run build:fyzika (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování)
+// Rozšíření o astronomii a kosmonautiku (scripts/lib/fyzika-vesmir.mjs) se přidá na konci; jen rozšíření nad hotovým data/fyzika.json
+// (ostatní položky se nestahují ani nemění): FYZIKA_ONLY=vesmir node scripts/build-fyzika.mjs
+import { readFileSync } from 'node:fs';
 import { qlever, id, values, imageFields, yearOf, compact, cached, inBatches, writeTopic } from './lib/wikidata.mjs';
 import { landByDescription } from './lib/nationality.mjs';
 import { INVENTIONS } from './lib/fyzika-inventions.mjs';
 import { EXTRA_QUANTITIES, EXTRA_UNITS, EXTRA_CONSTANTS, EXTRA_CONCEPTS, PLAIN_CONCEPTS, NAME_FIXES, EXTRA_PARTICLES, EXTRA_INSTRUMENTS, OKRUH_NAMES,
     THERMAL_UNITS, SCHOOL_KNOWN } from './lib/fyzika-extra.mjs';
 import { assignLevels, levelSummary, pageviewsByTitle } from './lib/veda-levels.mjs';
+import { buildExtra, mergeExtra, extraSummary, EXTRA_IDS } from './lib/fyzika-vesmir.mjs';
+
+// Rozšíření o astronomii a kosmonautiku: nové položky a okruhy nad položkami tématu; pak zápis data/fyzika.json
+async function writeWithExtra({ collections, items }) {
+    const extra = await buildExtra({ existing: items });
+    const merged = await mergeExtra({ collections, items }, extra);
+    console.log(`Rozšíření: nových ${extra.items.length}, povýšeno kvůli okruhům ${merged.promoted.length}`);
+    extraSummary(merged.items, extra.skipped);
+    writeTopic('fyzika', { collections: merged.collections, items: merged.items });
+}
+if (process.env.FYZIKA_ONLY === 'vesmir') {
+    await writeWithExtra(JSON.parse(readFileSync(new URL('../data/fyzika.json', import.meta.url), 'utf8')));
+    process.exit(0);
+}
 
 const PHYSICIST = 'Q169470';
 const NOBEL_PHYSICS = 'Q38104';
@@ -668,4 +685,6 @@ for (const collection of COLLECTIONS) console.log('  ' + levelSummary(`okruh ${c
 console.log('  ' + levelSummary('celkem', items));
 for (const item of items) delete item._;
 
-writeTopic('fyzika', { collections: COLLECTIONS.map(({ test, ...collection }) => collection), items });
+// Položky rozšíření (scripts/lib/fyzika-vesmir.mjs), které by celé sestavení našlo samo, zůstanou rozšíření (stejná data jako při
+// samostatném běhu)
+await writeWithExtra({ collections: COLLECTIONS.map(({ test, ...collection }) => collection), items: items.filter(item => !EXTRA_IDS.has(item.q)) });
