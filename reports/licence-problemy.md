@@ -1,13 +1,13 @@
 # Obrázky k nahrazení před komerčním vydáním
 
-Sestaveno 2026-11-14 skriptem `scripts/build-licenses.mjs` z metadat Wikimedia Commons (`data/licenses.json`).
+Sestaveno 2026-11-23 skriptem `scripts/build-licenses.mjs` z metadat Wikimedia Commons (`data/licenses.json`).
 Uvedené soubory mají licenci, která nedovoluje komerční užití nebo úpravy (ořez, překrytí), jsou „fair use“, nebo licenci neuvádějí.
 Před vydáním v Google Play je nutné je nahradit jiným obrázkem (nebo položku ponechat bez fotky). Licence CC BY, CC BY-SA, CC0 a volná díla jsou v pořádku,
 vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence (`licence.html`).
 
 ## Souhrn
 
-- souborů celkem: **31801**, s načtenými metadaty: **31801**, zatím nestaženo: **0**
+- souborů celkem: **31895**, s načtenými metadaty: **31895**, zatím nestaženo: **0**
 - problémových: **2**
   - bez uvedené licence: 1
   - soubor na Commons neexistuje: 1
@@ -18,7 +18,7 @@ vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | architektura | 2366 | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
 | biologie | 5022 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| chemie | 1042 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| chemie | 1139 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | film | 848 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | fyzika | 1803 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | geologie | 578 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |

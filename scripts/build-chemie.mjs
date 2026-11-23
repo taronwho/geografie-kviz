@@ -1,10 +1,19 @@
-// Téma Chemie: data/chemie.json z Wikidat (přes QLever) – chemické prvky, sloučeniny a látky, chemici
+// Téma Chemie: data/chemie.json z Wikidat (přes QLever) – chemické prvky, sloučeniny a látky, reakce, pojmy, chemici a materiály
 // Spuštění: npm run build:chemie (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování)
+// node scripts/build-chemie.mjs --doplnit: jen doplní vydaná data (laureáti Nobelovy ceny, Nobelovy ceny chemiků, Materiály a suroviny)
+// a stávající položky nechá, jak jsou (scripts/lib/chemie-doplnky.mjs)
 import { createRequire } from 'node:module';
 import { qlever, id, values, imageFields, yearOf, compact, cached, inBatches, writeTopic } from './lib/wikidata.mjs';
-import { landByDescription } from './lib/nationality.mjs';
 import { CONCEPT_CLASSES, CONCEPT_TITLES, GROUP_CATEGORY } from './lib/chemie-concepts.mjs';
-import { assignLevels, levelSummary, pageviewsByTitle } from './lib/veda-levels.mjs';
+import { assignLevels, levelSummary, pageviewsByTitle, EXPERT_SHARE } from './lib/veda-levels.mjs';
+import { NOBEL_CHEMISTRY, nobelQuery, nobelFieldsOf, chemistItem } from './lib/chemie-nobel.mjs';
+import { MATERIALS, MATERIAL_IDS, MATERIAL_COLLECTIONS, materialFacts, materialImage } from './lib/chemie-materialy.mjs';
+import { updatePublished } from './lib/chemie-doplnky.mjs';
+
+if (process.argv.includes('--doplnit')) {
+    await updatePublished();
+    process.exit(0);
+}
 
 // Skupiny prvků a jejich místo v tabulce zná jádro aplikace – stejná pravidla pro data i nápovědu
 const { elementFamily } = createRequire(import.meta.url)('../quiz-core.js');
@@ -28,15 +37,14 @@ const CHEMICAL_ENTITY = 'Q113145171';
 // Skupina izomerů – tak jsou ve Wikidatech vedené třeba glukóza nebo fruktóza
 const ISOMER_GROUP = 'Q15711994';
 const CHEMIST = 'Q593644';
-const NOBEL_CHEMISTRY = 'Q44585';
-const FEMALE = 'Q6581072';
-const CZECH_STATES = new Set(['Q213', 'Q33946', 'Q42585', 'Q152750', 'Q853348', 'Q1998866', 'Q1991965', 'Q39193', 'Q43266']);
 
 // Prvky, které zná každý (k nim všechny do čísla 38)
 const KNOWN_ELEMENTS = new Set([47, 50, 53, 54, 55, 56, 74, 78, 79, 80, 82, 86, 88, 92, 94]);
 const LIMITS = { latky: { limit: 800 }, chemici: { limit: 400 }, reakce: { limit: 300 }, pojmy: { limit: 520 } };
 // Úrovně (scripts/lib/veda-levels.mjs): podíl nejznámějších položek kategorie, které jsou známé (prvky určuje KNOWN_ELEMENTS)
-const KNOWN_SHARE = { prvky: 0, latky: 0.22, chemici: 0.22, reakce: 0.22, pojmy: 0.26 };
+// Materiály mají úroveň ručně (lib/chemie-materialy.mjs)
+const KNOWN_SHARE = { prvky: 0, latky: 0.22, chemici: 0.22, reakce: 0.22, pojmy: 0.26, materialy: 0 };
+const CATEGORY_KEYS = ['prvky', 'latky', 'reakce', 'pojmy', 'chemici', 'materialy'];
 // Na známou ji kvůli malému okruhu jde povýšit jen položku z lepší poloviny kategorie (podle známosti) nebo s návštěvností článku
 const PROMOTE_PCT = 0.55;
 const PROMOTE_PV = 6000;
@@ -222,7 +230,8 @@ console.log(`Reakce a pojmy (kandidáti): ${conceptList.length}`);
 
 // --- Podrobnosti ---
 const SINGLE = { t: 1, n: 1, d: 1, im: 1, st: 1, born: 1, died: 1, sex: 1 };
-const allIds = [...elements.map(element => element.q), ...compoundCandidates.map(([q]) => q), ...chemistCandidates.map(([q]) => q), ...conceptList.map(([q]) => q)];
+const allIds = [...elements.map(element => element.q), ...compoundCandidates.map(([q]) => q), ...chemistCandidates.map(([q]) => q), ...conceptList.map(([q]) => q),
+    ...MATERIALS.map(([q]) => q)];
 const fetchDetails = async (list) => {
     const result = new Map(list.map(qid => [qid, {}]));
     await inBatches(list, 150, (qids) => `SELECT ?item ?p ?v WHERE {
@@ -402,7 +411,9 @@ const COLLECTIONS = [
     { id: 'metody', label: 'Metody a laboratorní pomůcky', text: 'Destilace, titrace, byreta, kahan…', sort: BY_NAME, test: item => item.grp === 'metody' },
     { id: 'zakony', label: 'Zákony a pravidla', text: 'Avogadro, Boyle, Hess, Le Chatelier…', sort: BY_NAME, test: item => item.grp === 'zakony' },
     { id: 'izotopy', label: 'Izotopy', text: 'Uran-235, uhlík-14, deuterium…', sort: BY_NAME, test: item => item.grp === 'izotopy' },
-    { id: 'nobelova-cena-chemie', label: 'Nositelé Nobelovy ceny za chemii', sort: { by: 'y' }, test: item => item.c === 'chemici' && item.f.nobel === 1 }
+    { id: 'nobelova-cena-chemie', label: 'Nositelé Nobelovy ceny za chemii', sort: { by: 'ny' }, test: item => item.c === 'chemici' && item.f.nobel === 1 },
+    // Okruhy kategorie Materiály a suroviny
+    ...MATERIAL_COLLECTIONS.map(collection => ({ ...collection, test: item => item.mg === collection.id }))
 ];
 // Okruhy látek podle názvu, vzorce a druhu (anglické názvy tříd a rolí z Wikidat)
 const kindsOf = (detail) => [...(detail.type || []), ...(detail.sub || []), ...(detail.role || [])].map(en).join(' | ').toLowerCase();
@@ -416,7 +427,8 @@ const ISOMER_MIN_SL = 30;
 const FILLER_IMAGELESS_SL = 20;
 for (const [qid, sl] of compoundCandidates) {
     const detail = details.get(qid);
-    if (!detail || !detail.n || !detail.t) continue;
+    // Materiály (celulóza, polyethylen) mají vlastní kategorii
+    if (!detail || !detail.n || !detail.t || MATERIAL_IDS.has(qid)) continue;
     const name = capitalize(detail.n);
     const curated = isVitamin(detail.n, detail.t) || isHormone(detail.n, detail.t) || isAminoAcid(detail.n, detail.t);
     let formula = FORMULA_FIXES[name] || pickFormula(detail.formula) || (curated ? pickFormula(detail.formula, true) : undefined);
@@ -466,40 +478,41 @@ for (const [qid, sl] of compoundCandidates) {
 let chemistRank = 0;
 for (const [qid] of chemistCandidates) {
     const detail = details.get(qid);
-    if (!detail || !detail.t) continue;
-    // Někteří mají jen mezinárodní název (mul) – pak název článku
-    if (!detail.n) detail.n = detail.t.replace(/ \(.*\)$/, '');
-    const born = yearOf(detail.born);
-    if (born === undefined || chemistRank >= LIMITS.chemici.limit) continue;
-    if (chemistRank >= IMAGE_FROM.chemici && !detail.im) continue;
+    const item = chemistItem(qid, detail, cs);
+    if (!item) continue;
+    // Nositelé Nobelovy ceny za chemii všichni (okruh je úplný, i bez fotky), ostatní do limitu a od IMAGE_FROM jen s fotkou
+    const nobel = item.f.nobel === 1;
+    if (!nobel && (chemistRank >= LIMITS.chemici.limit || (chemistRank >= IMAGE_FROM.chemici && !detail.im))) continue;
     // Povolání „chemik“ mají ve Wikidatech i polyhistoři a politici (Leonardo, Thatcherová) – chemik musí být i v popisu
-    const nobel = (detail.award || []).includes(NOBEL_CHEMISTRY);
     if (!nobel && !/chemi(k|čk)/iu.test(detail.d || '')) continue;
-    const name = detail.n;
-    if (names.has(name.toLowerCase())) continue;
-    names.add(name.toLowerCase());
-    const isCzech = (detail.cit || []).some(q => CZECH_STATES.has(q));
-    items.push(compact({
-        q: qid,
-        t: detail.t,
-        n: name,
-        c: 'chemici',
-        k: isCzech ? 1 : 0,
-        ty: detail.sex === FEMALE ? 'chemička' : 'chemik',
-        sx: detail.sex === FEMALE ? 'f' : undefined,
-        d: detail.d,
-        cz: isCzech ? 1 : undefined,
-        ...imageFields(detail.im),
-        f: compact({
-            born,
-            died: yearOf(detail.died),
-            // Příslušnost podle popisu (Boris Johnson ve Wikidatech: USA)
-            land: landByDescription(detail.d, (detail.cit || []).map(cs)),
-            nobel: nobel ? 1 : undefined,
-            y: born + 35
-        })
-    }));
+    if (names.has(item.n.toLowerCase())) continue;
+    names.add(item.n.toLowerCase());
+    items.push(item);
     chemistRank++;
+}
+// Nobelovy ceny chemiků: rok a za co (lib/chemie-nobel.mjs), u Curie i cena za fyziku, u Paulinga za mír
+const chemistIds = items.filter(item => item.c === 'chemici').map(item => item.q);
+const nobelRows = await cached('chemie-nobel', async () => {
+    const rows = [];
+    await inBatches(chemistIds, 150, nobelQuery, (row) => rows.push(row), qlever);
+    return rows;
+});
+const nobelFields = nobelFieldsOf(nobelRows);
+for (const item of items) if (item.c === 'chemici' && nobelFields[item.q]) Object.assign(item.f, nobelFields[item.q]);
+
+// Materiály a suroviny (lib/chemie-materialy.mjs): ručně vybrané podle ID, s ručně psanými fakty a úrovní. Před reakcemi a pojmy,
+// aby si materiály vzaly svá jména (ocel, sklo); okruh Slitiny, směsi a materiály si nechají podle druhu ve Wikidatech
+const conceptGroups = new Map(conceptList.map(([qid, , group]) => [qid, group]));
+for (const [qid, okruh, level, facts] of MATERIALS) {
+    const detail = details.get(qid);
+    if (!detail || !detail.t) { console.warn(`Materiál ${qid} nemá český článek`); continue; }
+    const name = facts.n || capitalize(detail.n || detail.t.replace(/ \(.*\)$/, ''));
+    if (names.has(name.toLowerCase())) { console.warn(`Materiál ${name}: jméno už je použité`); continue; }
+    names.add(name.toLowerCase());
+    items.push(compact({
+        q: qid, t: detail.t, n: name, c: 'materialy', k: level === 1 ? 1 : 0, d: detail.d, ...imageFields(materialImage(facts, detail.im)),
+        f: materialFacts(facts), grp: conceptGroups.get(qid), mg: okruh || undefined, lvl: level
+    }));
 }
 
 // Reakce a pojmy: kategorie podle okruhu; položky bez českého článku, rozcestníky a to, co už je prvkem či látkou, se vynechají
@@ -537,28 +550,33 @@ for (const item of items) {
 const collections = COLLECTIONS
     .map(({ test, ...collection }) => collection)
     .filter(collection => items.filter(item => (item.g || []).includes(collection.id)).length >= 5);
-for (const item of items) { delete item.kinds; delete item.grp; }
+for (const item of items) { delete item.kinds; delete item.grp; delete item.mg; }
 
 // --- Úrovně obtížnosti (Základní / Mudrlant / Expert) ---
 // Známost: jazykové verze článku a návštěvnost článku na české Wikipedii; prvky do stroncia a nejznámější těžší prvky (KNOWN_ELEMENTS)
 // a čeští chemici jsou známí vždy
 const sitelinks = new Map([...elements.map(entry => [entry.q, entry.sl]), ...compoundCandidates, ...chemistCandidates, ...conceptList.map(([qid, sl]) => [qid, sl])]);
 const pageviews = await pageviewsByTitle('chemie-pageviews', items.map(item => item.t));
-for (const item of items) item._ = { sl: sitelinks.get(item.q) || 0, pv: pageviews[item.t], pool: item.c, fixed: item.k === 1 };
+// Materiály: známé a pro experty podle ručního seznamu (lvl), ne podle pořadí
+for (const item of items) item._ = { sl: sitelinks.get(item.q) || 0, pv: pageviews[item.t], pool: item.c, fixed: item.k === 1, never: item.c === 'materialy' && item.lvl !== 1 };
 const levelGroups = [
     ...collections.map(collection => ({ id: collection.id, members: items.filter(item => (item.g || []).includes(collection.id)) })),
-    ...['prvky', 'latky', 'reakce', 'pojmy', 'chemici'].map(key => ({ id: `kategorie ${key}`, members: items.filter(item => item.c === key) }))
+    ...CATEGORY_KEYS.map(key => ({ id: `kategorie ${key}`, members: items.filter(item => item.c === key) }))
 ];
-const promoted = assignLevels(items, { groups: levelGroups, knownShare: pool => KNOWN_SHARE[pool],
+const promoted = assignLevels(items, { groups: levelGroups, knownShare: pool => KNOWN_SHARE[pool], expertShare: pool => (pool === 'materialy' ? 0 : EXPERT_SHARE),
     ceiling: item => item._.pct <= PROMOTE_PCT || (item._.pv || 0) >= PROMOTE_PV });
+for (const item of items) {
+    if (item.c === 'materialy' && item.lvl === 3) item.x = 1;
+    delete item.lvl;
+}
 console.log(`Povýšeno na známé kvůli okruhům: ${promoted.length}`);
 for (const [group, name] of promoted) console.log(`  ${group}: ${name}`);
-for (const key of ['prvky', 'latky', 'reakce', 'pojmy', 'chemici']) console.log('  ' + levelSummary(key, items.filter(item => item.c === key)));
+for (const key of CATEGORY_KEYS) console.log('  ' + levelSummary(key, items.filter(item => item.c === key)));
 for (const collection of collections) console.log('  ' + levelSummary(`okruh ${collection.label}`, items.filter(item => (item.g || []).includes(collection.id))));
 console.log('  ' + levelSummary('celkem', items));
 for (const item of items) delete item._;
 
-for (const category of ['prvky', 'latky', 'reakce', 'pojmy', 'chemici']) {
+for (const category of CATEGORY_KEYS) {
     const inCategory = items.filter(item => item.c === category);
     console.log(`${category}: ${inCategory.length} (${inCategory.filter(item => item.k).length} známých, ${inCategory.filter(item => item.im).length} s fotkou)`);
 }

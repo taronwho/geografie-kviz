@@ -1,4 +1,4 @@
-// Téma Chemie: chemické prvky, sloučeniny a látky, chemici (data/chemie.json)
+// Téma Chemie: chemické prvky, sloučeniny a látky, reakce, pojmy, chemici a materiály (data/chemie.json)
 (function (root, factory) {
     const isNode = typeof module === 'object' && module.exports;
     const topic = factory(isNode ? require('../quiz-core.js') : root.MudrlantCore);
@@ -19,8 +19,23 @@
         { key: 'latky', label: 'Sloučeniny a látky', one: 'látka', icon: 'beaker', question: 'Co je to za látku?', placeholder: 'Napiš název látky…', sort: { by: 'name' } },
         { key: 'reakce', label: 'Reakce a procesy', one: 'reakce', icon: 'zap', question: 'Jaká reakce nebo proces to je?', placeholder: 'Napiš název…', sort: { by: 'name' } },
         { key: 'pojmy', label: 'Pojmy a metody', one: 'pojem', icon: 'lightbulb', question: 'Jaký pojem nebo metoda to je?', placeholder: 'Napiš název…', sort: { by: 'name' } },
-        { key: 'chemici', label: 'Chemici', one: 'chemik', icon: 'user', question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } }
+        { key: 'chemici', label: 'Chemici', one: 'chemik', icon: 'user', question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } },
+        { key: 'materialy', label: 'Materiály a suroviny', one: 'materiál', icon: 'layers', question: 'Jaký materiál nebo surovina to je?', placeholder: 'Napiš název…', sort: { by: 'name' } }
     ];
+    // Okruhy kategorie Materiály a suroviny (scripts/lib/chemie-materialy.mjs): nesprávné možnosti přednostně ze stejného okruhu
+    const MATERIAL_GROUPS = new Set(['kovy-slitiny', 'plasty-pryz', 'kompozity', 'sklo-keramika', 'stavebni-hmoty', 'paliva', 'papir-vlakna', 'barvy-lepidla', 'vybusniny', 'cistidla-hnojiva']);
+    const materialGroups = (item) => (item.g || []).filter(id => MATERIAL_GROUPS.has(id));
+    const lastWord = (name) => normalizeAnswer(name).split(' ').pop();
+    // Nadřazený pojem a jeho druh nesmí být spolu mezi možnostmi (PET je plast, korozivzdorná ocel je ocel, zvonovina je bronz):
+    // obecný materiál nedostane za nesprávnou možnost nic ze svého okruhu, ani název, který jeho název obsahuje (železobeton)
+    const GENERIC_MATERIALS = new Set(['Plast', 'Slitina', 'Keramika', 'Sklo', 'Kompozitní materiál', 'Polyestery', 'Kaučuk', 'Bronz', 'Ocel', 'Litina',
+        'Beton', 'Papír', 'Dřevo', 'Pryskyřice', 'Pigment', 'Lepidlo', 'Vosk', 'Detergent', 'Hnojivo'].map(normalizeAnswer));
+    const nestedMaterial = (item, other) => {
+        const a = normalizeAnswer(item.n);
+        const b = normalizeAnswer(other.n);
+        const sameGroup = materialGroups(item).some(id => (other.g || []).includes(id));
+        return a !== b && (a.endsWith(b) || b.endsWith(a) || (sameGroup && (GENERIC_MATERIALS.has(a) || GENERIC_MATERIALS.has(b))));
+    };
 
     // Jak často se u prvku ptáme na značku a u látky na vzorec
     const SYMBOL_QUIZ_SHARE = 0.4;
@@ -95,9 +110,33 @@
         }
         // Reakce a pojmy mají jen popis z Wikipedie
         if (item.c === 'reakce' || item.c === 'pojmy') return [];
+        if (item.c === 'materialy') return materialFacts(item);
         const facts = formatFacts(item, [['born', 'Narození', formatYear], ['died', 'Úmrtí', formatYear], ['land', 'Země', v => v]], ['born', 'died']);
-        if (f.nobel) facts.push({ label: 'Nobelova cena', value: 'za chemii' });
+        const nobel = nobelFact(f);
+        if (nobel) facts.push(nobel);
         return facts;
+    };
+
+    // Nobelova cena: rok a za co („1911 za objev radia a polonia“; u Curie i „1903 za fyziku“), u starších dat jen „za chemii“
+    const nobelFact = (f) => {
+        if (Array.isArray(f.np) && f.np.length) return { label: 'Nobelova cena', value: f.np.map(([year, why]) => `${year} za ${why}`).join('; ') };
+        return f.nobel ? { label: 'Nobelova cena', value: 'za chemii' } : null;
+    };
+
+    // Materiály: složení, výroba a využití (ručně psané), vznik, vynálezce a hustota
+    const inventorLabel = (f) => (/ a /.test(f.by) ? 'Vynálezci' : f.bf ? 'Vynálezkyně' : 'Vynálezce');
+    const materialParts = (item) => {
+        const f = item.f || {};
+        const fact = (label, value) => (value === undefined || value === '' ? [] : [{ label, value: String(value) }]);
+        return {
+            numbers: [...fact('Vznik', f.year !== undefined ? formatYear(f.year) : undefined), ...fact('Hustota', f.dens !== undefined ? density(f.dens) : undefined)],
+            made: [...fact('Složení', f.s), ...fact('Výroba', f.vy)],
+            use: [...fact('Využití', f.v), ...fact(inventorLabel(f), f.by)]
+        };
+    };
+    const materialFacts = (item) => {
+        const parts = materialParts(item);
+        return [...parts.made, ...parts.use, ...parts.numbers];
     };
 
     // Časová osa chemika s milníky chemie
@@ -144,13 +183,15 @@
             next: 'Další otázka',
             atlas: 'Atlas chemie',
             placeholder: 'Napiš odpověď…',
-            tierKnown: 'Běžné prvky a látky, slavní chemici'
+            tierKnown: 'Běžné prvky, látky a materiály, slavní chemici'
         },
         categories: CATEGORIES,
         offSubjectPhoto,
 
         // Jiný zápis názvu látky: cukry na -osa (glukosa), glycerin; platí jako psaná odpověď i se zakryje v popisu
         nameAliases: (item) => {
+            // Materiály: běžný a chemický název (Teflon – polytetrafluorethylen, PTFE; Korozivzdorná ocel – nerez)
+            if (item.c === 'materialy') return (item.f || {}).al || [];
             if (item.c !== 'latky') return [];
             const aliases = /óza$/u.test(item.n) ? [item.n.replace(/óza$/u, 'osa')] : [];
             if (item.n === 'Glycerol') aliases.push('Glycerin');
@@ -182,6 +223,15 @@
                 return (item.c === other.c ? 2 : 0) + (sharesGroup(item, other) ? 3 : 0) + (archaic(item) && archaic(other) ? 6 : 0)
                     + (normalizeAnswer(item.n).split(' ').pop() === normalizeAnswer(other.n).split(' ').pop() ? 2 : 0)
                     + (normalizeAnswer(item.n).slice(-3) === normalizeAnswer(other.n).slice(-3) ? 1 : 0);
+            }
+            // Materiály: stejný okruh (k bronzu slitiny, k PET plasty), stejné slovo názvu (ocel, sklo, barva, papír) a začátek (poly-);
+            // obecný materiál k obecným z jiných okruhů (k plastu sklo, dřevo, ocel)
+            if (item.c === 'materialy') {
+                if (nestedMaterial(item, other)) return -8;
+                const own = materialGroups(item);
+                const generic = GENERIC_MATERIALS.has(normalizeAnswer(item.n)) && GENERIC_MATERIALS.has(normalizeAnswer(other.n));
+                return (own.some(id => (other.g || []).includes(id)) ? 4 : 0) + (generic ? 5 : 0) + (lastWord(item.n) === lastWord(other.n) ? 2 : 0)
+                    + (firstWord(item.n) === firstWord(other.n) ? 1 : 0) + (normalizeAnswer(item.n).slice(0, 4) === normalizeAnswer(other.n).slice(0, 4) ? 1 : 0);
             }
             // Osoby: pohlaví a doba, k tomu stejná země (k Sacharovovi sovětští vědci, ne Descartes) a Čech k Čechům
             return personSimilarity(item, other) + (Boolean(f.nobel) === Boolean(g.nobel) ? 1 : 0)
@@ -252,6 +302,17 @@
                     { kind: 'facts', label: 'délka názvu', icon: 'type', facts: [{ label: 'Název má', value: `${words} ${words === 1 ? 'slovo' : words < 5 ? 'slova' : 'slov'}` }] }
                 ];
             }
+            // Materiály: okruh a čísla, pak složení a výroba, využití a vynálezce, nakonec fotka (ta materiál skoro vždy prozradí)
+            if (type === 'name' && item.c === 'materialy') {
+                const group = materialGroups(item).map(id => (ctx.collections || []).find(collection => collection.id === id)).find(Boolean);
+                const parts = materialParts(item);
+                return [
+                    { kind: 'facts', label: group ? 'okruh' : 'čísla a fakta', icon: group ? 'tag' : 'info', facts: [...(group ? [{ label: 'Okruh', value: group.label }] : []), ...parts.numbers] },
+                    { kind: 'facts', label: 'složení', icon: 'atom', facts: parts.made },
+                    { kind: 'facts', label: 'využití', icon: 'hammer', facts: parts.use },
+                    { kind: 'photo' }
+                ];
+            }
             if (type === 'symbol') {
                 const latin = f.lat && normalizeAnswer(f.lat) !== normalizeAnswer(item.n) ? capitalize(f.lat) : null;
                 return [{ kind: 'facts', label: 'latinský název', icon: 'scroll', facts: latin ? [{ label: 'Latinsky', value: latin }] : [] }];
@@ -277,7 +338,8 @@
             const plain = stripBrackets(text).replace(/\s{2,}/g, ' ').replace(/\s+([,;.?!])/g, '$1');
             if (type === 'symbol') return hideSymbol(plain, f.sym);
             if (type === 'formula') return hideFormula(plain);
-            if (type !== 'name' || item.c === 'chemici') return null;
+            // Chemici a materiály: zakrytí jádra (u materiálů i s dalšími názvy – nameAliases)
+            if (type !== 'name' || item.c === 'chemici' || item.c === 'materialy') return null;
             // Celý název a jeho výrazná slova (kyselina, sodný a další obecná slova látek jen v celém názvu; core.censorItemName)
             const withoutName = ctx ? core.censorItemName(text, [item.n, displayName(item.t || '')], core.genericWordsOf(ctx)) : censorName(text, [item.n, displayName(item.t || '')].join(', '));
             return item.c === 'prvky' ? hideSymbol(withoutName, f.sym) : hideFormula(withoutName);
@@ -290,6 +352,7 @@
             if (item.c === 'prvky') return `${f.sym} · protonové číslo ${f.z}`;
             if (item.c === 'latky') return f.formula || '';
             if (item.c === 'reakce' || item.c === 'pojmy') return '';
+            if (item.c === 'materialy') return f.s || '';
             return [f.born !== undefined ? `${formatYear(f.born)}–${f.died !== undefined ? formatYear(f.died) : ''}` : '', f.land].filter(Boolean).join(' · ');
         },
         isCzech: (item) => item.cz === 1
