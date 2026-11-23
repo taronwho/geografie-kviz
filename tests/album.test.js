@@ -14,7 +14,7 @@ const Season = require('../season.js');
 Album.setAvailability(Season.availability);
 
 const ROOT = path.join(__dirname, '..');
-const TOPICS = ['zemepis', 'vlajky', 'historie', 'mytologie', 'biologie', 'geologie', 'chemie', 'fyzika', 'umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport'].map(id => ({ id, title: id }));
+const TOPICS = ['zemepis', 'vlajky', 'historie', 'mytologie', 'biologie', 'geologie', 'chemie', 'fyzika', 'umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport', 'technika', 'jidlo'].map(id => ({ id, title: id }));
 const TODAY = '2026-11-10';
 const input = (extra = {}) => ({ level: 1, badges: {}, gifts: {}, diplomas: {}, topics: TOPICS, today: TODAY, ...extra });
 const sectionOf = (album, id) => album.sections.find(section => section.id === id);
@@ -89,7 +89,7 @@ test('sekce v pořadí a počty z katalogu: věci od začátku se nepočítají,
     assert.equal(badges.total, Core.BADGES.filter(badge => !Core.isAlbumBadge(badge.id)).length);
     assert.ok(badges.entries.every(entry => !Core.isAlbumBadge(entry.group.badges[0].id)));
     assert.equal(badges.entries.reduce((sum, entry) => sum + entry.size, 0), badges.total);
-    assert.equal(sectionOf(album, 'diplomas').total, 14);
+    assert.equal(sectionOf(album, 'diplomas').total, 16);
     assert.equal(album.percent, 0);
     assert.equal(album.owned, 0);
 });
@@ -128,7 +128,7 @@ test('100 % je opravdu všechno: celé album, každá sekce kompletní; odznaky 
     const diplomas = { ...full.diplomas };
     delete diplomas.sport;
     const avatars = sectionOf(Album.build(full), 'avatars').total;
-    assert.equal(Album.build({ ...full, diplomas }).percent, Math.floor((6 + (avatars - 1) / avatars + 13 / 14) / 8 * 100 + 1e-9), 'průměr sekcí: 6 × 100 %, postavičky bez jedné a 13/14 diplomů');
+    assert.equal(Album.build({ ...full, diplomas }).percent, Math.floor((6 + (avatars - 1) / avatars + 15 / 16) / 8 * 100 + 1e-9), 'průměr sekcí: 6 × 100 %, postavičky bez jedné a 15/16 diplomů');
     assert.ok(!Album.build({ ...full, diplomas }).complete.includes('diplomas'));
     assert.ok(!Album.build({ ...full, diplomas }).complete.includes('avatars'));
     // Bez rámečků letošní sezóny ani bez ligového vrcholu není album celé (obojí teď jde získat)
@@ -348,10 +348,10 @@ test('napojení: album.js v index.html, service workeru, nasazení a Tailwindu; 
     for (const title of titles) assert.equal(Core.BADGES.filter(badge => badge.title === title).length, 1, `${title} je jedinečný`);
 });
 
-test('Sady témat: 14 looků s počtem kusů pod doplňky, celá sada se zlatým lemem, nošená s fajfkou; procenta alba se nemění', () => {
+test('Sady témat: 16 looků s počtem kusů pod doplňky, celá sada se zlatým lemem, nošená s fajfkou; procenta alba se nemění', () => {
     const badges = { 'zbehly-zemepis': 'x', 'tema-zemepis-300': 'x', 'tema-zemepis-1000': 'x', 'zbehly-historie': 'x', 'tema-historie-1000': 'x', 'zbehly-sport': 'x' };
     const album = Album.build(input({ badges }));
-    assert.equal(album.looks.length, 14);
+    assert.equal(album.looks.length, 16);
     const byTopic = Object.fromEntries(album.looks.map(look => [look.topic, look]));
     assert.deepEqual([byTopic.zemepis.title, byTopic.zemepis.owned, byTopic.zemepis.total, byTopic.zemepis.complete], ['Cestovatel', 3, 3, true]);
     assert.deepEqual([byTopic.historie.title, byTopic.historie.owned, byTopic.historie.total, byTopic.historie.complete], ['Vojevůdce', 2, 2, true], 'Historie zatím bez dvourohého klobouku');
@@ -371,8 +371,8 @@ test('Sady témat: 14 looků s počtem kusů pod doplňky, celá sada se zlatým
     const html = Album.albumHtml(album, { section: 'accessories', wornLook: 'historie' }, h);
     assert.doesNotMatch(html, /style=/);
     assert.ok(html.indexOf('data-album-looks') > html.lastIndexOf('data-album-item='), 'pod mřížkou doplňků');
-    assert.equal((html.match(/data-album-look=/g) || []).length, 14);
-    assert.match(html, /data-album-looks-count[^>]*>2 \/ 14 celých/);
+    assert.equal((html.match(/data-album-look=/g) || []).length, 16);
+    assert.match(html, /data-album-looks-count[^>]*>2 \/ 16 celých/);
     assert.match(html, /data-album-look="zemepis" data-state="complete"[^>]*class="[^"]*ring-gold-400/);
     assert.match(html, /data-album-look="historie" data-state="worn"[^>]*aria-label="Vojevůdce \(Historie\): Mudrlant ho nosí"[^>]*class="[^"]*ring-brand-600/);
     assert.match(html, /data-album-look="sport" data-state="missing" aria-label="Trenér \(Sport\): 1 z 3 kusů"/);

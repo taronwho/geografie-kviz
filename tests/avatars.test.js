@@ -20,13 +20,13 @@ const REPLACED = {
     '🎯': ['zabak', { badge: 'odhad-25' }], '🧩': ['myval', { badge: 'serad-25' }]
 };
 
-test('katalog: postavičky s 1–2 částmi (21 místo emoji odměn, 84 dalších, 12 sezónních, 14 legendárních), id do 6 písmen, žádná odměna už není emoji', () => {
+test('katalog: postavičky s 1–2 částmi (21 místo emoji odměn, 84 dalších, 12 sezónních, 16 legendárních), id do 6 písmen, žádná odměna už není emoji', () => {
     assert.equal(CHARACTERS.length, Look.AVATARS.length - Look.ROBOT_AVATARS.length);
     assert.equal(Look.AVATARS.filter(item => item.was).length, 21);
     assert.equal(Look.AVATARS.filter(item => item.source === 'season').length, 12);
     assert.equal(CHARACTERS.filter(item => !item.diploma && !item.exclusive).length, 21 + 84);
     assert.equal(Look.NEW_AVATARS.length, 84);
-    assert.equal(CHARACTERS.filter(item => item.diploma).length, 14);
+    assert.equal(CHARACTERS.filter(item => item.diploma).length, 16);
     for (const item of CHARACTERS) {
         assert.match(item.id, /^[a-z]{1,6}$/, item.id);
         assert.ok(item.parts.length >= 1 && item.parts.length <= 2, item.id);
@@ -198,10 +198,11 @@ test('sezónní postavičky: jedna za každý měsíc jen ze Sezónní truhly, �
 // Legendární postavičky za diplomy témat (docs/OBRAZKY.md č. 119–132): téma → id
 const LEGENDARY = {
     zemepis: 'albatr', vlajky: 'gryf', historie: 'slon', mytologie: 'sfinga', biologie: 'jelen', geologie: 'golem', chemie: 'liska',
-    fyzika: 'chobot', umeni: 'pav', architektura: 'bobr', hudba: 'vlk', literatura: 'kndrak', film: 'panda', sport: 'klokan'
+    fyzika: 'chobot', umeni: 'pav', architektura: 'bobr', hudba: 'vlk', literatura: 'kndrak', film: 'panda', sport: 'klokan',
+    technika: 'mraven', jidlo: 'medved'
 };
-// Témata s diplomem, jejichž legendární postavička se teprve kreslí (docs/OBRAZKY.md č. 511 Mravenec konstruktér a č. 516 Medvěd šéfkuchař): do dodání obrázku bez ní
-const PENDING_LEGENDARY = ['technika', 'jidlo'];
+// Témata s diplomem, jejichž legendární postavička se teprve kreslí: do dodání obrázku bez ní
+const PENDING_LEGENDARY = [];
 
 test('legendární postavičky: jedna za diplom každého tématu, odemyká je jen diplom (ne úroveň, odznak, truhla ani Sezóna)', () => {
     const Rewards = require('../rewards.js');

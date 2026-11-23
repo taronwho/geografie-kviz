@@ -157,6 +157,16 @@ CHARACTERS = {
     'klokan': {'src': 'klokan', 'parts': [
         {'title': 'Dres a čelenka', 'rules': [{'hue': (320, 360), 'smin': 0.4, 'vmin': 0.3, 'box': [(0.12, 0.55, 0.82, 1), (0.36, 0.25, 0.64, 0.36)], 'out': [(0.735, 0.62, 0.9, 1)]}]},
         {'title': 'Záře', 'rules': [{'hue': (18, 48), 'smin': 0.3, 'vmin': 0.5, 'outer': 6, 'out': [(0.72, 0.24, 1, 0.58)]}]}]},
+    # Technika a vynálezy (docs/OBRAZKY.md č. 511): modrá kombinéza, tyrkysová záře za mravencem i se středy ozubených kol (ne skla brýlí)
+    'mraven': {'src': 'mravenec', 'parts': [
+        {'title': 'Kombinéza', 'rules': [{'hue': (195, 240), 'smin': 0.25, 'vmin': 0.15, 'box': [(0.28, 0.6, 0.78, 1)]}]},
+        {'title': 'Záře', 'edge': 5, 'rules': [{'hue': (165, 200), 'smin': 0.3, 'vmin': 0.4, 'out': [(0.3, 0.22, 0.7, 0.36)]}]}]},
+    # Jídlo a pití (č. 516): bílá čepice a purpurový šátek se obarví spolu, záře je purpurová a zlatá (ne pečeně, vařečka ani šátek)
+    'medved': {'src': 'medved', 'parts': [
+        {'title': 'Čepice a šátek', 'mode': 'tint', 'rules': [{'smin': 0, 'smax': 0.2, 'vmin': 0.55, 'box': [(0.33, 0.04, 0.78, 0.33)]},
+                                                             {'hue': (295, 355), 'smin': 0.3, 'vmin': 0.2, 'box': [(0.38, 0.56, 0.9, 0.9)]}]},
+        {'title': 'Záře', 'rules': [{'hue': (290, 50), 'smin': 0.3, 'vmin': 0.5, 'outer': 6,
+                                    'out': [(0.38, 0.56, 0.9, 1), (0.03, 0.45, 0.45, 0.75), (0.84, 0.36, 1, 0.68), (0.1, 0.72, 0.9, 1)]}]}]},
 }
 
 # Sezónní postavičky (Sezónní truhla měsíce, look.js SEASON_AVATARS; docs/OBRAZKY.md č. 151–162). Zdroje dodané s průhledným

@@ -70,7 +70,7 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
             assert.equal(await tab.locator(`[data-owl-pick]:not([data-owl-pick^="${slot}:"])`).count(), 0, 'jen doplňky otevřeného místa');
             tiles += await tab.locator('[data-owl-pick]').count();
         }
-        assert.equal(tiles, 73, '3 × „bez doplňku“, Monokl a Bez monoklu + 68 doplňků');
+        assert.equal(tiles, 79, '3 × „bez doplňku“, Monokl a Bez monoklu + 74 doplňků');
         // Zamčený doplněk se nenasadí a ukáže, jak se odemkne
         await pickAcc(tab, 'hand:lupa', { force: true });
         await tab.waitForFunction(() => /Lupa: Úroveň 24/.test(document.querySelector('[data-look="owl"]').textContent));
@@ -264,7 +264,7 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         await tab.waitForFunction(() => /Celý look: Vojevůdce/.test((document.getElementById('celebration-mini') || {}).textContent || ''));
         await shot(tab, 'look-mistrovstvi-obleceno-390.png');
 
-        // Album sbírky → Doplňky: Sady témat (14 looků), Historie nošená, Zeměpis celý; klepnutí vede do Mistrovství a zpět do alba
+        // Album sbírky → Doplňky: Sady témat (16 looků), Historie nošená, Zeměpis celý; klepnutí vede do Mistrovství a zpět do alba
         await tab.click('[data-dialog-back]');
         // Zpět v okně Mistrovství témat; křížek vrátí na záložku Postup, kde je dlaždice Album
         await tab.waitForSelector('[data-mastery-dialog]');
@@ -273,8 +273,8 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         await tab.click('#app-content [data-rewards-info="album"]');
         await tab.click('[data-album-tab="accessories"]');
         await tab.waitForSelector('[data-album-looks]');
-        assert.equal(await tab.locator('[data-album-look]').count(), 14);
-        assert.match(await tab.textContent('[data-album-looks-count]'), /2 \/ 14 celých/);
+        assert.equal(await tab.locator('[data-album-look]').count(), 16);
+        assert.match(await tab.textContent('[data-album-looks-count]'), /2 \/ 16 celých/);
         assert.equal(await tab.getAttribute('[data-album-look="historie"]', 'data-state'), 'worn');
         assert.equal(await tab.getAttribute('[data-album-look="zemepis"]', 'data-state'), 'complete');
         assert.equal(await tab.getAttribute('[data-album-look="vlajky"]', 'aria-label'), 'Praporečník (Vlajky a znaky): 1 z 3 kusů');
