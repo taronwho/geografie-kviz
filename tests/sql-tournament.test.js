@@ -4,6 +4,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
+const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
 const { finishMatchSql } = require('./sql-play.js');
 
@@ -192,6 +193,21 @@ test('SQL: týdenní turnaje', { skip: !available && 'PostgreSQL není dostupný
         assert.equal(q(`select count(*) from tournament_matches where tournament_id = '${next}' and round = 1`), '4');
         assert.equal(q(`select count(*) from tournament_notices where kind = 'cancelled' and tournament_id = '${next}'`), '0');
         assert.equal(q(`select bool_and(dev_is_bot(e.user_id)) from tournament_entries e join auth.users u on u.id = e.user_id where e.tournament_id = '${next}' and u.email like 'bott-%'`), 't');
+    });
+
+    await t.test('jednorázová obnova: zrušený turnaj týdne od 23. 11. se otevře s boty a 1. kolo bude až 24. 11.', () => {
+        const back = q(`insert into tournaments (topic, week_start, status, seed) values ('zemepis', '2026-11-23', 'cancelled', 'obnova') returning id`).split('\n')[0];
+        for (let n = 1; n <= 2; n++) q(`insert into tournament_entries (tournament_id, user_id) values ('${back}', '${id(n)}')`);
+        q(`insert into tournament_notices (user_id, tournament_id, kind, detail) values ('${id(1)}', '${back}', 'cancelled', '2')`);
+        const schema = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'schema.sql'), 'utf8');
+        const once = schema.slice(schema.indexOf('-- Jednorázově: turnaj týdne od 23. 11. 2026'), schema.indexOf('-- ===== 50: Týdenní turnaj se nezruší — KONEC BLOKU'));
+        ok(psql(dbName, `set mudrlant.test_today = '2026-11-23'; ${once}`));
+        assert.equal(q(`select status || ':' || size || ':' || started_on from tournaments where id = '${back}'`), 'running:8:2026-11-24');
+        assert.equal(q(`select count(*) from tournament_notices where tournament_id = '${back}' and kind = 'cancelled' and not seen`), '0');
+        assert.equal(q(`select tournament_round_phase(t, 1) from tournaments t where id = '${back}'`), 'before');
+        ok(psql(dbName, `set mudrlant.test_today = '2026-11-23'; ${once}`));
+        assert.equal(q(`select started_on from tournaments where id = '${back}'`), '2026-11-24', 'opakované spuštění nic neposune');
+        q(`delete from tournaments where id = '${back}'`);
     });
 
     await t.test('plný turnaj má nejvýš 128 míst a 128 hráčů dá 7 kol', () => {

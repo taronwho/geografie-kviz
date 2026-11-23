@@ -726,8 +726,10 @@
         for (const [a, b] of extraEdges.teacher || []) { const x = personOf(a); const y = personOf(b); if (x && y) { linkSet(x, 'student', y.id); linkSet(y, 'teacher', x.id); } }
         for (const [a, b] of extraEdges.successor || []) { const x = personOf(a); const y = personOf(b); if (x && y) { linkSet(x, 'successor', y.id); linkSet(y, 'predecessor', x.id); } }
         // Koho zobrazuje obraz či socha (postava mytologie nebo osobnost; název díla ji nesmí prozradit: Zrození Venuše)
-        for (const [a, d] of extraEdges.depicts || []) {
+        // depictsAlso: na díle je i někdo mimo data (Smrt Sokratova: Sókratés), otázka se proto neptá na hlavní postavu (artwork.alsoOnly)
+        for (const [a, d, also] of [...(extraEdges.depicts || []), ...(extraEdges.depictsAlso || []).map(([x, y]) => [x, y, true])]) {
             const artwork = nodes.get(`artwork:${a}`);
+            if (artwork && also) artwork.alsoOnly = true;
             const target = nodes.get(`myth:${d}`) || personOf(d);
             if (!artwork || !target || reveals(artwork.name, target.name) || reveals(artwork.name, surname(target.name)) || samePrefix(artwork.name, target.name)) continue;
             artwork.depicts = [...(artwork.depicts || []), target.id];
@@ -1172,12 +1174,13 @@
         { id: 'inventorInvention', from: [...PERSON_KINDS], to: ['invention'], ask: (a) => [`Co z tohoto vynalezl${she(a)} ${a.name}?`, `Který z těchto vynálezů je dílem osobnosti ${a.name}?`],
             explain: (a, b) => `${cap(low(b.name))} vynalezl${she(a)} ${a.name}${yearNote(b.year)}.`, pool: (b, graph) => kindOf(graph, 'invention').filter(x => x.inventor), fits: (a, x) => x.inventor === a.id },
         { id: 'artDepicts', from: ['artwork'], to: ['myth', ...PERSON_KINDS], photo: false,
-            ask: (a, b) => [b.kind === 'myth' ? `Kterou postavu z mytologie zobrazuje ${artNominative(a)} ${a.name}?` : `Koho zobrazuje ${artNominative(a)} ${a.name}?`, `Kdo je hlavní postavou díla ${a.name}?`],
-            explain: (a, b) => `${cap(artNominative(a))} ${a.name} zobrazuje ${b.kind === 'myth' ? 'postavu' : 'osobnost'} ${b.name}.`, pool: (b, graph) => kindOf(graph, b.kind),
+            ask: (a, b) => (a.alsoOnly ? [`Kdo z nich je zobrazen na díle ${a.name}?`, `Kterou z těchto ${b.kind === 'myth' ? 'postav' : 'osobností'} najdeš na díle ${a.name}?`]
+                : [b.kind === 'myth' ? `Kterou postavu z mytologie zobrazuje ${artNominative(a)} ${a.name}?` : `Koho zobrazuje ${artNominative(a)} ${a.name}?`, `Kdo je hlavní postavou díla ${a.name}?`]),
+            explain: (a, b) => (a.alsoOnly ? `Na díle ${a.name} je mimo jiné zobrazen${she(b)} ${b.name}.` : `${cap(artNominative(a))} ${a.name} zobrazuje ${b.kind === 'myth' ? 'postavu' : 'osobnost'} ${b.name}.`), pool: (b, graph) => kindOf(graph, b.kind),
             fits: (a, x) => (a.depicts || []).includes(x.id) },
         { id: 'depictedIn', from: ['myth', ...PERSON_KINDS], to: ['artwork'], photo: false,
             ask: (a) => [`Které z těchto děl zobrazuje ${a.kind === 'myth' ? 'postavu' : 'osobnost'} ${a.name}?`, `Na kterém z těchto děl je zobrazen${she(a)} ${a.name}?`],
-            explain: (a, b) => `${cap(artNominative(b))} ${b.name} zobrazuje ${a.kind === 'myth' ? 'postavu' : 'osobnost'} ${a.name}.`, pool: (b, graph) => kindOf(graph, 'artwork').filter(x => (x.depicts || []).length),
+            explain: (a, b) => (b.alsoOnly ? `Na díle ${b.name} je mimo jiné zobrazen${she(a)} ${a.name}.` : `${cap(artNominative(b))} ${b.name} zobrazuje ${a.kind === 'myth' ? 'postavu' : 'osobnost'} ${a.name}.`), pool: (b, graph) => kindOf(graph, 'artwork').filter(x => (x.depicts || []).length),
             fits: (a, x) => (x.depicts || []).includes(a.id) },
         // Mytologie
         { id: 'mythFather', from: ['myth'], to: ['myth'], ask: (a) => [`Koho má ${a.name} za otce?`, `Kdo je otcem postavy ${a.name}?`],
