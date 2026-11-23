@@ -132,7 +132,10 @@
         { id: 'vlk', title: 'Vlk dirigent', diploma: 'hudba', parts: ['Frak', 'Nebe'], colors: [[1, 2, 3, 4, 5, 6, 7, 8], [1, 2, 3, 4, 5, 6, 7, 8]] },
         { id: 'kndrak', title: 'Knižní drak', diploma: 'literatura', parts: ['Dráček', 'Záře'], colors: [[1, 2, 3, 4, 5, 6, 7, 8], [1, 4, 5, 6, 7, 8, 9]] },
         { id: 'panda', title: 'Panda režisér', diploma: 'film', parts: ['Šála', 'Záře'], colors: [[3, 4, 5, 6, 7, 8, 9], [3, 4, 5, 6, 7, 8, 9]] },
-        { id: 'klokan', title: 'Klokan šampion', diploma: 'sport', parts: ['Dres a čelenka', 'Záře'], colors: [[1, 2, 3, 4, 5, 6, 7, 8], [1, 4, 5, 6, 7, 8, 9]] }
+        { id: 'klokan', title: 'Klokan šampion', diploma: 'sport', parts: ['Dres a čelenka', 'Záře'], colors: [[1, 2, 3, 4, 5, 6, 7, 8], [1, 4, 5, 6, 7, 8, 9]] },
+        // Nová témata (docs/OBRAZKY.md č. 511 a 516)
+        { id: 'mraven', title: 'Mravenec konstruktér', diploma: 'technika', parts: ['Kombinéza', 'Záře'], colors: [ALL, [1, 2, 3, 4, 6, 7, 8, 9]] },
+        { id: 'medved', title: 'Medvěd šéfkuchař', diploma: 'jidlo', parts: ['Čepice a šátek', 'Záře'], colors: [ALL, [3, 4, 5, 6, 7, 8, 9]] }
     ];
     // Další postavičky (docs/OBRAZKY.md oddíly 26, 32 a 33, č. 317–408): odměny rozdělené do všech částí hry, ať je co získávat odevšad. Jen podmínky,
     // které už katalog umí (a server ověří, schema.sql blok 35): úroveň, odznak (Kvíz dne, Bleskovka, Přežití, Tajemná otázka, Řetězovka, Boss týdne,
@@ -351,7 +354,14 @@
         { id: 'popcorn', hidesHand: true, fixed: true, title: 'Kornout popcornu', slot: 'hand', hue: 215, badge: 'tema-film-300' },
         { id: 'filmovy-pas', title: 'Filmový pás', slot: 'neck', hue: 0, badge: 'tema-film-1000' },
         { id: 'pistalka', title: 'Píšťalka', slot: 'neck', hue: 215, badge: 'tema-sport-300' },
-        { id: 'pohar', hidesHand: true, fixed: true, title: 'Vítězný pohár', slot: 'hand', hue: 45, badge: 'tema-sport-1000' }
+        { id: 'pohar', hidesHand: true, fixed: true, title: 'Vítězný pohár', slot: 'hand', hue: 45, badge: 'tema-sport-1000' },
+        // Sady nových témat (docs/OBRAZKY.md č. 512–514 a 517–519): kus za zběhlost a dva za odznaky tématu jako výše
+        { id: 'klic', hidesHand: true, fixed: true, title: 'Francouzský klíč', slot: 'hand', hue: 215, badge: 'zbehly-technika' },
+        { id: 'ozubene-kolo', title: 'Ozubené kolo na řetízku', slot: 'neck', hue: 215, badge: 'tema-technika-300' },
+        { id: 'celovka', title: 'Čelovka', slot: 'head', hue: 215, badge: 'tema-technika-1000' },
+        { id: 'kucharska-cepice', hidesHat: true, fixed: true, title: 'Kuchařská čepice', slot: 'head', hue: 215, badge: 'zbehly-jidlo' },
+        { id: 'kucharsky-satek', title: 'Kuchařský šátek', slot: 'neck', hue: 125, badge: 'tema-jidlo-300' },
+        { id: 'panev', hidesHand: true, fixed: true, title: 'Pánev s palačinkou', slot: 'hand', hue: 215, badge: 'tema-jidlo-1000' }
     ];
     // Měsíční doplňky Sezóny Mudrlanta (docs/OBRAZKY.md č. 134–145): jen ze Sezónní truhly svého měsíce (SEASON_BUNDLES níže),
     // úrovní, odznakem ani Truhlou Mudrlanta ne (exclusive, month a source jako rámečky sezóny SEASON_FRAMES). Ve výběru doplňků
@@ -383,7 +393,7 @@
     const TOPIC_LOOKS = {
         zemepis: 'Cestovatel', vlajky: 'Praporečník', historie: 'Vojevůdce', mytologie: 'Hrdina bájí', biologie: 'Přírodovědec', geologie: 'Badatel podzemí',
         chemie: 'Šílený chemik', fyzika: 'Génius', umeni: 'Umělec', architektura: 'Stavitel', hudba: 'Rocková hvězda', literatura: 'Spisovatel',
-        film: 'Filmový fanoušek', sport: 'Trenér', jidlo: 'Šéfkuchař'
+        film: 'Filmový fanoušek', sport: 'Trenér', technika: 'Vynálezce', jidlo: 'Šéfkuchař'
     };
     const LOOK_MIN_PIECES = 2;
     // Všechny looky: [{ topic, title, topicTitle, pieces: topicSet(topic) }] (jen sady aspoň se dvěma kusy)

@@ -350,7 +350,7 @@
         }
     };
     // Vlastní ilustrované ikony témat (icons/topics/<téma>.webp); téma bez ní má čárovou ikonu
-    const TOPIC_ART = new Set(['zemepis', 'vlajky', 'historie', 'mytologie', 'biologie', 'geologie', 'chemie', 'fyzika', 'umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport', 'mix']);
+    const TOPIC_ART = new Set(['zemepis', 'vlajky', 'historie', 'mytologie', 'biologie', 'geologie', 'chemie', 'fyzika', 'umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport', 'technika', 'jidlo', 'mix']);
     const topicArt = (topic) => topic && TOPIC_ART.has(topic.id);
     // Ikona tématu: ilustrace (cls = velikost, např. h-8 w-8) nebo čárová ikona; wrap = obal čárové ikony (barevný čtverec)
     const topicIcon = (topic, cls, wrap = '', iconCls = cls) => topicArt(topic)

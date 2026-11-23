@@ -309,6 +309,9 @@ test('SQL: motivace (pozvánky, reakce, kontrola odemčení, prestiž, vitrína)
         assert.equal(tryAvatar(D, 'prd'), 'smrtka12', 'Prd v láhvi jen z truhly');
         assert.equal(tryAvatar(D, 'kure'), 'smrtka12', 'Kuře influencer až za 10 kamarádů');
         assert.equal(q("select rule from public.unlock_catalog() where cat = 'avatars' and item = 'kaktik'"), 'referral:novacek,pritel-1');
+        // Nová témata Technika a vynálezy a Jídlo a pití (blok 50): legendární postavičky za diplom a sady doplňků za odznaky tématu
+        assert.equal(q("select string_agg(item || '=' || rule, ',' order by item) from public.unlock_catalog() where item in ('mraven', 'medved', 'klic', 'ozubene-kolo', 'celovka', 'kucharska-cepice', 'kucharsky-satek', 'panev')"),
+            'celovka=badge:tema-technika-1000,klic=badge:zbehly-technika,kucharska-cepice=badge:zbehly-jidlo,kucharsky-satek=badge:tema-jidlo-300,medved=diploma:jidlo,mraven=diploma:technika,ozubene-kolo=badge:tema-technika-300,panev=badge:tema-jidlo-1000');
         assert.equal(tryAvatar(D, 'kafe'), 'kafe', 'Křeček po pěti kávách od úrovně 6');
         q(`update profiles set xp = 3200 where id = '${D}'`);
         q(`update profiles set prestige = ${before.prestige === '-' ? 'null' : before.prestige}, prestige_xp = ${before.prestigeXp === '-' ? 'null' : before.prestigeXp}, avatar = '🦊', rewards = null, badges = '{}' where id = '${D}'`);

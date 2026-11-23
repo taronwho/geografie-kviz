@@ -25,7 +25,7 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/cs
 // Postavičky jen z truhly (Kapybara v lázních, vzácný Zmrzlinový kornout)
 const CHEST_AVATARS = Look.AVATARS.filter(item => item.chest || item.rare).map(item => item.id);
 const SECTIONS = ['avatars', 'accessories', 'frames', 'themes', 'robes', 'colors', 'badges', 'diplomas'];
-const TOPICS = ['zemepis', 'vlajky', 'historie', 'mytologie', 'biologie', 'geologie', 'chemie', 'fyzika', 'umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport'];
+const TOPICS = ['zemepis', 'vlajky', 'historie', 'mytologie', 'biologie', 'geologie', 'chemie', 'fyzika', 'umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport', 'technika', 'jidlo'];
 
 const startServer = () => new Promise(resolve => {
     const server = http.createServer((request, response) => {

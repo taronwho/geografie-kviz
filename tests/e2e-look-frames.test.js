@@ -611,7 +611,7 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         await tab.waitForSelector('#profile-name');
         await tab.click('[data-pic-group="legendy"]');
         await tab.waitForSelector('[data-pic-group="legendy"][aria-selected="true"]');
-        assert.equal(await tab.locator('[data-avatar-strip] [data-pick-avatar], [data-avatar-strip] [data-locked-avatar]').count(), 14);
+        assert.equal(await tab.locator('[data-avatar-strip] [data-pick-avatar], [data-avatar-strip] [data-locked-avatar]').count(), 16);
         assert.deepEqual(await tab.$$eval('[data-avatar-strip] [data-pick-avatar]', nodes => nodes.map(node => [node.dataset.pickAvatar, node.hasAttribute('data-legendary')])), [['albatr', true]]);
         assert.match(await tab.getAttribute('[data-pick-avatar="albatr"]', 'class'), /border-gold-300/, 'odemčená legendární má zlatý lem');
         assert.equal(await tab.getAttribute('[data-locked-avatar="klokan"]', 'aria-label'), 'Klokan šampion (legendární) (zamčeno): Diplom: Sport');

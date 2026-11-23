@@ -103,6 +103,19 @@ a nepřebarvitelné části ve vrstvě `<id>-zaklad.webp`, `FIXED_SPLIT`) a `scr
 (a `HATS`, nahrazuje-li čepici), spustit oba skripty a přidat položku do `ACCESSORIES` v `look.js` s `badge: 'tema-historie-300'`.
 Kompletní sada (název looku v Profilu, sekce Sady témat v albu) zatím zapojená není.
 
+## Nová témata Technika a vynálezy a Jídlo a pití (č. 512–514 a 517–519): stav
+
+Dodáno a zapojeno, každé téma má celou sadu tří kusů (kus za zběhlost `zbehly-<téma>`, za 300 a za 1000 správných):
+
+| Téma (look) | Zběhlost | 300 správných | 1000 správných |
+|---|---|---|---|
+| Technika a vynálezy (Vynálezce) | Francouzský klíč (ruka, nová ruka) | Ozubené kolo na řetízku (krk) | Čelovka (hlava, na čepici) |
+| Jídlo a pití (Šéfkuchař) | Kuchařská čepice (hlava, místo čepice) | Kuchařský šátek (krk) | Pánev s palačinkou (ruka, nová ruka) |
+
+Obrázky jsou 2048 × 2048 na tmavém pozadí, zpracované stejným `scripts/owl-accessories-sady.py` (`NEW_SETS`). Pevné vrstvy `<id>-zaklad.webp`
+mají klíč a pánev (nová ruka, u pánve i palačinka) a kuchařská čepice (peří hlavy pod čepicí). Šedý kov a bílá čepice se kolorují (`TINT`).
+Světelný kužel čelovky se z vrstvy odřízl (poloprůhledný kužel by na světlém pozadí byl šedý klín), svítí jen lampa.
+
 ## Původní plán (pro zajímavost)
 
 1. Přidat 14 záznamů do `ACCESSORIES` v `look.js` (nová podmínka odemknutí `topic: { id, stars: 3, streak: 12 }`).

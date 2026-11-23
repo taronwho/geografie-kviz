@@ -99,7 +99,7 @@ SET_SLOT = {**{i: 'head' for i in ('cestovatelsky-klobouk', 'namornicka-cepice',
             **{i: 'face' for i in ('dali-knir', 'hvezdne-bryle', 'pulmesicove-bryle')},
             **{i: 'neck' for i in ('praporky', 'krejzlik', 'zlate-rouno', 'dalekohled', 'krystal', 'kytara', 'filmovy-pas', 'pistalka')},
             **{i: 'hand' for i in ('globus', 'blesk', 'kladivko', 'banka', 'magnet', 'paleta', 'plany', 'popcorn', 'pohar')}}
-CLIP_BOTTOM = {'head': 0.42, 'face': 0.66}
+CLIP_BOTTOM = {'head': 0.42, 'face': 0.66}  # podle místa, nebo podle id kusu
 # Tenké zlaté obroučky a řetízek půlměsícových brýlí mají barvu peří kolem očí: deghost by je smazal, stačí oříznutí
 NO_DEGHOST = {'pulmesicove-bryle', 'dali-knir', 'hvezdne-bryle', 'tesarska-tuzka', 'kladivko'}
 # Zlatá kytara a krémový filmový pás mají barvu peří a límce: duchové se hledají jen s menší tolerancí
@@ -118,6 +118,26 @@ PROTECT_HUE = {'popcorn': (40, 110, 14), 'kladivko': (40, 100, 12)}
 GOLD_ITEM = {'blesk', 'pohar'}
 # Doplňky sad s pevnou částí: vše, co se nepřebarvuje (protect: nová ruka sovy, PROTECT_HUE), se uloží i do <id>-zaklad.webp, která se v aplikaci
 # kreslí nad barevnou vrstvou (fixed v look.js), takže vlastní barva z palety (CSS hue-rotate celé vrstvy) ruku ani pevnou část neotočí
+# Sady nových témat Technika a vynálezy (č. 512–514) a Jídlo a pití (č. 517–519): obrázky 2048 × 2048 na tmavém pozadí, sova také bez monoklu,
+# zarovnání stejně podle významných bodů. Klíč a pánev drží nová ruka, kuchařská čepice nahrazuje čepici, čelovka sedí na výchozí čepici
+# (z překreslené čepice pod ní se vínová místa vynechají, ROBE_FREE).
+NEW_SETS = {'klic', 'ozubene-kolo', 'celovka', 'kucharska-cepice', 'kucharsky-satek', 'panev'}
+SETS |= NEW_SETS
+NO_MONOCLE |= NEW_SETS
+SIFT_ALIGN |= NEW_SETS
+HATS |= {'kucharska-cepice'}
+FILL |= {'kucharska-cepice'}
+SET_SLOT.update({'klic': 'hand', 'ozubene-kolo': 'neck', 'celovka': 'head', 'kucharska-cepice': 'head', 'kucharsky-satek': 'neck', 'panev': 'hand'})
+HAND_POSE |= {'klic', 'panev'}
+ROBE_FREE |= {'klic', 'panev', 'celovka'}
+# Světelný kužel čelovky je v obrázku poloprůhledný přes tmavé pozadí: ve vrstvě by z něj byl šedý klín, odřízne se (zůstane svítící lampa)
+CLIP_LEFT['celovka'] = 0.28
+# i zbytek kužele přes obličej pod lampou (oříznutí zdola podle id má přednost před místem)
+CLIP_BOTTOM['celovka'] = 0.345
+# Zlatá palačinka nad pánví se nepřebarví (pevná vrstva panev-zaklad.webp spolu s rukou)
+PROTECT_HUE['panev'] = (55, 110, 30)
+# Peří hlavy pod kuchařskou čepicí (převzaté z obrázku) zůstane v barvě sovy
+PROTECT_HUE['kucharska-cepice'] = (40, 110, 14)
 FIXED_SPLIT = (HAND_POSE & SETS) | set(PROTECT_HUE)
 
 
@@ -656,8 +676,9 @@ def clip_set(name, base, warped, mask, frame, border=BORDER):
         mask = deghost(ext, warped, mask, keep, tol=DEGHOST_TOL.get(name, 42))
     if slot != 'hand':
         mask = np.where(hand > 0, 0, mask).astype(np.uint8)
-    if slot in CLIP_BOTTOM:
-        mask[y0 + border + int(CLIP_BOTTOM[slot] * h):, :] = 0
+    bottom = CLIP_BOTTOM.get(name, CLIP_BOTTOM.get(slot))
+    if bottom is not None:
+        mask[y0 + border + int(bottom * h):, :] = 0
     if name in ON_CAP:
         # čepice zůstává ta výchozí: z obrázku se nebere nic uvnitř ní (kromě horního okraje, kde kouř sedí)
         cap = cv2.erode(hat_zone(frame, warped.shape), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (31, 31)))
@@ -879,6 +900,8 @@ TINT.update({'kladivko': 0.9, 'krejzlik': 1.0, 'vybuch': 0.9, 'filmovy-pas': 0.8
 # bílé praporky leží těsně u okraje vrstvy: border_zone by je vzala za krémový okraj nálepky, kolorují se celé
 CREAM_TINT |= {'praporky'}
 DARKFILL |= {'dali-knir'}
+# Technika a Jídlo: ocelový klíč, ozubené kolo, čelovka a pánev jsou šedé, kuchařská čepice bílá: kolorují se
+TINT.update({'klic': 0.9, 'ozubene-kolo': 0.9, 'celovka': 0.8, 'kucharska-cepice': 0.8, 'panev': 1.0})
 
 
 def smooth(x, a, b):

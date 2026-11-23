@@ -7863,7 +7863,10 @@ language sql immutable set search_path = public as $$
         ('accessories', 'magnet', 'badge:tema-fyzika-300'), ('accessories', 'jablko', 'badge:tema-fyzika-1000'), ('accessories', 'paleta', 'badge:tema-umeni-300'), ('accessories', 'dali-knir', 'badge:tema-umeni-1000'),
         ('accessories', 'plany', 'badge:tema-architektura-300'), ('accessories', 'tesarska-tuzka', 'badge:tema-architektura-1000'), ('accessories', 'hvezdne-bryle', 'badge:tema-hudba-300'), ('accessories', 'kytara', 'badge:tema-hudba-1000'),
         ('accessories', 'knihy', 'badge:tema-literatura-300'), ('accessories', 'pulmesicove-bryle', 'badge:tema-literatura-1000'), ('accessories', 'popcorn', 'badge:tema-film-300'), ('accessories', 'filmovy-pas', 'badge:tema-film-1000'),
-        ('accessories', 'pistalka', 'badge:tema-sport-300'), ('accessories', 'pohar', 'badge:tema-sport-1000'), ('accessories', 'cepice-zimni', 'season-gift'), ('accessories', 'karneval', 'season-gift'),
+        ('accessories', 'pistalka', 'badge:tema-sport-300'), ('accessories', 'pohar', 'badge:tema-sport-1000'),
+        ('accessories', 'klic', 'badge:zbehly-technika'), ('accessories', 'ozubene-kolo', 'badge:tema-technika-300'), ('accessories', 'celovka', 'badge:tema-technika-1000'),
+        ('accessories', 'kucharska-cepice', 'badge:zbehly-jidlo'), ('accessories', 'kucharsky-satek', 'badge:tema-jidlo-300'), ('accessories', 'panev', 'badge:tema-jidlo-1000'),
+        ('accessories', 'cepice-zimni', 'season-gift'), ('accessories', 'karneval', 'season-gift'),
         ('accessories', 'jarni-venecek', 'season-gift'), ('accessories', 'destnik', 'season-gift'), ('accessories', 'konvalinky', 'season-gift'), ('accessories', 'slamak', 'season-gift'),
         ('accessories', 'snorchl', 'season-gift'), ('accessories', 'zmrzlina', 'season-gift'), ('accessories', 'tuzka', 'season-gift'), ('accessories', 'dyne', 'season-gift'),
         ('accessories', 'lampion', 'season-gift'), ('accessories', 'sala-zimni', 'season-gift'), ('colors', 'original', 'free'), ('colors', 'cervena', 'free'),
@@ -7886,7 +7889,7 @@ language sql immutable set search_path = public as $$
         ('avatars', 'gryf', 'diploma:vlajky'), ('avatars', 'slon', 'diploma:historie'), ('avatars', 'sfinga', 'diploma:mytologie'), ('avatars', 'jelen', 'diploma:biologie'),
         ('avatars', 'golem', 'diploma:geologie'), ('avatars', 'liska', 'diploma:chemie'), ('avatars', 'chobot', 'diploma:fyzika'), ('avatars', 'pav', 'diploma:umeni'),
         ('avatars', 'bobr', 'diploma:architektura'), ('avatars', 'vlk', 'diploma:hudba'), ('avatars', 'kndrak', 'diploma:literatura'), ('avatars', 'panda', 'diploma:film'),
-        ('avatars', 'klokan', 'diploma:sport'), ('avatars', 'ramp', 'season-gift'), ('avatars', 'kobliz', 'season-gift'), ('avatars', 'snezen', 'season-gift'),
+        ('avatars', 'klokan', 'diploma:sport'), ('avatars', 'mraven', 'diploma:technika'), ('avatars', 'medved', 'diploma:jidlo'), ('avatars', 'ramp', 'season-gift'), ('avatars', 'kobliz', 'season-gift'), ('avatars', 'snezen', 'season-gift'),
         ('avatars', 'kapka', 'season-gift'), ('avatars', 'pampel', 'season-gift'), ('avatars', 'vysved', 'season-gift'), ('avatars', 'meloun', 'season-gift'),
         ('avatars', 'hvezda', 'season-gift'), ('avatars', 'aktovk', 'season-gift'), ('avatars', 'drakpa', 'season-gift'), ('avatars', 'caj', 'season-gift'),
         ('avatars', 'pernik', 'season-gift'), ('reactions', '👍', 'free'), ('reactions', '🔥', 'free'), ('reactions', '😅', 'free'),
@@ -10016,7 +10019,9 @@ end $$;
 -- 47: postavičky Žampion, Chřestýš, Celerbrita, Candidát a Hroznýš (odznaky Přemožitel Ampéra, Mytologie 100, Hvězdy 2, Úroveň 20 a Fyzika 100).
 -- 48: osm dalších postaviček (Slaboduchý sob, Čočka, Pažitka, Brusinka, Pivoňka, Kapradí, Husita, Hermelín za odznaky Odpovědi, Vlajky, Dokonalé dny, Zběhlost a Dokonalé výzvy).
 -- 49: Boss týdne – výbava a předměty do souboje (boss_equips, boss_equip, boss_use_attempt, útěcha a Další pokus v boss_submit, pět nových druhů pomůcek).
--- 50: turnaj se nezruší, chybějící místa do 8 doplní boti (tournament_fill_bots, tournament_start); nová témata Technika a vynálezy a Jídlo a pití (odznaky tema-technika-*, zbehly-technika-*, tema-jidlo-*, zbehly-jidlo-* v badge_catalog a badge_tiers).
+-- 50: turnaj se nezruší, chybějící místa do 8 doplní boti (tournament_fill_bots, tournament_start); nová témata Technika a vynálezy a Jídlo a pití (odznaky tema-technika-*, zbehly-technika-*, tema-jidlo-*, zbehly-jidlo-* v badge_catalog a badge_tiers);
+--     jejich odměny v unlock_catalog(): legendární postavičky Mravenec konstruktér (mraven, diploma:technika) a Medvěd šéfkuchař (medved, diploma:jidlo),
+--     sady doplňků klic, ozubene-kolo, celovka (zbehly-technika, tema-technika-300, -1000) a kucharska-cepice, kucharsky-satek, panev (zbehly-jidlo, tema-jidlo-300, -1000).
 create or replace function public.schema_version() returns integer
 language sql immutable as $$ select 50 $$;
 revoke all on function public.schema_version() from public, anon;
