@@ -303,6 +303,7 @@ language sql immutable set search_path = public as $$
         'tema-film-25', 'tema-film-100', 'tema-film-300', 'tema-film-600', 'tema-film-1000',
         'tema-sport-25', 'tema-sport-100', 'tema-sport-300', 'tema-sport-600', 'tema-sport-1000',
         'tema-technika-25', 'tema-technika-100', 'tema-technika-300', 'tema-technika-600', 'tema-technika-1000',
+        'tema-jidlo-25', 'tema-jidlo-100', 'tema-jidlo-300', 'tema-jidlo-600', 'tema-jidlo-1000',
         'zbehly-zemepis-5', 'zbehly-zemepis', 'zbehly-zemepis-25', 'zbehly-zemepis-50', 'zbehly-zemepis-100',
         'zbehly-vlajky-5', 'zbehly-vlajky', 'zbehly-vlajky-25', 'zbehly-vlajky-50', 'zbehly-vlajky-100',
         'zbehly-historie-5', 'zbehly-historie', 'zbehly-historie-25', 'zbehly-historie-50', 'zbehly-historie-100',
@@ -318,6 +319,7 @@ language sql immutable set search_path = public as $$
         'zbehly-film-5', 'zbehly-film', 'zbehly-film-25', 'zbehly-film-50', 'zbehly-film-100',
         'zbehly-sport-5', 'zbehly-sport', 'zbehly-sport-25', 'zbehly-sport-50', 'zbehly-sport-100',
         'zbehly-technika-5', 'zbehly-technika', 'zbehly-technika-25', 'zbehly-technika-50', 'zbehly-technika-100',
+        'zbehly-jidlo-5', 'zbehly-jidlo', 'zbehly-jidlo-25', 'zbehly-jidlo-50', 'zbehly-jidlo-100',
         'turnaj-ucast', 'turnaj-ctvrtfinale', 'turnaj-semifinale', 'turnaj-bronz', 'turnaj-stribro', 'turnaj-zlato',
         'turnaj-postupy-1', 'turnaj-postupy-5', 'turnaj-postupy-15', 'turnaj-postupy-30', 'turnaj-postupy-60',
         'tydenni-cile', 'tydenni-cile-5', 'tydenni-cile-10', 'tydenni-cile-20', 'tydenni-cile-52',
@@ -7757,6 +7759,7 @@ language sql immutable set search_path = public as $$
         ('tema-film', array['tema-film-25', 'tema-film-100', 'tema-film-300', 'tema-film-600', 'tema-film-1000']),
         ('tema-sport', array['tema-sport-25', 'tema-sport-100', 'tema-sport-300', 'tema-sport-600', 'tema-sport-1000']),
         ('tema-technika', array['tema-technika-25', 'tema-technika-100', 'tema-technika-300', 'tema-technika-600', 'tema-technika-1000']),
+        ('tema-jidlo', array['tema-jidlo-25', 'tema-jidlo-100', 'tema-jidlo-300', 'tema-jidlo-600', 'tema-jidlo-1000']),
         ('zbehly-zemepis', array['zbehly-zemepis-5', 'zbehly-zemepis', 'zbehly-zemepis-25', 'zbehly-zemepis-50', 'zbehly-zemepis-100']),
         ('zbehly-vlajky', array['zbehly-vlajky-5', 'zbehly-vlajky', 'zbehly-vlajky-25', 'zbehly-vlajky-50', 'zbehly-vlajky-100']),
         ('zbehly-historie', array['zbehly-historie-5', 'zbehly-historie', 'zbehly-historie-25', 'zbehly-historie-50', 'zbehly-historie-100']),
@@ -7772,6 +7775,7 @@ language sql immutable set search_path = public as $$
         ('zbehly-film', array['zbehly-film-5', 'zbehly-film', 'zbehly-film-25', 'zbehly-film-50', 'zbehly-film-100']),
         ('zbehly-sport', array['zbehly-sport-5', 'zbehly-sport', 'zbehly-sport-25', 'zbehly-sport-50', 'zbehly-sport-100']),
         ('zbehly-technika', array['zbehly-technika-5', 'zbehly-technika', 'zbehly-technika-25', 'zbehly-technika-50', 'zbehly-technika-100']),
+        ('zbehly-jidlo', array['zbehly-jidlo-5', 'zbehly-jidlo', 'zbehly-jidlo-25', 'zbehly-jidlo-50', 'zbehly-jidlo-100']),
         ('turnaje', array['turnaj-ucast', 'turnaj-ctvrtfinale', 'turnaj-semifinale', 'turnaj-bronz', 'turnaj-stribro', 'turnaj-zlato']),
         ('turnaj-postupy', array['turnaj-postupy-1', 'turnaj-postupy-5', 'turnaj-postupy-15', 'turnaj-postupy-30', 'turnaj-postupy-60']),
         ('tydenni-cile', array['tydenni-cile', 'tydenni-cile-5', 'tydenni-cile-10', 'tydenni-cile-20', 'tydenni-cile-52']),
@@ -9910,7 +9914,8 @@ grant execute on function public.boss_equip(date, integer, text[]), public.boss_
 -- 47: postavičky Žampion, Chřestýš, Celerbrita, Candidát a Hroznýš (odznaky Přemožitel Ampéra, Mytologie 100, Hvězdy 2, Úroveň 20 a Fyzika 100).
 -- 48: osm dalších postaviček (Slaboduchý sob, Čočka, Pažitka, Brusinka, Pivoňka, Kapradí, Husita, Hermelín za odznaky Odpovědi, Vlajky, Dokonalé dny, Zběhlost a Dokonalé výzvy).
 -- 49: Boss týdne – výbava a předměty do souboje (boss_equips, boss_equip, boss_use_attempt, útěcha a Další pokus v boss_submit, pět nových druhů pomůcek).
+-- 50: nová témata Technika a vynálezy a Jídlo a pití (odznaky tema-technika-*, zbehly-technika-*, tema-jidlo-*, zbehly-jidlo-* v badge_catalog a badge_tiers).
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 49 $$;
+language sql immutable as $$ select 50 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

@@ -1,7 +1,8 @@
 // Tematické víkendy: některé víkendy mají téma („Víkend historie“) a otázky z něj dávají dvojnásobek XP za odpověď, od pátku 18:00
 // do neděle 24:00 pražského času. Rozpis je pevný a pro všechny stejný (bez serveru: XP počítá aplikace, server ho jen nechá růst):
 // víkendy se číslují od pátku EPOCH po týdnech, téma má každý druhý víkend (sudé číslo) a témata se střídají v pořadí ROTATION.
-// Každé téma tak přijde na řadu jednou za 28 týdnů. V pátek před 18:00 už úvod ohlásí, že večer začíná („soon“).
+// Každé téma tak přijde na řadu jednou za tolik dvoutýdnů, kolik je témat. Nové téma se do rozpisu přidá až od začátku dalšího celého
+// kola (ROTATION_STEPS), ať se už ohlášené víkendy nezmění. V pátek před 18:00 už úvod ohlásí, že večer začíná („soon“).
 // Čistá logika a HTML bez DOMu; banner na úvodu, XP navíc v awardXp a tip napojuje app.js.
 (function (root, factory) {
     const api = factory();
@@ -16,12 +17,15 @@
     const START_HOUR = 18;
     const MULTIPLIER = 2;
     // Pořadí témat: obory se střídají (humanitní, přírodní, umění, sport), ať dva víkendy po sobě nejsou podobné
-    const ROTATION = ['historie', 'zemepis', 'biologie', 'umeni', 'fyzika', 'literatura', 'vlajky', 'hudba', 'chemie', 'film', 'mytologie', 'architektura', 'geologie', 'sport'];
+    const ROTATION = ['historie', 'zemepis', 'biologie', 'umeni', 'fyzika', 'literatura', 'vlajky', 'hudba', 'chemie', 'film', 'mytologie', 'architektura', 'geologie', 'sport', 'jidlo', 'technika'];
+    // Kola rozpisu: od tematického víkendu číslo from (0 = EPOCH, 1 = o dva týdny později…) se střídá prvních count témat z ROTATION,
+    // znovu od začátku. Jídlo a pití a Technika a vynálezy přibyly od 3. kola (tematický víkend 28 = pátek 29. 1. 2027), první dvě kola měla 14 témat.
+    const ROTATION_STEPS = [{ from: 0, count: 14 }, { from: 28, count: 16 }];
     // „Víkend historie“: název tématu ve 2. pádě (stejné tvary jako diplomy v rewards.js)
     const GENITIVE = {
         zemepis: 'zeměpisu', vlajky: 'vlajek a znaků', historie: 'historie', mytologie: 'mytologie', biologie: 'biologie', geologie: 'geologie',
         chemie: 'chemie', fyzika: 'fyziky', umeni: 'výtvarného umění', architektura: 'architektury', hudba: 'hudby', literatura: 'literatury',
-        film: 'filmu', sport: 'sportu', technika: 'techniky a vynálezů'
+        film: 'filmu', sport: 'sportu', technika: 'techniky a vynálezů', jidlo: 'jídla a pití'
     };
     const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
     const dayMs = (day) => { const m = DAY.exec(String(day || '')); return m ? Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : NaN; };
@@ -47,7 +51,9 @@
     const topicOf = (friday) => {
         const index = indexOf(friday);
         if (!Number.isFinite(index) || mod(index, 2) !== 0) return null;
-        return ROTATION[mod(index / 2, ROTATION.length)];
+        const slot = index / 2;
+        const step = ROTATION_STEPS.filter(entry => slot >= entry.from).pop() || ROTATION_STEPS[0];
+        return ROTATION[mod(slot - step.from, step.count)];
     };
     const titleOf = (topic) => (GENITIVE[topic] ? `Víkend ${GENITIVE[topic]}` : '');
     // Víkend, do kterého okamžik patří: { friday, topic, title, state: 'active' | 'soon', endsDay } nebo null (všední den,
@@ -93,5 +99,5 @@
     // Podtitulek řádku na záložce Dnes (řádek i čip kreslí app.js jednotným stylem)
     const rowText = (weekend) => (weekend.state === 'soon' ? '2× XP · dnes od 18:00' : '2× XP · do neděle');
 
-    return { EPOCH, START_HOUR, MULTIPLIER, ROTATION, GENITIVE, pragueParts, indexOf, topicOf, titleOf, at, active, multiplier, upcoming, formatDay, bannerLabel, rowText };
+    return { EPOCH, START_HOUR, MULTIPLIER, ROTATION, ROTATION_STEPS, GENITIVE, pragueParts, indexOf, topicOf, titleOf, at, active, multiplier, upcoming, formatDay, bannerLabel, rowText };
 });

@@ -176,6 +176,8 @@
             order: { desc: ['Seřaď od nejvýkonnější', 'Elektrárny podle výkonu v MW'], asc: ['Seřaď od nejméně výkonné', 'Elektrárny podle výkonu v MW'] } },
         { id: 'technika-lode-delka', topic: 'technika', category: 'lode', key: 'len', unit: 'm', gap: ratio(1.2), detail: (item) => item.ty,
             order: { desc: ['Seřaď od nejdelší', 'Lodě podle délky'], asc: ['Seřaď od nejkratší', 'Lodě podle délky'] } },
+        // Jídlo a pití
+        born('jidlo', 'kuchari', 'Kuchaři a gastronomové'),
         // Výtvarné umění
         dated('umeni', 'obrazy', 'year', 'Seřaď od nejstaršího', 'Obrazy podle roku vzniku', detailOf('by'), { title: 'V jakém roce tento obraz vznikl?', when: (item) => item.f.year >= 1000 }),
         dated('umeni', 'sochy', 'year', 'Seřaď od nejstarší', 'Sochy podle roku vzniku', detailOf('by')),

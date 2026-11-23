@@ -108,7 +108,7 @@
     // milníky Řetězovky, 12. stupeň Sezóny, Truhlu Mudrlanta, Zlatou truhlu a společný cíl Bosse; se starší databází se nenabídne).
     // 39 = Dobývání: pomůcka Ankh vzkříšení místo automatického Návratu do hry (conquest_use_revive, ochrana 60 s, zásoba revive; zisk startovní,
     // za započítanou hru, sérii Kvízu dne, 8. stupeň Sezóny a truhly; se starší databází se hráč bez území vrátí sám jako dřív).
-    const REQUIRED_SCHEMA = 49;
+    const REQUIRED_SCHEMA = 50;
     // Naposledy hrané položky (trénink se jim vyhýbá, dokud nejsou vyčerpané všechny v kategorii)
     const HISTORY_SIZE = 1500;
     const REQUEST_TIMEOUT = 12000;
@@ -331,6 +331,11 @@
             soft: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/50 dark:text-cyan-300', solid: 'border-cyan-500 bg-cyan-700',
             button: 'bg-cyan-700 hover:bg-cyan-800 shadow-cyan-700/25', tile: 'from-cyan-700 to-sky-900', text: 'text-cyan-700 dark:text-cyan-400',
             accent: 'border-cyan-500', on: 'border-cyan-500 bg-cyan-50 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-200', tab: 'bg-cyan-700 text-white'
+        },
+        fuchsia: {
+            soft: 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/50 dark:text-fuchsia-300', solid: 'border-fuchsia-500 bg-fuchsia-700',
+            button: 'bg-fuchsia-700 hover:bg-fuchsia-800 shadow-fuchsia-700/25', tile: 'from-fuchsia-700 to-purple-900', text: 'text-fuchsia-700 dark:text-fuchsia-400',
+            accent: 'border-fuchsia-500', on: 'border-fuchsia-500 bg-fuchsia-50 text-fuchsia-800 dark:bg-fuchsia-900/30 dark:text-fuchsia-200', tab: 'bg-fuchsia-700 text-white'
         },
         yellow: {
             soft: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300', solid: 'border-yellow-500 bg-yellow-700',
@@ -2858,7 +2863,7 @@
     const TOPIC_GROUPS = [
         { label: 'Svět a dějiny', ids: ['zemepis', 'vlajky', 'historie', 'mytologie'] },
         { label: 'Příroda a věda', ids: ['biologie', 'geologie', 'chemie', 'fyzika', 'technika'] },
-        { label: 'Kultura a sport', ids: ['umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport'] }
+        { label: 'Kultura a sport', ids: ['umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport', 'jidlo'] }
     ];
     const groupedTopics = () => {
         const groups = TOPIC_GROUPS.map(group => ({ label: group.label, topics: TOPICS.filter(topic => group.ids.includes(topic.id)) }));

@@ -377,7 +377,8 @@
         sport: { cats: ['olympiady', 'kluby', 'sportoviste', 'souteze', 'sporty'], keys: ['year', 'opened', 'from'], kind: 'made', events: ['olympiady'] },
         fyzika: { cats: ['vesmir', 'vynalezy', 'mise', 'pojmy'], keys: ['year'], kind: 'found', inventions: ['vynalezy'], events: ['mise'] },
         chemie: { cats: ['prvky'], keys: ['year'], kind: 'found' },
-        technika: { cats: ['vynalezy', 'auta', 'vlaky', 'letadla', 'lode', 'elektronika', 'software', 'stavby', 'firmy'], keys: ['year', 'from'], kind: 'made', inventions: ['vynalezy'] }
+        technika: { cats: ['vynalezy', 'auta', 'vlaky', 'letadla', 'lode', 'elektronika', 'software', 'stavby', 'firmy'], keys: ['year', 'from'], kind: 'made', inventions: ['vynalezy'] },
+        jidlo: { cats: ['pokrmy', 'sladkosti', 'syry', 'napoje', 'alkohol'], keys: ['year'], kind: 'made' }
     };
     const ERA_LABELS = { made: 'Doba vzniku', event: 'Doba', found: 'Doba objevu', invent: 'Doba vzniku' };
     const madeOf = (item, topicId) => {

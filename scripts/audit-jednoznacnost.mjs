@@ -34,7 +34,7 @@ const started = Date.now();
 const log = (text) => { if (args.quiet !== 'true') process.stderr.write(`${text}\n`); };
 
 // --- Generátory: { generator, topic, level, item, build: (after) => { round, evaluation } } ---
-const TOPIC_GROUPS = [['zemepis', 'vlajky', 'historie', 'mytologie'], ['biologie', 'geologie', 'chemie', 'fyzika', 'technika'], ['umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport']];
+const TOPIC_GROUPS = [['zemepis', 'vlajky', 'historie', 'mytologie'], ['biologie', 'geologie', 'chemie', 'fyzika', 'technika'], ['umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport', 'jidlo']];
 const addDays = (day, count) => new Date(Date.parse(`${day}T00:00:00Z`) + count * 86400000).toISOString().slice(0, 10);
 const evenly = (list, count) => (list.length <= count ? list : Array.from({ length: count }, (_, i) => list[Math.floor(i * list.length / count)]));
 const ROLLS = [0.05, 0.22, 0.28, 0.33, 0.42, 0.55, 0.78, 0.9];

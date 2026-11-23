@@ -36,6 +36,7 @@ const APP_SHELL = [
     'topics/umeni.js', 'data/umeni.json', 'topics/architektura.js', 'data/architektura.json', 'topics/hudba.js', 'data/hudba.json',
     'topics/literatura.js', 'data/literatura.json', 'topics/film.js', 'data/film.json', 'topics/sport.js', 'data/sport.json',
     'topics/technika.js', 'data/technika.json',
+    'topics/jidlo.js', 'data/jidlo.json',
     'data/countries.json', 'data/world.json', 'data/mapa.json', 'data/mapa-tvary.json', 'data/mapa-opravy.json', 'data/regiony.json', 'data/photo-text.json', 'data/photo-masks.json',
     // Režimy Bleskovka a Přežití, zvuky a vibrace
     'modes.js', 'sound.js',

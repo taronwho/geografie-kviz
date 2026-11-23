@@ -36,7 +36,9 @@ const ICONS = [
     // Boti v Dobývání (conquest.js BOT_LEVELS; štítek bota do dodání obrázků č. 459–468)
     'bot',
     // Téma Technika a vynálezy (ikona tématu do dodání ilustrace a kategorie)
-    'cog', 'car', 'train-front', 'plane', 'ship', 'cpu', 'code', 'factory'
+    'cog', 'car', 'train-front', 'plane', 'ship', 'cpu', 'code', 'factory',
+    // Téma Jídlo a pití (topics/jidlo.js: ikona tématu a kategorií)
+    'utensils', 'soup', 'croissant', 'milk', 'apple', 'carrot', 'leafy-green', 'coffee', 'wine', 'chef-hat'
 ];
 
 const toPascalCase = (name) => name.replace(/(^|-)(\w)/g, (_, __, letter) => letter.toUpperCase());

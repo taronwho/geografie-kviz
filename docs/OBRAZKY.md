@@ -4480,6 +4480,62 @@ Odemkne: odznak Pán strojů – 1000 správných odpovědí v tématu (`tema-te
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A sturdy elastic head strap with a round bright headlamp on the forehead, worn over the owl's academic cap, the lamp glowing with a soft white beam pointing slightly forward, no text.
+## 40. Téma Jídlo a pití (č. 515–519)
+
+Nové 15. téma `jidlo` (`topics/jidlo.js`). Do dodání obrázků hra používá čárové ikony Lucide: dlaždice a štítek tématu ikonu `utensils`,
+medaile odznaků tématu obecnou ikonu medaile (téma není v `TOPIC_ART` v `app.js` ani v seznamu ikon témat v `sw.js`), diplom „Mistr jídla
+a pití“ se nakreslí bez ikony tématu. Legendární postavička a sada doplňků zatím nejsou v katalogu `look.js`: bez obrázků by neprošly testy (`tests/avatars.test.js`,
+`tests/look-owl.test.js` chtějí vrstvy všech barev) a server by je musel znát v `unlock_catalog()`. Look tématu (Šéfkuchař) je
+v `TOPIC_LOOKS` připravený a ukáže se, jakmile budou v katalogu aspoň dva kusy. Čísla 510–514 jsou zvolená s odstupem, ať se nepletou
+s obrázky souběžně přidávaného tématu. Testy chybějící obrázky zatím výslovně čekají: po dodání ubrat `jidlo` z `PENDING_ICONS`
+v `tests/share-card.test.js` (ikona tématu) a z `PENDING_LEGENDARY` v `tests/avatars.test.js` (postavička do `LEGENDARY`).
+
+### 515. `jidlo.png` – ikona tématu Jídlo a pití
+
+Kam: dlaždice tématu na záložce Hrát, okno Co hrát, štítek tématu, medaile odznaků tématu, Mistrovství a diplom (`icons/topics/jidlo.webp`,
+`python3 scripts/topic-icons.py jidlo`, pak `jidlo` do `TOPIC_ART` v `app.js` a do seznamu ikon témat v `sw.js`). Zobrazí se 28–96 px,
+proto jednoduchý tvar. Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A round white dinner plate seen slightly from above with a crossed fork and knife behind it, on the plate a golden steaming dumpling with a spoonful of brown gravy and a small sprig of green parsley, a few curls of steam rising. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### 516. `avatar-medved.png` – Medvěd šéfkuchař (legendární postavička za diplom Jídlo a pití)
+
+Id `medved`, části Čepice a šátek, Záře (`look.js` AVATARS s `diploma: 'jidlo'`, `sw.js` AVATAR_ART, `scripts/avatar-icons.py`,
+`unlock_catalog()` ve schématu: `('avatars', 'medved', 'diploma:jidlo')`). Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. LEGENDARY edition: a heroic, supremely confident original character shown from the chest up, big expressive face looking at the viewer, ornate gold trim on its outfit, a dramatic golden rim light, a radiant aura burst in its signature color behind it (inside the sticker border) and a few floating sparkles, still readable as a tiny 40 px profile picture (simple bold shapes). Centered, filling about 88 % of the frame. Plain solid flat dark grey background, color #2d3034, outside the sticker. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon, game or movie character. Character: A jolly, proud bear master chef in a tall white chef's toque and a knotted neckerchief, holding up a steaming golden roast on a silver platter in one paw and a wooden spoon in the other, a sprinkle of herbs flying around. Signature color: warm magenta and gold. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### Jídlo a pití – Šéfkuchař (sada doplňků, č. 517–514)
+
+Postup jako u ostatních sad (`scripts/owl-accessories.py`, `docs/DOPLNKY-TEMAT.md`), soubor `branding/doplnky/<id>.jpg`, přiložit
+`branding/sova-original.jpg`. Po dodání: kusy do `ACCESSORIES` v `look.js` (s `badge`), řádky do `unlock_catalog()` ve schématu.
+
+#### 517. `kucharska-cepice` – Kuchařská čepice (hlava)
+
+Odemkne: zběhlost v tématu Jídlo a pití (`zbehly-jidlo`, 12 správně v řadě nebo 3 hvězdy mistrovství). Doplněk nahrazuje čepici sovy (`hidesHat`).
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A tall white pleated chef's toque worn on the owl's head instead of its cap, slightly puffed at the top, with a neat band at the bottom.
+```
+
+#### 518. `kucharsky-satek` – Kuchařský šátek (krk)
+
+Odemkne: odznak Gurmán – 300 správných odpovědí v tématu (`tema-jidlo-300`).
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A small chef's neckerchief tied in a neat knot around the owl's neck, the triangular tip resting on its chest, plain fabric without any pattern or text.
+```
+
+#### 519. `panev` – Pánev s palačinkou (ruka)
+
+Odemkne: odznak Pán kuchyně – 1000 správných odpovědí v tématu (`tema-jidlo-1000`). Pevná část (rukojeť a palačinka) do vrstvy `panev-zaklad.webp`, přebarví se jen pánev (`fixed`).
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A small frying pan held up in the owl's wing, a golden pancake flipping in the air just above it with two tiny motion lines, the pan mostly one solid color.
 ```
 
 ## Co udělám po dodání

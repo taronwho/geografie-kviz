@@ -22,7 +22,7 @@ const PARALLEL = Number(process.env.OCR_PARALLEL || 4);
 const OUT = path.join(ROOT, 'data', 'photo-text.json');
 const USER_AGENT = 'MudrlantBuild/1.0 (https://github.com/taronwho/mudrlant)';
 // Nejdřív témata, kde je text na fotkách nejčastější
-const ORDER = ['sport', 'film', 'hudba', 'literatura', 'historie', 'architektura', 'mytologie', 'umeni', 'zemepis', 'fyzika', 'chemie', 'geologie', 'biologie', 'vlajky', 'technika'];
+const ORDER = ['sport', 'film', 'hudba', 'literatura', 'historie', 'architektura', 'mytologie', 'umeni', 'zemepis', 'fyzika', 'chemie', 'geologie', 'biologie', 'vlajky', 'technika', 'jidlo'];
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 fs.mkdirSync(CACHE, { recursive: true });

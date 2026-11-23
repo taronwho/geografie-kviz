@@ -16,7 +16,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
 const core = require('../quiz-core.js');
 const args = Object.fromEntries(process.argv.slice(2).map(arg => { const m = /^--([^=]+)(?:=(.*))?$/.exec(arg); return m ? [m[1], m[2] ?? 'true'] : [arg, 'true']; }));
-const TOPIC_IDS = ['zemepis', 'architektura', 'historie', 'biologie', 'chemie', 'fyzika', 'geologie', 'hudba', 'literatura', 'mytologie', 'sport', 'umeni', 'film', 'technika'];
+const TOPIC_IDS = ['zemepis', 'architektura', 'historie', 'biologie', 'chemie', 'fyzika', 'geologie', 'hudba', 'literatura', 'mytologie', 'sport', 'umeni', 'film', 'technika', 'jidlo'];
 const topics = args.topic ? args.topic.split(',').filter(id => TOPIC_IDS.includes(id)) : TOPIC_IDS;
 
 // Druh toho, co má obrázek ukázat, podle kategorie (jinak 'thing': pojem, látka, jednotka – tam se obrázek nehodnotí)
@@ -31,6 +31,7 @@ const KIND = {
     hudba: { skladatele: 'person', hudebnici: 'person', kapely: 'band', opery: 'work', dila: 'work' },
     literatura: { spisovatele: 'person', dila: 'work' },
     sport: { sportovci: 'person', sportoviste: 'venue' },
+    jidlo: { kuchari: 'person' },
     umeni: { umelci: 'person', fotografove: 'person', ilustratori: 'person', obrazy: 'work', sochy: 'work' },
     film: { herci: 'person', reziseri: 'person' },
     technika: { vynalezci: 'person', stavby: 'building' }
