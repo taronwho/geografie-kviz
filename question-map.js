@@ -208,7 +208,10 @@
             jezero: ['jezero', 'přehradní nádrž', 'laguna', 'moře', 'zátoka', 'průliv'],
             ostrov: ['ostrov', 'souostroví'],
             stavba: true,
-            priroda: ['vodopád', 'jeskyně', 'skála', 'skalní suk', 'národní park', 'chráněná krajinná oblast', 'národní přírodní rezervace', 'poušť', 'poloostrov']
+            priroda: ['vodopád', 'jeskyně', 'skála', 'skalní suk', 'národní park', 'chráněná krajinná oblast', 'národní přírodní rezervace', 'poušť', 'poloostrov'],
+            // Památky UNESCO: historická města, naleziště a centra jsou na mapě bod (rozsáhlé krajiny a cesty ne)
+            dedictvi: ['historické město', 'historické centrum', 'historická vesnice', 'starověké město', 'archeologická lokalita', 'skalní umění', 'náměstí', 'poutní místo',
+                'zahrada a park', 'botanická zahrada', 'pohřebiště', 'jeskynní chrámy']
         },
         sport: { sportoviste: true },
         // Bitvy v jednom místě (ne války, tažení a revoluce) a události s jedním místem (konference, smlouva, havárie…)
@@ -246,6 +249,7 @@
         { id: 'ostrovy', label: 'Ostrov', topics: ['zemepis'], test: item => item.c === 'ostrov' },
         { id: 'priroda', label: 'Příroda', topics: ['zemepis'], test: item => item.c === 'priroda' },
         { id: 'stavby', label: 'Stavba', topics: ['zemepis', 'architektura', 'technika'], test: item => ['stavba', 'stavby', 'hrady', 'mosty', 'mrakodrapy'].includes(item.c) },
+        { id: 'pamatky', label: 'Památka UNESCO', topics: ['zemepis'], test: item => item.c === 'dedictvi' },
         { id: 'bitvy', label: 'Bitva', topics: ['historie'], test: item => item.c === 'bitva' },
         { id: 'udalosti', label: 'Událost', topics: ['historie'], test: item => item.c === 'udalosti' },
         { id: 'regiony', label: 'Region', topics: ['vlajky'], test: item => item.c === 'regiony' },

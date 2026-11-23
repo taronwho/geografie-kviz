@@ -136,3 +136,63 @@ test('úrovně: Základní, Mudrlant a Expert v rozumném poměru, v každém ok
     const monuments = czech.filter(item => item.ty === 'národní přírodní památka');
     assert.ok(share(monuments, 3) >= 0.6, `národní přírodní památky pro experty: ${share(monuments, 3)}`);
 });
+
+// --- Rozšíření (scripts/lib/zemepis-rozsireni.mjs): památky UNESCO, národní parky, moře, rekordy a fakta ---
+const topic = require('../topics/zemepis.js');
+const geoCtx = { topic, items: data.items, countries: COUNTRIES };
+const factText = (item, mode) => topic.facts(item, geoCtx, mode).map(fact => `${fact.label}: ${fact.value}`);
+
+test('památky UNESCO: celá místa ze světového dědictví (města, centra, naleziště, krajiny), ne jednotlivé budovy', () => {
+    const heritage = data.items.filter(item => item.c === 'dedictvi');
+    assert.ok(heritage.length >= 150, `${heritage.length} památek`);
+    assert.ok(heritage.filter(item => item.k === 1).length >= 35, 'dost známých');
+    assert.equal(topic.categories.at(-1).key, 'dedictvi', 'nová kategorie na konci seznamu');
+    for (const item of heritage) {
+        assert.ok((item.g || []).includes('unesco'), `${item.n}: v okruhu UNESCO`);
+        assert.ok(item.co.length >= 1 && item.co.length <= 2, `${item.n}: ${item.co.length} států`);
+        assert.ok(core.isRealPhoto(item.im) && !topic.offSubjectPhoto(item), `${item.n}: fotka`);
+        assert.doesNotMatch(item.n, /^(?:Kostel|Katedrála|Hrad|Zámek|Palác|Klášter|Pevnost|Most|Muzeum)(?![\p{L}])/u, item.n);
+        assert.ok(!['hrad', 'zámek', 'kostel', 'katedrála', 'palác', 'mešita', 'klášter'].includes(item.ty), `${item.n}: ${item.ty}`);
+    }
+    for (const [name, ty] of [['Trója', 'starověké město'], ['Lednicko-valtický areál', 'kulturní krajina'], ['Staré Město (Praha)', 'historické centrum'],
+        ['Via Appia', 'historická cesta'], ['Holašovice', 'historická vesnice']]) {
+        const item = find(name, 'dedictvi');
+        assert.ok(item && item.k === 1 && item.ty === ty, `${name}: ${item && item.ty}`);
+    }
+    // Zápis do UNESCO je fakt nápovědy, otázka „Ve kterém státě to je?“ jde
+    const troy = find('Trója', 'dedictvi');
+    assert.ok(factText(troy, 'name').includes('Zápis do UNESCO: 1998'));
+    const location = topic.specialQuestion(troy, geoCtx, () => 0.1);
+    assert.equal(location && location.answerLabel, 'Turecko');
+});
+
+test('národní parky, přírodní dědictví, moře a oceány: nové položky a okruhy', () => {
+    for (const name of ['Plitvická jezera', 'Krugerův národní park', 'Národní park Zion']) assert.equal((find(name, 'priroda') || {}).ty, 'národní park', name);
+    assert.ok(inGroup('narodni-parky').length >= 250 && inGroup('narodni-parky').every(item => item.c === 'priroda' && item.ty === 'národní park'));
+    assert.ok(inGroup('narodni-parky').some(item => item.n === 'Národní park Šumava'), 'i české parky');
+    const natural = inGroup('unesco-priroda');
+    assert.ok(natural.length >= 150, `${natural.length} přírodních památek`);
+    for (const name of ['Velký bariérový útes', 'Bajkal', 'Yellowstonský národní park']) assert.ok(natural.some(item => item.n === name), name);
+    assert.ok(natural.every(item => (item.g || []).includes('unesco')));
+    // Moře: dřív chyběla Středozemní, Černé a Baltské; na stát se u moří neptá (omývají víc států)
+    const seas = inGroup('more');
+    assert.ok(seas.length >= 280 && seas.every(item => item.c === 'jezero'), `${seas.length} moří`);
+    for (const name of ['Středozemní moře', 'Černé moře', 'Baltské moře', 'Japonské moře', 'Tichý oceán', 'Bospor']) {
+        const item = seas.find(sea => sea.n === name);
+        assert.ok(item && item.k === 1, name);
+        assert.equal(topic.specialQuestion(item, geoCtx, () => 0.1), null, `${name}: bez otázky na stát`);
+    }
+    assert.ok(factText(find('Bajkal', 'jezero'), 'name').some(text => /^Největší hloubka: 1\s642 m$/u.test(text)));
+});
+
+test('rekordy a úřední jazyky: fakta až po odpovědi a v atlasu, ne v nápovědě', () => {
+    const everest = find('Mount Everest', 'hora');
+    assert.ok(factText(everest, 'result').includes('Rekord: nejvyšší hora světa'));
+    assert.ok(factText(everest, 'card').includes('Rekord: nejvyšší hora světa'));
+    assert.ok(!factText(everest, 'name').some(text => text.startsWith('Rekord')), 'v nápovědě ne');
+    assert.ok(inGroup('rekordy').length >= 50 && inGroup('rekordy').every(item => item.f.rec));
+    const czechia = find('Česko', 'stat');
+    assert.ok(factText(czechia, 'result').includes('Úřední jazyk: čeština'));
+    assert.ok(!factText(czechia, 'name').some(text => text.includes('čeština')), 'jazyk by stát prozradil');
+    assert.ok(factText(find('Švýcarsko', 'stat'), 'card').some(text => text.startsWith('Úřední jazyky: ')));
+});

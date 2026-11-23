@@ -1,4 +1,4 @@
-// Téma Zeměpis: státy, města, hory, řeky, vodní plochy, ostrovy, příroda a stavby (data/zemepis.json)
+// Téma Zeměpis: státy, města, hory, řeky, vodní plochy, ostrovy, příroda, stavby a památky UNESCO (data/zemepis.json)
 (function (root, factory) {
     const isNode = typeof module === 'object' && module.exports;
     const topic = factory(isNode ? require('../quiz-core.js') : root.MudrlantCore);
@@ -22,7 +22,9 @@
         { key: 'jezero', label: 'Jezera a moře', one: 'vodní plocha', icon: 'droplets', mapSpan: 30, sort: { by: 'area', desc: true } },
         { key: 'ostrov', label: 'Ostrovy', one: 'ostrov', icon: 'palmtree', mapSpan: 30, sort: { by: 'area', desc: true } },
         { key: 'priroda', label: 'Příroda a krajina', one: 'přírodní místo', icon: 'trees', mapSpan: 24, sort: { by: 'name' } },
-        { key: 'stavba', label: 'Stavby a památky', one: 'stavba', icon: 'landmark', mapSpan: 24, sort: { by: 'name' } }
+        { key: 'stavba', label: 'Stavby a památky', one: 'stavba', icon: 'landmark', mapSpan: 24, sort: { by: 'name' } },
+        // Světové dědictví jako celá místa (historická města a centra, naleziště, kulturní krajiny); jednotlivé budovy jsou ve Stavbách
+        { key: 'dedictvi', label: 'Památky UNESCO', one: 'památka UNESCO', icon: 'pyramid', mapSpan: 24, sort: { by: 'name' } }
     ];
 
     // Jak často se místo „Co je to za místo?“ ptáme „Ve kterém státě to je?“ (jen kde to dává smysl)
@@ -90,7 +92,7 @@
     };
 
     // Na stát se ptáme jen u míst v jednom známém státě, ne u států a ne když stát prozradí už název (Česká Lípa, Pražský hrad)
-    const SEA_TYPES = new Set(['oceán', 'moře', 'průliv', 'zátoka']);
+    const SEA_TYPES = new Set(['oceán', 'moře', 'vnitřní moře', 'okrajové moře', 'průliv', 'zátoka']);
     const canAskForCountry = (item, countries, items = []) => {
         // Moře, zálivy a průlivy omývají víc států (Finský záliv i Estonsko) – otázka by neměla jednu správnou odpověď
         if (SEA_TYPES.has(item.ty)) return false;
@@ -118,8 +120,15 @@
         ['elev', 'Nadmořská výška', value => `${formatNumber(value)} m`],
         ['len', 'Délka', value => `${formatNumber(value)} km`],
         ['h', 'Výška', value => `${formatNumber(value)} m`],
+        ['depth', 'Největší hloubka', value => `${formatNumber(value)} m`],
         ['year', 'Vznik', formatYear],
+        ['whs', 'Zápis do UNESCO', value => String(value)],
         ['mouth', 'Ústí do', value => value]
+    ];
+    // Jen po odpovědi a v atlasu: rekord (nejvyšší hora Afriky) by v nápovědě odpověď skoro řekl, úřední jazyk (finština) prozradí stát
+    const RESULT_FORMATS = [
+        ['rec', 'Rekord', value => value],
+        ['lang', 'Úřední jazyk', value => value]
     ];
 
     // Kde místo leží: státy, u států a míst mimo státy kontinent
@@ -133,12 +142,12 @@
 
     // Hlavní obrázek z Wikidat, který neukazuje místo (pravidlo quiz-core.js offSubjectRule, audit npm run audit:obrazky): u přírody
     // a vod mapa, kresba nebo známka, zvíře místo národního parku (slon v Garambě, žirafa v Nairobi), rozhledna nebo kaple místo hory,
-    // výhled z vrcholu; u staveb jako v Architektuře. Položka zůstane, jen bez obrázku (app.js loadTopic, i v Dobývání a atlase)
+    // výhled z vrcholu; u staveb jako v Architektuře, u památek UNESCO mapa, plán, kresba nebo interiér. Položka zůstane, jen bez obrázku (app.js loadTopic, i v Dobývání a atlase)
     const NATURE_OFF = [...core.OFF_SUBJECT.depiction, 'location', 'topo', 'topographic', 'drainage basin'];
     const offSubjectPhoto = core.offSubjectRule({
         words: {
             mesto: core.OFF_SUBJECT.depiction, stavba: core.OFF_SUBJECT_BUILDINGS.words(), hora: [...NATURE_OFF, ...core.OFF_SUBJECT.summit],
-            reka: NATURE_OFF, jezero: NATURE_OFF, ostrov: NATURE_OFF, priroda: NATURE_OFF
+            reka: NATURE_OFF, jezero: NATURE_OFF, ostrov: NATURE_OFF, priroda: NATURE_OFF, dedictvi: [...core.OFF_SUBJECT.depiction, ...core.OFF_SUBJECT.interior, 'location']
         },
         ids: [...core.OFF_SUBJECT_BUILDINGS.ids,
             // Řeky: hrad, kostel, vesnice, krajina jinde, ptáci, vinice, oběd u řeky, mapa povodí
@@ -256,7 +265,9 @@
             }
             const continent = getContinent(item, countries);
             if (mode !== 'card' && continent) facts.push({ label: 'Kontinent', value: CONTINENT_NAMES[continent] });
-            return [...facts, ...formatFacts(item, FACT_FORMATS)];
+            const after = mode === 'result' || mode === 'card' ? formatFacts(item, RESULT_FORMATS)
+                .map(fact => fact.label === 'Úřední jazyk' && fact.value.includes(',') ? { ...fact, label: 'Úřední jazyky' } : fact) : [];
+            return [...facts, ...formatFacts(item, FACT_FORMATS), ...after];
         },
 
         subtitle,
