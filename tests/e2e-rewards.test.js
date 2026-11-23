@@ -295,7 +295,7 @@ test('odměny: truhla, ochrana série, diplomy, sdílení obrázku', { skip: !ch
             assert.equal(scroll.x, 0, 'bez vodorovného posouvání');
             assert.equal(scroll.y, 0, `záložka Postup bez posouvání (přetéká o ${scroll.y} px)`);
             await tab.click('#tab-postup [data-open-mastery-all]');
-            assert.equal(await tab.locator('#dialog-overlay [data-mastery-dialog] [data-mastery]').count(), 15, 'mistrovství všech témat');
+            assert.equal(await tab.locator('#dialog-overlay [data-mastery-dialog] [data-mastery]').count(), 16, 'mistrovství všech témat');
             assert.ok((await overflow(tab)).y <= 0, 'okno Mistrovství témat bez posouvání');
             await tab.keyboard.press('Escape');
             assert.doesNotMatch(await tab.textContent('#tab-postup'), /sláva/, 'odznak jen pro slávu neuvádí odměnu');

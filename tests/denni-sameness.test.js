@@ -1,7 +1,7 @@
 // Stejnost denních módů pro všechny hráče (bez prohlížeče; v prohlížeči celé otázky porovnává scripts/audit-denni.mjs a tests/e2e-denni-audit.test.js).
 // Dva hráči téhož dne: jiné časové pásmo telefonu (Praha v poledne × UTC ve 23:30 = 0:30 v Praze), vlastní kopie dat (jiná identita objektů),
 // jiné nastavení, úroveň a historie (výběr je nebere – funkce je ani nedostanou). Porovná se den, Kvíz dne (plán deseti otázek), Dnešní otázky
-// všech 15 témat, Tajemná otázka, Boss týdne a Řetězovka. Dál: výběr Dnešních otázek nezávisí na pořadí položek a nová/odebraná položka ho
+// všech 16 témat, Tajemná otázka, Boss týdne a Řetězovka. Dál: výběr Dnešních otázek nezávisí na pořadí položek a nová/odebraná položka ho
 // změní jen tam, kde by sama vyhrála; změna úrovní v datech (ku/xs) nezmění den, který už začal (core.itemsAsOf).
 const test = require('node:test');
 const assert = require('node:assert/strict');

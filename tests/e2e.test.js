@@ -329,7 +329,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         // Mistrovství: dlaždice otevře mřížku všech 16 témat, klepnutí na téma vysvětlí hvězdičky a vrátí se zpět
         await tab.click('#tab-postup [data-open-mastery-all]');
         await tab.waitForSelector('#dialog-overlay [data-mastery-dialog]');
-        assert.equal(await tab.locator('#dialog-overlay [data-mastery]').count(), 15, 'mistrovství všech témat');
+        assert.equal(await tab.locator('#dialog-overlay [data-mastery]').count(), 16, 'mistrovství všech témat');
         await tab.click('[data-mastery="zemepis"]');
         await tab.waitForSelector('#dialog-overlay [data-mastery-info]');
         const mastery = await tab.textContent('#dialog-overlay');
