@@ -149,6 +149,14 @@
         born('fyzika', 'astronomove', 'Astronomové a kosmonauti'),
         // Architektura
         dated('architektura', 'stavby', 'y', 'Seřaď od nejstarší', 'Stavby podle roku vzniku', detailOf('city')),
+        dated('architektura', 'hrady', 'y', 'Seřaď od nejstaršího', 'Hrady a zámky podle roku vzniku', detailOf('city')),
+        dated('architektura', 'mosty', 'y', 'Seřaď od nejstaršího', 'Mosty a tunely podle roku vzniku', detailOf('city')),
+        dated('architektura', 'mrakodrapy', 'y', 'Seřaď od nejstarší', 'Mrakodrapy, věže a přehrady podle roku vzniku', detailOf('city')),
+        { id: 'architektura-mrakodrapy-vyska', topic: 'architektura', category: 'mrakodrapy', key: 'h', unit: 'm', gap: ratio(1.2), filter: has(['mrakodrap', 'věž']), detail: detailOf('city'),
+            order: { desc: ['Seřaď od nejvyšší', 'Mrakodrapy a věže podle výšky'], asc: ['Seřaď od nejnižší', 'Mrakodrapy a věže podle výšky'] },
+            estimate: { title: 'Kolik metrů měří tato stavba?', score: 'ratio', when: (item) => item.f.h >= 100 } },
+        { id: 'architektura-mosty-delka', topic: 'architektura', category: 'mosty', key: 'len', unit: 'm', gap: ratio(1.5), detail: detailOf('city'),
+            order: { desc: ['Seřaď od nejdelšího', 'Mosty a tunely podle délky'], asc: ['Seřaď od nejkratšího', 'Mosty a tunely podle délky'] } },
         born('architektura', 'architekti', 'Architekti'),
         // Film
         dated('film', 'filmy', 'year', 'Seřaď od nejstaršího', 'Filmy podle roku premiéry', detailOf('dir'), { title: 'V jakém roce měl tento film premiéru?' }),

@@ -368,7 +368,7 @@
     // found = objev, invent = vynález) a kategorie, kde rok opravdu je rokem vzniku (u hory nebo parku znamená něco jiného)
     const MADE = {
         zemepis: { cats: ['mesto', 'stavba'], keys: ['year'], kind: 'made' },
-        architektura: { cats: ['stavby'], keys: ['y'], kind: 'made' },
+        architektura: { cats: ['stavby', 'hrady', 'mosty', 'mrakodrapy'], keys: ['y'], kind: 'made' },
         historie: { cats: ['bitva', 'udalosti', 'rise'], keys: ['year', 'from'], ends: ['end', 'to'], kind: 'event' },
         hudba: { cats: ['kapely', 'opery', 'dila'], keys: ['year', 'from'], kind: 'made' },
         literatura: { cats: ['dila'], keys: ['year'], kind: 'made' },

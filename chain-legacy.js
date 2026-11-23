@@ -336,7 +336,10 @@
             byKind.get(node.kind).push(node);
             return node;
         };
-        const itemsOf = (topic) => (sources && Array.isArray(sources[topic]) ? sources[topic] : []);
+        // Položka přesunutá později do jiné kategorie se počítá v původní (c0: stavby Architektury, od 22. 11. 2026 v kategoriích
+        // hrady, mosty a mrakodrapy) – řetěz starého dne tak vyjde stejně jako dřív
+        const original = (item) => (item && item.c0 ? { ...item, c: item.c0 } : item);
+        const itemsOf = (topic) => (sources && Array.isArray(sources[topic]) ? sources[topic].map(original) : []);
         // Známost: pořadí mezi známými položkami kategorie (data jsou v kategorii seřazená podle známosti)
         const fameOf = new Map();
         for (const topic of SOURCES) {

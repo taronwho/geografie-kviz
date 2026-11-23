@@ -38,7 +38,9 @@ const ICONS = [
     // Téma Technika a vynálezy (ikona tématu do dodání ilustrace a kategorie)
     'cog', 'car', 'train-front', 'plane', 'ship', 'cpu', 'code', 'factory',
     // Téma Jídlo a pití (topics/jidlo.js: ikona tématu a kategorií)
-    'utensils', 'soup', 'croissant', 'milk', 'apple', 'carrot', 'leafy-green', 'coffee', 'wine', 'chef-hat'
+    'utensils', 'soup', 'croissant', 'milk', 'apple', 'carrot', 'leafy-green', 'coffee', 'wine', 'chef-hat',
+    // Architektura: kategorie Mosty a tunely
+    'bridge'
 ];
 
 const toPascalCase = (name) => name.replace(/(^|-)(\w)/g, (_, __, letter) => letter.toUpperCase());

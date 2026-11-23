@@ -19,7 +19,7 @@ test('architektura: tři úrovně – podíl známých a expertních v tématu i
     const expert = share(data.items, item => item.x === 1);
     assert.ok(known >= 0.22 && known <= 0.32, `Základní ${known}`);
     assert.ok(expert >= 0.18 && expert <= 0.3, `Expert ${expert}`);
-    for (const category of ['stavby', 'prvky', 'architekti']) {
+    for (const category of ['stavby', 'prvky', 'architekti', 'hrady', 'mosty', 'mrakodrapy']) {
         const list = data.items.filter(item => item.c === category);
         assert.ok(share(list, item => item.k === 1) >= 0.2, `${category}: málo známých`);
         assert.ok(share(list, item => item.x === 1) <= 0.3, `${category}: moc expertních`);
@@ -50,5 +50,5 @@ test('architektura: slohové okruhy a mosty nejsou vyhladovělé (kvóty po sloz
     assert.ok(inCollection('moderna').filter(item => item.cz).length >= 70);
     for (const name of ['Obecní dům', 'Dům U Černé Matky Boží', 'Vila Tugendhat']) assert.ok(find(name), name);
     // Stavby si nechávají souřadnice (mapové otázky zeměpisu)
-    assert.ok(share(data.items.filter(item => item.c === 'stavby'), item => item.la !== undefined) >= 0.9);
+    assert.ok(share(data.items.filter(item => ['stavby', 'hrady', 'mosty', 'mrakodrapy'].includes(item.c)), item => item.la !== undefined) >= 0.9);
 });
