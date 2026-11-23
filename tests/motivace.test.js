@@ -25,16 +25,18 @@ const block = SQL.slice(SQL.indexOf('-- ===== 32: Motivace'), SQL.indexOf('-- ==
 const noInlineStyle = (html, label) => assert.doesNotMatch(html, /\sstyle=/, `${label}: bez vložených stylů (CSP)`);
 
 test('tematický víkend: pevný rozpis každý druhý víkend, pátek 18:00 až neděle 24:00 v Praze, 2× XP jen za téma víkendu', () => {
-    assert.equal(Weekend.ROTATION.length, 15);
-    assert.equal(new Set(Weekend.ROTATION).size, 15);
+    assert.equal(Weekend.ROTATION.length, 16);
+    assert.equal(new Set(Weekend.ROTATION).size, 16);
     for (const topic of Weekend.ROTATION) assert.ok(Weekend.GENITIVE[topic], topic);
-    // Nové téma (Jídlo a pití) přibylo až od 3. kola: první dvě kola po 14 tématech zůstala, jak byla ohlášená
-    assert.deepEqual(Weekend.ROTATION_STEPS, [{ from: 0, count: 14 }, { from: 28, count: 15 }]);
+    // Nová témata (Jídlo a pití, Technika a vynálezy) přibyla až od 3. kola: první dvě kola po 14 tématech zůstala, jak byla ohlášená
+    assert.deepEqual(Weekend.ROTATION_STEPS, [{ from: 0, count: 14 }, { from: 28, count: 16 }]);
     assert.equal(Weekend.topicOf('2027-01-15'), 'sport', 'poslední víkend 2. kola');
     assert.equal(Weekend.topicOf('2027-01-29'), 'historie', '3. kolo začíná znovu historií');
     assert.equal(Weekend.topicOf('2027-08-13'), 'jidlo');
     assert.equal(Weekend.titleOf('jidlo'), 'Víkend jídla a pití');
-    assert.equal(Weekend.topicOf('2027-08-27'), 'historie', 'po jídle znovu od začátku');
+    assert.equal(Weekend.topicOf('2027-08-27'), 'technika');
+    assert.equal(Weekend.titleOf('technika'), 'Víkend techniky a vynálezů');
+    assert.equal(Weekend.topicOf('2027-09-10'), 'historie', 'po technice znovu od začátku');
     assert.equal(Weekend.topicOf(Weekend.EPOCH), Weekend.ROTATION[0]);
     assert.equal(Weekend.topicOf('2026-01-09'), null, 'lichý víkend bez tématu');
     assert.equal(Weekend.topicOf('2026-01-16'), Weekend.ROTATION[1]);
