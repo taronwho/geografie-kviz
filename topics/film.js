@@ -16,7 +16,7 @@
         { key: 'serialy', label: 'Seriály', one: 'seriál', icon: 'popcorn', question: 'Který seriál to je?', placeholder: 'Napiš název seriálu…', sort: { by: 'y' } },
         { key: 'reziseri', label: 'Režiséři', one: 'režisér', icon: 'video', ...PERSON },
         { key: 'herci', label: 'Herci a herečky', one: 'herec', icon: 'drama', ...PERSON },
-        { key: 'porady', label: 'Televizní pořady', one: 'pořad', icon: 'mic-vocal', question: 'Který pořad to je?', placeholder: 'Napiš název pořadu…', sort: { by: 'y' } },
+        { key: 'porady', label: 'Televizní pořady', one: 'pořad', icon: 'tv', question: 'Který pořad to je?', placeholder: 'Napiš název pořadu…', sort: { by: 'y' } },
         { key: 'vecernicky', label: 'Večerníčky', one: 'večerníček', icon: 'moon', question: 'Který večerníček to je?', placeholder: 'Napiš název večerníčku…', sort: { by: 'y' } },
         { key: 'komiksy', label: 'Komiksy a anime', one: 'komiks', icon: 'zap', question: 'Co je to?', placeholder: 'Napiš název nebo jméno…', sort: { by: 'y' } }
     ];

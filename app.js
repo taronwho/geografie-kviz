@@ -13048,6 +13048,8 @@
     // (Chain = window.MudrlantChain je nahoře u ostatních modulů.)
     // Vazby z Wikidat, které data témat nemají (rodiště, manželé, učitelé, nástupci…; scripts/build-retezovka.mjs)
     const loadChainExtra = memoizeBy(() => fetchJson(Chain ? Chain.EXTRA_FILE : 'data/retezovka.json'));
+    // Zmrazení dat pro řetězy dnů před NEW_FROM (chain.js frozenSources); bez něj by rozšíření témat změnila už hrané řetězy
+    const loadChainLegacyFreeze = memoizeBy(() => fetchJson(Chain ? Chain.LEGACY_FREEZE_FILE : 'data/retezovka-legacy.json'));
     // Skript, který se načte až podle potřeby (chain-legacy.js: původní generátor pro řetězy dnů před chain.js NEW_FROM)
     const loadScript = memoizeBy((src) => new Promise((resolve, reject) => {
         const script = document.createElement('script');
@@ -13073,7 +13075,7 @@
     };
     if (Chain) {
         chainCtl = Chain.createController({
-            loadExtra: () => loadChainExtra(), loadScript: (src) => loadScript(src), chainSubject,
+            loadExtra: () => loadChainExtra(), loadLegacyFreeze: () => loadChainLegacyFreeze(), loadScript: (src) => loadScript(src), chainSubject,
             // Zamrzlé denní módy (schéma 33): řetěz dne uložený prvním hráčem dne; sestavený se uloží (platí první uložený)
             frozenChain: (day) => frozenRaw(chainSnapshotSeed(day)),
             claimChain: async (day, chain) => {

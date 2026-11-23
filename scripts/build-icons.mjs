@@ -42,7 +42,9 @@ const ICONS = [
     // Architektura: kategorie Mosty a tunely
     'bridge',
     // Biologie – člověk a zdraví: Lékařství, Slavní lékaři, Psychologie
-    'syringe', 'stethoscope', 'brain'
+    'syringe', 'stethoscope', 'brain',
+    // Film: kategorie Televizní pořady
+    'tv'
 ];
 
 const toPascalCase = (name) => name.replace(/(^|-)(\w)/g, (_, __, letter) => letter.toUpperCase());

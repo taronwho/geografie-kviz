@@ -1616,11 +1616,27 @@
         return legacyModule;
     };
     const legacyGraphs = new WeakMap();
+    const LEGACY_FREEZE_FILE = 'data/retezovka-legacy.json';
+    // Data témat, jak je znal původní generátor: bez položek přidaných rozšířeními témat, s původními hodnotami změněných polí
+    // a se zmizelými položkami (freeze = data/retezovka-legacy.json, scripts/build-retezovka-legacy.mjs)
+    const frozenSources = (sources, freeze) => Object.fromEntries(Object.entries(sources).map(([topic, items]) => {
+        const rules = (freeze && freeze[topic]) || null;
+        if (!rules) return [topic, items];
+        const exclude = new Set(rules.exclude || []);
+        const patch = rules.patch || {};
+        const kept = (items || []).filter(item => item && !exclude.has(item.q)).map(item => {
+            if (!Object.hasOwn(patch, item.q)) return item;
+            const copy = { ...item };
+            for (const [key, value] of Object.entries(patch[item.q])) { if (value === null) delete copy[key]; else copy[key] = value; }
+            return copy;
+        });
+        return [topic, [...kept, ...(rules.restore || [])]];
+    }));
     // Řetěz dne starého dne z dat témat (sources = { téma: položky } jako u buildGraph, stačí témata legacy().SOURCES)
-    const legacyDailyChain = (sources, countries, day) => {
+    const legacyDailyChain = (sources, countries, day, freeze = null) => {
         const old = legacy();
         if (!old) return null;
-        if (!legacyGraphs.has(sources)) legacyGraphs.set(sources, old.buildGraph(sources, countries));
+        if (!legacyGraphs.has(sources)) legacyGraphs.set(sources, old.buildGraph(frozenSources(sources, freeze), countries));
         return old.dailyChain(legacyGraphs.get(sources), day);
     };
 
@@ -2220,9 +2236,10 @@
             if (!legacy() && deps.loadScript) await deps.loadScript('chain-legacy.js');
             const old = legacy();
             if (!old) throw new Error('Původní generátor Řetězovky se nepodařilo načíst');
-            const [contexts, countries] = await Promise.all([Promise.all(old.SOURCES.map(id => deps.loadTopic(id))), deps.loadCountries()]);
+            const [contexts, countries, freeze] = await Promise.all([Promise.all(old.SOURCES.map(id => deps.loadTopic(id))), deps.loadCountries(),
+                deps.loadLegacyFreeze ? deps.loadLegacyFreeze() : null]);
             await new Promise(resolve => setTimeout(resolve, 30));
-            return legacyDailyChain(Object.fromEntries(contexts.map((ctx, i) => [old.SOURCES[i], ctx.items])), countries, day);
+            return legacyDailyChain(Object.fromEntries(contexts.map((ctx, i) => [old.SOURCES[i], ctx.items])), countries, day, freeze);
         };
         // Řetěz dne: jednou spočítaný se pamatuje (cache), ať se při každém otevření nepočítá znovu. Řetěz uložený na serveru (zamrzlé denní
         // módy, schéma 33: deps.frozenChain) má přednost – je to přesně ten, který hrál první hráč dne, i když má toto zařízení jiná data
@@ -2721,7 +2738,7 @@
         MAX_GEO, KIND_MAX, LEVELS, isHub, hubPeriod, containersOf, domainOf,
         isDay, addDays, pragueDay, formatDay, pointsWord, linksWord, playersWord, hash32, seededRandom, shuffle, seedFor,
         fromCountry, inCountry, ofCountry, nationalitiesIn, buildGraph, buildQuestion, buildRescue, rescueOptions, pickDistractors, generate, dailyChain, practiceChain, edgesFrom, chainIds,
-        isLegacyDay, legacy, legacyDailyChain, subjectText, maskShare,
+        isLegacyDay, legacy, legacyDailyChain, frozenSources, LEGACY_FREEZE_FILE, subjectText, maskShare,
         newAttempt, nextLink, summaryOf, validSummary, currentAsk, answer, useRescue, giveUp, xpFor, shareGrid, shareText, poseFor, cardInput, parseState, cleanAttempt, cleanChain,
         BADGE_GROUPS, badgeCounts,
         iconFor, linkSvg, stripStates, homeTile, introHtml, loadingHtml, pathHtml, playHtml, cardHtml, subjectHtml, decideHtml, brokenHtml, resultHtml, statsHtml, stepHtml, rankingHtml,
