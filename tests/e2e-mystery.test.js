@@ -175,14 +175,20 @@ test('Tajemná otázka dne v prohlížeči', { skip: !chromium && 'Playwright ne
         assert.match(await compact(tab, '[data-mystery-clue][data-locked]'), /6\. nápověda\s*v 15:00/);
         assert.equal(await tab.$('[data-action="mystery-choice"]'), null, 'bez možností');
         const round = await roundOf(tab);
-        assert.equal(round.topic, 'zemepis');
+        assert.equal(round.topic, 'jidlo');
         const screenText = await compact(tab, '#mystery-screen');
         assert.ok(!screenText.includes(round.name), `odpověď ${round.name} na obrazovce není`);
-        assert.match(screenText, /Zeměpis/);
+        assert.match(screenText, /Jídlo a pití/);
         assert.match(screenText, /3 tipy na celý den · teď za 6 bodů/);
         await audit(tab, 'obrazovka tajemné otázky (360×640)');
         await shot(tab, 'obrazovka-360x640');
         assert.equal(await tab.$('[data-mystery-info]'), null, 'popis z Wikipedie až po vyřešení');
+        // Skoro správně (Boršček u Boršče): upozornění, tip se nepočítá
+        assert.equal(round.name, 'Boršč');
+        await typeTip(tab, 'Boršček');
+        await tab.waitForFunction(() => /velmi blízko/.test((document.querySelector('[data-mystery-notice]') || {}).textContent || ''));
+        assert.equal((await store(tab)).days[TODAY].tips.length, 0);
+        assert.equal((await store(tab)).days[TODAY].near, 1);
         // Špatný tip a ten samý ještě jednou (nepočítá se)
         await typeTip(tab, 'Atlantida');
         await tab.waitForSelector('[data-mystery-notice]');

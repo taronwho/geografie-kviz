@@ -809,3 +809,14 @@ test('psaná odpověď bez obecného slova na konci názvu: Hořejší jezero uz
     assert.equal(Q.checkAnswer('Černé', { accepted: ['Černé moře'] }), false);
     assert.equal(Q.checkAnswer('Lipno', { accepted: ['Lipno přehrada'] }), true);
 });
+
+test('isNearMiss: skoro správný tip (Tajemná otázka) jen kousek za tolerancí překlepů', () => {
+    const q = { accepted: ['Sfinx'] };
+    assert.ok(core.isNearMiss('Sphinx', q));
+    assert.ok(core.isNearMiss('Sfinks', q));
+    assert.ok(!core.isNearMiss('Chiméra', q));
+    assert.ok(!core.isNearMiss('Sfinx', q), 'přesná odpověď není „skoro“');
+    assert.ok(!core.isNearMiss('Ra', { accepted: ['Re'] }), 'krátká slova ne');
+    assert.ok(!core.isNearMiss('20', { match: 'century', century: 20 }));
+    assert.ok(core.checkAnswer('Sfinga', { accepted: ['Sfinx', 'Sfinga'] }));
+});

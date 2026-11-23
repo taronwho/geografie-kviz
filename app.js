@@ -7,7 +7,7 @@
         SATELLITE_TILES, OSM_TILES,
         escapeHtml, plural, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, formatPoints, getDayKey, formatDayKey, createSeededRandom, pickRandom, itemsAsOf, dailyPick: pickDailyItem,
         censorName, hideAnswer, buildQuestionTexts, OUT_OF_CONTEXT,
-        processWikiText, checkAnswer, normalizeAnswer, filterItems, levelOf, pickItem, sortItems,
+        processWikiText, checkAnswer, isNearMiss, normalizeAnswer, filterItems, levelOf, pickItem, sortItems,
         buildItemChoices, replaceConflicts, choiceConflict, cultureLandsFor, findAnswerItem, setCountries, updateMistakes, nameAnswers, pointsFor, LEGACY_TYPED_FACTOR,
         computeStreak, buildShareText, getTileLayout, shuffle,
         LEVEL_XP, xpForLevel, MAX_LEVEL, LEVEL_TITLES, titleOwlTier,
@@ -12028,6 +12028,16 @@
                 const other = otherId && ctx.byId.get(otherId);
                 const exactlyOwn = data.question.accepted.some(accepted => normalizeAnswer(accepted) === normalizeAnswer(text));
                 if (other && !exactlyOwn && normalizeAnswer(other.n) === normalizeAnswer(text)) correct = false;
+            }
+            // Skoro správně („Sfinga“ u Sfinx): tip se nepočítá a hra upozorní na chybu (nejvýš Mystery.NEAR_MISSES× za den).
+            // Přesně název jiné položky (Slovinsko u Slovenska) je jiná odpověď a upozornění nedostane.
+            const otherExact = !correct && item && (() => { const otherId = findAnswerItem(text, item, ctx.items); const other = otherId && ctx.byId.get(otherId); return Boolean(other && normalizeAnswer(other.n) === normalizeAnswer(text)); })();
+            if (!correct && !otherExact && (entry.near || 0) < Mystery.NEAR_MISSES && isNearMiss(text, data.question)) {
+                state.days[view.day] = { ...entry, near: (entry.near || 0) + 1 };
+                saveMystery(state);
+                view.notice = `„${text}“ je velmi blízko, ale něco tam nesedí. Zkontroluj pravopis – tenhle tip se nepočítá.`;
+                renderMystery();
+                return;
             }
         }
         // Stejný špatný tip podruhé se nepočítá

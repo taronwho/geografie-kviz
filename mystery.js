@@ -805,6 +805,8 @@
     // rounds: { den: data otázky } = otázka dne pro nápovědy (stejná po celý den, i když se změní data nebo Wikipedie); jen poslední dva dny
     const whole = (value, max) => (Number.isFinite(Number(value)) ? Math.max(0, Math.min(max, Math.floor(Number(value)))) : 0);
     const cleanTip = (tip) => (tip && typeof tip === 'object' ? { text: String(tip.text || '').slice(0, 80), correct: Boolean(tip.correct), clues: Math.max(1, whole(tip.clues, CLUES)), at: whole(tip.at, 1e14) } : null);
+    // Skoro správný tip („Sfinga“ u Sfinx) se nepočítá a hra upozorní na chybu, nejvýš dvakrát za den
+    const NEAR_MISSES = 2;
     const cleanEntry = (raw) => {
         if (!raw || typeof raw !== 'object') return null;
         const tips = [];
@@ -821,7 +823,9 @@
             tips, solved: Boolean(solvedTip), clues: solvedTip ? solvedTip.clues : tips.length ? tips[tips.length - 1].clues : 0,
             points: solvedTip ? pointsFor(solvedTip.clues, tips.indexOf(solvedTip)) : 0, at: solvedTip ? solvedTip.at : 0,
             xp: whole(raw.xp, 1000), synced: Number.isInteger(raw.synced) ? Math.max(0, Math.min(raw.synced, tips.length)) : 0,
-            dismissed: Boolean(raw.dismissed), seen: whole(raw.seen, CLUES)
+            dismissed: Boolean(raw.dismissed), seen: whole(raw.seen, CLUES),
+            // Kolikrát dnes zaznělo „Jsi velmi blízko“ (tip se nepočítal); nejvýš NEAR_MISSES za den
+            near: whole(raw.near, NEAR_MISSES)
         };
     };
     const parseState = (raw) => {
@@ -1020,7 +1024,7 @@
     };
 
     return {
-        CLUES, CLUE_HOURS, MAX_TIPS, MAX_POINTS, XP_BASE, XP_PER_POINT, KEY, ART,
+        CLUES, CLUE_HOURS, MAX_TIPS, NEAR_MISSES, MAX_POINTS, XP_BASE, XP_PER_POINT, KEY, ART,
         isDay, addDays, pragueClock, pragueDay, pragueTime, cluesAt, clueTime, hourLabel, nextClue, formatClock, formatDay, pointsWord, tipsWord, withClues, cluesWord,
         hash32, seededRandom, seedFor, topicForDay, hasPhoto, candidatesOf, pickItem, leftWord,
         sentencesOf, answerPattern, letterCount, strongMask, textScore, revealScore, buildClues, pointsFor, xpFor,
