@@ -262,7 +262,7 @@
                 : '<span class="text-base font-black leading-none text-slate-600 dark:text-slate-300">–</span>';
         const name = item ? item.title : bare || 'Bez doplňku';
         return `<button type="button" data-owl-slot="${slot.id}" aria-pressed="${open}" aria-label="${escapeHtml(`${slot.title}: ${item ? item.title : bare ? bare.toLocaleLowerCase('cs') : 'bez doplňku'}`)}" title="${escapeHtml(name)}"
-            class="flex h-11 w-full min-w-0 items-center gap-1.5 rounded-xl border-2 px-1 active:scale-95 ${right ? 'flex-row-reverse text-right' : 'text-left'} ${open ? 'border-brand-500 bg-brand-50 text-brand-800 dark:bg-brand-950 dark:text-brand-100' : 'border-transparent bg-slate-50 text-slate-700 dark:bg-slate-700/50 dark:text-slate-200'}">
+            class="flex h-11 w-full min-w-0 items-center gap-1.5 rounded-xl border-2 px-1 active:scale-95 short:h-10 ${right ? 'flex-row-reverse text-right' : 'text-left'} ${open ? 'border-brand-500 bg-brand-50 text-brand-800 dark:bg-brand-950 dark:text-brand-100' : 'border-transparent bg-slate-50 text-slate-700 dark:bg-slate-700/50 dark:text-slate-200'}">
             <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm dark:bg-slate-800">${icon}</span><span class="min-w-0 flex-1 truncate text-[12px] font-black leading-tight">${slot.title}</span></button>`;
     };
 
@@ -280,9 +280,9 @@
         const [left1, left2, right1, right2] = Look.SLOTS;
         // Sova uprostřed, místa (hlava, obličej | krk, ruka) kolem ní; vybrané místo ukáže pod sovou své doplňky
         const owl = `<div data-owl-slots class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1.5">
-            <div class="flex min-w-0 flex-col gap-1.5">${slotChip(left1, acc, open === left1.id, false)}${slotChip(left2, acc, open === left2.id, false)}</div>
-            <div class="flex w-[6.25rem] flex-col items-center pt-4 short:w-[5.25rem] short:pt-3">${logoHtml('', 'h-20 w-auto drop-shadow-lg short:h-16', acc)}${ageCaption()}</div>
-            <div class="flex min-w-0 flex-col gap-1.5">${slotChip(right1, acc, open === right1.id, true)}${slotChip(right2, acc, open === right2.id, true)}</div>
+            <div class="flex min-w-0 flex-col gap-1.5 short:gap-1">${slotChip(left1, acc, open === left1.id, false)}${slotChip(left2, acc, open === left2.id, false)}</div>
+            <div class="flex w-[6.25rem] flex-col items-center pt-4 short:w-[5.25rem] short:pt-2">${logoHtml('', 'h-20 w-auto drop-shadow-lg short:h-14', acc)}${ageCaption()}</div>
+            <div class="flex min-w-0 flex-col gap-1.5 short:gap-1">${slotChip(right1, acc, open === right1.id, true)}${slotChip(right2, acc, open === right2.id, true)}</div>
         </div>`;
         const chosen = acc[open] ? acc[open].id : 'none';
         const first = open === 'face' ? monocleTiles(chosen) : noneTile(open, chosen === 'none');
@@ -323,7 +323,7 @@
         // Celý look tématu (všechny kusy jedné sady najednou): zlatý štítek pod sovou
         const look = Look.activeTopicLook ? Look.activeTopicLook(acc) : null;
         const lookLine = look ? `<p data-owl-look-line class="-my-0.5 flex justify-center">${lookTagHtml(look)}</p>` : '';
-        return `<div class="flex flex-col gap-1.5">
+        return `<div class="flex flex-col gap-1.5 short:gap-1">
             ${owl}${lookLine}${items}<div class="flex flex-col gap-1.5">${colors}${flagPicker}</div>
             ${note ? `<p role="status" class="px-1 text-[11px] font-bold text-brand-700 dark:text-brand-300">${escapeHtml(note)}</p>` : ''}
         </div>`;

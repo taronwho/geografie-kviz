@@ -85,9 +85,12 @@
         const countries = ctx.countries;
         const origins = new Set(ctx.items.filter(other => other.c === item.c && other.f && other.f.co && countries[other.f.co]).map(other => other.f.co));
         origins.delete(id);
-        // Nejdřív země původu jiných položek z téhož kontinentu (k Itálii Francie a Španělsko), pak sousední státy
-        const ranked = shuffle([...origins], rng).sort((a, b) => (countries[b].continent === countries[id].continent) - (countries[a].continent === countries[id].continent));
-        const wrong = ranked.slice(0, 3);
+        // Dvě země původu jiných položek z téhož kontinentu (k Itálii Francie a Španělsko) a jedna odjinud, ať nápověda Kontinent
+        // jednu možnost vyřadí; chybějící doplní sousední státy
+        const shuffled = shuffle([...origins], rng);
+        const same = shuffled.filter(qid => countries[qid].continent === countries[id].continent);
+        const other = shuffled.filter(qid => countries[qid].continent !== countries[id].continent);
+        const wrong = [...same.slice(0, other.length ? 2 : 3), ...other.slice(0, 1), ...same.slice(2)].slice(0, 3);
         const fallback = buildCountryChoices(id, countries, rng).filter(choice => !choice.correct && !wrong.includes(choice.id)).map(choice => choice.id);
         const picked = [...wrong, ...fallback].slice(0, 3);
         return shuffle([id, ...picked], rng).map(qid => ({ id: qid, label: countries[qid].name, correct: qid === id, topic: 'zemepis' }));
@@ -184,10 +187,11 @@
                 { kind: 'facts', label: 'vědecký název', icon: 'microscope', facts: lat ? [{ label: 'Vědecký název', value: lat }] : [] }
             ];
         }
+        // Země původu: fotka (lžička hořčice) k zemi nevede, proto suroviny a doba vzniku
         if (type === 'location') {
             return [
                 { kind: 'facts', label: 'suroviny', icon: 'utensils', facts: take(['Suroviny', 'Surovina', 'Chod', 'Obsah alkoholu']) },
-                { kind: 'photo' }
+                { kind: 'facts', label: 'vznik', icon: 'calendar', facts: take(['Vznik', 'Barva']) }
             ];
         }
         return [
