@@ -547,7 +547,8 @@ const PSYCHOLOGY_GROUPS = {
     fobie: { ty: 'fobie' }
 };
 // Fobie s klinickým názvem, které nic nevysvětlí (sociální fobie je porucha, ne strach z věci), do okruhu nepatří
-const PHOBIA_SKIP = /^(fobie|specifická fobie|sociální fobie)$/iu;
+// (fotofobie a hydrofobie jsou příznaky – světloplachost, vzteklina –, ne strach)
+const PHOBIA_SKIP = /^(fobie|specifická fobie|sociální fobie|fotofobie|hydrofobie|homofobie)$/iu;
 // Kognitivní zkreslení podle Wikidat, která jsou spíš matematikou, ekonomií či sociologií
 const NOT_PSYCHOLOGY = /^(monty hall|iracionalita|časová preference|motonormativita|berksonův paradox|spirála mlčení|locus of control)/iu;
 const KNOWN_PHOBIAS = new Set(['arachnofobie', 'klaustrofobie', 'akrofobie', 'agorafobie', 'aviofobie', 'xenofobie', 'technofobie', 'nomofobie', 'hematofobie']);

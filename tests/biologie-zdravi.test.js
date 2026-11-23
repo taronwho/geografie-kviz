@@ -74,7 +74,7 @@ test('zdraví: nemoci – skupina podle MKN-10, bez drastických fotek, nevhodn�
 test('zdraví: nemoci – nápovědy, kód MKN-10 až po odpovědi, jiný český název jako odpověď', () => {
     const flu = find('Chřipka');
     const hints = topic.hints(flu, ctx, 'name');
-    assert.deepEqual(hints.map(hint => hint.label || hint.kind), ['facts', 'příznaky', 'původce', 'photo']);
+    assert.deepEqual(hints.map(hint => hint.label || hint.kind), ['facts', 'příznaky', 'původce', 'photo', 'délka názvu']);
     assert.ok(hints[0].facts.some(fact => fact.label === 'Skupina nemocí'));
     assert.ok(!topic.facts(flu, ctx, 'name').some(fact => fact.label === 'Kód MKN-10'));
     assert.ok(topic.facts(flu, ctx, 'result').some(fact => fact.label === 'Kód MKN-10'));

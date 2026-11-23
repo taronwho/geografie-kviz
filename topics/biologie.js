@@ -280,6 +280,11 @@
     const healthFacts = (item, mode) => item.c === 'nemoci' ? diseaseFacts(item, mode) : item.c === 'lekarstvi' ? medicineFacts(item)
         : isHealthPerson(item) ? personFacts(item) : conceptFacts(item);
     // Nápovědy nemoci: skupina a obor, příznaky a co postihuje, původce a přenos, nakonec snímek původce z mikroskopu
+    // Poslední nápověda: počet slov názvu (jako u chemických pojmů) – pojem bez faktů a fotky tak nezůstane bez nápovědy
+    const wordCountHint = (item) => {
+        const words = item.n.split(/\s+/).length;
+        return { kind: 'facts', label: 'délka názvu', icon: 'type', facts: [{ label: 'Název má', value: `${words} ${words === 1 ? 'slovo' : words < 5 ? 'slova' : 'slov'}` }] };
+    };
     const healthHints = (item, type) => {
         if (isHealthPerson(item)) return null;
         if (item.c === 'nemoci') {
@@ -288,9 +293,9 @@
             return [{ kind: 'facts', facts: pick('Skupina nemocí', 'Lékařský obor') },
                 { kind: 'facts', label: 'příznaky', icon: 'thermometer', facts: pick('Příznaky', 'Postihuje') },
                 { kind: 'facts', label: 'původce', icon: 'microscope', facts: pick('Původce', 'Přenáší se', 'Očkování') },
-                { kind: 'photo' }];
+                { kind: 'photo' }, wordCountHint(item)];
         }
-        return [{ kind: 'facts', facts: healthFacts(item, type) }, { kind: 'photo' }];
+        return [{ kind: 'facts', facts: healthFacts(item, type) }, { kind: 'photo' }, wordCountHint(item)];
     };
     // Časová osa lékaře či psychologa s milníky medicíny
     const MEDICINE_EVENTS = [
