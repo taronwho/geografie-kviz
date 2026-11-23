@@ -47,9 +47,17 @@ test('film: kontrola dat – roky, jedna položka na jméno, filmografie', () =>
         if (f.born !== undefined && f.died !== undefined) assert.ok(f.died > f.born && f.died - f.born <= 105, `${item.n}: ${f.born}–${f.died}`);
         for (const year of [f.born, f.died, f.year]) assert.ok(year === undefined || year <= thisYear, `${item.n}: rok ${year}`);
         if (['filmy', 'animovane', 'serialy'].includes(item.c)) assert.ok(f.year >= 1880, `${item.n}: bez roku`);
-        else assert.ok(f.born !== undefined && f.films && f.films.length, `${item.n}: bez narození nebo filmů`);
+        else if (['reziseri', 'herci'].includes(item.c)) assert.ok(f.born !== undefined && f.films && f.films.length, `${item.n}: bez narození nebo filmů`);
+        // Pořady, večerníčky a komiksy: rok jen když je jistý (některé známé pořady ho ve Wikidatech nemají)
+        else assert.ok(f.year === undefined || f.year >= 1890, `${item.n}: rok ${f.year}`);
     }
-    assert.equal(new Set(data.items.map(item => item.n.toLocaleLowerCase('cs'))).size, data.items.length);
+    // Jedna položka na jméno v kategorii; mezi filmy, seriály a filmaři i napříč (postava Batman a film Batman jsou v různých kategoriích)
+    for (const category of new Set(data.items.map(item => item.c))) {
+        const names = data.items.filter(item => item.c === category).map(item => item.n.toLocaleLowerCase('cs'));
+        assert.equal(new Set(names).size, names.length, `${category}: stejné jméno dvakrát`);
+    }
+    const original = data.items.filter(item => ['filmy', 'animovane', 'serialy', 'reziseri', 'herci'].includes(item.c));
+    assert.equal(new Set(original.map(item => item.n.toLocaleLowerCase('cs'))).size, original.length);
     assert.deepEqual(find('Pelíšky').f.dir, ['Jan Hřebejk']);
     assert.ok(find('Kolja').f.cast.includes('Zdeněk Svěrák'));
     assert.ok(find('Miloš Forman').f.films.includes('Přelet nad kukaččím hnízdem'));
@@ -138,7 +146,7 @@ test('film: nesprávné možnosti a okruhy', () => {
     for (const options of wrongOptions('Pelíšky')) assert.ok(options.every(other => other.cz === 1), options.map(o => o.n).join(', '));
     for (const options of wrongOptions('Libuše Šafránková')) assert.ok(options.every(other => other.sx === 'f' && other.cz === 1), options.map(o => o.n).join(', '));
     for (const options of wrongOptions('Alfred Hitchcock')) assert.ok(options.every(other => other.f.born < 1950), options.map(o => o.n).join(', '));
-    assert.ok(data.collections.length >= 8 && data.collections.length <= 30);
+    assert.ok(data.collections.length >= 8 && data.collections.length <= 40);
     assert.ok(inCollection('cesky-film').includes('Kolja') && !inCollection('cesky-film').includes('Kmotr'));
     assert.ok(inCollection('ceska-klasika').includes('Ostře sledované vlaky') && !inCollection('ceska-klasika').includes('Pelíšky'));
     assert.ok(inCollection('pohadky').includes('Tři oříšky pro Popelku'));
