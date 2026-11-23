@@ -9855,15 +9855,21 @@ begin
 end;
 $$;
 
--- Jednorázově: týdenní turnaj tohoto týdne zrušený kvůli málo hráčům se znovu otevře a hned spustí s boty (upozornění na zrušení zmizí)
+-- Jednorázově: turnaj týdne od 23. 11. 2026 zrušený kvůli málo hráčům se znovu otevře a spustí s boty, 1. kolo až 24. 11.
+-- (upozornění na zrušení zmizí). Když už běží od 23. 11. a nikdo nezačal hrát, posune se začátek na 24. 11. Pozdější turnaje to nemění.
 do $$
-declare t record; monday date := public.tournament_today() - (extract(isodow from public.tournament_today())::integer - 1);
+declare t record;
 begin
-    for t in select id from public.tournaments where status = 'cancelled' and kind is distinct from 'special' and week_start = monday loop
+    for t in select id from public.tournaments where status = 'cancelled' and kind is distinct from 'special' and week_start = date '2026-11-23' loop
         update public.tournaments set status = 'open' where id = t.id;
         update public.tournament_notices set seen = true where tournament_id = t.id and kind = 'cancelled';
         perform public.tournament_start(t.id);
+        update public.tournaments set started_on = greatest(date '2026-11-24', public.tournament_today()) where id = t.id;
     end loop;
+    update public.tournaments tt set started_on = date '2026-11-24'
+        where tt.kind is distinct from 'special' and tt.week_start = date '2026-11-23' and tt.status = 'running' and tt.started_on = date '2026-11-23'
+            and public.tournament_today() <= date '2026-11-24'
+            and not exists (select 1 from public.tournament_matches m join public.tournament_results r on r.match_id = m.id where m.tournament_id = tt.id);
 end $$;
 -- ===== 50: Týdenní turnaj se nezruší — KONEC BLOKU =====
 

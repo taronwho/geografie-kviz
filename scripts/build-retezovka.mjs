@@ -31,7 +31,7 @@ const artworks = known('umeni', ['obrazy', 'sochy']).map(item => item.q);
 const myths = new Set(read('mytologie').filter(item => item && item.k === 1 && /^Q\d+$/.test(item.q)).map(item => item.q));
 
 console.log(`Osobnosti ${people.length}, města ${cities.size}, hory ${peaks.length}, pohoří ${ranges.size}, druhy ${species.length}`);
-const edges = { born: [], died: [], spouse: [], parent: [], teacher: [], successor: [], range: [], endemic: [], depicts: [] };
+const edges = { born: [], died: [], spouse: [], parent: [], teacher: [], successor: [], range: [], endemic: [], depicts: [], depictsAlso: [] };
 const seen = new Set();
 const add = (rel, a, b) => {
     if (!a || !b || a === b) return;
@@ -112,8 +112,8 @@ const depictRows = await cached('retezovka-zobrazuje', async () => {
     await inBatches(artworks, 150, (batch) => `SELECT ?a ?d WHERE { VALUES ?a { ${values(batch)} } ?a wdt:P180 ?d . }`, (row) => rows.push([id(row.a.value), id(row.d.value)]));
     return rows;
 });
-// Lidé, které dílo zobrazuje: když mezi nimi je někdo mimo data (Smrt Sokratova: Sókratés), hlavní postavou může být právě on
-// a otázka „Koho zobrazuje…?“ s odpovědí Platón by byla nesmysl. Takové dílo se neptá vůbec.
+// Lidé, které dílo zobrazuje: když mezi nimi je někdo mimo data (Smrt Sokratova: Sókratés), hlavní postavou může být právě on.
+// Zobrazení z dat (Platón) pak jdou do depictsAlso a hra se ptá „Kdo z nich je na díle…?“, ne na hlavní postavu.
 const depictedHumans = await cached('retezovka-zobrazuje-lide', async () => {
     const rows = [];
     await inBatches(artworks, 150, (batch) => `SELECT ?a ?d WHERE { VALUES ?a { ${values(batch)} } ?a wdt:P180 ?d . ?d wdt:P31 wd:Q5 . }`, (row) => rows.push([id(row.a.value), id(row.d.value)]));
@@ -122,7 +122,7 @@ const depictedHumans = await cached('retezovka-zobrazuje-lide', async () => {
 const unknownHuman = new Set(depictedHumans.filter(([, d]) => !personSet.has(d) && !myths.has(d)).map(([a]) => a));
 const depicted = new Map();
 for (const [a, d] of depictRows) if (myths.has(d) || personSet.has(d)) depicted.set(a, [...(depicted.get(a) || []), d]);
-for (const [a, list] of depicted) if (list.length <= 3 && !unknownHuman.has(a)) list.forEach(d => add('depicts', a, d));
+for (const [a, list] of depicted) if (list.length <= 3) list.forEach(d => add(unknownHuman.has(a) ? 'depictsAlso' : 'depicts', a, d));
 
 for (const list of Object.values(edges)) list.sort((a, b) => a[0].localeCompare(b[0]) || a[1].localeCompare(b[1]));
 const out = { generated: new Date().toISOString().slice(0, 10), source: 'Wikidata (CC0)', edges };
