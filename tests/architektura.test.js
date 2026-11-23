@@ -11,6 +11,9 @@ const data = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'architektura.js
 const countries = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'countries.json'), 'utf8')).countries;
 const ctx = { topic, items: data.items, collections: data.collections, countries };
 const find = (name) => data.items.find(item => item.n === name);
+// Stavby jsou ve čtyřech kategoriích: stavby, hrady a zámky, mosty a tunely, mrakodrapy a rekordní stavby
+const BUILDINGS = ['stavby', 'hrady', 'mosty', 'mrakodrapy'];
+const isBuilding = (item) => BUILDINGS.includes(item.c);
 const styleKeyOf = (label) => (data.items.find(item => item.c === 'slohy' && item.n === label) || { f: {} }).f.key;
 // Generátor, který napoprvé vrátí zadané číslo (volba druhu otázky) a dál náhodná čísla se semínkem
 const firstThen = (first, seed) => {
@@ -25,7 +28,7 @@ test('architektura: slavné a české stavby, slohy a architekti v datech', () =
     for (const [name, style] of [['Katedrála svatého Víta v Praze', 'Gotika'], ['Karlův most', 'Gotika'], ['Vila Tugendhat', 'Funkcionalismus'],
         ['Tančící dům', 'Dekonstruktivismus'], ['Dům U Černé Matky Boží', 'Kubismus'], ['Sagrada Família', 'Secese'], ['Koloseum', 'Římská antika']]) {
         const item = find(name);
-        assert.ok(item && item.k === 1 && item.c === 'stavby', `chybí známá stavba ${name}`);
+        assert.ok(item && item.k === 1 && isBuilding(item), `chybí známá stavba ${name}`);
         assert.equal(item.f.st, styleKeyOf(style), `${name}: sloh`);
     }
     assert.equal(find('Karlův most').cz, 1);
@@ -47,7 +50,7 @@ test('architektura: slavné a české stavby, slohy a architekti v datech', () =
         if (f.died !== undefined) assert.ok(f.born < f.died && f.died <= year, `${item.n}: život`);
     }
     // Rok stavby sedí k období slohu
-    for (const item of data.items.filter(other => other.c === 'stavby' && other.f.st && other.f.y !== undefined)) {
+    for (const item of data.items.filter(other => isBuilding(other) && other.f.st && other.f.y !== undefined)) {
         const style = data.items.find(other => other.c === 'slohy' && other.f.key === item.f.st);
         assert.ok(item.f.y >= style.f.from - 150 && item.f.y <= style.f.to + 60, `${item.n}: ${item.f.y} × ${style.n}`);
     }
@@ -80,7 +83,7 @@ test('architektura: otázka na sloh – fotka, jedna správná možnost, žádn�
     assert.ok(!topic.facts(cathedral, ctx, 'style').some(fact => fact.label === 'Sloh'));
     // Ve všech stavbách: možnosti bez sporných dvojic a název stavby sloh neprozradí
     let asked = 0;
-    for (const item of data.items.filter(other => other.c === 'stavby')) {
+    for (const item of data.items.filter(other => isBuilding(other))) {
         const special = topic.specialQuestion(item, ctx, firstThen(0.5, item.q));
         if (!special) continue;
         asked++;
@@ -91,7 +94,7 @@ test('architektura: otázka na sloh – fotka, jedna správná možnost, žádn�
     }
     assert.ok(asked > 500);
     // Novogotická stavba v názvu (Novogotický kostel…) se na sloh neptá
-    const named = data.items.find(item => item.c === 'stavby' && /gotick|barokn/i.test(item.n));
+    const named = data.items.find(item => isBuilding(item) && /gotick|barokn/i.test(item.n));
     if (named) assert.notEqual((topic.specialQuestion(named, ctx, firstThen(0.5, 'x')) || {}).type, 'style');
 });
 
@@ -140,7 +143,7 @@ test('architektura: stavby bez slohu (mosty, věže, muzea) a architektonické p
     assert.ok(data.items.length >= 1500 && known >= 400, `${data.items.length} položek, ${known} známých`);
     for (const name of ['Eiffelova věž', 'Golden Gate Bridge', 'Louvre', 'Angkor Vat']) {
         const item = find(name);
-        assert.ok(item && item.c === 'stavby' && item.k === 1 && !item.f.st && item.im, `chybí známá stavba bez slohu ${name}`);
+        assert.ok(item && isBuilding(item) && item.k === 1 && !item.f.st && item.im, `chybí známá stavba bez slohu ${name}`);
     }
     // Stavba bez slohu: na sloh se neptáme, sloh mezi fakty ani na časové ose není
     const tower = find('Eiffelova věž');
@@ -160,11 +163,11 @@ test('architektura: stavby bez slohu (mosty, věže, muzea) a architektonické p
     assert.equal(collection('prvky').length, prvky.length);
     assert.doesNotMatch(core.hideAnswer('Kupole je architektonický prvek ve tvaru polokoule, kupolovitá střecha.', { type: 'name', title: '', choices: [] }, dome, ctx), /kupol/i);
     // Stadiony a nádraží bez slohu sem nepatří
-    assert.ok(!data.items.some(item => item.c === 'stavby' && ['stadion', 'nádraží'].includes(item.ty) && !item.f.st));
+    assert.ok(!data.items.some(item => isBuilding(item) && ['stadion', 'nádraží'].includes(item.ty) && !item.f.st));
 });
 
 test('architektura: upřesnění v závorce (město, stát) neprozradí popis ani nápověda', () => {
-    const items = data.items.filter(item => item.c === 'stavby' && /\(([^()]+)\)$/.test(item.n));
+    const items = data.items.filter(item => isBuilding(item) && /\(([^()]+)\)$/.test(item.n));
     assert.ok(items.length > 20);
     for (const item of items) {
         const qualifier = /\(([^()]+)\)$/.exec(item.n)[1];
@@ -177,7 +180,7 @@ test('architektura: upřesnění v závorce (město, stát) neprozradí popis an
     const notre = find('Katedrála Notre-Dame (Paříž)');
     if (notre) assert.doesNotMatch(topic.censor('name', 'Gotická katedrála v Paříži na ostrově Cité, nejznámější pařížský chrám.', notre, ctx), /Paříž|Paříži|pařížsk/i);
     // Štítek „Město“ by prozradil slovo města v názvu
-    const spor = data.items.find(item => item.c === 'stavby' && /Městská/.test(item.n) && item.f.city);
+    const spor = data.items.find(item => isBuilding(item) && /Městská/.test(item.n) && item.f.city);
     if (spor) assert.ok(!topic.facts(spor, ctx, 'name').some(fact => fact.label === 'Město'));
 });
 
@@ -190,8 +193,9 @@ test('architektura: obrázek, který neukazuje stavbu (sad, model, rytina, jiná
     // Slovo z vlastního názvu stavby obrázek nevyřadí, ostatní kategorie a běžné fotky zůstanou
     assert.ok(!topic.offSubjectPhoto({ c: 'stavby', q: 'Q1', n: 'Horse Guards', t: 'Horse Guards', im: 'Horse Guards Parade.jpg' }));
     assert.ok(!topic.offSubjectPhoto({ c: 'architekti', q: 'Q1', n: 'I. M. Pei', t: 'I. M. Pei', im: 'Pei looking at model.jpg' }));
-    const sound = data.items.filter(item => item.c === 'stavby' && item.im && item.k === 1 && !topic.offSubjectPhoto(item));
+    const sound = data.items.filter(item => isBuilding(item) && item.im && item.k === 1 && !topic.offSubjectPhoto(item));
     assert.ok(sound.length > 400, `${sound.length} známých staveb s obrázkem`);
     assert.ok(data.items.filter(item => topic.offSubjectPhoto(item)).length < 40);
-    assert.equal(topic.questionTitle(find('Karlův most')), null);
+    assert.equal(topic.questionTitle(find('Karlův most')), 'Který most to je?', 'most mezi mosty a tunely');
+    assert.equal(topic.questionTitle(find('Katedrála svatého Víta v Praze')), null);
 });

@@ -52,7 +52,7 @@ test('všechna témata s fotkami mají pravidlo; app.js obrázek vyřazené polo
 
 test('známé případy: stavby, místa a příroda ukazují místo, osobnosti sebe, díla dílo', () => {
     const off = [
-        ['architektura', 'Jasná Poljana', 'stavby'], ['architektura', 'Kutub Minar', 'stavby'], ['architektura', 'Karlův most', 'stavby'], ['architektura', 'Dubai Mall', 'stavby'],
+        ['architektura', 'Jasná Poljana', 'stavby'], ['architektura', 'Kutub Minar', 'stavby'], ['architektura', 'Karlův most', 'mosty'], ['architektura', 'Dubai Mall', 'stavby'],
         ['architektura', 'Salt Lake Temple', 'stavby'], ['architektura', 'Ernst Wiesner', 'architekti'],
         ['zemepis', 'Jasná Poljana', 'stavba'], ['zemepis', 'Karlův most', 'stavba'], ['zemepis', 'Hypogeum Ħal Saflieni', 'stavba'],
         ['zemepis', 'Garamba', 'priroda'], ['zemepis', 'Národní park Etosha', 'priroda'], ['zemepis', 'Národní park Nairobi', 'priroda'], ['zemepis', 'Národní park Hwange', 'priroda'],
@@ -66,7 +66,7 @@ test('známé případy: stavby, místa a příroda ukazují místo, osobnosti s
     for (const [id, name, category] of off) assert.ok(flagged(id, name, category), `${id}: ${name} má obrázek mimo téma`);
     const kept = [
         ['architektura', 'Katedrála svatého Víta v Praze', 'stavby'], ['architektura', 'Sixtinská kaple', 'stavby'], ['architektura', 'Lincolnská katedrála', 'stavby'],
-        ['architektura', 'Ponte Vecchio', 'stavby'], ['architektura', 'Petr Parléř', 'architekti'], ['zemepis', 'Praha', 'mesto'], ['zemepis', 'Nápis Hollywood', 'stavba'],
+        ['architektura', 'Ponte Vecchio', 'mosty'], ['architektura', 'Petr Parléř', 'architekti'], ['zemepis', 'Praha', 'mesto'], ['zemepis', 'Nápis Hollywood', 'stavba'],
         ['zemepis', 'Socha Svobody', 'stavba'], ['zemepis', 'Victoria Peak', 'hora'], ['zemepis', 'Garonna', 'reka'], ['zemepis', 'Velké Medvědí jezero', 'jezero'],
         ['zemepis', 'Guam', 'ostrov'], ['zemepis', 'Yellowstonský národní park', 'priroda'], ['zemepis', 'Údolí Timna', 'priroda'],
         ['historie', 'Marcus Tullius Cicero'], ['historie', 'Ramesse II.'], ['historie', 'Nefertari'], ['historie', 'Lžidimitrij I.'], ['biologie', 'Velociraptor'],

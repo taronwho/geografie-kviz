@@ -952,7 +952,9 @@
     // --- Zásoby otázek pro mapu (z dat témat; pamatují se pro dvojici témata + mapa) ---
     const questionPools = new WeakMap();
     // Města pro „Najdi na mapě“ a hlavní města (u států podle státu položky, u krajů podle polohy)
-    const PLACE_CATEGORIES = new Set(['mesto', 'hora', 'jezero', 'ostrov', 'priroda', 'stavba', 'stavby']);
+    const PLACE_CATEGORIES = new Set(['mesto', 'hora', 'jezero', 'ostrov', 'priroda', 'stavba', 'stavby', 'hrady', 'mosty', 'mrakodrapy']);
+    // Stavby Architektury jsou ve čtyřech kategoriích (stavby, hrady a zámky, mosty a tunely, mrakodrapy)
+    const BUILDING_CATEGORIES = new Set(['stavba', 'stavby', 'hrady', 'mosty', 'mrakodrapy']);
     const placesOf = (data, topics) => poolsOf(data, topics).places;
     const poolsOf = (data, topics) => {
         if (!questionPools.has(topics)) questionPools.set(topics, new WeakMap());
@@ -1091,7 +1093,7 @@
         const geoFamily = (item) => {
             const ty = item.ty || '';
             if (item.c === 'mesto') return 'city';
-            if (item.c === 'stavba' || item.c === 'stavby') return SKIP_BUILDING_TYPES.has(ty) ? null : kraje && CASTLE_TYPES.test(ty) ? 'castle' : 'building';
+            if (BUILDING_CATEGORIES.has(item.c)) return SKIP_BUILDING_TYPES.has(ty) ? null : kraje && CASTLE_TYPES.test(ty) ? 'castle' : 'building';
             if (item.c === 'hora') return /ostrov/i.test(item.n) ? null : 'mountain';
             if (item.c === 'jezero') return LAKE_TYPES.has(ty) ? 'lake' : null;
             if (item.c === 'ostrov') return ISLAND_TYPES.has(ty) ? 'island' : null;
@@ -1765,7 +1767,7 @@
     // Obrázek, který otázka na obrázek opravdu ukáže (app.js conquestRound jako hlavní hra): u staveb Architektury, obrazů a soch
     // Umění a vlajek a znaků obrázek otázky, jinak jen skutečná fotka (.jpg, .webp; kresbu, mapu ani .png či .tif hlavní hra
     // za fotku nebere a otázka by skončila místní zálohou); jezero a řeka jen známé (photoKnown)
-    const SHOWN_IMAGE = { architektura: (src) => src.c === 'stavby', umeni: (src) => src.c === 'obrazy' || src.c === 'sochy', vlajky: () => true };
+    const SHOWN_IMAGE = { architektura: (src) => BUILDING_CATEGORIES.has(src.c), umeni: (src) => src.c === 'obrazy' || src.c === 'sochy', vlajky: () => true };
     const hasImage = (entry, spec = null) => {
         const src = srcOf(entry);
         if (!src || !src.im || !src.ih || (spec && spec.photoKnown && !entry.known)) return false;

@@ -469,7 +469,8 @@
         // Stavby (Zeměpis a Architektura; Architektura zná město, architekta a sloh)
         const landmarkItems = new Map();
         for (const item of known('zemepis', 'stavba')) landmarkItems.set(item.q, { z: item });
-        for (const item of known('architektura', 'stavby')) landmarkItems.set(item.q, { ...(landmarkItems.get(item.q) || {}), a: item });
+        // Architektura má stavby ve čtyřech kategoriích (stavby, hrady a zámky, mosty a tunely, mrakodrapy)
+        for (const item of ['stavby', 'hrady', 'mosty', 'mrakodrapy'].flatMap(c => known('architektura', c))) landmarkItems.set(item.q, { ...(landmarkItems.get(item.q) || {}), a: item });
         const landmarkByName = new Map();
         for (const [q, { z, a }] of landmarkItems) {
             const item = a || z;
