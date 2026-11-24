@@ -20,7 +20,9 @@ export const readConfig = (text) => {
 };
 
 export const pragueHour = (now = new Date()) => Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Prague', hour: '2-digit', hourCycle: 'h23' }).format(now));
-export const isQuietHour = (now = new Date()) => { const hour = pragueHour(now); return hour < QUIET_FROM || hour >= QUIET_TO; };
+// Výjimka: 24. 11. 2026 noční klid až od 22:00 (večerní připomínka turnaje ještě týž den, jako push_quiet_now ve schématu)
+const pragueDay = (now) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Prague' }).format(now);
+export const isQuietHour = (now = new Date()) => { const hour = pragueHour(now); return hour < QUIET_FROM || hour >= (pragueDay(now) === '2026-11-24' ? 22 : QUIET_TO); };
 
 // Obsah upozornění; sw.js bere title, body, url a kind (tag)
 export const payloadFor = (row) => JSON.stringify({ title: String(row.title || '').slice(0, 80), body: String(row.body || '').slice(0, 200), url: String(row.url || './'), kind: String(row.kind || '') });
