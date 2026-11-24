@@ -374,7 +374,7 @@
         literatura: { cats: ['dila'], keys: ['year'], kind: 'made' },
         umeni: { cats: ['sochy', 'obrazy'], keys: ['year'], kind: 'made' },
         film: { cats: ['filmy', 'animovane', 'serialy', 'porady', 'vecernicky', 'komiksy'], keys: ['year'], ends: ['end'], kind: 'made' },
-        sport: { cats: ['olympiady', 'kluby', 'sportoviste', 'souteze', 'sporty'], keys: ['year', 'opened', 'from'], kind: 'made', events: ['olympiady'] },
+        sport: { cats: ['olympiady', 'kluby', 'sportoviste', 'souteze', 'sporty', 'deskove', 'videohry'], keys: ['year', 'opened', 'from'], kind: 'made', events: ['olympiady'] },
         fyzika: { cats: ['vesmir', 'vynalezy', 'mise', 'pojmy'], keys: ['year'], kind: 'found', inventions: ['vynalezy'], events: ['mise'] },
         chemie: { cats: ['prvky'], keys: ['year'], kind: 'found' },
         technika: { cats: ['vynalezy', 'auta', 'vlaky', 'letadla', 'lode', 'elektronika', 'software', 'stavby', 'firmy'], keys: ['year', 'from'], kind: 'made', inventions: ['vynalezy'] },

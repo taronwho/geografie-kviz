@@ -166,7 +166,10 @@
             action: { kind: 'play', label: 'Na záložku Hrát' }, used: (u) => num((u.counters.topics || {}).technika) > 0 },
         // Nové téma Jídlo a pití (topics/jidlo.js): kdo v něm už odpověděl správně, tip nepotřebuje
         { id: 'jidlo', icon: 'utensils', after: 5, title: 'Nové téma Jídlo a pití', text: 'Na záložce Hrát přibylo téma Jídlo a pití: pokrmy, sýry, ovoce, zelenina, koření, káva a čaj, víno, pivo i slavní kuchaři. Poznáš svíčkovou, hermelín nebo espresso?',
-            action: { kind: 'play', label: 'Na záložku Hrát' }, used: (u) => num((u.counters.topics || {}).jidlo) > 0 }
+            action: { kind: 'play', label: 'Na záložku Hrát' }, used: (u) => num((u.counters.topics || {}).jidlo) > 0 },
+        // Téma Sport se rozrostlo na Sport a hry (topics/sport.js, scripts/lib/sport-hry.mjs): nové kategorie her
+        { id: 'hry', icon: 'dices', after: 5, title: 'Sport a hry: nové kategorie', text: 'Téma Sport se rozrostlo na Sport a hry: přibyly deskové a karetní hry, šachy a videohry. Poznáš Dostihy a sázky, Sicilskou obranu nebo Mafii?',
+            action: { kind: 'play', label: 'Na záložku Hrát' }, used: () => false }
     ];
     const BY_ID = new Map(TIPS.map(tip => [tip.id, tip]));
 

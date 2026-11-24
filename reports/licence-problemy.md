@@ -1,13 +1,13 @@
 # Obrázky k nahrazení před komerčním vydáním
 
-Sestaveno 2026-11-23 skriptem `scripts/build-licenses.mjs` z metadat Wikimedia Commons (`data/licenses.json`).
+Sestaveno 2026-11-24 skriptem `scripts/build-licenses.mjs` z metadat Wikimedia Commons (`data/licenses.json`).
 Uvedené soubory mají licenci, která nedovoluje komerční užití nebo úpravy (ořez, překrytí), jsou „fair use“, nebo licenci neuvádějí.
 Před vydáním v Google Play je nutné je nahradit jiným obrázkem (nebo položku ponechat bez fotky). Licence CC BY, CC BY-SA, CC0 a volná díla jsou v pořádku,
 vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence (`licence.html`).
 
 ## Souhrn
 
-- souborů celkem: **35670**, s načtenými metadaty: **35670**, zatím nestaženo: **0**
+- souborů celkem: **35811**, s načtenými metadaty: **35811**, zatím nestaženo: **0**
 - problémových: **2**
   - bez uvedené licence: 1
   - soubor na Commons neexistuje: 1
@@ -27,7 +27,7 @@ vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence
 | jidlo | 833 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | literatura | 2172 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | mytologie | 977 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| sport | 2127 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| sport | 2268 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | technika | 1639 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | umeni | 1704 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | vlajky | 2466 | 1 | 0 | 0 | 0 | 0 | 1 | 0 |

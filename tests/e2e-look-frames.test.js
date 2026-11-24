@@ -614,14 +614,14 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         assert.equal(await tab.locator('[data-avatar-strip] [data-pick-avatar], [data-avatar-strip] [data-locked-avatar]').count(), 16);
         assert.deepEqual(await tab.$$eval('[data-avatar-strip] [data-pick-avatar]', nodes => nodes.map(node => [node.dataset.pickAvatar, node.hasAttribute('data-legendary')])), [['albatr', true]]);
         assert.match(await tab.getAttribute('[data-pick-avatar="albatr"]', 'class'), /border-gold-300/, 'odemčená legendární má zlatý lem');
-        assert.equal(await tab.getAttribute('[data-locked-avatar="klokan"]', 'aria-label'), 'Klokan šampion (legendární) (zamčeno): Diplom: Sport');
-        assert.equal(await tab.getAttribute('[data-locked-avatar="klokan"]', 'title'), 'Klokan šampion: Diplom: Sport');
+        assert.equal(await tab.getAttribute('[data-locked-avatar="klokan"]', 'aria-label'), 'Klokan šampion (legendární) (zamčeno): Diplom: Sport a hry');
+        assert.equal(await tab.getAttribute('[data-locked-avatar="klokan"]', 'title'), 'Klokan šampion: Diplom: Sport a hry');
         assert.equal(await tab.locator('[data-locked-avatar="klokan"] svg, [data-locked-avatar="klokan"] [data-lucide="graduation-cap"]').count(), 1, 'za diplom čepice absolventa');
         assert.match(await tab.textContent('[data-legend-note]'), /Legendární postavička za diplom tématu/);
         assert.equal(await tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return box.scrollHeight <= box.clientHeight; }), true, 'okno bez posouvání');
         // Zamčená se nevybere, jen řekne, jakým diplomem se odemkne
         await tab.click('[data-locked-avatar="klokan"]', { force: true });
-        await tab.waitForFunction(() => /Klokan šampion se odemkne diplomem „Mistr sportu“ \(plné mistrovství tématu Sport\)\./.test(document.getElementById('settings-note').textContent));
+        await tab.waitForFunction(() => /Klokan šampion se odemkne diplomem „Mistr sportu a her“ \(plné mistrovství tématu Sport a hry\)\./.test(document.getElementById('settings-note').textContent));
         // Odemčená: barvy obou částí jako u ostatních postaviček, uloží se jako krátký kód
         await tab.click('[data-pick-avatar="albatr"]');
         await tab.waitForSelector('[data-pick-avatar="albatr"][aria-pressed="true"]');

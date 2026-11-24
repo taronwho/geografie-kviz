@@ -1,12 +1,29 @@
-// Téma Sport: data/sport.json z Wikidat – sportovci, olympijské hry, sporty a disciplíny
+// Téma Sport a hry: data/sport.json z Wikidat – sportovci, olympijské hry, sporty a disciplíny, kluby, sportoviště a soutěže;
+// hry (scripts/lib/sport-hry.mjs): deskové a karetní hry, šachy, videohry
 // Spuštění: npm run build:sport (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování)
 // Podrobnosti po dávkách jdou číst i z query.wikidata.org (WIKIDATA_ENDPOINT=wdqs), když je QLever přetížený
+// Jen hry nad hotovým data/sport.json (ostatní položky se nestahují ani nemění): SPORT_ONLY=hry node scripts/build-sport.mjs
+import { readFileSync } from 'node:fs';
+import { buildHry, mergeHry, hrySummary } from './lib/sport-hry.mjs';
 import { buildExtra } from './lib/sport-extra.mjs';
 import { cachedEntries } from './lib/sport-cache.mjs';
 import { assignLevels, levelSummary } from './lib/sport-levels.mjs';
 import { CZECH_GOLDS, LEGEND_GOLDS, NAGANO_1998 } from './lib/sport-olympians.mjs';
 import { czechPageviews } from './lib/zemepis-levels.mjs';
 import { sparql, qlever, id, values, parsePoint, fileName, imageFields, yearOf, compact, cached, inBatches, writeTopic } from './lib/wikidata.mjs';
+
+// Hry: nové položky na konec dat a okruhy her na konec seznamu; pak zápis data/sport.json
+async function addHry({ collections, items }) {
+    const hry = await buildHry({ existing: items.filter(item => !HRY_CATEGORIES_SET.has(item.c)) });
+    const merged = mergeHry({ collections, items }, hry);
+    hrySummary(merged.items);
+    writeTopic('sport', merged);
+}
+const HRY_CATEGORIES_SET = new Set(['deskove', 'sachy', 'videohry']);
+if (process.env.SPORT_ONLY === 'hry') {
+    await addHry(JSON.parse(readFileSync(new URL('../data/sport.json', import.meta.url), 'utf8')));
+    process.exit(0);
+}
 
 const HUMAN = 'Q5';
 const FEMALE = 'Q6581072';
@@ -915,4 +932,7 @@ for (const item of items) {
     if (stem) item.d = `${stem}${item.sx === 'f' ? 'á' : 'ý'} ${item.ty}`;
 }
 
-writeTopic('sport', { collections, items });
+// Položky her z dřívějšího běhu (data/sport.json): celé sestavení je znovu nestahuje, jen je převezme (žádné id nezmizí)
+let previous = [];
+try { previous = JSON.parse(readFileSync(new URL('../data/sport.json', import.meta.url), 'utf8')).items.filter(item => HRY_CATEGORIES_SET.has(item.c)); } catch { previous = []; }
+await addHry({ collections, items: [...items, ...previous] });
