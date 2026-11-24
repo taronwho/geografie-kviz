@@ -70,7 +70,7 @@ test('historie: druhy otázek a nesprávné možnosti stejného druhu', () => {
     // Stálé semínko (lineární kongruenční generátor), ať test vychází pokaždé stejně
     let seed = 12345;
     const rng = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
-    for (const name of ['Masopust', 'Kimono', 'Polka', 'Keltové', 'Doba bronzová', 'Severoatlantická aliance', 'Trojspolek', 'Anne Bonny', 'Howard Carter', 'Valašsko']) {
+    for (const name of ['Masopust', 'Kimono', 'Pomlázka', 'Keltové', 'Doba bronzová', 'Severoatlantická aliance', 'Trojspolek', 'Anne Bonny', 'Howard Carter', 'Valašsko']) {
         const item = find(name);
         const choices = core.buildItemChoices(item, data.items, rng, other => historie.similarity(item, other, ctx));
         const others = choices.filter(choice => !choice.correct).map(choice => data.items.find(candidate => candidate.q === choice.id));

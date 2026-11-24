@@ -1,4 +1,4 @@
-// Téma Hudba: skladatelé, hudebníci a zpěváci, kapely, slavná díla, opery a muzikály (data/hudba.json)
+// Téma Hudba: skladatelé, hudebníci a zpěváci, kapely, slavná díla, opery a muzikály, balet a tance (data/hudba.json)
 (function (root, factory) {
     const isNode = typeof module === 'object' && module.exports;
     const topic = factory(isNode ? require('../quiz-core.js') : root.MudrlantCore);
@@ -9,7 +9,8 @@
 
     const {
         formatYear, formatFacts, shuffle, eraNearness, personSimilarity, censorName, normalizeAnswer, rankBySimilarity, takeDistinct,
-        isRealPhoto, nameAnswers, buildTimeline, isAnswerMatch, centuryOf, centuryLabel
+        isRealPhoto, nameAnswers, buildTimeline, isAnswerMatch, centuryOf, centuryLabel,
+        buildCountryChoices, countryAnswers, censorCountry, getCountryAliases, findAnswerCountry, getContinent, CONTINENT_NAMES
     } = core;
 
     const PERSON = { question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } };
@@ -18,11 +19,16 @@
         { key: 'hudebnici', label: 'Hudebníci a zpěváci', one: 'hudebník', icon: 'mic-vocal', ...PERSON },
         { key: 'kapely', label: 'Kapely', one: 'kapela', icon: 'guitar', question: 'Co je to za kapelu?', placeholder: 'Napiš název kapely…', sort: { by: 'y' } },
         { key: 'dila', label: 'Slavná díla', one: 'dílo', icon: 'music-2', question: 'Které dílo to je?', placeholder: 'Napiš název…', sort: { by: 'y' } },
-        { key: 'opery', label: 'Opery a muzikály', one: 'jevištní dílo', icon: 'drama', question: 'Která opera nebo muzikál to je?', placeholder: 'Napiš název…', sort: { by: 'y' } }
+        { key: 'opery', label: 'Opery a muzikály', one: 'jevištní dílo', icon: 'drama', question: 'Která opera nebo muzikál to je?', placeholder: 'Napiš název…', sort: { by: 'y' } },
+        // Balety (s autorem hudby) a tance světa; otázka podle druhu (questionTitle)
+        { key: 'tance', label: 'Balet a tance', one: 'tanec', icon: 'footprints', question: 'Který balet nebo tanec to je?', placeholder: 'Napiš název…', sort: { by: 'y' } }
     ];
     const isPerson = (item) => item.c === 'skladatele' || item.c === 'hudebnici';
-    // Dílo: skladba, píseň či album, nebo jevištní dílo (opera, opereta, muzikál)
-    const isWork = (item) => item.c === 'dila' || item.c === 'opery';
+    // Balet z kategorie Balet a tance je dílo s autorem hudby, ostatní položky kategorie jsou tance
+    const isBallet = (item) => item.c === 'tance' && item.ty === 'balet';
+    const isDance = (item) => item.c === 'tance' && item.ty !== 'balet';
+    // Dílo: skladba, píseň či album, jevištní dílo (opera, opereta, muzikál) nebo balet
+    const isWork = (item) => item.c === 'dila' || item.c === 'opery' || isBallet(item);
     const isStage = (item) => item.c === 'opery';
 
     // Jak často se u díla ptáme na autora a u skladatele na období
@@ -30,6 +36,8 @@
     const PERIOD_QUIZ_SHARE = 0.3;
     // U opery a muzikálu navíc otázka na století premiéry (hranice podílu po otázce na autora)
     const PREMIERE_QUIZ_SHARE = 0.6;
+    // U tance (kromě českých) občas otázka na zemi původu
+    const ORIGIN_QUIZ_SHARE = 0.35;
     const THIS_YEAR = new Date().getFullYear();
 
     // Hudební období (u skladatele určené při sestavení dat jen tam, kde je zařazení jasné)
@@ -112,13 +120,27 @@
             if (answered) facts.push(...formatFacts(item, [['city', 'Místo vzniku', v => v], ['members', 'Členové', v => v], ['work', 'Slavné dílo', v => v]]));
             return facts;
         }
+        if (isDance(item)) return danceFacts(item, mode);
         const facts = [];
-        if (f.year !== undefined && mode !== 'author' && mode !== 'century') facts.push({ label: isStage(item) ? 'Premiéra' : 'Rok', value: formatYear(f.year) });
+        if (f.year !== undefined && mode !== 'author' && mode !== 'century') facts.push({ label: isStage(item) || isBallet(item) ? 'Premiéra' : 'Rok', value: formatYear(f.year) });
         facts.push(...formatFacts(item, [['genre', 'Žánr', v => v], ['land', 'Země', v => v]]));
         // Autor, jehož jméno je v názvu, by u otázky na název prozradil odpověď
         if (mode !== 'author' && (answered || !(f.by && core.isFactVisible(f.by, item.n)))) facts.push(...formatFacts(item, [['by', 'Autor', v => v]]));
         if (answered) facts.push(...relatedOf(item));
         return facts;
+    };
+
+    // Tanec: země původu (ne u otázky na ni), takt a doba vzniku (století); druh je vidět u otázky, ve výsledku také
+    const danceOrigin = (item) => (item.f || {}).year !== undefined ? centuryLabel(centuryOf(item.f.year)) : undefined;
+    const danceFacts = (item, mode) => {
+        const f = item.f || {};
+        const answered = mode === 'result' || mode === 'card';
+        return [
+            answered && item.ty ? { label: 'Druh', value: item.ty } : null,
+            mode !== 'location' && f.land ? { label: 'Země původu', value: f.land } : null,
+            f.takt ? { label: 'Takt', value: f.takt } : null,
+            danceOrigin(item) ? { label: 'Vznik', value: danceOrigin(item) } : null
+        ].filter(Boolean);
     };
 
     // Souvislosti díla: libreto, album, na kterém píseň vyšla, a píseň z alba
@@ -208,7 +230,8 @@
         // Autor, jehož jméno je v názvu díla, by byl nápadný. U opery a muzikálu jen autoři jiných oper a muzikálů
         // (k Verdimu Puccini a Rossini, k Lloydu Webberovi Bernstein – ne zpěvačka bez jediného muzikálu)
         const authorsOf = (filter) => ctx.items.filter(other => filter(other) && !excluded.has(other.q) && !censorName(item.n, other.n).includes('[***]'));
-        const stageAuthors = isStage(item) ? authorsOf(other => isPerson(other) && (indexOf(ctx).worksBy.get(other.q) || []).some(isStage)) : [];
+        // U baletu autoři baletů a jiných jevištních děl (Čajkovskij, Prokofjev, Stravinskij)
+        const stageAuthors = isStage(item) || isBallet(item) ? authorsOf(other => isPerson(other) && (indexOf(ctx).worksBy.get(other.q) || []).some(work => isStage(work) || work.ty === 'balet')) : [];
         const candidates = stageAuthors.length >= 3 ? stageAuthors : authorsOf(other => other.c === author.c);
         // U oper a muzikálů rozhoduje víc doba (k Lloydu Webberovi Bernstein, ne barokní Purcell)
         const eraBonus = (other) => isStage(item) ? Math.max(0, 4 - Math.abs(((author.f || {}).y ?? 0) - ((other.f || {}).y ?? 0)) / 40) : 0;
@@ -217,7 +240,7 @@
         const kind = (item.f || {}).kind;
         return {
             type: 'author',
-            title: kind === 'album' ? 'Čí je to album?' : kind === 'pisen' ? 'Čí je to píseň?' : 'Kdo to složil?',
+            title: kind === 'album' ? 'Čí je to album?' : kind === 'pisen' ? 'Čí je to píseň?' : isBallet(item) ? 'Kdo složil hudbu?' : 'Kdo to složil?',
             showName: true,
             choices: shuffle([author, ...wrong], rng).map(other => ({ id: other.q, label: other.n, correct: other.q === author.q })),
             accepted: nameAnswers(author, nameAliases(author, ctx)),
@@ -244,6 +267,38 @@
             accepted: [centuryLabel(century)],
             placeholder: 'Napiš století, třeba 19',
             answerLabel: centuryLabel(century)
+        };
+    };
+    // Ze které země tanec pochází? Jen u tance se státem původu v tabulce, který název neprozradí (Irské tance ne), a ne u českých
+    // (odpověď by byla zadarmo). Nesprávné možnosti: země původu jiných tanců, dvě z téhož kontinentu a jedna odjinud (nápověda
+    // Kontinent jednu vyřadí); chybějící doplní sousední státy
+    const originCountry = (item, countries) => {
+        const id = isDance(item) && item.f && item.f.co;
+        if (!id || !countries || !countries[id] || item.cz === 1) return null;
+        const words = [countries[id].name, ...getCountryAliases([id])];
+        return words.some(word => core.isFactVisible(word, item.n)) ? null : id;
+    };
+    const originQuestion = (item, ctx, rng) => {
+        const countries = ctx.countries;
+        const id = originCountry(item, countries);
+        if (!id) return null;
+        const origins = new Set(ctx.items.filter(other => isDance(other) && other.f && other.f.co && countries[other.f.co]).map(other => other.f.co));
+        origins.delete(id);
+        const shuffled = shuffle([...origins], rng);
+        const same = shuffled.filter(qid => countries[qid].continent === countries[id].continent);
+        const other = shuffled.filter(qid => countries[qid].continent !== countries[id].continent);
+        const wrong = [...same.slice(0, other.length ? 2 : 3), ...other.slice(0, 1), ...same.slice(2)].slice(0, 3);
+        const fallback = buildCountryChoices(id, countries, rng).filter(choice => !choice.correct && !wrong.includes(choice.id)).map(choice => choice.id);
+        const picked = [...wrong, ...fallback].slice(0, 3);
+        const name = countries[id].name;
+        return {
+            type: 'location',
+            title: 'Ze které země tanec pochází?',
+            showName: true,
+            choices: shuffle([id, ...picked], rng).map(qid => ({ id: qid, label: countries[qid].name, correct: qid === id, topic: 'zemepis' })),
+            accepted: countryAnswers([id], [name]),
+            placeholder: 'Napiš stát…',
+            answerLabel: name
         };
     };
     const periodQuestion = (item, rng) => {
@@ -286,6 +341,23 @@
                 factsStep(origin, 'vznik díla', 'calendar'),
                 factsStep(works.length ? [{ label: 'Další díla autora', value: works.join(', ') }] : [], 'další díla', 'music-2'),
                 { kind: 'visual', spec: portraitOf(author) }
+            ];
+        }
+        if (isDance(item)) {
+            const timing = factsOf(item, type).filter(fact => fact.label === 'Takt' || fact.label === 'Vznik');
+            if (type === 'location') {
+                const continent = getContinent({ co: [f.co] }, ctx.countries || {});
+                return [
+                    { kind: 'facts', label: 'kontinent', icon: 'globe', facts: continent ? [{ label: 'Kontinent', value: CONTINENT_NAMES[continent] }] : [] },
+                    factsStep(timing, 'takt a vznik', 'music-2'),
+                    { kind: 'photo' }
+                ];
+            }
+            // Otázka na název: takt a doba vzniku, země původu, nakonec fotka
+            return [
+                factsStep(timing, 'takt a vznik', 'music-2'),
+                factsStep(factsOf(item, type).filter(fact => fact.label === 'Země původu'), 'země původu', 'globe'),
+                { kind: 'photo' }
             ];
         }
         if (type === 'century') {
@@ -338,6 +410,7 @@
         const f = item.f || {};
         if (isPerson(item)) return [lifeRange(f), f.land].filter(Boolean).join(' · ') || categoryOne(item);
         if (item.c === 'kapely') return [f.from !== undefined ? `od ${f.from}` : '', f.land].filter(Boolean).join(' · ') || categoryOne(item);
+        if (isDance(item)) return [item.ty, f.land].filter(Boolean).join(' · ') || categoryOne(item);
         return [f.by, f.year !== undefined ? formatYear(f.year) : ''].filter(Boolean).join(' · ') || categoryOne(item);
     };
     const categoryOne = (item) => (CATEGORIES.find(category => category.key === item.c) || {}).one || '';
@@ -380,9 +453,19 @@
         offSubjectPhoto,
 
         // Nesprávné možnosti: stejné pohlaví a doba, stejná země, období a žánrová skupina; u díla díla téhož autora a druhu
-        similarity: (item, other) => {
+        similarity: (item, other, ctx) => {
             const f = item.f || {};
             const g = other.f || {};
+            // Tanec k tancům stejného druhu a kontinentu (polka k mazurce a čardáši), balet k baletům
+            if (item.c === 'tance' || other.c === 'tance') {
+                if (isBallet(item) !== isBallet(other)) return -20;
+                if (isDance(item)) {
+                    const countries = (ctx && ctx.countries) || {};
+                    const continent = (q) => (countries[q] || {}).continent;
+                    return (item.ty === other.ty ? 8 : 0) + (f.co && continent(f.co) && continent(f.co) === continent(g.co) ? 3 : 0) + (f.co && f.co === g.co ? 1 : 0)
+                        + (f.takt && f.takt === g.takt ? 1 : 0) + ((item.cz === 1) === (other.cz === 1) ? 1 : 0);
+                }
+            }
             let score = isPerson(item) ? personSimilarity(item, other) : eraNearness(f.y, g.y);
             if (f.land && f.land === g.land) score += 3;
             if (f.per && f.per === g.per) score += 2;
@@ -398,6 +481,8 @@
         // U díla občas „Kdo to složil?“ (u alba a písně „Čí je to?“), u skladatele „Do kterého období patří?“
         specialQuestion: (item, ctx, rng) => {
             const roll = rng();
+            if (isDance(item)) return roll < ORIGIN_QUIZ_SHARE ? originQuestion(item, ctx, rng) : null;
+            if (isBallet(item)) return roll < AUTHOR_QUIZ_SHARE ? authorQuestion(item, ctx, rng) : roll < PREMIERE_QUIZ_SHARE ? premiereQuestion(item, rng) : null;
             if (item.c === 'dila') return roll < AUTHOR_QUIZ_SHARE ? authorQuestion(item, ctx, rng) : null;
             if (isStage(item)) return roll < AUTHOR_QUIZ_SHARE ? authorQuestion(item, ctx, rng) : roll < PREMIERE_QUIZ_SHARE ? premiereQuestion(item, rng) : null;
             if (item.c === 'skladatele') return roll < PERIOD_QUIZ_SHARE ? periodQuestion(item, rng) : null;
@@ -405,6 +490,11 @@
         },
         // U otázky na autora zmizí z popisu autor (i v latinském tvaru), u otázky na období období a letopočty; název díla či jméno zůstane
         censor: (type, text, item, ctx) => {
+            // Otázka na zemi původu tance: z popisu zmizí stát i přídavné jméno („maďarský národní tanec“)
+            if (type === 'location') {
+                const id = originCountry(item, ctx.countries);
+                return id ? censorCountry(text, ctx.countries[id].name, getCountryAliases([id])) : censorCountry(text, null);
+            }
             if (type === 'author') {
                 const author = authorOf(item, ctx);
                 return author ? censorPerson(text, author, ctx) : text;
@@ -416,11 +506,17 @@
         },
         // Kterou jinou osobnost či kapelu hráč napsal u otázky na autora
         findAnswer: (type, answer, item, ctx) => {
+            if (type === 'location') {
+                const id = findAnswerCountry(answer, [originCountry(item, ctx.countries)].filter(Boolean), ctx.countries || {});
+                return id ? { topic: 'zemepis', id } : null;
+            }
             if (type !== 'author') return null;
             const author = authorOf(item, ctx);
             const match = author && ctx.items.find(other => other.c === author.c && other.q !== author.q && isAnswerMatch(answer, nameAnswers(other, nameAliases(other, ctx))));
             return match ? { topic: 'hudba', id: match.q } : null;
         },
+        // Otázka na název u kategorie Balet a tance podle druhu
+        questionTitle: (item) => isBallet(item) ? 'Který balet to je?' : isDance(item) ? 'Který tanec to je?' : null,
         hints: hintsOf,
         visual: (item) => timelineOf(item),
         facts: (item, ctx, mode) => factsOf(item, mode),

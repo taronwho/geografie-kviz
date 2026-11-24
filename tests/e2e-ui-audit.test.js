@@ -411,9 +411,9 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
         });
     }
 
-    // Výběr kategorií témat s mnoha kategoriemi (Zeměpis, Historie, Sport a hry, Výtvarné umění, Geologie, Mytologie, Vlajky a znaky) a témat (Mix) na 360×640: tlačítko Hrát
+    // Výběr kategorií témat s mnoha kategoriemi (Zeměpis, Historie, Sport a hry, Výtvarné umění, Geologie, Mytologie, Vlajky a znaky, Hudba) a témat (Mix) na 360×640: tlačítko Hrát
     // je v lepkavé patičce, vidět a nezakryté nahoře i uprostřed posunu
-    const CHOOSERS = [['zemepis', 'Zeměpis', 'light'], ['historie', 'Historie', 'dark'], ['sport', 'Sport a hry', 'dark'], ['umeni', 'Umění', 'dark'], ['geologie', 'Geologie', 'dark'], ['mytologie', 'Mytologie', 'dark'], ['vlajky', 'Vlajky a znaky', 'dark'], [null, 'Mix', 'dark']];
+    const CHOOSERS = [['zemepis', 'Zeměpis', 'light'], ['historie', 'Historie', 'dark'], ['sport', 'Sport a hry', 'dark'], ['umeni', 'Umění', 'dark'], ['geologie', 'Geologie', 'dark'], ['mytologie', 'Mytologie', 'dark'], ['vlajky', 'Vlajky a znaky', 'dark'], ['hudba', 'Hudba', 'dark'], [null, 'Mix', 'dark']];
     for (const [action, scheme, label] of CHOOSERS.map(([topic, label, scheme]) => [topic ? `[data-action="play-topic"][data-topic="${topic}"]` : '[data-action="play-mix"]', scheme, label])) {
         await t.test(`výběr ${label}: Hrát vždy vidět (${scheme})`, async () => {
             const { context, tab, problems } = await open(scheme);
@@ -437,7 +437,9 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
                 assert.equal(state.free, true, `${scheme}: Hrát je zakryté při posunu ${at}`);
                 if (action.includes('sport')) assert.equal(state.scrolls, false, 'Sport a hry: výběr kategorií bez posouvání');
                 if (action.includes('geologie')) assert.equal(state.scrolls, false, 'výběr kategorií Geologie se posouvá');
+                if (label === 'Hudba') assert.equal(state.scrolls, false, `${scheme}: výběr kategorií Hudby se posouvá`);
             }
+            if (label === 'Hudba') assert.ok(await tab.$('#play-chooser [data-chooser-category="tance"], #play-chooser [data-category="tance"]') || await tab.evaluate(() => document.querySelector('#play-chooser').textContent.includes('Balet a tance')), 'kategorie Balet a tance ve výběru');
             assert.deepEqual(problems, [], 'bez chyb v konzoli a bez porušení CSP');
             await context.close();
         });
