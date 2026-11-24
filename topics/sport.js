@@ -1,4 +1,5 @@
-// Téma Sport: sportovci, olympijské hry, sporty a disciplíny (data/sport.json)
+// Téma Sport a hry: sportovci, olympijské hry, sporty a disciplíny, kluby, sportoviště, soutěže; deskové a karetní hry, šachy
+// a videohry (data/sport.json)
 (function (root, factory) {
     const isNode = typeof module === 'object' && module.exports;
     const topic = factory(isNode ? require('../quiz-core.js') : root.MudrlantCore);
@@ -18,7 +19,11 @@
         { key: 'sporty', label: 'Sporty a disciplíny', one: 'sport', icon: 'volleyball', question: 'Co je to za sport?', placeholder: 'Napiš sport…', sort: { by: 'name' } },
         { key: 'kluby', label: 'Kluby a týmy', one: 'klub', icon: 'users', question: 'Který klub nebo tým to je?', placeholder: 'Napiš klub nebo tým…', sort: { by: 'name' } },
         { key: 'sportoviste', label: 'Stadiony, haly a okruhy', one: 'sportoviště', icon: 'building-2', question: 'Které sportoviště to je?', placeholder: 'Napiš stadion, halu nebo okruh…', sort: { by: 'name' } },
-        { key: 'souteze', label: 'Soutěže a turnaje', one: 'soutěž', icon: 'trophy', question: 'Která soutěž to je?', placeholder: 'Napiš soutěž nebo turnaj…', sort: { by: 'name' } }
+        { key: 'souteze', label: 'Soutěže a turnaje', one: 'soutěž', icon: 'trophy', question: 'Která soutěž to je?', placeholder: 'Napiš soutěž nebo turnaj…', sort: { by: 'name' } },
+        // Hry (scripts/lib/sport-hry.mjs): otázku podle druhu položky upřesní questionTitle
+        { key: 'deskove', label: 'Deskové a karetní hry', one: 'hra', icon: 'dices', question: 'Která hra to je?', placeholder: 'Napiš název hry…', sort: { by: 'name' } },
+        { key: 'sachy', label: 'Šachy', one: 'šachový pojem', icon: 'chess-knight', question: 'Co je to za šachový pojem?', placeholder: 'Napiš šachový pojem…', sort: { by: 'name' } },
+        { key: 'videohry', label: 'Videohry', one: 'videohra', icon: 'joystick', question: 'Která videohra to je?', placeholder: 'Napiš název hry…', sort: { by: 'year' } }
     ];
     const categoryOf = (item) => CATEGORIES.find(category => category.key === item.c) || CATEGORIES[0];
 
@@ -437,11 +442,246 @@
     // Kapacita se porovnává v řádech (hala na 10 000 diváků k halám, ne k obřímu stadionu)
     const capacityNearness = (a, b) => a && b ? -Math.abs(Math.log10(a / b)) * 3 : 0;
 
+    // --- Hry: deskové a karetní hry, šachy, videohry ---
+
+    const GAME_CATEGORIES = new Set(['deskove', 'sachy', 'videohry']);
+    const isGame = (item) => GAME_CATEGORIES.has(item.c);
+    const list = (values) => [].concat(values || []).join(', ');
+    // Údaj, který obsahuje slovo názvu hry (série Grand Theft Auto u GTA V, autor Fischer u Fischerových šachů), by odpověď prozradil
+    // Slova oboru (šach, šachový) nic neprozradí
+    const stemWords = (text) => normalizeAnswer(String(text)).split(/[^a-z0-9]+/).filter(word => word.length >= 5 && !word.startsWith('sach'));
+    const ownWords = (item) => item.n.split(/\s+/).filter(word => !/^šach/iu.test(word)).join(' ');
+    const revealsName = (item, value) => (ownWords(item) && censorName(String(value), ownWords(item)).includes('[***]'))
+        || stemWords(item.n).some(word => stemWords(value).some(other => other.startsWith(word.slice(0, Math.min(5, word.length - 1)))));
+    const fact = (item, label, value) => value === undefined || value === '' || (Array.isArray(value) && !value.length) || revealsName(item, list(value))
+        ? null : { label, value: Array.isArray(value) ? list(value) : String(value) };
+    const plural = (n, one, few, many) => `${n} ${n === 1 ? one : n >= 2 && n <= 4 ? few : many}`;
+
+    // Deskové a karetní hry: druh je u otázky vidět („Která karetní hra to je?“), nesprávné možnosti jsou stejného druhu
+    const BOARD_TITLES = { 'desková hra': 'Která desková hra to je?', 'karetní hra': 'Která karetní hra to je?', 'sběratelská karetní hra': 'Která karetní hra to je?',
+        'hra na hrdiny': 'Která hra na hrdiny to je?' };
+    const BOARD_FAMILY = { 'sběratelská karetní hra': 'karetní hra', 'hra s kameny': 'desková hra', 'stolní hra': 'desková hra', 'válečná hra': 'hra na hrdiny',
+        'kostková hra': 'desková hra', 'hra na papíře': 'desková hra' };
+    const boardFamily = (item) => BOARD_FAMILY[item.ty] || item.ty;
+    const BOARD_ALIASES = {
+        'Vrhcáby': ['backgammon'], 'Člověče, nezlob se!': ['Člověče nezlob se', 'Člověče'], 'Madžong': ['mahjong', 'mah-jongg'], 'Go': ['baduk', 'weiqi'],
+        'Osadníci z Katanu': ['Catan', 'Katan', 'Osadníci'], 'Čínské šachy': ['xiangqi'], 'Šógi': ['shogi', 'japonské šachy'], 'Othello': ['reversi'],
+        'Pasiáns': ['solitaire', 'solitér'], 'Rummikub číselný': ['Rummikub'], 'Magic: The Gathering': ['Magic', 'MTG'], 'Jednadvacet': ['oko bere', 'oko'],
+        "Texas hold 'em": ['Texas holdem', 'hold em'], 'Pokémon Trading Card Game': ['Pokémon TCG', 'pokémon karty'], 'Dungeons & Dragons': ['D&D', 'DnD', 'Dungeons and Dragons'],
+        'Krycí jména': ['Codenames'], 'Warhammer 40,000': ['Warhammer 40k', 'Warhammer'], 'Dostihy a sázky': ['Dostihy'], 'Piškvorky': ['tic-tac-toe'],
+        'Mankala': ['mancala'], 'Taroky': ['tarok'], 'Through the Ages: Příběh civilizace': ['Through the Ages'], 'Dáma': ['dámu'],
+        'Cestovní piškvorky': ['Connect Four', 'čtyři v řadě']
+    };
+    const playersOf = (f) => f.min === undefined ? undefined : f.max === undefined || f.max === f.min ? String(f.min) : `${f.min}–${f.max}`;
+    const boardFacts = (item, mode) => {
+        const f = item.f || {};
+        const full = mode === 'result' || mode === 'card';
+        return [
+            full ? fact(item, 'Druh', item.ty) : null,
+            fact(item, 'Hráčů', playersOf(f)),
+            fact(item, 'Vznik', f.year),
+            fact(item, (f.by || []).length > 1 ? 'Autoři' : 'Autor', f.by),
+            fact(item, 'Země původu', f.land),
+            fact(item, 'Vydavatel', f.pub)
+        ].filter(Boolean);
+    };
+    const boardHints = (item, ctx, type) => {
+        const facts = boardFacts(item, type);
+        const pick = (...labels) => facts.filter(entry => labels.includes(entry.label));
+        if (type === 'author') {
+            return [
+                { kind: 'facts', label: 'o hře', icon: 'dices', facts: pick('Hráčů', 'Vznik', 'Země původu') },
+                { kind: 'facts', label: 'vydavatel', icon: 'building-2', facts: pick('Vydavatel') },
+                { kind: 'photo' }
+            ];
+        }
+        return [
+            { kind: 'facts', label: 'o hře', icon: 'dices', facts: pick('Hráčů', 'Vznik') },
+            { kind: 'facts', label: 'autor a původ', icon: 'pen-line', facts: pick('Autor', 'Autoři', 'Země původu', 'Vydavatel') },
+            { kind: 'photo' }
+        ];
+    };
+    // „Kdo hru vymyslel?“: jen u her, jejichž autor je člověk (ne vydavatel), nesprávné možnosti jsou autoři jiných her
+    const AUTHOR_QUIZ_SHARE = 0.3;
+    const isPersonName = (name) => /^\p{Lu}[\p{L}.'’-]+( \p{Lu}?[\p{L}.'’-]+){1,3}$/u.test(name || '');
+    const authorsOf = (item) => ((item.f || {}).by || []).filter(isPersonName);
+    const authorQuestion = (item, ctx, rng) => {
+        const own = authorsOf(item);
+        if (!own.length || revealsName(item, list(own))) return null;
+        const ownKeys = new Set(own.map(normalizeAnswer));
+        const candidates = (ctx.items || []).filter(other => other.c === 'deskove' && other.q !== item.q && authorsOf(other).length
+            && !authorsOf(other).some(name => ownKeys.has(normalizeAnswer(name))));
+        const score = (other) => -Math.abs(((other.f || {}).year || 1950) - ((item.f || {}).year || 1950)) / 15 + ((item.cz === 1) === (other.cz === 1) ? 2 : 0);
+        const wrong = takeDistinct(rankBySimilarity(candidates, score, rng), 3, new Set(ownKeys), other => authorsOf(other)[0]).map(other => authorsOf(other)[0]);
+        if (wrong.length < 3) return null;
+        return {
+            type: 'author',
+            title: 'Kdo hru vymyslel?',
+            showName: true,
+            choices: shuffle([own[0], ...wrong], rng).map(name => ({ id: `autor-${name}`, label: name, correct: name === own[0] })),
+            accepted: [...new Set(own.flatMap(name => [name, name.split(' ').slice(-1)[0]]))],
+            placeholder: 'Napiš jméno…',
+            answerLabel: own[0]
+        };
+    };
+
+    // Šachy: druh položky (figura, zahájení, pravidlo, soutěž…) určuje otázku a nesprávné možnosti
+    const CHESS_GROUPS = { figura: 'figura', 'zahájení': 'zahajeni', 'soutěž': 'soutez', partie: 'partie', 'počítač': 'pocitac', varianta: 'varianta' };
+    const chessGroup = (item) => CHESS_GROUPS[item.ty] || 'pojem';
+    const CHESS_TITLES = { figura: 'Která šachová figura to je?', zahajeni: 'Které šachové zahájení to je?', soutez: 'Která šachová soutěž to je?',
+        partie: 'Která slavná šachová partie to je?', pocitac: 'Který šachový stroj nebo program to je?', varianta: 'Který druh šachu to je?' };
+    const CHESS_KINDS = { pravidlo: 'pravidlo šachu', motiv: 'taktika a strategie', mat: 'matový obrazec', 'vybavení': 'vybavení a hodnocení', titul: 'šachový titul', organizace: 'organizace' };
+    const CHESS_ALIASES = {
+        'Caro-Kann': ['Caro-Kannova obrana'], 'Ruská obrana': ['Petrovova obrana', 'Petrovova'], 'Španělská hra': ['Ruy Lopez', 'španělská'],
+        'Sicilská obrana': ['sicilská'], 'Francouzská obrana': ['francouzská'], 'Italská hra': ['italská', 'Giuoco piano'], 'Nevýhoda tahu': ['zugzwang', 'nevýhoda tahu'],
+        'Šachový velmistr': ['velmistr', 'GM'], 'Mezinárodní šachová federace': ['FIDE'], 'Fischerovy šachy': ['šach960', 'Chess960', 'šachy 960'],
+        'Bleskový šach': ['blitz', 'bleskovka'], 'Rapid šach': ['rapid'], 'Braní mimochodem': ['en passant'], 'Turek': ['Šachový Turek', 'Mechanický Turek'],
+        'Mat bláznů': ['bláznův mat'], 'Ovčácký mat': ['školní mat'], 'Šachový engine': ['šachový program', 'šachový motor'], 'Stockfish': [],
+        'Pěšec': ['pěšák'], 'Jezdec': ['kůň', 'koník'], 'Mistr FIDE': ['FM'], 'Mezinárodní mistr': ['IM'], 'Elo': ['Elo rating', 'ELO'],
+        'Šachová olympiáda': ['olympiáda'], 'Simultánka': ['simultánní partie', 'simultán'], 'Šachová notace': ['notace']
+    };
+    const pawns = (value) => typeof value === 'number' ? plural(value, 'pěšec', 'pěšci', 'pěšců') : value;
+    const chessFacts = (item, mode) => {
+        const f = item.f || {};
+        const full = mode === 'result' || mode === 'card';
+        const group = chessGroup(item);
+        if (group === 'figura') {
+            return [fact(item, 'Hodnota', pawns(f.value)), fact(item, 'Na začátku partie', f.count !== undefined ? `${f.count} na každé straně` : undefined), fact(item, 'Tah', f.move)].filter(Boolean);
+        }
+        if (group === 'zahajeni') return [fact(item, 'Skupina', f.group), fact(item, 'Kód ECO', f.eco), fact(item, 'Tahy', f.moves)].filter(Boolean);
+        return [
+            group === 'pojem' ? fact(item, 'Druh', CHESS_KINDS[item.ty]) : null,
+            fact(item, group === 'partie' ? 'Rok' : group === 'soutez' && !f.players ? 'Od roku' : 'Vznik', f.year),
+            fact(item, 'Místo', f.place),
+            fact(item, (f.by || []).length > 1 ? 'Autoři' : 'Autor', f.by),
+            fact(item, group === 'partie' ? 'Hráli' : 'Hráči', f.players),
+            fact(item, 'Slavní vítězové', f.champ),
+            fact(item, 'Porazil', f.beat),
+            fact(item, group === 'pocitac' ? 'Co dělá' : group === 'pojem' ? 'Jak to vypadá' : 'Jak se hraje', f.rule)
+        ].filter(Boolean).filter(entry => full || entry.label !== 'Druh' || group === 'pojem');
+    };
+    const chessHints = (item) => {
+        const facts = chessFacts(item, 'name');
+        const pick = (...labels) => facts.filter(entry => labels.includes(entry.label));
+        const group = chessGroup(item);
+        if (group === 'figura') return [{ kind: 'facts', label: 'hodnota', icon: 'scale', facts: pick('Hodnota', 'Na začátku partie') }, { kind: 'facts', label: 'tah', icon: 'navigation', facts: pick('Tah') }, { kind: 'photo' }];
+        if (group === 'zahajeni') return [{ kind: 'facts', label: 'skupina', icon: 'layers', facts: pick('Skupina', 'Kód ECO') }, { kind: 'facts', label: 'tahy', icon: 'list-ordered', facts: pick('Tahy') }, { kind: 'photo' }];
+        if (group === 'pojem') return [{ kind: 'facts', label: 'druh', icon: 'tag', facts: pick('Druh') }, { kind: 'facts', label: 'jak to vypadá', icon: 'info', facts: pick('Jak to vypadá') }, { kind: 'photo' }];
+        return [
+            { kind: 'facts', label: 'kdy a kde', icon: 'calendar', facts: pick('Rok', 'Od roku', 'Vznik', 'Místo', 'Autor', 'Autoři') },
+            { kind: 'facts', label: 'šachisté', icon: 'users', facts: pick('Hráli', 'Hráči', 'Slavní vítězové', 'Porazil') },
+            { kind: 'facts', label: group === 'pocitac' ? 'co dělá' : 'jak se hraje', icon: 'info', facts: pick('Jak se hraje', 'Co dělá') },
+            { kind: 'photo' }
+        ];
+    };
+
+    // Videohry: rok a žánr → vývojář → série a platformy → fotka; občas „Které studio hru vyvinulo?“
+    const STUDIO_QUIZ_SHARE = 0.25;
+    const videoFacts = (item, mode) => {
+        const f = item.f || {};
+        return [
+            fact(item, 'Vydáno', f.year),
+            fact(item, 'Žánr', f.gen),
+            fact(item, 'Vývojář', f.dev),
+            fact(item, 'Vydavatel', (f.pub || []).filter(name => !(f.dev || []).includes(name))),
+            fact(item, 'Série', f.ser),
+            fact(item, 'Platformy', f.plat),
+            mode === 'result' || mode === 'card' ? fact(item, 'Země', f.land) : null
+        ].filter(Boolean);
+    };
+    const videoHints = (item, ctx, type) => {
+        const facts = videoFacts(item, type);
+        const pick = (...labels) => facts.filter(entry => labels.includes(entry.label));
+        if (type === 'studio') {
+            const others = studioGames(item, ctx);
+            return [
+                { kind: 'facts', label: 'o hře', icon: 'joystick', facts: pick('Vydáno', 'Žánr', 'Platformy') },
+                { kind: 'facts', label: 'série a země', icon: 'flag', facts: [...pick('Série'), ...[fact(item, 'Země', (item.f || {}).land)].filter(Boolean)] },
+                { kind: 'facts', label: 'další hry', icon: 'layers', facts: others.length ? [{ label: 'Další hry', value: others.join(', ') }] : [] }
+            ];
+        }
+        return [
+            { kind: 'facts', label: 'rok a žánr', icon: 'calendar', facts: pick('Vydáno', 'Žánr') },
+            { kind: 'facts', label: 'vývojář', icon: 'code', facts: pick('Vývojář', 'Vydavatel') },
+            { kind: 'facts', label: 'série a platformy', icon: 'joystick', facts: pick('Série', 'Platformy') },
+            { kind: 'photo' }
+        ];
+    };
+    const studioOf = (item) => ((item.f || {}).dev || [])[0];
+    // Slova studia, podle kterých ho hráč pozná i bez přípon (Rockstar North – Rockstar, Bethesda Game Studios – Bethesda)
+    const STUDIO_SUFFIX = /\s+(Studios?|Games|Entertainment|Interactive|Software|Productions|Inc\.?|Ltd\.?|Corporation|Company|North|Montreal|Montréal|Softworks|Digital|Media|Game Studio|Game Studios|AB|GmbH|s\.r\.o\.|a\.s\.)$/iu;
+    const studioStem = (name) => {
+        let stem = name;
+        for (let i = 0; i < 3; i++) stem = stem.replace(STUDIO_SUFFIX, '');
+        return stem;
+    };
+    const studioGames = (item, ctx) => (ctx.items || []).filter(other => other.c === 'videohry' && other.q !== item.q && studioOf(other) === studioOf(item))
+        .sort((a, b) => (b.k || 0) - (a.k || 0)).slice(0, 2).map(other => other.n);
+    const studioQuestion = (item, ctx, rng) => {
+        const own = studioOf(item);
+        if (!own || revealsName(item, studioStem(own)) || !ctx.items) return null;
+        const ownStems = new Set([own, ...((item.f || {}).pub || [])].map(name => normalizeAnswer(studioStem(name))));
+        const others = ctx.items.filter(other => other.c === 'videohry' && studioOf(other) && !ownStems.has(normalizeAnswer(studioStem(studioOf(other))))
+            && !((other.f || {}).pub || []).some(name => ownStems.has(normalizeAnswer(studioStem(name)))));
+        const f = item.f || {};
+        const score = (other) => -Math.abs((other.f.year || 2000) - (f.year || 2000)) / 4 + ((other.f.gen || []).some(genre => (f.gen || []).includes(genre)) ? 2 : 0)
+            + ((item.cz === 1) === (other.cz === 1) ? 2 : -2) + (other.k === 1 ? 1 : 0);
+        const wrong = takeDistinct(rankBySimilarity(others, score, rng), 3, new Set([normalizeAnswer(own)]), other => studioOf(other)).map(other => studioOf(other));
+        if (wrong.length < 3) return null;
+        return {
+            type: 'studio',
+            title: 'Které studio hru vyvinulo?',
+            showName: true,
+            choices: shuffle([own, ...wrong], rng).map(name => ({ id: `studio-${name}`, label: name, correct: name === own })),
+            accepted: [...new Set([own, studioStem(own)])],
+            placeholder: 'Napiš studio…',
+            answerLabel: own
+        };
+    };
+    // Psané odpovědi u videoher: zkratka GTA, název před dvojtečkou (Mafia: The City of Lost Heaven – Mafia), jen když je v kategorii jediný
+    const videoAliases = (item, ctx) => {
+        const aliases = [];
+        if (/^Grand Theft Auto/.test(item.n)) aliases.push(item.n.replace(/^Grand Theft Auto:?/, 'GTA').trim());
+        if (/^Counter-Strike: Global Offensive$/.test(item.n)) aliases.push('CS:GO', 'CS GO');
+        if (/^The Elder Scrolls V: Skyrim$/.test(item.n)) aliases.push('Skyrim');
+        const prefix = item.n.split(':')[0].trim();
+        if (prefix !== item.n && prefix.length >= 4) {
+            const same = (ctx.items || []).filter(other => other.c === 'videohry' && other.n.split(':')[0].trim() === prefix);
+            if (same.length === 1) aliases.push(prefix);
+        }
+        return aliases;
+    };
+    const gamesSimilarity = (item, other) => {
+        const f = item.f || {};
+        const g = other.f || {};
+        const yearGap = f.year && g.year ? Math.min(Math.abs(f.year - g.year), 200) : 30;
+        const czech = (item.cz === 1) === (other.cz === 1) ? 2 : 0;
+        if (item.c === 'deskove') {
+            // Druh je u otázky vidět: desková hra mezi karetními by byla poznat hned
+            return (boardFamily(item) === boardFamily(other) ? 6 : -25) - yearGap / 40 + czech + (f.land && f.land === g.land ? 1 : 0);
+        }
+        if (item.c === 'sachy') {
+            const same = chessGroup(item) === chessGroup(other);
+            return (same ? 20 : -30) + (item.ty === other.ty ? 3 : 0) + (f.group && f.group === g.group ? 3 : 0);
+        }
+        // Videohry: z podobné doby a žánru, ne ze stejné série (série je mezi nápovědami) ani od stejného studia (vývojář je nápověda)
+        return -yearGap / 4 + ((f.gen || []).some(genre => (g.gen || []).includes(genre)) ? 2 : 0) + czech
+            - (f.ser && f.ser === g.ser ? 6 : 0) - (studioOf(item) && studioOf(item) === studioOf(other) ? 3 : 0);
+    };
+    const gameFacts = (item, ctx, mode) => item.c === 'deskove' ? boardFacts(item, mode) : item.c === 'sachy' ? chessFacts(item, mode) : videoFacts(item, mode);
+    const gameSubtitle = (item) => {
+        const f = item.f || {};
+        if (item.c === 'deskove') return [item.ty, f.year, f.land].filter(Boolean).join(' · ');
+        if (item.c === 'sachy') return [chessGroup(item) === 'pojem' ? CHESS_KINDS[item.ty] : item.ty, f.moves || f.year].filter(Boolean).join(' · ');
+        return [f.year, studioOf(item)].filter(Boolean).join(' · ');
+    };
+
     // --- Společné ---
 
     // Nesprávné možnosti: sportovci stejného pohlaví, doby a sportu (k Čechovi Češi); hry stejného druhu a podobné doby;
     // sporty ze stejné skupiny (míčové, zimní, bojové) – ale ne ty, které jdou na fotce splést (plavání × kraul)
     const similarity = (item, other) => {
+        if (isGame(item)) return gamesSimilarity(item, other);
         const f = item.f || {};
         const g = other.f || {};
         if (item.c === 'sportovci') {
@@ -474,6 +714,7 @@
     };
 
     const factsOf = (item, ctx, mode) => {
+        if (isGame(item)) return gameFacts(item, ctx, mode);
         if (item.c === 'sportovci') return athleteFacts(item, ctx, mode);
         if (item.c === 'olympiady') return gamesFacts(item, ctx, mode);
         if (item.c === 'kluby') return clubFacts(item, mode);
@@ -494,7 +735,7 @@
 
     return {
         id: 'sport',
-        title: 'Sport',
+        title: 'Sport a hry',
         icon: 'trophy',
         emoji: '🏆',
         color: 'red',
@@ -504,9 +745,9 @@
             question: 'Kdo nebo co to je?',
             one: 'pojem',
             next: 'Další otázka',
-            atlas: 'Atlas sportu',
+            atlas: 'Atlas sportu a her',
             placeholder: 'Napiš odpověď…',
-            tierKnown: 'Slavní sportovci, známé sporty a poválečné olympiády',
+            tierKnown: 'Slavní sportovci, známé sporty, poválečné olympiády a známé hry',
             czechBadge: 'Česká stopa'
         },
         categories: CATEGORIES,
@@ -535,12 +776,19 @@
                 const { shortNames } = indexOf(ctx);
                 return short !== item.n && short.length >= 4 && shortNames.get(normalizeAnswer(short)) === 1 ? [short] : [];
             }
+            if (item.c === 'deskove') return BOARD_ALIASES[item.n] || [];
+            if (item.c === 'sachy') return CHESS_ALIASES[item.n] || [];
+            if (item.c === 'videohry') return videoAliases(item, ctx);
             return SPORT_NAME_ALIASES[item.n] || [];
         },
 
         // Sportovec: občas „Ve kterém sportu se proslavil?“; olympiáda: občas „Kde se konaly?“;
         // atletické disciplíny a plavecké způsoby se ptají vlastní otázkou
         specialQuestion: (item, ctx, rng) => {
+            // Deskové hry: občas „Kdo hru vymyslel?“, videohry „Které studio hru vyvinulo?“; šachy jen název
+            if (item.c === 'deskove') return rng() < AUTHOR_QUIZ_SHARE ? authorQuestion(item, ctx, rng) : null;
+            if (item.c === 'videohry') return rng() < STUDIO_QUIZ_SHARE ? studioQuestion(item, ctx, rng) : null;
+            if (item.c === 'sachy') return null;
             if (item.c === 'sportovci') {
                 if (!(rng() < SPORT_QUIZ_SHARE) || !item.f.one || !SPORT_GROUPS[item.f.sport]) return null;
                 const choices = sportChoices(item, ctx, rng);
@@ -584,6 +832,9 @@
         censor: (type, text, item, ctx) => {
             if (type === 'sport') return censorSport(text, item);
             if (type === 'host') return censorHost(text, item, ctx);
+            // Autor hry a studio videohry z popisu zmizí (i bez přípony: Rockstar North – Rockstar)
+            if (type === 'author') return censorName(text, authorsOf(item).join(', '));
+            if (type === 'studio') return censorName(text, [...(item.f.dev || []), ...(item.f.pub || [])].flatMap(name => [name, studioStem(name)]).join(', '));
             // U her se v popisu skryje jen rok, pořadatelské město je vodítko
             if (type === 'name' && item.c === 'olympiady') return censorGamesYear(text, item);
             return null;
@@ -603,6 +854,9 @@
         questionImage: (item, ctx, type) => item.c === 'sporty' && type === 'name' && item.im ? { file: item.im, hash: item.ih, label: 'Sport', icon: 'image' } : null,
 
         hints: (item, ctx, type) => {
+            if (item.c === 'deskove') return boardHints(item, ctx, type);
+            if (item.c === 'sachy') return chessHints(item);
+            if (item.c === 'videohry') return videoHints(item, ctx, type);
             if (item.c === 'sportovci') {
                 if (type === 'sport') return sportHints(item, ctx);
                 // Nejdřív osa (doba), pak fakta (země, klub, medaile), nakonec fotka – podle ní slavné sportovce pozná každý
@@ -624,7 +878,14 @@
             return null;
         },
         facts: factsOf,
+        // Otázka podle druhu: desková či karetní hra, šachová figura, zahájení, soutěž…
+        questionTitle: (item) => {
+            if (item.c === 'deskove') return BOARD_TITLES[item.ty] || null;
+            if (item.c === 'sachy') return CHESS_TITLES[chessGroup(item)] || null;
+            return null;
+        },
         subtitle: (item) => {
+            if (isGame(item)) return gameSubtitle(item);
             const f = item.f || {};
             if (item.c === 'sportovci') return [lifeRange(f), f.sport, f.land].filter(Boolean).join(' · ');
             if (item.c === 'olympiady') return [f.host, f.land].filter(Boolean).join(' · ');

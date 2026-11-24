@@ -102,7 +102,7 @@ test('vlastnictví: úroveň, odznak, věc z truhly a diplom', () => {
     assert.equal(avatars.owned, Look.AVATARS.filter(item => !item.badge && item.level <= level).length + 1);
     assert.equal(avatars.entries.find(entry => entry.id === 'albatr').state, 'owned', 'legendární postavička za diplom');
     assert.equal(avatars.entries.find(entry => entry.id === 'klokan').state, 'missing', 'bez diplomu Sportu chybí');
-    assert.match(Album.howText(avatars.entries.find(entry => entry.id === 'klokan')), /^Legendární postavička za diplom „Mistr sportu“: plné mistrovství tématu Sport \(5 hvězdiček\)/);
+    assert.match(Album.howText(avatars.entries.find(entry => entry.id === 'klokan')), /^Legendární postavička za diplom „Mistr sportu a her“: plné mistrovství tématu Sport a hry \(5 hvězdiček\)/);
     const accessories = sectionOf(album, 'accessories');
     const expected = Look.ACCESSORIES.filter(item => (!item.badge && !item.exclusive && item.level <= level) || item.badge === 'vitez' || item.id === 'koruna').length;
     assert.equal(accessories.owned, expected, 'úroveň, Vavřínový věnec za Vítěze a Koruna z truhly');
@@ -375,7 +375,7 @@ test('Sady témat: 16 looků s počtem kusů pod doplňky, celá sada se zlatým
     assert.match(html, /data-album-looks-count[^>]*>2 \/ 16 celých/);
     assert.match(html, /data-album-look="zemepis" data-state="complete"[^>]*class="[^"]*ring-gold-400/);
     assert.match(html, /data-album-look="historie" data-state="worn"[^>]*aria-label="Vojevůdce \(Historie\): Mudrlant ho nosí"[^>]*class="[^"]*ring-brand-600/);
-    assert.match(html, /data-album-look="sport" data-state="missing" aria-label="Trenér \(Sport\): 1 z 3 kusů"/);
+    assert.match(html, /data-album-look="sport" data-state="missing" aria-label="Trenér \(Sport a hry\): 1 z 3 kusů"/);
     assert.match(html, /icons\/doplnky\/pistalka-ikona\.webp" alt="" class="[^"]*grayscale/);
     assert.match(html, /Do procent sbírky se nepočítají/);
     assert.doesNotMatch(Album.albumHtml(album, { section: 'avatars' }, h), /data-album-looks/);

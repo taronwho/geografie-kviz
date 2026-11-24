@@ -43,7 +43,7 @@ test('literatura: úrovně obtížnosti – Základní v každém okruhu a kateg
     assert.ok(share(data.items, item => item.k === 1) >= 0.22 && share(data.items, item => item.k === 1) <= 0.36);
     assert.ok(share(data.items, item => item.x) >= 0.18 && share(data.items, item => item.x) <= 0.32);
     // Každá kategorie a každý okruh od 8 položek má aspoň max(3, 25 %) známých a nejvýš 40 % expertních
-    const groups = [...['spisovatele', 'dila', 'postavy'].map(c => [c, data.items.filter(item => item.c === c)]),
+    const groups = [...['spisovatele', 'dila', 'postavy', 'hry', 'pohadky', 'jazyky', 'filozofove'].map(c => [c, data.items.filter(item => item.c === c)]),
         ...data.collections.map(collection => [collection.id, inCollection(collection.id).map(find)])];
     for (const [id, list] of groups) {
         if (list.length < 8) continue;
@@ -61,8 +61,9 @@ test('literatura: úrovně obtížnosti – Základní v každém okruhu a kateg
     assert.ok(inCollection('realismus').includes('Honoré de Balzac') && !inCollection('realismus').includes('André Breton'));
     assert.ok(inCollection('romantismus').includes('Máj') && inCollection('romantismus').includes('George Gordon Byron'));
     assert.ok(!inCollection('ceska-literatura').includes('Tonio Kröger'));
-    // Filozofové, teologové a politici bez literárního díla v tématu nejsou
-    assert.ok(!data.items.some(item => ['Oswald Spengler', 'Marshall McLuhan', 'Tertullianus', 'Dominique de Villepin', 'Ema Destinnová'].includes(item.n)));
+    // Filozofové, teologové a politici bez literárního díla mezi spisovateli nejsou (filozof Spengler je v kategorii Filozofové)
+    assert.ok(!data.items.some(item => item.c !== 'filozofove' && ['Oswald Spengler', 'Marshall McLuhan', 'Tertullianus', 'Dominique de Villepin', 'Ema Destinnová'].includes(item.n)));
+    assert.ok(!data.items.some(item => ['Marshall McLuhan', 'Tertullianus', 'Dominique de Villepin', 'Ema Destinnová'].includes(item.n)));
 });
 
 test('literatura: data bez rozporů – roky a jedinečná jména', () => {

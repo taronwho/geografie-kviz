@@ -46,7 +46,13 @@ const ICONS = [
     // Film: kategorie Televizní pořady
     'tv',
     // Fyzika: kategorie Astronomické jevy a pojmy
-    'moon-star'
+    'moon-star',
+    // Sport a hry: kategorie Deskové a karetní hry, Šachy, Videohry
+    'dices', 'chess-knight', 'joystick',
+    // Historie: kategorie Archeologie a starověk, Mezinárodní organizace a Lidové tradice, svátky a kroje
+    'amphora', 'handshake', 'egg',
+    // Literatura: kategorie Divadelní hry a Jazyky a písma
+    'theater', 'languages'
 ];
 
 const toPascalCase = (name) => name.replace(/(^|-)(\w)/g, (_, __, letter) => letter.toUpperCase());

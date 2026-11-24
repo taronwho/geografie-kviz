@@ -34,7 +34,7 @@
 
     const PERSON_CATEGORIES = {
         historie: ['panovnik', 'statnik', 'osobnost'], fyzika: ['fyzici', 'astronomove'], chemie: ['chemici'], umeni: ['umelci', 'fotografove', 'ilustratori'],
-        literatura: ['spisovatele'], hudba: ['skladatele', 'hudebnici'], film: ['herci', 'reziseri'], architektura: ['architekti'], sport: ['sportovci'], technika: ['vynalezci'], jidlo: ['kuchari']
+        literatura: ['spisovatele', 'filozofove'], hudba: ['skladatele', 'hudebnici'], film: ['herci', 'reziseri'], architektura: ['architekti'], sport: ['sportovci'], technika: ['vynalezci'], jidlo: ['kuchari']
     };
     // Přístroje z kategorie Mise a přístroje, u kterých rok z Wikidat odpovídá vynálezu (u cívky, diody či generátoru ne)
     const INSTRUMENTS = new Set(['Barometr', 'Elektromotor', 'Elektronový mikroskop', 'Voltův sloup', 'Leydenská láhev', 'Foucaultovo kyvadlo', 'Transformátor',
@@ -77,7 +77,7 @@
         ilustratori: ['ilustrátor', 'ilustrátorka', 'kreslíř', 'kreslířka', 'karikaturista', 'karikaturistka'],
         spisovatele: ['spisovatel', 'spisovatelka', 'básník', 'básnířka', 'dramatik', 'dramatička', 'prozaik', 'prozaička', 'romanopisec', 'romanopiskyně'],
         skladatele: ['skladatel', 'skladatelka'], hudebnici: ['zpěvák', 'zpěvačka', 'hudebník', 'hudebnice'], herci: ['herec', 'herečka'], reziseri: ['režisér', 'režisérka'],
-        architekti: ['architekt', 'architektka'], fyzici: ['fyzik', 'fyzička'], astronomove: ['astronom', 'astronomka'], chemici: ['chemik', 'chemička']
+        filozofove: ['filozof', 'filozofka'], architekti: ['architekt', 'architektka'], fyzici: ['fyzik', 'fyzička'], astronomove: ['astronom', 'astronomka'], chemici: ['chemik', 'chemička']
     };
     const FIELD_OF = new Map(Object.entries(FIELD_WORDS).flatMap(([category, words]) => words.map(word => [word, category])));
     const descriptionNouns = (text) => {

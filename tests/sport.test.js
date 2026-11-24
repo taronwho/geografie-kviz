@@ -41,7 +41,9 @@ test('sport: známí sportovci, hry a sporty, česká stopa a čistá data', () 
         if (item.f.died !== undefined) assert.ok(item.f.died > item.f.born, item.n);
         if (item.f.to !== undefined) assert.ok(item.f.to >= item.f.from, item.n);
     }
-    assert.equal(new Set(data.items.map(item => item.n.toLowerCase())).size, data.items.length);
+    // Jména jednou mezi sportovními kategoriemi; hry mají jména jednou v kategorii (tests/sport-hry.test.js) – šachová figura Dáma a desková hra Dáma
+    const sportItems = data.items.filter(item => !['deskove', 'sachy', 'videohry'].includes(item.c));
+    assert.equal(new Set(sportItems.map(item => item.n.toLowerCase())).size, sportItems.length);
     // Velikost dat
     assert.ok(fs.statSync(path.join(ROOT, 'data', 'sport.json')).size < 1.5e6);
 });
@@ -155,7 +157,7 @@ test('sport: sporty – obrázek v otázce, plavecké způsoby a disciplíny jen
 });
 
 test('sport: okruhy ve skutečných datech', () => {
-    assert.ok(data.collections.length >= 8 && data.collections.length <= 24);
+    assert.ok(data.collections.length >= 8 && data.collections.length <= 32);
     assert.ok(inCollection('nagano').includes('Jaromír Jágr') && inCollection('nagano').includes('Dominik Hašek'));
     assert.ok(inCollection('cesti-olympijsti-vitezove').includes('Emil Zátopek') && inCollection('cesti-olympijsti-vitezove').includes('Věra Čáslavská'));
     assert.ok(!inCollection('cesti-sportovci').includes('Pelé'));

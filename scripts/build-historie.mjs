@@ -1,9 +1,28 @@
 // Téma Historie: data/historie.json z Wikidat – panovníci, státníci, osobnosti, bitvy a války, říše minulosti
 // Spuštění: npm run build:historie (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování; DEBUG_GROUP=okruh vypíše jeho položky
 // podle známosti). Úrovně: k: 1 = Základní (zhruba čtvrtina každé kategorie a okruhu), x: 1 = Mudrlant Expert (perličky), jinak Mudrlant
+// 6. krok: rozšíření (scripts/lib/historie-rozsireni.mjs) – archeologie a starověk, piráti, mezinárodní organizace, lidové tradice,
+// svátky a kroje, objevitelé a mořeplavci. Jen 6. krok nad hotovými daty (existující položky zůstanou, přidají se nové):
+// node scripts/build-historie.mjs --doplnit
 import { sparql, id, values, parsePoint, imageFields, yearOf, compact, cached, inBatches, writeTopic, sleep } from './lib/wikidata.mjs';
 import { landByDescription } from './lib/nationality.mjs';
+import { extendHistorie } from './lib/historie-rozsireni.mjs';
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+
+// Výpis rozšíření: nové položky po kategoriích, úrovně a co se vynechalo
+const printExtension = (report) => {
+    for (const [category, list] of Object.entries(report.added)) console.log(`Nové v kategorii ${category}: ${list.length}\n  ${list.join('\n  ')}`);
+    for (const line of report.summary || []) console.log(line);
+    if (report.promoted.length) console.log(`Spodní hranice známých povýšila: ${report.promoted.map(([group, name]) => `${name} (${group})`).join(', ')}`);
+    console.log(`Vynecháno: ${report.skipped.length}\n  ${report.skipped.join('\n  ')}`);
+};
+if (process.argv.includes('--doplnit')) {
+    const data = JSON.parse(readFileSync(new URL('../data/historie.json', import.meta.url), 'utf8'));
+    printExtension(await extendHistorie({ items: data.items, collections: data.collections }));
+    writeTopic('historie', { collections: data.collections, items: data.items });
+    process.exit(0);
+}
 
 const HUMAN = 'Q5';
 const FEMALE = 'Q6581072';
@@ -874,5 +893,8 @@ for (const [group, list] of groupsOfLevel) {
 const levelCounts = (list) => `${list.length} (${list.filter(item => item.k).length} známých, ${list.filter(item => item.x).length} expert)`;
 for (const category of Object.keys(CATEGORIES)) console.log(`${category}: ${levelCounts(items.filter(item => item.c === category))}`);
 for (const collection of collections) console.log(`okruh ${collection.label}: ${levelCounts(membersOf(collection.id))}`);
+
+// --- 6. krok: archeologie a starověk, piráti, mezinárodní organizace, lidové tradice, objevitelé ---
+printExtension(await extendHistorie({ items, collections }));
 
 writeTopic('historie', { collections, items });
