@@ -1,11 +1,28 @@
 // Téma Literatura: data/literatura.json z Wikidat (přes QLever) – spisovatelé a básníci, literární díla a postavy
+// Rozšíření (scripts/lib/literatura-rozsireni.mjs): divadelní hry, pohádky a dětská literatura, jazyky a písma, filozofové
 // Spuštění: npm run build:literatura (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování)
+// Jen rozšíření nad hotovým data/literatura.json (ostatní položky se nestahují ani nemění): LITERATURA_ONLY=rozsireni node scripts/build-literatura.mjs
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { sparql, qlever, id, values, imageFields, yearOf, compact, cached, inBatches, writeTopic, readCountries } from './lib/wikidata.mjs';
 import { CHARACTERS } from './lib/literatura-postavy.mjs';
 import { MOVEMENTS, MOVEMENT_YEARS } from './lib/literatura-smery.mjs';
+import { buildExtra, mergeExtra, extraSummary, isExtraItem } from './lib/literatura-rozsireni.mjs';
+
+// Rozšíření: nové kategorie a okruhy na konec, existující položky beze změny; pak zápis data/literatura.json
+async function addExtra({ collections, items }) {
+    const extra = await buildExtra({ existing: items });
+    console.log(`Rozšíření: nových ${extra.items.length}, vyřazeno kvůli jiným tématům ${extra.skippedOther.length}`);
+    const merged = mergeExtra({ collections, items }, extra);
+    extraSummary(merged.items);
+    writeTopic('literatura', merged);
+}
+const previousData = () => JSON.parse(readFileSync(new URL('../data/literatura.json', import.meta.url), 'utf8'));
+if (process.env.LITERATURA_ONLY === 'rozsireni') {
+    await addExtra(previousData());
+    process.exit(0);
+}
 
 // Zakrytí jako ve hře: popis postavy nesmí obsahovat název díla ani příjmení autora
 const { censorName } = createRequire(import.meta.url)('../quiz-core.js');
@@ -816,4 +833,5 @@ for (const item of items) {
         if (item.d) item.d = item.d.replace(/(povídek|pohádek)/giu, 'próz');
     }
 }
-writeTopic('literatura', { collections, items });
+// Položky rozšíření z dřívějšího běhu zůstanou (nový běh je sestaví znovu, žádné id nezmizí)
+await addExtra({ collections, items: [...items, ...(existsSync(new URL('../data/literatura.json', import.meta.url)) ? previousData().items.filter(isExtraItem) : [])] });
