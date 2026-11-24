@@ -59,7 +59,7 @@ Základní otázka je „Co je to?“ podle kategorie (Který prvek to je?, Kdo 
 | Architektura | Stavba je vidět hned: Jaký je to sloh? Kdo ji navrhl? |
 | Výtvarné umění | Obraz či socha jsou vidět hned: Co je to za obraz? Kdo to namaloval? Ke kterému směru patří? |
 | Architektura | Stavba je vidět hned: Jaký je to sloh? Kdo ji navrhl? (u mostů, věží, muzeí a dalších staveb bez jasného slohu název; k tomu architektonické prvky a architekti) |
-| Hudba | Kdo to složil? Do kterého hudebního období patří? U oper a muzikálů i Ve kterém století měla premiéru? |
+| Hudba | Kdo to složil? Do kterého hudebního období patří? U oper, muzikálů a baletů i Ve kterém století měla premiéru?, u baletu Kdo složil hudbu?, u tance Ze které země tanec pochází? |
 | Literatura | Kdo to napsal? Kdo tuto postavu vymyslel? Ve kterém století žil či dílo vzniklo? |
 | Film | Kdo film režíroval? Ve kterém desetiletí měl premiéru? U animovaných filmů Které studio film natočilo?, u seriálů Kdo seriál vytvořil (napsal scénář)? a Ve kterém desetiletí se začal vysílat?, u večerníčků Kdo večerníček vytvořil (napsal předlohu)?, u televizních pořadů Kdo pořad moderoval?, u komiksů a anime Kdo postavu vytvořil? a Ve kterém desetiletí se postava poprvé objevila? |
 | Sport | Ve kterém sportu se proslavil(a)? Kde se konaly olympijské hry? Které hry to jsou? Co je to za sport (podle fotky)? Který klub, stadion, okruh nebo soutěž to je (podle země, mapy, kapacity a fotky)? |

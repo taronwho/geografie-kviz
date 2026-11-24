@@ -7,6 +7,24 @@ import { createHash } from 'node:crypto';
 import { assignLevels } from './lib/hudba-levels.mjs';
 import { cachedByKey } from './lib/zemepis-levels.mjs';
 import { qlever, sparql, id, values, imageFields, yearOf, compact, cached, inBatches, writeTopic, readCountries } from './lib/wikidata.mjs';
+import { fetchExtra, buildExtra, mergeExtra, extraSummary, otherTopics, HAND_TITLES, EXTRA_CATEGORIES } from './lib/hudba-rozsireni.mjs';
+
+// Rozšíření (scripts/lib/hudba-rozsireni.mjs): kategorie Balet a tance a další muzikály. Jen rozšíření nad hotovým data/hudba.json
+// (ostatní položky se nestahují ani nemění): HUDBA_ONLY=rozsireni node scripts/build-hudba.mjs
+const DATA_DIR = new URL('../data/', import.meta.url);
+async function addExtra({ collections, items }) {
+    const extra = await fetchExtra({ handTitles: HAND_TITLES });
+    const built = buildExtra(extra, { existing: items, others: otherTopics(DATA_DIR) });
+    if (process.env.HUDBA_DEBUG) for (const [reason, title] of built.skipped) console.log(`  vynecháno: ${reason}: ${title}`);
+    const merged = mergeExtra({ collections, items }, built);
+    console.log(`Rozšíření: nových ${built.items.length}; povýšeno kvůli okruhům: ${merged.promoted.join(', ') || '–'}`);
+    for (const line of extraSummary(merged.items)) console.log(line);
+    writeTopic('hudba', { collections: merged.collections, items: merged.items });
+}
+if (process.env.HUDBA_ONLY === 'rozsireni') {
+    await addExtra(JSON.parse(readFileSync(new URL('hudba.json', DATA_DIR), 'utf8')));
+    process.exit(0);
+}
 
 const HUMAN = 'Q5';
 const FEMALE = 'Q6581072';
@@ -817,4 +835,8 @@ for (const collection of collections) {
     console.log(`okruh ${collection.label}: ${inOkruh.length} (${inOkruh.filter(item => item.k).length} známých, ${inOkruh.filter(item => item.x).length} expertních)`);
 }
 
-writeTopic('hudba', { collections, items });
+// Položky rozšíření z dřívějšího běhu (kategorie Balet a tance, muzikály mimo pravidla výše) zůstanou, jak jsou; nové se přidají
+const builtIds = new Set(items.map(item => item.q));
+const previousExtra = existsSync(PUBLISHED_FILE) ? JSON.parse(readFileSync(PUBLISHED_FILE, 'utf8')).items
+    .filter(item => !builtIds.has(item.q) && (EXTRA_CATEGORIES.includes(item.c) || (item.c === 'opery' && item.ty === 'muzikál'))) : [];
+await addExtra({ collections, items: [...items, ...previousExtra] });

@@ -412,8 +412,10 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
     }
 
     // Výběr kategorií (Zeměpis) a témat (Mix) na 360×640: tlačítko Hrát je v lepkavé patičce, vidět a nezakryté nahoře i uprostřed posunu
-    for (const [action, scheme] of [['[data-action="play-topic"][data-topic="zemepis"]', 'light'], ['[data-action="play-mix"]', 'dark']]) {
-        await t.test(`výběr ${action.includes('mix') ? 'Mix' : 'Zeměpis'}: Hrát vždy vidět (${scheme})`, async () => {
+    // Hudba (šest kategorií s Baletem a tanci) se na 360×640 vejde celá bez posouvání
+    for (const [action, scheme] of [['[data-action="play-topic"][data-topic="zemepis"]', 'light'], ['[data-action="play-mix"]', 'dark'], ['[data-action="play-topic"][data-topic="hudba"]', 'light']]) {
+        const label = action.includes('mix') ? 'Mix' : action.includes('hudba') ? 'Hudba' : 'Zeměpis';
+        await t.test(`výběr ${label}: Hrát vždy vidět (${scheme})`, async () => {
             const { context, tab, problems } = await open(scheme);
             await nav.go(tab, 'hrat');
             await tab.click(action);
@@ -429,7 +431,9 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
                 }, at);
                 assert.ok(state.top >= 0 && state.bottom <= state.height + 0.5, `${scheme}: Hrát mimo obrazovku při posunu ${at} (${state.top}–${state.bottom})`);
                 assert.equal(state.free, true, `${scheme}: Hrát je zakryté při posunu ${at}`);
+                if (label === 'Hudba') assert.equal(state.scrolls, false, `${scheme}: výběr kategorií Hudby se posouvá`);
             }
+            if (label === 'Hudba') assert.ok(await tab.$('#play-chooser [data-chooser-category="tance"], #play-chooser [data-category="tance"]') || await tab.evaluate(() => document.querySelector('#play-chooser').textContent.includes('Balet a tance')), 'kategorie Balet a tance ve výběru');
             assert.deepEqual(problems, [], 'bez chyb v konzoli a bez porušení CSP');
             await context.close();
         });
