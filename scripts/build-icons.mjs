@@ -46,7 +46,9 @@ const ICONS = [
     // Film: kategorie Televizní pořady
     'tv',
     // Fyzika: kategorie Astronomické jevy a pojmy
-    'moon-star'
+    'moon-star',
+    // Geologie: kategorie Přírodní katastrofy, Podnebí a klima, Počasí a oblaka
+    'tornado', 'thermometer-sun', 'cloud-sun'
 ];
 
 const toPascalCase = (name) => name.replace(/(^|-)(\w)/g, (_, __, letter) => letter.toUpperCase());

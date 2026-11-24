@@ -1,16 +1,33 @@
 // Téma Geologie: data/geologie.json z Wikidat (přes QLever) – nerosty, drahé kameny, horniny a geologická období
 // Spuštění: npm run build:geologie (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování; WIKIDATA_ENDPOINT=wdqs čte
 // podrobnosti z query.wikidata.org, když je QLever přetížený)
+// Rozšíření o přírodní katastrofy, podnebí a počasí (scripts/lib/geologie-rozsireni.mjs) se přidá na konci; jen rozšíření nad hotovým
+// data/geologie.json (ostatní položky se nestahují ani nemění): GEOLOGIE_ONLY=rozsireni node scripts/build-geologie.mjs
 //
 // Wikidata mají u nerostů spolehlivý článek, fotku, vzorec, třídu podle Strunze, krystalovou soustavu a hustotu.
 // Tvrdost, vryp a zařazení hornin v nich bývají chybné (antimonit s tvrdostí 8, křemen s černým vrypem, mramor mezi
 // usazenými horninami), proto jsou tvrdost, vryp, barvy, skupiny hornin, česká naleziště a geologická období vypsané
 // níže z mineralogických a geologických příruček.
 import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
 import { qlever, sparql, id, values, imageFields, compact, cached, inBatches, writeTopic } from './lib/wikidata.mjs';
 import { cachedByKey } from './lib/zemepis-levels.mjs';
 import { topicPageviews, assignLevels, levelGroups, levelSummary, demoteKnown } from './lib/fame-levels.mjs';
 import { FORMS, FORM_GROUPS, KNOWN_FORMS, FOSSILS, KNOWN_FOSSILS, MORE_ROCKS, MORE_ROCK_QIDS, MORE_PERIODS, MORE_CONFLICTS, NAMED_SITES, CZECH_SITES, FAMOUS_DIAMONDS, PHOTO_OVERRIDES, FORM_DESCRIPTIONS } from './lib/geologie-sources.mjs';
+import { buildExtra, mergeExtra, extraSummary, EXTRA_IDS } from './lib/geologie-rozsireni.mjs';
+
+// Rozšíření o přírodní katastrofy, podnebí a počasí: nové položky a okruhy nad položkami tématu; pak zápis data/geologie.json
+async function writeWithExtra({ collections, items }) {
+    const extra = await buildExtra({ existing: items });
+    const merged = await mergeExtra({ collections, items }, extra);
+    console.log(`Rozšíření: nových ${extra.items.length}, povýšeno kvůli okruhům ${merged.promoted.length}`);
+    extraSummary(merged.items, extra.skipped);
+    writeTopic('geologie', { collections: merged.collections, items: merged.items });
+}
+if (process.env.GEOLOGIE_ONLY === 'rozsireni') {
+    await writeWithExtra(JSON.parse(readFileSync(new URL('../data/geologie.json', import.meta.url), 'utf8')));
+    process.exit(0);
+}
 
 // Vzorec se ověří stejně, jako ho pak porovná aplikace
 const { formulaCounts, isRealPhoto } = createRequire(import.meta.url)('../quiz-core.js');
@@ -707,4 +724,5 @@ for (const category of Object.keys(order)) {
 }
 for (const collection of collections) console.log(levelSummary(`okruh ${collection.id}`, items.filter(item => (item.g || []).includes(collection.id))));
 console.log(levelSummary('celkem', items));
-writeTopic('geologie', { collections, items });
+// Položky rozšíření (scripts/lib/geologie-rozsireni.mjs) se přidají na konec, stejně jako při samostatném běhu
+await writeWithExtra({ collections, items: items.filter(item => !EXTRA_IDS.has(item.q)) });
