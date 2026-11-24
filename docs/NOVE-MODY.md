@@ -177,13 +177,13 @@ Co ukáže obrazovka otázky (listopad 2026; Řetězovka, č. 6, má vlastní pr
 | `druid` | Druid | Biologie | Klidný mudrc lesa, vtipkuje o houbách |
 | `olympan` | Olympan | Mytologie | Hromovládce, hřmí a vyhrožuje bleskem |
 | `reziser` | Režisér | Film | Dramatik, každou otázku „natáčí“ znovu |
-| `herold` | Herold | Vlajky a znaky | Královský hlasatel, všechno ohlašuje fanfárou *(čeká na obrázky)* |
-| `permonik` | Permoník | Geologie | Pán podzemí, hlídá poklady ve štole, zdraví „Zdař bůh!“ *(čeká na obrázky)* |
-| `stavitel` | Mistr stavitel | Architektura | Pán lešení, staví katedrály i kůlny, všechno kolauduje *(čeká na obrázky)* |
-| `malir` | Dokonalý Malíř | Výtvarné umění | Mistr štětce, perfekcionista a snob, nesnese chybu ani kaňku *(čeká na obrázky)* |
-| `kronikar` | Všemocný Kronikář | Literatura | Strážce příběhů s Knihou osudů, co do ní zapíše, to se stane *(čeká na obrázky)* |
-| `trener` | Nekompromisní Trenér | Sport | Věčný šampion a drsný instruktor, žádné výmluvy, kdo neví, dělá kliky *(čeká na obrázky)* |
-| `vynalezce` | Šílený Vynálezce | Technika a vynálezy | Bláznivý génius s robotem Šroubkem, každý pokus mu vybuchne *(čeká na obrázky)* |
+| `herold` | Herold | Vlajky a znaky | Královský hlasatel, všechno ohlašuje fanfárou |
+| `permonik` | Permoník | Geologie | Pán podzemí, hlídá poklady ve štole, zdraví „Zdař bůh!“ |
+| `stavitel` | Mistr stavitel | Architektura | Pán lešení, staví katedrály i kůlny, všechno kolauduje |
+| `malir` | Dokonalý Malíř | Výtvarné umění | Mistr štětce, perfekcionista a snob, nesnese chybu ani kaňku |
+| `kronikar` | Všemocný Kronikář | Literatura | Strážce příběhů s Knihou osudů, co do ní zapíše, to se stane |
+| `trener` | Nekompromisní Trenér | Sport | Věčný šampion a drsný instruktor, žádné výmluvy, kdo neví, dělá kliky |
+| `vynalezce` | Šílený Vynálezce | Technika a vynálezy | Bláznivý génius s robotem Šroubkem, každý pokus mu vybuchne |
 | `sefkuchar` | Egocentrický Šéfkuchař | Jídlo a pití | Mistr plotny a narcis, obdivuje sám sebe, jeho jídla jsou nejlepší na světě *(čeká na obrázky)* |
 
 - **Úvod souboje**:

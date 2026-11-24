@@ -400,12 +400,15 @@
     // Blok mezi značkami přepisuje scripts/boss-zapoj.mjs (extendRotation níž), až mají noví bossové všechny obrázky; ručně ho neupravuj.
     // @rotace-zacatek
     const ROTATION = [
-        { from: '2026-11-09', ids: ['kapitan', 'rytir', 'alchymista', 'amper', 'maestro', 'druid', 'olympan', 'reziser'] }
+        { from: '2026-11-09', ids: ['kapitan', 'rytir', 'alchymista', 'amper', 'maestro', 'druid', 'olympan', 'reziser'] },
+        { from: '2026-11-30', ids: ['herold', 'amper', 'stavitel', 'maestro', 'malir', 'druid', 'kronikar', 'olympan', 'vynalezce', 'reziser', 'kapitan', 'rytir', 'alchymista'] },
+        { from: '2026-12-07', ids: ['permonik', 'amper', 'trener', 'stavitel', 'maestro', 'malir', 'druid', 'kronikar', 'olympan', 'vynalezce', 'reziser', 'kapitan', 'rytir', 'alchymista', 'herold'] }
     ];
     // @rotace-konec
-    // Bossové ve hře: ze všech úseků rotace v pořadí, v jakém do ní přišli (stejné pořadí má BOSS_EMBLEMS v quiz-core.js);
-    // ostatní ze soupisky čekají na obrázky (PENDING) a ve hře nejsou vůbec (Síň bossů, emblémy, odznaky, uložený stav)
-    const ACTIVE_IDS = [...new Set(ROTATION.flatMap(segment => segment.ids))].filter(id => ROSTER_BY_ID[id]);
+    // Bossové ve hře: ti, kdo jsou v některém úseku rotace, v pořadí soupisky (stejné pořadí má BOSS_EMBLEMS v quiz-core.js
+    // i katalog odznaků na serveru); ostatní ze soupisky čekají na obrázky (PENDING) a ve hře nejsou vůbec (Síň bossů, emblémy, odznaky, uložený stav)
+    const ROTATED = new Set(ROTATION.flatMap(segment => segment.ids));
+    const ACTIVE_IDS = ROSTER.map(boss => boss.id).filter(id => ROTATED.has(id));
     const BOSSES = ACTIVE_IDS.map(id => ROSTER_BY_ID[id]);
     const PENDING = ROSTER.filter(boss => !ACTIVE_IDS.includes(boss.id));
     const BY_ID = Object.fromEntries(BOSSES.map(boss => [boss.id, boss]));

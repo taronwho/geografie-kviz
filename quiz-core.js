@@ -3086,7 +3086,14 @@
         ['kapitan', 'Kapitán Mudrlant', 'Kapitána Mudrlanta', 'Přemožitel Kapitána'], ['rytir', 'Rytíř Mudrlant', 'Rytíře Mudrlanta', 'Přemožitel Rytíře'],
         ['alchymista', 'Alchymista', 'Alchymistu', 'Přemožitel Alchymisty'], ['amper', 'Profesor Ampér', 'Profesora Ampéra', 'Přemožitel Profesora Ampéra'],
         ['maestro', 'Maestro', 'Maestra', 'Přemožitel Maestra'], ['druid', 'Druid', 'Druida', 'Přemožitel Druida'],
-        ['olympan', 'Olympan', 'Olympana', 'Přemožitel Olympana'], ['reziser', 'Režisér', 'Režiséra', 'Přemožitel Režiséra']
+        ['olympan', 'Olympan', 'Olympana', 'Přemožitel Olympana'], ['reziser', 'Režisér', 'Režiséra', 'Přemožitel Režiséra'],
+        ['herold', 'Herold', 'Herolda', 'Přemožitel Herolda'],
+        ['permonik', 'Permoník', 'Permoníka', 'Přemožitel Permoníka'],
+        ['stavitel', 'Mistr stavitel', 'Mistra stavitele', 'Přemožitel Mistra stavitele'],
+        ['malir', 'Dokonalý Malíř', 'Dokonalého Malíře', 'Přemožitel Dokonalého Malíře'],
+        ['kronikar', 'Všemocný Kronikář', 'Všemocného Kronikáře', 'Přemožitel Všemocného Kronikáře'],
+        ['trener', 'Nekompromisní Trenér', 'Nekompromisního Trenéra', 'Přemožitel Nekompromisního Trenéra'],
+        ['vynalezce', 'Šílený Vynálezce', 'Šíleného Vynálezce', 'Přemožitel Šíleného Vynálezce']
     ];
     BOSS_EMBLEMS.forEach(([id, name, whom, title]) => addGroup(`boss-${id}`, `Boss týdne: ${name}`, 'swords', (c, x) => (x && x.bosses && x.bosses[id] ? 1 : 0),
         () => `Poraz bosse týdne ${whom}.`, [T(1, title, `boss-${id}`)]));
