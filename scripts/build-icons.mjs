@@ -46,7 +46,9 @@ const ICONS = [
     // Film: kategorie Televizní pořady
     'tv',
     // Fyzika: kategorie Astronomické jevy a pojmy
-    'moon-star'
+    'moon-star',
+    // Výtvarné umění: kategorie Móda a návrháři, Design a nábytek
+    'shirt', 'armchair'
 ];
 
 const toPascalCase = (name) => name.replace(/(^|-)(\w)/g, (_, __, letter) => letter.toUpperCase());

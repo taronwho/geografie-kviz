@@ -1,4 +1,4 @@
-// Téma Výtvarné umění: obrazy, sochy, malíři a sochaři (data/umeni.json)
+// Téma Výtvarné umění: obrazy, sochy, malíři a sochaři, směry, fotografové, ilustrátoři; užité umění – móda, design, šperky a písma (data/umeni.json)
 (function (root, factory) {
     const isNode = typeof module === 'object' && module.exports;
     const topic = factory(isNode ? require('../quiz-core.js') : root.MudrlantCore);
@@ -15,11 +15,64 @@
         { key: 'umelci', label: 'Malíři a sochaři', one: 'umělec', icon: 'brush', question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } },
         { key: 'smery', label: 'Umělecké směry', one: 'směr', icon: 'layers', question: 'Jaký je to umělecký směr?', placeholder: 'Napiš název směru…', sort: { by: 'y' } },
         { key: 'fotografove', label: 'Fotografové', one: 'fotograf', icon: 'image', question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } },
-        { key: 'ilustratori', label: 'Ilustrátoři a karikaturisté', one: 'ilustrátor', icon: 'pencil', question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } }
+        { key: 'ilustratori', label: 'Ilustrátoři a karikaturisté', one: 'ilustrátor', icon: 'pencil', question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } },
+        // Rozšíření o užité umění (scripts/lib/umeni-rozsireni.mjs); otázku podle druhu dává questionTitle
+        { key: 'moda', label: 'Móda a návrháři', one: 'módní návrhář či značka', icon: 'shirt', question: 'Kdo nebo co to je?', placeholder: 'Napiš jméno nebo název…', sort: { by: 'name' } },
+        { key: 'design', label: 'Design a nábytek', one: 'designér či dílo designu', icon: 'armchair', question: 'Kdo nebo co to je?', placeholder: 'Napiš jméno nebo název…', sort: { by: 'name' } },
+        { key: 'sperky', label: 'Šperky a klenoty', one: 'šperk či klenot', icon: 'gem', question: 'Co je to?', placeholder: 'Napiš název…', sort: { by: 'name' } },
+        { key: 'pisma', label: 'Písma a typografie', one: 'písmo či typografický pojem', icon: 'type', question: 'Co je to?', placeholder: 'Napiš název…', sort: { by: 'name' } }
     ];
     const isWork = (item) => item.c === 'obrazy' || item.c === 'sochy';
     // Lidé: malíři a sochaři, fotografové, ilustrátoři a karikaturisté
     const isPerson = (item) => item.c === 'umelci' || item.c === 'fotografove' || item.c === 'ilustratori';
+    // Užité umění: lidé (módní návrháři, designéři, klenotníci, typografové) a věci; druh (ty) určí otázku, skupinu nesprávných
+    // možností a nápovědy
+    const APPLIED = new Set(['moda', 'design', 'sperky', 'pisma']);
+    const isApplied = (item) => APPLIED.has(item.c);
+    const APPLIED_PEOPLE = new Set(['módní návrhář', 'módní návrhářka', 'návrhář obuvi', 'návrhářka obuvi', 'kostýmní návrhář', 'kostýmní návrhářka',
+        'designér', 'designérka', 'sklářský výtvarník', 'sklářská výtvarnice', 'výrobce nábytku', 'výrobkyně nábytku', 'keramik', 'keramička',
+        'klenotník', 'klenotnice', 'zlatník', 'zlatnice', 'šperkař', 'šperkařka', 'typograf', 'typografka', 'tiskař', 'tiskařka', 'grafický designér', 'grafická designérka']);
+    const isAppliedPerson = (item) => isApplied(item) && APPLIED_PEOPLE.has(item.ty);
+    // Kdo je člověk: všichni lidé tématu (příjmení jako odpověď, podobnost, fakta o životě)
+    const isHuman = (item) => isPerson(item) || isAppliedPerson(item);
+    // Skupina věcí užitého umění: nesprávné možnosti jen ze stejné skupiny (k módnímu domu módní domy a značky, k písmu písma)
+    const APPLIED_GROUPS = {
+        firma: ['módní dům', 'oděvní značka', 'značka designu', 'klenotnická firma'],
+        hnuti: ['designové hnutí či sdružení'],
+        pojem: ['druh šperku', 'klenotnický pojem', 'druh písma', 'typografický pojem', 'typografický znak']
+    };
+    const appliedGroup = (item) => isAppliedPerson(item) ? 'osoba' : Object.keys(APPLIED_GROUPS).find(group => APPLIED_GROUPS[group].includes(item.ty)) || 'vec';
+    // Otázka podle druhu (štítek nad otázkou ukazuje druh, otázka mu musí odpovídat)
+    const APPLIED_QUESTIONS = {
+        'módní dům': 'Který módní dům to je?', 'oděvní značka': 'Která oděvní značka to je?', 'nábytek': 'Co je to za kus nábytku?',
+        'designový předmět': 'Co je to za designový předmět?', 'značka designu': 'Která značka to je?',
+        'designové hnutí či sdružení': 'Které hnutí či sdružení designu to je?',
+        'koruna': 'Která koruna to je?', 'korunovační klenoty': 'Které korunovační klenoty to jsou?', 'klenot': 'Který klenot to je?',
+        'poklad': 'Který poklad to je?', 'diamant': 'Který diamant to je?', 'druh šperku': 'Jaký druh šperku to je?',
+        'klenotnická firma': 'Která klenotnická firma to je?', 'klenotnický pojem': 'Jaký pojem to je?',
+        'písmo': 'Jaké je to písmo?', 'druh písma': 'Jaký druh písma to je?', 'typografický pojem': 'Jaký typografický pojem to je?',
+        'typografický znak': 'Jaký typografický znak to je?'
+    };
+    // Obrázek, na který se ptáme hned (jako u obrazu): kus nábytku, předmět, šperk, koruna, vzorník písma; lidé a firmy ne
+    const SHOWN_KINDS = new Set(['nábytek', 'designový předmět', 'koruna', 'korunovační klenoty', 'klenot', 'poklad', 'diamant', 'druh šperku', 'písmo', 'druh písma']);
+    // Druhy, z nichž jeden je zároveň druhým (tiára je diadém, fraktura je gotické písmo, grotesk je bezpatkové písmo): jeden druhému
+    // nesprávnou možností nebude, na fotce ani v popisu by nešly rozlišit
+    const OVERLAPS = [['Diadém', 'Tiára'], ['Snubní prsten', 'Zásnubní prsten'], ['Prsten', 'Snubní prsten'], ['Prsten', 'Zásnubní prsten'],
+        ['Přívěsek', 'Medailon'], ['Kamej', 'Medailon'], ['Kamej', 'Brož'], ['Kamej', 'Přívěsek'], ['Brož', 'Spona'], ['Náhrdelník', 'Torques'], ['Náušnice', 'Piercingové šperky'], ['Prsten', 'Kamej'],
+        ['Gotické písmo', 'Fraktura'], ['Gotické písmo', 'Švabach'], ['Gotické písmo', 'Textura'], ['Gotické písmo', 'Rotunda'], ['Fraktura', 'Švabach'],
+        ['Bezpatkové písmo', 'Grotesk'], ['Antikva', 'Humanistické písmo'], ['Font', 'Rodina písma'], ['Sazba', 'Fotosazba'], ['Sazba', 'Knihtisk'],
+        ['Sazba', 'Desktop publishing'], ['Fotosazba', 'Desktop publishing'], ['Minuskule', 'Karolina'], ['Minuskule', 'Humanistické písmo'],
+        ['Kaligrafie', 'Unciála'], ['Typografie', 'Sazba'], ['Koruna svatého Eduarda', 'Britské korunovační klenoty'], ['Britská imperiální koruna', 'Britské korunovační klenoty'],
+        ['Svatováclavská koruna', 'České korunovační klenoty'], ['Svatovítský poklad', 'České korunovační klenoty'], ['Svatovítský poklad', 'Svatováclavská koruna'],
+        ['Pražské slunce', 'Loretánský poklad']];
+    const overlapping = (a, b) => OVERLAPS.some(([x, y]) => (a.n === x && b.n === y) || (a.n === y && b.n === x));
+    // Poslední nápověda u věci užitého umění: počet slov a první písmeno názvu
+    const nameShapeHint = (item) => {
+        const words = core.stripBrackets(item.n).trim().split(/\s+/).length;
+        return { kind: 'facts', label: 'tvar názvu', icon: 'type', facts: [{ label: 'Název', value: `${words} ${words === 1 ? 'slovo' : words < 5 ? 'slova' : 'slov'}, začíná na ${item.n.charAt(0).toUpperCase()}` }] };
+    };
+    // Popisek faktu s díly osoby podle oboru
+    const WORKS_LABEL = { moda: 'Módní domy', design: 'Díla', sperky: 'Díla', pisma: 'Písma a díla' };
 
     // Jak často se u díla ptáme na autora a na umělecký směr (jinak na název)
     const AUTHOR_QUIZ_SHARE = 0.3;
@@ -103,9 +156,11 @@
     const aliasCache = new WeakMap();
     const safeSurnames = (items) => {
         if (!aliasCache.has(items)) {
-            const surnames = items.filter(isPerson).map(other => [other.q, surnameOf(other.n)]).filter(([, surname]) => surname);
+            const surnames = items.filter(isHuman).map(other => [other.q, surnameOf(other.n)]).filter(([, surname]) => surname);
+            // Příjmení, které je i názvem módního domu či firmy (Miuccia Prada – Prada, Moser), samo neplatí
+            const things = items.filter(other => isApplied(other) && !isAppliedPerson(other)).map(other => [`vec:${other.q}`, other.n]);
             // (core.fuzzyTwins = porovnání každého s každým přes isAnswerMatch, jen bez dvojic, které se splést nemohou)
-            const twins = core.fuzzyTwins(surnames);
+            const twins = core.fuzzyTwins([...surnames, ...things]);
             aliasCache.set(items, new Set(surnames.filter(([qid, surname]) => surname.length >= 3 && !twins.has(qid)).map(([qid]) => qid)));
         }
         return aliasCache.get(items);
@@ -142,8 +197,19 @@
             if (f.reps && f.reps.length) facts.push({ label: 'Představitelé', value: f.reps.join(', ') });
             return facts;
         }
+        if (isApplied(item) && !isAppliedPerson(item)) {
+            // Věc užitého umění: autor, zakladatel, země, sídlo a kde je uložena; rok vzniku ukazuje osa a podtitul (mezi fakty by ho
+            // rozlišující údaj ukázal hned a osa by pak nic nepřidala)
+            return formatFacts(item, [
+                ['by', item.c === 'pisma' || item.c === 'design' ? 'Navrhl' : 'Autor', v => v], ['fo', 'Zakladatel', v => v], ['land', 'Země', v => v],
+                ['seat', 'Sídlo', v => v], ['loc', 'Uloženo', v => v]]);
+        }
         const facts = answered ? formatFacts(item, [['born', 'Narození', formatYear], ['died', 'Úmrtí', formatYear]], ['born', 'died']) : [];
         if (f.land) facts.push({ label: 'Země', value: f.land });
+        if (isAppliedPerson(item)) {
+            if (f.works && f.works.length) facts.push({ label: WORKS_LABEL[item.c], value: f.works.join(', ') });
+            return facts;
+        }
         const movements = movementsOf(f);
         if (movements) facts.push({ label: 'Směr', value: movements });
         if (f.works && f.works.length) facts.push({ label: f.works.length > 1 ? 'Slavná díla' : 'Slavné dílo', value: f.works.join(', ') });
@@ -187,6 +253,9 @@
             return f.from !== undefined && f.to !== undefined
                 ? { type: 'timeline', spans: [{ kind: 'period', from: f.from, to: f.to }], points: [], spanLabel: 'období', hide: item.n, anchors: anchorsFor(item, false) }
                 : { type: 'timeline', spans: [], points: [f.y], hide: item.n, anchors: anchorsFor(item, false) };
+        }
+        if (isApplied(item) && !isAppliedPerson(item)) {
+            return f.year === undefined || f.year < -3000 ? null : { type: 'timeline', spans: [], points: [f.year], hide: item.n, anchors: anchorsFor(item) };
         }
         if (f.born === undefined) return null;
         const to = f.died ?? Math.min(THIS_YEAR, f.born + 100);
@@ -277,6 +346,14 @@
             const sameCzech = (item.cz === 1) === (other.cz === 1) ? 1 : -3;
             const land = (f.land && f.land === g.land ? 3 : 0) + (sameWorld(f.land, g.land) ? 1 : 0);
             if (item.c === 'smery') return eraNearness(f.y, g.y) + (f.land && f.land === g.land ? 2 : 0);
+            // Užité umění: jen ze stejné skupiny (k osobě osoby, k písmu písma, k firmě firmy), u lidí pohlaví, doba a země, u věcí doba a země
+            if (isApplied(item)) {
+                if (appliedGroup(item) !== appliedGroup(other) || overlapping(item, other)) return -Infinity;
+                // (doba váží dvojnásob: ke Garamondovi tiskaři 15. a 16. století, ne typograf 20. století jen proto, že je také Francouz)
+                if (isAppliedPerson(item)) return 2 * artistSimilarity(item, other) + land + sameCzech;
+                // Stejný druh má přednost (ke koruně koruny, ke kusu nábytku nábytek), i před českou stopou
+                return (item.ty === other.ty ? 6 : 0) + (f.y !== undefined && g.y !== undefined ? eraNearness(f.y, g.y) : 0) + land + sameCzech;
+            }
             if (isPerson(item)) return artistSimilarity(item, other) + (sameMovement ? 2 : 0) + land + sameCzech;
             // Pravěk: stáří se porovná poměrem (k Věstonické venuši sošky staré 20–40 tisíc let, ne pomník z 20. století, jen proto,
             // že je také z Česka) a stejný směr (paleolitické umění) váží
@@ -289,7 +366,10 @@
             return (f.by && f.by === g.by ? 4 : 0) + (sameMovement ? 3 : 0) + eraNearness(f.y, g.y) + years + land + sameCzech;
         },
         // U díla s cizím štítkem Wikidat (Portinari Altarpiece → Portinarův triptych) platí i cizí název (al)
-        nameAliases: (item, ctx) => isPerson(item) ? artistAliases(item, ctx) : [...(item.al || [])],
+        nameAliases: (item, ctx) => isHuman(item) ? artistAliases(item, ctx) : [...(item.al || [])],
+        // Věci užitého umění bez kulturní oblasti: ke Svatováclavské koruně jiné koruny, ne české klenoty jiného druhu
+        culture: (item) => isApplied(item) && !isAppliedPerson(item) ? [] : undefined,
+        questionTitle: (item) => (isApplied(item) && (isAppliedPerson(item) ? 'Kdo to je?' : APPLIED_QUESTIONS[item.ty])) || null,
 
         // U díla občas „Kdo to namaloval?“ (jen u jistého autora z dat) nebo „Ke kterému směru patří?“ (jen u jasného směru)
         specialQuestion: (item, ctx, rng) => {
@@ -300,12 +380,21 @@
             return null;
         },
         // Obraz či socha je vidět hned v otázce – bez něj by otázka nedávala smysl
-        questionImage: (item) => isWork(item) && item.im && item.ih
-            ? { file: item.im, hash: item.ih, label: item.c === 'sochy' ? 'Socha' : 'Obraz', icon: item.c === 'sochy' ? 'person-standing' : 'frame' } : null,
+        // U užitého umění kus nábytku, šperk, koruna či vzorník písma (bez obrázku s napsanou odpovědí, data/photo-text.json)
+        questionImage: (item, ctx) => {
+            if (isWork(item) && item.im && item.ih) return { file: item.im, hash: item.ih, label: item.c === 'sochy' ? 'Socha' : 'Obraz', icon: item.c === 'sochy' ? 'person-standing' : 'frame' };
+            if (!isApplied(item) || !SHOWN_KINDS.has(item.ty) || !item.im || !item.ih || (ctx && ctx.textPhotos && ctx.textPhotos.has(item.im))) return null;
+            const category = CATEGORIES.find(entry => entry.key === item.c);
+            return { file: item.im, hash: item.ih, label: item.c === 'pisma' ? 'Ukázka písma' : item.ty.charAt(0).toUpperCase() + item.ty.slice(1), icon: category.icon };
+        },
         // Nápovědy u autora: kdy a kde dílo vzniklo → odkud autor byl a kdy žil → jeho další díla;
         // u směru: technika a sbírka → časová osa bez událostí, které by směr pojmenovaly → autor
         hints: (item, ctx, type) => {
             const f = item.f || {};
+            // Věc užitého umění: fotka, osa, fakta a nakonec tvar názvu (pojem či druh písma bez fotky a údajů tak bez nápovědy nezůstane)
+            if (type === 'name' && isApplied(item) && !isAppliedPerson(item)) {
+                return [{ kind: 'photo' }, { kind: 'visual', spec: timelineOf(item, 'name') }, { kind: 'facts', facts: factsOf(item, 'name') }, nameShapeHint(item)];
+            }
             if (type === 'author') {
                 const author = authorOf(item, ctx) || { f: {} };
                 const a = author.f || {};
@@ -352,6 +441,7 @@
             const f = item.f || {};
             if (isWork(item)) return [f.by, yearText(f)].filter(Boolean).join(' · ') || (CATEGORIES.find(c => c.key === item.c) || {}).one;
             if (item.c === 'smery') return [f.land, f.from !== undefined ? (f.to !== undefined ? `${formatYear(f.from)}–${formatYear(f.to)}` : `od ${formatYear(f.from)}`) : null].filter(Boolean).join(' · ') || item.ty;
+            if (isApplied(item) && !isAppliedPerson(item)) return [item.ty, f.year !== undefined ? formatYear(f.year) : null, f.land].filter(Boolean).join(' · ');
             return [life(f), f.land].filter(Boolean).join(' · ') || item.ty || 'umělec';
         },
         isCzech: (item) => item.cz === 1

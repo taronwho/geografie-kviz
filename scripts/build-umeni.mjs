@@ -1,11 +1,28 @@
 // Téma Výtvarné umění: data/umeni.json z Wikidat – obrazy, sochy, malíři a sochaři
 // Spuštění: npm run build:umeni (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování).
 // Dosud známé položky z data/umeni.json se nestanou expertními.
+// Rozšíření o užité umění (scripts/lib/umeni-rozsireni.mjs: Móda a návrháři, Design a nábytek, Šperky a klenoty, Písma a typografie)
+// se přidá na konci; jen rozšíření nad hotovým data/umeni.json (ostatní položky se nestahují ani nemění):
+// UMENI_ONLY=rozsireni node scripts/build-umeni.mjs
 import { readFileSync, existsSync } from 'node:fs';
 import { sparql, qlever, id, values, imageFields, yearOf, compact, cached, inBatches, writeTopic } from './lib/wikidata.mjs';
 import { repsQuery, repOfRow, pickReps, architectIds, czechWorkName } from './lib/umeni-rules.mjs';
 import { assignLevels, levelSummary, fameOf, fameQuantiles, czechPageviewsBatch } from './lib/umeni-levels.mjs';
 import { cachedByKey } from './lib/zemepis-levels.mjs';
+import { buildExtra, mergeExtra, extraSummary, isExtraItem } from './lib/umeni-rozsireni.mjs';
+
+// Rozšíření o užité umění: nové položky a okruhy nad položkami tématu; pak zápis data/umeni.json
+async function writeWithExtra({ collections, items }) {
+    const extra = await buildExtra({ existing: items });
+    const merged = await mergeExtra({ collections, items }, extra);
+    console.log(`Rozšíření: nových ${extra.items.length}, povýšeno kvůli okruhům ${merged.promoted.length}`);
+    extraSummary(merged.items, extra.skipped);
+    writeTopic('umeni', { collections: merged.collections, items: merged.items });
+}
+if (process.env.UMENI_ONLY === 'rozsireni') {
+    await writeWithExtra(JSON.parse(readFileSync(new URL('../data/umeni.json', import.meta.url), 'utf8')));
+    process.exit(0);
+}
 
 const PAINTING = 'Q3305213';
 const HUMAN = 'Q5';
@@ -828,4 +845,5 @@ for (const item of items) {
     if (item.q === 'Q152072') item.d = 'bronzová socha močící postavy v Bruselu';
     if (item.n === 'Svatý Šebestián' && /Kubišt/u.test(item.f.by || '')) item.d = 'obraz Bohumila Kubišty z roku 1912';
 }
-writeTopic('umeni', { collections, items });
+// Položky rozšíření z vydaných dat (scripts/lib/umeni-rozsireni.mjs) se při celém sestavení sestaví znovu
+await writeWithExtra({ collections, items: items.filter(item => !isExtraItem(item)) });
