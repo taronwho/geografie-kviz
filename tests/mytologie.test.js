@@ -45,7 +45,7 @@ test('mytologie: známé položky, kategorie, česká stopa a okruhy', () => {
     assert.ok(inCollection('egyptsti-bohove').includes('Anubis'));
     assert.ok(inCollection('recti-hrdinove').includes('Héraklés') && inCollection('trojska-valka').includes('Hektór'));
     assert.ok(inCollection('recke-bytosti').includes('Pegas') && inCollection('slovanske-bytosti').includes('Vodník'));
-    assert.ok(data.collections.length >= 8 && data.collections.length <= 32);
+    assert.ok(data.collections.length >= 8 && data.collections.length <= 48);
     // Egyptští bohové pod známými jmény, Usir a Eset jako další psané odpovědi
     assert.ok(find('Osiris').al.includes('Usir') && find('Isis').al.includes('Eset'));
     // Šárka má na Wikipedii jen článek o jménu – v tématu není
@@ -219,8 +219,8 @@ test('mytologie: nové postavy, bytosti, místa a předměty a jejich okruhy', (
     assert.equal(hammer.type, 'myth');
     assert.equal(hammer.answerLabel, 'severská');
     assert.doesNotMatch(mytologie.censor('myth', 'Kladivo boha Thóra, které vyrobili trpaslíci v Ásgardu.', find('Mjölnir'), ctx), /Thór|Ásgard/);
-    // Známých je kolem 350
-    const known = data.items.filter(item => item.k === 1).length;
+    // Známých je kolem 350 (bez kategorií rozšíření: náboženství, světci, záhady – tests/mytologie-rozsireni.test.js)
+    const known = data.items.filter(item => item.k === 1 && !['nabozenstvi', 'svetci', 'zahady'].includes(item.c)).length;
     assert.ok(known >= 300 && known <= 400, `známých ${known}`);
 });
 

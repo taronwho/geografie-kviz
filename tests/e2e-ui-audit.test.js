@@ -411,9 +411,9 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
         });
     }
 
-    // Výběr kategorií témat s mnoha kategoriemi (Zeměpis, Historie, Sport a hry, Výtvarné umění, Geologie) a témat (Mix) na 360×640: tlačítko Hrát
+    // Výběr kategorií témat s mnoha kategoriemi (Zeměpis, Historie, Sport a hry, Výtvarné umění, Geologie, Mytologie) a témat (Mix) na 360×640: tlačítko Hrát
     // je v lepkavé patičce, vidět a nezakryté nahoře i uprostřed posunu
-    const CHOOSERS = [['zemepis', 'Zeměpis', 'light'], ['historie', 'Historie', 'dark'], ['sport', 'Sport a hry', 'dark'], ['umeni', 'Umění', 'dark'], ['geologie', 'Geologie', 'dark'], [null, 'Mix', 'dark']];
+    const CHOOSERS = [['zemepis', 'Zeměpis', 'light'], ['historie', 'Historie', 'dark'], ['sport', 'Sport a hry', 'dark'], ['umeni', 'Umění', 'dark'], ['geologie', 'Geologie', 'dark'], ['mytologie', 'Mytologie', 'dark'], [null, 'Mix', 'dark']];
     for (const [action, scheme, label] of CHOOSERS.map(([topic, label, scheme]) => [topic ? `[data-action="play-topic"][data-topic="${topic}"]` : '[data-action="play-mix"]', scheme, label])) {
         await t.test(`výběr ${label}: Hrát vždy vidět (${scheme})`, async () => {
             const { context, tab, problems } = await open(scheme);
@@ -421,6 +421,10 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
             await tab.click(action);
             await tab.waitForSelector('#play-chooser [data-chooser-play]');
             await check(tab, 'výběr kategorií', scheme);
+            if (action.includes('mytologie')) {
+                const text = await tab.textContent('#play-chooser');
+                for (const label of ['Náboženství', 'Světci a světice', 'Záhady a legendy']) assert.ok(text.includes(label), `výběr Mytologie: chybí ${label}`);
+            }
             for (const at of [0, 0.5, 1]) {
                 const state = await tab.evaluate((at) => {
                     const box = document.querySelector('#play-chooser > div');

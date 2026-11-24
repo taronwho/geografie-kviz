@@ -167,10 +167,14 @@
         return (String(day) >= POOL_FROM && tiers.slice(0, 5).find(tier => tier.length >= MIN_POOL)) || tiers.find(tier => tier.length) || [];
     };
     // Položka dne v tématu: nejmenší otisk (semínko dne + id), takže nová data změní výběr jen tam, kde nová položka vyhraje
+    // Kategorie rozšíření, které do tajemné otázky nepatří (nové položky by změnily už naplánované dny): Mytologie – náboženství,
+    // světci a záhady (24. 11. 2026)
+    const SKIP_CATEGORIES = { mytologie: new Set(['nabozenstvi', 'svetci', 'zahady']) };
     const pickItem = (day, topicId, items) => {
         let best = null;
         let bestHash = Infinity;
-        for (const item of candidatesOf(items, day)) {
+        const skip = SKIP_CATEGORIES[topicId];
+        for (const item of candidatesOf(skip ? (items || []).filter(item => !(item && skip.has(item.c))) : items, day)) {
             const value = hash32(`${seedFor(day)}|${topicId}|${item.q}`);
             if (value < bestHash || (value === bestHash && String(item.q) < String(best.q))) { best = item; bestHash = value; }
         }
