@@ -628,7 +628,7 @@ test('upozornění (push) v Nastavení', { skip: !chromium && 'Playwright není 
         await refused.context.close();
     });
 
-    await t.test('„Teď ne“: znovu nejdřív za 7 dní, celkem nejvýš 3×', async () => {
+    await t.test('„Teď ne“: znovu nejdřív za 7 dní, bez omezení počtu', async () => {
         const { context, tab, db } = await start({ storage: multi });
         await joinTournament(tab);
         await tab.waitForSelector('#push-offer');
@@ -650,11 +650,12 @@ test('upozornění (push) v Nastavení', { skip: !chromium && 'Playwright není 
         await tab.waitForSelector('#push-offer');
         assert.equal((await offerRecord(tab)).shown, 2);
         await tab.click('#push-offer [data-close]');
-        // potřetí ukázaná nabídka je poslední
-        await setOfferRecord(tab, { ...(await offerRecord(tab)), shown: 3, last: Date.now() - 30 * 86400000 });
+        // sem tam dál, i po mnoha odmítnutích (jen jednou za 7 dní)
+        await setOfferRecord(tab, { ...(await offerRecord(tab)), shown: 9, last: Date.now() - 8 * 86400000 });
         await reloadOut(tab, db);
         await joinTournament(tab);
-        await noOffer(tab);
+        await tab.waitForSelector('#push-offer');
+        assert.equal((await offerRecord(tab)).shown, 10);
         await context.close();
     });
 
