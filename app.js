@@ -1811,12 +1811,13 @@
     // --- Nabídka upozornění: hra se sama zeptá, jestli upozornění zapnout, a vysvětlí proč ---
     // Jen když to dává smysl: přihlášený hráč, prohlížeč push umí, je klíč VAPID, prohlížeč se ještě neptal (permission 'default') a upozornění nejsou zapnutá.
     // Kdy: hned po přihlášení do turnaje, po dohrání výzvy, na jejíhož soupeře se čeká (i po založení výzvy – založení ji rovnou spustí),
-    // jinak nejdřív při 3. otevření záložky Soupeři. „Teď ne“ (i zavření okna) = znovu nejdřív za 7 dní, celkem nejvýš 3×; po zapnutí nebo zamítnutí
+    // jinak nejdřív při 3. otevření záložky Soupeři a po večerní připomínce neodehraného zápasu. „Teď ne“ (i zavření okna) = znovu nejdřív za 7 dní,
+    // bez omezení počtu (sem tam připomenout těm, kdo je nemají); po zapnutí nebo zamítnutí
     // v prohlížeči už nikdy. Ne během tutoriálu, uprostřed otázky nebo zápasu, ani přes jiné otevřené okno (počká, až se zavře).
     // Na iPhonu bez přidání na plochu (push tam nejde) místo nabídky jednou krátká rada. Stav je v localStorage zvlášť pro každý účet (mudrlant.pushOffer).
     const PUSH_OFFER_KEY = 'mudrlant.pushOffer';
     const PUSH_OFFER_GAP = 7 * 86400000;
-    const PUSH_OFFER_MAX = 3;
+    const PUSH_OFFER_MAX = Infinity;
     const PUSH_OFFER_MULTI = 3;
     // Chvíli po události (hráč nejdřív uvidí výsledek a hlášku dole, ta zmizí po 2,5 s), ať okno nezakryje
     const PUSH_OFFER_DELAY = 3000;
@@ -13272,6 +13273,8 @@
         const items = notices.map(notice => ({ notice, info: Tournament.noticeText(notice) })).filter(item => item.info);
         Social.tournamentNoticesSeen(notices.map(notice => notice.id)).catch(() => {});
         if (!items.length) return;
+        // Večerní připomínka neodehraného zápasu: kdo nemá zapnutá upozornění, dostane po zavření okna nabídku (nejvýš jednou za 7 dní)
+        if (items.some(({ notice }) => notice.kind === 'unplayed')) schedulePushOffer('tournament');
         const shareViews = new Map();
         showDialog('Turnaj', `
             <div id="tournament-notices" class="flex flex-col gap-3">
