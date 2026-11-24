@@ -7,7 +7,7 @@ vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence
 
 ## Souhrn
 
-- souborů celkem: **35335**, s načtenými metadaty: **35335**, zatím nestaženo: **0**
+- souborů celkem: **35622**, s načtenými metadaty: **35622**, zatím nestaženo: **0**
 - problémových: **2**
   - bez uvedené licence: 1
   - soubor na Commons neexistuje: 1
@@ -25,7 +25,7 @@ vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence
 | historie | 4028 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | hudba | 2016 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | jidlo | 833 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| literatura | 2172 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| literatura | 2459 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | mytologie | 977 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | sport | 2127 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | technika | 1639 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |

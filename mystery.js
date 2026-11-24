@@ -371,7 +371,7 @@
         architektura: { cats: ['stavby', 'hrady', 'mosty', 'mrakodrapy'], keys: ['y'], kind: 'made' },
         historie: { cats: ['bitva', 'udalosti', 'rise'], keys: ['year', 'from'], ends: ['end', 'to'], kind: 'event' },
         hudba: { cats: ['kapely', 'opery', 'dila'], keys: ['year', 'from'], kind: 'made' },
-        literatura: { cats: ['dila'], keys: ['year'], kind: 'made' },
+        literatura: { cats: ['dila', 'hry'], keys: ['year'], kind: 'made' },
         umeni: { cats: ['sochy', 'obrazy'], keys: ['year'], kind: 'made' },
         film: { cats: ['filmy', 'animovane', 'serialy', 'porady', 'vecernicky', 'komiksy'], keys: ['year'], ends: ['end'], kind: 'made' },
         sport: { cats: ['olympiady', 'kluby', 'sportoviste', 'souteze', 'sporty'], keys: ['year', 'opened', 'from'], kind: 'made', events: ['olympiady'] },

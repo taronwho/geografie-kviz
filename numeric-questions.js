@@ -170,6 +170,8 @@
         // Literatura
         dated('literatura', 'dila', 'year', 'Seřaď od nejstaršího', 'Díla podle roku vzniku', detailOf('by'), { title: 'V jakém roce toto dílo vzniklo?', when: (item) => item.f.year >= 1000 }),
         born('literatura', 'spisovatele', 'Spisovatelé a básníci'),
+        dated('literatura', 'hry', 'year', 'Seřaď od nejstarší', 'Divadelní hry podle roku vzniku', detailOf('by'), { title: 'V jakém roce tato hra vznikla?', when: (item) => item.f.year >= 1500 }),
+        born('literatura', 'filozofove', 'Filozofové'),
         // Sport
         dated('sport', 'kluby', 'from', 'Seřaď od nejstaršího', 'Kluby podle roku založení', detailOf('sport', 'city'), { title: 'V jakém roce byl tento klub založen?' }),
         { id: 'sport-sportoviste-kapacita', topic: 'sport', category: 'sportoviste', key: 'capacity', unit: 'seats', gap: ratio(1.3), filter: has(['stadion', 'aréna']), detail: detailOf('city', 'loc'),
