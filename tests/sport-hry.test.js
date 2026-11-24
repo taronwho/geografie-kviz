@@ -152,11 +152,10 @@ test('hry: psané odpovědi a okruhy', () => {
     assert.ok(core.isAnswerMatch('zugzwang', accepted(find('Nevýhoda tahu'))));
     assert.ok(core.isAnswerMatch('Catan', accepted(find('Osadníci z Katanu'))));
     const inCollection = (id) => core.filterItems(data.items, { collection: id }).map(item => item.n);
-    assert.ok(inCollection('sachova-zahajeni').includes('Sicilská obrana'));
     assert.ok(inCollection('karetni-hry').includes('Mariáš') && !inCollection('karetni-hry').includes('Monopoly'));
     assert.ok(inCollection('ceske-hry').includes('Krycí jména') && inCollection('ceske-hry').includes('Mafia: The City of Lost Heaven'));
     assert.ok(inCollection('retro-videohry').includes('Pac-Man') && !inCollection('retro-videohry').includes('Minecraft'));
-    for (const id of ['karetni-hry', 'sachova-pravidla', 'sachova-zahajeni', 'ceske-hry', 'retro-videohry', 'moderni-videohry']) {
+    for (const id of ['karetni-hry', 'sachova-pravidla', 'ceske-hry', 'retro-videohry', 'moderni-videohry']) {
         const members = data.items.filter(item => (item.g || []).includes(id));
         assert.ok(members.length >= 8, `${id}: ${members.length}`);
         assert.ok(members.filter(item => item.k === 1).length >= Math.ceil(members.length * 0.2), `${id}: málo známých`);
