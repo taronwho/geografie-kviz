@@ -255,7 +255,7 @@
     // Témata diplomů legendárních postaviček (název pro „Diplom: Zeměpis“; app.js a rewards.js mají vlastní seznam témat)
     const DIPLOMA_TOPICS = {
         zemepis: 'Zeměpis', vlajky: 'Vlajky a znaky', historie: 'Historie', mytologie: 'Mytologie', biologie: 'Biologie', geologie: 'Geologie', chemie: 'Chemie',
-        fyzika: 'Fyzika', umeni: 'Výtvarné umění', architektura: 'Architektura', hudba: 'Hudba', literatura: 'Literatura', film: 'Film', sport: 'Sport',
+        fyzika: 'Fyzika', umeni: 'Výtvarné umění', architektura: 'Architektura', hudba: 'Hudba', literatura: 'Literatura', film: 'Film', sport: 'Sport a hry',
         technika: 'Technika a vynálezy',
         jidlo: 'Jídlo a pití'
     };

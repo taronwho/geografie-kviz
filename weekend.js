@@ -25,7 +25,7 @@
     const GENITIVE = {
         zemepis: 'zeměpisu', vlajky: 'vlajek a znaků', historie: 'historie', mytologie: 'mytologie', biologie: 'biologie', geologie: 'geologie',
         chemie: 'chemie', fyzika: 'fyziky', umeni: 'výtvarného umění', architektura: 'architektury', hudba: 'hudby', literatura: 'literatury',
-        film: 'filmu', sport: 'sportu', technika: 'techniky a vynálezů', jidlo: 'jídla a pití'
+        film: 'filmu', sport: 'sportu a her', technika: 'techniky a vynálezů', jidlo: 'jídla a pití'
     };
     const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
     const dayMs = (day) => { const m = DAY.exec(String(day || '')); return m ? Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : NaN; };

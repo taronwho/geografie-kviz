@@ -1,6 +1,6 @@
 # Mudrlant
 
-Kvízová aplikace s tématy **Zeměpis**, **Historie**, **Biologie**, **Chemie**, **Fyzika**, **Geologie**, **Vlajky a znaky**, **Mytologie**, **Výtvarné umění**, **Architektura**, **Hudba**, **Literatura**, **Film**, **Sport** a **Technika a vynálezy, **Sport** a **Jídlo a pití**. Všechna témata fungují stejně.
+Kvízová aplikace s tématy **Zeměpis**, **Historie**, **Biologie**, **Chemie**, **Fyzika**, **Geologie**, **Vlajky a znaky**, **Mytologie**, **Výtvarné umění**, **Architektura**, **Hudba**, **Literatura**, **Film**, **Sport a hry**, **Technika a vynálezy** a **Jídlo a pití**. Všechna témata fungují stejně.
 
 **Navigace** – hlavní obrazovky jsou záložky spodní lišty a žádná se neposouvá (podrobnosti se otevírají o klepnutí hlouběji):
 **Dnes** (dnešní výzvy Kvíz dne, Řetězovka, Tajemná otázka a Boss týdne, karta Dnešní otázky s výběrem tématu, truhla a příležitostné pruhy),
@@ -62,7 +62,7 @@ Základní otázka je „Co je to?“ podle kategorie (Který prvek to je?, Kdo 
 | Hudba | Kdo to složil? Do kterého hudebního období patří? U oper a muzikálů i Ve kterém století měla premiéru? |
 | Literatura | Kdo to napsal? Kdo tuto postavu vymyslel? Ve kterém století žil či dílo vzniklo? |
 | Film | Kdo film režíroval? Ve kterém desetiletí měl premiéru? U animovaných filmů Které studio film natočilo?, u seriálů Kdo seriál vytvořil (napsal scénář)? a Ve kterém desetiletí se začal vysílat?, u večerníčků Kdo večerníček vytvořil (napsal předlohu)?, u televizních pořadů Kdo pořad moderoval?, u komiksů a anime Kdo postavu vytvořil? a Ve kterém desetiletí se postava poprvé objevila? |
-| Sport | Ve kterém sportu se proslavil(a)? Kde se konaly olympijské hry? Které hry to jsou? Co je to za sport (podle fotky)? Který klub, stadion, okruh nebo soutěž to je (podle země, mapy, kapacity a fotky)? |
+| Sport a hry | Ve kterém sportu se proslavil(a)? Kde se konaly olympijské hry? Které hry to jsou? Co je to za sport (podle fotky)? Který klub, stadion, okruh nebo soutěž to je (podle země, mapy, kapacity a fotky)? Hry: Která desková (karetní) hra to je? Kdo hru vymyslel? Která šachová figura, které zahájení, soutěž nebo partie to je (podle tahů, hodnoty, vítězů a hráčů)? Která videohra to je? Které studio hru vyvinulo? |
 | Technika a vynálezy | Auto, vlak, letadlo, loď, přístroj či stroj jsou vidět hned (fotka): Co je to za auto (vlak, letadlo…)? Kdo to vyrobil (vyvinul)? Ve kterém desetiletí poprvé vzlétlo (přišlo na trh)? U firem a automobilek Ze které země pochází? a Ve kterém desetiletí byla založena? Dále vynálezci a průkopníci, internet a software, elektrárny, letiště, metra a kosmodromy (slepá mapa) |
 | Jídlo a pití | Ze které země pochází tento pokrm (sýr, nápoj, kuchař)? (pokrmy, pečivo a sladkosti, sýry, ovoce a ořechy, zelenina a luštěniny, koření a bylinky, káva, čaj a nealko, víno, pivo a destiláty, kuchaři a gastronomové; u rostlin čeleď a vědecký název v nápovědách) |
 

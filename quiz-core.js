@@ -2984,7 +2984,7 @@
         ['chemie', 'Chemie', ['Laborant', 'Chemik', 'Alchymista', 'Profesor chemie', 'Pán prvků']], ['fyzika', 'Fyzika', ['Experimentátor', 'Fyzik', 'Pán energie', 'Astrofyzik', 'Pán vesmíru']],
         ['umeni', 'Výtvarné umění', ['Divák galerie', 'Znalec umění', 'Mecenáš', 'Kurátor', 'Pán galerií']], ['architektura', 'Architektura', ['Stavitel', 'Architekt', 'Pán katedrál', 'Urbanista', 'Pán měst']],
         ['hudba', 'Hudba', ['Posluchač', 'Hudebník', 'Mistr tónů', 'Skladatel', 'Pán symfonií']], ['literatura', 'Literatura', ['Čtenář', 'Knihomol', 'Literát', 'Redaktor', 'Pán knihovny']],
-        ['film', 'Film', ['Divák', 'Filmař', 'Režisér', 'Producent', 'Pán Hollywoodu']], ['sport', 'Sport', ['Fanoušek', 'Sportovec', 'Šampion sportu', 'Trenér', 'Pán stadionů']],
+        ['film', 'Film', ['Divák', 'Filmař', 'Režisér', 'Producent', 'Pán Hollywoodu']], ['sport', 'Sport a hry', ['Fanoušek', 'Sportovec', 'Šampion sportu', 'Trenér', 'Pán stadionů']],
         ['technika', 'Technika a vynálezy', ['Šikula', 'Technik', 'Konstruktér', 'Inženýr', 'Pán strojů']],
         ['jidlo', 'Jídlo a pití', ['Ochutnávač', 'Labužník', 'Gurmán', 'Sommelier', 'Pán kuchyně']]
     ];
