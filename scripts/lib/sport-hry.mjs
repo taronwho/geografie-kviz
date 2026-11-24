@@ -238,7 +238,6 @@ const LEVELS = {
 export const HRY_COLLECTIONS = [
     { id: 'karetni-hry', label: 'Karetní hry', text: 'Mariáš, poker, prší a další hry s kartami', sort: { by: 'name' } },
     { id: 'sachova-pravidla', label: 'Šachové figury a pravidla', text: 'Figury, tahy, maty a pojmy', sort: { by: 'name' } },
-    { id: 'sachova-zahajeni', label: 'Šachová zahájení', sort: { by: 'name' } },
     { id: 'ceske-hry', label: 'České hry', text: 'Videohry a deskové hry z Česka', sort: { by: 'year' } },
     { id: 'retro-videohry', label: 'Klasické videohry', text: 'Videohry ze 70. až 90. let', sort: { by: 'year' } },
     { id: 'moderni-videohry', label: 'Videohry 21. století', sort: { by: 'year' } }
@@ -247,7 +246,7 @@ const groupsOf = (item) => {
     const groups = [];
     if (item.c === 'deskove' && /karetní/u.test(item.ty)) groups.push('karetni-hry');
     if (item.c === 'sachy' && ['figura', 'pravidlo', 'mat', 'motiv'].includes(item.ty)) groups.push('sachova-pravidla');
-    if (item.c === 'sachy' && item.ty === 'zahájení') groups.push('sachova-zahajeni');
+    // Zahájení bez vlastního okruhu: jinak by spodní hranice známých v okruhu vynutila Základní i u Caro-Kann a spol.
     if (item.cz && (item.c === 'deskove' || item.c === 'videohry')) groups.push('ceske-hry');
     if (item.c === 'videohry' && item.f.year < 2000) groups.push('retro-videohry');
     if (item.c === 'videohry' && item.f.year >= 2000) groups.push('moderni-videohry');
