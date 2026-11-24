@@ -51,7 +51,7 @@ Základní otázka je „Co je to?“ podle kategorie (Který prvek to je?, Kdo 
 | Fyzika | Jaká je jednotka SI této veličiny? Jakou značku má tato jednotka? Co měří tato jednotka? Který zákon, jev či částice to je? Co je to za těleso, sondu nebo přístroj? (veličiny, jednotky, zákony a jevy, částice, vesmír, mise, fyzici a astronomové) |
 | Vlajky a znaky | Vlajka či znak jsou vidět hned: Čí je to vlajka? Čí je to znak? (státy, české kraje a města, organizace) |
 | Chemie | Jakou značku má tento prvek? Jaký vzorec má tato látka? Jaká reakce, pojem či metoda to je? (prvky, látky, reakce a procesy, pojmy a metody, chemici s Nobelovou cenou – rok a za co, materiály a suroviny) |
-| Fyzika | Jaká je jednotka SI této veličiny? Jakou značku má tato jednotka? Co měří tato jednotka? U vynálezů Kdo to vynalezl? a Ve kterém století (od roku 1900 desetiletí) to bylo vynalezeno? |
+| Fyzika | Jaká je jednotka SI této veličiny? Jakou značku má tato jednotka? Co měří tato jednotka? U vynálezů Kdo to vynalezl? a Ve kterém století (od roku 1900 desetiletí) to bylo vynalezeno? Astronomické jevy a pojmy podle druhu (Který meteorický roj to je?, Jaký druh vesmírného tělesa to je?, Který útvar to je?). U raket a kosmických lodí Ze které země je? a Ve kterém desetiletí poprvé letěla? |
 | Vlajky a znaky | Vlajka či znak jsou vidět hned: Čí je to vlajka? Čí je to znak? (státy, české kraje, města a obce, regiony států, velká města světa, zaniklé státy, území a organizace) |
 | Mytologie | Jak se jmenuje v římské/řecké mytologii? Ze které mytologie je? |
 | Geologie | Nerost či hornina jsou vidět hned: Jakou má tvrdost podle Mohse? Jaký má vzorec? Do které skupiny hornin patří? Které je to období? |
@@ -310,7 +310,7 @@ npm run build:zemepis    # data/zemepis.json (-- --doplnit: jen památky UNESCO,
 npm run build:historie   # data/historie.json
 npm run build:biologie   # data/biologie.json (node scripts/build-biologie.mjs --zdravi obnoví jen nemoci, lékařství, lékaře a psychologii)
 npm run build:chemie     # data/chemie.json
-npm run build:fyzika     # data/fyzika.json
+npm run build:fyzika     # data/fyzika.json (FYZIKA_ONLY=vesmir přidá jen rozšíření o astronomii a kosmonautiku nad hotová data, lib/fyzika-vesmir.mjs)
 npm run build:technika   # data/technika.json (ruční seznamy a třídy Wikidat, lib/technika-sources.mjs; bez položek jiných témat)
 npm run build:vynalezy   # data/vynalezy.json (slavné objevy a vynálezy, roky ověřené proti Wikidatům)
 npm run build:souvislosti # data/souvislosti.json (Časové souvislosti; po datech témat a build:vynalezy; známost podle návštěvnosti české Wikipedie)

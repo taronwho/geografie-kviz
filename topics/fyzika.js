@@ -1,4 +1,5 @@
-// Téma Fyzika: fyzikální veličiny, jednotky, zákony a jevy, částice, vesmír, kosmické mise a přístroje, vynálezy, fyzici a astronomové (data/fyzika.json)
+// Téma Fyzika: fyzikální veličiny, jednotky, zákony a jevy, částice, vesmír, kosmické mise a přístroje, vynálezy, fyzici a astronomové,
+// astronomické jevy a pojmy, rakety a kosmické lodě (data/fyzika.json)
 (function (root, factory) {
     const isNode = typeof module === 'object' && module.exports;
     const topic = factory(isNode ? require('../quiz-core.js') : root.MudrlantCore);
@@ -18,10 +19,13 @@
         { key: 'pojmy', label: 'Zákony a jevy', one: 'pojem', icon: 'scale', question: 'Který zákon, jev nebo pojem to je?', placeholder: 'Napiš název…', sort: { by: 'name' } },
         { key: 'castice', label: 'Částice', one: 'částice', icon: 'atom', question: 'Která částice to je?', placeholder: 'Napiš název částice…', sort: { by: 'name' } },
         { key: 'vesmir', label: 'Vesmír', one: 'vesmírné těleso', icon: 'orbit', question: 'Co je to za těleso?', placeholder: 'Napiš název…', sort: { by: 'name' } },
-        { key: 'mise', label: 'Mise a přístroje', one: 'sonda či přístroj', icon: 'rocket', question: 'Co je to za sondu nebo přístroj?', placeholder: 'Napiš název…', sort: { by: 'name' } },
+        { key: 'mise', label: 'Mise a přístroje', one: 'sonda či přístroj', icon: 'satellite', question: 'Co je to za sondu nebo přístroj?', placeholder: 'Napiš název…', sort: { by: 'name' } },
         { key: 'vynalezy', label: 'Vynálezy a vynálezci', one: 'vynález', icon: 'lightbulb', question: 'Co je to za vynález?', placeholder: 'Napiš název vynálezu…', sort: { by: 'year' } },
         { key: 'fyzici', label: 'Fyzici', one: 'fyzik', icon: 'user', question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } },
-        { key: 'astronomove', label: 'Astronomové a kosmonauti', one: 'astronom', icon: 'telescope', question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } }
+        { key: 'astronomove', label: 'Astronomové a kosmonauti', one: 'astronom', icon: 'telescope', question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } },
+        // Rozšíření o astronomii a kosmonautiku (scripts/lib/fyzika-vesmir.mjs)
+        { key: 'astronomie', label: 'Astronomické jevy a pojmy', one: 'astronomický pojem', icon: 'moon-star', question: 'Který astronomický jev nebo pojem to je?', placeholder: 'Napiš název…', sort: { by: 'name' } },
+        { key: 'rakety', label: 'Rakety a kosmické lodě', one: 'raketa či loď', icon: 'rocket', question: 'Co je to za raketu nebo loď?', placeholder: 'Napiš název…', sort: { by: 'year' } }
     ];
 
     // Jak často se u veličiny ptáme na jednotku a u jednotky na značku nebo na to, co měří
@@ -71,6 +75,19 @@
         // Skupina u třídy částic (Fermion – „lepton“) nedává smysl
         if (item.c === 'castice') return PARTICLE_CLASSES[item.n] ? [] : formatFacts(item, [['group', 'Skupina', v => v]]);
         if (item.c === 'mise') return formatFacts(item, [['year', 'Rok', formatYear], ['op', 'Provozovatel', v => v]]);
+        // Meteorický roj: radiant, který jméno prozradí (Perseidy – Perseus), až po odpovědi
+        if (item.c === 'astronomie') {
+            return formatFacts(item, [['on', 'Kde', v => v], ['max', 'Maximum', v => v], ['rad', 'Radiant v souhvězdí', v => v], ['from', 'Mateřské těleso', v => v]])
+                .filter(fact => fact.label !== 'Radiant v souhvězdí' || ['result', 'card'].includes(mode) || !sharesStem(item.n, f.rad));
+        }
+        // Raketa a loď: u otázky na zemi bez země a výrobce (SpaceX, NASA prozradí USA), u otázky na desetiletí bez roku
+        if (item.c === 'rakety') {
+            return formatFacts(item, [
+                ...(mode === 'land' ? [] : [['land', 'Země', landLabel]]),
+                ...(mode === 'decade' ? [] : [['year', 'První let', formatYear]]),
+                ...(mode === 'land' || (sharesStem(item.n, f.by) && !['result', 'card'].includes(mode)) ? [] : [['by', 'Výrobce', v => v]])
+            ]);
+        }
         if (item.c === 'vynalezy') {
             return formatFacts(item, [
                 ...(mode === 'inventor' ? [] : [['by', 'Vynálezce', v => v]]),
@@ -328,6 +345,86 @@
         // Otázka na název: fotka, rok a země, osa a nakonec vynálezce
         return [{ kind: 'photo' }, { kind: 'facts', facts: rest }, { kind: 'visual', spec: visualOf(item, type) }, { kind: 'facts', label: 'vynálezce', icon: 'user', facts: by }];
     };
+    // --- Rakety a kosmické lodě: země a desetiletí prvního letu ---
+    const LAND_QUIZ_SHARE = 0.25;
+    const FLIGHT_TIME_SHARE = 0.2;
+    // Země v datech a v otázce; Evropa (ESA) se nenabízí vedle evropských zemí (Ariane je i francouzská)
+    const LANDS = {
+        'USA': { label: 'Spojené státy', aliases: ['USA', 'Spojené státy americké', 'Amerika'] },
+        'SSSR a Rusko': { label: 'SSSR a Rusko', aliases: ['SSSR', 'Rusko', 'Sovětský svaz'] },
+        'Evropa': { label: 'Evropa (ESA)', aliases: ['Evropa', 'ESA'] },
+        'Čína': { label: 'Čína', aliases: [] }, 'Japonsko': { label: 'Japonsko', aliases: [] }, 'Indie': { label: 'Indie', aliases: [] },
+        'Izrael': { label: 'Izrael', aliases: [] }, 'Írán': { label: 'Írán', aliases: [] },
+        'Velká Británie': { label: 'Velká Británie', aliases: ['Spojené království', 'Británie'] },
+        'Francie': { label: 'Francie', aliases: [] }, 'Německo': { label: 'Německo', aliases: [] }
+    };
+    const EUROPEAN = new Set(['Evropa', 'Velká Británie', 'Francie', 'Německo']);
+    const landLabel = (land) => (LANDS[land] || { label: land }).label;
+    // Dvě verze téže řady nebo stejné jméno rakety a lodi (Ariane 4 – Ariane 6, Sojuz (nosná raketa) – Sojuz (kosmická loď))
+    const seriesWord = (name) => normalizeAnswer(stripBrackets(name)).split(' ')[0];
+    const sameSeries = (a, b) => seriesWord(a.n) === seriesWord(b.n) || core.levenshtein(normalizeAnswer(a.n), normalizeAnswer(b.n)) <= 1;
+    // Mise téže řady s číslem (Apollo 1 – Apollo 13, Luna 1 – Luna 3) se liší jen číslem: jedna druhé nesprávnou možností nebude
+    const numberedSeries = (a, b) => /\d$/.test(a.n) && /\d$/.test(b.n) && sameSeries(a, b);
+    // Poslední nápověda u astronomického pojmu: počet slov a první písmeno názvu (pojem bez fotky a faktů tak bez nápovědy nezůstane)
+    const nameShapeHint = (item) => {
+        const words = stripBrackets(item.n).trim().split(/\s+/).length;
+        return { kind: 'facts', label: 'tvar názvu', icon: 'type', facts: [{ label: 'Název', value: `${words} ${words === 1 ? 'slovo' : words < 5 ? 'slova' : 'slov'}, začíná na ${item.n.charAt(0).toUpperCase()}` }] };
+    };
+    // Jméno, které začíná stejně (aspoň tři písmena) jako souhvězdí radiantu (Perseidy – Perseus, Lyridy – Lyra)
+    const sharesStem = (name, other) => Boolean(other) && normalizeAnswer(other).split(' ').some(word => word.length >= 3 && normalizeAnswer(name).startsWith(word.slice(0, 3)));
+    // Slova, která zemi prozradí (americká, sovětská, NASA, SpaceX…)
+    const LAND_WORDS = /(?<![\p{L}])(?:americk|sovětsk|rusk|evropsk|čínsk|japonsk|indick|izraelsk|íránsk|britsk|francouzsk|německ|nacistick|SSSR|USA|NASA|ESA|JAXA|ISRO|CNSA|SpaceX|Roskosmos|Boeing|Blue Origin|United Launch Alliance|Lockheed|Arianespace|Spojen\p{L}* stát|Sovětsk\p{L}* svaz|Rusk\p{L}* federac|Čín|Indi|Japonsk|Evrop|Rusk|Franci|Británi|Izrael|Írán|Německ)\p{L}*/giu;
+    const hideLand = (text) => core.mergeCensored(text.replace(LAND_WORDS, '[***]'));
+    const landQuestion = (item, ctx, rng) => {
+        const f = item.f || {};
+        if (!LANDS[f.land] || !ctx.items) return null;
+        // Jiné země (z raket a lodí v datech), častější dřív; k evropské jen neevropské
+        const counts = new Map();
+        for (const other of ctx.items) if (other.c === 'rakety' && LANDS[other.f.land]) counts.set(other.f.land, (counts.get(other.f.land) || 0) + 1);
+        const candidates = [...counts.keys()].filter(land => land !== f.land && !(EUROPEAN.has(f.land) && EUROPEAN.has(land)));
+        const wrong = rankBySimilarity(candidates.map(land => ({ land })), entry => Math.min(counts.get(entry.land), 6), rng).slice(0, 3).map(entry => entry.land);
+        if (wrong.length < 3) return null;
+        const answer = LANDS[f.land];
+        return {
+            type: 'land',
+            title: `Ze které země je ${item.ty === 'raketa' ? 'tato raketa' : item.ty === 'raketoplán' ? 'tento raketoplán' : 'tato kosmická loď'}?`,
+            showName: true,
+            choices: shuffle([f.land, ...wrong], rng).map(land => ({ id: `zeme-${land}`, label: landLabel(land), correct: land === f.land })),
+            accepted: [answer.label, f.land, ...answer.aliases],
+            placeholder: 'Napiš zemi…',
+            answerLabel: answer.label
+        };
+    };
+    const flightDecadeQuestion = (item, rng) => {
+        const f = item.f || {};
+        if (f.year === undefined || f.year < 1940 || f.ns || /\d{3,4}/.test(item.n)) return null;
+        const decade = Math.floor(f.year / 10) * 10;
+        const last = Math.floor(new Date().getFullYear() / 10) * 10;
+        const wrong = [...shuffle([-10, 10], rng), ...shuffle([-20, 20], rng), ...shuffle([-30, 30], rng)].map(offset => decade + offset)
+            .filter(other => other >= 1940 && other <= last).slice(0, 3);
+        const subject = item.ty === 'raketa' ? 'tato raketa poprvé letěla' : item.ty === 'raketoplán' ? 'tento raketoplán poprvé letěl' : 'tato loď poprvé letěla';
+        return {
+            type: 'decade',
+            title: `Ve kterém desetiletí ${subject}?`,
+            showName: true,
+            choices: shuffle([decade, ...wrong], rng).map(other => ({ id: `desetileti-${other}`, label: decadeLabel(other), correct: other === decade })),
+            accepted: decadeAnswers(decade),
+            match: 'symbol',
+            placeholder: 'Napiš desetiletí, třeba 60. léta',
+            answerLabel: decadeLabel(decade)
+        };
+    };
+    // Nápovědy: u země fotka a doba prvního letu; u desetiletí země a výrobce a známé rakety a lodě z let kolem
+    const rocketHints = (item, ctx, type) => {
+        const f = item.f || {};
+        if (type === 'land') return [{ kind: 'photo' }, { kind: 'facts', label: 'první let', icon: 'calendar', facts: factsOf(item, 'land', ctx) }];
+        const around = ctx.items.filter(other => other.c === 'rakety' && other.q !== item.q && other.k === 1 && !/\d{3,4}/.test(other.n) && other.f.year !== undefined
+            && Math.abs(other.f.year - f.year) <= 4).sort((a, b) => Math.abs(a.f.year - f.year) - Math.abs(b.f.year - f.year)).slice(0, 3).map(other => other.n);
+        return [
+            { kind: 'facts', label: 'země a výrobce', icon: 'flag', facts: factsOf(item, 'decade', ctx) },
+            { kind: 'facts', label: 've stejné době', icon: 'calendar-range', facts: around.length ? [{ label: 'Ve stejné době', value: around.join(', ') }] : [] }
+        ];
+    };
     const ERA_WORDS = /(?<![\p{L}])(?:středověk|novověk|starověk|antick|renesan|barok|osvícen|průmyslov\p{L}* revoluc|(?:první|druh\p{L}*|1\.|2\.) světov\p{L}* válk)\p{L}*/giu;
     const hideYears = (text) => core.mergeCensored(stripBrackets(text).replace(/\s{2,}/g, ' ')
         .replace(/(?<![\p{L}\d])\d{1,4}(?:\.\s*(?:let\p{L}*|lét\p{L}*|století|stol\.))?(?!\d)/gu, '[***]').replace(ERA_WORDS, '[***]'));
@@ -340,11 +437,20 @@
     });
 
     // Otázka podle druhu (štítek nad otázkou ukazuje druh, otázka mu musí odpovídat): program letů není „sonda nebo přístroj“
+    const KIND_QUESTIONS = {
+        astronomie: {
+            'jev': 'Který astronomický jev to je?', 'meteorický roj': 'Který meteorický roj to je?', 'druh tělesa': 'Jaký druh vesmírného tělesa to je?',
+            'oblast vesmíru': 'Která oblast vesmíru to je?', 'útvar': 'Který útvar to je?', 'hvězdný obrazec': 'Který hvězdný obrazec to je?',
+            'pojem': 'Který astronomický pojem to je?'
+        },
+        rakety: { 'raketa': 'Která raketa to je?', 'kosmická loď': 'Která kosmická loď to je?', 'raketoplán': 'Který raketoplán to je?' }
+    };
     const MISSION_QUESTIONS = {
         'kosmická sonda': 'Co je to za sondu?', 'družice': 'Co je to za družici?', 'pilotovaný let': 'Co je to za let?',
         'kosmická stanice': 'Co je to za vesmírnou stanici?', 'kosmická loď': 'Co je to za kosmickou loď?', 'kosmický program': 'Co je to za vesmírný program?',
         'raketa': 'Co je to za raketu?', 'dalekohled': 'Co je to za dalekohled?', 'observatoř': 'Co je to za observatoř?',
-        'urychlovač částic': 'Co je to za urychlovač?', 'přístroj': 'Co je to za přístroj?'
+        'urychlovač částic': 'Co je to za urychlovač?', 'přístroj': 'Co je to za přístroj?', 'vozítko': 'Co je to za vozítko?',
+        'kosmický let': 'Co je to za let?', 'družicová síť': 'Co je to za družicový systém?', 'planetárium': 'Co je to za planetárium?'
     };
     return {
         id: 'fyzika',
@@ -360,7 +466,7 @@
             next: 'Další otázka',
             atlas: 'Atlas fyziky',
             placeholder: 'Napiš odpověď…',
-            tierKnown: 'Základní veličiny a jednotky, známé zákony, částice, tělesa, mise, vynálezy a vědci'
+            tierKnown: 'Základní veličiny a jednotky, známé zákony, částice, tělesa a jevy na obloze, mise a rakety, vynálezy a vědci'
         },
         categories: CATEGORIES,
         offSubjectPhoto,
@@ -370,7 +476,7 @@
         culture: (item) => item.c === 'vynalezy' ? [] : undefined,
         // Nesprávné možnosti: veličiny se stejnou jednotkou nebo z téhož oboru (energie – práce – teplo), jednotky téže
         // veličiny (metr – stopa – palec), tělesa téhož druhu kolem téhož tělesa (měsíce Jupiteru), fyzici stejného pohlaví a doby
-        questionTitle: (item) => (item.c === 'mise' && MISSION_QUESTIONS[item.ty]) || null,
+        questionTitle: (item) => (item.c === 'mise' && MISSION_QUESTIONS[item.ty]) || (KIND_QUESTIONS[item.c] && KIND_QUESTIONS[item.c][item.ty]) || null,
         similarity: (item, other, ctx) => {
             const f = item.f || {};
             const g = other.f || {};
@@ -381,16 +487,29 @@
             if (item.c === 'pojmy') return item.ty === other.ty ? 3 : 0;
             // Třída, do které částice patří (Elektron – Lepton, Fermion; Neutron – Nukleon, Baryon), by byla druhá správná odpověď
             if (item.c === 'castice') return particlesOverlap(item, other) ? -Infinity : f.group && f.group === g.group ? 3 : 0;
-            if (item.c === 'mise') return (item.ty === other.ty ? 3 : 0) + eraNearness(f.year, g.year);
+            if (item.c === 'mise') return numberedSeries(item, other) ? -Infinity : (item.ty === other.ty ? 3 : 0) + eraNearness(f.year, g.year)
+                - (item.cz === 1 && other.cz === 1 && item.ty !== other.ty ? 6 : 0);
+            // Astronomické pojmy podle druhu (útvary na témže tělese); rakety a lodě podle druhu, země a doby – ne dvě verze téže řady
+            // (Ariane 4 a Ariane 6, Sojuz raketa a loď), které by na fotce nešly rozlišit
+            if (item.c === 'astronomie') return (item.ty === other.ty ? 3 : 0) + (f.on && f.on === g.on ? 1 : 0);
+            if (item.c === 'rakety') return sameSeries(item, other) ? -Infinity
+                : (item.ty === other.ty ? 3 : -3) + (f.land === g.land ? 1 : 0) + eraNearness(f.year, g.year);
             // Vynálezy z podobné doby (k telefonu fonograf a žárovka), stejné země vynálezce
             if (item.c === 'vynalezy') return eraNearness(f.year, g.year) + Math.max(0, 3 - Math.abs(f.year - g.year) / 30) + (f.land === g.land ? 1 : 0) - (f.by === g.by ? 2 : 0);
             // Osoby: pohlaví a doba, k tomu stejná země (k Sacharovovi sovětští vědci, ne Descartes) a Čech k Čechům
             return personSimilarity(item, other) + (item.ty === other.ty ? 2 : 0) + (Boolean(f.nobel) === Boolean(g.nobel) ? 1 : 0)
+                - (item.c === 'astronomove' && /kosmonaut/.test(item.ty) !== /kosmonaut/.test(other.ty || '') ? 4 : 0)
                 + (f.land && f.land === g.land ? 3 : 0) + ((item.cz === 1) === (other.cz === 1) ? 0 : -3);
         },
 
         specialQuestion: (item, ctx, rng) => {
             const f = item.f || {};
+            if (item.c === 'rakety') {
+                const roll = rng();
+                if (roll < LAND_QUIZ_SHARE) return landQuestion(item, ctx, rng);
+                if (roll < LAND_QUIZ_SHARE + FLIGHT_TIME_SHARE) return flightDecadeQuestion(item, rng);
+                return null;
+            }
             if (item.c === 'vynalezy') {
                 const roll = rng();
                 if (roll < INVENTOR_QUIZ_SHARE) return inventorQuestion(item, ctx, rng);
@@ -468,6 +587,11 @@
         // Popis bez hledané jednotky, značky nebo veličiny (název položky u těchto otázek zůstane)
         censor: (type, text, item, ctx) => {
             const f = item.f || {};
+            if (item.c === 'rakety') {
+                if (type === 'land') return hideLand(stripBrackets(text).replace(/\s{2,}/g, ' '));
+                if (type === 'decade') return hideYears(text);
+                return null;
+            }
             if (item.c === 'vynalezy') {
                 if (type === 'inventor') return censorName(stripBrackets(text).replace(/\s{2,}/g, ' '), inventorAnswers(f.by, ctx).join(', '));
                 if (type === 'century' || type === 'decade') return hideYears(text);
@@ -492,7 +616,9 @@
             return null;
         },
 
-        hints: (item, ctx, type) => item.c === 'vynalezy' ? inventionHints(item, ctx, type) : hintsFor(item, ctx, type),
+        hints: (item, ctx, type) => item.c === 'vynalezy' ? inventionHints(item, ctx, type) : item.c === 'rakety' && ['land', 'decade'].includes(type)
+            ? rocketHints(item, ctx, type) : item.c === 'astronomie' && type === 'name'
+                ? [{ kind: 'photo' }, { kind: 'facts', facts: factsOf(item, type, ctx) }, nameShapeHint(item)] : hintsFor(item, ctx, type),
         visual: (item, ctx, mode) => visualOf(item, mode),
         facts: (item, ctx, mode) => factsOf(item, mode, ctx),
         subtitle: (item) => {
@@ -504,6 +630,8 @@
             if (item.c === 'castice') return f.group || 'částice';
             if (item.c === 'mise') return [item.ty, f.year !== undefined ? formatYear(f.year) : ''].filter(Boolean).join(' · ');
             if (item.c === 'vynalezy') return [f.by, f.year !== undefined ? formatYear(f.year) : ''].filter(Boolean).join(' · ');
+            if (item.c === 'astronomie') return [item.ty, f.on ? `na tělese ${f.on}` : ''].filter(Boolean).join(' · ');
+            if (item.c === 'rakety') return [item.ty, landLabel(f.land), f.year !== undefined ? formatYear(f.year) : ''].filter(Boolean).join(' · ');
             return [f.born !== undefined ? `${formatYear(f.born)}–${f.died !== undefined ? formatYear(f.died) : ''}` : '', f.land].filter(Boolean).join(' · ');
         },
         isCzech: (item) => item.cz === 1
