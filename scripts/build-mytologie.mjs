@@ -1,10 +1,27 @@
 // Téma Mytologie: data/mytologie.json z Wikidat – bohové a hrdinové řecké a římské, egyptské, severské a slovanské
 // mytologie, postavy Starých pověstí českých a bájné bytosti
 // Spuštění: npm run build:mytologie (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování)
+// Rozšíření o náboženství, světce a záhady (scripts/lib/mytologie-rozsireni.mjs) se přidá na konci; jen rozšíření nad hotovým
+// data/mytologie.json (ostatní položky se nestahují ani nemění): MYTOLOGIE_ONLY=rozsireni node scripts/build-mytologie.mjs
+import { readFileSync } from 'node:fs';
 import { qlever, sparql, id, values, imageFields, compact, cached, inBatches, writeTopic } from './lib/wikidata.mjs';
 import { cachedByKey } from './lib/zemepis-levels.mjs';
 import { topicPageviews, assignLevels, levelGroups, levelSummary } from './lib/fame-levels.mjs';
+import { buildExtra, mergeExtra, extraSummary, EXTRA_CATEGORIES } from './lib/mytologie-rozsireni.mjs';
 import { categoryMembers, FORCED_SOURCES, FORCED_EXCLUDE, FORCED_LISTS, FORCED_CREATURES, FORCED_OBJECTS, NAME_OVERRIDES } from './lib/mytologie-sources.mjs';
+
+// Rozšíření: nové položky a okruhy nad položkami tématu; pak zápis data/mytologie.json
+async function writeWithExtra({ collections, items }) {
+    const extra = await buildExtra({ existing: items });
+    const merged = await mergeExtra({ collections, items }, extra);
+    console.log(`Rozšíření: nových ${extra.items.length}, povýšeno kvůli okruhům ${merged.promoted.length}`);
+    extraSummary(merged.items, extra.skipped);
+    writeTopic('mytologie', { collections: merged.collections, items: merged.items });
+}
+if (process.env.MYTOLOGIE_ONLY === 'rozsireni') {
+    await writeWithExtra(JSON.parse(readFileSync(new URL('../data/mytologie.json', import.meta.url), 'utf8')));
+    process.exit(0);
+}
 
 // QLever, a když je přetížený, query.wikidata.org (WIKIDATA_ENDPOINT=wdqs rovnou query.wikidata.org)
 const run = process.env.WIKIDATA_ENDPOINT === 'wdqs' ? (query) => sparql(query) : (query) => qlever(query, 2).catch(() => sparql(query));
@@ -557,4 +574,6 @@ for (const category of ['recka', 'egyptska', 'severska', 'slovanska', 'bytosti',
 }
 for (const collection of collections) console.log(levelSummary(`okruh ${collection.id}`, unique.filter(item => (item.g || []).includes(collection.id))));
 console.log(levelSummary('celkem', unique));
-writeTopic('mytologie', { collections, items: unique });
+// Položky rozšíření z dřívějších dat (nové kategorie) se zachovají: rozšíření je sestaví znovu a ty, které nový běh nenajde, nechá
+const previous = (() => { try { return JSON.parse(readFileSync(new URL('../data/mytologie.json', import.meta.url), 'utf8')).items; } catch { return []; } })();
+await writeWithExtra({ collections, items: [...unique, ...previous.filter(item => EXTRA_CATEGORIES.includes(item.c))] });

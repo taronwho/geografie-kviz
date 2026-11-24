@@ -1,5 +1,5 @@
 // Téma Mytologie: bohové a hrdinové řecké a římské, egyptské, severské a slovanské mytologie, Staré pověsti české
-// a bájné bytosti (data/mytologie.json)
+// a bájné bytosti, náboženství, světci a světice, záhady a legendy (data/mytologie.json)
 (function (root, factory) {
     const isNode = typeof module === 'object' && module.exports;
     const topic = factory(isNode ? require('../quiz-core.js') : root.MudrlantCore);
@@ -22,8 +22,13 @@
         { key: 'orient', label: 'Mezopotámie a starověký Orient', one: 'postava', icon: 'landmark', ...PERSON },
         { key: 'amerika', label: 'Aztékové, Mayové a Inkové', one: 'postava', icon: 'triangle', ...PERSON },
         { key: 'bytosti', label: 'Bájné bytosti', one: 'bytost', icon: 'ghost', question: 'Co je to za bytost?', placeholder: 'Napiš název…', sort: { by: 'name' } },
-        { key: 'predmety', label: 'Bájná místa a předměty', one: 'místo či předmět', icon: 'compass', question: 'Co je to?', placeholder: 'Napiš název…', sort: { by: 'name' } }
+        { key: 'predmety', label: 'Bájná místa a předměty', one: 'místo či předmět', icon: 'compass', question: 'Co je to?', placeholder: 'Napiš název…', sort: { by: 'name' } },
+        // Rozšíření (scripts/lib/mytologie-rozsireni.mjs): náboženství, světci a záhady
+        { key: 'nabozenstvi', label: 'Náboženství', one: 'náboženský pojem', icon: 'sun-moon', question: 'Co je to?', placeholder: 'Napiš název…', sort: { by: 'name' } },
+        { key: 'svetci', label: 'Světci a světice', one: 'světec', icon: 'cross', question: 'Kdo je to?', placeholder: 'Napiš jméno…', sort: { by: 'name' } },
+        { key: 'zahady', label: 'Záhady a legendy', one: 'záhada', icon: 'search', question: 'Co je to?', placeholder: 'Napiš název…', sort: { by: 'name' } }
     ];
+    const EXTRA = new Set(['nabozenstvi', 'svetci', 'zahady']);
 
     // Mytologie pro otázku „Ze které mytologie je?“: popisek a přijímané psané odpovědi
     const MYTHS = {
@@ -239,6 +244,222 @@
         ];
     };
 
+    // --- Rozšíření: Náboženství, Světci a světice, Záhady a legendy ---
+    // Otázka podle druhu (štítek nad otázkou ukazuje druh, otázka mu musí odpovídat)
+    const KIND_QUESTIONS = {
+        nabozenstvi: {
+            'náboženství': 'Které náboženství to je?', 'směr': 'Který náboženský směr nebo církev to je?', 'řád': 'Který řád to je?',
+            'svátek': 'Který svátek to je?', 'období': 'Které období náboženského roku to je?', 'posvátný text': 'Která posvátná kniha to je?',
+            'symbol': 'Který náboženský symbol to je?', 'pojem': 'Který náboženský pojem to je?', 'duchovní': 'Který duchovní úřad či titul to je?'
+        },
+        svetci: {
+            'světec': 'Který světec je to?', 'světice': 'Která světice je to?', 'apoštol': 'Který apoštol je to?', 'evangelista': 'Který evangelista je to?',
+            'světci': 'Kteří světci to jsou?', 'blahoslavený': 'Kdo je to?'
+        },
+        zahady: {
+            'kryptid': 'Který tajemný tvor to je?', 'ztracená země': 'Která bájná země to je?', 'záhadné místo': 'Které záhadné místo to je?',
+            'záhadný jev': 'Který záhadný jev to je?', 'teorie': 'O jakou teorii jde?', 'záhadná událost': 'Která záhadná událost to je?',
+            'loď duchů': 'Která loď duchů to je?', 'záhadný předmět': 'Který záhadný předmět to je?', 'nerozluštěné písmo': 'Které nerozluštěné písmo to je?',
+            'legendární postava': 'Kdo je to?', 'záhadná osobnost': 'Kdo je to?', 'legendární bytost': 'Co je to za bytost?', 'tajná společnost': 'Která tajná společnost to je?'
+        }
+    };
+    // Fakt, který odpověď prozradí: slovo (aspoň čtyři písmena), které začíná stejně jako slovo jména (Luteránství – Martin Luther,
+    // Krysař z Hamelnu – Hameln, Kniha Mormonova – mormonismus)
+    const stem = (word) => normalizeAnswer(word).replace(/th/g, 't').slice(0, 4);
+    const wordsOf = (text) => normalizeAnswer(text).split(/[^\p{L}\d]+/u).filter(word => word.length >= 4);
+    const leaks = (item, value) => {
+        const own = new Set([item.n, ...(item.al || [])].flatMap(wordsOf).map(stem));
+        return wordsOf(String(value || '')).some(word => own.has(stem(word)));
+    };
+    const RELIGION_KEYS = ['krestanstvi', 'islam', 'judaismus', 'hinduismus', 'buddhismus', 'sikhismus', 'dzinismus', 'taoismus', 'zoroastrismus', 'sintoismus'];
+    const RELIGION_LABELS = { krestanstvi: 'křesťanství', islam: 'islám', judaismus: 'judaismus', hinduismus: 'hinduismus', buddhismus: 'buddhismus', sikhismus: 'sikhismus',
+        dzinismus: 'džinismus', taoismus: 'taoismus', zoroastrismus: 'zoroastrismus', sintoismus: 'šintoismus', mormonismus: 'mormonismus' };
+    const RELIGION_ACCEPTED = { krestanstvi: ['křesťanství', 'křesťané', 'křesťanské'], islam: ['islám', 'muslimové', 'islámské', 'muslimské'], judaismus: ['judaismus', 'židé', 'židovství', 'židovské'],
+        hinduismus: ['hinduismus', 'hinduisté', 'hinduistické'], buddhismus: ['buddhismus', 'buddhisté', 'buddhistické'], sikhismus: ['sikhismus', 'sikhové'], dzinismus: ['džinismus', 'džinisté'],
+        taoismus: ['taoismus', 'taoisté'], zoroastrismus: ['zoroastrismus', 'zarathuštrismus'], sintoismus: ['šintoismus', 'šintó'], mormonismus: ['mormonismus', 'mormoni'] };
+    // Hlavní náboženství jsou jako nesprávné možnosti častější
+    const MAIN_RELIGIONS = ['krestanstvi', 'islam', 'judaismus', 'hinduismus', 'buddhismus'];
+    // Slova, která v popisu prozradí náboženství (křesťanský svátek, muslimský, Ježíš, Korán, Buddha…)
+    const RELIGION_WORDS = /(?<![\p{L}\d])(?:křesťan|krist|ježíš|kristov|katol|protestant|evangel|pravoslav|ortodox|církev|církv|biblick|bibl|apoštol|papež|islám|muslim|mohamed|korán|mekk|arab|judais|žid|hebrej|izrael|tór|rabín|hindu|indick|indi[eií]|buddh|budd|sikh|džin|tao|zoroastr|zarathušt|šinto|japon|persk|čín)\p{L}*/giu;
+    const REGION_LABELS = { evropa: 'Evropa', asie: 'Asie', samerika: 'Severní Amerika', lamerika: 'Latinská Amerika', afrika: 'Afrika', australie: 'Austrálie', more: 'moře a oceány' };
+    const RELIGION_QUIZ_SHARE = 0.3;
+    const FOUNDER_QUIZ_SHARE = 0.2;
+    const FEAST_QUIZ_SHARE = 0.2;
+    const REGION_QUIZ_SHARE = 0.3;
+
+    // Zakladatel jako otázka jen u skutečných zakladatelů (ne „ústřední postava“, „vychází z učení“, „nemá jednoho zakladatele“)
+    const realFounder = (item) => f(item).by && !f(item).byl && !/^nemá/u.test(f(item).by);
+    const founderNames = (by) => [by, ...((/\(([^)]+)\)/u.exec(by) || [])[1] ? [/\(([^)]+)\)/u.exec(by)[1], by.replace(/\s*\(.*\)$/u, '')] : [])];
+    const lifeLabel = (item) => item.ty === 'světci' ? 'Žili' : item.sx === 'f' ? 'Žila' : 'Žil';
+    // Rok u záhad: kdy byl předmět nalezen, společnost založena, jinak kdy se záhada stala
+    const yearLabel = (item) => ['záhadný předmět', 'nerozluštěné písmo'].includes(item.ty) ? 'Nalezen' : item.ty === 'tajná společnost' ? 'Založena' : 'Kdy';
+    const extraFacts = (item, mode) => {
+        const a = f(item);
+        if (item.c === 'nabozenstvi') {
+            const label = a.byl || 'Zakladatel';
+            return [
+                a.rel && mode !== 'religion' && (mode !== 'name' || !leaks(item, a.rel)) ? { label: 'Náboženství', value: a.rel } : null,
+                a.by && mode !== 'founder' && (['result', 'card'].includes(mode) || !leaks(item, a.by)) ? { label, value: a.by } : null,
+                a.from ? { label: 'Vznik', value: a.from } : null,
+                a.land && (['result', 'card'].includes(mode) || !leaks(item, a.land)) ? { label: 'Kde vzniklo', value: a.land } : null,
+                a.when ? { label: item.ty === 'období' ? 'Kdy' : 'Kdy se slaví', value: a.when } : null
+            ].filter(Boolean);
+        }
+        if (item.c === 'svetci') {
+            return [
+                a.lived ? { label: lifeLabel(item), value: a.lived } : null,
+                a.fd && mode !== 'feast' ? { label: 'Svátek', value: a.fd } : null,
+                a.pat && a.pat.length && (['result', 'card'].includes(mode) || !leaks(item, a.pat.join(' '))) ? { label: 'Patron', value: list(a.pat) } : null,
+                a.sym && a.sym.length && (['result', 'card'].includes(mode) || !leaks(item, a.sym.join(' '))) ? { label: 'Atributy', value: list(a.sym) } : null
+            ].filter(Boolean);
+        }
+        return [
+            a.where && mode !== 'region' && (['result', 'card'].includes(mode) || !leaks(item, a.where)) ? { label: 'Kde', value: a.where } : null,
+            a.year !== undefined ? { label: yearLabel(item), value: String(a.year) } : null
+        ].filter(Boolean);
+    };
+    // Poslední nápověda u otázky na název: počet slov a první písmeno (pojem bez fotky a faktů tak bez nápovědy nezůstane)
+    // U světců první písmeno jména za „Svatý“ (všechny možnosti začínají stejně)
+    const nameShapeHint = (item) => {
+        const saint = /^(Svat[ýáí]) (\p{L})/u.exec(item.n);
+        if (saint) return step([{ label: 'Jméno', value: `${saint[1]} ${saint[2].toUpperCase()}…` }], 'první písmeno', 'type');
+        const words = item.n.trim().split(/\s+/).length;
+        return step([{ label: 'Název', value: `${words} ${words === 1 ? 'slovo' : words < 5 ? 'slova' : 'slov'}, začíná na ${item.n.charAt(0).toUpperCase()}` }], 'tvar názvu', 'type');
+    };
+    // Nápovědy: od obecného (náboženství, doba) po obrázek a zakladatele; u otázky na název nakonec tvar názvu
+    const extraHints = (item, ctx, type) => {
+        const plan = extraHintPlan(item, ctx, type);
+        return type === 'name' ? [...plan, nameShapeHint(item)] : plan;
+    };
+    const extraHintPlan = (item, ctx, type) => {
+        const facts = extraFacts(item, type);
+        const take = (...labels) => facts.filter(fact => labels.includes(fact.label));
+        if (item.c === 'nabozenstvi') {
+            const founder = facts.filter(fact => !['Náboženství', 'Vznik', 'Kde vzniklo', 'Kdy', 'Kdy se slaví'].includes(fact.label));
+            return [step(take('Náboženství', 'Kdy se slaví', 'Kdy'), 'náboženství', 'book-open'), step(take('Vznik', 'Kde vzniklo'), 'vznik', 'calendar'), pictureHint(item), step(founder, 'zakladatel', 'user')];
+        }
+        if (item.c === 'svetci') {
+            if (type === 'feast') return [step(take('Patron', 'Atributy'), 'patron a atributy', 'sparkles'), step(take(lifeLabel(item)), 'doba', 'calendar'), pictureHint(item)];
+            return [step(take(lifeLabel(item)), 'doba', 'calendar'), pictureHint(item), step(take('Patron', 'Atributy'), 'patron a atributy', 'sparkles'), step(take('Svátek'), 'svátek', 'calendar-days')];
+        }
+        if (type === 'region') return [pictureHint(item)];
+        return [step(take('Kde', yearLabel(item)), 'kde a kdy', 'map-pin'), pictureHint(item)];
+    };
+    // Ke kterému náboženství patří? (směry, řády, svátky, knihy, symboly a pojmy; ne když náboženství prozradí jméno: Sunnitský islám)
+    const religionQuestion = (item, rng) => {
+        const a = f(item);
+        if (!a.relk || !a.rel || leaks(item, a.rel)) return null;
+        const excluded = new Set([a.relk, ...(a.relx || [])]);
+        const main = shuffle(MAIN_RELIGIONS.filter(key => !excluded.has(key)), rng);
+        const rest = shuffle(RELIGION_KEYS.filter(key => !excluded.has(key) && !MAIN_RELIGIONS.includes(key)), rng);
+        const wrong = [...main.slice(0, 2), ...shuffle([...main.slice(2), ...rest], rng)].slice(0, 3);
+        if (wrong.length < 3) return null;
+        return {
+            type: 'religion',
+            title: 'Ke kterému náboženství patří?',
+            showName: true,
+            choices: shuffle([a.relk, ...wrong], rng).map(key => ({ id: `nabozenstvi-${key}`, label: RELIGION_LABELS[key], correct: key === a.relk })),
+            accepted: RELIGION_ACCEPTED[a.relk] || [a.rel],
+            placeholder: 'Napiš náboženství…',
+            answerLabel: a.rel
+        };
+    };
+    // Kdo založil? (nesprávné možnosti: zakladatelé jiných položek, u řádu zakladatelé řádů)
+    const founderQuestion = (item, ctx, rng) => {
+        const a = f(item);
+        if (!realFounder(item) || leaks(item, a.by)) return null;
+        const others = (ctx.items || []).filter(other => other.c === 'nabozenstvi' && other.q !== item.q && realFounder(other) && f(other).by !== a.by);
+        const same = shuffle(others.filter(other => (other.ty === 'řád') === (item.ty === 'řád')), rng);
+        const labels = [...new Set([...same, ...shuffle(others, rng)].map(other => f(other).by))].slice(0, 3);
+        if (labels.length < 3) return null;
+        return {
+            type: 'founder',
+            title: item.ty === 'řád' ? 'Kdo tento řád založil?' : item.ty === 'náboženství' ? 'Kdo je zakladatelem tohoto náboženství?' : 'Kdo tento směr založil?',
+            showName: true,
+            choices: shuffle([a.by, ...labels], rng).map(label => ({ id: `zakladatel-${normalizeAnswer(label)}`, label, correct: label === a.by })),
+            accepted: founderNames(a.by),
+            placeholder: 'Napiš jméno…',
+            answerLabel: a.by
+        };
+    };
+    // Kdy má svátek? (nesprávné možnosti: svátky jiných světců, aspoň týden od správného)
+    const MONTHS = ['ledna', 'února', 'března', 'dubna', 'května', 'června', 'července', 'srpna', 'září', 'října', 'listopadu', 'prosince'];
+    const dayOfYear = (fd) => {
+        const match = /^(\d{1,2})\. (\p{L}+)$/u.exec(fd || '');
+        return match && MONTHS.includes(match[2]) ? MONTHS.indexOf(match[2]) * 31 + Number(match[1]) : null;
+    };
+    const feastQuestion = (item, ctx, rng) => {
+        const fd = f(item).fd;
+        const day = dayOfYear(fd);
+        if (day === null) return null;
+        const others = shuffle([...new Set((ctx.items || []).filter(other => other.c === 'svetci' && dayOfYear(f(other).fd) !== null).map(other => f(other).fd))]
+            .filter(other => Math.abs(dayOfYear(other) - day) >= 7 && core.levenshtein(other, fd) > 1), rng).slice(0, 3);
+        if (others.length < 3) return null;
+        const [d, month] = fd.split(' ');
+        const numeric = `${d} ${MONTHS.indexOf(month) + 1}.`;
+        return {
+            type: 'feast',
+            title: item.ty === 'světci' ? 'Kdy mají svátek?' : 'Kdy má svátek?',
+            showName: true,
+            choices: shuffle([fd, ...others], rng).map(label => ({ id: `svatek-${normalizeAnswer(label)}`, label, correct: label === fd })),
+            accepted: [fd, numeric, numeric.replace(' ', '')],
+            placeholder: 'Napiš datum, třeba 6. prosince',
+            answerLabel: fd
+        };
+    };
+    // Kde prý žije? (kryptidi; nesprávné možnosti z jiných oblastí světa)
+    const regionQuestion = (item, ctx, rng) => {
+        const a = f(item);
+        if (!a.reg || leaks(item, a.where)) return null;
+        const pool = new Map();
+        for (const other of ctx.items || []) if (other.c === 'zahady' && f(other).reg && f(other).reg !== a.reg && !pool.has(f(other).reg)) pool.set(f(other).reg, f(other).where);
+        const wrong = shuffle([...pool.values()], rng).slice(0, 3);
+        if (wrong.length < 3) return null;
+        return {
+            type: 'region',
+            title: 'Kde prý tento tvor žije?',
+            showName: true,
+            choices: shuffle([a.where, ...wrong], rng).map(label => ({ id: `kde-${normalizeAnswer(label)}`, label, correct: label === a.where })),
+            accepted: [a.where, a.where.replace(/\s*\(.*\)$/u, ''), REGION_LABELS[a.reg]].filter(Boolean),
+            placeholder: 'Napiš, kde…',
+            answerLabel: a.where
+        };
+    };
+    const extraSpecial = (item, ctx, rng) => {
+        const roll = rng();
+        if (item.c === 'nabozenstvi') {
+            if (roll < RELIGION_QUIZ_SHARE) return religionQuestion(item, rng);
+            if (roll < RELIGION_QUIZ_SHARE + FOUNDER_QUIZ_SHARE) return founderQuestion(item, ctx, rng);
+            return null;
+        }
+        if (item.c === 'svetci') return roll < FEAST_QUIZ_SHARE ? feastQuestion(item, ctx, rng) : null;
+        return roll < REGION_QUIZ_SHARE && item.ty === 'kryptid' ? regionQuestion(item, ctx, rng) : null;
+    };
+    // Nesprávné možnosti: stejný druh, u směrů stejné náboženství, u světců stejné pohlaví a doba, Češi k Čechům, apoštolové k apoštolům
+    const centuryNumber = (lived) => { const m = /^(\d+)\./u.exec(lived || ''); return m ? (/př/u.test(lived) ? -Number(m[1]) : Number(m[1])) : null; };
+    const extraSimilarity = (item, other) => {
+        const a = f(item);
+        const b = f(other);
+        // Skoro stejné názvy (Šivaismus – Šaktismus) mezi možnostmi ne
+        if (item.n.length >= 6 && other.n.length >= 6 && core.levenshtein(normalizeAnswer(item.n), normalizeAnswer(other.n)) <= 2) return -100;
+        let score = item.ty === other.ty ? 3 : -3;
+        if (item.c === 'nabozenstvi') return score + (a.relk && a.relk === b.relk ? 2 : 0);
+        if (item.c === 'svetci') {
+            if ((item.sx === 'f') !== (other.sx === 'f') || (item.ty === 'světci') !== (other.ty === 'světci')) return -20;
+            const ca = centuryNumber(a.lived);
+            const cb = centuryNumber(b.lived);
+            return score + (a.czs && b.czs ? 3 : 0) + (a.nz && b.nz ? 2 : 0) + (ca !== null && cb !== null ? Math.max(0, 2 - Math.abs(ca - cb) / 3) : 0);
+        }
+        if (['legendární postava', 'záhadná osobnost'].includes(item.ty) && (item.sx === 'f') !== (other.sx === 'f')) return -20;
+        return score;
+    };
+    const extraSubtitle = (item) => {
+        const a = f(item);
+        if (item.c === 'nabozenstvi') return [item.ty, a.rel].filter(Boolean).join(' · ');
+        if (item.c === 'svetci') return [item.ty, a.fd ? `svátek ${a.fd}` : ''].filter(Boolean).join(' · ');
+        return [item.ty, a.where].filter(Boolean).join(' · ');
+    };
+
     const nameList = (item) => [item.n, displayName(item.t || ''), ...(item.al || [])].filter(Boolean);
     const counterpartNames = (item) => f(item).cp ? [f(item).cp, ...(f(item).cpa || []), ...inflections(f(item).cp)] : [];
 
@@ -264,14 +485,17 @@
             next: 'Další postava',
             atlas: 'Atlas mýtů a pověstí',
             placeholder: 'Napiš jméno…',
-            tierKnown: 'Olympští bohové, slavní hrdinové, české pověsti',
+            tierKnown: 'Olympští bohové, slavní hrdinové, české pověsti, světová náboženství, známí světci a záhady',
             czechBadge: 'České pověsti'
         },
         categories: CATEGORIES,
+        // Otázka podle druhu jen v kategoriích rozšíření (ostatní mají otázku kategorie)
+        questionTitle: (item) => (KIND_QUESTIONS[item.c] && KIND_QUESTIONS[item.c][item.ty]) || null,
 
         // Nesprávné možnosti: stejná mytologie a pohlaví, české pověsti k českým, příbuzní a stejná oblast;
         // protějšek (Venuše k Afrodíté) nikdy – byl by sporný
         similarity: (item, other) => {
+            if (EXTRA.has(item.c)) return extraSimilarity(item, other);
             const a = f(item);
             const b = f(other);
             if ((a.cp && normalizeAnswer(a.cp) === normalizeAnswer(other.n)) || confusable(item, other)) return -100;
@@ -287,6 +511,7 @@
         // Občas „Jak se jmenuje v římské mytologii?“ (u klasických řecko-římských dvojic) nebo „Ze které mytologie je?“
         // (jen u postav a bytostí jediné mytologie); jméno je pak vidět
         specialQuestion: (item, ctx, rng) => {
+            if (EXTRA.has(item.c)) return extraSpecial(item, ctx, rng);
             const roll = rng();
             const a = f(item);
             if (a.cpm && a.cpk && roll < COUNTERPART_QUIZ_SHARE) {
@@ -297,6 +522,10 @@
         },
         // U protějšku zmizí protějšek, u mytologie i slova, která ji prozradí; u jména jméno, další tvary a protějšek
         censor: (type, text, item, ctx) => {
+            if (type === 'religion') return mergeCensored(hide(text, nameList(item)).replace(RELIGION_WORDS, '[***]'));
+            if (type === 'founder') return hide(text, founderNames(f(item).by).flatMap(name => [name, name.split(' ').pop()]).filter(name => name.length >= 4));
+            if (type === 'feast') return mergeCensored(text.replace(/(?<![\p{L}\d])\d{1,2}\.\s*(?:\d{1,2}\.|\p{L}+)/gu, '[***]'));
+            if (type === 'region') return hide(text, [f(item).where, ...String(f(item).where).split(/[\s(),]+/u).filter(word => word.length >= 4), REGION_LABELS[f(item).reg]].filter(Boolean));
             if (type === 'counterpart') return hide(text, counterpartNames(item));
             if (type === 'myth') return mergeCensored(hide(text, [...counterpartNames(item), ...kinNames(item, ctx)]).replace(MYTH_WORDS, '[***]'));
             const names = nameList(item);
@@ -309,9 +538,9 @@
             const match = (ctx.items || []).find(other => other.q !== item.q && f(other).myk === side && isAnswerMatch(answer, nameAnswers(other, other.al || [])));
             return match ? { topic: 'mytologie', id: match.q } : null;
         },
-        hints: hintsOf,
-        facts: (item, ctx, mode) => factsOf(item, mode),
-        subtitle,
+        hints: (item, ctx, type) => EXTRA.has(item.c) ? extraHints(item, ctx, type) : hintsOf(item, ctx, type),
+        facts: (item, ctx, mode) => EXTRA.has(item.c) ? extraFacts(item, mode) : factsOf(item, mode),
+        subtitle: (item) => EXTRA.has(item.c) ? extraSubtitle(item) : subtitle(item),
         isCzech: (item) => item.cz === 1,
         inflections
     };

@@ -46,7 +46,9 @@ const ICONS = [
     // Film: kategorie Televizní pořady
     'tv',
     // Fyzika: kategorie Astronomické jevy a pojmy
-    'moon-star'
+    'moon-star',
+    // Mytologie: kategorie Náboženství, Světci a světice, Záhady a legendy
+    'sun-moon', 'cross', 'search'
 ];
 
 const toPascalCase = (name) => name.replace(/(^|-)(\w)/g, (_, __, letter) => letter.toUpperCase());

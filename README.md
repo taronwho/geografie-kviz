@@ -53,7 +53,7 @@ Základní otázka je „Co je to?“ podle kategorie (Který prvek to je?, Kdo 
 | Chemie | Jakou značku má tento prvek? Jaký vzorec má tato látka? Jaká reakce, pojem či metoda to je? (prvky, látky, reakce a procesy, pojmy a metody, chemici s Nobelovou cenou – rok a za co, materiály a suroviny) |
 | Fyzika | Jaká je jednotka SI této veličiny? Jakou značku má tato jednotka? Co měří tato jednotka? U vynálezů Kdo to vynalezl? a Ve kterém století (od roku 1900 desetiletí) to bylo vynalezeno? Astronomické jevy a pojmy podle druhu (Který meteorický roj to je?, Jaký druh vesmírného tělesa to je?, Který útvar to je?). U raket a kosmických lodí Ze které země je? a Ve kterém desetiletí poprvé letěla? |
 | Vlajky a znaky | Vlajka či znak jsou vidět hned: Čí je to vlajka? Čí je to znak? (státy, české kraje, města a obce, regiony států, velká města světa, zaniklé státy, území a organizace) |
-| Mytologie | Jak se jmenuje v římské/řecké mytologii? Ze které mytologie je? |
+| Mytologie | Jak se jmenuje v římské/řecké mytologii? Ze které mytologie je? U náboženství otázka podle druhu (Které náboženství, Který řád, Který svátek to je?), Ke kterému náboženství patří? a Kdo založil? U světců Kdy má svátek?, u kryptidů Kde prý tento tvor žije? |
 | Geologie | Nerost či hornina jsou vidět hned: Jakou má tvrdost podle Mohse? Jaký má vzorec? Do které skupiny hornin patří? Které je to období? |
 | Výtvarné umění | Obraz či socha jsou vidět hned: Co je to za obraz? Kdo to namaloval? Ke kterému směru patří? Dále umělci, fotografové, ilustrátoři a umělecké směry |
 | Architektura | Stavba je vidět hned: Jaký je to sloh? Kdo ji navrhl? |
@@ -310,6 +310,7 @@ npm run build:zemepis    # data/zemepis.json (-- --doplnit: jen památky UNESCO,
 npm run build:historie   # data/historie.json
 npm run build:biologie   # data/biologie.json (node scripts/build-biologie.mjs --zdravi obnoví jen nemoci, lékařství, lékaře a psychologii)
 npm run build:chemie     # data/chemie.json
+npm run build:mytologie  # data/mytologie.json (MYTOLOGIE_ONLY=rozsireni přidá jen náboženství, světce a záhady nad hotová data, lib/mytologie-rozsireni.mjs)
 npm run build:fyzika     # data/fyzika.json (FYZIKA_ONLY=vesmir přidá jen rozšíření o astronomii a kosmonautiku nad hotová data, lib/fyzika-vesmir.mjs)
 npm run build:technika   # data/technika.json (ruční seznamy a třídy Wikidat, lib/technika-sources.mjs; bez položek jiných témat)
 npm run build:vynalezy   # data/vynalezy.json (slavné objevy a vynálezy, roky ověřené proti Wikidatům)
