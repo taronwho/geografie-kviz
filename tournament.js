@@ -326,6 +326,7 @@
         switch (notice && notice.kind) {
         case 'excluded_full': return { title: 'Turnaj bez tebe', text: `Turnaj se hraje na pavouk, takže hrají jen nejdřív přihlášení${Number.isFinite(detail) && detail > 0 ? ` (tentokrát ${playersWord(detail)})` : ''}. Ty ses přihlásil mezi posledními, takže tentokrát nehraješ. Přihlas se do příštího turnaje, nejlépe hned při otevření přihlášek.` };
         case 'cancelled': return { title: 'Turnaj se zrušil', text: `Do turnaje se přihlásilo jen ${Number.isFinite(detail) ? playersWord(detail) : 'málo hráčů'}, a je jich potřeba aspoň ${MIN_PLAYERS}, takže se tenhle týden nehrál. Přihlas se do dalšího turnaje.` };
+        case 'unplayed': return { title: 'Ještě tě čeká zápas', text: `Dnešní ${notice.detail ? String(notice.detail) : 'kolo'} turnaje máš ještě neodehrané. Zahraj si ho do půlnoci, jinak prohraješ kontumačně.` };
         case 'eliminated_noplay': return { title: 'Konec v turnaji', text: 'Kolo zůstalo neodehrané, a proto ho prohráváš kontumačně. Příště si ho zahraj v den kola.' };
         case 'result': {
             const place = Number.isFinite(detail) && detail > 0 ? detail : null;

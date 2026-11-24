@@ -10032,9 +10032,82 @@ end $$;
 -- 50: turnaj se nezruší, chybějící místa do 8 doplní boti (tournament_fill_bots, tournament_start); nová témata Technika a vynálezy a Jídlo a pití (odznaky tema-technika-*, zbehly-technika-*, tema-jidlo-*, zbehly-jidlo-* v badge_catalog a badge_tiers);
 --     jejich odměny v unlock_catalog(): legendární postavičky Mravenec konstruktér (mraven, diploma:technika) a Medvěd šéfkuchař (medved, diploma:jidlo),
 --     sady doplňků klic, ozubene-kolo, celovka (zbehly-technika, tema-technika-300, -1000) a kucharska-cepice, kucharsky-satek, panev (zbehly-jidlo, tema-jidlo-300, -1000).
+-- ===== 51b: Večerní připomínka neodehraného turnajového zápasu =====
+-- Od 19:00 (Praha) dostane každý hráč (ne bot) s neodehraným zápasem dnešního kola týdenního turnaje zprávu v aplikaci (tournament_notices,
+-- druh 'unplayed', detail = název kola) a push připomínku (push_day_part: večerní část až od 19:00). Zpráva v aplikaci jednou za kolo;
+-- po odehrání se nepřečtená označí jako přečtená. 24. 11. 2026 výjimečně noční klid až od 22:00, ať připomínka dorazí ještě dnes.
+create or replace function public.push_day_part() returns text
+language sql stable set search_path = public as $$
+    select case when coalesce(nullif(current_setting('mudrlant.test_hour', true), '')::integer, extract(hour from now() at time zone 'Europe/Prague')::integer) < 19 then 'rano' else 'vecer19' end
+$$;
+
+create or replace function public.push_quiet_now() returns boolean
+language sql stable set search_path = public as $$
+    select h < 7 or h >= case when public.tournament_today() = date '2026-11-24' then 22 else 21 end
+    from (select coalesce(nullif(current_setting('mudrlant.test_hour', true), '')::integer, extract(hour from now() at time zone 'Europe/Prague')::integer) as h) x
+$$;
+
+create or replace function public.tournament_unplayed_reminders() returns void
+language plpgsql security definer set search_path = public as $$
+declare hour integer := coalesce(nullif(current_setting('mudrlant.test_hour', true), '')::integer, extract(hour from now() at time zone 'Europe/Prague')::integer);
+    today date := public.tournament_today(); r record;
+begin
+    -- odehraná kola: nepřečtená připomínka už neplatí
+    update public.tournament_notices n set seen = true
+    where n.kind = 'unplayed' and not n.seen and (n.created_at < (today::timestamp at time zone 'Europe/Prague')
+        or exists (select 1 from public.tournament_matches m join public.tournament_results res on res.match_id = m.id and res.user_id = n.user_id
+            where m.tournament_id = n.tournament_id and (m.p1 = n.user_id or m.p2 = n.user_id) and m.winner is null));
+    if hour < 19 then return; end if;
+    for r in
+        select m.p as user_id, t.id as tid, public.push_round_name(t.size, m.round, m.third) as round_name
+        from (
+            select mm.id, mm.tournament_id, mm.round, mm.third, mm.p1 as p from public.tournament_matches mm where mm.winner is null
+            union all
+            select mm.id, mm.tournament_id, mm.round, mm.third, mm.p2 from public.tournament_matches mm where mm.winner is null
+        ) m
+        join public.tournaments t on t.id = m.tournament_id and t.status = 'running' and t.kind is distinct from 'special'
+            and public.tournament_round_phase(t, m.round) = 'open'
+        where m.p is not null and not public.dev_is_bot(m.p)
+            and not exists (select 1 from public.tournament_results res where res.match_id = m.id and res.user_id = m.p)
+            and not exists (select 1 from public.tournament_notices n where n.user_id = m.p and n.tournament_id = t.id and n.kind = 'unplayed'
+                and n.created_at >= (today::timestamp at time zone 'Europe/Prague'))
+    loop
+        perform public.tournament_notice(r.user_id, r.tid, 'unplayed', r.round_name);
+    end loop;
+end;
+$$;
+revoke all on function public.tournament_unplayed_reminders() from public, anon, authenticated;
+
+create or replace function public.tournament_tick() returns void
+language plpgsql security definer set search_path = public as $$
+declare today date := public.tournament_today(); next_monday date; t record;
+begin
+    perform pg_advisory_xact_lock(74610);
+    next_monday := today + (8 - extract(isodow from today)::integer);
+    insert into public.tournaments (topic, week_start) values ('mix', next_monday) on conflict (topic, week_start) do nothing;
+    -- týdenní od svého pondělí, speciální (blok 31) od starts_at
+    for t in select id from public.tournaments where status = 'open'
+            and (case when kind = 'special' then starts_at <= public.tournament_now() else week_start <= today end) order by week_start, id loop
+        perform public.tournament_start(t.id);
+    end loop;
+    -- boti v turnajích odehrají své kolo každý den od 9:00 (Praha); před posunem kol i po něm, ať stihnou včerejší kolo i nově otevřené
+    perform public.tournament_bots_due();
+    for t in select id from public.tournaments where status = 'running' loop
+        perform public.tournament_progress(t.id);
+    end loop;
+    perform public.tournament_bots_due();
+    -- večerní připomínka neodehraného zápasu (blok 51b)
+    perform public.tournament_unplayed_reminders();
+    -- boti v Dobývání (blok 42) hrají sami i bez otevřené hry
+    if to_regprocedure('public.conquest_bots_tick()') is not null then perform public.conquest_bots_tick(); end if;
+end;
+$$;
+-- ===== 51b: Večerní připomínka — KONEC BLOKU =====
+
 -- 51: emblémy osmi dalších bossů týdne v katalogu odznaků předem (boss-herold, boss-permonik, boss-stavitel, boss-malir, boss-kronikar,
 --     boss-trener, boss-vynalezce, boss-sefkuchar v badge_catalog() a badge_tiers()). Do hry (rotace, quiz-core.js BOSS_EMBLEMS) je pustí
 --     až scripts/boss-zapoj.mjs, až budou mít obrázky; server je tak uloží hned od prvního souboje bez dalšího spuštění schématu.
+--     Večerní připomínka neodehraného turnajového zápasu od 19:00 v aplikaci (tournament_notices 'unplayed') i jako push (blok 51b).
 create or replace function public.schema_version() returns integer
 language sql immutable as $$ select 51 $$;
 revoke all on function public.schema_version() from public, anon;

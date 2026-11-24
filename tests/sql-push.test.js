@@ -138,20 +138,29 @@ test('SQL: web push (odběry, tajemství, push_due, push_mark)', { skip: !availa
         assert.deepEqual(dueRows(MON, 10), [], 'odeslané se neopakuje');
         assert.equal(q(`select count(*) from push_sent where kind = 'tournament' and user_id = '${id(1)}'`), '1');
         assert.ok(q(`select last_ok is not null and fails = 0 from push_subscriptions where endpoint = '${endpointOf(1)}'`) === 't');
-        // večer znovu (jiná část dne), ale hodinový limit: poslední turnajová zpráva je „před chvílí“ → nejdřív nic
-        assert.deepEqual(dueRows(MON, 18), []);
+        // v 18 hodin je to pořád ranní část (večerní připomínka až od 19:00)
         q(`update push_sent set sent_at = sent_at - interval '2 hours'`);
-        const evening = dueRows(MON, 18);
+        assert.deepEqual(dueRows(MON, 18), []);
+        q(`update push_sent set sent_at = sent_at + interval '2 hours'`);
+        // večer znovu (jiná část dne), ale hodinový limit: poslední turnajová zpráva je „před chvílí“ → nejdřív nic
+        assert.deepEqual(dueRows(MON, 19), []);
+        q(`update push_sent set sent_at = sent_at - interval '2 hours'`);
+        const evening = dueRows(MON, 19);
         assert.equal(evening.length, 2);
-        assert.equal(evening.find(row => row.user === id(1)).key, `tour:${myMatch}:${id(1)}:${MON}:vecer`);
+        assert.equal(evening.find(row => row.user === id(1)).key, `tour:${myMatch}:${id(1)}:${MON}:vecer19`);
+        // od 19:00 i zpráva v aplikaci (jednou za kolo), ne botům
+        assert.equal(q(`select count(*) from tournament_notices where kind = 'unplayed' and user_id = '${id(1)}' and detail = 'čtvrtfinále'`), '1');
+        dueRows(MON, 20);
+        assert.equal(q(`select count(*) from tournament_notices where kind = 'unplayed' and user_id = '${id(1)}'`), '1', 'jen jednou za kolo');
         // hráč 1 zápas začne (i nedohraný): připomínka už není; hráč 2 ji má dál
         ok(as(id(1), MON, `select tournament_start_match('${myMatch}');`));
-        const after = dueRows(MON, 18);
+        const after = dueRows(MON, 19);
+        assert.equal(q(`select count(*) from tournament_notices where kind = 'unplayed' and user_id = '${id(1)}' and not seen`), '0', 'zápas začal: zpráva v aplikaci už neplatí');
         assert.equal(after.filter(row => row.user === id(1)).length, 0);
         assert.equal(after.filter(row => row.user === id(2)).length, 1);
         // hráč 2 vypne turnajová upozornění
         ok(as(id(2), MON, `update profiles set push_tournament = false where id = '${id(2)}';`));
-        assert.deepEqual(dueRows(MON, 18), []);
+        assert.deepEqual(dueRows(MON, 19), []);
         ok(as(id(2), MON, `update profiles set push_tournament = true where id = '${id(2)}';`));
         // jiný den: zápas dne není (další kolo ještě nevzniklo, dnešní kolo je po termínu a rozhodne se)
         q(`delete from push_sent`);
