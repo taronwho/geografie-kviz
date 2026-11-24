@@ -411,10 +411,10 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
         });
     }
 
-    // Výběr kategorií (Zeměpis) a témat (Mix) na 360×640: tlačítko Hrát je v lepkavé patičce, vidět a nezakryté nahoře i uprostřed posunu
-    // Sport a hry (9 kategorií s dlouhými názvy her) se vejde bez posouvání
-    for (const [action, scheme] of [['[data-action="play-topic"][data-topic="zemepis"]', 'light'], ['[data-action="play-mix"]', 'dark'], ['[data-action="play-topic"][data-topic="sport"]', 'dark']]) {
-        await t.test(`výběr ${action.includes('mix') ? 'Mix' : action.includes('sport') ? 'Sport a hry' : 'Zeměpis'}: Hrát vždy vidět (${scheme})`, async () => {
+    // Výběr kategorií (Zeměpis, Historie s jedenácti kategoriemi, Sport a hry s devíti s dlouhými názvy) a témat (Mix) na 360×640:
+    // tlačítko Hrát je v lepkavé patičce, vidět a nezakryté nahoře i uprostřed posunu
+    for (const [action, scheme] of [['[data-action="play-topic"][data-topic="zemepis"]', 'light'], ['[data-action="play-topic"][data-topic="historie"]', 'dark'], ['[data-action="play-mix"]', 'dark'], ['[data-action="play-topic"][data-topic="sport"]', 'dark']]) {
+        await t.test(`výběr ${action.includes('mix') ? 'Mix' : action.includes('sport') ? 'Sport a hry' : action.includes('historie') ? 'Historie' : 'Zeměpis'}: Hrát vždy vidět (${scheme})`, async () => {
             const { context, tab, problems } = await open(scheme);
             await nav.go(tab, 'hrat');
             await tab.click(action);

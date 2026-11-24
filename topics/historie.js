@@ -1,4 +1,6 @@
-// Téma Historie: panovníci, prezidenti a státníci, osobnosti, bitvy, války a revoluce, události, říše a státy minulosti (data/historie.json)
+// Téma Historie: panovníci, prezidenti a státníci, osobnosti, bitvy, války a revoluce, události, říše a státy minulosti, kolonie,
+// archeologie a starověk, piráti, mezinárodní organizace a lidové tradice, svátky a kroje (data/historie.json; rozšíření
+// scripts/lib/historie-rozsireni.mjs)
 (function (root, factory) {
     const isNode = typeof module === 'object' && module.exports;
     const topic = factory(isNode ? require('../quiz-core.js') : root.MudrlantCore);
@@ -18,9 +20,35 @@
         { key: 'bitva', label: 'Bitvy, války a revoluce', one: 'událost', icon: 'swords', question: 'Která bitva, válka nebo revoluce to je?', placeholder: 'Napiš název…', sort: { by: 'y' } },
         { key: 'udalosti', label: 'Události', one: 'událost', icon: 'calendar-days', question: 'Která událost to je?', placeholder: 'Napiš název události…', sort: { by: 'y' } },
         { key: 'rise', label: 'Říše a státy minulosti', one: 'stát', icon: 'castle', question: 'Který stát to je?', placeholder: 'Napiš název státu…', sort: { by: 'y' } },
-        { key: 'kolonie', label: 'Kolonie a koloniální říše', one: 'kolonie', icon: 'globe', question: 'Která kolonie nebo koloniální říše to je?', placeholder: 'Napiš název kolonie…', sort: { by: 'y' } }
+        { key: 'kolonie', label: 'Kolonie a koloniální říše', one: 'kolonie', icon: 'globe', question: 'Která kolonie nebo koloniální říše to je?', placeholder: 'Napiš název kolonie…', sort: { by: 'y' } },
+        // Rozšíření (scripts/lib/historie-rozsireni.mjs): otázku podle druhu položky (kd) upřesní questionTitle
+        { key: 'archeologie', label: 'Archeologie a starověk', one: 'nález', icon: 'amphora', question: 'Co je to?', placeholder: 'Napiš název…', sort: { by: 'name' } },
+        { key: 'pirati', label: 'Piráti', one: 'pirát', icon: 'skull', question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'name' } },
+        { key: 'organizace', label: 'Mezinárodní organizace', one: 'organizace', icon: 'handshake', question: 'Která organizace to je?', placeholder: 'Napiš název nebo zkratku…', sort: { by: 'name' } },
+        { key: 'tradice', label: 'Lidové tradice, svátky a kroje', one: 'tradice', icon: 'egg', question: 'Co je to?', placeholder: 'Napiš název…', sort: { by: 'name' } }
     ];
-    const isPerson = (item) => item.c === 'panovnik' || item.c === 'statnik' || item.c === 'osobnost';
+    // Nové kategorie rozšíření: druh položky (kd) – nález, naleziště, písmo, pravěké období, kultura, národ, pojem, archeolog, pirát,
+    // organizace, orgán, nevládní organizace, aliance, svátek, státní svátek, slavnost, zvyk, postava, kroj, tanec, národopisná oblast
+    const EXTRA = new Set(['archeologie', 'pirati', 'organizace', 'tradice']);
+    const isExtra = (item) => EXTRA.has(item.c);
+    // Archeologové a piráti jsou osoby (život na časové ose, otázka na století narození, současníci)
+    const isPerson = (item) => item.c === 'panovnik' || item.c === 'statnik' || item.c === 'osobnost' || item.kd === 'archeolog' || item.kd === 'pirat';
+    const QUESTION_TITLES = {
+        nalez: 'Který archeologický nález to je?', naleziste: 'Které archeologické naleziště to je?', pismo: 'Které písmo to je?',
+        obdobi: 'Které období pravěku to je?', kultura: 'Která archeologická kultura nebo civilizace to je?', narod: 'Který národ to je?',
+        archeolog: 'Kdo to je?', pirat: 'Kdo to je?', organizace: 'Která organizace to je?', organ: 'Která instituce to je?',
+        nevladni: 'Která organizace to je?', aliance: 'Která aliance nebo spolek to je?', svatek: 'Který svátek to je?',
+        statni: 'Který státní svátek to je?', slavnost: 'Která slavnost to je?', zvyk: 'Která tradice to je?', postava: 'Kdo to je?',
+        kroj: 'Který oděv to je?', tanec: 'Který tanec to je?', oblast: 'Která národopisná oblast to je?'
+    };
+    const questionTitle = (item) => {
+        if (!isExtra(item)) return null;
+        if (item.kd === 'pojem') return item.c === 'archeologie' ? 'Který archeologický pojem to je?' : 'Co je to?';
+        return QUESTION_TITLES[item.kd] || null;
+    };
+    // Skupina druhů, ze které jsou nesprávné možnosti (k svátku svátky, ke kroji kroje, k nálezu nálezy a naleziště)
+    const KIND_GROUPS = { naleziste: 'nalez', statni: 'svatek', slavnost: 'svatek', postava: 'zvyk', organ: 'organizace', nevladni: 'organizace', obdobi: 'kultura' };
+    const kindGroup = (item) => KIND_GROUPS[item.kd] || item.kd;
     // Událost je součástí jiné (f.war: Říjnová revoluce → Ruská revoluce, bitva u Azincourtu → stoletá válka)
     // Událost má stejná fakta jako bitva (rok, místo, součást) a slepou mapu, když je známé místo
     const isEvent = (item) => item.c === 'bitva' || item.c === 'udalosti';
@@ -62,6 +90,9 @@
         }
         if (item.c === 'rise' && f.from !== undefined) return { year: f.from, title: 'Ve kterém století tento stát vznikl?' };
         if (item.c === 'kolonie' && f.from !== undefined) return { year: f.from, title: 'Ve kterém století začala vznikat?' };
+        // Organizace a aliance: rok vzniku; nálezy: rok objevu
+        if (item.c === 'organizace' && f.from !== undefined && f.from > 0) return { year: f.from, title: 'Ve kterém století to vzniklo?' };
+        if (item.c === 'archeologie' && f.disc !== undefined) return { year: f.disc, title: 'Ve kterém století to bylo objeveno?' };
         return null;
     };
     // Století celého období („13.–14. století“), ve výsledku a v atlasu
@@ -76,6 +107,8 @@
         const f = item.f || {};
         if (isPerson(item)) return f.born !== undefined ? [f.born, f.died] : [f.y, f.y];
         if (isEvent(item)) return [f.year, f.end];
+        if (item.c === 'tradice') return [undefined, undefined];
+        if (item.c === 'archeologie' && f.disc !== undefined) return [f.disc, f.disc];
         return f.from !== undefined ? [f.from, f.to] : [f.y, f.y];
     };
 
@@ -86,6 +119,10 @@
         if (from < 0) return `${formatYear(from)} – ${formatYear(to)}`;
         return to < 1000 ? `${from}–${formatYear(to)}` : `${from}–${to}`;
     };
+
+    // Pravěk s desetitisíci let: „313 000 – 31 000 př. n. l.“ (s mezerami tisíců)
+    const deep = (year) => year <= -10000 ? `${core.formatNumber(-year)} př. n. l.` : formatYear(year);
+    const span = (from, to) => from > -10000 ? range(from, to) : to === undefined ? deep(from) : `${core.formatNumber(-from)} – ${deep(to)}`;
 
     // Fakta: roky se u otázky na století vynechají (prozradily by odpověď)
     // Místo války, která se vedla ve více státech, nesmí být jen jeden z nich (Válka v Pásmu Gazy → Írán)
@@ -103,8 +140,11 @@
         if (isPerson(item)) {
             const facts = withYears ? formatFacts(item, [['born', 'Narození', formatYear], ['died', 'Úmrtí', formatYear]], ['born', 'died']) : [];
             if (withYears && f.from !== undefined) facts.push({ label: item.c === 'panovnik' ? 'Vláda' : 'V úřadu', value: range(f.from, f.to) });
-            return [...facts, ...century, ...formatFacts(item, [['dyn', 'Rod', v => v], ['land', 'Země', v => v]])];
+            // Objevitelé a mořeplavci: cesty a objevy (u otázky na století ne – „první na jižním pólu“ dobu prozradí)
+            const trips = withYears ? [['exp', 'Cesty a objevy', v => v]] : [];
+            return [...facts, ...century, ...formatFacts(item, [['dyn', 'Rod', v => v], ['land', 'Země', v => v], ...trips])];
         }
+        if (isExtra(item)) return extraFacts(item, withYears, century);
         if (isEvent(item)) {
             const facts = withYears ? [{ label: f.end ? 'Doba' : 'Rok', value: range(f.year, f.end) }] : [];
             // U otázky na stát místo ani stát nezazní
@@ -115,6 +155,19 @@
         }
         const facts = withYears ? [{ label: 'Doba trvání', value: range(f.from, f.to) }] : [];
         return [...facts, ...century, ...formatFacts(item, [['cap', 'Hlavní město', v => v]])];
+    };
+
+    // Fakta nových kategorií: doba (období, kultura, národ), vznik nálezu, objev, místo nálezu a sbírka, vznik a sídlo organizace,
+    // kdy se svátek slaví; roky ne u otázky na století
+    const extraFacts = (item, withYears, century) => {
+        const f = item.f || {};
+        const facts = [];
+        // „Datování“, ne „Doba“: slovo doba mají názvy (Doba bronzová) i další názvy (doba laténská)
+        if (withYears && item.c === 'archeologie' && f.from !== undefined) facts.push({ label: 'Datování', value: span(f.from, f.to) });
+        if (withYears && item.c === 'organizace' && f.from !== undefined) facts.push({ label: f.to !== undefined ? 'Doba trvání' : 'Vznik', value: f.to !== undefined ? range(f.from, f.to) : formatYear(f.from) });
+        const years = withYears ? [['made', 'Doba vzniku', formatYear], ['disc', 'Objeveno', formatYear]] : [];
+        return [...facts, ...century, ...formatFacts(item, [...years, ['finder', 'Objevil', v => v], ['place', 'Místo nálezu', v => v], ['coll', 'Uloženo', v => v],
+            ['hq', 'Sídlo', v => v], ['when', 'Kdy', v => v], ['area', 'Oblast', v => v]])];
     };
 
     // Orientační události na časové ose: světové pro všechny, k tomu události ze stejných dějin
@@ -218,7 +271,7 @@
     const visualOf = (item, ctx, mode) => {
         // U otázky na stát by mapa odpověď prozradila
         if (mode === 'location') return null;
-        if (isEvent(item) && item.la !== undefined) {
+        if ((isEvent(item) || item.kd === 'naleziste') && item.la !== undefined) {
             return { type: 'map', lat: item.la, lon: item.lo, span: 24, highlightIso: '', label: 'Místo je uprostřed' };
         }
         if (mode === 'century') return null;
@@ -242,8 +295,24 @@
             return f.end ? { type: 'timeline', spans: [{ kind: 'reign', from: f.year, to: f.end }], points: [], hide: item.n, spanLabel: 'trvání' }
                 : { type: 'timeline', spans: [], points: [f.year], hide: item.n };
         }
+        // Nové kategorie (mimo archeology a piráty, kteří mají osu života) osu nemají: rok vzniku či objevu je ve faktech
+        // a osa s jedním bodem by nápovědu jen opakovala (audit otázek)
+        if (isExtra(item)) return null;
         if (f.from === undefined) return null;
         return { type: 'timeline', spans: [{ kind: 'reign', from: f.from, to: f.to }], points: [], hide: item.n, spanLabel: 'trvání' };
+    };
+
+    // Nesprávné možnosti nových kategorií: stejná skupina druhů (k svátku svátky, k pirátovi piráti), u osob podobná doba a pohlaví,
+    // u ostatních blízká doba, české k českým
+    const extraSimilarity = (item, other) => {
+        if (kindGroup(item) !== kindGroup(other)) return -30;
+        const f = item.f || {};
+        const g = other.f || {};
+        let score = 8 + (item.kd === other.kd ? 2 : 0);
+        if (isPerson(item)) score += personSimilarity(item, other) + (f.y !== undefined && g.y !== undefined ? Math.max(0, 3 - Math.abs(f.y - g.y) / 40) : 0);
+        else if (f.y !== undefined && g.y !== undefined) score += eraNearness(f.y, g.y);
+        if (Boolean(item.cz) === Boolean(other.cz)) score += 2;
+        return score;
     };
 
     // Nápovědy k otázce na století: fotka, mapa místa ani fakta (rod, místo bitvy) století neprozradí.
@@ -289,6 +358,7 @@
             return [life, f.land].filter(Boolean).join(' · ') || categoryOf(item).one;
         }
         if (isEvent(item)) return [range(f.year, f.end), placeOf(item, countries) || getCountryNames(item, countries)[0]].filter(Boolean).join(' · ');
+        if (isExtra(item)) return [item.ty, f.when || (f.from !== undefined ? span(f.from, f.to) : f.disc !== undefined ? formatYear(f.disc) : '')].filter(Boolean).join(' · ');
         return range(f.from, f.to);
     };
 
@@ -344,7 +414,8 @@
     const offSubjectPhoto = core.offSubjectRule({
         words: {
             statnik: core.OFF_SUBJECT.memorial, osobnost: core.OFF_SUBJECT.memorial, panovnik: core.OFF_SUBJECT.memorial,
-            bitva: ['memorial', 'pamatnik', 'pomnik', 'mohyla', 'gedenkstein'], udalosti: ['memorial', 'pamatnik', 'pomnik', 'gedenkstein']
+            bitva: ['memorial', 'pamatnik', 'pomnik', 'mohyla', 'gedenkstein'], udalosti: ['memorial', 'pamatnik', 'pomnik', 'gedenkstein'],
+            pirati: core.OFF_SUBJECT.memorial
         },
         ids: ['Q322169', 'Q367350', 'Q319124', 'Q3245204']
     });
@@ -367,6 +438,9 @@
         },
         categories: CATEGORIES,
         offSubjectPhoto,
+        questionTitle,
+        // Zkratky a další názvy organizací a tradic (OSN, NATO, EU) – přijímané odpovědi, v popisu se zakryjí
+        nameAliases: (item) => item.al || [],
 
         // Bitvy se řadí podle státu, kde se odehrály (osoby podle země, ze které pocházejí)
         culture: (item, ctx) => isEvent(item) ? core.getCountryNames(item, (ctx && ctx.countries) || {}).slice(0, 3) : undefined,
@@ -377,6 +451,7 @@
             const g = other.f || {};
             // Část a celek (Říjnová revoluce a Ruská revoluce, bitva u Azincourtu a stoletá válka) by byly dvě správné odpovědi
             if (isPartOf(item, other) || isPartOf(other, item)) return -100;
+            if (isExtra(item)) return extraSimilarity(item, other);
             let score = isPerson(item) ? personSimilarity(item, other) : eraNearness(f.y, g.y);
             if (isPerson(item) && f.dyn && f.dyn === g.dyn) score += 1;
             // Osoby: blízká doba i v rámci století (k Disraelimu Gladstone, ne Sunak) a stejná země
