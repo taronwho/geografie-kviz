@@ -656,6 +656,27 @@
         });
         return [...[...shown].filter(word => !blocked.has(word)), ...numerals].slice(0, MAX_NAMES);
     };
+    // Jména souvisejících osob pro už sestavenou otázku dne bez riddle.names (otázka z doby před NAMES_FROM, zamrzlá na serveru):
+    // app.js je spočítá při otevření z dat otázky a kontextu tématu a buildClues je jen ukáže (pořadí nápověd se nezmění).
+    // Od SHOWN_NAMES_FROM (24. 11. 2026, hlášení hráče – změna i pro rozehraný den se souhlasem; tipy, body ani statistiky na textu
+    // nápověd nezávisí)
+    const SHOWN_NAMES_FROM = '2026-11-24';
+    const relatedNames = (item, { ctx, question, facts = [], texts = [] } = {}) => {
+        try {
+            const core = coreApi();
+            if (!item || !ctx || !ctx.topic || !core || !question || !Array.isArray(texts) || !texts.length) return [];
+            const reveals = answerGuard(core, question, item, ctx);
+            const countryNames = Object.values(ctx.countries || {}).map(country => fold(country && country.name)).filter(name => name.length >= 3);
+            const namesCountry = (text) => { const value = ` ${fold(text).replace(/[^\p{L}]+/gu, ' ')} `; return countryNames.some(name => value.includes(` ${name.replace(/[^\p{L}]+/gu, ' ')} `)); };
+            const list = Array.isArray(facts) ? facts.filter(fact => fact && fact.label && fact.value !== undefined && fact.value !== '') : [];
+            return shownNamesOf(item, { ctx, core, facts: list, texts, reveals, namesCountry });
+        } catch (error) {
+            return [];
+        }
+    };
+    // Texty otázky dne, ve kterých se jména hledají (popis a úryvky z článku) – stejné při sestavení (app.js) i dodatečně
+    const roundTexts = (data) => [data && data.questionText, ...((data && Array.isArray(data.hints) ? data.hints : [])
+        .filter(hint => hint && (hint.kind === 'excerpt' || hint.kind === 'text') && hint.text).map(hint => hint.text))].filter(text => typeof text === 'string' && text);
     const riddleOf = (item, { ctx, question, typeLabel = '', facts = [], year = new Date().getUTCFullYear(), day = '', texts = [] } = {}) => {
         try {
             if (!item || !ctx || !ctx.topic) return null;
@@ -702,7 +723,7 @@
                 break;
             }
             const shown = core && String(day) >= NAMES_FROM && Array.isArray(texts) && texts.length
-                ? shownNamesOf(item, { ctx, core, facts: list, texts, reveals, namesCountry }) : [];
+                ? relatedNames(item, { ctx, question, facts: list, texts }) : [];
             return {
                 yesno: yesNoOf(item, { topicId, coords: validCoords(coords) ? { lat: Number(coords.lat), lon: Number(coords.lon) } : null, continent, year, typeLabel }),
                 era: eraOf(item, topicId, year),
@@ -784,7 +805,22 @@
         const weight = (fact) => factScore(fact) + (covered.has(fact.label) ? 0.15 : 0);
         // Jména souvisejících osob, která zůstanou vidět (riddle.names, od NAMES_FROM)
         const keepNames = riddle.names.length ? new Set(riddle.names) : null;
-        const mask = (text) => strongMask(text, keepNames);
+        // Dodatečná jména (data.shownNames: otázka sestavená bez riddle.names) se jen ukážou: pořadí nápověd se počítá z textu
+        // zakrytého jako dřív a ve výsledku se věty zakryté postaru vymění za věty se jmény
+        const extraNames = !keepNames && Array.isArray(data && data.shownNames)
+            ? new Set(data.shownNames.filter(word => typeof word === 'string' && word.length <= 40 && /^\p{Lu}[\p{L}\-']*$/u.test(word)).slice(0, MAX_NAMES)) : null;
+        const display = new Map();
+        const mask = (text) => {
+            const masked = strongMask(text, keepNames);
+            if (extraNames && extraNames.size) {
+                // Věta po větě, aby se dala najít i ve spojeném textu (úryvek ze dvou vět, poslední nápověda)
+                sentencesOf(text).forEach(sentence => { const before = strongMask(sentence); const after = strongMask(sentence, extraNames); if (before !== after) display.set(before, after); });
+                const after = strongMask(text, extraNames);
+                if (after !== masked) display.set(masked, after);
+            }
+            return masked;
+        };
+        const reveal = (text) => [...display.keys()].sort((a, b) => b.length - a.length).reduce((result, before) => result.split(before).join(display.get(before)), text);
         const sentences = sentencesOf(data && data.questionText).map(mask).filter(part => realWords(part) >= 3);
         // Úryvek z článku bez vět, které už jsou v popisu (článek často začíná stejně), nanejvýš dvě věty
         const said = new Set(sentences.map(text => text.toLocaleLowerCase('cs')));
@@ -891,7 +927,8 @@
             : sentences.length > 3 ? [{ type: 'text', text: sentences.slice(3, 5).join(' ') }]
                 : [{ type: 'note', text: 'Víc už Mudrlant neprozradí. Zkus to s tím, co víš.' }];
         const final = { title: photo ? 'Ostrá fotka' : 'Poslední nápověda', icon: photo ? 'image' : 'sparkles', parts: finalParts };
-        return [first, ...slots, ...blurred, final].map((clue, index) => ({ ...clue, n: index + 1, hour: CLUE_HOURS[index] }));
+        const clues = [first, ...slots, ...blurred, final].map((clue, index) => ({ ...clue, n: index + 1, hour: CLUE_HOURS[index] }));
+        return display.size ? clues.map(clue => ({ ...clue, parts: clue.parts.map(part => (part.type === 'text' ? { ...part, text: reveal(part.text) } : part)) })) : clues;
     };
 
     // --- Body a XP ---
@@ -1126,7 +1163,7 @@
         CLUES, CLUE_HOURS, MAX_TIPS, NEAR_MISSES, MAX_POINTS, XP_BASE, XP_PER_POINT, KEY, ART,
         isDay, addDays, pragueClock, pragueDay, pragueTime, cluesAt, clueTime, hourLabel, nextClue, formatClock, formatDay, pointsWord, tipsWord, withClues, cluesWord,
         hash32, seededRandom, seedFor, topicForDay, hasPhoto, candidatesOf, pickItem, leftWord,
-        sentencesOf, answerPattern, letterCount, strongMask, NAMES_FROM, shownNamesOf, cleanRiddle, textScore, revealScore, buildClues, pointsFor, xpFor,
+        sentencesOf, answerPattern, letterCount, strongMask, NAMES_FROM, SHOWN_NAMES_FROM, shownNamesOf, relatedNames, roundTexts, cleanRiddle, textScore, revealScore, buildClues, pointsFor, xpFor,
         PRAGUE, haversineKm, bearingDeg, roundKm, compassOf, compassFor, eraOfYear, eraOfSpan, eraOf, yesNoOf, riddleOf, answerGuard,
         parseState, newEntry, cleanEntry, statusOf, tipsLeft, addTip, wrongTips, shareGrid, shareText, cardInput,
         homeText, statsHtml, screenHtml, MARK

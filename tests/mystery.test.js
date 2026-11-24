@@ -641,6 +641,18 @@ test('jména souvisejících osob v popisu zůstanou vidět (od NAMES_FROM), odp
     // Stará uložená data (bez riddle.names) vypadají jako dřív
     const old = M.buildClues({ ...data, riddle: before }).flatMap(clue => clue.parts.filter(part => part.type === 'text').map(part => part.text));
     assert.ok(old.includes('Byl synem krále [***] a jeho manželky [***], manžel [***], se kterou měl syna [***] a dcery [***], [***] a [***].'), old.join(' | '));
+    // Rozehraný den (otázka sestavená bez riddle.names, 24. 11.): jména spočítaná dodatečně (relatedNames, app.js) se jen ukážou –
+    // stejné nápovědy ve stejném pořadí, jen věty se jmény
+    const late = M.relatedNames(item, { ctx, question, facts: ctx.topic.facts(item, ctx, 'result'), texts: M.roundTexts(data) });
+    assert.deepEqual([...late].sort(), [...riddle.names].sort());
+    const oldData = { ...data, riddle: before };
+    const plainClues = M.buildClues(oldData);
+    const lateClues = M.buildClues({ ...oldData, shownNames: late });
+    assert.deepEqual(lateClues.map(clue => [clue.title, clue.parts.map(part => part.type)]), plainClues.map(clue => [clue.title, clue.parts.map(part => part.type)]), 'pořadí nápověd se nezmění');
+    const lateTexts = lateClues.flatMap(clue => clue.parts.filter(part => part.type === 'text').map(part => part.text));
+    assert.ok(lateTexts.includes('Byl synem krále Átrea a jeho manželky Áeropé, manžel Klytaimnéstry, se kterou měl syna Oresta a dcery Ífigeneiu, Élektru a Chrýsothemis.'), lateTexts.join(' | '));
+    assert.ok(lateTexts.some(text => text.includes('Po návratu z [***] byl zavražděn svou manželkou a jejím milencem Aigisthem.')), lateTexts.join(' | '));
+    assert.ok(M.SHOWN_NAMES_FROM <= '2026-11-24');
     // Tvar jména odpovědi zůstane zakrytý, i když ho jiná položka má ve faktech (Orestés: otec Agamemnón)
     const leak = riddleOn(M.NAMES_FROM, ['Jeho otcem byl Agamemnóna a matkou Klytaimnéstra.']);
     assert.deepEqual(leak.names, ['Klytaimnéstra']);

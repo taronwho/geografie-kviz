@@ -11900,12 +11900,29 @@
         avatarHtml, xpLine: (xp) => xpLine(xp, 'text-white/90'), photoFrame,
         visualFrame: (spec, id) => renderVisualFrame(spec, { id, height: 'h-44' })
     });
+    // Jména souvisejících osob pro otázku dne sestavenou bez nich (riddle.names chybí: sestavená nebo zamrzlá na serveru před
+    // MudrlantMystery.NAMES_FROM): spočítají se při otevření z dat otázky a tématu a nápovědy je jen ukážou (pořadí ani tipy se nemění).
+    // Od SHOWN_NAMES_FROM, tedy i pro rozehraný 24. 11. 2026; jen v paměti, uložená otázka dne zůstává, jak byla
+    const mysteryNames = new Map(); // den → jména
+    const prepareMysteryNames = async (day) => {
+        const data = loadMystery().rounds[day];
+        if (!Mystery.relatedNames || !data || mysteryNames.has(day) || day < Mystery.SHOWN_NAMES_FROM || (data.riddle && Array.isArray(data.riddle.names) && data.riddle.names.length)) return;
+        try {
+            const ctx = await loadTopic(data.topic);
+            const item = ctx && ctx.byId.get(data.id);
+            mysteryNames.set(day, item && data.question ? Mystery.relatedNames(item, { ctx, question: data.question, facts: data.resultFacts || [], texts: Mystery.roundTexts(data) }) : []);
+        } catch (error) {
+            console.error(error);
+            mysteryNames.set(day, []);
+        }
+    };
     const renderMystery = () => {
         if (!Mystery || !mysteryView) return;
         const view = mysteryView;
         const state = loadMystery();
-        const data = state.rounds[view.day];
-        if (!data) return;
+        const stored = state.rounds[view.day];
+        if (!stored) return;
+        const data = mysteryNames.get(view.day) && mysteryNames.get(view.day).length ? { ...stored, shownNames: mysteryNames.get(view.day) } : stored;
         const now = Date.now();
         const entry = state.days[view.day] || Mystery.newEntry({ name: data.name });
         const status = Mystery.statusOf(entry);
@@ -11979,7 +11996,7 @@
             closePlaceInfo();
             appContent.innerHTML = `<div class="flex min-h-full flex-col items-center justify-center gap-3 p-6 text-center">${uiArt(Mystery.ART, 'h-24 w-24')}<p class="text-sm font-bold text-slate-600 dark:text-slate-300">Načítám tajemnou otázku…</p></div>`;
             updateControlsUI();
-            try { await mysteryRoundFor(day); } catch (error) {
+            try { await mysteryRoundFor(day); await prepareMysteryNames(day); } catch (error) {
                 console.error(error);
                 if (screen === 'mystery') { showToast('Tajemnou otázku se teď nepodařilo načíst.'); renderHome(); }
                 return;
