@@ -3093,7 +3093,8 @@
         ['malir', 'Dokonalý Malíř', 'Dokonalého Malíře', 'Přemožitel Dokonalého Malíře'],
         ['kronikar', 'Všemocný Kronikář', 'Všemocného Kronikáře', 'Přemožitel Všemocného Kronikáře'],
         ['trener', 'Nekompromisní Trenér', 'Nekompromisního Trenéra', 'Přemožitel Nekompromisního Trenéra'],
-        ['vynalezce', 'Šílený Vynálezce', 'Šíleného Vynálezce', 'Přemožitel Šíleného Vynálezce']
+        ['vynalezce', 'Šílený Vynálezce', 'Šíleného Vynálezce', 'Přemožitel Šíleného Vynálezce'],
+        ['sefkuchar', 'Egocentrický Šéfkuchař', 'Egocentrického Šéfkuchaře', 'Přemožitel Egocentrického Šéfkuchaře']
     ];
     BOSS_EMBLEMS.forEach(([id, name, whom, title]) => addGroup(`boss-${id}`, `Boss týdne: ${name}`, 'swords', (c, x) => (x && x.bosses && x.bosses[id] ? 1 : 0),
         () => `Poraz bosse týdne ${whom}.`, [T(1, title, `boss-${id}`)]));

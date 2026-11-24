@@ -73,7 +73,7 @@ const APP_SHELL = [
     // pro rozsvěcování od ★11 (scripts/prestige-gem.py)
     ...PRESTIGE_ART.map(id => `icons/topics/${id}.webp`),
     // Boss týdne (boss.js ART): čtyři stupně každého bosse a jeho aréna
-    ...['kapitan', 'rytir', 'alchymista', 'amper', 'maestro', 'druid', 'olympan', 'reziser', 'herold', 'permonik', 'stavitel', 'malir', 'kronikar', 'trener', 'vynalezce'].flatMap(id => [`boss-${id}`, `boss-${id}-zraneny`, `boss-${id}-vkoncich`, `boss-${id}-porazeny`, `arena-${id}`]).map(id => `icons/topics/${id}.webp`),
+    ...['kapitan', 'rytir', 'alchymista', 'amper', 'maestro', 'druid', 'olympan', 'reziser', 'herold', 'permonik', 'stavitel', 'malir', 'kronikar', 'trener', 'vynalezce', 'sefkuchar'].flatMap(id => [`boss-${id}`, `boss-${id}-zraneny`, `boss-${id}-vkoncich`, `boss-${id}-porazeny`, `arena-${id}`]).map(id => `icons/topics/${id}.webp`),
     // Stavby na mapě Dobývání (conquest.js BUILDINGS, scripts/building-art.py): základ a vrstva střech a vlaječek v barvě hráče
     // a základní stavby a ozdoby z bloku 41 (strážní věž, důl, tábor obléhatelů, pomník vítěze; zřícenina bez vrstvy barvy). Stavby v sadách
     // hradů (vez-<sada>, dul-<sada>, zricenina-<sada>) se uloží až při použití jako ostatní obrázky sad

@@ -184,7 +184,7 @@ Co ukáže obrazovka otázky (listopad 2026; Řetězovka, č. 6, má vlastní pr
 | `kronikar` | Všemocný Kronikář | Literatura | Strážce příběhů s Knihou osudů, co do ní zapíše, to se stane |
 | `trener` | Nekompromisní Trenér | Sport | Věčný šampion a drsný instruktor, žádné výmluvy, kdo neví, dělá kliky |
 | `vynalezce` | Šílený Vynálezce | Technika a vynálezy | Bláznivý génius s robotem Šroubkem, každý pokus mu vybuchne |
-| `sefkuchar` | Egocentrický Šéfkuchař | Jídlo a pití | Mistr plotny a narcis, obdivuje sám sebe, jeho jídla jsou nejlepší na světě *(čeká na obrázky)* |
+| `sefkuchar` | Egocentrický Šéfkuchař | Jídlo a pití | Mistr plotny a narcis, obdivuje sám sebe, jeho jídla jsou nejlepší na světě |
 
 - **Úvod souboje**:
   - aréna na pozadí;

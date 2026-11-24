@@ -402,7 +402,8 @@
     const ROTATION = [
         { from: '2026-11-09', ids: ['kapitan', 'rytir', 'alchymista', 'amper', 'maestro', 'druid', 'olympan', 'reziser'] },
         { from: '2026-11-30', ids: ['herold', 'amper', 'stavitel', 'maestro', 'malir', 'druid', 'kronikar', 'olympan', 'vynalezce', 'reziser', 'kapitan', 'rytir', 'alchymista'] },
-        { from: '2026-12-07', ids: ['permonik', 'amper', 'trener', 'stavitel', 'maestro', 'malir', 'druid', 'kronikar', 'olympan', 'vynalezce', 'reziser', 'kapitan', 'rytir', 'alchymista', 'herold'] }
+        { from: '2026-12-07', ids: ['permonik', 'amper', 'trener', 'stavitel', 'maestro', 'malir', 'druid', 'kronikar', 'olympan', 'vynalezce', 'reziser', 'kapitan', 'rytir', 'alchymista', 'herold'] },
+        { from: '2026-12-14', ids: ['sefkuchar', 'amper', 'trener', 'stavitel', 'maestro', 'malir', 'druid', 'kronikar', 'olympan', 'vynalezce', 'reziser', 'kapitan', 'rytir', 'alchymista', 'herold', 'permonik'] }
     ];
     // @rotace-konec
     // Bossové ve hře: ti, kdo jsou v některém úseku rotace, v pořadí soupisky (stejné pořadí má BOSS_EMBLEMS v quiz-core.js
