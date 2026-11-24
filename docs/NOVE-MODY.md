@@ -180,11 +180,11 @@ Co ukáže obrazovka otázky (listopad 2026; Řetězovka, č. 6, má vlastní pr
 | `herold` | Herold | Vlajky a znaky | Královský hlasatel, všechno ohlašuje fanfárou *(čeká na obrázky)* |
 | `permonik` | Permoník | Geologie | Pán podzemí, hlídá poklady ve štole, zdraví „Zdař bůh!“ *(čeká na obrázky)* |
 | `stavitel` | Mistr stavitel | Architektura | Pán lešení, staví katedrály i kůlny, všechno kolauduje *(čeká na obrázky)* |
-| `malir` | Malíř | Výtvarné umění | Mistr štětce, temperamentní umělec, každá otázka je mistrovské dílo *(čeká na obrázky)* |
-| `kronikar` | Kronikář | Literatura | Strážce příběhů, každou chybu zapíše krasopisem *(čeká na obrázky)* |
-| `trener` | Trenér | Sport | Věčný šampion s píšťalkou, kdo neví, dělá kliky *(čeká na obrázky)* |
-| `vynalezce` | Vynálezce | Technika a vynálezy | Génius s robotem Šroubkem, na každou otázku má patent *(čeká na obrázky)* |
-| `sefkuchar` | Šéfkuchař | Jídlo a pití | Mistr plotny, vaří otázky pořádně opepřené *(čeká na obrázky)* |
+| `malir` | Dokonalý Malíř | Výtvarné umění | Mistr štětce, perfekcionista a snob, nesnese chybu ani kaňku *(čeká na obrázky)* |
+| `kronikar` | Všemocný Kronikář | Literatura | Strážce příběhů s Knihou osudů, co do ní zapíše, to se stane *(čeká na obrázky)* |
+| `trener` | Nekompromisní Trenér | Sport | Věčný šampion a drsný instruktor, žádné výmluvy, kdo neví, dělá kliky *(čeká na obrázky)* |
+| `vynalezce` | Šílený Vynálezce | Technika a vynálezy | Bláznivý génius s robotem Šroubkem, každý pokus mu vybuchne *(čeká na obrázky)* |
+| `sefkuchar` | Egocentrický Šéfkuchař | Jídlo a pití | Mistr plotny a narcis, obdivuje sám sebe, jeho jídla jsou nejlepší na světě *(čeká na obrázky)* |
 
 - **Úvod souboje**:
   - aréna na pozadí;
