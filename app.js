@@ -635,10 +635,12 @@
         const { hints, leadFacts, thin, visual, clue } = composed.plan;
         const resultFacts = topic.facts(item, ctx, 'result');
         // Tajemná otázka (options.plain): krátké nápovědy z dat položky – ano/ne, doba, indicie a související jméno (mystery.js riddleOf);
-        // options.year = rok dne otázky (stáří a „žije ještě“)
+        // options.year = rok dne otázky (stáří a „žije ještě“); options.day a texty nápověd = jména souvisejících osob, která v textu
+        // zůstanou vidět (od MudrlantMystery.NAMES_FROM)
         const Riddles = window.MudrlantMystery;
         const riddle = options.plain && !options.wrong && Riddles && Riddles.riddleOf
-            ? Riddles.riddleOf(item, { ctx, question, typeLabel, facts: resultFacts, year: options.year || new Date().getFullYear() }) : null;
+            ? Riddles.riddleOf(item, { ctx, question, typeLabel, facts: resultFacts, year: options.year || new Date().getFullYear(), day: options.day || '',
+                texts: [questionText, ...(hints || []).filter(hint => (hint.kind === 'excerpt' || hint.kind === 'text') && hint.text).map(hint => hint.text)] }) : null;
         return {
             topic: topic.id,
             id: item.q,
