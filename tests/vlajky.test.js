@@ -42,6 +42,8 @@ test('vlajky: státy, známé vlajky a česká stopa', () => {
 test('vlajky: jen dnešní vlajka a znak, každý obrázek jen u jedné položky', () => {
     assert.equal(find('Česko').im, 'Flag of the Czech Republic.svg');
     for (const item of data.items) {
+        // Měny se ptají textem (obrázek bankovky je jen nápovědou a po odpovědi), ne všechny ho mají
+        if (item.c === 'meny') continue;
         assert.ok(item.im && /^[0-9a-f]{2}$/.test(item.ih), `${item.n}: obrázek`);
         if (item.c !== 'historie') assert.doesNotMatch(item.im, /\(\d{4}[–-]\d{4}\)/, `${item.n}: historická vlajka ${item.im}`);
     }
@@ -116,7 +118,7 @@ test('vlajky: nápovědy – kontinent, slepá mapa, hlavní město (u znaku vla
 });
 
 test('vlajky: okruhy pro učení', () => {
-    assert.ok(data.collections.length >= 8 && data.collections.length <= 40, data.collections.map(c => c.label).join(', '));
+    assert.ok(data.collections.length >= 8 && data.collections.length <= 50, data.collections.map(c => c.label).join(', '));
     const europe = inCollection('vlajky-evropy');
     assert.ok(europe.includes('Česko') && europe.includes('Francie') && !europe.includes('Japonsko'));
     const tricolours = inCollection('trikolory');
@@ -195,4 +197,90 @@ test('vlajky: regiony, území a zaniklé státy v okruzích, obce a úrovně', 
     assert.ok(inCollection('obce-cesko').filter(name => find(name, 'cesko').k === 1).length <= 30);
     assert.equal(core.levelOf(find('Tuvalu')), 3);
     assert.ok(core.filterItems(data.items, { collection: 'egypt', tier: 'known' }).length >= 3);
+});
+
+test('vlajky: měny a bankovky – kategorie na konci, data, úrovně a žádná položka jiného tématu', () => {
+    const fs = require('node:fs');
+    assert.equal(vlajky.categories[vlajky.categories.length - 1].key, 'meny');
+    assert.deepEqual(vlajky.categories.map(category => category.key), ['vlajka', 'znak', 'cesko', 'uzemi', 'regiony', 'mesta', 'historie', 'meny']);
+    const currencies = data.items.filter(item => item.c === 'meny');
+    assert.ok(currencies.length >= 150, `${currencies.length}`);
+    const known = currencies.filter(item => item.k === 1);
+    assert.ok(known.length >= 35 && known.length <= currencies.length * 0.33, `známých ${known.length}`);
+    assert.ok(currencies.filter(item => item.x === 1).length >= 30);
+    for (const name of ['Euro', 'Americký dolar', 'Koruna česká', 'Libra šterlinků', 'Zlotý', 'Maďarský forint', 'Koruna československá', 'Pražský groš', 'Německá marka']) {
+        assert.equal(find(name, 'meny').k, 1, `${name} má být známá`);
+    }
+    for (const name of ['Komorský frank', 'Tuvalský dolar']) assert.equal(core.levelOf(find(name, 'meny')), 3, name);
+    assert.equal(find('Koruna česká', 'meny').cz, 1);
+    assert.equal(find('Maďarský forint', 'meny').f.iso, 'HUF');
+    assert.deepEqual(find('Zlotý', 'meny').co, ['Q36']);
+    const names = currencies.map(item => item.n.toLocaleLowerCase('cs'));
+    assert.equal(new Set(names).size, names.length, 'stejný název dvakrát');
+    // Žádné ID, které má jiné téma
+    const others = new Set();
+    for (const file of fs.readdirSync(path.join(__dirname, '..', 'data')).filter(name => name.endsWith('.json') && name !== 'vlajky.json')) {
+        const other = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', file), 'utf8'));
+        for (const item of (Array.isArray(other.items) ? other.items : [])) if (item && item.q) others.add(item.q);
+    }
+    assert.deepEqual(currencies.filter(item => others.has(item.q)).map(item => item.n), []);
+    // Okruhy: měny kontinentů, měny před eurem, zaniklé měny, historické mince
+    const europe = inCollection('meny-evropy');
+    assert.ok(europe.includes('Euro') && europe.includes('Koruna česká') && !europe.includes('Japonský jen'));
+    for (const name of ['Německá marka', 'Italská lira', 'Slovenská koruna', 'Chorvatská kuna']) assert.ok(inCollection('meny-pred-eurem').includes(name), name);
+    assert.ok(inCollection('zanikle-meny').includes('Koruna československá'));
+    for (const name of ['Pražský groš', 'Tolar', 'Dukát', 'Haléř']) assert.ok(inCollection('historicke-mince').includes(name), name);
+    assert.ok(inCollection('meny-ameriky-oceanie').includes('Americký dolar') && inCollection('meny-ameriky-oceanie').includes('Australský dolar'));
+});
+
+test('vlajky: měny – otázka textem, nápovědy, nesprávné možnosti a otázky se jménem', () => {
+    const forint = find('Maďarský forint', 'meny');
+    assert.equal(vlajky.questionImage(forint, ctx, 'name'), null, 'na bankovce je název napsaný');
+    assert.equal(vlajky.withholdText('name', forint), false);
+    // Nápovědy: kontinent a rok, kód ISO (symbol z písmen Ft ne), nakonec vlajka státu; fotka bankovky s napsaným názvem ne
+    const hints = vlajky.hints(forint, ctx, 'name');
+    assert.deepEqual(hints[0].facts, [{ label: 'Kontinent', value: 'Evropa' }, { label: 'Od roku', value: '1946' }]);
+    assert.deepEqual(hints[1].facts, [{ label: 'Kód ISO', value: 'HUF' }]);
+    assert.equal(hints[2].spec.file, find('Maďarsko').im);
+    assert.ok(data.items.filter(item => item.c === 'meny').every(item => !vlajky.hints(item, ctx, 'name').some(hint => hint.kind === 'photo')));
+    // Symbol bez písmen je nápovědou (₹), stát a symbol z písmen jen po odpovědi
+    assert.ok(vlajky.hints(find('Indická rupie', 'meny'), ctx, 'name')[1].facts.some(fact => fact.value === '₹'));
+    assert.ok(!vlajky.facts(forint, ctx, 'name').some(fact => fact.value === 'Ft' || /Maďarsko/.test(fact.value)));
+    assert.ok(vlajky.facts(forint, ctx, 'result').some(fact => fact.label === 'Platí se v' && fact.value === 'Maďarsko'));
+    assert.ok(vlajky.facts(forint, ctx, 'result').some(fact => fact.label === 'Značka' && fact.value === 'Ft'), 'značka z písmen pod popiskem, který rozlišujícím údajem není');
+    // Zakrytí popisu: název, stát, kód ISO a symbol
+    const text = vlajky.censor('name', 'Forint (HUF, Ft) je zákonná měna Maďarska, maďarský forint vydává banka.', forint, ctx);
+    assert.doesNotMatch(text, /forint|HUF|Ft|Maďar/iu, text);
+    assert.match(vlajky.censor('name', 'Lek (L) je měna Albánie. Leží v Lublani.', find('Albánský lek', 'meny'), ctx), /Leží v Lublani/u);
+    // Psané odpovědi: jednotka, když ji nemá jiná měna
+    const accepted = (item) => ({ accepted: core.nameAnswers(item, vlajky.nameAliases(item, ctx)) });
+    assert.ok(core.checkAnswer('forint', accepted(forint)));
+    assert.ok(core.checkAnswer('česká koruna', accepted(find('Koruna česká', 'meny'))));
+    assert.ok(!core.checkAnswer('dolar', accepted(find('Kanadský dolar', 'meny'))));
+    // Nesprávné možnosti: stejný druh, k evropské měně evropské, k dolaru jiné dolary či pesa
+    for (let seed = 0; seed < 10; seed++) {
+        const wrong = choicesOf(forint, `forint-${seed}`).filter(choice => !choice.correct).map(choice => ctx.byId.get(choice.id));
+        assert.ok(wrong.every(other => other.c === 'meny' && other.ty === 'měna'), wrong.map(other => other.n).join(', '));
+        assert.ok(wrong.filter(other => countries[other.co[0]] && countries[other.co[0]].continent === 'EU').length >= 2, wrong.map(other => other.n).join(', '));
+        const groats = choicesOf(find('Pražský groš', 'meny'), `gros-${seed}`).filter(choice => !choice.correct).map(choice => ctx.byId.get(choice.id));
+        assert.ok(groats.every(other => other.ty === 'historická mince' || other.ty === 'drobná jednotka'), groats.map(other => other.n).join(', '));
+    }
+    // Otázka na stát jen u měny, jejíž název stát neprozradí (zlotý ano, forint ne); otázka na symbol jen u symbolu bez písmen
+    const asked = (item, type) => Array.from({ length: 40 }, (_, seed) => vlajky.specialQuestion(item, ctx, core.createSeededRandom(`${item.q}-${seed}`))).filter(q => q && q.type === type);
+    const zloty = asked(find('Zlotý', 'meny'), 'location');
+    assert.ok(zloty.length > 0);
+    for (const question of zloty) {
+        assert.equal(question.choices.length, 4);
+        assert.equal(question.choices.find(choice => choice.correct).label, 'Polsko');
+    }
+    assert.equal(asked(forint, 'location').length, 0);
+    assert.equal(asked(forint, 'usymbol').length, 0);
+    const rupee = asked(find('Indická rupie', 'meny'), 'usymbol');
+    assert.ok(rupee.length > 0);
+    for (const question of rupee) {
+        assert.equal(question.choices.find(choice => choice.correct).label, '₹');
+        assert.equal(new Set(question.choices.map(choice => choice.label)).size, 4);
+        assert.ok(question.choicesOnly);
+    }
+    assert.equal(vlajky.censor('usymbol', 'Symbol rupie je ₹.', find('Indická rupie', 'meny'), ctx), 'Symbol rupie je [***].');
 });

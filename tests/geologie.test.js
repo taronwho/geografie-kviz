@@ -186,7 +186,7 @@ test('geologie: nesprávné možnosti, psané odpovědi a okruhy', () => {
     assert.ok(accepts('Pyrop', 'český granát') && accepts('Druhohory', 'mezozoikum') && accepts('Ortoklas', 'draselný živec'));
     assert.ok(!accepts('Kalcit', 'aragonit'));
     // Okruhy
-    assert.ok(data.collections.length >= 8 && data.collections.length <= 40);
+    assert.ok(data.collections.length >= 8 && data.collections.length <= 60);
     assert.ok(inCollection('cesko').includes('Vltavín') && inCollection('cesko').includes('Opuka') && !inCollection('cesko').includes('Diamant'));
     assert.ok(inCollection('rudy').includes('Galenit') && inCollection('rudy').includes('Kasiterit') && !inCollection('rudy').includes('Křemen'));
     assert.ok(inCollection('vyvrele').includes('Čedič') && inCollection('usazene').includes('Pískovec') && inCollection('premenene').includes('Rula'));

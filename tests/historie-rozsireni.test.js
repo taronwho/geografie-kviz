@@ -26,7 +26,7 @@ test('historie: nové kategorie na konci seznamu, dost položek a známých, iko
     assert.deepEqual(keys.slice(7), NEW);
     const icons = fs.readFileSync(path.join(ROOT, 'icons.js'), 'utf8');
     for (const category of historie.categories.slice(7)) assert.ok(icons.includes(`"${category.icon}"`) || icons.includes(`'${category.icon}'`), category.icon);
-    const minimum = { archeologie: 100, pirati: 35, organizace: 70, tradice: 100 };
+    const minimum = { archeologie: 100, pirati: 35, organizace: 70, tradice: 90 };
     for (const key of NEW) {
         const list = inCategory(key);
         assert.ok(list.length >= minimum[key], `${key}: ${list.length}`);
@@ -64,13 +64,13 @@ test('historie: druhy otázek a nesprávné možnosti stejného druhu', () => {
     assert.equal(historie.questionTitle(find('Černovous')), 'Kdo to je?');
     assert.equal(historie.questionTitle(find('Jolly Roger')), 'Co je to?');
     assert.equal(historie.questionTitle(find('Hanza')), 'Která aliance nebo spolek to je?');
-    assert.equal(historie.questionTitle(find('Velikonoce')), 'Který svátek to je?');
+    assert.equal(historie.questionTitle(find('Masopust')), 'Který svátek to je?');
     assert.equal(historie.questionTitle(find('Kimono')), 'Který oděv to je?');
     assert.equal(historie.questionTitle(find('Karel IV.')), null);
     // Stálé semínko (lineární kongruenční generátor), ať test vychází pokaždé stejně
     let seed = 12345;
     const rng = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
-    for (const name of ['Velikonoce', 'Kimono', 'Polka', 'Keltové', 'Doba bronzová', 'Severoatlantická aliance', 'Trojspolek', 'Anne Bonny', 'Howard Carter', 'Valašsko']) {
+    for (const name of ['Masopust', 'Kimono', 'Polka', 'Keltové', 'Doba bronzová', 'Severoatlantická aliance', 'Trojspolek', 'Anne Bonny', 'Howard Carter', 'Valašsko']) {
         const item = find(name);
         const choices = core.buildItemChoices(item, data.items, rng, other => historie.similarity(item, other, ctx));
         const others = choices.filter(choice => !choice.correct).map(choice => data.items.find(candidate => candidate.q === choice.id));

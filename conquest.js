@@ -1063,7 +1063,7 @@
         const nameAt = (name, territory) => { const key = namePlain(name); if (!key || !territory) return; if (!placeNames.has(key)) placeNames.set(key, new Set()); placeNames.get(key).add(territory); };
         for (const topic of ['zemepis', 'architektura', 'vlajky']) {
             for (const item of list(topic)) {
-                if (!item.n || item.c === 'stat' || item.c === 'vlajka' || item.c === 'znak' || item.c === 'uzemi' || item.c === 'historie' || item.c === 'slohy' || item.c === 'prvky' || item.c === 'architekti') continue;
+                if (!item.n || item.c === 'stat' || item.c === 'vlajka' || item.c === 'znak' || item.c === 'uzemi' || item.c === 'historie' || item.c === 'slohy' || item.c === 'prvky' || item.c === 'architekti' || item.c === 'meny') continue;
                 if (kraje) nameAt(item.n, item.c === 'cesko' ? krajByName.get(namePlain(item.n)) || located({ ...item, co: ['Q213'] }) : krajOf(item));
                 else (item.co || []).forEach(q => nameAt(item.n, q));
             }

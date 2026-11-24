@@ -146,9 +146,12 @@
     const EASY_FROM = '2026-11-13';
     const POOL_FROM = '2026-11-24';
     const MIN_POOL = 12;
+    // Kategorie přidané později, které tajemná otázka nebere (měny ve Vlajkách a znacích mají fotky bankovek – vlajky žádné, takže
+    // by vytlačily celý dosavadní výběr tématu a změnily rozehrané dny; na bankovce je navíc název měny napsaný)
+    const SKIPPED_CATEGORIES = new Set(['meny']);
     const candidatesOf = (items, day = EASY_FROM) => {
         const easy = String(day) >= EASY_FROM;
-        const list = (items || []).filter(item => item && item.q && item.n);
+        const list = (items || []).filter(item => item && item.q && item.n && !SKIPPED_CATEGORIES.has(item.c));
         const known = list.filter(item => item.k === 1 && !item.nq);
         const byCategory = new Map();
         known.forEach(item => { if (!byCategory.has(item.c)) byCategory.set(item.c, []); byCategory.get(item.c).push(item); });
@@ -167,10 +170,14 @@
         return (String(day) >= POOL_FROM && tiers.slice(0, 5).find(tier => tier.length >= MIN_POOL)) || tiers.find(tier => tier.length) || [];
     };
     // Položka dne v tématu: nejmenší otisk (semínko dne + id), takže nová data změní výběr jen tam, kde nová položka vyhraje
+    // Kategorie rozšíření, které do tajemné otázky nepatří (nové položky by změnily už naplánované dny): Mytologie – náboženství,
+    // světci a záhady (24. 11. 2026)
+    const SKIP_CATEGORIES = { mytologie: new Set(['nabozenstvi', 'svetci', 'zahady']) };
     const pickItem = (day, topicId, items) => {
         let best = null;
         let bestHash = Infinity;
-        for (const item of candidatesOf(items, day)) {
+        const skip = SKIP_CATEGORIES[topicId];
+        for (const item of candidatesOf(skip ? (items || []).filter(item => !(item && skip.has(item.c))) : items, day)) {
             const value = hash32(`${seedFor(day)}|${topicId}|${item.q}`);
             if (value < bestHash || (value === bestHash && String(item.q) < String(best.q))) { best = item; bestHash = value; }
         }

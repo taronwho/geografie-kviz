@@ -3,17 +3,31 @@
 // Podobnost vlajek (Čad × Rumunsko, Irsko × Pobřeží slonoviny) se počítá z barev původních obrázků z Commons:
 // každý obrázek dostane „podpis“ – mřížku 12 × 6 políček, v každém převládající barva (W bílá, R červená…).
 // Spuštění: npm run build:vlajky (potřebuje data/countries.json; s BUILD_CACHE=složka bez opakovaného stahování)
+// Měny (kategorie Měny a bankovky, scripts/lib/vlajky-meny.mjs) se přidají na konci; jen měny nad hotovým data/vlajky.json
+// (ostatní položky se nestahují ani nemění): node scripts/build-vlajky.mjs --doplnit
 import { inflateSync } from 'node:zlib';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { qlever, sparql, id, values, parsePoint, fileName, thumbHash, compact, cached, inBatches, readCountries, writeTopic, sleep, CZECHIA } from './lib/wikidata.mjs';
 import { REGION_COUNTRIES, REGION_ONLY, REGION_NO_MAP, NOT_A_REGION, CITY_MIN_POPULATION, MAX_CITIES, HISTORICAL_TITLES, KNOWN_HISTORICAL, HISTORICAL_SKIP_FILE, HISTORICAL_FILES, HISTORICAL_MIN_SITELINKS, HISTORICAL_MIN_END_YEAR, HISTORICAL_SKIP_NAMES, TERRITORY_TITLES, ORGANIZATION_TITLES } from './lib/vlajky-extra.mjs';
 import { cachedByKey } from './lib/zemepis-levels.mjs';
 import { topicPageviews, assignLevels, levelGroups, levelSummary } from './lib/fame-levels.mjs';
+import { extendVlajky, printReport as printCurrencies, CATEGORY as CURRENCY_CATEGORY } from './lib/vlajky-meny.mjs';
 
 // QLever, a když je přetížený, query.wikidata.org (dotazy jsou malé, zvládne je i ten); WIKIDATA_ENDPOINT=wdqs rovnou query.wikidata.org
 const run = process.env.WIKIDATA_ENDPOINT === 'wdqs' ? (query) => sparql(query) : (query) => qlever(query, 2).catch(() => sparql(query));
 
 const countries = readCountries();
+if (process.argv.includes('--doplnit')) {
+    const data = JSON.parse(readFileSync(new URL('../data/vlajky.json', import.meta.url), 'utf8'));
+    const before = new Map(data.items.filter(item => item.c !== CURRENCY_CATEGORY).map(item => [item.q, JSON.stringify(item)]));
+    printCurrencies(await extendVlajky({ items: data.items, collections: data.collections, countries }));
+    // Pojistka: dosavadní položky (mimo měny) zůstanou beze změny
+    const after = new Map(data.items.map(item => [item.q, JSON.stringify(item)]));
+    const changed = [...before].filter(([q, text]) => after.get(q) !== text).map(([q]) => q);
+    if (changed.length) throw new Error(`Změnily se dosavadní položky: ${changed.slice(0, 10).join(', ')}`);
+    writeTopic('vlajky', { collections: data.collections, items: data.items });
+    process.exit(0);
+}
 const STATE_IDS = Object.keys(countries);
 const USER_AGENT = 'MudrlantBuild/1.0 (https://github.com/taronwho/mudrlant)';
 
@@ -1217,5 +1231,12 @@ for (const category of ['vlajka', 'znak', 'cesko', 'uzemi', 'regiony', 'mesta', 
     console.log(`${category}: ${inCategory.length} (${inCategory.filter(item => item.k).length} známých, ${inCategory.filter(item => item.sg).length} s podpisem)`);
 }
 for (const collection of collections) console.log(`okruh ${collection.label}: ${unique.filter(item => (item.g || []).includes(collection.id)).length}`);
+
+// --- 9. krok: měny (lib/vlajky-meny.mjs), nová kategorie na konci ---
+{
+    const previous = existsSync(new URL('../data/vlajky.json', import.meta.url)) ? JSON.parse(readFileSync(new URL('../data/vlajky.json', import.meta.url), 'utf8')).items : [];
+    unique.push(...previous.filter(item => item.c === CURRENCY_CATEGORY));
+    printCurrencies(await extendVlajky({ items: unique, collections, countries }));
+}
 
 writeTopic('vlajky', { collections, items: unique });

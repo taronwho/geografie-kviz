@@ -411,15 +411,20 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
         });
     }
 
-    // Výběr kategorií (Zeměpis, Historie s jedenácti kategoriemi, Sport a hry s devíti s dlouhými názvy) a témat (Mix) na 360×640:
-    // tlačítko Hrát je v lepkavé patičce, vidět a nezakryté nahoře i uprostřed posunu
-    for (const [action, scheme] of [['[data-action="play-topic"][data-topic="zemepis"]', 'light'], ['[data-action="play-topic"][data-topic="historie"]', 'dark'], ['[data-action="play-mix"]', 'dark'], ['[data-action="play-topic"][data-topic="sport"]', 'dark']]) {
-        await t.test(`výběr ${action.includes('mix') ? 'Mix' : action.includes('sport') ? 'Sport a hry' : action.includes('historie') ? 'Historie' : 'Zeměpis'}: Hrát vždy vidět (${scheme})`, async () => {
+    // Výběr kategorií témat s mnoha kategoriemi (Zeměpis, Historie, Sport a hry, Výtvarné umění, Geologie, Mytologie, Vlajky a znaky) a témat (Mix) na 360×640: tlačítko Hrát
+    // je v lepkavé patičce, vidět a nezakryté nahoře i uprostřed posunu
+    const CHOOSERS = [['zemepis', 'Zeměpis', 'light'], ['historie', 'Historie', 'dark'], ['sport', 'Sport a hry', 'dark'], ['umeni', 'Umění', 'dark'], ['geologie', 'Geologie', 'dark'], ['mytologie', 'Mytologie', 'dark'], ['vlajky', 'Vlajky a znaky', 'dark'], [null, 'Mix', 'dark']];
+    for (const [action, scheme, label] of CHOOSERS.map(([topic, label, scheme]) => [topic ? `[data-action="play-topic"][data-topic="${topic}"]` : '[data-action="play-mix"]', scheme, label])) {
+        await t.test(`výběr ${label}: Hrát vždy vidět (${scheme})`, async () => {
             const { context, tab, problems } = await open(scheme);
             await nav.go(tab, 'hrat');
             await tab.click(action);
             await tab.waitForSelector('#play-chooser [data-chooser-play]');
             await check(tab, 'výběr kategorií', scheme);
+            if (action.includes('mytologie')) {
+                const text = await tab.textContent('#play-chooser');
+                for (const label of ['Náboženství', 'Světci a světice', 'Záhady a legendy']) assert.ok(text.includes(label), `výběr Mytologie: chybí ${label}`);
+            }
             for (const at of [0, 0.5, 1]) {
                 const state = await tab.evaluate((at) => {
                     const box = document.querySelector('#play-chooser > div');
@@ -431,6 +436,7 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
                 assert.ok(state.top >= 0 && state.bottom <= state.height + 0.5, `${scheme}: Hrát mimo obrazovku při posunu ${at} (${state.top}–${state.bottom})`);
                 assert.equal(state.free, true, `${scheme}: Hrát je zakryté při posunu ${at}`);
                 if (action.includes('sport')) assert.equal(state.scrolls, false, 'Sport a hry: výběr kategorií bez posouvání');
+                if (action.includes('geologie')) assert.equal(state.scrolls, false, 'výběr kategorií Geologie se posouvá');
             }
             assert.deepEqual(problems, [], 'bez chyb v konzoli a bez porušení CSP');
             await context.close();

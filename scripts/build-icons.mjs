@@ -52,7 +52,15 @@ const ICONS = [
     // Historie: kategorie Archeologie a starověk, Mezinárodní organizace a Lidové tradice, svátky a kroje
     'amphora', 'handshake', 'egg',
     // Literatura: kategorie Divadelní hry a Jazyky a písma
-    'theater', 'languages'
+    'theater', 'languages',
+    // Výtvarné umění: kategorie Móda a návrháři, Design a nábytek
+    'shirt', 'armchair',
+    // Geologie: kategorie Přírodní katastrofy, Podnebí a klima, Počasí a oblaka
+    'tornado', 'thermometer-sun', 'cloud-sun',
+    // Mytologie: kategorie Náboženství, Světci a světice, Záhady a legendy
+    'sun-moon', 'cross', 'search',
+    // Vlajky a znaky: kategorie Měny a bankovky
+    'banknote'
 ];
 
 const toPascalCase = (name) => name.replace(/(^|-)(\w)/g, (_, __, letter) => letter.toUpperCase());
