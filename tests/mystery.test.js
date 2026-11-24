@@ -618,3 +618,51 @@ test('vědecký název je u známé položky silný fakt (až za větou popisu),
     assert.ok(M.revealScore(facts('Vědecký název', 'Origanum vulgare')) > M.revealScore(sentence));
     assert.ok(M.revealScore(facts('Vědecký název', 'Origanum vulgare', { known: false })) < M.revealScore(facts('Vědecký název', 'Origanum vulgare')));
 });
+
+// Hlášení 24. 11. 2026 (Agamemnón): „Byl synem krále [***] a jeho manželky [***], manžel [***]…“ – přísné zakrytí zakrylo všechna jména,
+// i rodiče, které už ukazuje Souvislost. Od NAMES_FROM zůstanou vidět jména souvisejících osob z dat (riddle.names); dřívější dny beze změny.
+test('jména souvisejících osob v popisu zůstanou vidět (od NAMES_FROM), odpověď, místa a neúplná jména ne', () => {
+    const ctx = contextOf('mytologie');
+    const item = ctx.items.find(entry => entry.n === 'Agamemnón');
+    const question = questionOf(item, ctx);
+    const description = '[***] je v řecké mytologii mykénský král. Byl synem krále Átrea a jeho manželky Áeropé, manžel Klytaimnéstry, se kterou měl syna Oresta a dcery Ífigeneiu, Élektru a Chrýsothemis.';
+    const excerpt = 'Po návratu z Tróje byl zavražděn svou manželkou a jejím milencem Aigisthem.';
+    const riddleOn = (day, texts = [description, excerpt]) => M.riddleOf(item, { ctx, question, typeLabel: item.ty, facts: ctx.topic.facts(item, ctx, 'result'), year: 2026, day, texts });
+    const before = riddleOn('2026-11-24');
+    assert.equal(before.names, undefined, 'dnešní (už rozehraný) den se nemění');
+    const riddle = riddleOn(M.NAMES_FROM);
+    // Chrýsothemis není položka tématu, je mezi sourozenci Oresta; Tróje (místo) zůstane zakrytá, i když se podobá Trojanovi
+    assert.deepEqual([...riddle.names].sort(), ['Aigisthem', 'Áeropé', 'Átrea', 'Chrýsothemis', 'Élektru', 'Ífigeneiu', 'Klytaimnéstry', 'Oresta'].sort());
+    const data = { typeLabel: 'hrdina', name: item.n, questionText: description, leadFacts: [], hints: [{ kind: 'excerpt', text: excerpt }], photoUrl: null, riddle };
+    const texts = M.buildClues(data).flatMap(clue => clue.parts.filter(part => part.type === 'text').map(part => part.text));
+    assert.ok(texts.includes('Byl synem krále Átrea a jeho manželky Áeropé, manžel Klytaimnéstry, se kterou měl syna Oresta a dcery Ífigeneiu, Élektru a Chrýsothemis.'), texts.join(' | '));
+    assert.ok(texts.some(text => text.includes('Po návratu z [***] byl zavražděn')), 'Tróje zůstane zakrytá');
+    assert.ok(texts.some(text => text.includes('[***] mytologii')), 'národnost zůstane zakrytá');
+    // Stará uložená data (bez riddle.names) vypadají jako dřív
+    const old = M.buildClues({ ...data, riddle: before }).flatMap(clue => clue.parts.filter(part => part.type === 'text').map(part => part.text));
+    assert.ok(old.includes('Byl synem krále [***] a jeho manželky [***], manžel [***], se kterou měl syna [***] a dcery [***], [***] a [***].'), old.join(' | '));
+    // Rozehraný den (otázka sestavená bez riddle.names, 24. 11.): jména spočítaná dodatečně (relatedNames, app.js) se jen ukážou –
+    // stejné nápovědy ve stejném pořadí, jen věty se jmény
+    const late = M.relatedNames(item, { ctx, question, facts: ctx.topic.facts(item, ctx, 'result'), texts: M.roundTexts(data) });
+    assert.deepEqual([...late].sort(), [...riddle.names].sort());
+    const oldData = { ...data, riddle: before };
+    const plainClues = M.buildClues(oldData);
+    const lateClues = M.buildClues({ ...oldData, shownNames: late });
+    assert.deepEqual(lateClues.map(clue => [clue.title, clue.parts.map(part => part.type)]), plainClues.map(clue => [clue.title, clue.parts.map(part => part.type)]), 'pořadí nápověd se nezmění');
+    const lateTexts = lateClues.flatMap(clue => clue.parts.filter(part => part.type === 'text').map(part => part.text));
+    assert.ok(lateTexts.includes('Byl synem krále Átrea a jeho manželky Áeropé, manžel Klytaimnéstry, se kterou měl syna Oresta a dcery Ífigeneiu, Élektru a Chrýsothemis.'), lateTexts.join(' | '));
+    assert.ok(lateTexts.some(text => text.includes('Po návratu z [***] byl zavražděn svou manželkou a jejím milencem Aigisthem.')), lateTexts.join(' | '));
+    assert.ok(M.SHOWN_NAMES_FROM <= '2026-11-24');
+    // Tvar jména odpovědi zůstane zakrytý, i když ho jiná položka má ve faktech (Orestés: otec Agamemnón)
+    const leak = riddleOn(M.NAMES_FROM, ['Jeho otcem byl Agamemnóna a matkou Klytaimnéstra.']);
+    assert.deepEqual(leak.names, ['Klytaimnéstra']);
+    // Víceslovné jméno jen celé (Lee Ranaldo, New York × Thom Yorke) a samotné křestní jméno ne (Zlata Adamovská × Zlatý glóbus)
+    const film = contextOf('film');
+    const streep = film.items.find(entry => entry.n === 'Meryl Streepová');
+    const filmNames = M.riddleOf(streep, { ctx: film, question: questionOf(streep, film), typeLabel: 'herečka', facts: [], year: 2026, day: M.NAMES_FROM,
+        texts: ['Je držitelka Zlatého glóbu, hrála s Bradem Pittem a v New Yorku s Lee Ranaldem.'] }).names;
+    assert.deepEqual([...filmNames].sort(), ['Bradem', 'Pittem']);
+    // Uložená data z localStorage: jen slova velkým písmenem
+    assert.deepEqual(M.cleanRiddle({ names: ['Átrea', '<b>', 'malé', 42, 'x'.repeat(50)] }).names, ['Átrea']);
+    assert.equal(M.strongMask('Syn krále Átrea a Áeropé.', new Set(['Átrea'])), 'Syn krále Átrea a [***].');
+});

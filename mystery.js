@@ -188,7 +188,8 @@
     const MARK = '[***]';
     // Přísné zakrytí textových nápověd (Tajemná otázka má být těžká): kromě odpovědi zmizí i státy a národnosti (kmeny z chain.js,
     // „německé“, „Německa“), vlastní jména uprostřed věty („Západní [***]“ → „[***]“) a letopočty („1961–1989“ → „****–****“).
-    // Zůstane, o jaký druh věci jde a co se o ní ví obecně; sousední zakrytá slova se slijí do jednoho [***].
+    // Zůstane, o jaký druh věci jde a co se o ní ví obecně; sousední zakrytá slova se slijí do jednoho [***]. Od NAMES_FROM zůstanou
+    // vidět jména souvisejících osob z dat, která odpověď neprozradí (rodiče, manželka, děti, autor – riddle.names, shownNamesOf).
     const chainApi = () => {
         try { if (typeof module === 'object' && module.exports && typeof require === 'function') return require('./chain.js'); } catch (error) { /* bez řetězovky jen vlastní jména */ }
         return (typeof self !== 'undefined' && self.MudrlantChain) || null;
@@ -209,15 +210,19 @@
         return nationalityRe;
     };
     const hasNationality = (text) => { const pattern = nationalityPattern(); if (!pattern) return false; pattern.lastIndex = 0; return pattern.test(String(text || '')); };
-    const strongMask = (text) => {
+    // Vlastní jméno uprostřed věty: slovo s velkým písmenem, které nezačíná větu (ani po uvozovce či závorce na začátku věty)
+    const PROPER_WORD = /\p{Lu}[\p{L}\-']*/gu;
+    const midSentence = (whole, offset) => {
+        const before = whole.slice(0, offset).replace(/[„"“(‚'\s]+$/u, '');
+        return Boolean(before) && !/[.!?:]$/.test(before);
+    };
+    // keep = vlastní jména, která zůstanou vidět (riddle.names: jména souvisejících osob z dat, která odpověď neprozradí – rodiče,
+    // manželka, děti; od NAMES_FROM)
+    const strongMask = (text, keep = null) => {
         let out = String(text || '');
         const nat = nationalityPattern();
         if (nat) out = out.replace(nat, MARK);
-        // Vlastní jména: slovo s velkým písmenem, které nezačíná větu (ani po uvozovce či závorce na začátku věty)
-        out = out.replace(/\p{Lu}[\p{L}\-']*/gu, (word, offset, whole) => {
-            const before = whole.slice(0, offset).replace(/[„"“(‚'\s]+$/u, '');
-            return !before || /[.!?:]$/.test(before) ? word : MARK;
-        });
+        out = out.replace(PROPER_WORD, (word, offset, whole) => (!midSentence(whole, offset) || (keep && keep.has(word)) ? word : MARK));
         out = out.replace(/(?<![\d])(1\d{3}|20\d{2})(?![\d])/g, '****');
         // Sousední zakrytá místa jako jedno (i přes spojku „a“ ne – ta zůstane, ať je věta čitelná)
         return out.replace(/\[\*\*\*\](?:\s+\[\*\*\*\])+/g, MARK);
@@ -571,7 +576,108 @@
         return left.some(word => right.includes(word)) || (left.length === 1 && fold(b).includes(left[0])) || (right.length === 1 && fold(a).includes(right[0]));
     };
     const listOf = (value) => String(value || '').split(/,\s+/).map(part => part.trim()).filter(Boolean);
-    const riddleOf = (item, { ctx, question, typeLabel = '', facts = [], year = new Date().getUTCFullYear() } = {}) => {
+    // Jména souvisejících osob v textových nápovědách (od NAMES_FROM; dřívější dny, už rozehrané nebo zamrzlé na serveru, zůstávají
+    // celé zakryté): „Byl synem krále Átrea a jeho manželky Áeropé, manžel Klytaimnéstry…“ místo „synem krále [***] a … [***]“.
+    // Vidět zůstane jen jméno osoby, kterou data znají: osoba tématu (kategorie „Kdo to je?“, ne místo s polohou), příbuzný či tvůrce
+    // z faktů položky nebo příbuzný osoby zmíněné v textu (Chrysothemis ze sourozenců Oresta). Zakryté zůstane vše, co odpověď
+    // prozradí (tvar jména, společný kořen, zkratka – answerGuard), státy, národnosti a světadíly, místa a ostatní vlastní jména.
+    const NAMES_FROM = '2026-11-25';
+    const MAX_NAMES = 24;
+    // Koncovka pádu za kmenem jména (Átre-a, Klytaimnéstr-y, Orest-ovi, Aigisth-em, Ífigene-iu, Klytaimnéstr-ou)
+    const CASE_TAIL = /^(?:[aeiouy]{0,3}|[aeiouy]?(?:m|mi|ch|ho|mu|ovi|ov[aeiouy]|ovou))$/;
+    const PERSON_LABELS = new Set(['Architekt', 'Architekti', 'Autor', 'Libreto', 'Objevitel', 'Vynálezce', 'Otec', 'Matka', 'Rodiče', 'Partner', 'Partnerka',
+        'Partnerky', 'Partneři', 'Sourozenec', 'Sourozenci', 'Děti', 'Členové']);
+    const personValues = (facts) => (facts || []).filter(fact => fact && PERSON_LABELS.has(fact.label))
+        .flatMap(fact => listOf(fact.value)).flatMap(value => value.split(/\s+a\s+/)).map(value => value.trim()).filter(value => /^\p{Lu}/u.test(value));
+    // Mezi křestním jménem a příjmením smí být jen mezera nebo předložka jména (Leonarda da Vinciho)
+    const ROMAN = /^[IVXLC]+$/;
+    // Přídomky a tituly ve jménech osob (Erik IX. Svatý, Karel Veliký) samy jménem nejsou (Svaté říše římské)
+    const NAME_TITLES = new Set(['svaty', 'svata', 'svate', 'veliky', 'velika', 'velky', 'velka', 'starsi', 'mladsi', 'dobry', 'hrozny', 'krasny', 'slavny', 'smely',
+        'saint', 'sankt', 'san', 'santa', 'sir', 'lord', 'lady', 'king', 'queen', 'don', 'dona', 'mistr', 'papez', 'kral', 'kralovna', 'cisar', 'knize', 'princ', 'princezna']);
+    const NAME_GAP = /^[ \u00a0]+(?:(?:da|de|di|del|della|van|von|der|den|la|le|du|z|ze|al|el|ibn|bin)[ \u00a0]+)*$/u;
+    const shownNamesOf = (item, { ctx, core, facts, texts, reveals, namesCountry }) => {
+        // Vlastní jména uprostřed vět (co by přísné zakrytí zakrylo), v pořadí; joined = navazuje na předchozí jméno (Franka Herberta)
+        const runs = texts.map(text => {
+            let value = String(text || '');
+            const nat = nationalityPattern();
+            if (nat) value = value.replace(nat, MARK);
+            // Zakrytá odpověď ([***]) vedle jména patří k němu: „[***] Joliot-Curieové“ se neodkryje napůl
+            const found = [...value.matchAll(/\[\*\*\*\]|\p{Lu}[\p{L}\-']*/gu)].filter(match => match[0] === MARK || midSentence(value, match.index));
+            return found.map((match, i) => ({ word: match[0], joined: i > 0 && NAME_GAP.test(value.slice(found[i - 1].index + found[i - 1][0].length, match.index)) }));
+        });
+        if (!runs.some(run => run.some(entry => entry.word !== MARK))) return [];
+        const extra = core.genericWordsOf ? core.genericWordsOf(ctx) : null;
+        const isGeneric = (word) => (core.isGenericWord ? core.isGenericWord(word, extra) : false);
+        const personCategories = new Set((ctx.topic.categories || []).filter(entry => /^Kdo\b/.test(entry.question || '')).map(entry => entry.key));
+        const placeOf = (other) => Boolean(ctx.topic.coords && validCoords(ctx.topic.coords(other, ctx)));
+        const people = (ctx.items || []).filter(other => other && other !== item && other.q !== item.q && other.n && personCategories.has(other.c) && !placeOf(other));
+        // Slova jména (velkým písmenem, bez obecných slov a římských číslic) jako kmeny: Átreus → atre (Átrea), Orestés → orest (Oresta),
+        // Klytaimnéstra → klytaimnestr (Klytaimnéstry); slovo textu je tvarem jména jen s běžnou pádovou koncovkou (Tróje není Trojan)
+        const partsOf = (name) => String(name || '').split(/[^\p{L}\-']+/u).filter(part => part.length >= 3 && /^\p{Lu}/u.test(part) && !ROMAN.test(part) && !isGeneric(part) && !NAME_TITLES.has(fold(part)))
+            .map(part => { const plain = fold(part); const bare = plain.replace(/(?:os|us|es|as)$/, ''); return { plain, stems: [...new Set([plain, bare, bare.replace(/[aeiouy]+$/, '')])].filter(stem => stem.length >= 4) }; });
+        const formOf = (word, part) => { const plain = fold(word); return plain === part.plain || part.stems.some(stem => plain.startsWith(stem) && CASE_TAIL.test(plain.slice(stem.length))); };
+        // Slova textu, která jsou tvarem jména: příjmení (poslední slovo), křestní jméno jen těsně před ním – samotné křestní jméno
+        // (Zlata, Emma) by odkrylo i Zlatého glóbu nebo cenu Emmy
+        const matches = (names) => {
+            const hit = new Set();
+            for (const parts of names) {
+                if (!parts.length) continue;
+                const last = parts[parts.length - 1];
+                const given = parts.slice(0, -1);
+                runs.forEach(run => run.forEach((entry, i) => {
+                    if (!formOf(entry.word, last)) return;
+                    hit.add(entry.word);
+                    for (let j = i; j > 0 && run[j].joined && given.some(part => formOf(run[j - 1].word, part)); j--) hit.add(run[j - 1].word);
+                }));
+            }
+            return hit;
+        };
+        // Osoby tématu zmíněné v textu přidají své příbuzné (sourozenci Oresta = dcery Agamemnóna)
+        const mentioned = people.filter(other => matches([partsOf(other.n)]).size);
+        const relatives = mentioned.slice(0, 12).flatMap(other => { try { return personValues(ctx.topic.facts(other, ctx, 'result')); } catch (error) { return []; } });
+        const found = matches([...new Set([...mentioned.map(other => other.n), ...personValues(facts), ...relatives])].map(partsOf));
+        const shown = new Set([...found].filter(word => word.length >= 3 && !hasNationality(word) && !namesCountry(word) && !CONTINENT_WORD.test(fold(word)) && !isGeneric(word) && !reveals(word)));
+        // Víceslovné vlastní jméno jen celé: „[***] Yorku“ (New York × Thom Yorke) ani „Lee [***]“ (Lee Ranaldo) by nic neřekly, nebo
+        // by napověděly místo; římská číslice za jménem panovníka (Leopolda I.) zůstane s ním
+        const blocked = new Set();
+        const numerals = new Set();
+        runs.forEach(run => {
+            let segment = [];
+            const close = () => {
+                const names = segment.filter(word => !ROMAN.test(word));
+                if (names.some(word => shown.has(word))) {
+                    if (names.some(word => !shown.has(word))) names.forEach(word => blocked.add(word));
+                    else segment.filter(word => ROMAN.test(word)).forEach(word => numerals.add(word));
+                }
+                segment = [];
+            };
+            run.forEach(entry => { if (!entry.joined) close(); segment.push(entry.word); });
+            close();
+        });
+        return [...[...shown].filter(word => !blocked.has(word)), ...numerals].slice(0, MAX_NAMES);
+    };
+    // Jména souvisejících osob pro už sestavenou otázku dne bez riddle.names (otázka z doby před NAMES_FROM, zamrzlá na serveru):
+    // app.js je spočítá při otevření z dat otázky a kontextu tématu a buildClues je jen ukáže (pořadí nápověd se nezmění).
+    // Od SHOWN_NAMES_FROM (24. 11. 2026, hlášení hráče – změna i pro rozehraný den se souhlasem; tipy, body ani statistiky na textu
+    // nápověd nezávisí)
+    const SHOWN_NAMES_FROM = '2026-11-24';
+    const relatedNames = (item, { ctx, question, facts = [], texts = [] } = {}) => {
+        try {
+            const core = coreApi();
+            if (!item || !ctx || !ctx.topic || !core || !question || !Array.isArray(texts) || !texts.length) return [];
+            const reveals = answerGuard(core, question, item, ctx);
+            const countryNames = Object.values(ctx.countries || {}).map(country => fold(country && country.name)).filter(name => name.length >= 3);
+            const namesCountry = (text) => { const value = ` ${fold(text).replace(/[^\p{L}]+/gu, ' ')} `; return countryNames.some(name => value.includes(` ${name.replace(/[^\p{L}]+/gu, ' ')} `)); };
+            const list = Array.isArray(facts) ? facts.filter(fact => fact && fact.label && fact.value !== undefined && fact.value !== '') : [];
+            return shownNamesOf(item, { ctx, core, facts: list, texts, reveals, namesCountry });
+        } catch (error) {
+            return [];
+        }
+    };
+    // Texty otázky dne, ve kterých se jména hledají (popis a úryvky z článku) – stejné při sestavení (app.js) i dodatečně
+    const roundTexts = (data) => [data && data.questionText, ...((data && Array.isArray(data.hints) ? data.hints : [])
+        .filter(hint => hint && (hint.kind === 'excerpt' || hint.kind === 'text') && hint.text).map(hint => hint.text))].filter(text => typeof text === 'string' && text);
+    const riddleOf = (item, { ctx, question, typeLabel = '', facts = [], year = new Date().getUTCFullYear(), day = '', texts = [] } = {}) => {
         try {
             if (!item || !ctx || !ctx.topic) return null;
             const core = coreApi();
@@ -616,11 +722,14 @@
                 related = { name: value, strong: STRONG_RELATED.has(label) };
                 break;
             }
+            const shown = core && String(day) >= NAMES_FROM && Array.isArray(texts) && texts.length
+                ? relatedNames(item, { ctx, question, facts: list, texts }) : [];
             return {
                 yesno: yesNoOf(item, { topicId, coords: validCoords(coords) ? { lat: Number(coords.lat), lon: Number(coords.lon) } : null, continent, year, typeLabel }),
                 era: eraOf(item, topicId, year),
                 keywords: keywords.length >= 2 ? keywords : [],
-                related
+                related,
+                ...(shown.length ? { names: shown } : {})
             };
         } catch (error) {
             return null;
@@ -651,12 +760,13 @@
     // Uložená otázka dne pochází z localStorage: krátké nápovědy jen v očekávaném tvaru (starší otázka je nemá vůbec)
     const shortText = (value, max = 80) => (typeof value === 'string' ? value.trim().slice(0, max) : '');
     const cleanRiddle = (raw) => {
-        if (!raw || typeof raw !== 'object') return { yesno: [], era: null, keywords: [], related: null };
+        if (!raw || typeof raw !== 'object') return { yesno: [], era: null, keywords: [], related: null, names: [] };
         const yesno = (Array.isArray(raw.yesno) ? raw.yesno : []).filter(entry => entry && shortText(entry.q) && typeof entry.a === 'boolean').slice(0, 3).map(entry => ({ q: shortText(entry.q), a: entry.a }));
         const era = raw.era && shortText(raw.era.label, 30) && shortText(raw.era.value, 60) ? { label: shortText(raw.era.label, 30), value: shortText(raw.era.value, 60) } : null;
         const keywords = (Array.isArray(raw.keywords) ? raw.keywords : []).map(word => shortText(word, 32)).filter(Boolean).slice(0, 3);
         const related = raw.related && shortText(raw.related.name, 60) ? { name: shortText(raw.related.name, 60), strong: Boolean(raw.related.strong) } : null;
-        return { yesno, era, keywords: keywords.length >= 2 ? keywords : [], related };
+        const names = (Array.isArray(raw.names) ? raw.names : []).filter(word => typeof word === 'string' && word.length <= 40 && /^\p{Lu}[\p{L}\-']*$/u.test(word)).slice(0, MAX_NAMES);
+        return { yesno, era, keywords: keywords.length >= 2 ? keywords : [], related, names };
     };
     // Přesný fakt přijde až po hrubé nápovědě, která o něm mluví (počet obyvatel po „Má víc než milion obyvatel?“, rok po době vzniku),
     // a nebude ani v první nápovědě – jinak by ano/ne a doba nic nepřidaly
@@ -693,11 +803,29 @@
             .map(fact => (listOf(fact.value).length > 1 && listOf(fact.value).some(part => used.has(fold(part))) ? { ...fact, value: listOf(fact.value).filter(part => !used.has(fold(part))).join(', ') } : fact))
             .filter(fact => fact.value && !used.has(fold(fact.value)) && !(riddle.era && fact.label === 'Století'));
         const weight = (fact) => factScore(fact) + (covered.has(fact.label) ? 0.15 : 0);
-        const sentences = sentencesOf(data && data.questionText).map(strongMask).filter(part => realWords(part) >= 3);
+        // Jména souvisejících osob, která zůstanou vidět (riddle.names, od NAMES_FROM)
+        const keepNames = riddle.names.length ? new Set(riddle.names) : null;
+        // Dodatečná jména (data.shownNames: otázka sestavená bez riddle.names) se jen ukážou: pořadí nápověd se počítá z textu
+        // zakrytého jako dřív a ve výsledku se věty zakryté postaru vymění za věty se jmény
+        const extraNames = !keepNames && Array.isArray(data && data.shownNames)
+            ? new Set(data.shownNames.filter(word => typeof word === 'string' && word.length <= 40 && /^\p{Lu}[\p{L}\-']*$/u.test(word)).slice(0, MAX_NAMES)) : null;
+        const display = new Map();
+        const mask = (text) => {
+            const masked = strongMask(text, keepNames);
+            if (extraNames && extraNames.size) {
+                // Věta po větě, aby se dala najít i ve spojeném textu (úryvek ze dvou vět, poslední nápověda)
+                sentencesOf(text).forEach(sentence => { const before = strongMask(sentence); const after = strongMask(sentence, extraNames); if (before !== after) display.set(before, after); });
+                const after = strongMask(text, extraNames);
+                if (after !== masked) display.set(masked, after);
+            }
+            return masked;
+        };
+        const reveal = (text) => [...display.keys()].sort((a, b) => b.length - a.length).reduce((result, before) => result.split(before).join(display.get(before)), text);
+        const sentences = sentencesOf(data && data.questionText).map(mask).filter(part => realWords(part) >= 3);
         // Úryvek z článku bez vět, které už jsou v popisu (článek často začíná stejně), nanejvýš dvě věty
         const said = new Set(sentences.map(text => text.toLocaleLowerCase('cs')));
         const extraTexts = hints.filter(hint => (hint.kind === 'excerpt' || hint.kind === 'text') && hint.text)
-            .map(hint => briefText(sentencesOf(strongMask(hint.text)).filter(text => !said.has(text.toLocaleLowerCase('cs'))))).filter(text => realWords(text) >= 3);
+            .map(hint => briefText(sentencesOf(mask(hint.text)).filter(text => !said.has(text.toLocaleLowerCase('cs'))))).filter(text => realWords(text) >= 3);
         const visuals = hints.filter(hint => hint.kind === 'visual' && hint.spec).map(hint => ({ spec: hint.spec, label: hint.label || 'obrázek', icon: hint.icon || 'map' }));
         const photo = (data && data.questionImage && data.questionImage.url) || (hints.some(hint => hint.kind === 'photo') && data.photoUrl) || null;
         const name = (data && data.name) || '';
@@ -744,7 +872,7 @@
             const shown = new Set(chosen.flatMap(entry => entry.parts.filter(part => part.type === 'text').map(part => part.text.toLocaleLowerCase('cs'))));
             const more = [...sentences.slice(3).map(text => ({ text, title: 'Další věta popisu', icon: 'book-open' })),
                 ...hints.filter(hint => (hint.kind === 'excerpt' || hint.kind === 'text') && hint.text)
-                    .flatMap(hint => sentencesOf(strongMask(hint.text)).map(text => ({ text, title: 'Z článku', icon: 'book-open' })))];
+                    .flatMap(hint => sentencesOf(mask(hint.text)).map(text => ({ text, title: 'Z článku', icon: 'book-open' })))];
             for (const item of more) {
                 const key = item.text.toLocaleLowerCase('cs');
                 if (shown.has(key) || [...shown].some(text => text.includes(key) || key.includes(text))) continue;
@@ -799,7 +927,8 @@
             : sentences.length > 3 ? [{ type: 'text', text: sentences.slice(3, 5).join(' ') }]
                 : [{ type: 'note', text: 'Víc už Mudrlant neprozradí. Zkus to s tím, co víš.' }];
         const final = { title: photo ? 'Ostrá fotka' : 'Poslední nápověda', icon: photo ? 'image' : 'sparkles', parts: finalParts };
-        return [first, ...slots, ...blurred, final].map((clue, index) => ({ ...clue, n: index + 1, hour: CLUE_HOURS[index] }));
+        const clues = [first, ...slots, ...blurred, final].map((clue, index) => ({ ...clue, n: index + 1, hour: CLUE_HOURS[index] }));
+        return display.size ? clues.map(clue => ({ ...clue, parts: clue.parts.map(part => (part.type === 'text' ? { ...part, text: reveal(part.text) } : part)) })) : clues;
     };
 
     // --- Body a XP ---
@@ -1034,7 +1163,7 @@
         CLUES, CLUE_HOURS, MAX_TIPS, NEAR_MISSES, MAX_POINTS, XP_BASE, XP_PER_POINT, KEY, ART,
         isDay, addDays, pragueClock, pragueDay, pragueTime, cluesAt, clueTime, hourLabel, nextClue, formatClock, formatDay, pointsWord, tipsWord, withClues, cluesWord,
         hash32, seededRandom, seedFor, topicForDay, hasPhoto, candidatesOf, pickItem, leftWord,
-        sentencesOf, answerPattern, letterCount, strongMask, textScore, revealScore, buildClues, pointsFor, xpFor,
+        sentencesOf, answerPattern, letterCount, strongMask, NAMES_FROM, SHOWN_NAMES_FROM, shownNamesOf, relatedNames, roundTexts, cleanRiddle, textScore, revealScore, buildClues, pointsFor, xpFor,
         PRAGUE, haversineKm, bearingDeg, roundKm, compassOf, compassFor, eraOfYear, eraOfSpan, eraOf, yesNoOf, riddleOf, answerGuard,
         parseState, newEntry, cleanEntry, statusOf, tipsLeft, addTip, wrongTips, shareGrid, shareText, cardInput,
         homeText, statsHtml, screenHtml, MARK
