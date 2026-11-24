@@ -1,4 +1,4 @@
-// Téma Vlajky a znaky: vlajky a státní znaky států, znaky českých krajů, měst a zemí, vlajky území a organizací (data/vlajky.json)
+// Téma Vlajky a znaky: vlajky a státní znaky států, znaky českých krajů, měst a zemí, vlajky území a organizací, měny a mince (data/vlajky.json)
 (function (root, factory) {
     const isNode = typeof module === 'object' && module.exports;
     const topic = factory(isNode ? require('../quiz-core.js') : root.MudrlantCore);
@@ -7,7 +7,8 @@
 })(typeof self !== 'undefined' ? self : this, (core) => {
     'use strict';
 
-    const { CONTINENT_NAMES, getCountryAliases, censorCountry, normalizeAnswer, formatFacts, formatNumber, formatPopulation, formatYear, getMapSpan, distanceKm, nearness, STATE_STEPS } = core;
+    const { CONTINENT_NAMES, getCountryAliases, censorCountry, censorName, normalizeAnswer, formatFacts, formatNumber, formatPopulation, formatYear, getMapSpan, distanceKm, nearness, STATE_STEPS,
+        shuffle, buildCountryChoices, countryAnswers, findAnswerCountry, isFactVisible, isRealPhoto } = core;
 
     const STATE = { placeholder: 'Napiš stát…', sort: { by: 'name' } };
     const CATEGORIES = [
@@ -17,8 +18,11 @@
         { key: 'uzemi', label: 'Území a organizace', one: 'vlajka', icon: 'globe', question: 'Čí je to vlajka?', placeholder: 'Napiš území nebo organizaci…', sort: { by: 'name' } },
         { key: 'regiony', label: 'Regiony států', one: 'region', icon: 'map', question: 'Který region to je?', placeholder: 'Napiš region…', sort: { by: 'name' } },
         { key: 'mesta', label: 'Města světa', one: 'město', icon: 'building-2', question: 'Které město to je?', placeholder: 'Napiš město…', sort: { by: 'name' } },
-        { key: 'historie', label: 'Zaniklé státy', one: 'zaniklý stát', icon: 'hourglass', question: 'Který zaniklý stát to je?', placeholder: 'Napiš stát…', sort: { by: 'name' } }
+        { key: 'historie', label: 'Zaniklé státy', one: 'zaniklý stát', icon: 'hourglass', question: 'Který zaniklý stát to je?', placeholder: 'Napiš stát…', sort: { by: 'name' } },
+        // Měny států (dnešní i zaniklé) a historické mince; bez obrázku v otázce – na bankovce je název napsaný
+        { key: 'meny', label: 'Měny a bankovky', one: 'měna', icon: 'banknote', question: 'Která měna to je?', placeholder: 'Napiš měnu…', sort: { by: 'name' } }
     ];
+    const isCurrency = (item) => item.c === 'meny';
     const isState = (item) => item.c === 'vlajka' || item.c === 'znak';
     // Regiony a města mají vlajku nebo znak (pole it: v = vlajka, z = znak)
     const isFlag = (item) => item.c === 'vlajka' || item.c === 'uzemi' || item.c === 'historie' || item.it === 'v';
@@ -227,6 +231,214 @@
         return continent ? CONTINENT_NAMES[continent] : '';
     };
 
+    // --- Měny a bankovky (kategorie meny: dnešní a zaniklé měny států, historické mince a drobné jednotky) ---
+    // Položka: co = státy, kde se měnou platí (platilo), domovský stát první; f = { iso, sym, from, to, land (země bez státu v datech),
+    // prev (nahradila), next (nahrazena), bank (centrální banka), part (čeho je drobná jednotka setinou) }. Na bankovce bývá název
+    // napsaný – obrázek je jen po odpovědi a v atlasu.
+    const EURO = 'Q4916';
+    const isPeriodKind = (item) => item.ty === 'historická mince' || item.ty === 'drobná jednotka';
+    const homeOf = (item, countries) => {
+        const id = (item.co || [])[0];
+        return id && countries && countries[id] ? id : null;
+    };
+    const currencyContinent = (item, countries) => {
+        if (item.q === EURO) return 'EU';
+        const home = homeOf(item, countries);
+        return home ? countries[home].continent : null;
+    };
+    const stateNamesOf = (item, countries) => (item.co || []).map(id => countries && countries[id] && countries[id].name).filter(Boolean);
+    const statesLabel = (item, countries) => {
+        const names = stateNamesOf(item, countries);
+        return names.length > 4 ? `${names.slice(0, 3).join(', ')} a další (celkem ${names.length})` : names.join(', ');
+    };
+    // Slova se stejným začátkem (Maďarsko – maďarský, Rakousko-Uhersko – rakousko-uherská): bez diakritiky první čtyři písmena
+    const stemsOf = (text) => normalizeAnswer(text).split(/[^a-z0-9]+/).filter(word => word.length >= 4).map(word => word.slice(0, 4));
+    const sharesStem = (a, b) => { const bs = stemsOf(b); return stemsOf(a).some(stem => bs.includes(stem)); };
+    // Symbol bez písmen (₹, ₽, €, £, $) nic nenapoví slovem; písmena (Ft, Kč, zł) jsou zkratkou názvu – ukážou se až po odpovědi.
+    // Bez znaku centu (¢ u kanadského dolaru) a nových symbolů z let 2024–2025 (⃀, ⃃), které telefony zatím nezobrazí
+    const plainSymbol = (item) => String((item.f || {}).sym || '').split(', ')
+        .find(sym => sym && !/[\p{L}\d¢]/u.test(sym) && ![...sym].some(char => char.codePointAt(0) >= 0x20C0 && char.codePointAt(0) <= 0x20CF)) || null;
+    const periodFact = (item) => {
+        const { from, to } = item.f || {};
+        // Popisky, které rozlišující údaj (quiz-core.js YEAR_LABELS) čte jako roky: Od roku, Doba
+        if (item.ty === 'měna') return from !== undefined ? { label: 'Od roku', value: formatYear(from) } : null;
+        const label = 'Doba';
+        if (from !== undefined && to !== undefined) return { label, value: from < 0 || to < 0 ? `${formatYear(from)} – ${formatYear(to)}` : `${from}–${to}` };
+        if (from !== undefined) return { label: 'Od roku', value: formatYear(from) };
+        if (to !== undefined) return { label: 'Platila do', value: formatYear(to) };
+        return null;
+    };
+    const continentFactOf = (item, ctx) => {
+        const continent = currencyContinent(item, ctx.countries);
+        return continent && !isPeriodKind(item) ? { label: 'Kontinent', value: CONTINENT_NAMES[continent] } : null;
+    };
+    // Země bez státu v datech (Československo, Starověký Řím); jen když ji název neprozradí (Rakousko-uherská koruna)
+    const landFact = (item) => {
+        const land = (item.f || {}).land;
+        return land && !sharesStem(land, item.n) ? { label: 'Země', value: land } : null;
+    };
+    const currencyFacts = (item, ctx, mode) => {
+        const f = item.f || {};
+        const full = mode === 'result' || mode === 'card';
+        const states = statesLabel(item, ctx.countries);
+        const symbol = plainSymbol(item);
+        // Značka z písmen (Ft, Kč, zł) je zkratkou názvu: až po odpovědi a nikdy jako rozlišující údaj (quiz-core CLUE_NEVER)
+        const letters = String(f.sym || '').split(', ').filter(sym => sym && sym !== symbol).join(', ');
+        return [
+            mode === 'card' ? null : continentFactOf(item, ctx),
+            periodFact(item),
+            mode !== 'usymbol' && symbol ? { label: 'Symbol', value: symbol } : null,
+            full && letters ? { label: 'Značka', value: letters } : null,
+            full && f.iso ? { label: 'Kód ISO', value: f.iso } : null,
+            full && states ? { label: item.ty === 'měna' ? 'Platí se v' : 'Platilo se v', value: states } : null,
+            full && f.land ? { label: 'Platilo se v', value: f.land } : null,
+            full && f.part ? { label: 'Drobná jednotka', value: f.part } : null,
+            full && f.prev ? { label: 'Nahradila', value: f.prev } : null,
+            full && f.next ? { label: 'Nahrazena', value: f.next } : null,
+            full && f.bank ? { label: 'Vydává', value: f.bank } : null
+        ].filter(Boolean);
+    };
+    // Vlajka domovského státu (u eura vlajka Evropské unie) – poslední nápověda a mapa po odpovědi
+    const homeFlagOf = (item, ctx) => {
+        if (!ctx.items) return null;
+        if (item.q === EURO) return ctx.items.find(other => other.c === 'uzemi' && other.n === 'Evropská unie') || null;
+        return homeOf(item, ctx.countries) ? flagOfState({ co: [item.co[0]] }, ctx) : null;
+    };
+    const banknoteImage = (item) => item.im ? { type: 'image', file: item.im, hash: item.ih, name: isRealPhoto(item.im) ? 'fotka' : 'bankovka', icon: 'banknote' } : null;
+    // Po odpovědi a v atlasu: kresba či sken bankovky (fotku ukáže okno samo), jinak mapa domovského státu
+    const currencyVisual = (item, ctx, mode) => {
+        if (mode !== 'result' && mode !== 'card') return null;
+        if (item.im && !isRealPhoto(item.im)) return banknoteImage(item);
+        const flag = item.q === EURO ? null : homeFlagOf(item, ctx);
+        return flag ? mapOf(flag, ctx) : null;
+    };
+    // Nápovědy od nejméně prozrazující: kontinent a doba, kód ISO a symbol, nakonec vlajka státu (u mincí země). Fotka bankovky či mince
+    // nápovědou není: název měny bývá napsaný cizím jazykem či písmem a OCR (data/photo-text.json) ho najde jen někdy; ukáže se po odpovědi
+    const currencyHints = (item, ctx, type) => {
+        const f = item.f || {};
+        const facts = (list, extra = {}) => ({ kind: 'facts', ...extra, facts: list.filter(Boolean) });
+        if (type === 'location') {
+            return [facts([continentFactOf(item, ctx)], { label: 'kontinent', icon: 'globe' }), facts([periodFact(item), plainSymbol(item) ? { label: 'Symbol', value: plainSymbol(item) } : null])];
+        }
+        if (type === 'usymbol') return [facts([continentFactOf(item, ctx), periodFact(item)]), facts([f.iso ? { label: 'Kód ISO', value: f.iso } : null])];
+        if (type !== 'name') return null;
+        if (isPeriodKind(item) || !homeOf(item, ctx.countries)) {
+            return [facts([periodFact(item)]), facts([continentFactOf(item, ctx), landFact(item), f.part ? { label: 'Drobná jednotka', value: f.part } : null])];
+        }
+        const flag = homeFlagOf(item, ctx);
+        const symbol = plainSymbol(item);
+        return [
+            facts([continentFactOf(item, ctx), periodFact(item)]),
+            facts([f.iso ? { label: 'Kód ISO', value: f.iso } : null, symbol ? { label: 'Symbol', value: symbol } : null]),
+            flag ? { kind: 'visual', spec: imageOf(flag) } : facts([{ label: item.ty === 'měna' ? 'Platí se v' : 'Platilo se v', value: statesLabel(item, ctx.countries) }])
+        ];
+    };
+    const currencySubtitle = (item, ctx) => {
+        const states = statesLabel(item, ctx.countries);
+        if (item.ty === 'měna') return states || 'Měna';
+        return [item.ty === 'zaniklá měna' ? 'Zaniklá měna' : item.ty === 'drobná jednotka' ? 'Drobná jednotka' : 'Historická mince', (item.f || {}).land || states].filter(Boolean).join(' · ');
+    };
+    // Nesprávné možnosti: stejný druh (dnešní k dnešním, mince k mincím), u dnešních stejný kontinent a blízký stát, stejná jednotka
+    // (dolar k dolarům, dinár k dinárům); u zaniklých podobná doba konce, u mincí podobná doba
+    const unitWord = (name) => normalizeAnswer(name).split(' ').pop();
+    const currencySimilarity = (item, other, ctx) => {
+        let score = item.ty === other.ty ? 0 : -10;
+        const f = item.f || {};
+        const g = other.f || {};
+        if (isPeriodKind(item)) {
+            if (f.from !== undefined && g.from !== undefined) score += Math.max(0, 3 - Math.abs(f.from - g.from) / 300);
+            return score + (item.cz === other.cz ? 0.5 : 0);
+        }
+        const continent = currencyContinent(item, ctx.countries);
+        if (continent && continent === currencyContinent(other, ctx.countries)) score += 3;
+        if (unitWord(item.n) === unitWord(other.n)) score += 1.5;
+        const [a, b] = [homeFlagOf(item, ctx), homeFlagOf(other, ctx)];
+        if (a && b && a.la !== undefined && b.la !== undefined) score += nearness(distanceKm(a, b), STATE_STEPS) * 0.5;
+        if (item.ty === 'zaniklá měna' && f.to !== undefined && g.to !== undefined) score += Math.max(0, 2 - Math.abs(f.to - g.to) / 25);
+        return score;
+    };
+
+    // Otázky se jménem měny: „Ve kterém státě se platí touto měnou?“ (jen jeden stát a název ho neprozradí: zlotý, tenge, drachma)
+    // a „Jaký symbol má tato měna?“ (symbol bez písmen: ₹, ₽, €)
+    const LOCATION_SHARE = 0.35;
+    const SYMBOL_SHARE = 0.25;
+    const soleState = (item, countries) => {
+        if ((item.ty !== 'měna' && item.ty !== 'zaniklá měna') || (item.co || []).length !== 1 || item.cz === 1) return null;
+        const id = homeOf(item, countries);
+        if (!id) return null;
+        return [countries[id].name, ...getCountryAliases([id])].some(word => isFactVisible(word, item.n) || sharesStem(word, item.n)) ? null : id;
+    };
+    const locationQuestion = (item, ctx, rng) => {
+        const countries = ctx.countries || {};
+        const id = soleState(item, countries);
+        if (!id) return null;
+        // Dva státy s měnou z téhož kontinentu a jeden odjinud (nápověda Kontinent jednu vyřadí); chybějící doplní sousedé
+        const homes = new Set(ctx.items.filter(other => isCurrency(other) && other.ty === 'měna').map(other => homeOf(other, countries)).filter(Boolean));
+        homes.delete(id);
+        const shuffled = shuffle([...homes], rng);
+        const same = shuffled.filter(qid => countries[qid].continent === countries[id].continent);
+        const other = shuffled.filter(qid => countries[qid].continent !== countries[id].continent);
+        const wrong = [...same.slice(0, other.length ? 2 : 3), ...other.slice(0, 1), ...same.slice(2)].slice(0, 3);
+        const fallback = buildCountryChoices(id, countries, rng).filter(choice => !choice.correct && !wrong.includes(choice.id)).map(choice => choice.id);
+        const picked = [...wrong, ...fallback].slice(0, 3);
+        const name = countries[id].name;
+        return {
+            type: 'location',
+            title: item.ty === 'měna' ? 'Ve kterém státě se platí touto měnou?' : 'Ve kterém státě se touto měnou platilo?',
+            showName: true,
+            choices: shuffle([id, ...picked], rng).map(qid => ({ id: qid, label: countries[qid].name, correct: qid === id, topic: 'zemepis' })),
+            accepted: countryAnswers([id], [name]),
+            placeholder: 'Napiš stát…',
+            answerLabel: name
+        };
+    };
+    const symbolQuestion = (item, ctx, rng) => {
+        const symbol = plainSymbol(item);
+        if (!symbol || item.ty !== 'měna') return null;
+        const continent = currencyContinent(item, ctx.countries);
+        // Symboly jiných měn: známé a ze stejného kontinentu napřed
+        const others = ctx.items.filter(other => isCurrency(other) && other.ty === 'měna' && other.q !== item.q && plainSymbol(other) && plainSymbol(other) !== symbol)
+            .map(other => ({ symbol: plainSymbol(other), score: (other.k === 1 ? 2 : 0) + (currencyContinent(other, ctx.countries) === continent ? 1 : 0) + rng() * 2 }))
+            .sort((a, b) => b.score - a.score);
+        const wrong = [...new Set(others.map(other => other.symbol))].slice(0, 3);
+        if (wrong.length < 3) return null;
+        return {
+            type: 'usymbol',
+            title: 'Jaký symbol má tato měna?',
+            showName: true,
+            choices: shuffle([symbol, ...wrong], rng).map(value => ({ id: `symbol-${value}`, label: value, correct: value === symbol })),
+            // Symbol (₹, ₽) na klávesnici napsat nejde – jen výběr z možností
+            choicesOnly: true,
+            match: 'symbol',
+            accepted: [symbol],
+            answerLabel: symbol
+        };
+    };
+    const currencyQuestion = (item, ctx, rng) => {
+        const roll = rng();
+        if (roll < LOCATION_SHARE) return locationQuestion(item, ctx, rng);
+        if (roll < LOCATION_SHARE + SYMBOL_SHARE) return symbolQuestion(item, ctx, rng);
+        return null;
+    };
+    // Zakrytí popisu: u otázky na měnu i státy, kde se jí platí, kód ISO a symbol (prozradí zemi i název); u otázky na stát státy,
+    // u otázky na symbol symbol
+    const censorCurrency = (type, text, item, ctx) => {
+        const f = item.f || {};
+        const countries = ctx && ctx.countries;
+        const symbols = String(f.sym || '').split(', ').filter(Boolean);
+        // Symbol jen jako samostatný znak či zkratka („L“ u leku ne uprostřed slova)
+        const escape = (sym) => sym.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const hideSymbols = (value) => symbols.reduce((result, sym) => result.replace(new RegExp(`(?<![\\p{L}\\d])${escape(sym)}(?![\\p{L}\\d])`, 'gu'), '[***]'), value);
+        const hideStates = (value) => (item.co || []).filter(id => countries && countries[id])
+            .reduce((result, id) => censorCountry(result, countries[id].name, getCountryAliases([id])), value);
+        if (type === 'usymbol') return hideSymbols(text);
+        if (type === 'location') return hideStates(text);
+        if (type !== 'name') return null;
+        let result = hideStates(censorCountry(text, item.n, [...aliasesOf(item), ...(f.iso ? [f.iso] : [])]));
+        if (f.land) result = censorName(result, f.land);
+        return hideSymbols(result);
+    };
+
     return {
         id: 'vlajky',
         title: 'Vlajky a znaky',
@@ -254,6 +466,7 @@
 
         // Nesprávné možnosti: hlavně podobně vypadající vlajky a znaky, k tomu sousedé a stejný kontinent
         similarity: (item, other, ctx) => {
+            if (isCurrency(item)) return currencySimilarity(item, other, ctx);
             if (isTwin(item, other)) return -Infinity;
             let score = lookAlike(item.sg, other.sg) * (item.c === 'cesko' ? 6 : 10) + sharedPattern(item, other);
             if (item.c === 'regiony') return regionScore(item, other, score);
@@ -269,6 +482,7 @@
         nameAliases: (item) => aliasesOf(item),
         withholdText: (type, item) => type === 'name' && withholdsText(item),
         censor: (type, text, item, ctx) => {
+            if (isCurrency(item)) return censorCurrency(type, text, item, ctx);
             if (type !== 'name' || withholdsText(item)) return null;
             // U území i stát, ke kterému patří („dánského závislého území“, „federálních států USA“) – je až poslední nápovědou
             const owner = !isState(item) && ctx && ctx.countries && ctx.countries[(item.co || [])[0]];
@@ -281,12 +495,19 @@
             const nicknames = isState(item) ? NICKNAMES[item.co[0]] || [] : [];
             return censorCountry(text, item.n, [...aliasesOf(item), ...(item.cw || []), ...capital, ...nicknames]);
         },
-        questionImage: (item) => item.im ? { file: item.im, hash: item.ih, label: isFlag(item) ? 'Vlajka' : 'Znak', icon: isFlag(item) ? 'flag' : 'shield' } : null,
-        hints: (item, ctx, type) => type === 'name' ? hintsOf(item, ctx) : null,
+        questionImage: (item) => item.im && !isCurrency(item) ? { file: item.im, hash: item.ih, label: isFlag(item) ? 'Vlajka' : 'Znak', icon: isFlag(item) ? 'flag' : 'shield' } : null,
+        hints: (item, ctx, type) => isCurrency(item) ? currencyHints(item, ctx, type) : type === 'name' ? hintsOf(item, ctx) : null,
         // V atlasu obrázek samotný, jinak (po odpovědi) slepá mapa
-        visual: (item, ctx, mode) => mode === 'card' ? imageOf(item) : mapOf(item, ctx),
-        facts: factsOf,
-        subtitle,
+        visual: (item, ctx, mode) => isCurrency(item) ? currencyVisual(item, ctx, mode) : mode === 'card' ? imageOf(item) : mapOf(item, ctx),
+        facts: (item, ctx, mode) => isCurrency(item) ? currencyFacts(item, ctx, mode) : factsOf(item, ctx, mode),
+        subtitle: (item, ctx) => isCurrency(item) ? currencySubtitle(item, ctx) : subtitle(item, ctx),
+        // Měny: občas „Ve kterém státě se platí touto měnou?“ nebo „Jaký symbol má tato měna?“ (název je vidět)
+        specialQuestion: (item, ctx, rng) => isCurrency(item) ? currencyQuestion(item, ctx, rng) : null,
+        findAnswer: (type, answer, item, ctx) => {
+            if (!isCurrency(item) || type !== 'location') return null;
+            const id = findAnswerCountry(answer, [soleState(item, ctx.countries)].filter(Boolean), ctx.countries || {});
+            return id ? { topic: 'zemepis', id } : null;
+        },
         coords: (item) => item.la !== undefined ? { lat: item.la, lon: item.lo } : null,
         isCzech: (item) => item.cz === 1,
         lookAlike

@@ -200,8 +200,9 @@ test('vlajky: nápis s odpovědí na vlajce či znaku (CALIFORNIA REPUBLIC, FIFA
     const ctx = P.loadContext('vlajky');
     const flagged = (photoText.vlajky || []).map(id => ctx.byId.get(id)).filter(Boolean);
     for (const name of ['Kalifornie', 'Kansas', 'FIFA', 'Oregon', 'Wisconsin', 'Arkansas', 'Iowa']) assert.ok(flagged.some(item => item.n === name), name);
-    // Obrázek otázky je u vlajek celý vidět hned: každý označený musí mít známou polohu nápisu
-    assert.deepEqual(flagged.filter(item => !photoMasks[item.im]).map(item => item.n), []);
+    // Obrázek otázky je u vlajek celý vidět hned: každý označený musí mít známou polohu nápisu (bankovky měn obrázkem otázky nejsou,
+    // ukážou se až po odpovědi)
+    assert.deepEqual(flagged.filter(item => item.c !== 'meny' && !photoMasks[item.im]).map(item => item.n), []);
     // Nápisy, které OCR nepřečte (drobné písmo v pečeti, do oblouku), mají ruční zakrytí (scripts/photo-masks-manual.json)
     const manual = JSON.parse(fs.readFileSync(path.join(P.ROOT, 'scripts', 'photo-masks-manual.json'), 'utf8'));
     for (const [name, category] of [['Nevada', 'regiony'], ['Idaho', 'regiony'], ['Kentucky', 'regiony'], ['Jižní Dakota', 'regiony'], ['Wyoming', 'regiony'],
