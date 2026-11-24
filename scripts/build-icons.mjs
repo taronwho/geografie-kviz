@@ -52,7 +52,9 @@ const ICONS = [
     // Historie: kategorie Archeologie a starověk, Mezinárodní organizace a Lidové tradice, svátky a kroje
     'amphora', 'handshake', 'egg',
     // Literatura: kategorie Divadelní hry a Jazyky a písma
-    'theater', 'languages'
+    'theater', 'languages',
+    // Výtvarné umění: kategorie Móda a návrháři, Design a nábytek
+    'shirt', 'armchair'
 ];
 
 const toPascalCase = (name) => name.replace(/(^|-)(\w)/g, (_, __, letter) => letter.toUpperCase());

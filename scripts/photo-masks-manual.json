@@ -115,5 +115,16 @@
   "Seal of San Diego, California.png": [[0.06,0,0.52,0.33]],
   "Seal of the District of Columbia.svg": [[0.07,0.04,0.88,0.16],[0.07,0.18,0.15,0.22],[0.78,0.18,0.17,0.22]],
   "Seal of the Federated States of Micronesia.svg": [[0.02,0.58,0.96,0.42]],
-  "Seal of the Marshall Islands.svg": [[0.05,0.05,0.9,0.2],[0.05,0.2,0.16,0.24],[0.8,0.2,0.16,0.24]]
+  "Seal of the Marshall Islands.svg": [[0.05,0.05,0.9,0.2],[0.05,0.2,0.16,0.24],[0.8,0.2,0.16,0.24]],
+  "Times New Roman-sample.svg": [[0,0,1,0.15]],
+  "Cambria fontsample.svg": [[0,0,1,0.15]],
+  "Calibri sample image.png": [[0,0,1,0.15]],
+  "ArnoldBocklinSpec.svg": [[0,0,1,0.15]],
+  "Computer Modern Sample.svg": [[0,0,1,0.15]],
+  "LucidaGrandeSpecAIB.svg": [[0,0,1,0.15]],
+  "DIN 1451.svg": [[0,0,1,0.15]],
+  "OCR-B SP.svg": [[0,0,1,0.15]],
+  "ComicSansSpec3.svg": [[0,0,1,0.15]],
+  "Palatino font sample.svg": [[0,0,1,0.15]],
+  "ArialMTsp.svg": [[0,0,1,0.15]]
 }

@@ -149,7 +149,8 @@ test('umění: psané odpovědi, nesprávné možnosti a okruhy', () => {
     for (const options of wrongOptions('Leonardo da Vinci')) assert.ok(options.every(other => other.f.born < 1600), options.map(o => o.n).join(', '));
     for (const options of wrongOptions('Frida Kahlo')) assert.ok(options.every(other => other.sx === 'f'), options.map(o => o.n).join(', '));
     // Okruhy
-    assert.ok(data.collections.length >= 8 && data.collections.length <= 20);
+    // (20 okruhů výtvarného umění a 12 užitého umění)
+    assert.ok(data.collections.length >= 8 && data.collections.length <= 34);
     assert.ok(inCollection('impresionismus').includes('Claude Monet') && inCollection('impresionismus').includes('Imprese, východ slunce'));
     assert.ok(inCollection('ceske-umeni').includes('Slovanská epopej') && !inCollection('ceske-umeni').includes('Mona Lisa'));
     assert.ok(inCollection('louvre').includes('Mona Lisa') && inCollection('renesance').includes('David'));
