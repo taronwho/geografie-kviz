@@ -4548,11 +4548,11 @@ Texty a povahy jsou v `boss.js` (soupiska `ROSTER`), barvy v `src/input.css` (`b
 | `herold` | Herold | Královský hlasatel | Vlajky a znaky | č. 520, 528, 536, 544, 552 |
 | `permonik` | Permoník | Pán podzemí | Geologie | č. 521, 529, 537, 545, 553 |
 | `stavitel` | Mistr stavitel | Pán lešení | Architektura | č. 522, 530, 538, 546, 554 |
-| `malir` | Malíř | Mistr štětce | Výtvarné umění | č. 523, 531, 539, 547, 555 |
-| `kronikar` | Kronikář | Strážce příběhů | Literatura | č. 524, 532, 540, 548, 556 |
-| `trener` | Trenér | Věčný šampion | Sport | č. 525, 533, 541, 549, 557 |
-| `vynalezce` | Vynálezce | Génius s robotem | Technika a vynálezy | č. 526, 534, 542, 550, 558 |
-| `sefkuchar` | Šéfkuchař | Mistr plotny | Jídlo a pití | č. 527, 535, 543, 551, 559 |
+| `malir` | Dokonalý Malíř | Mistr štětce | Výtvarné umění | č. 523, 531, 539, 547, 555 |
+| `kronikar` | Všemocný Kronikář | Strážce příběhů | Literatura | č. 524, 532, 540, 548, 556 |
+| `trener` | Nekompromisní Trenér | Věčný šampion | Sport | č. 525, 533, 541, 549, 557 |
+| `vynalezce` | Šílený Vynálezce | Génius s robotem | Technika a vynálezy | č. 526, 534, 542, 550, 558 |
+| `sefkuchar` | Egocentrický Šéfkuchař | Mistr plotny | Jídlo a pití | č. 527, 535, 543, 551, 559 |
 
 ### Portréty – 1. fáze Plná síla (č. 520–527)
 
