@@ -411,9 +411,9 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
         });
     }
 
-    // Výběr kategorií (Zeměpis) a témat (Mix) na 360×640: tlačítko Hrát je v lepkavé patičce, vidět a nezakryté nahoře i uprostřed posunu
-    for (const [action, scheme] of [['[data-action="play-topic"][data-topic="zemepis"]', 'light'], ['[data-action="play-mix"]', 'dark']]) {
-        await t.test(`výběr ${action.includes('mix') ? 'Mix' : 'Zeměpis'}: Hrát vždy vidět (${scheme})`, async () => {
+    // Výběr kategorií (Zeměpis, Vlajky a znaky s Měnami) a témat (Mix) na 360×640: tlačítko Hrát je v lepkavé patičce, vidět a nezakryté nahoře i uprostřed posunu
+    for (const [action, scheme] of [['[data-action="play-topic"][data-topic="zemepis"]', 'light'], ['[data-action="play-topic"][data-topic="vlajky"]', 'dark'], ['[data-action="play-mix"]', 'dark']]) {
+        await t.test(`výběr ${action.includes('mix') ? 'Mix' : action.includes('vlajky') ? 'Vlajky a znaky' : 'Zeměpis'}: Hrát vždy vidět (${scheme})`, async () => {
             const { context, tab, problems } = await open(scheme);
             await nav.go(tab, 'hrat');
             await tab.click(action);

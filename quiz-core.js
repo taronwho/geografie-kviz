@@ -3149,7 +3149,8 @@
         'Průměr', 'Kapacita', 'Sportovců', 'Zemí', 'Oběžná doba', 'Vzdálenost', 'Rozsah', 'Dožívá se', 'Druh', 'Hustota', 'Teplota tání', 'Teplota varu',
         'Odrůda nerostu', 'Protonové číslo', 'Atomová hmotnost', 'Molární hmotnost', 'Vzorec']);
     // Jiný název odpovědi (vědecký, latinský, značka prvku) nebo údaj, který nic nerozliší, rozlišujícím údajem není
-    const CLUE_NEVER = new Set(['Vědecký název', 'Latinsky', 'Značka', 'Na obrázku', 'Ohrožení']);
+    // (Měny ve Vlajkách a znacích: země, banka a předchozí či další měna prozradí stát, a tím i název měny; rozlišit smí kód ISO)
+    const CLUE_NEVER = new Set(['Vědecký název', 'Latinsky', 'Značka', 'Na obrázku', 'Ohrožení', 'Platí se v', 'Platilo se v', 'Vydává', 'Nahradila', 'Nahrazena']);
     const YEAR_LABELS = new Set(['Narození', 'Úmrtí', 'Život', 'Vznik', 'Rok', 'Premiéra', 'Založena', 'Založen', 'Založení', 'Otevřeno', 'Objeven', 'Objeveno',
         'V úřadu', 'Vláda', 'Doba trvání', 'Doba', 'Vysílání', 'Kariéra', 'Existoval', 'Vlajka přijata', 'Od roku', 'Na olympiádě od']);
     // Úřad, vláda, trvání, vysílání, kariéra: rozpětí, které se s jiným nepřekrývá (i navazující funkční období), je jasně jiné;
@@ -3241,6 +3242,8 @@
         const left = splitList(a);
         const right = splitList(b);
         if (LAND_LABELS.has(label)) return !left.some(x => right.some(y => landKey(x) === landKey(y)));
+        // Kód (ISO 4217 u měn: HUF, CZK) je jednoznačný – jiný kód je jiná položka
+        if (label === 'Kód ISO') return normalizeAnswer(a) !== normalizeAnswer(b);
         // Hodnota bez výrazného slova (číslo, zkratka) se slovy porovnat nedá: nevíme
         if ([...left, ...right].some(part => !clueWords(part).length)) return false;
         return !left.some(x => right.some(y => normalizeAnswer(x) === normalizeAnswer(y) || wordsRelated(clueWords(x), clueWords(y))));

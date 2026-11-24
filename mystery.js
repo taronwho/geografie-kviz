@@ -146,9 +146,12 @@
     const EASY_FROM = '2026-11-13';
     const POOL_FROM = '2026-11-24';
     const MIN_POOL = 12;
+    // Kategorie přidané později, které tajemná otázka nebere (měny ve Vlajkách a znacích mají fotky bankovek – vlajky žádné, takže
+    // by vytlačily celý dosavadní výběr tématu a změnily rozehrané dny; na bankovce je navíc název měny napsaný)
+    const SKIPPED_CATEGORIES = new Set(['meny']);
     const candidatesOf = (items, day = EASY_FROM) => {
         const easy = String(day) >= EASY_FROM;
-        const list = (items || []).filter(item => item && item.q && item.n);
+        const list = (items || []).filter(item => item && item.q && item.n && !SKIPPED_CATEGORIES.has(item.c));
         const known = list.filter(item => item.k === 1 && !item.nq);
         const byCategory = new Map();
         known.forEach(item => { if (!byCategory.has(item.c)) byCategory.set(item.c, []); byCategory.get(item.c).push(item); });
