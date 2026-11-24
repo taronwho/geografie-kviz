@@ -7,7 +7,7 @@ vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence
 
 ## Souhrn
 
-- souborů celkem: **37183**, s načtenými metadaty: **37183**, zatím nestaženo: **0**
+- souborů celkem: **37240**, s načtenými metadaty: **37240**, zatím nestaženo: **0**
 - problémových: **2**
   - bez uvedené licence: 1
   - soubor na Commons neexistuje: 1
@@ -22,8 +22,8 @@ vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence
 | film | 920 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | fyzika | 2138 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | geologie | 677 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| historie | 4345 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| hudba | 2016 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| historie | 4341 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| hudba | 2077 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | jidlo | 833 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | literatura | 2450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | mytologie | 1315 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |

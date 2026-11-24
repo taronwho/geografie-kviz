@@ -19,7 +19,7 @@ test('hudba: tři úrovně – podíl známých a expertních v tématu i v kaž
     const expert = share(data.items, item => item.x === 1);
     assert.ok(known >= 0.24 && known <= 0.32, `Základní ${known}`);
     assert.ok(expert >= 0.18 && expert <= 0.3, `Expert ${expert}`);
-    for (const category of ['skladatele', 'hudebnici', 'kapely', 'dila', 'opery']) {
+    for (const category of ['skladatele', 'hudebnici', 'kapely', 'dila', 'opery', 'tance']) {
         const list = data.items.filter(item => item.c === category);
         assert.ok(share(list, item => item.k === 1) >= 0.22, `${category}: málo známých`);
         assert.ok(share(list, item => item.x === 1) <= 0.35, `${category}: moc expertních`);
