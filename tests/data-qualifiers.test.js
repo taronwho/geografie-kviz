@@ -9,7 +9,7 @@ const DATA = path.join(__dirname, '..', 'data');
 const QUALIFIER = /\(([^)]*)\)\s*$/;
 const FOREIGN = /\b(nápoj|pivo|album|píseň|singl|film|seriál|kapela|hudební skupina|firma|společnost|značka|časopis|noviny|videohra|počítačová hra|loď|příjmení|jméno|rozcestník)\b/i;
 // Kde je takové upřesnění v pořádku
-const ALLOWED = { hudba: /album|píseň|singl|kapela|hudební skupina/i, film: /film|seriál/i, literatura: /časopis|noviny/i, sport: /firma|společnost|loď|videohra|počítačová hra/i, technika: /firma|společnost|značka|loď/i, jidlo: /nápoj|pivo/i };
+const ALLOWED = { hudba: /album|píseň|singl|kapela|hudební skupina/i, film: /film|seriál/i, literatura: /časopis|noviny/i, sport: /firma|společnost|loď|videohra|počítačová hra/i, technika: /firma|společnost|značka|loď/i, jidlo: /nápoj|pivo/i, umeni: /firma|společnost|značka/i };
 
 test('názvy článků neukazují na jiný druh věci, než o jaký jde v tématu', () => {
     const wrong = [];
