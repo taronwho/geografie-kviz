@@ -76,8 +76,13 @@ test('historie: rody se známými členy, němečtí kancléři, defenestrace', 
 
 test('historie: nové méně známé položky mají český popis, osoby fotku a rozumné roky', () => {
     const THIS_YEAR = new Date().getFullYear();
+    // Rozšíření (scripts/lib/historie-rozsireni.mjs): tradice, pojmy a národy rok nemají, pravěk sahá před 7000 př. n. l.
+    const EXTRA = new Set(['archeologie', 'pirati', 'organizace', 'tradice']);
     for (const item of data.items.filter(item => item.x)) {
-        assert.ok(Number.isFinite(item.f.y) && item.f.y >= -7000 && item.f.y <= THIS_YEAR, `${item.n}: rok`);
+        if (EXTRA.has(item.c)) {
+            assert.ok(item.f.y === undefined || (Number.isFinite(item.f.y) && item.f.y <= THIS_YEAR), `${item.n}: rok`);
+            assert.ok(item.d || item.im, `${item.n}: popis nebo obrázek`);
+        } else assert.ok(Number.isFinite(item.f.y) && item.f.y >= -7000 && item.f.y <= THIS_YEAR, `${item.n}: rok`);
         if (item.f.born !== undefined && item.f.died !== undefined) assert.ok(item.f.died > item.f.born && item.f.died - item.f.born <= 105, `${item.n}: život`);
     }
     // Jména jsou jedinečná

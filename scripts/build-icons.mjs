@@ -44,7 +44,9 @@ const ICONS = [
     // Biologie – člověk a zdraví: Lékařství, Slavní lékaři, Psychologie
     'syringe', 'stethoscope', 'brain',
     // Film: kategorie Televizní pořady
-    'tv'
+    'tv',
+    // Historie: kategorie Archeologie a starověk, Mezinárodní organizace a Lidové tradice, svátky a kroje
+    'amphora', 'handshake', 'egg'
 ];
 
 const toPascalCase = (name) => name.replace(/(^|-)(\w)/g, (_, __, letter) => letter.toUpperCase());
