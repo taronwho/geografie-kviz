@@ -19,8 +19,9 @@
     // --- Obrázky (icons/topics/<název>.webp) na jednom místě ---
     // Pořadí stupňů: [1 Plná síla, 2 Zraněný, 3 V koncích, 4 Poražený]. Kdyby některý stupeň neměl vlastní obrázek (stejný jako stupeň 1),
     // změnu ukáží efekty a filtr (třídy boss-standin-* v src/input.css).
-    // Ilustrace bossů (docs/OBRAZKY.md č. 215–230 a 244–259, nových bossů č. 520–551; scripts/boss-art.py): boss-<id>, boss-<id>-zraneny,
-    // boss-<id>-vkoncich, boss-<id>-porazeny. Arény (pozadí úvodu a výsledku souboje na výšku): arena-<id> (č. 231 a 268–274, nových č. 552–559).
+    // Ilustrace bossů (docs/OBRAZKY.md č. 215–230 a 244–259; scripts/boss-art.py): boss-<id>, boss-<id>-zraneny,
+    // boss-<id>-vkoncich, boss-<id>-porazeny. Arény (pozadí úvodu a výsledku souboje na výšku): arena-<id> (č. 231 a 268–274).
+    // Noví bossové mají obrázky po bossech: č. 520–559, u každého pět za sebou (portrét, Zraněný, V koncích, Poražený, aréna).
     // Obrázky má každý boss ze soupisky (ROSTER); do hry se boss dostane, až je v rotaci (ROTATION), a tam ho zařadí scripts/boss-zapoj.mjs,
     // teprve když všech pět obrázků v icons/topics je.
     const STAGE_ART = (id) => [`boss-${id}`, `boss-${id}-zraneny`, `boss-${id}-vkoncich`, `boss-${id}-porazeny`];
@@ -291,104 +292,104 @@
             win: ['Stavba stojí a mistr taky! Přijď zas, až si přečteš plány.', 'Zkolaudováno! Dnes vítězí mistr stavitel.']
         },
         {
-            id: 'malir', name: 'Malíř', whom: 'Malíře', title: 'Přemožitel Malíře', topic: 'umeni', epithet: 'Mistr štětce',
+            id: 'malir', name: 'Dokonalý Malíř', whom: 'Dokonalého Malíře', title: 'Přemožitel Dokonalého Malíře', topic: 'umeni', epithet: 'Mistr štětce',
             intro: [
-                'Ach, múza mě políbila! Dnes namaluji deset otázek a ty budeš můj model. Jen se neusmívej tak záhadně, to už tu jednou bylo!',
-                'Vítej v mém ateliéru! Znám každý obraz od jeskyně po galerii. Hádej dobře, jinak tě přemaluji na zátiší!',
-                'Paleta připravená, štětec namočený! Uvidíme, jestli tvoje znalosti mají barvu, nebo jsou jen šedá skvrna.'
+                'Stůj! Nehýbej se! Tvůj postoj je nesouměrný o dva milimetry. Já jsem Dokonalý Malíř a mých deset otázek je bez jediné kaňky.',
+                'Vítej v mém ateliéru. Na nic nesahej, všechno tu visí přesně podle vodováhy. Jedna chyba a škrtnu tě ze seznamu hostů vernisáže.',
+                'Paleta seřazená podle odstínů, štětce podle délky. Dokonalost není můj cíl, dokonalost je můj standard. Můžeme začít?'
             ],
-            hit: ['Au! Kaňka přímo na plátno!', 'Ach ne, zlomil se mi štětec!', 'Moje paleta! Barvy se slévají!'],
+            hit: ['Kaňka! Na mém plátně! To je noční můra!', 'Au! Můj tah štětcem se zachvěl o celý milimetr!', 'Ne, ne, ne! Rám visí nakřivo!'],
             taunt: {
-                1: ['Cha! Tohle by poznala i moje paleta!', 'Vedle! Přesné asi jako kubistický portrét.', 'Špatně! Tohle bych přetřel bílou barvou.'],
-                2: ['Uf… chyba. Aspoň stihnu domalovat stín.', 'Ha! Ale… proč se mi třese ruka se štětcem?'],
-                3: ['Chyba! Rychle, ještě jeden tah štětcem! Obraz není hotový!', 'Ještě maluju! Trochu rozmazaně, ale maluju!']
+                1: ['Cha! Tahle odpověď je tak nevkusná, že se mi zamlžil monokl.', 'Vedle! Tohle bych nepověsil ani na chodbu v suterénu.', 'Špatně! K sobě se nehodí ani barvy, ani tvoje odpověď.'],
+                2: ['Uf… chyba. Konečně zase vládne pořádek a symetrie.', 'Ha! Ale… nezdá se mi ten stín o odstín tmavší?'],
+                3: ['Chyba! Rychle, ještě jeden bezchybný tah! Dílo není dokončené!', 'Ještě maluju! Ruka se mi třese, ale pořád dokonale!']
             },
             stage: {
-                2: ['Au! Barva mi stříká až na baret!', 'Můj obraz má kaňku! To je teď moderní umění?'],
-                3: ['Plátno je samá díra… ale podpis tam ještě není!', 'Došla mi modrá, zelená i trpělivost!']
+                2: ['Au! Kaňka na mé haleně! Tohle nesmí nikdo vyfotit!', 'Můj knírek je rozcuchaný! Přineste mi hřebínek a lupu!'],
+                3: ['Plátno je samá šmouha… ale podpis tam ještě není!', 'To není chyba, to je záměr! Moderní umění! Ano, přesně tak!']
             },
-            defeat: ['Ó, nádhera! Tohle je mistrovské dílo a podpis na něm patří tobě!', 'Odkládám štětec… Tvoje znalosti by visely v každé galerii.'],
-            win: ['Hotovo, podepsáno, pověšeno! Dnes vítězí malíř. Přijď zas!', 'Další mistrovské dílo do mé sbírky! Příště zkus víc barev.']
+            defeat: ['Nemožné… Tvůj výkon nemá jedinou kaňku. Poprvé v životě uznávám cizí dokonalost.', 'Odkládám štětec i monokl. Pod tohle mistrovské dílo se podepíšeš ty.'],
+            win: ['Dokonalé, jako vždy! Vítězí Dokonalý Malíř. Přijď zas, až se naučíš držet štětec.', 'Další bezchybné dílo do mé sbírky! Příště méně kaněk, prosím.']
         },
         {
-            id: 'kronikar', name: 'Kronikář', whom: 'Kronikáře', title: 'Přemožitel Kronikáře', topic: 'literatura', epithet: 'Strážce příběhů',
+            id: 'kronikar', name: 'Všemocný Kronikář', whom: 'Všemocného Kronikáře', title: 'Přemožitel Všemocného Kronikáře', topic: 'literatura', epithet: 'Strážce příběhů',
             intro: [
-                'Vítej v mé knihovně! Zapisuji každý příběh, co kdy kdo napsal. Dnešní kapitola se jmenuje Souboj a její konec napíšeš ty.',
-                'Pst, tady se šeptá! Přečetl jsem všechny knihy světa a dvě jsem i napsal. Deset otázek a žádné listování na konec!',
-                'Brk je namočený, kronika otevřená! Každou tvou chybu zapíšu krasopisem, aby ji četla i pravnoučata.'
+                'Vítej. Co zapíšu do Knihy osudů, to se stane. A právě píšu: dnešní souboj končí mou výhrou. Inkoust už schne.',
+                'Pst! Stránky šeptají tvé jméno. Tvůj osud mám sepsaný až do poslední otázky. Ale klidně to zkus, je to dojemné.',
+                'Brk je namočený, Kniha osudů otevřená! Každou tvou chybu zapíšu dřív, než ji uděláš. Všemocnost má své výhody.'
             ],
-            hit: ['Au! Zlomil se mi brk!', 'Ouha, vypadla mi stránka!', 'Kapitola se mi rozsypala!'],
+            hit: ['Au! Brk mi vyklouzl a napsal nesmysl!', 'Ouha! Někdo mi přepsal stránku!', 'Inkoust se mi vzepřel!'],
             taunt: {
-                1: ['Cha! Tohle stojí hned na první stránce!', 'Vedle! Zapíšu to do kroniky mezi kuriozity.', 'Špatně! Takový konec by neprošel ani v brakovém románu.'],
-                2: ['Uf… chyba. Aspoň stihnu otočit list.', 'Ha! Ale… proč se mi rozpíjí inkoust?'],
-                3: ['Chyba! Rychle, ještě jednu kapitolu! Příběh nekončí!', 'Ještě píšu! Roztřeseným písmem, ale píšu!']
+                1: ['Cha! Přesně jak stojí v Knize osudů, strana sto dvanáct.', 'Vedle! Zapsal jsem to už včera. Předem.', 'Špatně! Osud neoklameš, je psaný mým krasopisem.'],
+                2: ['Uf… chyba. Tak přece jen se všechno děje podle knihy.', 'Ha! Ale… proč se mi v knize objevují prázdné stránky?'],
+                3: ['Chyba! Rychle, nová kapitola! Píšu si šťastný konec!', 'Ještě píšu! Roztřeseným písmem, ale osud pořád držím v ruce!']
             },
             stage: {
-                2: ['Au! Moje kronika má oslí uši!', 'Inkoust mi vyšplíchl na plášť! To je ale nečekaný zvrat!'],
-                3: ['Došel mi inkoust… ale poslední slovo ještě nepadlo!', 'Vidím slovo Konec… ne, ne, to je jen kaňka!']
+                2: ['Au! Z Knihy osudů vypadla stránka! To se ještě nikdy nestalo!', 'Někdo mi škrtá v osudu! To smím jen já!'],
+                3: ['Došel mi inkoust… ale poslední slovo ještě nepadlo!', 'Píšu slovo Konec… a ono se samo přepisuje! Kdo je tu všemocný?!']
             },
-            defeat: ['Zapisuji do kroniky: dnes jsem byl poražen. A tvé jméno píšu zlatým písmem!', 'Zavírám knihu… Tenhle příběh má šťastný konec, jen ne pro mě.'],
-            win: ['Zapsáno a podtrženo: vítězí kronikář! Přijď zas, příběh pokračuje.', 'Konec prvního dílu! Ve druhém to třeba dopadne jinak.']
+            defeat: ['Kniha osudů se zavírá… a na poslední stránce svítí tvé jméno. To jsem tam nepsal já!', 'Všemocnost selhala. Tvůj příběh je silnější než můj inkoust. Gratuluju!'],
+            win: ['Stalo se, jak bylo psáno: vítězí Všemocný Kronikář! Přijď zas, další kapitola čeká.', 'Zavírám knihu. Ve druhém díle ti osud možná bude přát víc.']
         },
         {
-            id: 'trener', name: 'Trenér', whom: 'Trenéra', title: 'Přemožitel Trenéra', topic: 'sport', epithet: 'Věčný šampion',
+            id: 'trener', name: 'Nekompromisní Trenér', whom: 'Nekompromisního Trenéra', title: 'Přemožitel Nekompromisního Trenéra', topic: 'sport', epithet: 'Věčný šampion',
             intro: [
-                'Píííp! Konec rozcvičky! Mám tolik medailí, že mě z nich bolí krk. Deset otázek a ani o jednu míň!',
-                'Vítej na stadionu! Dnes tě proženu deseti otázkami. Kdo neví, dělá dvacet kliků!',
-                'Na místa, připravit, pozor… otázka! Žádné vymlouvání, žádné střídání, hraje se do posledního hvizdu.'
+                'POZOR! Do řady! Já jsem Nekompromisní Trenér a tady se nefňuká. Deset otázek, žádné výmluvy, žádné přestávky!',
+                'Vítej v mém výcvikovém táboře! Za každou chybu dvacet kliků, za každou výmluvu padesát. Rozumíš? Neslyším!',
+                'Píííp! Konec rozcvičky, začíná dril! Stopky běží, píšťalka je připravená a slitování jsem nechal doma.'
             ],
-            hit: ['Au! Gól do mé sítě!', 'Píííp! Faul na trenéra!', 'Stopky mi vypadly z ruky!'],
+            hit: ['Au! Tohle bolelo víc než ranní rozcvička!', 'Píííp! Faul na trenéra!', 'Stopky mi vypadly z ruky!'],
             taunt: {
-                1: ['Cha! Tohle ví každý míč na hřišti!', 'Vedle! To byla tyčka, a ještě ta ze sousedního hřiště.', 'Špatně! Za to máš kolečko kolem stadionu.'],
-                2: ['Uf… chyba. Aspoň chytím druhý dech.', 'Ha! Ale… proč mě píchá v boku?'],
-                3: ['Chyba! Rychle, iontový nápoj! Ještě nejsem v cíli!', 'Ještě běžím! Šnečím tempem, ale běžím!']
+                1: ['Chyba! Na zem a dvacet kliků! Hned!', 'Vedle! Tohle není trénink, to je procházka parkem!', 'Špatně! Žádné výmluvy, kolečko kolem stadionu, poklusem!'],
+                2: ['Uf… chyba. Dobře, aspoň chytím druhý dech.', 'Ha! Ale… proč mi tepe žíla na čele?'],
+                3: ['Chyba! Rychle, iontový nápoj! Trenér se nevzdává nikdy!', 'Ještě stojím! Bolest je jen slabost, která odchází!']
             },
             stage: {
-                2: ['Au! Natáhl jsem si sval i tepláky!', 'Píšťalka mi chrčí! Tohle je proti pravidlům!'],
-                3: ['Dochází mi dech… ale do cíle doběhnu!', 'Červená karta na obzoru! Ale z hřiště ještě neodcházím!']
+                2: ['Au! Natáhl jsem si sval! Žádná výmluva, makám dál!', 'Píšťalka mi chrčí! Tohle je proti řádu výcviku!'],
+                3: ['Dochází mi dech… ale trenér nekončí, dokud nezazní hvizd!', 'Jsem na dně? Výborně, ode dna se nejlíp odráží!']
             },
-            defeat: ['Píííp! Konec zápasu! Zlatá medaile patří tobě.', 'Poražen na celé čáře… Takový výkon nemám ani na tréninku!'],
-            win: ['Píííp! Vítězí trenér! Přijď zas, trénink začíná v šest ráno.', 'Zlato zůstává doma! Příště víc tréninku a míň oddechu.']
+            defeat: ['Píííp! Konec! Klobouk dolů, doslova. Takový výkon jsem ještě nikdy netrénoval.', 'Dobrá, uznávám to. Dnes dělám kliky já. Zlatá medaile patří tobě!'],
+            win: ['Píííp! Vítězí Nekompromisní Trenér! Zítra v šest ráno nástup, žádné výmluvy!', 'Zlato zůstává doma! Příště víc tréninku a míň fňukání.']
         },
         {
-            id: 'vynalezce', name: 'Vynálezce', whom: 'Vynálezce', title: 'Přemožitel Vynálezce', topic: 'technika', epithet: 'Génius s robotem',
+            id: 'vynalezce', name: 'Šílený Vynálezce', whom: 'Šíleného Vynálezce', title: 'Přemožitel Šíleného Vynálezce', topic: 'technika', epithet: 'Génius s robotem',
             intro: [
-                'Heuréka! Vítej v mé dílně! Tohle je Šroubek, můj robot. Spočítá, kolik otázek zvládneš. Prý žádnou.',
-                'Pozor, nešlápni na ozubené kolo! Sestrojil jsem deset otázek a na každou mám patent.',
-                'Páky nahoru, páru do kotle! Šroubku, zapni počítadlo. Tohle bude nejchytřejší souboj od vynálezu knihtisku!'
+                'MUHAHA! Vítej v mé laboratoři! Tohle je Šroubek, můj robot. Spočítal, kolik otázek zvládneš. Prý žádnou. A pak vybouchl.',
+                'Pozor na kabely! Tahle cívka má milion voltů a tahle páka… to raději nechtěj vědět. Sestrojil jsem deset otázek a vybuchují jen tři.',
+                'Páky nahoru, proud do cívky, Šroubku, brýle! Tohle bude nejšílenější souboj od vynálezu výbuchu!'
             ],
-            hit: ['Au! Vyletěl mi šroubek!', 'Bzz… cvak! Prototyp nefunguje!', 'Ozubené kolo se mi zaseklo!'],
+            hit: ['BUM! Tohle nebylo v plánu… nebo bylo?', 'Bzz… cvak! Prototyp zase hoří!', 'Au! Vyletěl mi šroubek… a Šroubek taky!'],
             taunt: {
-                1: ['Cha! Tohle by spočítal i Šroubek, a ten umí jen do tří.', 'Vedle! Tohle řešení si patentovat nedám.', 'Špatně! Šroubku, zapiš to mezi nepovedené pokusy.'],
-                2: ['Uf… chyba. Aspoň stihnu dotáhnout matičku.', 'Ha! Ale… proč Šroubkovi bliká kontrolka?'],
-                3: ['Chyba! Rychle, náhradní díly! Ještě se nerozpadám!', 'Ještě to šlape! Skřípe to, kouří se z toho, ale šlape!']
+                1: ['MUHAHA! Tohle by spočítal i Šroubek, a ten umí jen do tří.', 'Vedle! Tohle řešení si nepatentuju ani v záchvatu geniality.', 'Špatně! Šroubku, zapiš to mezi pokusy, které vybuchly.'],
+                2: ['Uf… chyba. Aspoň stihnu uhasit plášť.', 'Ha! Ale… proč Šroubkovi bliká červená kontrolka?'],
+                3: ['Chyba! Rychle, náhradní díly a lepicí páska! Ještě se nerozpadám!', 'Ještě to šlape! Jiskří to, kouří se z toho, ale šlape!']
             },
             stage: {
-                2: ['Au! Šroubek mi utekl a kolečka se rozkutálela!', 'Z mé dílny se kouří! To nebylo v návodu!'],
-                3: ['Prototyp se rozpadá… ale nápad mi ještě zbyl!', 'Šroubku, zachraň mě! Šroubku? Kam zase jedeš?!']
+                2: ['Au! Cívka mi učesala chmýří do blesku!', 'Z mé laboratoře se kouří! Výborně… teda ne, vůbec ne výborně!'],
+                3: ['Prototyp se rozpadá… ale šílený nápad mi ještě zbyl!', 'Šroubku, zachraň mě! Šroubku? Kam zase jedeš?!']
             },
-            defeat: ['Heuréka… teda au! Tvoje znalosti jsou ten největší vynález. Gratuluju!', 'Systém selhal, robot se vzdává a já taky. Patent na výhru je tvůj!'],
-            win: ['Heuréka! Vynález funguje a vítězí vynálezce! Přijď zas, Šroubek se těší.', 'Zkouška se zdařila! Příště si přines lepší nářadí.']
+            defeat: ['BUM… a je po mně. Tvoje znalosti jsou ten největší vynález. Gratuluju!', 'Systém selhal, robot se vzdává a já taky. Patent na výhru je tvůj!'],
+            win: ['MUHAHA! Pokus se zdařil a vítězí Šílený Vynálezce! Přijď zas, Šroubek se těší.', 'Výbuch úspěchu! Příště si přines ochranné brýle a lepší nápady.']
         },
         {
-            id: 'sefkuchar', name: 'Šéfkuchař', whom: 'Šéfkuchaře', title: 'Přemožitel Šéfkuchaře', topic: 'jidlo', epithet: 'Mistr plotny',
+            id: 'sefkuchar', name: 'Egocentrický Šéfkuchař', whom: 'Egocentrického Šéfkuchaře', title: 'Přemožitel Egocentrického Šéfkuchaře', topic: 'jidlo', epithet: 'Mistr plotny',
             intro: [
-                'Vítej v mé kuchyni! Dnes vařím deset otázek, pořádně opepřených. Kdo neví, myje nádobí!',
-                'Zástěru na sebe a pozor, pánev je horká! Znám recepty z celého světa, od svíčkové po sushi. Uvidíme, jestli nemáš znalosti nedovařené!',
-                'Pokličky cinkají, polévka bublá! Dnešní menu: deset otázek a na zákusek tvoje porážka.'
+                'Vítej v mé kuchyni! Ano, jsem to opravdu já, Egocentrický Šéfkuchař. Ne, autogram nedostaneš. Dnes vařím deset dokonalých otázek.',
+                'Zrcátko, zrcátko, kdo vaří nejlíp na světě? Správně, já. Ochutnej moje otázky, ale opatrně, jsou až příliš geniální.',
+                'Pokličky cinkají, polévka bublá a já vypadám skvěle. Dnešní menu: deset otázek a na zákusek tvoje porážka.'
             ],
-            hit: ['Au! Spálil jsem si křídlo o pánev!', 'Ouvej, připálilo se mi to!', 'Vypadla mi vařečka!'],
+            hit: ['Au! Pánev mi pocuchala dokonalé peří!', 'Ouvej, připálilo se mi to! To se mi přece nikdy nestává!', 'Moje zlatá lžíce! Je poškrábaná!'],
             taunt: {
-                1: ['Cha! Tohle ví každý knedlík!', 'Vedle! Tahle odpověď je přesolená.', 'Špatně! Tohle bych nenaservíroval ani v jídelně.'],
-                2: ['Uf… chyba. Aspoň stihnu zamíchat omáčku.', 'Ha! Ale… proč se mi sráží šlehačka?'],
-                3: ['Chyba! Rychle, ještě špetku soli! Ještě nejsem dovařený!', 'Ještě vařím! Trochu připáleně, ale vařím!']
+                1: ['Cha! Tohle ví každý knedlík. Teda každý knedlík, co jsem uvařil já.', 'Vedle! Tahle odpověď je přesolená. Moje jídla nikdy nejsou.', 'Špatně! Jsem tak skvělý, že je mi tě až líto.'],
+                2: ['Uf… chyba. Aspoň se stihnu pokochat v zrcátku.', 'Ha! Ale… proč se mi sráží šlehačka? Zrovna mně?'],
+                3: ['Chyba! Rychle, špetku soli a trochu třpytek! Ještě nejsem dovařený!', 'Ještě vařím! Trochu připáleně, ale pořád nejkrásněji!']
             },
             stage: {
-                2: ['Au! Polévka mi vykypěla i s pokličkou!', 'Moje čepice spadla do těsta! Tohle v receptu není!'],
-                3: ['Pánev je prázdná a sporák vychladl… ale poslední chod ještě přijde!', 'Kdo mi snědl recept?! Vařím zpaměti!']
+                2: ['Au! Polévka mi vykypěla na dokonalý kabátek!', 'Moje kuchařská čepice je zmačkaná! Kdo mě teď bude fotit?!'],
+                3: ['Zrcátko je prasklé… ale můj odraz je pořád nádherný!', 'Pánev je prázdná a sporák vychladl… ale nejlepší chod přijde nakonec!']
             },
-            defeat: ['Sundávám čepici… Tvoje znalosti jsou lahůdka hodná pěti hvězdiček!', 'Připálil jsem to! Dnes vládne kuchyni někdo jiný. Dobrou chuť!'],
-            win: ['Dovařeno! Dnes vítězí šéfkuchař. Přijď zas, mám ještě dezert!', 'Menu dne: tvoje porážka s oblohou! Příště si přines vlastní vařečku.']
+            defeat: ['Sundávám čepici… Tvoje znalosti jsou lahůdka. Skoro tak dobrá jako moje svíčková.', 'Cože? Někdo je lepší než já? To si musím zapsat… a hned zase zapomenout. Gratuluju!'],
+            win: ['Dovařeno! Vítězí Egocentrický Šéfkuchař, jak jinak. Přijď zas, mám ještě dezert!', 'Menu dne: tvoje porážka s oblohou a můj úsměv navrch! Příště si přines vlastní vařečku.']
         }
     ];
     const ROSTER_BY_ID = Object.fromEntries(ROSTER.map(boss => [boss.id, boss]));

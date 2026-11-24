@@ -1,4 +1,4 @@
-# Bossové týdne (docs/OBRAZKY.md č. 215–230, 244–259, nových bossů č. 520–551) a jejich arény (č. 231, 268–274, 552–559).
+# Bossové týdne (docs/OBRAZKY.md č. 215–230, 244–259) a jejich arény (č. 231, 268–274); noví bossové i s arénami č. 520–559 (po pěti u každého).
 # Nové bosse zapojuje scripts/boss-zapoj.mjs, který tenhle skript sám spustí pro chybějící obrázky.
 #  - branding/ikony/boss-<id>[-zraneny|-vkoncich|-porazeny].png → icons/topics/boss-….webp (SIZE × SIZE, průhledné pozadí).
 #    Pozadí se vyřízne jako u ikon (scripts/topic-icons.py cut()) s jednou výjimkou: díra uvnitř postavy (mezera mezi křídlem
