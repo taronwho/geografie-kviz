@@ -7,7 +7,7 @@ vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence
 
 ## Souhrn
 
-- souborů celkem: **36618**, s načtenými metadaty: **36437**, zatím nestaženo: **181**
+- souborů celkem: **36618**, s načtenými metadaty: **36618**, zatím nestaženo: **0**
 - problémových: **2**
   - bez uvedené licence: 1
   - soubor na Commons neexistuje: 1
