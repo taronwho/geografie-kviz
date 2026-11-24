@@ -83,10 +83,15 @@ const read = (name) => (files[name] ??= fs.readFileSync(path.join(ROOT, name), '
 const block = `    const ROTATION = [\n${rotation.map(segment => `        { from: ${q(segment.from)}, ids: [${segment.ids.map(q).join(', ')}] }`).join(',\n')}\n    ];\n`;
 files['boss.js'] = replaceOnce(read('boss.js'), /(\/\/ @rotace-zacatek\n)[\s\S]*?(\s*\/\/ @rotace-konec)/, (_, start, end) => `${start}${block.replace(/\n$/, '')}${end}`, 'blok rotace v boss.js');
 
-const emblems = ready.map(id => { const boss = Boss.ROSTER_BY_ID[id]; return `        [${[boss.id, boss.name, boss.whom, boss.title].map(q).join(', ')}]`; });
-files['quiz-core.js'] = replaceOnce(read('quiz-core.js'), /(const BOSS_EMBLEMS = \[[\s\S]*?\])(\n    \];)/, (_, list, end) => `${list},\n${emblems.join(',\n')}${end}`, 'BOSS_EMBLEMS v quiz-core.js');
+// Emblémy a mezipaměť v pořadí soupisky (stejně jako BOSSES v boss.js a katalog odznaků na serveru): původní osm beze změny,
+// další bossové za nimi v pořadí soupisky, ať je zapojení po jednom nepřehází
+const inRoster = (ids) => Boss.ROSTER.map(boss => boss.id).filter(id => ids.includes(id));
+const original = Boss.ROTATION[0].ids;
+const later = inRoster([...activeIds, ...ready].filter(id => !original.includes(id)));
+const emblems = later.map(id => { const boss = Boss.ROSTER_BY_ID[id]; return `        [${[boss.id, boss.name, boss.whom, boss.title].map(q).join(', ')}]`; });
+files['quiz-core.js'] = replaceOnce(read('quiz-core.js'), /(const BOSS_EMBLEMS = \[[\s\S]*?'reziser'[^\]]*\])[\s\S]*?(\n    \];)/, (_, list, end) => `${list}${emblems.length ? `,\n${emblems.join(',\n')}` : ''}${end}`, 'BOSS_EMBLEMS v quiz-core.js');
 
-const swIds = [...activeIds, ...ready].map(q).join(', ');
+const swIds = [...original, ...later].map(q).join(', ');
 files['sw.js'] = replaceOnce(read('sw.js'), /\.\.\.\[[^\]]*\](\.flatMap\(id => \[`boss-\$\{id\}`)/, (_, rest) => `...[${swIds}]${rest}`, 'seznam bossů v sw.js');
 
 const doneNames = new Set(ready.flatMap(id => Boss.artNames(id)));
