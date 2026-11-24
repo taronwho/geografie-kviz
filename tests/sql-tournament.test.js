@@ -204,7 +204,7 @@ test('SQL: týdenní turnaje', { skip: !available && 'PostgreSQL není dostupný
         ok(psql(dbName, `set mudrlant.test_today = '2026-11-23'; ${once}`));
         assert.equal(q(`select status || ':' || size || ':' || started_on from tournaments where id = '${back}'`), 'running:8:2026-11-24');
         assert.equal(q(`select count(*) from tournament_notices where tournament_id = '${back}' and kind = 'cancelled' and not seen`), '0');
-        assert.equal(q(`select tournament_round_phase(t, 1) from tournaments t where id = '${back}'`), 'before');
+        assert.equal(psql(dbName, `set mudrlant.test_today = '2026-11-23'; select tournament_round_phase(t, 1) from tournaments t where id = '${back}';`).stdout.trim().split('\n').pop(), 'before');
         ok(psql(dbName, `set mudrlant.test_today = '2026-11-23'; ${once}`));
         assert.equal(q(`select started_on from tournaments where id = '${back}'`), '2026-11-24', 'opakované spuštění nic neposune');
         q(`delete from tournaments where id = '${back}'`);
