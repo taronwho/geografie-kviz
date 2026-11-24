@@ -411,9 +411,9 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
         });
     }
 
-    // Výběr kategorií témat s mnoha kategoriemi (Zeměpis, Historie, Sport a hry, Výtvarné umění) a témat (Mix) na 360×640: tlačítko Hrát
+    // Výběr kategorií témat s mnoha kategoriemi (Zeměpis, Historie, Sport a hry, Výtvarné umění, Geologie) a témat (Mix) na 360×640: tlačítko Hrát
     // je v lepkavé patičce, vidět a nezakryté nahoře i uprostřed posunu
-    const CHOOSERS = [['zemepis', 'Zeměpis', 'light'], ['historie', 'Historie', 'dark'], ['sport', 'Sport a hry', 'dark'], ['umeni', 'Umění', 'dark'], [null, 'Mix', 'dark']];
+    const CHOOSERS = [['zemepis', 'Zeměpis', 'light'], ['historie', 'Historie', 'dark'], ['sport', 'Sport a hry', 'dark'], ['umeni', 'Umění', 'dark'], ['geologie', 'Geologie', 'dark'], [null, 'Mix', 'dark']];
     for (const [action, scheme, label] of CHOOSERS.map(([topic, label, scheme]) => [topic ? `[data-action="play-topic"][data-topic="${topic}"]` : '[data-action="play-mix"]', scheme, label])) {
         await t.test(`výběr ${label}: Hrát vždy vidět (${scheme})`, async () => {
             const { context, tab, problems } = await open(scheme);
@@ -432,6 +432,7 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
                 assert.ok(state.top >= 0 && state.bottom <= state.height + 0.5, `${scheme}: Hrát mimo obrazovku při posunu ${at} (${state.top}–${state.bottom})`);
                 assert.equal(state.free, true, `${scheme}: Hrát je zakryté při posunu ${at}`);
                 if (action.includes('sport')) assert.equal(state.scrolls, false, 'Sport a hry: výběr kategorií bez posouvání');
+                if (action.includes('geologie')) assert.equal(state.scrolls, false, 'výběr kategorií Geologie se posouvá');
             }
             assert.deepEqual(problems, [], 'bez chyb v konzoli a bez porušení CSP');
             await context.close();

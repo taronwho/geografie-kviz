@@ -54,7 +54,9 @@ const ICONS = [
     // Literatura: kategorie Divadelní hry a Jazyky a písma
     'theater', 'languages',
     // Výtvarné umění: kategorie Móda a návrháři, Design a nábytek
-    'shirt', 'armchair'
+    'shirt', 'armchair',
+    // Geologie: kategorie Přírodní katastrofy, Podnebí a klima, Počasí a oblaka
+    'tornado', 'thermometer-sun', 'cloud-sun'
 ];
 
 const toPascalCase = (name) => name.replace(/(^|-)(\w)/g, (_, __, letter) => letter.toUpperCase());

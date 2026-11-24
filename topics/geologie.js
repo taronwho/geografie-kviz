@@ -1,4 +1,4 @@
-// Téma Geologie: nerosty, drahé kameny, horniny a geologická období (data/geologie.json)
+// Téma Geologie: nerosty, drahé kameny, horniny, geologická období, útvary, zkameněliny, přírodní katastrofy, podnebí a počasí (data/geologie.json)
 (function (root, factory) {
     const isNode = typeof module === 'object' && module.exports;
     const topic = factory(isNode ? require('../quiz-core.js') : root.MudrlantCore);
@@ -15,7 +15,11 @@
         { key: 'horniny', label: 'Horniny', one: 'hornina', icon: 'mountain', question: 'Co je to za horninu?', placeholder: 'Napiš název horniny…', sort: { by: 'name' } },
         { key: 'obdobi', label: 'Geologická období', one: 'období', icon: 'hourglass', question: 'Které je to období?', placeholder: 'Napiš období…', sort: { by: 'from', desc: true } },
         { key: 'utvary', label: 'Geologické útvary a jevy', one: 'útvar', icon: 'waves', question: 'Co je to za útvar nebo jev?', placeholder: 'Napiš název…', sort: { by: 'name' } },
-        { key: 'zkameneliny', label: 'Zkameněliny a pravěký život', one: 'zkamenělina', icon: 'shell', question: 'Co je to za zkamenělinu nebo organismus?', placeholder: 'Napiš název…', sort: { by: 'name' } }
+        { key: 'zkameneliny', label: 'Zkameněliny a pravěký život', one: 'zkamenělina', icon: 'shell', question: 'Co je to za zkamenělinu nebo organismus?', placeholder: 'Napiš název…', sort: { by: 'name' } },
+        // Rozšíření o přírodní katastrofy, podnebí a počasí (scripts/lib/geologie-rozsireni.mjs)
+        { key: 'katastrofy', label: 'Přírodní katastrofy', one: 'katastrofa', icon: 'tornado', question: 'Která katastrofa to byla?', placeholder: 'Napiš název…', sort: { by: 'year' } },
+        { key: 'klima', label: 'Podnebí a klima', one: 'pojem', icon: 'thermometer-sun', question: 'Co je to?', placeholder: 'Napiš název…', sort: { by: 'name' } },
+        { key: 'pocasi', label: 'Počasí a oblaka', one: 'oblak či jev', icon: 'cloud-sun', question: 'Co je to?', placeholder: 'Napiš název…', sort: { by: 'name' } }
     ];
     const isMineral = (item) => item.c === 'nerosty' || item.c === 'kameny';
 
@@ -158,6 +162,62 @@
     const isForm = (item) => item.c === 'utvary';
     const isFossil = (item) => item.c === 'zkameneliny';
 
+    // --- Přírodní katastrofy, podnebí a počasí ---
+    // Otázka na název podle druhu (štítek nad otázkou ukazuje druh): zemětřesení, sopka, hurikán…, typ podnebí, biom, oblak
+    const KIND_QUESTIONS = {
+        katastrofy: {
+            'zemětřesení': 'Které zemětřesení to bylo?', 'tsunami': 'Která katastrofa to byla?', 'sopka': 'Která sopka to je?', 'hurikán': 'Který hurikán to byl?',
+            'tajfun': 'Který tajfun to byl?', 'cyklón': 'Která tropická cyklóna to byla?', 'povodeň': 'Která povodeň to byla?', 'stupnice': 'Která stupnice to je?'
+        },
+        klima: {
+            'podnebný pás': 'Který podnebný pás to je?', 'typ podnebí': 'Jaký typ podnebí to je?', 'biom': 'Jaký biom to je?', 'klimatický jev': 'Jaký jev to je?',
+            'mořský proud': 'Který mořský proud to je?', 'místní vítr': 'Který vítr to je?'
+        },
+        pocasi: { 'oblak': 'Jaký druh oblaku to je?', 'jev počasí': 'Jaký jev to je?' }
+    };
+    // Skupiny katastrof: k zemětřesení zemětřesení a tsunami, k hurikánu tropické cyklóny, k povodni povodně, bouře, vedra a sucha
+    const DISASTER_GROUPS = { 'zemětřesení': 'zeme', 'tsunami': 'zeme', 'sopka': 'sopky', 'hurikán': 'cyklony', 'tajfun': 'cyklony', 'cyklón': 'cyklony', 'stupnice': 'stupnice' };
+    const disasterGroup = (item) => DISASTER_GROUPS[item.ty] || 'pocasi';
+    const GENERIC_DISASTER = 'Která katastrofa to byla?';
+    // Příbuzné druhy podnebí a klimatu (pás – typ podnebí, klimatický jev – místní vítr)
+    const CLIMATE_GROUPS = { 'podnebný pás': 'podnebi', 'typ podnebí': 'podnebi', 'klimatický jev': 'cirkulace', 'místní vítr': 'cirkulace' };
+    const isCyclone = (item) => DISASTER_GROUPS[item.ty] === 'cyklony';
+    // Oběti jako počet („asi 18 500 obětí“): hra je pak může porovnat (rozlišující údaj)
+    const deathsText = (f) => f.dead === 0 ? 'žádné' : f.dead !== undefined ? [f.dp, formatNumber(f.dead), f.dead === 1 ? 'oběť' : f.dead < 5 ? 'oběti' : 'obětí'].filter(Boolean).join(' ') : '';
+    const yearText = (f) => f.yt || (f.year !== undefined ? String(f.year) : '');
+    const CATEGORY_SCALE = { 1: '1. kategorie', 2: '2. kategorie', 3: '3. kategorie', 4: '4. kategorie', 5: '5. kategorie (nejsilnější)' };
+    const disasterMap = (item) => {
+        const pt = (item.f || {}).pt;
+        return pt ? { type: 'map', lat: pt[0], lon: pt[1], span: 24, highlightIso: '', label: 'Místo je uprostřed' } : null;
+    };
+    // Desetiletí, ve kterém tropická cyklóna řádila (60. léta, 2010. léta)
+    const DECADE_SHARE = 0.25;
+    const decadeLabel = (decade) => decade >= 1910 && decade < 2000 ? `${decade % 100}. léta` : `${decade}. léta`;
+    const decadeAnswers = (decade) => [...new Set([decadeLabel(decade), `${decade}. léta`, `${decade}`, ...(decade >= 1910 && decade < 2000 ? [`${decade % 100}`] : []),
+        ...Array.from({ length: 10 }, (_, i) => String(decade + i))])];
+    const CYCLONE_SUBJECT = { 'hurikán': 'řádil tento hurikán', 'tajfun': 'řádil tento tajfun', 'cyklón': 'řádila tato cyklóna' };
+    const decadeQuestion = (item, rng) => {
+        const f = item.f || {};
+        if (!isCyclone(item) || f.year === undefined || f.year < 1900 || /\d{3,4}/.test(item.n)) return null;
+        const decade = Math.floor(f.year / 10) * 10;
+        const last = Math.floor(new Date().getFullYear() / 10) * 10;
+        const wrong = [...shuffle([-10, 10], rng), ...shuffle([-20, 20], rng), ...shuffle([-30, 30], rng), -40, -50].map(offset => decade + offset)
+            .filter(other => other >= 1900 && other <= last).slice(0, 3);
+        if (wrong.length < 3) return null;
+        return {
+            type: 'decade',
+            title: `Ve kterém desetiletí ${CYCLONE_SUBJECT[item.ty]}?`,
+            showName: true,
+            choices: shuffle([decade, ...wrong], rng).map(other => ({ id: `desetileti-${other}`, label: decadeLabel(other), correct: other === decade })),
+            accepted: decadeAnswers(decade),
+            match: 'symbol',
+            placeholder: 'Napiš desetiletí, třeba 90. léta',
+            answerLabel: decadeLabel(decade)
+        };
+    };
+    const hideYears = (text) => mergeCensored(stripBrackets(text).replace(/\s{2,}/g, ' ')
+        .replace(/(?<![\p{L}\d])\d{1,4}(?:\.\s*(?:let\p{L}*|lét\p{L}*|století|stol\.))?(?!\d)/gu, '[***]'));
+
     // --- Fakta ---
     const fact = (label, value) => value ? [{ label, value }] : [];
     const mineralFacts = (item, mode) => {
@@ -200,8 +260,34 @@
     };
     const formFacts = (item) => [...fact('Druh', FORM_GROUPS[(item.f || {}).grp]), ...fact('Typické příklady', (item.f || {}).ex), ...fact('Kde to je', (item.f || {}).loc)];
     const fossilFacts = (item) => [...fact('Skupina', (item.f || {}).grp), ...fact('Žil v době', (item.f || {}).per), ...fact('Zajímavost', (item.f || {}).note)];
+    // Katastrofa: síla a oběti, země, rok (u otázky na desetiletí bez roku); stupnice: co měří, rozsah, vznik a autor (jméno stupnice
+    // prozradí, proto až po odpovědi)
+    const disasterFacts = (item, mode) => {
+        const f = item.f || {};
+        if (item.ty === 'stupnice') {
+            return [...fact('Měří', f.sc), ...fact('Rozsah', f.rng), ...fact('Rok vzniku', yearText(f)), ...(['result', 'card'].includes(mode) ? fact('Autor', f.by) : [])];
+        }
+        return [
+            ...(f.mag !== undefined ? fact('Magnitudo', f.mag.toFixed(1).replace('.', ',')) : []),
+            ...fact('Kategorie', CATEGORY_SCALE[f.cat]),
+            ...(f.vei !== undefined ? fact('Síla erupce', `${f.vei} z 8 (index VEI)`) : []),
+            ...fact('Oběti', deathsText(f)),
+            ...fact('Země', f.land),
+            ...(mode === 'decade' ? [] : fact(item.ty === 'sopka' ? 'Slavná erupce' : 'Rok', yearText(f))),
+            ...fact('Zajímavost', f.note)
+        ];
+    };
+    const climateFacts = (item) => {
+        const f = item.f || {};
+        return [...fact('Proud', f.temp), ...fact('Oceán', f.ocean), ...fact('Typické znaky', f.feat), ...fact('Kde', f.where), ...fact('Značka podle Köppena', f.kop), ...fact('Zajímavost', f.note)];
+    };
+    const weatherFacts = (item) => {
+        const f = item.f || {};
+        return [...fact('Patro', f.alt), ...fact('Druh jevu', f.grp), ...fact(item.ty === 'oblak' ? 'Jak vypadá' : 'Jak vzniká', f.feat), ...fact('Srážky', f.rain), ...fact('Zajímavost', f.note)];
+    };
     const factsOf = (item, ctx, mode) => isMineral(item) ? mineralFacts(item, mode) : item.c === 'horniny' ? rockFacts(item, mode)
-        : isForm(item) ? formFacts(item) : isFossil(item) ? fossilFacts(item) : periodFacts(item);
+        : isForm(item) ? formFacts(item) : isFossil(item) ? fossilFacts(item) : item.c === 'katastrofy' ? disasterFacts(item, mode)
+            : item.c === 'klima' ? climateFacts(item) : item.c === 'pocasi' ? weatherFacts(item) : periodFacts(item);
     const pick = (facts, labels) => facts.filter(entry => labels.includes(entry.label));
 
     // --- Zvláštní otázky ---
@@ -329,6 +415,39 @@
                 { kind: 'facts', label: 'příklady', icon: 'map-pin', facts: pick(facts, ['Typické příklady', 'Kde to je']) }
             ];
         }
+        if (item.c === 'katastrofy') {
+            if (item.ty === 'stupnice') {
+                return [{ kind: 'facts', facts: pick(facts, ['Měří']) }, { kind: 'facts', label: 'rozsah', icon: 'gauge', facts: pick(facts, ['Rozsah']) },
+                    { kind: 'facts', label: 'vznik', icon: 'calendar', facts: pick(facts, ['Rok vzniku']) }];
+            }
+            // Desetiletí: síla a oběti, země a zajímavost (rok ne)
+            if (type === 'decade') {
+                return [{ kind: 'facts', facts: pick(facts, ['Kategorie', 'Oběti']) }, { kind: 'facts', label: 'země', icon: 'map-pin', facts: pick(facts, ['Země', 'Zajímavost']) }];
+            }
+            // Název: síla a oběti → fotka → mapa → země → zajímavost → rok (rok bývá v názvu, proto až nakonec)
+            return [
+                { kind: 'facts', facts: pick(facts, ['Magnitudo', 'Kategorie', 'Síla erupce', 'Oběti']) },
+                { kind: 'photo' },
+                { kind: 'visual', spec: disasterMap(item) },
+                { kind: 'facts', label: 'země', icon: 'map-pin', facts: pick(facts, ['Země']) },
+                { kind: 'facts', label: 'zajímavost', icon: 'info', facts: pick(facts, ['Zajímavost']) },
+                { kind: 'facts', label: 'doba', icon: 'calendar', facts: pick(facts, ['Rok', 'Slavná erupce']) }
+            ];
+        }
+        if (item.c === 'klima') {
+            return [
+                { kind: 'photo' },
+                { kind: 'facts', facts: pick(facts, ['Proud', 'Typické znaky']) },
+                { kind: 'facts', label: 'kde', icon: 'map-pin', facts: pick(facts, ['Oceán', 'Kde']) },
+                { kind: 'facts', label: 'zajímavost', icon: 'info', facts: pick(facts, ['Značka podle Köppena', 'Zajímavost']) }
+            ];
+        }
+        if (item.c === 'pocasi') {
+            return [
+                { kind: 'facts', facts: pick(facts, ['Patro', 'Druh jevu', 'Srážky']) },
+                { kind: 'facts', label: 'vzhled a vznik', icon: 'eye', facts: pick(facts, ['Jak vypadá', 'Jak vzniká', 'Zajímavost']) }
+            ];
+        }
         if (isFossil(item)) {
             return [
                 { kind: 'facts', facts: pick(facts, ['Skupina']) },
@@ -349,6 +468,7 @@
         const f = item.f || {};
         if (isMineral(item)) return f.h && mode !== 'hardness' ? mohsScale(item, mode) : null;
         if (item.c === 'obdobi') return ageScale(item);
+        if (item.c === 'katastrofy') return disasterMap(item);
         return null;
     };
 
@@ -360,6 +480,8 @@
         if (item.c === 'horniny') return GROUP_NAMES[f.grp] || '';
         if (isForm(item)) return FORM_GROUPS[f.grp] || '';
         if (isFossil(item)) return [f.grp, f.per].filter(Boolean).join(' · ');
+        if (item.c === 'katastrofy') return item.ty === 'stupnice' ? `stupnice · ${f.sc}` : [item.ty, f.land, yearText(f)].filter(Boolean).join(' · ');
+        if (item.c === 'klima' || item.c === 'pocasi') return [item.ty, f.kop].filter(Boolean).join(' · ');
         return [f.par ? `${LEVELS[f.lvl]} ${PARENT_GENITIVE[f.par] || ''}`.trim() : LEVELS[f.lvl], periodRange(f)].filter(Boolean).join(' · ');
     };
 
@@ -382,13 +504,14 @@
             question: 'Co je to?',
             one: 'nerost',
             next: 'Další otázka',
-            atlas: 'Atlas nerostů, hornin a útvarů',
+            atlas: 'Atlas nerostů, hornin, útvarů a přírodních jevů',
             placeholder: 'Napiš odpověď…',
-            tierKnown: 'Známé nerosty, drahé kameny, horniny, období a útvary',
+            tierKnown: 'Známé nerosty, drahé kameny, horniny, období, útvary, katastrofy a podnebí',
             czechBadge: 'Česká stopa'
         },
         categories: CATEGORIES,
         offSubjectPhoto,
+        questionTitle: (item) => (KIND_QUESTIONS[item.c] && KIND_QUESTIONS[item.c][item.ty]) || null,
 
         // Nerosty stejné třídy a barvy (k pyritu chalkopyrit, markazit), kameny stejné barvy (k rubínu almandin, jaspis),
         // horniny stejné skupiny, období stejné úrovně a blízké doby
@@ -408,6 +531,20 @@
             }
             if (isForm(item)) return (f.grp === g.grp ? 4 : 0) + (isForm(other) ? 1 : 0);
             if (isFossil(item)) return (f.grp === g.grp ? 3 : 0) + (f.per === g.per ? 2 : 0) + (isFossil(other) ? 1 : 0);
+            // Katastrofy: stejný druh a skupina (k zemětřesení zemětřesení, k hurikánu tropické cyklóny), blízká doba a stejná země.
+            // Otázka podle druhu („Která sopka to je?“, „Která povodeň to byla?“) má jen možnosti své skupiny (povodeň jen povodně);
+            // k obecné „Která katastrofa to byla?“ (tsunami, bouře, tornádo…) jakékoli události, ne sopka ani stupnice
+            if (item.c === 'katastrofy') {
+                const own = disasterGroup(item);
+                if (['sopky', 'stupnice'].includes(own) !== ['sopky', 'stupnice'].includes(disasterGroup(other))) return -Infinity;
+                if (own !== disasterGroup(other) && (KIND_QUESTIONS.katastrofy[item.ty] || GENERIC_DISASTER) !== GENERIC_DISASTER) return -Infinity;
+                if (item.ty === 'povodeň' && other.ty !== 'povodeň') return -Infinity;
+                const years = f.year !== undefined && g.year !== undefined ? Math.max(0, 2 - Math.abs(f.year - g.year) / 25) : 0;
+                return (disasterGroup(item) === disasterGroup(other) ? 3 : -3) + years + (f.land && f.land === g.land ? 1 : 0) + ((item.cz === 1) === (other.cz === 1) ? 1 : 0);
+            }
+            // Podnebí: příbuzné druhy (pás a typ podnebí, klimatický jev a místní vítr); oblak k oblakům, jev k jevům
+            if (item.c === 'klima') return CLIMATE_GROUPS[item.ty] && CLIMATE_GROUPS[item.ty] === CLIMATE_GROUPS[other.ty] ? 2 : item.ty === other.ty ? 0 : -2;
+            if (item.c === 'pocasi') return item.ty === other.ty ? 0 : -4;
             return (f.lvl === g.lvl ? 3 : 0) + (f.par && f.par === g.par ? 2 : 0)
                 - Math.round(Math.abs(Math.log10(Math.max(f.from, 0.01)) - Math.log10(Math.max(g.from, 0.01))));
         },
@@ -421,6 +558,7 @@
                 return null;
             }
             if (item.c === 'horniny' && roll < GROUP_SHARE && GROUPS[item.f.grp]) return groupQuestion(item, rng);
+            if (item.c === 'katastrofy' && roll < DECADE_SHARE) return decadeQuestion(item, rng);
             return null;
         },
         // Fotka ukazuje jen ukázku druhu (vzorek nerostu, horniny, zkamenělinu, útvar), ne jedinou věc: odpověď mezi podobnými
@@ -434,6 +572,8 @@
             if (item.c === 'horniny') return { file: item.im, hash: item.ih, label: 'Hornina', icon: 'mountain' };
             if (item.c === 'utvary') return { file: item.im, hash: item.ih, label: 'Útvar', icon: 'waves' };
             if (item.c === 'zkameneliny') return { file: item.im, hash: item.ih, label: 'Zkamenělina', icon: 'shell' };
+            // Oblak a jev počasí se poznávají z fotky; katastrofu a podnebí popisuje text, fotka je jen nápovědou
+            if (item.c === 'pocasi') return { file: item.im, hash: item.ih, label: item.ty === 'oblak' ? 'Oblak' : 'Jev', icon: 'cloud-sun' };
             return null;
         },
         // Vzorec v úvodu článku přijde bez indexů zkomolený („Al2{SiO42}“, „Cu322“) a je až poslední nápovědou – z popisu zmizí
@@ -442,6 +582,7 @@
             if (type === 'hardness') return hideHardness(clean);
             if (type === 'formula') return hideFormula(clean, item.f.formula);
             if (type === 'group') return hideGroup(clean);
+            if (type === 'decade') return hideYears(clean);
             return censorName(clean, [item.n, ...((item.f || {}).al || [])].join(', '));
         },
         hints: hintsOf,
