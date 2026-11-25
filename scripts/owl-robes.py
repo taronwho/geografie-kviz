@@ -138,8 +138,8 @@ wanted = sys.argv[1:] or list(ROBES)
 unknown = [robe for robe in wanted if robe not in ROBES]
 if unknown: sys.exit(f'Neznámá barva: {", ".join(unknown)} (známé: {", ".join(ROBES)})')
 # Logo sovy bez monoklu (icons/logo-bez-monoklu.webp ze scripts/owl-accessories.py --logo) má stejné barvy obleku jako logo
-# Mudrlant stárne (scripts/owl-age.py): logo-vek<n>.webp a logo-vek<n>-bez-monoklu.webp
-sources = [os.path.join(root, 'logo.webp'), os.path.join(root, 'logo-bez-monoklu.webp')] + [p for p in sorted(glob.glob(os.path.join(root, 'logo-vek*.webp'))) if not any(p.endswith(f'-{c}.webp') for c in ROBES)] + sorted(glob.glob(os.path.join(root, 'topics', 'sova-*.webp')))
+# Mudrlant stárne (scripts/owl-age.py): logo-vek<n>.webp a logo-vek<n>-bez-monoklu.webp; výrazy (scripts/owl-expressions.py): vyrazy/*.webp
+sources = [os.path.join(root, 'logo.webp'), os.path.join(root, 'logo-bez-monoklu.webp')] + [p for p in sorted(glob.glob(os.path.join(root, 'vyrazy', '*.webp'))) if not any(p.endswith(f'-{c}.webp') for c in ROBES)] + [p for p in sorted(glob.glob(os.path.join(root, 'logo-vek*.webp'))) if not any(p.endswith(f'-{c}.webp') for c in ROBES)] + sorted(glob.glob(os.path.join(root, 'topics', 'sova-*.webp')))
 only = set(filter(None, os.environ.get('ONLY', '').split(',')))
 for path in sources:
     base = os.path.splitext(os.path.basename(path))[0]

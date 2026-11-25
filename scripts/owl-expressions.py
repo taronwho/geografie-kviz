@@ -40,6 +40,32 @@ def eye_mask(expr, ref, frame):
     return cv2.GaussianBlur(filled.astype(np.float32), (0, 0), 6)
 
 
+def monocle_over(expr, base):
+    """Monokl přes nové oči: zlaté obroučky a řetízek z původní sovy a jen jejich tenký tmavý obrys. Na rozdíl od owl-age.py
+    bez tmavých míst uvnitř skla (tam má původní sova otevřené oko a jeho zornice by prosvítala přes zavřené oko výrazu)."""
+    area = acc.MONOCLE_AREA
+    hsv = cv2.cvtColor(base, cv2.COLOR_RGB2HSV).astype(np.int16)
+    gold = (hsv[..., 0] >= 8) & (hsv[..., 0] <= 34) & (hsv[..., 1] > 90) & (hsv[..., 2] > 80) & (area > 0)
+    gold = cv2.morphologyEx(gold.astype(np.uint8), cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7)))
+    # vnitřek skla: díry uvnitř obroučky
+    filled = gold.copy()
+    contours, _ = cv2.findContours(gold, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    cv2.drawContours(filled, contours, -1, 1, -1)
+    glass_all = ((filled > 0) & (gold == 0)).astype(np.uint8)
+    inside = cv2.erode(glass_all, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)))
+    band = cv2.dilate(gold, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (17, 17))) & (area > 0) & (inside == 0)
+    take = (gold > 0) | ((band > 0) & (hsv[..., 2] < 90))
+    take = cv2.morphologyEx(take.astype(np.uint8), cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8))
+    a = cv2.GaussianBlur(take.astype(np.float32), (0, 0), 1.0)[..., None]
+    # sklo: lehký odlesk jako na původní sově (zesvětlení vnitřku o pár procent)
+    glass = cv2.GaussianBlur(inside.astype(np.float32), (0, 0), 2.0)[..., None] * 0.08
+    out = expr.astype(np.float32) * (1 - glass) + 255 * glass
+    rgb = np.clip(out * (1 - a) + base.astype(np.float32) * a, 0, 255).astype(np.uint8)
+    # vrstva musí zakrýt celé sklo i obroučku (pod ní je v logu otevřené oko)
+    cover = cv2.dilate((filled > 0).astype(np.uint8), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))).astype(np.float32)
+    return rgb, cover
+
+
 def main(names, preview):
     base = acc.load_base()
     frame = acc.logo_frame(base)
@@ -54,9 +80,10 @@ def main(names, preview):
         expr = acc.align(base, np.asarray(Image.open(os.path.join(SRC, f)).convert('RGB')), border=0)
         ref = acc.align(base, reference(n), border=0)
         mask = eye_mask(expr, ref, frame)
-        for suffix, rgb in (('', expr), ('-monokl', age.monocle_over(expr, base))):
+        with_monocle, cover = monocle_over(expr, base)
+        for suffix, rgb, alpha in (('', expr, mask), ('-monokl', with_monocle, np.maximum(mask, cover))):
             path = os.path.join(OUT, f'{name}-vek{n}{suffix}.webp')
-            age.to_logo(rgb, mask, frame, path)
+            age.to_logo(rgb, alpha, frame, path)
         shots.append((name, n))
     if preview:
         tiles = []
