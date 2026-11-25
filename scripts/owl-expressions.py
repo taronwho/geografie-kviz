@@ -47,6 +47,9 @@ def monocle_over(expr, base):
     hsv = cv2.cvtColor(base, cv2.COLOR_RGB2HSV).astype(np.int16)
     gold = (hsv[..., 0] >= 8) & (hsv[..., 0] <= 34) & (hsv[..., 1] > 90) & (hsv[..., 2] > 80) & (area > 0)
     gold = cv2.morphologyEx(gold.astype(np.uint8), cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7)))
+    # jen obroučka a řetízek (velké souvislé části); tenké zlatavé odlesky uvnitř skla původní sovy pryč
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(gold)
+    gold = np.isin(labels, [i for i in range(1, count) if stats[i, cv2.CC_STAT_AREA] > 1500]).astype(np.uint8)
     # vnitřek skla: díry uvnitř obroučky
     filled = gold.copy()
     contours, _ = cv2.findContours(gold, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
