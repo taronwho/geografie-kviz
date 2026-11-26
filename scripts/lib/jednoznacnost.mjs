@@ -64,12 +64,13 @@ export const questionFromRng = (item, ctx, rng, { plain = false, wrong = null } 
 // údaje, prodloužení popisu a výměny možností); fixed = pevné nesprávné možnosti (Dobývání); swaps = smí se možnosti vyměnit
 // stableChoices = denní módy (možnosti jen podle krátkého popisu z Wikidat), stableSwaps = výzvy (výměna jen podle něj)
 export const assemble = ({ item, ctx, question, special = false, fetched, after = true, fixed = false, swaps = true, plain = false, stableChoices = false, stableSwaps = false,
-    rng = Math.random }) => {
+    rng = Math.random, legacyBare = false, photoReady = true }) => {
     const shown = ctx.topic.questionImage ? ctx.topic.questionImage(item, ctx, question.type) : null;
+    // photoReady: fotka položky se načetla (hra ji ověří; audit předpokládá, že ano) – neinformativní popis ji pak u zvířat ukáže hned
     const composed = core.composeRound({ item, ctx, question, special, fetched, shown, rng, photoUrl: null, describeVisual: visualInfo, photoMasks: ctx.photoMasks || {},
-        textPhotos: ctx.textPhotos || new Set(), swaps, fixed, plain, unique: after, stableChoices, stableSwaps });
+        textPhotos: ctx.textPhotos || new Set(), swaps, fixed, plain, unique: after, stableChoices, stableSwaps, legacyBare, photoReady });
     const nowShown = ctx.topic.questionImage ? ctx.topic.questionImage(item, ctx, composed.question.type) : null;
-    return { item, ...composed, shown: nowShown };
+    return { item, ...composed, shown: composed.leadPhoto || nowShown };
 };
 
 // --- Posouzení: určí to, co hráč vidí bez nápovědy, odpověď? ---

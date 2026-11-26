@@ -596,11 +596,13 @@
 
     // Chudá otázka, kterou se nepodařilo vyměnit: první fakta (rok, země, obor) se ukážou hned v okně, ne až po nápovědě
     const LEAD_FACTS = 3;
-    const takeLeadFacts = (hints) => {
+    // rank = pořadí faktů u neinformativního popisu (rankLeadFacts: nejvíc rozlišující mezi možnostmi první)
+    const takeLeadFacts = (hints, rank = null) => {
         const index = hints.findIndex(hint => hint.kind === 'facts' && !hint.extra);
         if (index < 0) return { hints, leadFacts: [] };
-        const leadFacts = hints[index].facts.slice(0, LEAD_FACTS);
-        const rest = hints[index].facts.slice(LEAD_FACTS);
+        const ordered = rank ? rank(hints[index].facts) : hints[index].facts;
+        const leadFacts = ordered.slice(0, LEAD_FACTS);
+        const rest = hints[index].facts.filter(fact => !leadFacts.includes(fact));
         const next = rest.length ? hints.map((hint, i) => i === index ? { ...hint, facts: rest } : hint) : hints.filter((_, i) => i !== index);
         return { hints: next, leadFacts };
     };
@@ -3556,6 +3558,49 @@
     };
     const MAX_EXTENDED_LENGTH = 420;
 
+    // Neinformativní popis (od BARE_TEXT_FROM): po odečtení zakrytých míst, obecných slov druhu a kategorie (druh, rod, ptáka, obec,
+    // film…, štítek druhu, kategorie, slova zadání) a spojek nezbudou aspoň MIN_BARE_WORDS obsahová slova ani číslo či vlastní jméno,
+    // a text nevyvrací žádnou nesprávnou možnost („Druh ptáka rodu [***].“). Takový popis se neukáže vůbec: otázku nesou fakta
+    // ukázaná hned (nejvíc rozlišující mezi možnostmi) a u témat, kde je fotka hlavní vodítko (topic.leadPhoto), fotka zdarma.
+    // Otázky dne před BARE_TEXT_FROM (composeRound: legacyBare – denní módy, výzvy, turnaj) zůstanou jako dřív; trénink hned.
+    const BARE_TEXT_FROM = '2026-11-27';
+    const MIN_BARE_WORDS = 2;
+    const MIN_BARE_LEAD_FACTS = 2;
+    const QUALIFIER_WORD = /^(?:nej|hlavn|zanikl|vyhynul|byval|fiktivn|bajn|mytick|legendarn)/;
+    const KIND_WORDS = ['druh', 'druhy', 'poddruh', 'rod', 'rodu', 'čeleď', 'čeledi', 'řád', 'řádu', 'třída', 'třídy', 'kmen', 'kmene', 'odrůda', 'plemeno',
+        'pták', 'ptáka', 'ptáků', 'savec', 'savce', 'savců', 'ryba', 'ryby', 'plaz', 'plaza', 'obojživelník', 'hmyz', 'hmyzu', 'živočich', 'živočicha', 'zvíře',
+        'rostlina', 'rostliny', 'strom', 'keř', 'bylina', 'houba', 'houby', 'organismus', 'obec', 'obce', 'město', 'města', 'městys', 'vesnice', 'část', 'části',
+        'okres', 'okrese', 'kraj', 'kraji', 'film', 'filmu', 'seriál', 'kniha', 'knihy', 'román', 'dílo', 'píseň', 'skladba', 'album', 'skupina', 'osoba', 'člověk',
+        'typ', 'pojem', 'věc', 'předmět', 'látka', 'sloučenina', 'prvek', 'minerál', 'nerost', 'hornina', 'stavba', 'budova', 'místo', 'položka', 'jméno', 'název',
+        'nějaký', 'nějaká', 'jeden', 'jedna', 'jako', 'který', 'která', 'které', 'patří', 'patřící', 'je', 'byl', 'byla', 'bylo'];
+    const bareStopKeys = (() => { let keys = null; return () => keys || (keys = new Set(KIND_WORDS.map(word => wordKey(normalizeAnswer(word))))); })();
+    // known = obecná slova otázky (zadání, štítek druhu, kategorie, slova tématu); ctx s question a item dovolí ověřit, jestli text
+    // vyvrací nějakou nesprávnou možnost (pak informativní je, i když je krátký: „Zimbabwský politik.“ mezi politiky jiných zemí)
+    const isBareText = (text, { known = '', item = null, ctx = null, question = null } = {}) => {
+        const value = String(text || '').trim();
+        if (!value) return true;
+        if (/\d/.test(value) || /[„"“]/.test(value)) return false;
+        // Vlastní jméno uprostřed věty (Neophron, Afrika), ne zakryté místo
+        const named = splitSentences(value).some(sentence => sentence.replace(/\[\*\*\*\]/g, ' ').split(/\s+/).filter(Boolean).slice(1).some(word => /^\p{Lu}/u.test(word)));
+        if (named) return false;
+        const stop = new Set([...bareStopKeys(), ...contentWords(known).map(wordKey)]);
+        const words = contentWords(value).filter(word => !stop.has(wordKey(word)));
+        // Jedno slovo, které samo zařadí (hlavní město, zaniklý, nejvyšší…), je údaj
+        if (words.length >= MIN_BARE_WORDS || words.some(word => QUALIFIER_WORD.test(word))) return false;
+        if (words.length && item && ctx && question) {
+            const check = identifyAnswer({ item, ctx, question, text: value, facts: [] });
+            const wrong = wrongItemsOf(question, ctx);
+            if (check && wrong && check.open.length < wrong.length) return false;
+        }
+        return true;
+    };
+    // Fakta ukázaná hned u neinformativního popisu: nejdřív ta, která vyvrátí nejvíc nesprávných možností (stálé pořadí při shodě)
+    const rankLeadFacts = (facts, item, ctx, wrong) => {
+        if (!wrong || !wrong.length || !item || !ctx) return facts;
+        const hits = (fact) => wrong.filter(other => parseClueFact(item, String(fact.label), fact.value, ctx).some(parsed => contradicts(parsed, other, ctx))).length;
+        return facts.map((fact, order) => ({ fact, order, hits: hits(fact) })).sort((a, b) => b.hits - a.hits || a.order - b.order).map(entry => entry.fact);
+    };
+
     // --- Nápovědy otázky: jedna cesta pro hru (app.js) i audit (scripts/lib/audit.mjs) ---
     //
     // Zásada: nápověda se nabídne jen tehdy, když přidá něco nového. Známé je už to, co hráč vidí bez nápovědy – otázka, štítek
@@ -3710,7 +3755,8 @@
     const planRound = ({ item, ctx, question, texts, typeLabel, shown = null, special = false, photoUrl = null, describeVisual = () => null, photoMasks = {}, textPhotos = new Set(), unique = true, cluePair = false }) => {
         const { topic } = ctx;
         const category = (topic.categories || []).find(entry => entry.key === item.c) || { key: item.c, label: item.c, one: topic.words.one };
-        const { questionText = '', moreText = '', origin = 'article' } = texts;
+        // bare = popis byl neinformativní a neukáže se (composeRound, isBareText): fakta ukázaná hned jsou ta nejvíc rozlišující
+        const { questionText = '', moreText = '', origin = 'article', bare = false } = texts;
         // Příliš chudý popis („Zimbabwský politik.“) nestačí k odpovědi: když je popis jediná opora otázky, je „thin“
         const thin = !shown && !special && (origin !== 'article' || countRealWords(questionText) < MIN_DESCRIPTION_WORDS);
         const visual = topic.visual ? topic.visual(item, ctx, question.type) : null;
@@ -3742,7 +3788,19 @@
             .filter(hint => !(hint.kind === 'visual' && !hint.spec));
         let leadFacts = [];
         if (thin) {
-            ({ hints, leadFacts } = takeLeadFacts(hints));
+            const rank = bare && wrongItems.length ? (facts) => rankLeadFacts(facts, item, ctx, wrongItems) : (facts) => facts;
+            ({ hints, leadFacts } = takeLeadFacts(hints, bare && wrongItems.length ? rank : null));
+            // Bez popisu (neinformativní) aspoň MIN_BARE_LEAD_FACTS fakta: doplní je další nápovědy faktů (i vlastní nápovědy tématu:
+            // země původu, směr), nejvíc rozlišující první; poslední nápověda otázky (vědecký název, nejsilnější vodítko) zůstane nápovědou
+            if (bare && leadFacts.length < MIN_BARE_LEAD_FACTS) {
+                const last = hints[hints.length - 1];
+                const pool = rank(hints.filter(hint => hint.kind === 'facts' && hint !== last).flatMap(hint => hint.facts));
+                const extra = pool.slice(0, MIN_BARE_LEAD_FACTS - leadFacts.length);
+                if (extra.length) {
+                    leadFacts = [...leadFacts, ...extra];
+                    hints = hints.map(hint => hint.kind === 'facts' ? { ...hint, facts: hint.facts.filter(fact => !extra.includes(fact)) } : hint).filter(hint => !(hint.kind === 'facts' && !hint.facts.length));
+                }
+            }
             // Fakta ukázaná hned v okně hráč zná: nápověda, která je jen opakuje (osa s roky vlády, které už jsou mezi fakty), vypadne
             const lead = `${visibleText} · ${known} · ${leadFacts.map(fact => fact.value).join(' · ')}`;
             hints = hints.map(hint => hint.kind === 'facts' ? { ...hint, facts: dropKnownFacts(hint.facts, lead) } : hint)
@@ -3780,7 +3838,8 @@
     // v úvodu z Wikipedie se pak jen zakryje; stableSwaps (výzvy) = jen výměna podle něj. Možnosti tak nezávisí na tom, jestli se hráči
     // Wikipedie načetla. Rozlišující údaj (jen zobrazení) se vybírá podle textu, který hráč opravdu vidí.
     const composeRound = ({ item, ctx, question, special = false, fetched, fallback = null, stableChoices = false, stableSwaps = false, shown = null, rng = Math.random,
-        photoUrl = null, describeVisual = () => null, photoMasks = {}, textPhotos = new Set(), swaps = true, fixed = false, plain = false, unique = true, legacyChoices = false }) => {
+        photoUrl = null, describeVisual = () => null, photoMasks = {}, textPhotos = new Set(), swaps = true, fixed = false, plain = false, unique = true, legacyChoices = false,
+        legacyBare = false, photoReady = false }) => {
         const { topic } = ctx;
         const category = (topic.categories || []).find(entry => entry.key === item.c) || { one: topic.words.one };
         let isSpecial = Boolean(special);
@@ -3795,8 +3854,8 @@
         // Typ položky („obec ve Španělsku“, „král“) nesmí prozradit odpověď
         const typeLabelOf = () => (item.ty && !hideAnswer(item.ty, question, { ...item, ty: '' }, ctx).includes('[***]') ? item.ty : category.one);
         // Rozlišující údaj smí být i dva údaje spolu (A vyvrací část možností, B zbytek): radši dva údaje než snazší možnosti
-        const planOf = (source) => planRound({ item, ctx, question, texts: { questionText: source.questionText, moreText: source.moreText, origin: source.origin },
-            typeLabel: typeLabelOf(), shown, special: isSpecial, photoUrl, describeVisual, photoMasks, textPhotos, unique, cluePair: true });
+        const planOf = (source, view = shown) => planRound({ item, ctx, question, texts: { questionText: source.questionText, moreText: source.moreText, origin: source.origin, bare: Boolean(source.bare) },
+            typeLabel: typeLabelOf(), shown: view, special: isSpecial, photoUrl, describeVisual, photoMasks, textPhotos, unique, cluePair: true });
         // Možnosti denních módů (stableChoices, stableSwaps) pro den před MASK_RULES_FROM (legacyChoices: app.js podle dne otázky) se
         // vybírají se zakrýváním jako dřív, aby se dnešní sada nezměnila; text, který hráč uvidí (níže), už se zakryje novými pravidly
         withLegacyMasking(Boolean(legacyChoices) && (stableChoices || stableSwaps), () => {
@@ -3856,7 +3915,21 @@
                 texts = { ...texts, questionText: hide(texts.questionText), moreText: hide(texts.moreText) };
             }
         }
-        let plan = planOf(texts);
+        // Neinformativní popis („Druh ptáka rodu [***].“; isBareText, od BARE_TEXT_FROM) se neukáže: fakta ukázaná hned budou ta nejvíc
+        // rozlišující, a u témat, kde je fotka hlavní vodítko (topic.leadPhoto: zvířata, rostliny), je ověřená fotka (photoReady) součástí
+        // otázky zdarma (leadPhoto, jako obrázek otázky; ne v Tajemné otázce ani v Dobývání). Jen zobrazení: možnosti se vybraly výše.
+        // Otázky dne před BARE_TEXT_FROM (legacyBare: denní módy podle dne otázky, výzvy a turnaj podle dne hraní) zůstanou jako dřív.
+        let leadPhoto = null;
+        if (!legacyBare && !shown && question.type !== 'map') {
+            const known = [question.title, typeLabelOf(), category.one, category.label, item.ty, topic.words && topic.words.one, question.showName ? item.n : ''].filter(Boolean).join(' ');
+            if (isBareText(texts.questionText, { known, item, ctx, question })) {
+                texts = { ...texts, questionText: '', bare: true };
+                if (!isSpecial && question.type === 'name' && !question.showName && !question.match && !plain && !fixed && photoReady && topic.leadPhoto && topic.leadPhoto(item, ctx, question.type) && isRealPhoto(item.im) && item.ih && !textPhotos.has(item.im)) {
+                    leadPhoto = { file: item.im, hash: item.ih, label: 'Fotka', icon: 'image', lead: true };
+                }
+            }
+        }
+        let plan = planOf(texts, leadPhoto || shown);
         let ambiguous = false;
         if (unique && plan.unresolved.length) {
             // Plný úvod článku s konkrétním údajem (místo, rok, jméno), který data ověřit neumějí (dinosaurus z Antarktidy, objevený
@@ -3865,7 +3938,7 @@
             if (article) plan = { ...plan, definitionOnly: true };
             else ambiguous = true;
         }
-        return { question, special: isSpecial, texts, plan, typeLabel: typeLabelOf(), conflict, ambiguous, swapped, swaps: swapList, converted };
+        return { question, special: isSpecial, texts, plan, typeLabel: typeLabelOf(), conflict, ambiguous, swapped, swaps: swapList, converted, leadPhoto };
     };
 
 
@@ -3884,7 +3957,7 @@
         censorForItem, censorItemName, isFieldWord, MASK_RULES_FROM, withLegacyMasking, tooManyMasks, MAX_DESCRIPTION_MASKS, MAX_READABLE_MASK_SHARE, answerNamesOf, answerNamesFor, hideAnswer, leadSubject, leadAliases, aliasWords, sealAnswerWords, answerWordsLeft, leakFreeText, OUT_OF_CONTEXT, buildQuestionTexts, factRevealsAnswer, GENERIC_NAME_WORDS,
         JOINING_WORDS, distinctiveTokens, structureLeaks, sealStructure, contentWords, newWords, addsInformation, commonChoiceText,
         choicePoints, choicesView, fitMapToChoices, FIT_SHARE, WORLD_MIN_SPAN, buildHints, planRound, MIN_DESCRIPTION_WORDS, MIN_EXCERPT_WORDS,
-        composeRound, swapSimilar, clueFactsOf, contradicts, identifyAnswer, clueFor, pickClue, clueCandidates, uniqueChoices, uniqueInfo, needsUniqueness, wrongItemsOf, isSpecificText, parseClueFact,
+        composeRound, BARE_TEXT_FROM, isBareText, rankLeadFacts, swapSimilar, clueFactsOf, contradicts, identifyAnswer, clueFor, pickClue, clueCandidates, uniqueChoices, uniqueInfo, needsUniqueness, wrongItemsOf, isSpecificText, parseClueFact,
         setCountries, landOf, landsOf, landFromDescription, cultureDistance, CULTURE_GROUPS, cultureScore, cultureLandsFor, getWordStems, censorName, mergeCensored, swallowAliases, censorCountry, isKnownCountry, processWikiText, stripFactSentences, takeLeadFacts, normalizeAnswer, levenshtein, isAnswerMatch, isNearMiss, registerNames, isSymbolMatch, isCenturyMatch, isFormulaMatch, formulaCounts, checkAnswer,
         inCollection, filterItems, levelOf, tierLevel, pickItem, sortItems, getCountryNames, getContinent, continentAt, getCountryAliases,
         distanceKm, nearness, STATE_STEPS, sharesGroup, eraNearness, personSimilarity, rankBySimilarity, takeDistinct, isNamePart, nameStems, sameNameStem,
