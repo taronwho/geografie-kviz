@@ -10179,7 +10179,8 @@
         if (event.target.closest('[data-open-mastery-all]')) { openMasteryAll(); return true; }
         if (event.target.closest('[data-open-showcase]')) { openShowcase(); return true; }
         if (event.target.closest('[data-open-chronicle]')) { openChronicle(); return true; }
-        if (event.target.closest('[data-open-stats, data-open-passport]')) { openStats(); return true; }
+        if (event.target.closest('[data-open-stats]')) { openStats(); return true; }
+        if (event.target.closest('[data-open-passport]')) { openPassport(); return true; }
         if (event.target.closest('[data-season-claim]')) { openSeasonReveal(); return true; }
         if (event.target.closest('[data-season-open]')) { openSeason(); return true; }
         const info = event.target.closest('[data-rewards-info]');
