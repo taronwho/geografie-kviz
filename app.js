@@ -28,6 +28,9 @@
     // Režimy Bleskovka a Přežití (modes.js) a zvuky s vibracemi (sound.js); bez skriptu se jen nenabídnou, hra zůstane potichu
     const Modes = window.MudrlantModes || null;
     const Sound = window.MudrlantSound || null;
+    // Jednohubka (snack.js): jedna otázka na jedno klepnutí; bez skriptu (nebo bez modes.js) se čip na záložce Hrát neukáže
+    const Snack = window.MudrlantSnack || null;
+    let snackCtl = null; // ovladač Jednohubky, založí se níž u Bleskovky a Přežití
     // Otázka „Ukaž na mapě“ (question-map.js); bez skriptu se hraje bez ní
     const MapQuestion = window.MudrlantMapQuestion || null;
     // Číselné otázky Seřaď a Odhadni číslo (numeric-questions.js); bez skriptu jen nejsou
@@ -2721,6 +2724,7 @@
         if (screen === 'challenge-done') return { icon: 'trophy', art: challenge && challenge.tournament ? 'turnaj' : 'vyzva', text: challenge && challenge.tournament ? 'Zápas hotový' : 'Výzva hotová', topic: null };
         if (screen === 'quiz' || screen === 'quiz-done') return { icon: 'timer', art: 'stopky', text: `Kvíz dne · ${shortDay(quiz ? quiz.day : getDayKey())}`, topic: null };
         if (screen === 'mode' && modeGame) return modePlace(modeGame);
+        if (screen === 'snack' && snackCtl) return snackCtl.place();
         if (screen === 'mystery') return { icon: 'telescope', art: 'sova-dalekohled', text: 'Tajemná otázka', topic: null };
         if ((screen === 'boss' || screen === 'boss-done') && Boss) return { icon: 'swords', art: Boss.artFor(Boss.bossForWeek(Boss.weekOf()).id, 1), text: 'Boss týdne', topic: null };
         if (screen === 'conquest') return { icon: 'swords', art: 'dobyvani', text: 'Dobývání', topic: null };
@@ -2772,7 +2776,7 @@
         const place = describePlace();
         const style = place.topic ? styleOf(place.topic) : null;
         updateFactHint();
-        document.getElementById('app-header').className = `${HEADER_BASE} ${style && (screen === 'round' || screen === 'mode') ? style.accent : 'border-brand-200 dark:border-brand-900'}`;
+        document.getElementById('app-header').className = `${HEADER_BASE} ${style && (screen === 'round' || screen === 'mode' || screen === 'snack') ? style.accent : 'border-brand-200 dark:border-brand-900'}`;
         const badge = document.getElementById('status-badge');
         badge.className = place.logo ? BADGE_LOGO
             : `${BADGE_BASE} ${style ? `${style.soft} border-transparent` : 'bg-white text-slate-700 border-slate-200/60 dark:bg-slate-800 dark:border-slate-700'}`;
@@ -3421,6 +3425,8 @@
     const practiceOpen = () => Boolean(current && mode === 'practice' && round && !round.answered && TOPIC_BY_ID[current.topic]);
     const MODE_TILE = `relative flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-1 ${CARD_R} ${TILE_3D} px-0.5 py-1.5 text-center short:min-h-[3.75rem] short:gap-0.5 tiny:min-h-[3.25rem]`;
     const modeTile = (attrs, art, title, extra = '') => `<button type="button" ${attrs} class="${MODE_TILE}">${art}<span class="block max-w-full truncate text-[12px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span>${extra}</button>`;
+    // Čip u nadpisu Režimy na záložce Hrát: řádek nadpisu nezvětší (záporný okraj), dotyková plocha 44 px
+    const snackChip = () => !snackCtl ? '' : `<button type="button" data-action="snack-open" title="Jednohubka: jedna otázka na jedno klepnutí" aria-label="Jednohubka: jedna otázka na jedno klepnutí" class="-my-3 flex min-h-[2.75rem] shrink-0 items-center px-1"><span class="flex items-center gap-1 rounded-full bg-gold-100 px-2.5 py-1 text-[12px] font-black text-brand-950 ring-1 ring-gold-300 dark:bg-gold-500/20 dark:text-gold-200 dark:ring-gold-700/60"><i data-lucide="${Snack.ICON}" class="h-3.5 w-3.5"></i>Jednohubka</span></button>`;
     const renderHrat = () => {
         // Dlouhý název („Výtvarné umění“) má na dlaždici krátký název tématu (shortTitle), celý zůstane v popisku pro čtečku
         const tileTitle = (topic) => (topic.shortTitle ? `<span aria-label="${escapeHtml(topic.title)}">${escapeHtml(topic.shortTitle)}</span>` : escapeHtml(topic.title));
@@ -3462,7 +3468,7 @@
             ${mixRow}
             <section id="topic-grid" aria-label="Témata" class="grid max-h-[22rem] flex-1 grid-cols-4 auto-rows-fr gap-2 short:gap-1.5">${ordered.map(tile).join('')}</section>
             <section aria-label="Režimy" class="flex shrink-0 flex-col gap-2 short:gap-1.5">
-                <h2 class="${SEC_LABEL}">Režimy</h2>
+                <div class="flex items-center justify-between gap-2"><h2 class="${SEC_LABEL}">Režimy</h2>${snackChip()}</div>
                 <div id="mode-tiles" class="grid ${['grid-cols-1', 'grid-cols-1', 'grid-cols-2', 'grid-cols-3', 'grid-cols-4'][Math.min(4, modes.length)]} gap-2 short:gap-1.5">${modes.join('')}</div>
             </section>`;
     };
@@ -4674,7 +4680,7 @@
     };
     const persistState = () => {
         // Souboj s bossem a Bleskovka s Přežitím mají vlastní uložení (mudrlant.boss), nebo se neukládají: relace běžné hry zůstane, jak byla
-        if (!current || screen === 'boss' || screen === 'mode') return;
+        if (!current || screen === 'boss' || screen === 'mode' || screen === 'snack') return;
         if (mode === 'challenge' && challenge && !challenge.done) rememberOpenChallenge(challenge);
         if (mode === 'quiz') quizKeepOpen();
         // Rozehraný zápas turnaje se ukládá také: po návratu v den kola nabídne karta turnaje Pokračovat (od další otázky)
@@ -4757,6 +4763,7 @@
     const celebrationCalm = () => {
         // Otevřené okno (třeba rozpis otázek po výzvě, nebo Nastavení, kde hráč obléká Mudrlanta) má přednost: oslavy počkají, až se zavře
         if (document.getElementById('dialog-overlay') || document.getElementById('settings-overlay')) return false;
+        if (screen === 'snack') return !snackCtl || snackCtl.calm();
         if (mode === 'blitz' || mode === 'survival') return !modeGame || modeGame.phase === 'result' || screen !== 'mode';
         // Boss týdne: během souboje ne, na úvodu a výsledku ano
         if (screen === 'boss') return !bossFight;
@@ -7817,6 +7824,35 @@
         'mode-share-image': () => shareModeImage(),
         'mode-retry': () => { if (modeGame && modeGame.phase === 'error') { modeGame.phase = 'loading'; showNextModeQuestion(modeGame); } }
     };
+
+    // --- Jednohubka (snack.js): jedna otázka na jedno klepnutí (série, XP se stropem a obrazovka jsou v snack.js) ---
+    // Otázka se chystá stejně jako v Bleskovce (prepareModeQuestion: náhodné téma z povolených v Mixu, kategorie a obtížnost z nastavení,
+    // vždy výběr z možností), panely otázky a odpovědi jsou z běžné hry. Chyby jdou do Mých chyb a procvičování jako v režimech.
+    // Při vstupu se uloží rozehraná otázka tréninku (mode, pool, current, round) a Hotovo ji vrátí, ať tlačítko Pokračovat nezmizí.
+    if (Snack && Modes) {
+        snackCtl = Snack.createController({
+            appContent, escapeHtml, CARD, BACK_LINK, loadingArt: LOADING_OWL,
+            readJson, writeJson, dayKey: () => getDayKey(), sound: Sound, isLoading: () => isLoading,
+            setScreen: (name) => { screen = name; }, getScreen: () => screen, renderHome, renderIcons, updateControlsUI,
+            closeOverlays: () => { closeChooser(); closeSettings(); closePlaceInfo(); },
+            touch: () => touchTip('snack'),
+            prepare: (seen) => prepareModeQuestion({ kind: 'snack', pool: { kind: 'mix' }, seen, asked: 0 }),
+            snapshot: () => ({ mode, pool, current, round }),
+            restore: (saved) => { ({ mode, pool, current, round } = saved); },
+            enter: (data) => {
+                mode = 'snack';
+                current = data;
+                round = { hintLevel: 1, variant: 'choices', answered: false, correct: false, points: 0, typed: false, answer: null, gaveUp: false, review: false, gold: false };
+            },
+            answered: (data, choice, correct) => {
+                Object.assign(round, { answered: true, correct, answer: choice.label, resultTab: 'about' });
+                noteModeAnswer(data, correct);
+            },
+            awardXp: (xp) => awardModeXp(xp),
+            topicOf: (id) => TOPIC_BY_ID[id], styleOf, categoryOf, questionPanel, answerPanel, mountPanels,
+            offline: (error) => error instanceof NetworkError || !navigator.onLine
+        });
+    }
 
     // --- Profil a výzvy (hra více hráčů) ---
     // Výzva = téma (nebo mix), semínko a počet otázek. Otázky se z něj losují stejně všem hráčům, takže stačí sdílet kód;
@@ -15050,6 +15086,7 @@
         'bets-help': () => openBetsHelp(),
         ...tournamentActions,
         ...modeActions,
+        ...(snackCtl ? snackCtl.actions : {}),
         'new-challenge': () => openNewChallenge(),
         'random-challenge': () => openNewChallenge({ who: 'random' }),
         'recent-more': () => { recentExpanded = !recentExpanded; paintChallenges(); },
@@ -15325,6 +15362,8 @@
             if (chainCtl) chainCtl.leave(); else renderHome();
         } else if (screen === 'mode') {
             confirmLeaveMode();
+        } else if (screen === 'snack') {
+            if (snackCtl) snackCtl.leave(); else renderHome();
         } else if (screen === 'boss' || screen === 'boss-done') {
             leaveBoss();
         } else if (screen === 'learn') {

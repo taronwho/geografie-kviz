@@ -39,6 +39,8 @@ const ICONS = [
     'cog', 'car', 'train-front', 'plane', 'ship', 'cpu', 'code', 'factory',
     // Téma Jídlo a pití (topics/jidlo.js: ikona tématu a kategorií)
     'utensils', 'soup', 'croissant', 'milk', 'apple', 'carrot', 'leafy-green', 'coffee', 'wine', 'chef-hat',
+    // Jednohubka (snack.js: čip na záložce Hrát a štítek v hlavičce)
+    'cookie',
     // Architektura: kategorie Mosty a tunely
     'bridge',
     // Biologie – člověk a zdraví: Lékařství, Slavní lékaři, Psychologie
