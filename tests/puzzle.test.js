@@ -220,6 +220,63 @@ test('zvuky a vibrace Skládačky existují, obrazovky nemají inline styly ani 
     assert.ok(fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8').includes('<script src="puzzle.js" defer></script>'));
     assert.ok(fs.readFileSync(path.join(ROOT, 'tailwind.config.js'), 'utf8').includes("'./puzzle.js'"));
     const icons = fs.readFileSync(path.join(ROOT, 'icons.js'), 'utf8');
-    for (const icon of ['puzzle', 'hand', 'circle-help', 'check', 'lightbulb', 'flag', 'map', 'shuffle', 'layers', 'sparkles', 'settings-2', 'arrow-right'])
+    for (const icon of ['puzzle', 'hand', 'circle-help', 'check', 'lightbulb', 'flag', 'map', 'shuffle', 'layers', 'sparkles', 'settings-2', 'arrow-right', 'calendar-days', 'circle-check', 'eye', 'play', 'chevron-left'])
         assert.ok(icons.includes(`"${icon}"`), `ikona ${icon}`);
+});
+
+test('Skládačka dne: stejná pro všechny, střídá vlajku a obrys, 4 × 4, XP jednou za den mimo strop', () => {
+    const vlajky = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/vlajky.json'), 'utf8')).items;
+    const zemepis = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/zemepis.json'), 'utf8')).items;
+    const flags = Puzzle.flagCandidates(vlajky, countries);
+    const outlines = Puzzle.outlineCandidates(zemepis, countries, shapes);
+    // Varianta: den po dni střídavě
+    assert.notEqual(Puzzle.dailyVariant('2026-11-26'), Puzzle.dailyVariant('2026-11-27'));
+    assert.equal(Puzzle.dailyVariant('2026-11-26'), Puzzle.dailyVariant('2026-11-28'));
+    assert.equal(Puzzle.dailyVariant('2026-12-31'), Puzzle.dailyVariant('2027-01-02'), 'přes konec roku dál střídavě');
+    // Pool: jen státy s vlajkou i obrysem (v den vlajky jde bez internetu složit obrys téhož státu)
+    const pool = Puzzle.dailyPool(flags, outlines);
+    const flagIds = new Set(flags.map(item => item.id));
+    const outlineIds = new Set(outlines.map(item => item.id));
+    assert.ok(pool.length >= Puzzle.DAILY_KNOWN_MIN);
+    assert.ok(pool.every(id => flagIds.has(id) && outlineIds.has(id)));
+    // Stejný den = stejný plán i v jiném pořadí dat; sousední dny jiný stát
+    const plan = Puzzle.dailyPlan(DAY, flags, outlines);
+    assert.deepEqual(Puzzle.dailyPlan(DAY, [...flags].reverse(), [...outlines].reverse()), plan);
+    assert.equal(plan.size, 16);
+    assert.equal(plan.ids.length, Puzzle.DAILY_FLAG_TRIES);
+    assert.equal(new Set(plan.ids).size, plan.ids.length);
+    const month = Array.from({ length: 30 }, (_, i) => Puzzle.dailyPlan(`2026-12-${String(i + 1).padStart(2, '0')}`, flags, outlines).ids[0]);
+    assert.equal(new Set(month).size, 30, 'za měsíc se stát neopakuje');
+    assert.equal(Puzzle.dailyPlan(DAY, [], []), null);
+    // Pokusy: vlajka (až tři státy), pak obrys prvního; dohraná = její varianta a stát
+    assert.deepEqual(Puzzle.dailyAttempts({ variant: 'flag', ids: ['Q1', 'Q2', 'Q3'] }), [['flag', 'Q1'], ['flag', 'Q2'], ['flag', 'Q3'], ['outline', 'Q1']]);
+    assert.deepEqual(Puzzle.dailyAttempts({ variant: 'outline', ids: ['Q1', 'Q2'] }), [['outline', 'Q1'], ['flag', 'Q1']]);
+    assert.deepEqual(Puzzle.dailyAttempts({ variant: 'flag', ids: ['Q1'] }, { v: 'outline', id: 'Q9' }).slice(0, 2), [['outline', 'Q9'], ['flag', 'Q9']]);
+    // Zamíchání dílků ze semínka dne: stejné pro všechny
+    const item = { id: plan.ids[0], name: 'Stát' };
+    const a = Puzzle.createGame({ variant: plan.variant, size: plan.size, item, rng: Puzzle.seeded(plan.seed), daily: DAY });
+    const b = Puzzle.createGame({ variant: plan.variant, size: plan.size, item, rng: Puzzle.seeded(plan.seed), daily: DAY });
+    assert.deepEqual(a.tray, b.tray);
+    assert.equal(a.daily, DAY);
+    // XP: jednou za den mimo denní strop volné hry, bonus za tip; sbírka se počítá
+    const capped = { ...Puzzle.parse({}), day: DAY, xp: Puzzle.DAILY_XP_CAP };
+    const game = { ...a, done: true, moves: 23, guess: { correct: true } };
+    const first = Puzzle.finish(capped, game, DAY);
+    assert.equal(first.xp.total, Puzzle.DAILY_XP + Puzzle.GUESS_XP);
+    assert.deepEqual(first.xp.parts.map(part => part.label), ['za Skládačku dne', 'za uhodnutí předem']);
+    assert.equal(first.state.xp, Puzzle.DAILY_XP_CAP, 'do stropu volné hry se nepočítá');
+    assert.deepEqual(first.state.daily[DAY], { moves: 23, v: plan.variant, id: item.id });
+    assert.ok(first.state.got[plan.variant].includes(item.id));
+    assert.deepEqual(Puzzle.dailyDone(first.state, DAY), { moves: 23, v: plan.variant, id: item.id });
+    assert.equal(Puzzle.dailyDone(first.state, '2026-11-27'), null);
+    const again = Puzzle.finish(first.state, { ...game, moves: 5 }, DAY);
+    assert.equal(again.xp.total, 0, 'podruhé (třeba dohraná na jiném zařízení) bez XP');
+    assert.equal(again.already, true);
+    assert.equal(again.state.daily[DAY].moves, 23);
+    // Uložený stav: jen platné dny, nejvýš DAILY_DAYS
+    const many = Object.fromEntries(Array.from({ length: 80 }, (_, i) => [new Date(Date.UTC(2026, 0, 1 + i)).toISOString().slice(0, 10), { moves: 10, v: 'flag', id: 'Q213' }]));
+    const parsed = Puzzle.parse({ daily: { ...many, nic: { moves: 3 }, '2026-11-02': { moves: 0 }, '2026-11-03': { moves: 4, v: 'x', id: 'y' } } });
+    assert.equal(Object.keys(parsed.daily).length, Puzzle.DAILY_DAYS);
+    assert.deepEqual(parsed.daily['2026-11-03'], { moves: 4, v: '', id: '' });
+    assert.equal(parsed.daily['2026-11-02'], undefined);
 });

@@ -16,7 +16,7 @@
         buildHints: CoreBuildHints, planRound
     } = window.MudrlantCore;
     // Sestavení otázky z textu s jednoznačností (quiz-core.js composeRound): rozlišující údaj, výměna nesprávných možností
-    const { composeRound, MASK_RULES_FROM, BARE_TEXT_FROM } = window.MudrlantCore;
+    const { composeRound, MASK_RULES_FROM, BARE_TEXT_FROM, AGREEMENT_FROM } = window.MudrlantCore;
     const Visuals = window.MudrlantVisuals;
     // Opakování karet (review.js) a týdenní cíle (goals.js); bez skriptu se jen nezobrazí
     const Review = window.MudrlantReview || null;
@@ -647,7 +647,10 @@
             legacyChoices: String(options.day || getDayKey()) < MASK_RULES_FROM,
             // Neinformativní popis se neukáže a u zvířat a rostlin je místo něj ověřená fotka zdarma (leadPhoto); otázky dne před BARE_TEXT_FROM
             // (denní módy podle dne otázky, výzvy a turnaj podle dneška) jako dřív, trénink hned
-            legacyBare: String(options.day || ((options.mode || mode) === 'challenge' ? getDayKey() : BARE_TEXT_FROM)) < BARE_TEXT_FROM, photoReady: Boolean(settled && settled.result) });
+            legacyBare: String(options.day || ((options.mode || mode) === 'challenge' ? getDayKey() : BARE_TEXT_FROM)) < BARE_TEXT_FROM,
+            // Přísudek za zakrytým názvem, který prozradí číslo či rod odpovědi („[***] jsou město…“), podle většiny možností; od AGREEMENT_FROM
+            // včetně dnešních otázek (jen zobrazení textu)
+            legacyAgreement: String(options.day || getDayKey()) < AGREEMENT_FROM, photoReady: Boolean(settled && settled.result) });
         question = composed.question;
         const { conflict, ambiguous, typeLabel } = composed;
         const { text, questionText, moreText, origin } = composed.texts;

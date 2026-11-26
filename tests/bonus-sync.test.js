@@ -42,7 +42,7 @@ test('výměna telefonu: nové zařízení dostane razítka, poznané položky, 
         learned: { zemepis: ['Q213', 'Q36'], biologie: ['Q144'] },
         passport: { stamps: { Q213: '2026-11-01', Q36: '' }, done: {}, seen: ['Q213', 'Q36'] },
         obor: { current: 'zemepis|c:stat', fields: { 'zemepis|c:stat': { cursor: 'Q36', at: 500, label: 'Státy' } }, seals: { 'biologie|savci': '2026-11-10' } },
-        skladacka: { got: { flag: ['Q213'], outline: ['Q36'] }, done: 5, guessed: 2, day: '2026-11-20', xp: 12, recent: { flag: ['Q213'] } },
+        skladacka: { got: { flag: ['Q213'], outline: ['Q36'] }, done: 5, guessed: 2, day: '2026-11-20', xp: 12, recent: { flag: ['Q213'] }, daily: { '2026-11-20': { moves: 21, v: 'flag', id: 'Q213' } } },
         sorting: { games: 4, perfect: 1, cards: 24, daily: { '2026-11-19': { attempts: 2, spec: '' } }, day: '2026-11-20', xp: 8 },
         snack: { played: 10, correct: 8, streak: 3, best: 6, past: 6, day: '2026-11-20', xp: 20 }
     });
@@ -61,6 +61,7 @@ test('výměna telefonu: nové zařízení dostane razítka, poznané položky, 
     assert.deepEqual(s.skladacka.got, { flag: ['Q213'], outline: ['Q36'] });
     assert.deepEqual([s.skladacka.done, s.skladacka.guessed, s.skladacka.xp], [5, 2, 12]);
     assert.deepEqual(s.skladacka.recent.flag, [], 'naposledy složené zůstávají v zařízení');
+    assert.deepEqual(s.skladacka.daily, { '2026-11-20': { moves: 21, v: 'flag', id: 'Q213' } }, 'dohraná Skládačka dne už XP nevyplatí podruhé');
     assert.deepEqual(s.sorting.daily, { '2026-11-19': { attempts: 2, spec: '' } }, 'dohrané Řazení dne už XP nevyplatí podruhé');
     assert.deepEqual([s.sorting.games, s.sorting.perfect, s.sorting.cards], [4, 1, 24]);
     assert.deepEqual([s.snack.played, s.snack.correct, s.snack.best, s.snack.streak], [10, 8, 6, 0], 'série běží jen v zařízení, rekord se přenese');
@@ -143,13 +144,15 @@ test('rekordy a data: dřívější den razítka vyhraje, nejlepší série je m
     const a = device({
         passport: { stamps: { Q213: '2026-11-05', Q36: '2026-11-07' }, done: { EU: '2026-11-07' }, seen: ['Q213'] },
         snack: { played: 5, correct: 5, best: 9, past: 4, streak: 9, day: '2026-11-20', xp: 25 },
-        sorting: { daily: { '2026-11-19': { attempts: 3, spec: '' } }, day: '2026-11-19', xp: 30 }
+        sorting: { daily: { '2026-11-19': { attempts: 3, spec: '' } }, day: '2026-11-19', xp: 30 },
+        skladacka: { daily: { '2026-11-19': { moves: 30, v: 'outline', id: 'Q36' } } }
     });
     const b = device({
         learned: { vlajky: ['Q101472'] },
         passport: { stamps: { Q213: '2026-11-02', Q30: '2026-11-03' }, done: { EU: '' }, filled: { zemepis: true, vlajky: true } },
         snack: { played: 2, correct: 1, best: 3, past: 3, day: '2026-11-20', xp: 10 },
-        sorting: { daily: { '2026-11-19': { attempts: 1, spec: '' }, '2026-11-20': { attempts: 2, spec: '' } }, day: '2026-11-20', xp: 5 }
+        sorting: { daily: { '2026-11-19': { attempts: 1, spec: '' }, '2026-11-20': { attempts: 2, spec: '' } }, day: '2026-11-20', xp: 5 },
+        skladacka: { daily: { '2026-11-19': { moves: 18, v: 'outline', id: 'Q36' }, '2026-11-20': { moves: 25, v: 'flag', id: 'Q213' } } }
     });
     run(a, srv);
     run(b, srv);
@@ -161,6 +164,7 @@ test('rekordy a data: dřívější den razítka vyhraje, nejlepší série je m
         assert.equal(s.snack.best, 9);
         assert.deepEqual(s.sorting.daily, { '2026-11-19': { attempts: 1, spec: '' }, '2026-11-20': { attempts: 2, spec: '' } });
         assert.deepEqual([s.sorting.day, s.sorting.xp], ['2026-11-20', 5], 'strop dnešních XP podle pozdějšího dne');
+        assert.deepEqual(s.skladacka.daily, { '2026-11-19': { moves: 18, v: 'outline', id: 'Q36' }, '2026-11-20': { moves: 25, v: 'flag', id: 'Q213' } }, 'Skládačka dne: sjednocení dnů, méně tahů vyhraje');
         assert.deepEqual([s.snack.day, s.snack.xp], ['2026-11-20', 25], 've stejný den větší XP');
     }
     assert.equal(a.states.snack.streak, 9, 'běžící série zůstane v zařízení');
@@ -234,7 +238,7 @@ test('strop velikosti: obrovský dokument se nezapíše, zařízení si sloučen
 
 test('poškozená nebo podvržená data z účtu nic nerozbijí', () => {
     const evil = JSON.parse('{"v":1,"learned":{"__proto__":["Q1"],"constructor":["Q2"],"zemepis":["Q3",5,"<b>",null]},"passport":{"stamps":{"Q1":"zítra","Q2":"2026-01-01","x":"2026-01-01"},"done":{"XX":""}},'
-        + '"obor":{"current":"nic","fields":{"zemepis|c:stat":{"cursor":{"a":1},"at":"x"},"__proto__":{}}},"skladacka":{"got":{"constructor":["Q5"],"flag":"Q1"}},'
+        + '"obor":{"current":"nic","fields":{"zemepis|c:stat":{"cursor":{"a":1},"at":"x"},"__proto__":{}}},"skladacka":{"got":{"constructor":["Q5"],"flag":"Q1"},"daily":{"2026-11-02":{"moves":-1},"__proto__":{"moves":3},"2026-11-03":{"moves":4,"v":"<x>","id":"Q1 OR"}}},'
         + '"sorting":{"daily":{"2026-11-01":{"attempts":-3}}},"snack":{"best":1e99},"stats":{"x":{"a|b|c":[2,"<i>x</i>","y","2026-11-01"]}},'
         + '"dev":{"constructor":{"at":5,"c":{"stats":{"days":{"__proto__":[1,1],"2026-11-01":[1e20,"x"]}}}},"bad id!":{}},"gone":{"snack":{"played":-5}}}');
     const dev = device({ learned: { constructor: ['Q9'] } });
@@ -245,6 +249,7 @@ test('poškozená nebo podvržená data z účtu nic nerozbijí', () => {
     assert.deepEqual(dev.states.learned.constructor, ['Q9', 'Q2']);
     assert.deepEqual(dev.states.passport.stamps, { Q2: '2026-01-01' });
     assert.equal(Object.prototype.hasOwnProperty.call(dev.states.skladacka.got, 'constructor'), false, 'neznámá varianta Skládačky se v parse zahodí');
+    assert.deepEqual(dev.states.skladacka.daily, { '2026-11-03': { moves: 4, v: '', id: '' } }, 'Skládačka dne: jen platné dny a tahy');
     assert.ok(dev.states.snack.best <= 1000000);
     assert.equal(dev.states.snack.played, 0);
     assert.ok(dev.states.stats.days['2026-11-01'][0] <= 1e9);

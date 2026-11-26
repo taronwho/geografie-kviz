@@ -5,7 +5,7 @@
 //
 // Slučování (nic se neztratí, ani když dvě zařízení zapisují současně – server přijme zápis jen ke stejné verzi, jinak se sloučí znovu):
 // - Množiny se sjednotí: poznané položky (mudrlant.learned; z nich je i odškrtávací seznam okruhu), razítka pasu, pečeti okruhů,
-//   složené skládačky, odehraná Řazení dne. U data prvního získání vyhraje dřívější („dřív“ = '' je nejdřív).
+//   složené skládačky, odehraná Řazení dne a Skládačky dne. U data prvního získání vyhraje dřívější („dřív“ = '' je nejdřív).
 // - Rekordy se berou jako maximum (nejlepší série Jednohubky, dnešní XP se stropem ve stejný den, nejčastější záměny).
 // - Počítadla (odehrané hry, odpovědi a souhrny Statistik) se nesčítají naslepo: každé zařízení má v účtu svůj díl (dev[id].c) a zařízení
 //   si pamatuje, kolik z cizích dílů už má v sobě započítáno (meta.base). Vlastní díl = místní − base; místní = vlastní + součet cizích.
@@ -30,6 +30,7 @@
     const MAX_FIELDS = 40;
     const MAX_PUZZLES = 2000;
     const SORTING_DAYS = 62;
+    const PUZZLE_DAYS = 62;
     const MAX_PAIRS = 150;
     const DAY = /^\d{4}-\d{2}-\d{2}$/;
     const TOPIC = /^[a-z0-9-]{1,24}$/;
@@ -165,12 +166,27 @@
         const v = isObject(raw) ? raw : {};
         const got = {};
         if (isObject(v.got)) for (const [variant, ids] of Object.entries(v.got)) { if (!/^[a-z]{1,12}$/.test(variant)) continue; const list = idList(ids, QID, MAX_PUZZLES); if (list.length) got[variant] = list; }
-        return { got, ...dayXp(v) };
+        const daily = {};
+        if (isObject(v.daily)) {
+            for (const [day, entry] of Object.entries(v.daily)) {
+                if (isDay(day) && isObject(entry) && num(entry.moves, 10000)) {
+                    daily[day] = { moves: num(entry.moves, 10000), v: typeof entry.v === 'string' && /^[a-z]{1,12}$/.test(entry.v) ? entry.v : '', id: typeof entry.id === 'string' && QID.test(entry.id) ? entry.id : '' };
+                }
+            }
+        }
+        return { got, daily: trimPuzzleDays(daily), ...dayXp(v) };
+    };
+    const trimPuzzleDays = (daily) => Object.fromEntries(Object.entries(daily).sort((x, y) => (x[0] < y[0] ? 1 : -1)).slice(0, PUZZLE_DAYS));
+    // Skládačka dne je dohraná, když je dohraná kdekoli (XP za ni se pak nevyplatí podruhé); lepší výsledek = méně tahů
+    const mergePuzzleDaily = (a, b) => {
+        const daily = { ...a };
+        for (const [day, entry] of Object.entries(b)) if (!daily[day] || entry.moves < daily[day].moves) daily[day] = entry;
+        return trimPuzzleDays(daily);
     };
     const mergePuzzle = (a, b) => {
         const got = { ...a.got };
         for (const [variant, ids] of Object.entries(b.got)) got[variant] = union(own(got, variant) || [], ids, MAX_PUZZLES);
-        return { got, ...mergeDayXp(a, b) };
+        return { got, daily: mergePuzzleDaily(a.daily, b.daily), ...mergeDayXp(a, b) };
     };
     const cleanSorting = (raw) => {
         const v = isObject(raw) ? raw : {};
@@ -296,7 +312,8 @@
             const got = { ...(local.skladacka.got || {}) };
             for (const [variant, ids] of Object.entries(merged.skladacka.got)) got[variant] = union(Array.isArray(own(got, variant)) ? got[variant] : [], ids, MAX_PUZZLES);
             const c = counters.skladacka || {};
-            out.skladacka = { ...local.skladacka, got, ...mergeDayXp(local.skladacka, merged.skladacka), done: c.done || 0, guessed: c.guessed || 0 };
+            const daily = mergePuzzleDaily(cleanPuzzle(local.skladacka).daily, merged.skladacka.daily);
+            out.skladacka = { ...local.skladacka, got, daily, ...mergeDayXp(local.skladacka, merged.skladacka), done: c.done || 0, guessed: c.guessed || 0 };
         }
         if (local.sorting) {
             const daily = { ...(local.sorting.daily || {}) };
