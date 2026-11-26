@@ -10138,7 +10138,7 @@
             </button>
             ${season ? `<div class="shrink-0">${Season.cardHtml(season)}</div>` : ''}
             ${renderGoalsCard()}
-            <section id="postup-tiles" aria-label="Sbírky a odměny" class="${tiles.length > 9 ? 'postup-many ' : ''}grid shrink-0 grid-cols-3 gap-2 short:gap-1.5">${tiles.join('')}</section>
+            <section id="postup-tiles" aria-label="Sbírky a odměny" class="${tiles.length > 9 ? 'postup-many ' : ''}${tiles.length > 10 ? 'postup-lots ' : ''}grid shrink-0 grid-cols-3 gap-2 short:gap-1.5">${tiles.join('')}</section>
             ${goals.length ? `
             <section data-optional aria-label="Nejbližší odznaky" class="flex shrink-0 flex-col gap-1.5">
                 <h2 class="${SEC_LABEL}">Nejbližší odznaky</h2>
@@ -10179,7 +10179,8 @@
         if (event.target.closest('[data-open-mastery-all]')) { openMasteryAll(); return true; }
         if (event.target.closest('[data-open-showcase]')) { openShowcase(); return true; }
         if (event.target.closest('[data-open-chronicle]')) { openChronicle(); return true; }
-        if (event.target.closest('[data-open-stats, data-open-passport]')) { openStats(); return true; }
+        if (event.target.closest('[data-open-stats]')) { openStats(); return true; }
+        if (event.target.closest('[data-open-passport]')) { openPassport(); return true; }
         if (event.target.closest('[data-season-claim]')) { openSeasonReveal(); return true; }
         if (event.target.closest('[data-season-open]')) { openSeason(); return true; }
         const info = event.target.closest('[data-rewards-info]');

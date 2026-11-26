@@ -104,21 +104,24 @@ test('cestovní pas: obálka, stránky kontinentů, listování, nová razítka 
             const scroll = await tab.evaluate(() => { const content = document.getElementById('app-content'); return { y: content.firstElementChild.scrollHeight - content.clientHeight, x: document.documentElement.scrollWidth - document.documentElement.clientWidth }; });
             assert.deepEqual(scroll, { x: 0, y: 0 }, 'záložka Postup s dlaždicí Pas bez posouvání');
             await shot(tab, `postup-${tag}`);
-            // Přihlášený hráč má navíc Vitrínu: s 10 dlaždicemi (postup-many) se záložka vejde také (na nízkém displeji dlaždice bez obrázků)
+            // Přihlášený hráč má navíc Vitrínu: s 11 dlaždicemi (i Statistiky; postup-many, postup-lots) se záložka vejde také (na nízkém displeji dlaždice bez obrázků ve čtyřech sloupcích)
             const tenTiles = await tab.evaluate(() => {
                 const grid = document.getElementById('postup-tiles');
                 const extra = grid.querySelector('[data-open-chronicle]').cloneNode(true);
                 extra.removeAttribute('data-open-chronicle');
                 grid.appendChild(extra);
-                grid.classList.add('postup-many');
+                grid.classList.add('postup-many', 'postup-lots');
                 const content = document.getElementById('app-content');
-                const over = content.firstElementChild.scrollHeight - content.clientHeight;
-                extra.remove();
-                grid.classList.remove('postup-many');
-                return { over, tiles: grid.children.length + 1 };
+                return { over: content.firstElementChild.scrollHeight - content.clientHeight, tiles: grid.children.length };
             });
-            assert.equal(tenTiles.tiles, 10);
-            assert.ok(tenTiles.over <= 0, `10 dlaždic bez posouvání (${tenTiles.over} px)`);
+            await shot(tab, `postup-11-dlazdic-${tag}`);
+            await tab.evaluate(() => {
+                const grid = document.getElementById('postup-tiles');
+                grid.lastElementChild.remove();
+                grid.classList.remove('postup-many', 'postup-lots');
+            });
+            assert.equal(tenTiles.tiles, 11);
+            assert.ok(tenTiles.over <= 0, `11 dlaždic bez posouvání (${tenTiles.over} px)`);
             await openPass(tab);
             assert.match(await where(tab), /Obsah pasu · 1 \/ 14/);
             assert.equal((await tab.textContent('[data-pas-total]')).trim(), '15 / 197');

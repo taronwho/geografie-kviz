@@ -1762,6 +1762,9 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 .fit-short #postup-tiles.postup-many > button { min-height: 3.1rem; }
 .fit-short #postup-tiles.postup-many > button > :first-child { display: none; }
 @media (max-height: 600px) { #postup-tiles.postup-many > button { min-height: 2.6rem; } }
+/* Od 11 dlaždic (Statistiky, Cestovní pas a Vitrína přihlášeného hráče) na nízkém displeji čtyři sloupce: tři řádky místo čtyř */
+@media (max-height: 770px) { #postup-tiles.postup-lots { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.fit-short #postup-tiles.postup-lots { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 
 /* Cestovní pas (passport.js): nové razítko „bouchne“ – dopadne shora zvětšené a mírně pootočené, krátce se zhoupne a zanechá otisk
    (kroužek inkoustu, který se rozplyne). Razítka na stránce bouchají po sobě (pas-d0 … pas-d7). Rotace razítka je na obalu,
