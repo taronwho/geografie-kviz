@@ -639,6 +639,8 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
             await scene(tab, 'Diplom', size, async () => { await progress(); await tab.click('[data-rewards-info="diplomas"]'); await tab.click('[data-diploma="zemepis"]'); await tab.waitForSelector('[data-diploma-preview] canvas'); });
             await scene(tab, 'Diplom (zamčený)', size, async () => { await progress(); await tab.click('[data-rewards-info="diplomas"]'); await tab.click('[data-diploma="historie"]'); await tab.waitForSelector('[data-diploma-locked]'); });
             await scene(tab, 'Ochrana série', size, async () => { await progress(); await tab.click('[data-rewards-info="freeze"]'); await tab.waitForSelector('[data-freeze-help]'); });
+            // Přehled série Kvízu dne (quiz-streak.js) z dlaždice Série: kalendář 10 týdnů, vybraný den, úseky série a tlačítko Zpět
+            await scene(tab, 'Přehled série Kvízu dne', size, async () => { await progress(); await tab.click('[data-rewards-info="freeze"]'); await tab.click('[data-quiz-streak-open]'); await tab.waitForSelector('#dialog-overlay [data-qs-day]'); await tab.waitForSelector('#dialog-overlay [data-dialog-back]'); });
             // Mudrlantova kronika (chronicle.js): každá karta příběhu (s přepínačem Minulý / Tento týden) se vejde bez posouvání
             const chronicle = async (pageName) => {
                 await progress();

@@ -67,7 +67,7 @@ test('funkci, kterou hráč už používá, tip nenabídne; tip se ukáže jen j
         state = Tips.markShown(state, tip.id, `2026-12-${String(day + 1).padStart(2, '0')}`, now);
         now += 86400000;
     }
-    assert.deepEqual(offered, ['skladacka', 'skladacka-dne', 'turnaj-obrazek', 'hlasovani', 'reakce', 'pratele', 'postavicky', 'dobyvani-hrad', 'dobyvani-blesk', 'dobyvani-bitvy', 'dobyvani-pomucky', 'dobyvani-vzkriseni', 'dobyvani-vzory', 'dobyvani-stavby', 'dobyvani-boti', 'dobyvani-hrady', 'retezovka-zachrana', 'vikend', 'reakce-plus', 'technika', 'jidlo', 'hry'], 'zkušený hráč dostane jen to, co ještě nezná (nová pravidla Dobývání a motivace zná málokdo, nová témata Technika a Jídlo ještě nehrál, nové kategorie Sportu a her, Skládačka ani Skládačka dne ještě neotevřené)');
+    assert.deepEqual(offered, ['skladacka', 'skladacka-dne', 'turnaj-obrazek', 'hlasovani', 'reakce', 'pratele', 'serie-prehled', 'postavicky', 'dobyvani-hrad', 'dobyvani-blesk', 'dobyvani-bitvy', 'dobyvani-pomucky', 'dobyvani-vzkriseni', 'dobyvani-vzory', 'dobyvani-stavby', 'dobyvani-boti', 'dobyvani-hrady', 'retezovka-zachrana', 'vikend', 'reakce-plus', 'technika', 'jidlo'], 'zkušený hráč dostane jen to, co ještě nezná (nová pravidla Dobývání a motivace zná málokdo, nová témata Technika a Jídlo ještě nehrál, nové kategorie Sportu a her, Skládačka ani Skládačka dne ještě neotevřené)');
     assert.equal(new Set(offered).size, offered.length);
 });
 

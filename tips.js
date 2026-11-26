@@ -75,6 +75,8 @@
             ready: (u) => num(u.counters.quizDone) + num(u.counters.blitzGames) + num(u.counters.survivalGames) + num(u.counters.dailyCorrect) > 0, used: (u) => num(u.counters.sharedImages) > 0 },
         { id: 'ochrana', icon: 'shield-check', after: 38, title: 'Ochrana série', text: 'Když vynecháš Kvíz dne, ochrana série se použije sama a série se nepřeruší. U Dnešních otázek ji použiješ ručně: když ti včera nevyšla série tématu, na záložce Dnes se nabídne Zachránit sérii. Máš nejvýš dvě, získáš je za 7 dní v řadě a v Truhle.',
             ready: (u) => num(u.counters.bestStreak) >= 2 || num(u.counters.quizBestStreak) >= 2 || num(u.freezes) > 0, used: (u) => num(u.counters.freezesUsed) > 0 },
+        { id: 'serie-prehled', icon: 'calendar-days', after: 40, title: 'Přehled dnů Kvízu dne', text: 'Ve výsledku Kvízu dne klepni na Moje série. Kalendář ukáže u každého dne, kdy byl kvíz dohraný, který den zachránila ochrana a kde série skončila. Kvíz dohraný po půlnoci patří už k dalšímu dni.',
+            ready: (u) => num(u.counters.quizDone) >= 3, used: (u) => num(u.counters.quizStreakViewed) > 0 },
         { id: 'cile', icon: 'target', after: 45, title: 'Týdenní cíle', text: 'Na záložce Postup máš každý týden tři nové cíle. Když splníš všechny tři, dostaneš bonusové XP, odznak a Truhlu Mudrlanta s novou věcí pro Mudrlanta.',
             action: { kind: 'goals', label: 'Ukázat cíle' }, used: (u) => num(u.counters.weeksDone) > 0 },
         { id: 'truhla', icon: 'sparkles', after: 60, title: 'Truhla Mudrlanta', text: 'Truhlu dostaneš, když splníš všechny tři cíle týdne. Vždycky v ní najdeš něco, co ještě nemáš: doplněk, barvu, rámeček, talár nebo barevné téma aplikace, které by se ti jinak odemklo až později. Často v ní je i ochrana série.',
