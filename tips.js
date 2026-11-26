@@ -172,13 +172,16 @@
             action: { kind: 'play', label: 'Na záložku Hrát' }, used: () => false },
         // Jednohubka (snack.js): čip u nadpisu Režimy na záložce Hrát; kdo ji otevřel, tip nepotřebuje
         { id: 'jednohubka', icon: 'cookie', after: 6, title: 'Jednohubka', text: 'Máš chvilku? Na záložce Hrát klepni u Režimů na Jednohubku: hned jedna otázka, odpověď a výsledek. Pak Ještě jednu, nebo Hotovo a jsi zpátky. Žádný čas, žádné tresty, jen série správných v řadě.',
-            action: { kind: 'play', label: 'Na záložku Hrát' }, used: (u) => Boolean(u.visited.snack) }
+            action: { kind: 'play', label: 'Na záložku Hrát' }, used: (u) => Boolean(u.visited.snack) },
+        // Můj obor a odškrtávací seznam okruhu (obor.js); kdo stránku Můj obor otevřel, tip nepotřebuje
+        { id: 'obor', icon: 'target', after: 25, title: 'Můj obor', text: 'V Učení si vyber okruh a klepni na Udělat z toho můj obor. Projdeš ho celý popořadě a příště navážeš, kde hra skončila. Seznam ukáže, co už umíš, a za 100 % dostaneš zlatou pečeť.',
+            action: { kind: 'learn', label: 'Do Učení' }, used: (u) => Boolean(u.visited.obor) }
     ];
     const BY_ID = new Map(TIPS.map(tip => [tip.id, tip]));
 
     const EMPTY = { seen: [], day: '', n: 0, lastAt: 0, off: false, visited: {} };
     // Navštívené části hry (tip o nich už není potřeba): Učení, Postup, Vzhled, Diplomy, Sezóna, Album, Vitrína, Kronika týdne, skupina Postavičky…
-    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle', 'gold', 'conquest', 'bets', 'conquestInvite', 'poll', 'referral', 'perks', 'robeColor', 'characters', 'tourShare', 'robots', 'snack'];
+    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle', 'gold', 'conquest', 'bets', 'conquestInvite', 'poll', 'referral', 'perks', 'robeColor', 'characters', 'tourShare', 'robots', 'snack', 'obor'];
     const parse = (value) => {
         const v = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
         const visited = {};

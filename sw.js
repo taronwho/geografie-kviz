@@ -42,6 +42,8 @@ const APP_SHELL = [
     'modes.js', 'sound.js',
     // Jednohubka (jedna otázka na jedno klepnutí)
     'snack.js',
+    // Odškrtávací seznam okruhu a Můj obor v Učení
+    'obor.js',
     // Fotky otázek jako blob: bez názvu souboru (photo-blob.js; samotné fotky z Commons se do mezipaměti neukládají)
     'photo-blob.js',
     // Dobývání (conquest.js, conquest-ui.js) a jeho mapy (scripts/build-dobyvani.js)

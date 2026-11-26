@@ -31,6 +31,8 @@
     // Jednohubka (snack.js): jedna otázka na jedno klepnutí; bez skriptu (nebo bez modes.js) se čip na záložce Hrát neukáže
     const Snack = window.MudrlantSnack || null;
     let snackCtl = null; // ovladač Jednohubky, založí se níž u Bleskovky a Přežití
+    // Odškrtávací seznam okruhu a Můj obor v Učení (obor.js); bez skriptu se jen nenabídnou
+    const Obor = window.MudrlantObor || null;
     // Otázka „Ukaž na mapě“ (question-map.js); bez skriptu se hraje bez ní
     const MapQuestion = window.MudrlantMapQuestion || null;
     // Číselné otázky Seřaď a Odhadni číslo (numeric-questions.js); bez skriptu jen nejsou
@@ -151,8 +153,9 @@
     let settings = null;
     // Téma poslední otevřené dnešní otázky (pro „Zkusit znovu“ po chybě spojení)
     let lastDailyTopic = null;
-    // Učení: view = 'home' | 'topic' | 'collection' | 'atlas' | 'mistakes'; order = ID položek v pořadí procházení
-    const learn = { view: 'home', topic: null, collection: null, order: [], index: 0 };
+    // Učení: view = 'home' | 'topic' | 'collection' | 'atlas' | 'mistakes' | 'list' (odškrtávací seznam) | 'obor' (Můj obor); order = ID položek
+    // v pořadí procházení; filter = filtr odškrtávacího seznamu (all | missing | done)
+    const learn = { view: 'home', topic: null, collection: null, order: [], index: 0, filter: 'all' };
 
     class NetworkError extends Error {}
 
@@ -2742,6 +2745,7 @@
             const ctx = loadedTopics.get(pool.topic);
             return { icon: 'layers', text: ctx ? `${ctx.topic.title} · ${collectionLabel(ctx, pool.collection)}` : 'Procvičování', topic };
         }
+        if (pool.kind === 'obor') return oborPlace(topic);
         // Mix: symbol tématu právě hrané otázky (bez obrázku tématu šipky Mixu)
         if (pool.kind === 'mix') return { icon: 'shuffle', topicArt: true, text: `Mix · ${topic.title}`, topic, switch: true };
         const chosen = selectedCategories(topic);
@@ -2756,7 +2760,7 @@
 
     const updateControlsUI = () => {
         // Procvičování okruhu nebo chyb patří k učení
-        const fromLearn = mode === 'practice' && (pool.kind === 'collection' || pool.kind === 'mistakes' || pool.kind === 'review');
+        const fromLearn = mode === 'practice' && (pool.kind === 'collection' || pool.kind === 'mistakes' || pool.kind === 'review' || pool.kind === 'obor');
         const section = screen === 'learn' ? 'learn' : screen === 'mode' ? 'practice' : screen === 'round' ? (mode === 'daily' || mode === 'challenge' || mode === 'quiz' ? 'home' : fromLearn ? 'learn' : 'practice') : 'home';
         updateProfileButton();
         const settingsButton = document.getElementById('btn-settings');
@@ -4379,6 +4383,7 @@
             return remaining ? `Další chyba (zbývá ${remaining})` : 'Hotovo – zpět do učení';
         }
         if (pool.kind === 'review') return pool.keys.length ? `Další karta (zbývá ${pool.keys.length})` : 'Hotovo – souhrn procvičování';
+        if (pool.kind === 'obor') return oborSealDue() ? 'Uzavřít okruh zlatou pečetí' : 'Další z oboru';
         return pool.kind === 'collection' ? 'Další z okruhu' : pool.kind === 'map' ? 'Další na mapě' : 'Další otázka';
     };
 
@@ -6285,6 +6290,8 @@
             learned[current.topic] = [...ids];
             writeJson(KEYS.learned, learned);
         }
+        // Můj obor: zodpovězená položka je nová pozice v oboru, příště se naváže za ní
+        if (mode === 'practice' && pool.kind === 'obor' && Obor) saveObor(Obor.noteAnswer(loadObor(), pool.key, current.id));
         awardXp(stats);
     };
 
@@ -6861,6 +6868,17 @@
                     pool = { kind: 'topic', topic: pool.topic };
                 }
             }
+            if (pool.kind === 'obor') {
+                // Můj obor: popořadě první položka, kterou hráč ještě neumí (za naposledy zodpovězenou), bez náhody (obor.js next)
+                const picked = await pickOborItem(pool.key);
+                if (!picked) {
+                    showToast('Tenhle okruh teď nic neobsahuje');
+                    return { abort: () => openLearn('obor') };
+                }
+                ({ ctx, item } = picked);
+                pool.step = picked.step;
+                pool.total = picked.total;
+            }
             if (pool.kind === 'map') {
                 // Jen místa, která jde ukázat na mapě (podle známosti z nastavení, když jich je dost); pár pokusů, kdyby místo nebylo na kreslené mapě
                 // Nejdřív druh místa (město, řeka, bitva, stát…) – každý přijde zhruba stejně často, ne samé stadiony –, pak místo
@@ -6890,7 +6908,7 @@
             }
             if (item) rememberPlayed(item);
             return { item, ctx, rng: Math.random, numeric, time };
-        }, pool.kind === 'topic' || pool.kind === 'collection' || (pool.kind === 'map' && pool.topic) ? TOPIC_BY_ID[pool.topic] : pool.kind === 'mix' || pool.kind === 'map' ? MIX : null);
+        }, pool.kind === 'topic' || pool.kind === 'collection' || pool.kind === 'obor' || (pool.kind === 'map' && pool.topic) ? TOPIC_BY_ID[pool.topic] : pool.kind === 'mix' || pool.kind === 'map' ? MIX : null);
     };
 
     // Opakování karet, které jsou dnes na řadě (review.js): hra s pevným seznamem položek, po dohrání souhrn v učení
@@ -6943,6 +6961,11 @@
         }
         if (pool.kind === 'mistakes' && !loadMistakes().length) {
             openLearn('mistakes');
+            return;
+        }
+        // Obor právě dokončený: na stránku oboru, kde se okruh uzavře pečetí
+        if (pool.kind === 'obor' && oborSealDue()) {
+            openLearn('obor');
             return;
         }
         startPractice();
@@ -7024,19 +7047,22 @@
             ${reviewSection}
             <div class="grid max-h-[22rem] flex-1 grid-cols-4 auto-rows-fr gap-2">
                 ${tiles}
-                <button type="button" data-action="learn-mistakes" class="${MISTAKES_SPAN[TOPICS.length % 4]} flex min-h-[4rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl border border-rose-200 bg-rose-50 p-2 text-center shadow-sm transition-all active:scale-[0.98] dark:border-rose-900/60 dark:bg-rose-900/20">
+                <button type="button" data-action="learn-mistakes" class="${Obor ? MISTAKES_SPAN[4 - oborSpans().mistakes] : MISTAKES_SPAN[TOPICS.length % 4]} flex min-h-[4rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl border border-rose-200 bg-rose-50 p-2 text-center shadow-sm transition-all active:scale-[0.98] dark:border-rose-900/60 dark:bg-rose-900/20">
                     ${uiArt('chyby', 'h-11 w-11')}
-                    <span class="text-[11.5px] font-black leading-tight text-slate-800 dark:text-slate-100">Moje chyby${mistakes.length ? ` (${mistakes.length})` : ''}${TOPICS.length % 4 === 3 ? '' : '<span class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">Co ti nevyšlo, ze všech témat</span>'}</span>
+                    <span class="text-[11.5px] font-black leading-tight text-slate-800 dark:text-slate-100">Moje chyby${mistakes.length ? ` (${mistakes.length})` : ''}${(Obor ? oborSpans().mistakes < 2 : TOPICS.length % 4 === 3) ? '' : '<span class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">Co ti nevyšlo, ze všech témat</span>'}</span>
                 </button>
+                ${oborTile()}
             </div>`;
     };
 
     const collectionRow = (ctx, collectionId, label, text, icon) => {
         const items = collectionItems(ctx, collectionId);
         const done = learnedCount(ctx.topic.id, items);
+        // Uzavřený okruh (100 % nebo dřív udělená pečeť) má u symbolu zlatou pečeť
+        const sealed = Obor && ((items.length && done === items.length) || Obor.isSealed(loadObor(), oborKey(ctx.topic.id, collectionId)));
         return `
-            <button type="button" data-action="learn-collection" data-collection="${escapeHtml(collectionId || '')}" class="${LEARN_ROW}">
-                <span class="shrink-0 rounded-xl p-2 ${styleOf(ctx.topic).soft}"><i data-lucide="${icon}" class="h-5 w-5"></i></span>
+            <button type="button" data-action="learn-collection" data-collection="${escapeHtml(collectionId || '')}" class="${LEARN_ROW}"${sealed ? ' data-sealed' : ''}>
+                <span class="relative shrink-0 rounded-xl p-2 ${styleOf(ctx.topic).soft}"><i data-lucide="${icon}" class="h-5 w-5"></i>${sealed ? `<span class="absolute -bottom-1.5 -right-1.5">${Obor.sealHtml({ size: 'sm' })}</span>` : ''}</span>
                 <span class="min-w-0 flex-1">
                     <span class="flex items-baseline justify-between gap-2">
                         <span class="min-w-0 font-bold leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(label)}</span>
@@ -7079,14 +7105,19 @@
                 <button type="button" data-action="learn-topic" data-topic="${ctx.topic.id}" class="${BACK_LINK}"><i data-lucide="chevron-left" class="h-4 w-4"></i> ${escapeHtml(ctx.topic.title)}</button>
                 <section class="${CARD} p-6 text-center text-sm text-slate-500 dark:text-slate-400">Tenhle okruh teď nic neobsahuje.</section>`;
         }
+        const back = `<button type="button" data-action="learn-topic" data-topic="${ctx.topic.id}" class="${BACK_LINK}"><i data-lucide="chevron-left" class="h-4 w-4"></i> ${escapeHtml(ctx.topic.title)}</button>`;
+        if (Obor) return `${back}${checklistCard(ctx, collection)}${learnCollectionTiles(ctx)}${oborButton(ctx)}`;
         return `
-            <button type="button" data-action="learn-topic" data-topic="${ctx.topic.id}" class="${BACK_LINK}"><i data-lucide="chevron-left" class="h-4 w-4"></i> ${escapeHtml(ctx.topic.title)}</button>
+            ${back}
             <section class="${CARD} p-5">
                 <h2 class="text-2xl font-black leading-tight text-slate-800 dark:text-slate-50">${escapeHtml(collectionLabel(ctx, learn.collection))}</h2>
                 ${collection && collection.text ? `<p class="mt-1 text-sm text-slate-500 dark:text-slate-400">${escapeHtml(collection.text)}</p>` : ''}
                 <p class="mt-3 text-sm font-semibold text-slate-600 dark:text-slate-300">${items.length} položek · uhodnuto ${done}</p>
                 ${progressBar(done, items.length)}
-            </section>
+            </section>${learnCollectionButtons(ctx)}`;
+    };
+    // Prohlížet a Procvičit okruh
+    const learnCollectionButtons = (ctx) => `
             <button type="button" data-action="learn-browse" class="flex w-full items-center gap-3 rounded-[1.5rem] border-2 bg-white p-4 text-left shadow-sm transition-all active:scale-[0.98] dark:bg-slate-800 ${styleOf(ctx.topic).on}">
                 ${uiArt('ucit-prohlizet', 'h-12 w-12')}
                 <span><span class="block text-lg font-black">Prohlížet</span><span class="block text-sm opacity-80">${learn.collection ? 'Popořadě, s fotkou, mapou a fakty' : 'Náhodně, s fotkou, mapou a fakty'}</span></span>
@@ -7095,6 +7126,214 @@
                 ${uiArt('ucit-procvicit', 'h-12 w-12')}
                 <span><span class="block text-lg font-black">Procvičit</span><span class="block text-sm text-white/90">Otázky jen z tohoto okruhu</span></span>
             </button>`;
+
+    // --- Odškrtávací seznam okruhu a Můj obor (obor.js) ---
+    // Seznam: všechny položky okruhu v pořadí prohlížení, zaškrtnuté = aspoň jednou správně poznané (mudrlant.learned, jako postup
+    // okruhu a Mistrovství). Pečeť za 100 % se zapíše při prvním zobrazení hotového okruhu (razítko a zvuk, s omezeným pohybem bez animace).
+    // Můj obor: okruh nebo kategorie hraná popořadě, nejdřív co hráč neumí; pozice a rozpracované obory jsou v mudrlant.obor.
+    const oborStore = () => { try { return window.localStorage; } catch (e) { return null; } };
+    const loadObor = () => (Obor && oborStore() ? Obor.load(oborStore()) : Obor ? Obor.parse(null) : null);
+    const saveObor = (state) => { if (Obor && oborStore()) Obor.save(oborStore(), state); };
+    // Celé téma má v klíči hvězdičku (pečeť za celé téma; jako obor ho hrát nejde)
+    const oborKey = (topicId, collectionId) => Obor.keyOf(topicId, collectionId || '*');
+    const knownOf = (topicId) => new Set(loadLearned()[topicId] || []);
+    // Položky okruhu v pořadí prohlížení (zvláštní okruh a kategorie podle svého řazení, celé téma podle abecedy)
+    const orderedCollection = (ctx, collectionId) => {
+        const items = collectionItems(ctx, collectionId);
+        if (!collectionId) return sortItems(items, { by: 'name' });
+        if (collectionId.startsWith('c:')) return sortItems(items, categoryOf(ctx.topic, collectionId.slice(2)).sort);
+        return sortItems(items, (ctx.collections.find(c => c.id === collectionId) || {}).sort);
+    };
+    // Stav okruhu pro seznam a pečeť; hotový okruh bez pečeti ji dostane teď (sealFx: po vykreslení zvuk a hláška)
+    let sealFx = false;
+    const checklistState = (ctx, collectionId) => {
+        const items = orderedCollection(ctx, collectionId);
+        const known = knownOf(ctx.topic.id);
+        const summary = Obor.summarize(items, known);
+        const key = oborKey(ctx.topic.id, collectionId);
+        let state = loadObor();
+        const animate = Obor.needsSeal(state, key, summary);
+        if (animate) {
+            state = Obor.seal(state, key, getDayKey());
+            saveObor(state);
+            sealFx = true;
+        }
+        return { items, known, summary, key, sealed: Obor.isSealed(state, key), animate };
+    };
+    const sealCelebrate = () => {
+        if (!sealFx) return;
+        sealFx = false;
+        if (Sound) { Sound.play('record'); Sound.vibrate('record'); }
+        showToast('Okruh uzavřen zlatou pečetí');
+    };
+
+    // Karta okruhu v Učení: název, velký ukazatel X / Y a klepnutím odškrtávací seznam
+    const checklistCard = (ctx, collection) => {
+        const view = checklistState(ctx, learn.collection);
+        return `
+            <button type="button" data-action="learn-list" data-checklist-card class="${CARD} w-full p-4 text-left transition-all active:scale-[0.99] short:p-3.5">
+                <h2 class="text-2xl font-black leading-tight text-slate-800 short:text-xl dark:text-slate-50">${escapeHtml(collectionLabel(ctx, learn.collection))}</h2>
+                ${collection && collection.text ? `<p class="mt-0.5 line-clamp-2 text-sm text-slate-500 dark:text-slate-400">${escapeHtml(collection.text)}</p>` : ''}
+                <div class="mt-2">${Obor.meterHtml(view.summary, { sealed: view.sealed, animate: view.animate,
+                    link: '<span class="flex shrink-0 items-center gap-0.5 text-[13px] font-black text-brand-700 dark:text-brand-300">Seznam položek <i data-lucide="chevron-right" class="h-4 w-4"></i></span>' })}</div>
+            </button>`;
+    };
+    // Prohlížet a Procvičit vedle sebe (pod nimi je Můj obor, celé se to vejde bez posouvání i na 360×640)
+    const learnCollectionTiles = (ctx) => `
+        <div class="grid grid-cols-2 gap-3 short:gap-2">
+            <button type="button" data-action="learn-browse" class="flex min-h-[6.5rem] flex-col items-start gap-1 rounded-[1.5rem] border-2 bg-white p-3 text-left shadow-sm transition-all active:scale-[0.98] short:min-h-0 dark:bg-slate-800 ${styleOf(ctx.topic).on}">
+                ${uiArt('ucit-prohlizet', 'h-10 w-10 short:h-9 short:w-9')}
+                <span class="block text-lg font-black leading-tight">Prohlížet</span><span class="block text-xs leading-snug opacity-80">${learn.collection ? 'Popořadě, s fotkou a fakty' : 'Náhodně, s fotkou a fakty'}</span>
+            </button>
+            <button type="button" data-action="learn-practice" class="flex min-h-[6.5rem] flex-col items-start gap-1 rounded-[1.5rem] p-3 text-left text-white shadow-lg transition-all active:scale-[0.98] short:min-h-0 ${styleOf(ctx.topic).button} btn-3d">
+                ${uiArt('ucit-procvicit', 'h-10 w-10 short:h-9 short:w-9')}
+                <span class="block text-lg font-black leading-tight">Procvičit</span><span class="block text-xs leading-snug text-white/90">Otázky jen z okruhu, náhodně</span>
+            </button>
+        </div>`;
+    // Tlačítko Můj obor u okruhu a kategorie (celé téma je na obor moc široké)
+    const oborButton = (ctx) => {
+        if (!learn.collection) return '';
+        const key = oborKey(ctx.topic.id, learn.collection);
+        const state = loadObor();
+        return Obor.chooseButtonHtml({ mine: state.current === key, started: Boolean(state.fields[key]) });
+    };
+
+    // Odškrtávací seznam (učení → okruh → Seznam položek): ukazatel, filtr a položky v okně s vlastním posouváním
+    const checklistBody = (ctx, view) => `
+        ${Obor.filterHtml(view.summary, learn.filter)}
+        ${Obor.listHtml(Obor.rows(view.items, view.known, learn.filter), { topic: ctx.topic.id, filter: learn.filter })}`;
+    const renderLearnList = (ctx) => {
+        const view = checklistState(ctx, learn.collection);
+        return `
+            <button type="button" data-action="learn-collection" data-collection="${escapeHtml(learn.collection || '')}" class="${BACK_LINK} -my-1 shrink-0"><i data-lucide="chevron-left" class="h-4 w-4"></i> ${escapeHtml(collectionLabel(ctx, learn.collection))}</button>
+            <section class="${CARD} shrink-0 p-4 short:p-3">
+                <h2 class="truncate text-lg font-black leading-tight text-slate-800 dark:text-slate-50">${escapeHtml(collectionLabel(ctx, learn.collection))} <span class="text-sm font-bold text-slate-500 dark:text-slate-400">· ${escapeHtml(ctx.topic.title)}</span></h2>
+                <div class="mt-2">${Obor.meterHtml(view.summary, { sealed: view.sealed, animate: view.animate })}</div>
+            </section>
+            ${checklistBody(ctx, view)}`;
+    };
+
+    // Další otázka oboru: položka podle pořadí okruhu a kurzoru; null = obor neexistuje nebo je prázdný
+    const pickOborItem = async (key) => {
+        const field = Obor && Obor.parseKey(key);
+        if (!field || !TOPIC_BY_ID[field.topic] || field.collection === '*') return null;
+        const ctx = await loadTopic(field.topic);
+        const ordered = orderedCollection(ctx, field.collection);
+        const state = loadObor();
+        const step = Obor.next(ordered.map(item => item.q), knownOf(field.topic), state.fields[key] ? state.fields[key].cursor : null);
+        const item = step ? ctx.byId.get(step.id) : null;
+        return item ? { ctx, item, step, total: ordered.length } : null;
+    };
+    // Hlavička při hře oboru: název okruhu a pořadí položky v okruhu
+    const oborPlace = (topic) => {
+        const ctx = loadedTopics.get(pool.topic);
+        const field = Obor.parseKey(pool.key);
+        const label = ctx && field ? collectionLabel(ctx, field.collection) : 'Můj obor';
+        return { icon: 'target', text: `Můj obor · ${label}${pool.step ? ` · ${pool.step.index + 1}/${pool.total}` : ''}`, topic };
+    };
+    // Obor právě dohraný na 100 % a ještě bez pečeti (tlačítko pod výsledkem vede na stránku oboru, kde se pečeť udělí)
+    const oborSealDue = () => {
+        if (!Obor || pool.kind !== 'obor') return false;
+        const field = Obor.parseKey(pool.key);
+        const ctx = field && loadedTopics.get(field.topic);
+        if (!ctx) return false;
+        return Obor.needsSeal(loadObor(), pool.key, Obor.summarize(orderedCollection(ctx, field.collection), knownOf(field.topic)));
+    };
+    // Dlaždice Můj obor v Učení: dělí si poslední řádek mřížky s Mými chybami (počty sloupců jako celé třídy kvůli Tailwindu)
+    const oborSpans = () => {
+        const rest = 4 - (TOPICS.length % 4);
+        const mistakes = Math.ceil(rest / 2);
+        return { mistakes, obor: rest - mistakes || 4 };
+    };
+    const OBOR_SPAN = ['', 'col-span-1', 'col-span-2', 'col-span-3', 'col-span-4'];
+    const oborTile = () => {
+        if (!Obor) return '';
+        const state = loadObor();
+        const field = state.current ? Obor.parseKey(state.current) : null;
+        const ctx = field && loadedTopics.get(field.topic);
+        const label = field ? (ctx ? collectionLabel(ctx, field.collection) : state.fields[state.current].label || (TOPIC_BY_ID[field.topic] ? TOPIC_BY_ID[field.topic].title : '')) : '';
+        return Obor.tileHtml({ span: OBOR_SPAN[oborSpans().obor], label, wide: oborSpans().obor >= 2 });
+    };
+
+    // Stránka Můj obor: aktuální obor s ukazatelem, Pokračovat a odškrtávacím seznamem; bez oboru vysvětlení a rozpracované obory
+    const renderLearnObor = (ctx) => {
+        const state = loadObor();
+        const back = `<button type="button" data-action="learn-back" class="${BACK_LINK} -my-1"><i data-lucide="chevron-left" class="h-4 w-4"></i> Učení</button>`;
+        const others = Obor.fieldList(state).filter(field => field.key !== state.current).length;
+        const change = `<button type="button" data-action="obor-change" class="-my-1 flex min-h-[2.75rem] items-center gap-1.5 rounded-xl px-2 text-sm font-bold text-brand-700 dark:text-brand-300"><i data-lucide="repeat" class="h-4 w-4"></i> ${state.current ? 'Změnit obor' : 'Rozpracované'}${others ? ` (${others})` : ''}</button>`;
+        if (!ctx) {
+            return `
+                <div class="flex shrink-0 items-center justify-between">${back}${others ? change : ''}</div>
+                ${Obor.introHtml()}`;
+        }
+        const field = Obor.parseKey(state.current);
+        const view = checklistState(ctx, field.collection);
+        const step = Obor.next(view.items.map(item => item.q), view.known, state.fields[state.current].cursor);
+        const play = Obor.playButtonHtml(step, { started: Boolean(state.fields[state.current].cursor), total: view.items.length, buttonClass: styleOf(ctx.topic).button });
+        return `
+            <div class="flex shrink-0 items-center justify-between">${back}${change}</div>
+            <section data-obor-card class="${CARD} shrink-0 p-4 short:p-3">
+                <p class="text-[11px] font-black uppercase tracking-widest text-gold-700 dark:text-gold-300">Můj obor · ${escapeHtml(ctx.topic.title)}</p>
+                <h2 class="truncate text-xl font-black leading-tight text-slate-800 dark:text-slate-50">${escapeHtml(collectionLabel(ctx, field.collection))}</h2>
+                <div class="mt-2">${Obor.meterHtml(view.summary, { sealed: view.sealed, animate: view.animate })}</div>
+            </section>
+            ${play}
+            ${checklistBody(ctx, view)}`;
+    };
+    // Aktuální obor, jehož okruh v nových datech už není, se tiše zahodí (stránka pak ukáže výběr)
+    const oborContext = async () => {
+        const state = loadObor();
+        const field = state.current ? Obor.parseKey(state.current) : null;
+        if (!field || !TOPIC_BY_ID[field.topic]) { learn.topic = null; return null; }
+        const ctx = await loadTopic(field.topic);
+        if (field.collection === '*' || !collectionItems(ctx, field.collection).length) {
+            saveObor(Obor.remove(state, state.current));
+            learn.topic = null;
+            return null;
+        }
+        learn.topic = field.topic;
+        learn.collection = field.collection;
+        return ctx;
+    };
+    const chooseObor = () => {
+        if (!Obor || !learn.topic || !learn.collection) return;
+        const ctx = loadedTopics.get(learn.topic);
+        saveObor(Obor.choose(loadObor(), oborKey(learn.topic, learn.collection), Date.now(), ctx ? collectionLabel(ctx, learn.collection) : ''));
+        learn.filter = 'all';
+        openLearn('obor');
+    };
+    const playObor = () => {
+        const state = loadObor();
+        if (!state.current) return;
+        const field = Obor.parseKey(state.current);
+        saveObor(Obor.choose(state, state.current));
+        startPractice({ kind: 'obor', key: state.current, topic: field.topic });
+    };
+    // Okno Změnit obor: rozpracované obory s postupem a pečetí, přepnutí klepnutím, odebrání ze seznamu; jiný okruh se vybírá v Učení
+    const openOborChange = async () => {
+        const fields = Obor.fieldList(loadObor());
+        const contexts = new Map();
+        await Promise.all([...new Set(fields.map(field => field.topic))].filter(id => TOPIC_BY_ID[id]).map(async id => { contexts.set(id, await loadTopic(id).catch(() => null)); }));
+        const render = () => {
+            const state = loadObor();
+            const rows = Obor.fieldList(state).map(field => {
+                const ctx = contexts.get(field.topic);
+                if (!ctx || field.collection === '*') return '';
+                const summary = Obor.summarize(orderedCollection(ctx, field.collection), knownOf(field.topic));
+                return Obor.fieldRowHtml({ key: field.key, label: collectionLabel(ctx, field.collection), topicTitle: ctx.topic.title, summary,
+                    sealed: summary.complete || Obor.isSealed(state, field.key), current: state.current === field.key, softClass: styleOf(ctx.topic).soft });
+            }).join('');
+            showDialog('Změnit obor', Obor.changeBodyHtml(rows), {
+                onClick: (event) => {
+                    const pick = event.target.closest('[data-obor-switch]');
+                    const drop = event.target.closest('[data-obor-remove]');
+                    if (pick) { saveObor(Obor.choose(loadObor(), pick.dataset.oborSwitch)); learn.filter = 'all'; closeDialog(); openLearn('obor'); }
+                    else if (drop) { saveObor(Obor.remove(loadObor(), drop.dataset.oborRemove)); render(); if (screen === 'learn') renderLearn(); }
+                    else if (event.target.closest('[data-obor-new]')) { closeDialog(); openLearn('home'); }
+                }
+            });
+        };
+        render();
     };
 
     const renderLearnAtlas = (ctx) => {
@@ -7184,11 +7423,15 @@
                 const topicIds = [...new Set(loadMistakes().map(key => key.split(':')[0]))];
                 const contexts = new Map(await Promise.all(topicIds.map(async id => [id, await loadTopic(id)])));
                 body = renderLearnMistakes(contexts);
+            } else if (learn.view === 'obor' && Obor) {
+                ctx = await oborContext();
+                body = renderLearnObor(ctx);
             } else if (learn.view === 'home' || !learn.topic) {
                 body = renderLearnHome();
             } else {
                 ctx = await loadTopic(learn.topic);
-                body = learn.view === 'atlas' ? renderLearnAtlas(ctx) : learn.view === 'collection' ? renderLearnCollection(ctx) : renderLearnTopic(ctx);
+                body = learn.view === 'atlas' ? renderLearnAtlas(ctx) : learn.view === 'collection' ? renderLearnCollection(ctx)
+                    : learn.view === 'list' && Obor ? renderLearnList(ctx) : renderLearnTopic(ctx);
             }
         } catch (error) {
             if (renderId === learnRenderId && screen === 'learn') renderError(error);
@@ -7197,14 +7440,19 @@
         if (screen !== 'learn' || renderId !== learnRenderId) return;
         // V atlasu je dole přilepená lišta s listováním, mezera pod obsahem by pod ní jen překážela
         const atlas = learn.view === 'atlas';
-        const learnHome = learn.view === 'home' || (!learn.topic && learn.view !== 'mistakes');
+        const learnHome = learn.view === 'home' || (!learn.topic && learn.view !== 'mistakes' && learn.view !== 'obor');
+        // Odškrtávací seznam a Můj obor: stránka na výšku okna, dlouhý seznam se posouvá ve vlastním okně
+        const fixed = Obor && (learn.view === 'list' || learn.view === 'obor');
+        // Okruh s odškrtávacím seznamem a Mým oborem: hustší rozestupy, ať se vejde bez posouvání
+        const compact = Obor && learn.view === 'collection';
         appContent.innerHTML = `
-            <div class="fade-in flex min-h-full w-full flex-col ${learnHome ? 'gap-2.5 p-3' : `gap-4 p-5 ${atlas ? 'pb-0' : 'pb-6'}`} bg-slate-50 dark:bg-slate-900">
+            <div class="fade-in flex w-full flex-col ${fixed ? 'min-h-0 flex-1 gap-3 p-4 short:gap-2 short:p-3' : compact ? 'min-h-full gap-3 p-4 short:gap-2.5 short:p-3' : `min-h-full ${learnHome ? 'gap-2.5 p-3' : `gap-4 p-5 ${atlas ? 'pb-0' : 'pb-6'}`}`} bg-slate-50 dark:bg-slate-900">
                 ${body}
-                ${atlas || learnHome ? '' : '<!-- Bezpečnostní mezera pro spodní okraj displeje --><div class="h-12 w-full shrink-0"></div>'}
+                ${atlas || learnHome || fixed || compact ? '' : '<!-- Bezpečnostní mezera pro spodní okraj displeje --><div class="h-12 w-full shrink-0"></div>'}
             </div>`;
         renderIcons(appContent);
         applyProgress(appContent);
+        sealCelebrate();
         if (learn.view === 'atlas' && ctx) {
             const item = ctx.byId.get(learn.order[learn.index]);
             if (item) hydrateItemCard(document.getElementById('learn-card'), item, ctx, 960);
@@ -7215,6 +7463,7 @@
     const openLearn = (view = learn.view, topicId = learn.topic) => {
         if (isLoading) return;
         touchTip('learn');
+        if (view === 'obor') touchTip('obor');
         closeChooser();
         learn.view = view;
         learn.topic = topicId;
@@ -7225,11 +7474,7 @@
     // Prohlížení okruhu: zvláštní okruhy a kategorie popořadě (podle výšky, roku, abecedy…), celé téma náhodně
     const browseCollection = async () => {
         const ctx = await loadTopic(learn.topic);
-        const items = collectionItems(ctx, learn.collection);
-        let ordered;
-        if (!learn.collection) ordered = shuffle(items, Math.random);
-        else if (learn.collection.startsWith('c:')) ordered = sortItems(items, categoryOf(ctx.topic, learn.collection.slice(2)).sort);
-        else ordered = sortItems(items, (ctx.collections.find(c => c.id === learn.collection) || {}).sort);
+        const ordered = learn.collection ? orderedCollection(ctx, learn.collection) : shuffle(collectionItems(ctx, null), Math.random);
         learn.order = ordered.map(item => item.q);
         learn.index = 0;
         openLearn('atlas');
@@ -15194,6 +15439,13 @@
         'learn-browse': () => browseCollection(),
         'learn-practice': () => startPractice({ kind: 'collection', topic: learn.topic, collection: learn.collection }),
         'learn-mistakes': () => openLearn('mistakes'),
+        // Odškrtávací seznam okruhu a Můj obor (obor.js)
+        'learn-list': () => { learn.filter = 'all'; openLearn('list'); },
+        'checklist-filter': (button) => { learn.filter = Obor && Obor.FILTERS.includes(button.dataset.filter) ? button.dataset.filter : 'all'; renderLearn(); },
+        'learn-obor': () => { learn.filter = 'all'; openLearn('obor'); },
+        'obor-choose': () => chooseObor(),
+        'obor-play': () => playObor(),
+        'obor-change': () => openOborChange(),
         'learn-next': () => moveAtlas(1),
         'learn-prev': () => moveAtlas(-1),
         'practice-mistakes': () => startPractice({ kind: 'mistakes' }),
@@ -15349,8 +15601,8 @@
             if (navSub) goTab(navTab);
             else if (navTab !== 'dnes') goTab('dnes');
         } else if (screen === 'round') {
-            const fromLearn = mode === 'practice' && (pool.kind === 'collection' || pool.kind === 'mistakes' || pool.kind === 'review');
-            if (fromLearn) openLearn(pool.kind === 'mistakes' ? 'mistakes' : pool.kind === 'review' ? 'home' : learn.view);
+            const fromLearn = mode === 'practice' && (pool.kind === 'collection' || pool.kind === 'mistakes' || pool.kind === 'review' || pool.kind === 'obor');
+            if (fromLearn) openLearn(pool.kind === 'mistakes' ? 'mistakes' : pool.kind === 'review' ? 'home' : pool.kind === 'obor' ? 'obor' : learn.view);
             else renderHome();
         } else if (screen === 'challenge-done') {
             challengeHome();
@@ -15367,7 +15619,7 @@
         } else if (screen === 'boss' || screen === 'boss-done') {
             leaveBoss();
         } else if (screen === 'learn') {
-            const up = { atlas: 'collection', collection: 'topic', topic: 'home', mistakes: 'home' }[learn.view];
+            const up = { atlas: 'collection', collection: 'topic', topic: 'home', mistakes: 'home', list: 'collection', obor: 'home' }[learn.view];
             if (up) openLearn(up);
             else renderHome();
         }
