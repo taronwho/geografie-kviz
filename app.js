@@ -10135,7 +10135,7 @@
             </button>
             ${season ? `<div class="shrink-0">${Season.cardHtml(season)}</div>` : ''}
             ${renderGoalsCard()}
-            <section id="postup-tiles" aria-label="Sbírky a odměny" class="${tiles.length > 9 ? 'postup-many ' : ''}grid shrink-0 grid-cols-3 gap-2 short:gap-1.5">${tiles.join('')}</section>
+            <section id="postup-tiles" aria-label="Sbírky a odměny" class="${tiles.length > 9 ? 'postup-many ' : ''}${tiles.length > 10 ? 'postup-lots ' : ''}grid shrink-0 grid-cols-3 gap-2 short:gap-1.5">${tiles.join('')}</section>
             ${goals.length ? `
             <section data-optional aria-label="Nejbližší odznaky" class="flex shrink-0 flex-col gap-1.5">
                 <h2 class="${SEC_LABEL}">Nejbližší odznaky</h2>

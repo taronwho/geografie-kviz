@@ -163,8 +163,8 @@ test('obrys státu: hlavní území bez vzdálených ostrovů; malé, protáhlé
 test('kandidáti: vlajky všech států a obrysy států Zeměpisu', () => {
     const vlajky = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/vlajky.json'), 'utf8')).items;
     const flags = Puzzle.flagCandidates(vlajky, countries);
-    assert.equal(flags.length, Object.keys(countries).length - 1 >= 190 ? flags.length : 0);
-    assert.ok(flags.length >= 190, `vlajek ${flags.length}`);
+    assert.equal(flags.length, Object.keys(countries).length, 'vlajka každého státu (197, i Švýcarsko)');
+    assert.ok(flags.some(flag => flag.id === 'Q39'), 'Švýcarsko');
     assert.equal(new Set(flags.map(flag => flag.id)).size, flags.length, 'jedna vlajka na stát');
     const indonesia = flags.find(flag => flag.id === 'Q252');
     assert.equal(indonesia.name, 'Indonésie');

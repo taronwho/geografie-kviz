@@ -22,7 +22,8 @@ test('řádky seznamu v pořadí okruhu, s číslem z celého okruhu, a filtr V�
     assert.deepEqual(Obor.rows(items, known).map(row => [row.n, row.id, row.known]), [[1, 'A', false], [2, 'B', true], [3, 'C', false], [4, 'D', true], [5, 'E', false]]);
     assert.deepEqual(Obor.rows(items, known, 'missing').map(row => `${row.n}${row.id}`), ['1A', '3C', '5E']);
     assert.deepEqual(Obor.rows(items, known, 'done').map(row => `${row.n}${row.id}`), ['2B', '4D']);
-    assert.equal(Obor.rows(items, known)[0].name, 'Položka A');
+    assert.equal(Obor.rows(items, known)[1].name, 'Položka B', 'poznaná položka má jméno');
+    assert.equal(Obor.rows(items, known)[0].name, null, 'nepoznaná jméno neprozradí (seznam není tahák)');
 });
 
 test('obor: nejdřív neznámé položky popořadě od kurzoru, na konci znovu od začátku, bez náhody', () => {
@@ -133,10 +134,15 @@ test('HTML: ukazatel s X / Y, filtr s počty, seznam bez prozrazení dalšího a
     const filter = Obor.filterHtml(summary, 'missing');
     assert.match(filter, /data-filter="missing" aria-pressed="true"/);
     assert.match(filter, /Chybí <span[^>]*>3<\/span>/);
-    const list = Obor.listHtml(Obor.rows([...items, { q: 'X', n: '<b>Zlé</b>' }], new Set(['A'])), { topic: 'historie' });
-    assert.equal((list.match(/data-action="item-info"/g) || []).length, 6);
+    const list = Obor.listHtml(Obor.rows([...items, { q: 'X', n: '<b>Zlé</b>' }], new Set(['A', 'X'])), { topic: 'historie' });
+    assert.equal((list.match(/data-checklist-row/g) || []).length, 6, 'v seznamu jsou všechny položky');
+    assert.equal((list.match(/data-action="item-info"/g) || []).length, 2, 'otevřít jdou jen poznané');
     assert.match(list, /&lt;b&gt;Zlé&lt;\/b&gt;/);
-    assert.equal((list.match(/data-known="1"/g) || []).length, 1);
+    assert.equal((list.match(/data-known="1"/g) || []).length, 2);
+    assert.equal((list.match(/data-known="0"/g) || []).length, 4);
+    assert.match(list, /Položka A/);
+    for (const hidden of ['Položka B', 'Položka C', 'Položka D', 'Položka E']) assert.doesNotMatch(list, new RegExp(hidden), `${hidden}: jméno nepoznané položky se neukáže`);
+    assert.equal((list.match(/>\?\?\?</g) || []).length, 4, 'místo jména ???');
     assert.doesNotMatch(list, /style=/, 'CSP: žádné inline styly');
     assert.match(Obor.listHtml([], { filter: 'missing' }), /Nic nechybí/);
     assert.equal(Obor.items(1), '1 položka');
