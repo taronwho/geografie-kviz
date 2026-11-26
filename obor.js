@@ -211,9 +211,10 @@
     // Hlavní tlačítko oboru podle dalšího kroku (next): Začít, Pokračovat, nebo Opakovat popořadě; číslo položky, ne její jméno
     const playButtonHtml = (step, { started = false, total = 0, buttonClass = '' } = {}) => {
         const title = !step ? 'Okruh je prázdný' : step.phase === 'review' ? 'Opakovat popořadě' : started ? 'Pokračovat' : 'Začít';
+        const icon = step && step.phase === 'review' ? 'repeat' : 'play';
         const text = !step ? '' : step.phase === 'review' ? `Všechno umíš · opakování od č. ${step.index + 1}` : `Na řadě č. ${step.index + 1} z ${num(total)} · bez spěchu`;
         return `<button type="button" data-action="obor-play" ${step ? '' : 'disabled'} class="flex w-full shrink-0 items-center gap-3 rounded-[1.5rem] px-4 py-3 text-left text-white shadow-lg transition-all active:scale-[0.98] disabled:opacity-50 short:py-2.5 ${buttonClass} btn-3d">
-            <i data-lucide="${step && step.phase === 'review' ? 'repeat' : 'play'}" class="h-7 w-7 shrink-0"></i>
+            <i data-lucide="${icon}" class="h-7 w-7 shrink-0"></i>
             <span class="min-w-0"><span class="block text-lg font-black leading-tight">${title}</span>${text ? `<span class="block text-sm text-white/90">${text}</span>` : ''}</span>
         </button>`;
     };
