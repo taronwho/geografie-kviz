@@ -257,56 +257,55 @@ test('Seřaď to: úvod, Řazení dne, přesuny, kontrola, výsledek a volná hr
     }
 });
 
-// Řazení dne na záložce Dnes: pátý řádek Dnešních výzev (mezi Tajemnou otázkou a Bossem týdne). Nehrané = vlastnost dne a Hrát,
-// rozehrané = kolik karet sedí a Hrát dál, seřazené = fajfka a počet pokusů. Klepnutí otevře rovnou kolo (ne úvod Seřaď to), Zpět vede
-// na Dnes. Záložka se vejde bez posouvání na 360×640 i 390×780 ve světlém i tmavém režimu; bez sorting.js řádek chybí.
-test('Řazení dne na záložce Dnes: řádek dnešní výzvy, rovnou do kola, odškrtnutí', { skip: !chromium && 'Playwright není nainstalovaný' }, async (t) => {
+// Minihry dne na záložce Dnes: Řazení dne (sorting.js) a Skládačka dne (puzzle.js) jako dvě poloviny jednoho řádku Dnešních výzev
+// (mezi Tajemnou otázkou a Bossem týdne); každá je dnešní výzva (x/6 hotovo). Nehrané = krátký stav a šipka, rozehrané = kolik karet
+// sedí, hotové = fajfka a počet pokusů / tahů. Klepnutí otevře rovnou kolo (ne úvod), Zpět vede na Dnes. S jedinou minihrou (bez
+// puzzle.js) je to běžný řádek s vlastností dne a tlačítkem. Když se záložka nevejde, zbudou z Miniher dne čipy v nadpisu.
+// Záložka se vejde bez posouvání na 360×640 i 390×780 ve světlém i tmavém režimu; bez sorting.js Řazení dne chybí.
+test('Minihry dne na záložce Dnes: Řazení dne a Skládačka dne, rovnou do kola, odškrtnutí', { skip: !chromium && 'Playwright není nainstalovaný' }, async (t) => {
     const server = await startServer();
     const origin = `http://127.0.0.1:${server.address().port}`;
     const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
     t.after(async () => { await browser.close(); server.close(); });
     const open = opener(browser, origin);
+    // Stav dnešních výzev: pořadí řádků (Minihry dne jako #daily-minis), nadpis, zvýrazněný řádek a poloviny Miniher dne
+    const specials = (tab) => tab.evaluate(() => ({
+        order: [...document.querySelectorAll('#home-specials > [data-special-tile], #home-specials > #daily-minis')].map(el => el.id),
+        halves: [...document.querySelectorAll('#daily-minis > [data-special-tile]')].map(tile => `${tile.id}:${tile.dataset.done}:${tile.querySelector('[data-special-text]').textContent.trim()}:${tile.querySelector('[data-cta-done]') ? 'fajfka' : 'šipka'}`),
+        heading: document.querySelector('#home-specials h2').textContent.replace(/\s+/g, ' ').trim(),
+        hot: (document.querySelector('#home-specials [data-hot]') || {}).id || ''
+    }));
+    // Řádek Řazení dne jako celý řádek (jen jedna minihra)
     const row = (tab) => tab.evaluate(() => {
         const tile = document.getElementById('sorting-card');
-        if (!tile) return null;
-        const tiles = [...document.querySelectorAll('#home-specials [data-special-tile]')];
-        return {
-            status: tile.dataset.sortingStatus, done: tile.dataset.done, text: tile.querySelector('[data-special-text]').textContent.trim(), label: tile.getAttribute('aria-label'),
-            cta: (tile.querySelector('[data-cta]') || { textContent: '' }).textContent.trim(), tick: Boolean(tile.querySelector('[data-cta-done]')),
-            order: tiles.map(one => one.id), heading: document.querySelector('#home-specials h2').textContent.replace(/\s+/g, ' ').trim()
-        };
+        return { status: tile.dataset.sortingStatus, text: tile.querySelector('[data-special-text]').textContent.trim(), label: tile.getAttribute('aria-label'),
+            cta: (tile.querySelector('[data-cta]') || { textContent: '' }).textContent.trim(), tick: Boolean(tile.querySelector('[data-cta-done]')) };
     });
     // Po zápisu do úložiště se záložka Dnes překreslí (přes jinou záložku)
     const repaint = async (tab) => { await nav.go(tab, 'hrat'); await nav.go(tab, 'dnes'); };
+    const backHome = async (tab) => { await tab.click('#btn-home'); await nav.waitForHome(tab); assert.equal(await nav.currentTab(tab), 'dnes', 'Zpět vede na Dnes'); };
 
     const { context, tab, problems } = await open();
     const day = await tab.evaluate(() => window.MudrlantCore.getDayKey());
     const daily = await Sorting.dailyRound(day, async (topic) => ({ items: items(topic), ctx: null }));
     const correct = daily.correct.map(index => daily.items[index].name);
-    const what = Sorting.rowText(Sorting.SPEC_BY_ID.get(daily.spec));
-    // Názvy vlastností všech dní Řazení dne se v řádku vejdou celé (bez useknutí)
-    const rowTexts = [...new Set(Sorting.DAILY_SPECS.map(id => Sorting.rowText(Sorting.SPEC_BY_ID.get(id))))];
-    const cut = (tab) => tab.evaluate((texts) => {
-        const el = document.querySelector('#sorting-card [data-special-text]');
-        const before = el.textContent;
-        const out = texts.filter(text => { el.textContent = text; return el.scrollWidth > el.clientWidth + 1; });
-        el.textContent = before;
-        return out;
-    }, rowTexts);
+    const variant = await tab.evaluate(() => [...document.querySelectorAll('#puzzle-card [data-special-text]')].map(el => el.textContent.trim())[0]);
+    assert.ok(['Vlajka', 'Obrys státu'].includes(variant), variant);
+    const seedDone = (page) => page.evaluate((day) => {
+        localStorage.setItem('mudrlant.skladacka', JSON.stringify({ v: 1, daily: { [day]: { moves: 21, v: 'flag', id: '' } } }));
+    }, day);
 
-    // Nehrané: řádek s vlastností dne a tlačítkem Hrát, mezi Tajemnou otázkou a Bossem týdne, počítá se do x/5
-    let info = await row(tab);
-    assert.deepEqual(info.order, ['quiz-card', 'chain-card', 'mystery-card', 'sorting-card', 'boss-card']);
-    assert.match(info.heading, /0\/5 hotovo/);
-    assert.equal(info.status, 'new');
-    assert.equal(info.text, what);
-    assert.equal(info.cta, 'Hrát');
-    assert.match(info.label, /Řazení dne: seřaď 6 karet/);
-    await assertFits(tab, 'Dnes s Řazením dne');
-    assert.deepEqual(await cut(tab), [], 'názvy vlastností se vejdou (360 px)');
-    await shot(tab, 'dnes-nehrane-svetly-360');
+    // Nehrané: jeden řádek se dvěma polovinami, šest dnešních výzev
+    let info = await specials(tab);
+    assert.deepEqual(info.order, ['quiz-card', 'chain-card', 'mystery-card', 'daily-minis', 'boss-card']);
+    assert.deepEqual(info.halves, ['sorting-card:0:6 karet:šipka', `puzzle-card:0:${variant}:šipka`]);
+    assert.match(info.heading, /0\/6 hotovo/);
+    assert.match(await tab.getAttribute('#sorting-card', 'aria-label'), /Řazení dne: seřaď 6 karet – .+\. Stejné pro všechny, bez časovače\. Hrát/);
+    assert.match(await tab.getAttribute('#puzzle-card', 'aria-label'), /Skládačka dne: .+ · 16 dílků, stejná pro všechny\. Hrát/);
+    await assertFits(tab, 'Dnes s Minihrami dne');
+    await shot(tab, 'dnes-minihry-svetly-360');
 
-    // Klepnutí: rovnou kolo dne, bez úvodu Seřaď to
+    // Řazení dne: rovnou kolo dne, bez úvodu Seřaď to
     await tab.click('#sorting-card');
     await tab.waitForSelector('[data-sorting="play"]');
     assert.equal(await tab.$('[data-sorting="intro"]'), null);
@@ -314,127 +313,112 @@ test('Řazení dne na záložce Dnes: řádek dnešní výzvy, rovnou do kola, o
     await tab.click('[data-action="sorting-check"]');
     await tab.waitForSelector('[data-sort-attempts="1"]');
     const placed = Number(await tab.getAttribute('[data-sorting-progress]', 'data-sorting-progress'));
-    // Zpět vede na Dnes; řádek ukazuje rozehrané kolo
-    await tab.click('#btn-home');
-    await nav.waitForHome(tab);
-    assert.equal(await nav.currentTab(tab), 'dnes');
-    info = await row(tab);
-    assert.equal(info.status, 'progress');
-    assert.equal(info.text, `Rozehráno · ${placed}/6 na místě`);
-    assert.equal(info.cta, 'Hrát dál');
-    await assertFits(tab, 'Dnes s rozehraným Řazením dne');
+    await backHome(tab);
+    info = await specials(tab);
+    assert.equal(info.halves[0], `sorting-card:0:${placed}/6 na místě:šipka`, 'rozehrané Řazení dne');
     await shot(tab, 'dnes-rozehrane-svetly-360');
-
-    // Dohrání: řádek se odškrtne (fajfka, ztlumený, počet pokusů) a počítá se mezi hotové
+    // Dohrání: polovina se odškrtne (fajfka, počet pokusů) a počítá se mezi hotové
     await tab.click('#sorting-card');
     await tab.waitForSelector('[data-sorting="play"]');
     await solveWithArrows(tab, correct);
     await tab.click('[data-action="sorting-check"]');
     await tab.waitForSelector('[data-sorting="done"]');
     assert.match(await tab.textContent('[data-sorting="done"]'), /\+20 XP/);
-    await tab.click('#btn-home');
-    await nav.waitForHome(tab);
-    assert.equal(await nav.currentTab(tab), 'dnes');
-    info = await row(tab);
-    assert.equal(info.status, 'done');
-    assert.equal(info.done, '1');
-    assert.equal(info.tick, true, 'fajfka místo tlačítka');
-    assert.equal(info.text, 'Seřazeno 2 pokusy');
-    assert.match(info.heading, /1\/5 hotovo/);
+    await backHome(tab);
+    info = await specials(tab);
+    assert.equal(info.halves[0], 'sorting-card:1:2 pokusy:fajfka');
+    assert.match(info.heading, /1\/6 hotovo/);
     await assertFits(tab, 'Dnes se seřazeným Řazením dne');
-    await shot(tab, 'dnes-hotove-svetly-360');
-    // Hotové: klepnutí ukáže výsledek (bez dalších XP) a Zpět vede na Dnes
+    // Hotové: klepnutí ukáže výsledek (bez dalších XP), Zpět na Dnes
     await tab.click('#sorting-card');
     await tab.waitForSelector('[data-sorting="done"]');
     assert.doesNotMatch(await tab.textContent('[data-sorting="done"]'), /XP/);
     await assertFits(tab, 'výsledek Řazení dne ze záložky Dnes');
-    await shot(tab, 'vysledek-z-dnes-svetly-360');
-    await tab.click('#btn-home');
-    await nav.waitForHome(tab);
-    assert.equal(await nav.currentTab(tab), 'dnes');
+    await backHome(tab);
     // Úvod Seřaď to ze záložky Hrát: Zpět z kola dál vede na úvod
     await openSorting(tab);
     await tab.click('[data-action="sorting-daily"]');
     await tab.waitForSelector('[data-sorting="done"]');
     await tab.click('#btn-home');
     await tab.waitForSelector('[data-sorting="intro"]');
+    await tab.click('#btn-home');
+    await nav.waitForHome(tab);
+    await nav.go(tab, 'dnes');
+
+    // Skládačka dne: rovnou Skládačka dne (ne úvod Skládačky), Zpět na Dnes
+    await tab.click('#puzzle-card');
+    await tab.waitForSelector('#puzzle-screen, #puzzle-done, #puzzle-error');
+    assert.equal(await tab.$('#puzzle-intro'), null, 'bez úvodu Skládačky');
+    await backHome(tab);
+    // Rozehraná Skládačka dne: polovina to říká, zvýrazněný je pořád Kvíz dne
+    info = await specials(tab);
+    assert.deepEqual(info.halves, ['sorting-card:1:2 pokusy:fajfka', 'puzzle-card:0:Rozehráno:šipka']);
+    assert.equal(info.hot, 'quiz-card');
+    await assertFits(tab, 'Dnes s rozehranou Skládačkou dne');
     assert.deepEqual(problems, []);
     await context.close();
 
-    // Tmavý režim a 390×780: nehrané a seřazené (napoprvé) se vejde bez posouvání
+    // Tmavý režim a 390×780: nehrané a hotové Minihry dne se vejdou bez posouvání
     for (const [viewport, label, colorScheme] of [[{ width: 360, height: 640 }, 'tmavy-360', 'dark'], [{ width: 390, height: 780 }, 'svetly-390', 'light'], [{ width: 390, height: 780 }, 'tmavy-390', 'dark']]) {
         const page = await open({ viewport, colorScheme });
-        assert.equal((await row(page.tab)).status, 'new');
-        assert.deepEqual(await cut(page.tab), [], `názvy vlastností se vejdou (${label})`);
+        assert.equal((await specials(page.tab)).halves.length, 2);
         await assertFits(page.tab, `Dnes ${label}`);
-        await shot(page.tab, `dnes-nehrane-${label}`);
-        await page.tab.evaluate(([day, spec]) => localStorage.setItem('mudrlant.sorting', JSON.stringify({ v: 1, daily: { [day]: { attempts: 1, spec } } })), [day, daily.spec]);
-        await repaint(page.tab);
-        info = await row(page.tab);
-        assert.equal(info.status, 'done');
-        assert.equal(info.text, 'Seřazeno napoprvé');
-        await assertFits(page.tab, `Dnes hotové ${label}`);
-        await shot(page.tab, `dnes-hotove-${label}`);
-        assert.deepEqual(page.problems, []);
-        await page.context.close();
-    }
-
-    // Minihry dne se Skládačkou dne (puzzle.js daily(), tady podvržené): Řazení dne a Skládačka dne jako dvě poloviny jednoho řádku,
-    // každá je dnešní výzva (x/6), hotová s fajfkou. Záložka se vejde stejně jako s jedním řádkem
-    const puzzleDaily = () => {
-        Object.defineProperty(window, 'MudrlantPuzzle', { configurable: true, get: () => undefined, set: (api) => {
-            const createController = (deps) => ({ ...api.createController(deps), daily: () => JSON.parse(localStorage.getItem('test.puzzleDaily') || '{"done":false,"moves":0}') });
-            Object.defineProperty(window, 'MudrlantPuzzle', { configurable: true, writable: true, value: { ...api, createController } });
-        } });
-    };
-    for (const [viewport, label, colorScheme] of [[{ width: 360, height: 640 }, 'svetly-360', 'light'], [{ width: 360, height: 640 }, 'tmavy-360', 'dark'], [{ width: 390, height: 780 }, 'svetly-390', 'light'], [{ width: 390, height: 780 }, 'tmavy-390', 'dark']]) {
-        const page = await open({ viewport, colorScheme, init: puzzleDaily });
-        const minis = () => page.tab.evaluate(() => ({
-            halves: [...document.querySelectorAll('#daily-minis > [data-special-tile]')].map(tile => `${tile.id}:${tile.dataset.done}:${tile.querySelector('[data-special-text]').textContent.trim()}:${Boolean(tile.querySelector('[data-cta-done]'))}`),
-            rows: document.querySelectorAll('#home-specials > [data-special-tile], #home-specials > #daily-minis').length,
-            heading: document.querySelector('#home-specials h2').textContent.replace(/\s+/g, ' ').trim(),
-            hot: (document.querySelector('#home-specials [data-hot]') || {}).id
-        }));
-        let state = await minis();
-        assert.deepEqual(state.halves, ['sorting-card:0:6 karet:false', 'puzzle-card:0:Dílky 4×4:false']);
-        assert.equal(state.rows, 5, 'Minihry dne jsou jeden řádek');
-        assert.match(state.heading, /0\/6 hotovo/);
-        await assertFits(page.tab, `Dnes s Miniher dne ${label}`);
         await shot(page.tab, `dnes-minihry-${label}`);
-        await page.tab.evaluate(([day, spec]) => {
-            localStorage.setItem('mudrlant.sorting', JSON.stringify({ v: 1, daily: { [day]: { attempts: 3, spec } } }));
-            localStorage.setItem('test.puzzleDaily', JSON.stringify({ done: true, moves: 21, label: 'Skládačka dne: složeno' }));
-        }, [day, daily.spec]);
+        await page.tab.evaluate(([day, spec]) => localStorage.setItem('mudrlant.sorting', JSON.stringify({ v: 1, daily: { [day]: { attempts: 1, spec } } })), [day, daily.spec]);
+        await seedDone(page.tab);
         await repaint(page.tab);
-        state = await minis();
-        assert.deepEqual(state.halves, ['sorting-card:1:3 pokusy:true', 'puzzle-card:1:21 tahů:true']);
-        assert.match(state.heading, /2\/6 hotovo/);
-        assert.equal(state.hot, 'quiz-card');
-        await assertFits(page.tab, `Dnes s hotovými Minihrami dne ${label}`);
+        info = await specials(page.tab);
+        assert.deepEqual(info.halves, ['sorting-card:1:Napoprvé:fajfka', 'puzzle-card:1:21 tahů:fajfka']);
+        assert.match(info.heading, /2\/6 hotovo/);
+        assert.match(await page.tab.getAttribute('#puzzle-card', 'aria-label'), /Skládačka dne: hotovo, 21 tahů\. Ukázat výsledek/);
+        await assertFits(page.tab, `Dnes hotové ${label}`);
         await shot(page.tab, `dnes-minihry-hotove-${label}`);
         assert.deepEqual(page.problems, []);
         await page.context.close();
     }
 
-    // Velmi nízký displej (320×470, např. rozdělená obrazovka): řádek se nevejde, z Miniher dne zbude čip v nadpisu Dnešních výzev; klepnutí otevře rovnou kolo
+    // Jen Řazení dne (bez puzzle.js): běžný řádek s vlastností dne a tlačítkem; názvy vlastností všech dní se vejdou celé
+    const rowTexts = [...new Set(Sorting.DAILY_SPECS.map(id => Sorting.rowText(Sorting.SPEC_BY_ID.get(id))))];
+    for (const [viewport, label] of [[{ width: 360, height: 640 }, '360'], [{ width: 390, height: 780 }, '390']]) {
+        const page = await open({ viewport, block: ['puzzle.js'] });
+        assert.deepEqual((await specials(page.tab)).order, ['quiz-card', 'chain-card', 'mystery-card', 'sorting-card', 'boss-card']);
+        assert.match((await specials(page.tab)).heading, /0\/5 hotovo/);
+        info = await row(page.tab);
+        assert.deepEqual({ status: info.status, text: info.text, cta: info.cta }, { status: 'new', text: Sorting.rowText(Sorting.SPEC_BY_ID.get(daily.spec)), cta: 'Hrát' });
+        const cut = await page.tab.evaluate((texts) => {
+            const el = document.querySelector('#sorting-card [data-special-text]');
+            return texts.filter(text => { el.textContent = text; return el.scrollWidth > el.clientWidth + 1; });
+        }, rowTexts);
+        assert.deepEqual(cut, [], `názvy vlastností se vejdou (${label})`);
+        await repaint(page.tab);
+        await assertFits(page.tab, `Dnes jen s Řazením dne ${label}`);
+        await shot(page.tab, `dnes-jen-razeni-svetly-${label}`);
+        await page.tab.evaluate(([day, spec]) => localStorage.setItem('mudrlant.sorting', JSON.stringify({ v: 1, daily: { [day]: { attempts: 3, spec } } })), [day, daily.spec]);
+        await repaint(page.tab);
+        info = await row(page.tab);
+        assert.deepEqual({ status: info.status, text: info.text, tick: info.tick }, { status: 'done', text: 'Seřazeno 3 pokusy', tick: true });
+        await page.context.close();
+    }
+
+    // Velmi nízký displej (320×470, např. rozdělená obrazovka): řádek se nevejde, z Miniher dne zbudou čipy v nadpisu Dnešních
+    // výzev; klepnutí otevře rovnou kolo
     const tiny = await open({ viewport: { width: 320, height: 470 } });
-    assert.equal(await tiny.tab.isVisible('#sorting-card'), false);
+    assert.equal(await tiny.tab.isVisible('#daily-minis'), false);
     assert.equal(await tiny.tab.isVisible('#sorting-pill'), true);
+    assert.equal(await tiny.tab.isVisible('#puzzle-pill'), true);
     assert.match(await tiny.tab.getAttribute('#sorting-pill', 'aria-label'), /Řazení dne: seřaď 6 karet/);
     await assertFits(tiny.tab, 'Dnes 320×470');
-    await shot(tiny.tab, 'dnes-cip-svetly-320');
+    await shot(tiny.tab, 'dnes-cipy-svetly-320');
     await tiny.tab.click('#sorting-pill');
     await tiny.tab.waitForSelector('[data-sorting="play"]');
-    await tiny.tab.click('#btn-home');
-    await nav.waitForHome(tiny.tab);
-    assert.equal(await nav.currentTab(tiny.tab), 'dnes');
+    await backHome(tiny.tab);
     assert.deepEqual(tiny.problems, []);
     await tiny.context.close();
 
-    // Bez sorting.js: řádek chybí, dnešní výzvy jsou čtyři
+    // Bez sorting.js: Řazení dne chybí, Skládačka dne je běžný řádek
     const bare = await open({ block: ['sorting.js'] });
     assert.equal(await bare.tab.$('#sorting-card'), null);
-    assert.equal(await bare.tab.locator('#home-specials [data-special-tile]').count(), 4);
-    assert.match(await bare.tab.textContent('#home-specials h2'), /0\/4 hotovo/);
+    assert.deepEqual((await specials(bare.tab)).order, ['quiz-card', 'chain-card', 'mystery-card', 'puzzle-card', 'boss-card']);
+    assert.match(await bare.tab.textContent('#puzzle-card'), /Skládačka dne/);
     await bare.context.close();
 });

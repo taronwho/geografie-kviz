@@ -3312,18 +3312,20 @@
             // Obrázek jako dlaždice Seřaď to na záložce Hrát (kolečko s ikonou, do dodání vlastního obrázku)
             art: (cls) => `<span class="flex ${cls} shrink-0 items-center justify-center rounded-full bg-sky-600 text-white"><i data-lucide="list-ordered" class="h-5 w-5 tiny:h-4 tiny:w-4"></i></span>` };
     };
-    // NAPOJENÍ Skládačky dne: puzzleCtl.daily() → { done, moves, label } (případně action); dokud puzzle.js API nemá, vrátí null a nic
-    // se neukáže. Akce otevře rovnou Skládačku dne (ne úvod Skládačky): název akce dodá puzzle.js (daily().action), jinak PUZZLE_TODAY_ACTION.
-    const PUZZLE_TODAY_ACTION = 'puzzle-daily';
+    // Skládačka dne (puzzle.js): puzzleCtl.daily() → { done, moves, variant, playing, label… }; akce puzzle-today otevře rovnou
+    // Skládačku dne (ne úvod Skládačky) a Zpět vede zpátky na Dnes. Bez puzzle.js (nebo jeho API) se neukáže.
     const puzzleToday = () => {
         const daily = puzzleCtl && typeof puzzleCtl.daily === 'function' ? puzzleCtl.daily() : null;
         if (!daily) return null;
         const done = Boolean(daily.done);
         const moves = Number(daily.moves) || 0;
         const result = moves ? plural(moves, 'tah', 'tahy', 'tahů') : '';
-        return { id: 'puzzle-card', action: daily.action || PUZZLE_TODAY_ACTION, title: 'Skládačka dne', half: 'Skládačka', done, status: done ? 'done' : 'new', attrs: `data-puzzle-status="${done ? 'done' : 'new'}"`,
-            text: done ? `Složeno${result ? ` · ${result}` : ''}` : 'Dílky 4×4, stejná pro všechny', short: done ? (result || 'Složeno') : 'Dílky 4×4', cta: done ? 'Ukázat' : 'Hrát',
-            label: daily.label || `Skládačka dne: ${done ? `složeno${result ? `, ${result}` : ''}` : 'stejná pro všechny'}`, art: (cls) => puzzleCtl.homeTile().art(cls) };
+        const status = done ? 'done' : daily.playing ? 'progress' : 'new';
+        return { id: 'puzzle-card', action: 'puzzle-today', title: 'Skládačka dne', half: 'Skládačka', done, status, attrs: `data-puzzle-status="${status}"`,
+            text: done ? `Složeno${result ? ` · ${result}` : ''}` : daily.playing ? 'Rozehráno' : daily.label, short: done ? (result || 'Složeno') : daily.playing ? 'Rozehráno' : String(daily.label || '').split(' · ')[0],
+            cta: done ? 'Ukázat' : daily.playing ? 'Hrát dál' : 'Hrát',
+            label: `Skládačka dne: ${done ? `hotovo${result ? `, ${result}` : ''}. Ukázat výsledek` : `${daily.playing ? 'rozehráno' : `${daily.label}, stejná pro všechny`}. ${daily.playing ? 'Hrát dál' : 'Hrát'}`}`,
+            art: (cls) => puzzleCtl.homeTile().art(cls) };
     };
     // Polovina řádku Miniher dne: místo tlačítka vpravo fajfka (hotovo), nebo šipka (zvýrazněná jako ostatní řádky přes data-hot)
     const miniHalf = (item) => `
@@ -3345,7 +3347,7 @@
         return items.length ? `<div id="daily-minis" data-minis-row aria-label="Minihry dne" role="group" class="grid grid-cols-2 gap-2 short:gap-1.5">${items.map(miniHalf).join('')}</div>` : '';
     };
     // Úsporná podoba Miniher dne: malé čipy vpravo v nadpisu Dnešních výzev (obrázek a fajfka, nebo šipka; dotyková plocha 44 px,
-    // řádek nadpisu nezvětší). fitHome ji zapne, jen když se záložka nevejde ani s příležitostnými pruhy jako čipy (malý displej,
+    // řádek nadpisu nezvětší; na 320 px nadpis vynechá slovo „hotovo“). fitHome ji zapne, jen když se záložka nevejde ani s příležitostnými pruhy jako čipy (malý displej,
     // hodně pruhů najednou); v dokumentu jsou obě podoby, vidět je vždy jen jedna
     const minisPills = () => {
         const items = minisToday();
@@ -3366,7 +3368,7 @@
         const hot = rows.findIndex(html => html.includes('data-done="0"'));
         return `
             <section id="home-specials" aria-label="Dnešní výzvy" data-specials-done="${done}" class="flex flex-col gap-2 short:gap-1.5">
-                <div class="flex items-center gap-1"><h2 class="${SEC_LABEL}">Dnešní výzvy <span class="font-bold">· ${done}/${total} hotovo</span></h2>${minisPills()}</div>
+                <div class="flex items-center gap-1"><h2 class="${SEC_LABEL} whitespace-nowrap">Dnešní výzvy <span class="font-bold">· ${done}/${total}<span class="max-[339px]:hidden"> hotovo</span></span></h2>${minisPills()}</div>
                 ${rows.map((html, index) => (index === hot ? html.replace('data-special-tile data-done="0"', 'data-special-tile data-hot data-done="0"').replace(`data-cta class="${CTA_SOFT}"`, `data-cta class="${CTA_BRAND}"`) : html)).join('')}
             </section>`;
     };

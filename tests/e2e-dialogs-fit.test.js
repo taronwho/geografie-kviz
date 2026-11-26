@@ -1012,7 +1012,7 @@ test('stránka se neposouvá: obrazovky a okna ve světlém i tmavém režimu', 
                 await tabScenes(tab, key);
                 // Záložka Dnes: řádek Truhla čeká a dnešní výzvy; Soupeři: to nejnaléhavější a „+N další“; lišta má odznak u Soupeřů
                 await nav.go(tab, 'dnes');
-                assert.equal(await tab.locator('#home-specials [data-special-tile]').count(), 5, 'pět dnešních výzev (s Řazením dne)');
+                assert.equal(await tab.locator('#home-specials [data-special-tile]').count(), 6, 'šest dnešních výzev (s Řazením a Skládačkou dne)');
                 assert.equal(await tab.locator('#home-specials [data-special-tile][data-hot]').count(), 1, 'jeden zvýrazněný řádek');
                 assert.equal(await tab.locator('#chest-row[data-chest-ready]').count(), 1, 'Truhla čeká');
                 assert.ok(Number(await tab.textContent('#app-nav [data-nav="souperi"] [data-nav-badge]')) >= 2, 'odznak s počtem čekajících u Soupeřů');
