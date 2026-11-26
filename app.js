@@ -51,6 +51,8 @@
     const Boss = window.MudrlantBoss || null;
     // Řetězovka dne (chain.js): napojení je níž („Řetězovka dne“); tady kvůli odznakům Řetězovky (badgeContext, symbol medaile)
     const Chain = window.MudrlantChain || null;
+    // Skládačka (puzzle.js): minihra skládání vlajky nebo obrysu státu z dílků; bez skriptu se dlaždice nevykreslí
+    const Puzzle = window.MudrlantPuzzle || null;
     // Motivace (blok 32): tematické víkendy, prestiž po úrovni 100 a Pozvi kamarády
     const Weekend = window.MudrlantWeekend || null;
     const Prestige = window.MudrlantPrestige || null;
@@ -2737,6 +2739,7 @@
         if (screen === 'conquest') return { icon: 'swords', art: 'dobyvani', text: 'Dobývání', topic: null };
         if (screen === 'chain' && chainCtl) return { ...chainCtl.place(), topic: null };
         if (screen === 'sorting' && sortingCtl) return { ...sortingCtl.place(), topic: null };
+        if (screen === 'puzzle' && puzzleCtl) return { ...puzzleCtl.place(), topic: null };
         // Úvod: sova z loga, název a dnešní datum
         if (screen !== 'round' || !current) return { logo: true, text: `${APP_NAME} · ${shortDay(getDayKey())}`, date: shortDay(getDayKey()), topic: null };
         const topic = TOPIC_BY_ID[current.topic];
@@ -3057,6 +3060,7 @@
         else if (screen === 'boss' || screen === 'boss-done') leaveBoss();
         else if (screen === 'chain' && chainCtl) chainCtl.leave();
         else if (screen === 'sorting' && sortingCtl) sortingCtl.leave();
+        else if (screen === 'puzzle' && puzzleCtl) puzzleCtl.leave();
         else renderHome();
         if (navTab === 'souperi') refreshTournaments();
     };
@@ -3065,7 +3069,7 @@
     // otázky (výsledek otázky, výsledek výzvy). Skrytá je, dokud hráč odpovídá: u jedné otázky od zadání po odpověď, v režimech
     // na čas a v sérii (Kvíz dne, Řetězovka, souboj s bossem, Bleskovka, Přežití) od první otázky po výsledek, a v běžící hře
     // Dobývání (mapa přes celou plochu a tahy na čas). Výsledek jedné otázky ji má jen na vyšším displeji (viz níž).
-    const CALM_SCREENS = '[data-tab-root], #quiz-intro, #quiz-result, #chain-intro, #chain-result, #boss-intro, #boss-result, [data-mode-intro], [data-mode-result], #conquest-hub, #mystery-screen, [data-sorting="intro"]';
+    const CALM_SCREENS = '[data-tab-root], #quiz-intro, #quiz-result, #chain-intro, #chain-result, #boss-intro, #boss-result, [data-mode-intro], [data-mode-result], #conquest-hub, #mystery-screen, [data-sorting="intro"], #puzzle-intro, #puzzle-done, #puzzle-error';
     const barShown = () => {
         if (screen === 'welcome' || !appContent.firstElementChild) return false;
         if (screen === 'home') return mainShown();
@@ -3267,6 +3271,7 @@
     // Řádky Řetězovky dne a Bosse týdne (doplní je jejich moduly; prázdný řetězec = řádek se nevykreslí)
     let chainCtl = null; // ovladač Řetězovky (chain.js), založí se níž u Kvízu dne a Tajemné otázky
     let sortingCtl = null; // ovladač minihry Seřaď to (sorting.js), založí se níž za Řetězovkou
+    let puzzleCtl = null; // ovladač Skládačky (puzzle.js), založí se níž za Řetězovkou
     const chainSnapshotSeed = (day) => `mudrlant-retezovka-${day}`;
     const chainHomeTile = () => (chainCtl ? chainCtl.homeTile() : '');
     const bossHomeTile = () => (Boss ? bossTileHtml() : '');
@@ -3435,7 +3440,7 @@
     // Rozehraná otázka tréninku (Domů uprostřed otázky, obnovená relace) jde dohrát tlačítkem vedle Mixu
     const practiceOpen = () => Boolean(current && mode === 'practice' && round && !round.answered && TOPIC_BY_ID[current.topic]);
     const MODE_TILE = `relative flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-1 ${CARD_R} ${TILE_3D} px-0.5 py-1.5 text-center short:min-h-[3.75rem] short:gap-0.5 tiny:min-h-[3.25rem]`;
-    const modeTile = (attrs, art, title, extra = '') => `<button type="button" ${attrs} class="${MODE_TILE}">${art}<span class="block max-w-full truncate text-[12px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span>${extra}</button>`;
+    const modeTile = (attrs, art, title, extra = '') => `<button type="button" ${attrs} class="${MODE_TILE}">${art}<span data-mode-title class="block max-w-full truncate text-[12px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span>${extra}</button>`;
     // Čip u nadpisu Režimy na záložce Hrát: řádek nadpisu nezvětší (záporný okraj), dotyková plocha 44 px
     const snackChip = () => !snackCtl ? '' : `<button type="button" data-action="snack-open" title="Jednohubka: jedna otázka na jedno klepnutí" aria-label="Jednohubka: jedna otázka na jedno klepnutí" class="-my-3 flex min-h-[2.75rem] shrink-0 items-center px-1"><span class="flex items-center gap-1 rounded-full bg-gold-100 px-2.5 py-1 text-[12px] font-black text-brand-950 ring-1 ring-gold-300 dark:bg-gold-500/20 dark:text-gold-200 dark:ring-gold-700/60"><i data-lucide="${Snack.ICON}" class="h-3.5 w-3.5"></i>Jednohubka</span></button>`;
     const renderHrat = () => {
@@ -3474,6 +3479,8 @@
             ...(MapQuestion ? [modeTile('data-action="map-tile" title="Ukaž na mapě: jen otázky na mapě, zkušební režim"', uiArt('rezim-mapa', 'h-9 w-9 short:h-8 short:w-8'), 'Na mapě')] : []),
             // Seřaď to (sorting.js): do dodání vlastního obrázku kolečko s ikonou
             ...(sortingCtl ? [modeTile('data-action="sorting-open" title="Seřaď to: seřaď karty podle vlastnosti, bez časovače"', '<span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-600 text-white short:h-8 short:w-8"><i data-lucide="list-ordered" class="h-5 w-5"></i></span>', 'Seřaď to')] : []),
+            // Skládačka (puzzle.js): vlajka nebo obrys státu z dílků
+            ...(puzzleCtl ? [modeTile(`data-action="puzzle-open" title="${escapeHtml(puzzleCtl.homeTile().label)}"`, puzzleCtl.homeTile().art('h-9 w-9 short:h-8 short:w-8'), 'Skládačka')] : []),
             modeTile(`data-action="open-learn" title="Učení: okruhy, atlas a chyby k zopakování" aria-label="${due ? `Učení – k procvičení: ${due}` : 'Učení'}"`, uiArt('ucit-procvicit', 'h-9 w-9 short:h-8 short:w-8'), 'Učení',
                 due ? `<span data-review-due title="K procvičení: ${due}" class="absolute right-1.5 top-1.5 ${BADGE}"><span class="sr-only">K procvičení: </span>${due}</span>` : '')
         ];
@@ -3482,7 +3489,7 @@
             <section id="topic-grid" aria-label="Témata" class="grid max-h-[22rem] flex-1 grid-cols-4 auto-rows-fr gap-2 short:gap-1.5">${ordered.map(tile).join('')}</section>
             <section aria-label="Režimy" class="flex shrink-0 flex-col gap-2 short:gap-1.5">
                 <div class="flex items-center justify-between gap-2"><h2 class="${SEC_LABEL}">Režimy</h2>${snackChip()}</div>
-                <div id="mode-tiles" class="grid ${['grid-cols-1', 'grid-cols-1', 'grid-cols-2', 'grid-cols-3', 'grid-cols-4', 'grid-cols-5'][Math.min(5, modes.length)]} gap-2 short:gap-1.5">${(modes.length > 4 ? modes.map(html => html.replace('text-[12px] font-black', 'text-[11px] font-black tracking-tight max-[359px]:text-[10px]')) : modes).join('')}</div>
+                <div id="mode-tiles" class="grid ${['grid-cols-1', 'grid-cols-1', 'grid-cols-2', 'grid-cols-3', 'grid-cols-4', 'grid-cols-5', 'grid-cols-6'][Math.min(6, modes.length)]} ${modes.length > 5 ? 'gap-1 [&_[data-mode-title]]:text-[9.5px] [&_[data-mode-title]]:tracking-tighter' : modes.length > 4 ? 'gap-1.5 [&_[data-mode-title]]:text-[10.5px] [&_[data-mode-title]]:tracking-tight' : 'gap-2 short:gap-1.5'}">${modes.join('')}</div>
             </section>`;
     };
 
@@ -4786,6 +4793,7 @@
         if (screen === 'conquest') return !(ConquestUI && ConquestUI.busy());
         if (screen === 'chain') return !(chainCtl && chainCtl.isPlaying());
         if (screen === 'sorting') return !(sortingCtl && sortingCtl.isPlaying());
+        if (screen === 'puzzle') return !puzzleCtl || puzzleCtl.calm();
         if (mode === 'challenge' || mode === 'quiz') return false;
         return Boolean(round && round.answered);
     };
@@ -13520,6 +13528,30 @@
         });
     }
 
+    // --- Skládačka (puzzle.js): vlajka nebo obrys státu z dílků; obrazovky, tažení a sbírku má puzzle.js, sem patří jen napojení ---
+    // Data: vlajky států z tématu Vlajky (obrázek z Commons jako blob přes photo-blob.js), obrysy z data/mapa-tvary.json pro státy Zeměpisu.
+    // XP za složení s denním stropem počítá puzzle.js; tady se připíše do postupu (den hraní jako u režimů) a synchronizuje.
+    if (Puzzle) {
+        puzzleCtl = Puzzle.createController({
+            appContent, setScreen: (name) => { screen = name; }, getScreen: () => screen, renderHome, renderIcons, updateControlsUI, uiArt, xpLine,
+            readJson, writeJson, getDayKey, loadTopic, loadCountries, loadShapes: () => loadMapData().then(data => data.shapes || {}),
+            commonsPhotoUrl, commonsFileUrl, photoBlob: PhotoBlob, sound: Sound, touchTip: (feature) => touchTip(feature),
+            awardXp: (xp) => {
+                const before = loadProgress();
+                const progress = { ...before, xp: before.xp + xp.total };
+                if (progress.counters.lastDay !== getDayKey()) { progress.counters.days += 1; progress.counters.lastDay = getDayKey(); }
+                chronicleLog({ xp: xp.total });
+                const badges = grantBadges(progress);
+                saveProgress(progress);
+                announce(levelProgress(before.xp).level, levelProgress(progress.xp).level, badges);
+                settleGoals();
+                applyLook();
+                syncProgress();
+                return { ...xp, badges };
+            }
+        });
+    }
+
     // --- Týdenní turnaje ---
     // Pravidla a posun kol dělá databáze (supabase/schema.sql) a čistá logika je v tournament.js; tady se zobrazí karta na záložce Soupeři,
     // okno s koly a zápasy a hra zápasu (otázky z pevného semínka stejně jako ve výzvě, ale bez zápisu do tabulky výzev).
@@ -15500,6 +15532,8 @@
         ...(chainCtl ? chainCtl.actions : {}),
         // Seřaď to (sorting.js)
         ...(sortingCtl ? sortingCtl.actions : {}),
+        // Skládačka (puzzle.js)
+        ...(puzzleCtl ? puzzleCtl.actions : {}),
         'challenge-retry': () => finishChallenge(true),
         'challenge-home': () => challengeHome(),
         'challenge-breakdown': () => { if (challenge && !challenge.tournament) openChallengeBreakdown(challenge, challenge.lastResults || []); },
@@ -15719,6 +15753,8 @@
             if (chainCtl) chainCtl.leave(); else renderHome();
         } else if (screen === 'sorting') {
             if (sortingCtl) sortingCtl.back(); else renderHome();
+        } else if (screen === 'puzzle') {
+            if (puzzleCtl) puzzleCtl.back(); else renderHome();
         } else if (screen === 'mode') {
             confirmLeaveMode();
         } else if (screen === 'snack') {

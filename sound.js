@@ -35,6 +35,9 @@
             n(1975.53, 0.18, 0.32, { type: 'sine', gain: 0.13 }), n(783.99, 0, 0.5, { gain: 0.07 })],
         // Zlatý střípek: dvojí jasné cinknutí, když střípek doletí do počítadla
         shard: [n(1318.51, 0, 0.06, { type: 'sine', gain: 0.13 }), n(1975.53, 0.07, 0.26, { type: 'sine', gain: 0.14 }), n(987.77, 0.07, 0.26, { gain: 0.06 })],
+        // Skládačka (puzzle.js): krátké dřevěné cvaknutí, když dílek zapadne, a vlídné stoupání, když je obrázek složený
+        snap: [n(1567.98, 0, 0.035, { type: 'sine', gain: 0.12 }), n(392, 0, 0.05, { to: 261.63, gain: 0.12 })],
+        puzzle: [n(523.25, 0, 0.1, { type: 'sine' }), n(659.25, 0.08, 0.1, { type: 'sine' }), n(783.99, 0.16, 0.1, { type: 'sine' }), n(1046.5, 0.24, 0.35, { type: 'sine', gain: 0.16 }), n(523.25, 0.24, 0.35, { gain: 0.07 })],
         // Boss týdne (boss.js): zavrčení při nástupu, úder do bosse, zlom stupně (dramatický pád tónu), posměšný smích a pád bosse
         bossRoar: [n(196, 0, 0.32, { to: 130.81, gain: 0.12 }), n(130.81, 0, 0.6, { to: 87.31, gain: 0.2 }), n(98, 0.03, 0.6, { to: 82.41, type: 'sine', gain: 0.22 })],
         bossHit: [n(185, 0, 0.13, { to: 87.31, gain: 0.24 }), n(1567.98, 0.02, 0.08, { type: 'sine', gain: 0.12 }), n(1975.53, 0.06, 0.07, { type: 'sine', gain: 0.08 })],
@@ -48,7 +51,7 @@
             n(1318.51, 0.45, 0.12, { type: 'sine', gain: 0.07 })]
     };
     // Vibrace: krátké cvrnknutí při chybě, rytmus při novém rekordu
-    const VIBRATIONS = { wrong: 40, record: [70, 50, 70, 50, 160], bossHit: 25, bossStage: [60, 40, 110] };
+    const VIBRATIONS = { wrong: 40, record: [70, 50, 70, 50, 160], bossHit: 25, bossStage: [60, 40, 110], snap: 12, puzzle: [30, 40, 70] };
     const lengthOf = (name) => Math.max(...SOUNDS[name].map(note => note.at + note.dur));
 
     const readPrefs = (storage) => {

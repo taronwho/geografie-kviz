@@ -44,6 +44,8 @@ const APP_SHELL = [
     'snack.js',
     // Odškrtávací seznam okruhu a Můj obor v Učení
     'obor.js',
+    // Skládačka (puzzle.js): vlajka nebo obrys státu z dílků (obrysy států jsou v data/mapa-tvary.json výš)
+    'puzzle.js',
     // Fotky otázek jako blob: bez názvu souboru (photo-blob.js; samotné fotky z Commons se do mezipaměti neukládají)
     'photo-blob.js',
     // Dobývání (conquest.js, conquest-ui.js) a jeho mapy (scripts/build-dobyvani.js)
