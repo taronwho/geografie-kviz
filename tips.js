@@ -82,6 +82,8 @@
             action: { kind: 'progress', label: 'Postup' }, ready: (u) => u.album, used: (u) => Boolean(u.visited.album) },
         { id: 'kronika', icon: 'book-open', after: 40, title: 'Mudrlantova kronika', text: 'Každou neděli večer ti Mudrlant shrne uplynulý týden: kolik otázek máš za sebou, téma a titul týdne a tvoje nové objevy. Kroniku najdeš i na záložce Postup a můžeš ji sdílet jako obrázek.',
             action: { kind: 'chronicle', label: 'Otevřít kroniku' }, ready: (u) => u.chronicle && num(u.counters.days) >= 2, used: (u) => Boolean(u.visited.chronicle) },
+        { id: 'statistiky', icon: 'chart-column', after: 80, title: 'Statistiky pro nadšence', text: 'Na záložce Postup najdeš Statistiky: přesnou úspěšnost po tématech a okruzích, kalendář hraní, vývoj po týdnech, co si nejčastěji pleteš a rekordy ze všech her.',
+            action: { kind: 'stats', label: 'Otevřít statistiky' }, ready: (u) => u.stats && num(u.counters.days) >= 3, used: (u) => Boolean(u.visited.stats) },
         { id: 'ligove-sezony', icon: 'calendar-days', art: 'ligova-sezona', multi: true, account: true, after: 40, title: 'Ligové sezóny', text: 'Každý kalendářní měsíc je jedna ligová sezóna. Po jejím skončení dostaneš rámeček profilu podle nejvyšší ligy, které v ní dosáhneš, od Stříbra až po Mistra. Rámeček ti zůstane navždy. Výsledky sezón si můžeš vystavit ve vitríně.',
             action: { kind: 'leagueSeasons', label: 'Ligové sezóny' }, ready: (u) => u.leagueSeasons && num(u.counters.challenges) >= 2, used: (u) => Boolean(u.visited.leagueSeasons) },
         // Postavičky (look.js AVATARS, i další z NEW_AVATARS): odměny z různých částí hry; kdo skupinu Postavičky otevřel, tip nepotřebuje
@@ -184,7 +186,7 @@
 
     const EMPTY = { seen: [], day: '', n: 0, lastAt: 0, off: false, visited: {} };
     // Navštívené části hry (tip o nich už není potřeba): Učení, Postup, Vzhled, Diplomy, Sezóna, Album, Vitrína, Kronika týdne, skupina Postavičky…
-    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle', 'gold', 'conquest', 'bets', 'conquestInvite', 'poll', 'referral', 'perks', 'robeColor', 'characters', 'tourShare', 'robots', 'snack', 'obor'];
+    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle', 'gold', 'conquest', 'bets', 'conquestInvite', 'poll', 'referral', 'perks', 'robeColor', 'characters', 'tourShare', 'robots', 'snack', 'obor', 'stats'];
     const parse = (value) => {
         const v = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
         const visited = {};
@@ -218,7 +220,7 @@
         if (ctx.now - state.lastAt < MIN_GAP_MS) return null;
         const u = { counters: ctx.counters || {}, visited: state.visited, reviewOn: ctx.reviewOn !== false, friends: ctx.friends, signedIn: Boolean(ctx.signedIn),
             quiz: ctx.quiz !== false, mystery: ctx.mystery !== false, modes: ctx.modes !== false, goals: ctx.goals !== false, freezes: ctx.freezes, maxStars: ctx.maxStars,
-            season: ctx.season !== false, album: ctx.album !== false, showcase: ctx.showcase !== false, chronicle: ctx.chronicle !== false, leagueSeasons: Boolean(ctx.leagueSeasons),
+            season: ctx.season !== false, album: ctx.album !== false, showcase: ctx.showcase !== false, chronicle: ctx.chronicle !== false, stats: ctx.stats !== false, leagueSeasons: Boolean(ctx.leagueSeasons),
             gold: ctx.gold !== false,
             boss: ctx.boss !== false,
             bets: Boolean(ctx.bets),
