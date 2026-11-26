@@ -446,6 +446,9 @@
             return [{ kind: 'photo' }, { kind: 'visual', spec: rangeMapOf(item) }, { kind: 'facts', facts: factsOf(item, type) },
                 { kind: 'facts', label: 'vědecký název', icon: 'microscope', facts: lat ? [{ label: 'Vědecký název', value: lat }] : [] }];
         },
+        // Fotka je hlavní vodítko u zvířat, rostlin a plemen: když popis nic neřekne (quiz-core.js isBareText: „Druh ptáka rodu [***].“),
+        // je fotka součástí otázky zdarma (composeRound: leadPhoto); u nemocí, lékařů a částí těla ne
+        leadPhoto: (item, ctx, type) => type === 'name' && !isHealth(item) && !isBody(item),
         // Mapa rozšíření z Wikimedia Commons
         visual: (item) => isHealthPerson(item) ? personTimeline(item) : rangeMapOf(item),
         facts: (item, ctx, mode) => isHealth(item) ? healthFacts(item, mode) : factsOf(item, mode),

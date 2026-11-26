@@ -16,7 +16,7 @@
         buildHints: CoreBuildHints, planRound
     } = window.MudrlantCore;
     // Sestavení otázky z textu s jednoznačností (quiz-core.js composeRound): rozlišující údaj, výměna nesprávných možností
-    const { composeRound, MASK_RULES_FROM } = window.MudrlantCore;
+    const { composeRound, MASK_RULES_FROM, BARE_TEXT_FROM } = window.MudrlantCore;
     const Visuals = window.MudrlantVisuals;
     // Opakování karet (review.js) a týdenní cíle (goals.js); bez skriptu se jen nezobrazí
     const Review = window.MudrlantReview || null;
@@ -628,7 +628,10 @@
             stableSwaps: (options.mode || mode) === 'challenge', shown, rng, photoUrl, describeVisual, photoMasks, textPhotos: ctx.textPhotos || new Set(),
             swaps: uniqueSwapsNow(options), fixed: Boolean(options.wrong), plain: Boolean(options.plain),
             // Den otázky před MASK_RULES_FROM: možnosti denních módů se vyberou se zakrýváním jako dřív (dnešní sada zůstane stejná)
-            legacyChoices: String(options.day || getDayKey()) < MASK_RULES_FROM });
+            legacyChoices: String(options.day || getDayKey()) < MASK_RULES_FROM,
+            // Neinformativní popis se neukáže a u zvířat a rostlin je místo něj ověřená fotka zdarma (leadPhoto); otázky dne před BARE_TEXT_FROM
+            // (denní módy podle dne otázky, výzvy a turnaj podle dneška) jako dřív, trénink hned
+            legacyBare: String(options.day || ((options.mode || mode) === 'challenge' ? getDayKey() : BARE_TEXT_FROM)) < BARE_TEXT_FROM, photoReady: Boolean(settled && settled.result) });
         question = composed.question;
         const { conflict, ambiguous, typeLabel } = composed;
         const { text, questionText, moreText, origin } = composed.texts;
@@ -657,11 +660,14 @@
             // Rozlišující údaj: ukáže se hned, když popis a fakta odpověď mezi možnostmi neurčí
             ...(clue && clue.length ? { clue } : {}),
             questionText,
+            // Neinformativní popis se neukazuje (quiz-core.js isBareText)
+            ...(composed.texts.bare ? { bareText: true } : {}),
             // Odkud popis je: 'article' (úvod článku z Wikipedie), 'fallback' (krátký popis z Wikidat), 'withheld' (téma ho neukazuje)
             textOrigin: origin,
             photoUrl,
             // label a icon = záložka obrázku (Obraz, Vlajka…); url null = obrázek se nenačetl
-            questionImage: shown ? { url: shownUrl, label: shown.label || 'Obrázek', icon: shown.icon || 'image', same: shown.file === item.im, masks: photoMasks[shown.file] || null } : null,
+            questionImage: shown ? { url: shownUrl, label: shown.label || 'Obrázek', icon: shown.icon || 'image', same: shown.file === item.im, masks: photoMasks[shown.file] || null }
+                : composed.leadPhoto ? { url: photoUrl, label: composed.leadPhoto.label, icon: composed.leadPhoto.icon, same: true, lead: true, masks: photoMasks[item.im] || null } : null,
             // Rozmazané nápisy s odpovědí na fotce nápovědy (jen před odpovědí)
             photoMasks: photoMasks[item.im] || null,
             visual,
@@ -3660,8 +3666,8 @@
     // Záložka nápovědy: „Fakta“ místo dlouhého „Čísla a fakta“, jinak název nápovědy
     const tabLabel = (hint) => hint.kind === 'facts' && !hint.extra ? 'Fakta' : capitalize(hint.label);
 
-    const renderFactsList = (facts) => `
-        <dl class="grid grid-cols-2 gap-2">
+    const renderFactsList = (facts, label = '') => `
+        <dl class="grid grid-cols-2 gap-2"${label ? ` aria-label="${escapeHtml(label)}"` : ''}>
             ${facts.map(fact => `
                 <div class="rounded-xl bg-slate-50 p-2.5 dark:bg-slate-900/60">
                     <dt class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">${escapeHtml(fact.label)}</dt>
@@ -3707,8 +3713,9 @@
                 </div>` : ''}
             ${text
                 ? `<p class="text-[15px] font-medium italic leading-snug text-slate-700 dark:text-slate-200">„${escapeHtml(text)}“</p>`
-                : hint ? '' : '<p class="text-sm text-slate-500 dark:text-slate-400">Popis se teď nepodařilo načíst z Wikipedie – pomůžou nápovědy.</p>'}
-            ${!hint && (data.leadFacts || []).length ? `
+                : hint || name || (data.leadFacts || []).length ? '' : `<p class="text-sm text-slate-500 dark:text-slate-400">${data.bareText ? 'Popis z Wikipedie by nic neřekl – pomůžou nápovědy.' : 'Popis se teď nepodařilo načíst z Wikipedie – pomůžou nápovědy.'}</p>`}
+            ${!hint && !text && (data.leadFacts || []).length ? renderFactsList(data.leadFacts, 'Co o tom víme') : ''}
+            ${!hint && text && (data.leadFacts || []).length ? `
                 <dl class="mt-2.5 flex flex-wrap gap-1.5" aria-label="Co o tom víme">
                     ${data.leadFacts.map(fact => `<div class="rounded-lg bg-slate-100 px-2 py-1 text-xs dark:bg-slate-900/60"><dt class="inline font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">${escapeHtml(fact.label)}:</dt> <dd class="inline font-bold text-slate-800 dark:text-slate-100">${escapeHtml(fact.value)}</dd></div>`).join('')}
                 </dl>` : ''}
@@ -3777,7 +3784,8 @@
         const textAsHint = data.hints.some(hint => hint.kind === 'text');
         // Časové souvislosti: místo popisu osobnost či věc, na kterou se otázka ptá (u otázek bez ní čtyři položky s obrázky)
         const free = isTime(data) ? [{ key: 'text', label: TimeQ.leadLabel(data), icon: TimeQ.ICON, html: TimeQ.leadHtml(data) }]
-            : !textAsHint && !data.questionImage ? [{ key: 'text', label: 'Popis', icon: 'quote', html: textPane(data, style) }] : [];
+            // Bez popisu (neinformativní popis se neukazuje, quiz-core.js isBareText) jen fakta ukázaná hned: záložka Fakta
+            : !textAsHint && !data.questionImage ? [{ key: 'text', ...(!data.questionText && (data.leadFacts || []).length ? { label: 'Fakta', icon: 'info' } : { label: 'Popis', icon: 'quote' }), html: textPane(data, style) }] : [];
         const panes = [...image, ...free, ...hintPanes(unlocked, data, style)];
         return renderTabbedPanel(panes, round.tab || panes[0].key, 'hint-tab', isTime(data) ? TIME_PANEL_HEIGHT : QUESTION_PANEL_HEIGHT, clueStrip(data, style));
     };
