@@ -1,6 +1,6 @@
-// Přehled série Kvízu dne (quiz-streak.js) v prohlížeči s falešným Supabase: přihlášený hráč, který 19.–24. 11. hrál a „včera večer“ dohrál
-// kvíz až 26. 11. v 0:14 (hlášení 26. 11. 2026) – karta Moje série ve výsledku, okno s kalendářem (25. 11. vynechaný, 26. 11. dohraný
-// po půlnoci, úseky série), výběr dne, otevření z okna Série a ochrana série a návrat zpět; dny z jiného zařízení (účet) se počítají do série
+// Přehled série Kvízu dne (quiz-streak.js) v prohlížeči s falešným Supabase: měsíční kalendář s daty jako u uživatele (snímek 26. 11. 2026:
+// odehráno od 1. 11., ochrana 13. a 18. 11., 25. 11. vynecháno, dnes dohráno v 18:17) – karta Moje série ve výsledku, pás série, štít, ×,
+// krátký řádek po klepnutí na den, přepínání měsíců šipkami, otevření z okna Série a ochrana série a návrat zpět; dny z jiného zařízení (účet) se počítají do série
 // a ochrana nezabere zbytečně; skutečně vynechaný den ochrana zachrání a přehled ukáže, kdy. Host bez účtu. Okno se vejde bez posouvání
 // na 360×640 i 390×780, světlý i tmavý režim, kontroly rozhraní jako tests/e2e-ui-audit.test.js. SCREENSHOT_DIR=… uloží snímky.
 // Potřebuje Playwright (viz tests/e2e.test.js), jinak se přeskočí.
@@ -141,51 +141,62 @@ test('Přehled série Kvízu dne v prohlížeči', { skip: !chromium && 'Playwri
     const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
     t.after(() => browser.close());
 
+    // Data jako u uživatele (snímek 26. 11. 2026): odehráno od 1. 11., ochrana zabrala 13. a 18. 11., 25. 11. vynecháno, dnes dohráno v 18:17
+    const userRows = () => [...range('2026-11-01', '2026-11-24').filter(day => day !== '2026-11-13' && day !== '2026-11-18').map(day => row(day)), row(TODAY, '18:17', { correct: 7, score: 28 })];
+    const userRewards = { 'mudrlant.rewards': JSON.stringify({ v: 1, freezes: 0, freezesAt: 1, frozenQuiz: ['2026-11-13', '2026-11-18'], checked: TODAY }) };
     for (const size of SIZES) for (const scheme of ['light', 'dark']) {
-        await t.test(`hlášení 26. 11.: dohráno po půlnoci, 25. 11. vynechaný (${size.width}×${size.height}, ${scheme})`, async () => {
-            const db = { log: [], history: [], rows: [...range('2026-11-19', '2026-11-24').map(day => row(day)), row(TODAY, '0:14')] };
-            const { context, tab, log } = await setup(browser, login, { viewport: size, colorScheme: scheme, db });
+        await t.test(`měsíční kalendář s daty jako u uživatele (${size.width}×${size.height}, ${scheme})`, async () => {
+            const db = { log: [], history: [], rows: userRows() };
+            const { context, tab, log } = await setup(browser, { ...login, ...userRewards }, { viewport: size, colorScheme: scheme, db });
             await openStreak(tab);
-            assert.match(await compact(tab, '[data-quiz-streak]'), /1 den · nejlepší 6 dní/);
             await tab.waitForFunction(() => document.querySelector('[data-qs-day="2026-11-24"]').dataset.qsStatus === 'done');
+            assert.equal(await compact(tab, '[data-qs-month-title]'), 'Listopad 2026');
             assert.equal(await compact(tab, '[data-qs-current]'), '1 den');
-            assert.equal(await compact(tab, '[data-qs-best]'), '6 dní');
+            assert.equal(await compact(tab, '[data-qs-best]'), '22 dní');
             assert.equal(await compact(tab, '[data-qs-freezes]'), '0 z 2');
-            assert.equal(await tab.getAttribute('[data-qs-day="2026-11-25"]', 'data-qs-status'), 'missed');
-            assert.equal(await tab.getAttribute('[data-qs-day="2026-11-24"]', 'data-qs-status'), 'done');
-            assert.equal(await tab.getAttribute('[data-qs-day="2026-11-18"]', 'data-qs-status'), 'unknown');
-            assert.equal(await tab.getAttribute(`[data-qs-day="${TODAY}"]`, 'data-qs-status'), 'done');
-            assert.equal(await tab.$$eval('[data-qs-day]', cells => cells.length), 67);
-            // Dnešek je vybraný: dohráno v 0:14, po půlnoci
-            assert.match(await compact(tab, '[data-qs-detail]'), /^Dnes \(čt 26\. 11\.\): Dohráno v 0:14 \(po půlnoci, patří k tomuto dni, ne k předchozímu večeru\) · 7\/10 správně, 24 bodů · v účtu/);
-            assert.match(await tab.getAttribute(`[data-qs-day="${TODAY}"]`, 'class'), /bg-amber-400/, 'současná série zlatě');
-            assert.ok(db.history.some(search => /user_id=eq\.u-1/.test(search) && /day=gte\.2026-07-29/.test(search)), db.history.join(' | '));
+            const status = (day) => tab.getAttribute(`[data-qs-day="${day}"]`, 'data-qs-status');
+            const band = (day) => tab.getAttribute(`[data-qs-day="${day}"]`, 'data-qs-band');
+            assert.equal(await status('2026-11-25'), 'missed');
+            assert.equal(await status('2026-11-13'), 'saved');
+            assert.equal(await status('2026-11-18'), 'saved');
+            assert.equal(await band('2026-11-13'), 'played', 'zachráněný den je v pásu série');
+            assert.equal(await band(TODAY), 'current', 'současná série zlatě');
+            assert.equal(await tab.$$eval('#dialog-overlay [data-qs-day]', cells => cells.length), 26, 'tlačítka jen pro dny do dneška');
+            assert.ok(await tab.$('#dialog-overlay [aria-label="Předchozí měsíc"][disabled]'), 'před listopadem nejsou data');
+            assert.ok(await tab.$('#dialog-overlay [aria-label="Další měsíc"][disabled]'), 'dál než dnešní měsíc nejde');
+            // Pás série: sousední odehrané dny jedním pruhem (mezi buňkami bez mezery)
+            const geometry = await tab.evaluate(() => ['2026-11-11', '2026-11-12', '2026-11-13'].map(day => { const r = document.querySelector(`[data-qs-day="${day}"]`).getBoundingClientRect(); return [r.left, r.right]; }));
+            assert.ok(Math.abs(geometry[0][1] - geometry[1][0]) < 1 && Math.abs(geometry[1][1] - geometry[2][0]) < 1, `pás bez mezer: ${JSON.stringify(geometry)}`);
+            // Dnešek je vybraný: krátký řádek bez zdroje záznamu
+            assert.equal(await compact(tab, '[data-qs-detail]'), 'Čt 26. 11. · 18:17 · 7/10, 28 b');
+            assert.equal(await compact(tab, '[data-qs-note]'), 'Den končí o půlnoci.');
+            assert.doesNotMatch(await compact(tab, '#dialog-overlay'), /v účtu|v zařízení|Klepni na den a uvidíš/);
             await fits(tab, `přehled ${size.width}×${size.height}`);
             await audit(tab, `přehled ${size.width}×${size.height} ${scheme}`);
-            await shot(tab, `prehled-${size.width}x${size.height}-${scheme}`);
-            // Klepnutí na 25. 11.: co se stalo
-            await tab.click('[data-qs-day="2026-11-25"]');
-            await tab.waitForFunction(() => document.querySelector('[data-qs-detail]').dataset.qsDetailDay === '2026-11-25');
-            assert.match(await compact(tab, '[data-qs-detail]'), /^St 25\. 11\.: Kvíz dne nebyl odehraný, tady skončila série 6 dní \(19\. 11\. – 24\. 11\.\)/);
-            assert.equal(await tab.getAttribute('[data-qs-day="2026-11-25"]', 'aria-pressed'), 'true');
-            await tab.click('[data-qs-day="2026-11-24"]');
-            await tab.waitForFunction(() => document.querySelector('[data-qs-detail]').dataset.qsDetailDay === '2026-11-24');
-            assert.match(await compact(tab, '[data-qs-detail]'), /^Út 24\. 11\.: Dohráno v 20:30/);
+            await shot(tab, `kalendar-${size.width}x${size.height}-${scheme}`);
+            // Klepnutí na dny
+            for (const [day, text] of [['2026-11-25', 'St 25. 11. · vynecháno'], ['2026-11-13', 'Pá 13. 11. · zachráněno ochranou'], ['2026-11-24', 'Út 24. 11. · 20:30 · 7/10, 24 b']]) {
+                await tab.click(`[data-qs-day="${day}"]`);
+                await tab.waitForFunction(d => document.querySelector('[data-qs-detail]').dataset.qsDetailDay === d, day);
+                assert.equal(await compact(tab, '[data-qs-detail]'), text);
+                assert.equal(await tab.getAttribute(`[data-qs-day="${day}"]`, 'aria-pressed'), 'true');
+                assert.equal(await tab.evaluate(() => document.activeElement && document.activeElement.dataset.qsDay), day, 'klepnutý den zůstane zaměřený');
+                if (day === '2026-11-25') await shot(tab, `kalendar-vynechany-den-${size.width}x${size.height}-${scheme}`);
+            }
             await fits(tab, `přehled po výběru dne ${size.width}×${size.height}`);
-            if (scheme === 'light') await shot(tab, `prehled-vybrany-den-${size.width}x${size.height}`);
             // Z okna Série a ochrana série: tlačítko Přehled dnů a návrat zpět
             await tab.click('#dialog-overlay [data-close]');
             await tab.click('[data-action="quiz-home"]');
             await tab.waitForSelector('#streak-chip');
             await tab.click('#streak-chip');
             await tab.waitForSelector('[data-quiz-streak-open]');
-            // Okno Série a ochrana série: na 360×640 stejná rezerva jako v tests/e2e-dialogs-fit.test.js (dlaždice Série je tlačítko, nic nepřidává)
             await fits(tab, `Série a ochrana série ${size.width}×${size.height}`, size.height < 700 ? 24 : 0);
-            if (scheme === 'light') await shot(tab, `serie-a-ochrana-${size.width}x${size.height}`);
             await tab.click('[data-quiz-streak-open]');
             await tab.waitForFunction(title => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === title, TITLE);
             await tab.waitForSelector('#dialog-overlay [data-dialog-back]');
             await fits(tab, `přehled se Zpět ${size.width}×${size.height}`);
+            await audit(tab, `přehled se Zpět ${size.width}×${size.height} ${scheme}`);
+            if (scheme === 'light') await shot(tab, `kalendar-se-zpet-${size.width}x${size.height}`);
             await tab.click('#dialog-overlay [data-dialog-back]');
             await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Série a ochrana série');
             assert.deepEqual(log.errors, []);
@@ -193,6 +204,39 @@ test('Přehled série Kvízu dne v prohlížeči', { skip: !chromium && 'Playwri
             await context.close();
         });
     }
+
+    await t.test('přepínání měsíců: šipky mezi měsíci s daty, klepnutí na den v jiném měsíci, nejdál dnešní měsíc', async () => {
+        const db = { log: [], history: [], rows: [...range('2026-09-28', '2026-10-03').map(day => row(day)), ...range('2026-11-20', '2026-11-24').map(day => row(day)), row(TODAY, '0:14')] };
+        const { context, tab, log } = await setup(browser, login, { db, colorScheme: 'dark' });
+        await openStreak(tab);
+        await tab.waitForSelector('#dialog-overlay [data-qs-month="2026-10"]');
+        await tab.click('#dialog-overlay [aria-label="Předchozí měsíc"]');
+        await tab.waitForFunction(() => document.querySelector('[data-qs-calendar]').dataset.qsShown === '2026-10');
+        assert.equal(await compact(tab, '[data-qs-month-title]'), 'Říjen 2026');
+        assert.equal(await compact(tab, '[data-qs-detail]'), 'Klepni na den.');
+        assert.equal(await tab.getAttribute('[data-qs-day="2026-10-05"]', 'data-qs-status'), 'missed');
+        assert.equal(await tab.evaluate(() => document.activeElement && document.activeElement.getAttribute('aria-label')), 'Předchozí měsíc', 'šipka zůstane zaměřená');
+        await tab.click('[data-qs-day="2026-10-02"]');
+        await tab.waitForFunction(() => document.querySelector('[data-qs-detail]').dataset.qsDetailDay === '2026-10-02');
+        // Řádek je počítaný pro zimní čas (UTC+1), 2. 10. platí letní (UTC+2): o hodinu víc
+        assert.equal(await compact(tab, '[data-qs-detail]'), 'Pá 2. 10. · 21:30 · 7/10, 24 b');
+        await fits(tab, 'přehled říjen 360×640');
+        await audit(tab, 'přehled říjen 360×640 dark');
+        await shot(tab, 'kalendar-rijen-360x640-dark');
+        await tab.click('#dialog-overlay [aria-label="Předchozí měsíc"]');
+        await tab.waitForFunction(() => document.querySelector('[data-qs-calendar]').dataset.qsShown === '2026-09');
+        assert.ok(await tab.$('#dialog-overlay [aria-label="Předchozí měsíc"][disabled]'), 'září je první měsíc s daty');
+        assert.equal(await tab.getAttribute('[data-qs-day="2026-09-27"]', 'data-qs-status'), 'unknown', 'před prvním záznamem bez záznamu');
+        await tab.click('#dialog-overlay [aria-label="Další měsíc"]');
+        await tab.click('#dialog-overlay [aria-label="Další měsíc"]');
+        await tab.waitForFunction(() => document.querySelector('[data-qs-calendar]').dataset.qsShown === '2026-11');
+        assert.ok(await tab.$('#dialog-overlay [aria-label="Další měsíc"][disabled]'));
+        assert.equal(await compact(tab, '[data-qs-detail]'), 'Čt 26. 11. · 0:14 · 7/10, 24 b', 'dnešek je zase vybraný');
+        assert.ok(db.history.some(search => /user_id=eq\.u-1/.test(search) && /day=gte\.2026-07-29/.test(search)), db.history.join(' | '));
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
 
     await t.test('dvě zařízení: den odehraný jinde (v účtu) se počítá do série a ochrana nezabere zbytečně', async () => {
         // Toto zařízení zná 20.–24. 11., 25. 11. se hrálo na jiném zařízení (jen v účtu); ochrana 1
@@ -209,7 +253,8 @@ test('Přehled série Kvízu dne v prohlížeči', { skip: !chromium && 'Playwri
         await tab.waitForSelector('[data-qs-day="2026-11-25"][data-qs-status="done"]');
         assert.equal(await compact(tab, '[data-qs-current]'), '6 dní');
         await tab.click('[data-qs-day="2026-11-25"]');
-        await tab.waitForFunction(() => /· v účtu$/.test(document.querySelector('[data-qs-detail]').textContent.trim()));
+        await tab.waitForFunction(() => document.querySelector('[data-qs-detail]').dataset.qsDetailDay === '2026-11-25');
+        assert.equal(await compact(tab, '[data-qs-detail]'), 'St 25. 11. · 20:30 · 7/10, 24 b');
         assert.deepEqual(log.errors, []);
         await context.close();
     });
@@ -227,10 +272,10 @@ test('Přehled série Kvízu dne v prohlížeči', { skip: !chromium && 'Playwri
         await tab.waitForSelector('[data-qs-day="2026-11-25"][data-qs-status="saved"]');
         await tab.click('[data-qs-day="2026-11-25"]');
         await tab.waitForFunction(() => document.querySelector('[data-qs-detail]').dataset.qsDetailDay === '2026-11-25');
-        assert.match(await compact(tab, '[data-qs-detail]'), /^St 25\. 11\.: Nehráno, sérii zachránila ochrana série \(použita 26\. 11\. v 8:05\)/);
+        assert.equal(await compact(tab, '[data-qs-detail]'), 'St 25. 11. · zachráněno ochranou');
         assert.equal(await compact(tab, '[data-qs-current]'), '5 dní');
         assert.equal(await tab.getAttribute(`[data-qs-day="${TODAY}"]`, 'data-qs-status'), 'today');
-        await shot(tab, 'prehled-zachraneny-den-360x640');
+        await shot(tab, 'kalendar-zachraneny-den-360x640');
         assert.deepEqual(log.errors, []);
         await context.close();
     });
@@ -241,20 +286,20 @@ test('Přehled série Kvízu dne v prohlížeči', { skip: !chromium && 'Playwri
         const { context, tab, log } = await setup(browser, { ...login, 'mudrlant.dailyQuiz': JSON.stringify({ v: 1, days, attempt: null }) }, { db });
         await tab.click('#streak-chip');
         await tab.click('[data-quiz-streak-open]');
-        await tab.waitForFunction(() => /nenačetly/.test(document.querySelector('[data-qs-note]').textContent));
+        await tab.waitForFunction(() => /nenačetl/.test(document.querySelector('[data-qs-note]').textContent));
         assert.equal(await tab.getAttribute('[data-qs-day="2026-11-22"]', 'data-qs-status'), 'unknown');
         await tab.click('[data-qs-day="2026-11-20"]');
         await tab.waitForFunction(() => document.querySelector('[data-qs-detail]').dataset.qsDetailDay === '2026-11-20');
-        assert.match(await compact(tab, '[data-qs-detail]'), /Dohráno v 19:10 · 6\/10 správně, 20 bodů · jen v tomto zařízení/);
+        assert.equal(await compact(tab, '[data-qs-detail]'), 'Pá 20. 11. · 19:10 · 6/10, 20 b');
         await context.close();
         const guest = await setup(browser, { 'mudrlant.dailyQuiz': JSON.stringify({ v: 1, days, attempt: null }) }, { viewport: SIZES[1], colorScheme: 'dark' });
         await guest.tab.click('#streak-chip');
         await guest.tab.click('[data-quiz-streak-open]');
         await guest.tab.waitForSelector('[data-qs-day="2026-11-22"][data-qs-status="missed"]');
-        assert.match(await compact(guest.tab, '[data-qs-note]'), /Ze záznamů v tomto zařízení\./);
+        assert.equal(await compact(guest.tab, '[data-qs-note]'), 'Den končí o půlnoci.');
         assert.equal(await guest.tab.getAttribute('[data-qs-day="2026-11-19"]', 'data-qs-status'), 'unknown');
         await fits(guest.tab, 'přehled hosta 390×780');
-        await shot(guest.tab, 'prehled-host-390x780-dark');
+        await shot(guest.tab, 'kalendar-host-390x780-dark');
         assert.deepEqual([...log.errors, ...guest.log.errors], []);
         await guest.context.close();
     });

@@ -85,6 +85,8 @@ const backend = async (context, db) => {
             if (/^daily_quiz_/.test(name)) {
                 if (db.missing) return json({ code: 'PGRST202', message: 'Could not find the function' }, 404);
                 if (db.fail[name]) return json({ code: '22023', message: db.fail[name] }, 400);
+                // Výpadek spojení (db.down): odpověď serveru nepřijde vůbec
+                if (db.down && name !== 'daily_quiz_state') return route.abort('internetdisconnected');
                 const key = `${me.id}|${TODAY}`;
                 const row = db.quiz[key];
                 if (name === 'daily_quiz_state') return json(quizJson(db, me.id, row));
@@ -469,6 +471,50 @@ test('Kvíz dne v prohlížeči', { skip: !chromium && 'Playwright není nainsta
         assert.equal(db.quiz[`u-1|${TODAY}`].answered, 4);
         assert.deepEqual(log.errors, []);
         await context.close();
+    });
+
+    // Reprodukce (hlášení 26. 11. 2026, den v účtu chyběl): odpovědi, které se kvůli výpadku spojení neodeslaly, se dřív zkoušely poslat
+    // jen při dalším otevření Kvízu dne – kdo ho ten den už neotevřel, o den v účtu přišel (po půlnoci ho server odmítne)
+    await t.test('výpadek spojení při hře: neodeslané odpovědi se dopošlou samy po obnovení spojení i po novém spuštění', async () => {
+        const db = newDb();
+        const { context, tab, log } = await setup(browser, login('tok-u1'), { db });
+        await tab.click('#quiz-card');
+        await tab.waitForSelector('#quiz-intro');
+        db.down = true;
+        await tab.click('[data-action="quiz-start"]');
+        for (let i = 0; i < 10; i++) await answer(tab, { correct: i < 7 });
+        await tab.waitForSelector('#quiz-result', { timeout: 30000 });
+        assert.match(await compact(tab, '#quiz-result'), /Výsledek čeká na odeslání/);
+        assert.equal(db.quiz[`u-1|${TODAY}`], undefined, 'server zatím nic nemá');
+        assert.equal((await quizStore(tab)).days[TODAY].correct, 7, 'v zařízení je den uložený');
+        await tab.click('[data-action="quiz-home"]');
+        await tab.waitForSelector('#quiz-card[data-quiz-status="done"]');
+        // Spojení je zpět: bez otevření Kvízu dne
+        db.down = false;
+        await tab.evaluate(() => window.dispatchEvent(new Event('online')));
+        await tab.waitForFunction(() => true);
+        for (let i = 0; i < 100 && !(db.quiz[`u-1|${TODAY}`] && db.quiz[`u-1|${TODAY}`].finished); i++) await tab.waitForTimeout(100);
+        assert.equal(db.quiz[`u-1|${TODAY}`].answered, 10);
+        assert.equal(db.quiz[`u-1|${TODAY}`].correct, 7);
+        assert.equal((await quizStore(tab)).attempt.synced, 10);
+        await context.close();
+
+        // Nové spuštění (třeba obnovení stránky novou verzí uprostřed hry): rozehrané odpovědi se pošlou hned po přihlášení
+        const db2 = newDb();
+        const second = await setup(browser, login('tok-u1'), { db: db2 });
+        await second.tab.click('#quiz-card');
+        await second.tab.waitForSelector('#quiz-intro');
+        db2.down = true;
+        await second.tab.click('[data-action="quiz-start"]');
+        for (let i = 0; i < 3; i++) await answer(second.tab, { correct: true, next: i < 2 });
+        db2.down = false;
+        await second.tab.reload();
+        await second.tab.waitForSelector('#quiz-card', { timeout: 30000 });
+        for (let i = 0; i < 100 && !(db2.quiz[`u-1|${TODAY}`] && db2.quiz[`u-1|${TODAY}`].answered === 3); i++) await second.tab.waitForTimeout(100);
+        assert.equal(db2.quiz[`u-1|${TODAY}`].answered, 3, 'po spuštění server dostal rozehrané odpovědi');
+        await second.tab.waitForSelector('#quiz-card[data-quiz-status="progress"]');
+        assert.deepEqual([...log.errors, ...second.log.errors], []);
+        await second.context.close();
     });
 
     await t.test('starší databáze bez Kvízu dne: hraje se v zařízení, pořadí jen hlásí nedostupnost', async () => {

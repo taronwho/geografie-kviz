@@ -1,7 +1,7 @@
 // Přehled série Kvízu dne (quiz-streak.js) a reprodukce cest, kterými mohla série Kvízu dne spadnout, i když hráč „včera večer hrál“
 // (hlášení 26. 11. 2026: série 1 den, nejlepší 6, ochrana 0 z 2): hra po půlnoci patří k dalšímu dni, Začít klepnuté po půlnoci na úvodu
 // otevřeném před ní, automatická ochrana a série jen ze dnů tohoto zařízení (hráč na dvou zařízeních), rozehraný vs. dohraný den,
-// zachráněné dny, dny bez záznamu, čas dohrání a HTML okna. Zapojení do stránky (index.html, service worker, Tailwind, app.js).
+// zachráněné dny, dny bez záznamu, čas dohrání, měsíční kalendář a HTML okna. Zapojení do stránky (index.html, service worker, Tailwind, app.js).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -26,8 +26,8 @@ test('pražský čas: den a hodina dohrání (i po půlnoci a přes letní čas)
     assert.deepEqual(QS.pragueClock('2026-11-25T22:59:00Z'), { day: '2026-11-25', time: '23:59' });
     assert.deepEqual(QS.pragueClock('2026-07-01T21:30:00Z'), { day: '2026-07-01', time: '23:30' });
     assert.equal(QS.pragueClock(null), null);
-    assert.equal(QS.whenText('2026-11-26', '2026-11-26T07:02:00Z'), 'v 8:02');
-    assert.equal(QS.whenText('2026-11-25', '2026-11-26T07:02:00Z'), '26. 11. v 8:02');
+    assert.equal(QS.whenText('2026-11-26', '2026-11-26T07:02:00Z'), '8:02');
+    assert.equal(QS.whenText('2026-11-25', '2026-11-26T07:02:00Z'), '26. 11. 8:02');
 });
 
 test('reprodukce hlášení: hra krátce po půlnoci se počítá k novému dni, předchozí den chybí a série spadne na 1 (bez ochrany)', () => {
@@ -39,10 +39,9 @@ test('reprodukce hlášení: hra krátce po půlnoci se počítá k novému dni,
     assert.equal(view.best, 6);
     assert.equal(view.statusOf('2026-11-25'), 'missed');
     assert.deepEqual(view.runs.map(run => [run.from, run.to, run.length]), [[TODAY, TODAY, 1], ['2026-11-19', '2026-11-24', 6]]);
-    const missed = QS.dayDetail(view, '2026-11-25');
-    assert.match(missed.text, /nebyl odehraný, tady skončila série 6 dní \(19\. 11\. – 24\. 11\.\)/);
-    const today = QS.dayDetail(view, TODAY);
-    assert.match(today.text, /^Dohráno v 0:14 \(po půlnoci, patří k tomuto dni, ne k předchozímu večeru\) · 7\/10 správně, 24 bodů · v účtu/);
+    // Detail dne krátce, bez zdroje záznamu (uživatel 26. 11.: „nemusí tam být v účtu i v zařízení“)
+    assert.equal(QS.dayDetail(view, '2026-11-25').line, 'St 25. 11. · vynecháno');
+    assert.equal(QS.dayDetail(view, TODAY).line, 'Čt 26. 11. · 0:14 · 7/10, 24 b');
     // Stejně jako série serveru (daily_quiz_streaks) a DailyQuiz.streakOf
     assert.equal(DQ.streakOf(QS.serverPlayed(server, TODAY), TODAY), 1);
     // S ochranou (0 z 2 na snímku = žádná nebyla) by 25. 11. zabrala sama a série pokračovala
@@ -103,8 +102,8 @@ test('rozehraný a dohraný den: minulý den stačí rozehrát, dnešek se poč�
     assert.equal(view.statusOf('2026-11-25'), 'partial');
     assert.equal(view.statusOf(TODAY), 'progress');
     assert.equal(view.current, 2);
-    assert.match(QS.dayDetail(view, '2026-11-25').text, /^Rozehráno \(3 z 10 otázek\), do série se počítá · poslední odpověď v 23:58 · v účtu$/);
-    assert.match(QS.dayDetail(view, TODAY).text, /dohraj ho do půlnoci/);
+    assert.equal(QS.dayDetail(view, '2026-11-25').text, 'rozehráno 3/10, počítá se');
+    assert.equal(QS.dayDetail(view, TODAY).text, 'rozehráno 4/10, dohraj do půlnoci');
     // Rozehraný den v zařízení (po půlnoci uzavřený rollover) i bez účtu
     const local = DQ.rollover({ days: {}, attempt: { ...DQ.newAttempt('2026-11-25', 'host'), results: [{ correct: true, points: 4, ms: 3000 }] } }, TODAY);
     assert.deepEqual(DQ.playedDays(local, TODAY), ['2026-11-25']);
@@ -121,7 +120,8 @@ test('sloučení zařízení a účtu: víc odpovědí vyhrává, čas ze server
     assert.equal(merged['2026-11-23'].at, null, 'starší záznam zařízení čas nemá');
     assert.equal(merged['2026-11-22'].done, false);
     const view = QS.build({ today: TODAY, local: { '2026-11-23': { answered: 10, correct: 8, score: 30, done: true } }, server: [row('2026-11-24')], account: 'ok' });
-    assert.match(QS.dayDetail(view, '2026-11-23').text, /^Dohráno · 8\/10 správně, 30 bodů · jen v tomto zařízení$/);
+    assert.equal(QS.dayDetail(view, '2026-11-23').text, '8/10, 30 b', 'bez času (starší záznam) a bez zdroje');
+    assert.equal(QS.dayDetail(view, '2026-11-24').text, '20:30 · 7/10, 24 b');
     // Zařízení ukládá čas dohrání (od 27. 11. 2026), parseState ho drží
     const state = DQ.parseState({ days: { '2026-11-24': { answered: 10, correct: 9, score: 33, done: true, xp: true, at: 1790000000000 }, '2026-11-23': { answered: 10, done: true, at: 'x' } } });
     assert.equal(state.days['2026-11-24'].at, 1790000000000);
@@ -138,10 +138,11 @@ test('zachráněné dny, čas použití ochrany a úseky série přes ně; dva v
     assert.equal(view.best, 10);
     assert.equal(view.current, 3, 'dnešek ještě nehraný: série ze včerejška');
     assert.equal(view.statusOf(TODAY), 'today');
-    assert.equal(QS.dayDetail(view, '2026-11-15').text, 'Nehráno, sérii zachránila ochrana série (použita 16. 11. v 7:05)');
-    assert.equal(QS.dayDetail(view, '2026-11-21').text.startsWith('Nehráno, sérii zachránila'), true);
+    assert.equal(QS.dayDetail(view, '2026-11-15').line, 'Ne 15. 11. · zachráněno ochranou');
+    assert.equal(QS.dayDetail(view, '2026-11-21').text, 'zachráněno ochranou');
     // Úsek přes zachráněný den 21. 11. končí 20. 11. a 22. 11. je vynechaný: série skončila
-    assert.match(QS.dayDetail(view, '2026-11-22').text, /Kvíz dne nebyl odehraný$/);
+    assert.equal(QS.dayDetail(view, '2026-11-22').text, 'vynecháno');
+    assert.equal(QS.dayDetail(view, TODAY).line, 'Čt 26. 11. · ještě nehráno');
     // Stejné číslo jako DailyQuiz.streakOf
     assert.equal(view.current, DQ.streakOf(view.played, TODAY, view.saved));
 });
@@ -151,47 +152,100 @@ test('bez záznamu: dny před prvním známým kvízem, a když se účet přihl
     const guest = QS.build({ today: TODAY, local, account: 'none' });
     assert.equal(guest.statusOf('2026-11-19'), 'unknown');
     assert.equal(guest.statusOf('2026-11-21'), 'missed');
-    assert.match(QS.dayDetail(guest, '2026-11-19').text, /dřív než první uložený Kvíz dne/);
+    assert.equal(QS.dayDetail(guest, '2026-11-19').text, 'bez záznamu');
     const failed = QS.build({ today: TODAY, local, server: [row('2026-11-21')], account: 'failed' });
     assert.equal(failed.statusOf('2026-11-21'), 'unknown', 'řádky účtu se při chybě nepoužijí a den se neoznačí jako vynechaný');
-    assert.match(QS.dayDetail(failed, '2026-11-21').text, /nenačetly/);
+    assert.equal(QS.dayDetail(failed, '2026-11-21').text, 'bez záznamu, účet se nenačetl');
     const loading = QS.build({ today: TODAY, local, account: 'loading' });
-    assert.match(QS.dayDetail(loading, '2026-11-22').text, /načítám záznamy z účtu/);
+    assert.equal(QS.dayDetail(loading, '2026-11-22').text, 'načítám účet…');
     const empty = QS.build({ today: TODAY, account: 'ok', server: [] });
     assert.equal(empty.current, 0);
     assert.equal(empty.statusOf('2026-11-25'), 'unknown');
     assert.deepEqual(empty.runs, []);
 });
 
-test('kalendář: 10 týdnů po Po–Ne do dneška, budoucí dny prázdné; HTML okna s výběrem dne, legendou, úseky a poznámkou o půlnoci', () => {
-    const server = [...range('2026-11-19', '2026-11-24').map(day => row(day)), row(TODAY, '0:14')];
-    const view = QS.build({ today: TODAY, local: {}, server, account: 'ok', serverBest: 4 });
-    assert.equal(view.columns.length, QS.WEEKS);
-    assert.equal(view.start, '2026-09-21');
-    assert.equal(QS.weekOf(view.start), view.start);
-    assert.equal(view.columns[9][3].day, TODAY, 'čtvrtek v posledním sloupci');
-    assert.deepEqual(view.columns[9].slice(4), [null, null, null]);
-    assert.equal(view.counts.done, 7);
-    assert.equal(view.counts.missed, 1);
-    const html = QS.dialogHtml(view, { selected: '2026-11-25', freezes: 0, max: 2, topicStreak: 4 });
-    assert.equal((html.match(/data-qs-day="/g) || []).length, 67);
-    assert.match(html, /data-qs-day="2026-11-25" data-qs-status="missed" aria-pressed="true" aria-label="st 25\. 11\.: Vynecháno"/);
-    assert.match(html, /data-qs-detail-day="2026-11-25"[^>]*><b>St 25\. 11\.:<\/b> Kvíz dne nebyl odehraný, tady skončila série 6 dní/);
+// Data jako u uživatele (snímek 26. 11. 2026): odehráno od 1. 11., ochrana zabrala 13. a 18. 11., 25. 11. vynecháno, dnes dohráno v 18:17
+const userLike = () => {
+    const days = range('2026-11-01', '2026-11-24').filter(day => day !== '2026-11-13' && day !== '2026-11-18');
+    const server = [...days.map(day => row(day)), row(TODAY, '18:17', { correct: 7, score: 28 })];
+    return QS.build({ today: TODAY, local: {}, server, account: 'ok', frozen: ['2026-11-13', '2026-11-18'], serverBest: 15 });
+};
+
+test('měsíční kalendář: měsíce s daty, týdny Po–Ne, pás série (současná zlatě), štít, ×, dnešek orámovaný, budoucí šedě', () => {
+    const view = userLike();
+    assert.deepEqual(view.months, ['2026-11'], 'jen měsíce s daty, nejdál dnešní');
+    assert.equal(QS.monthTitle('2026-11'), 'Listopad 2026');
+    assert.equal(view.current, 1);
+    assert.equal(view.best, 22, 'série 1.–24. 11. přes dva zachráněné dny');
+    const grid = QS.monthGrid(view, '2026-11');
+    assert.equal(grid.length, 6, 'listopad 2026 začíná v neděli: 6 týdnů');
+    assert.deepEqual(grid[0].slice(0, 6), [null, null, null, null, null, null]);
+    assert.equal(grid[0][6].day, '2026-11-01');
+    assert.equal(grid[5][0].day, '2026-11-30');
+    const cell = (day) => grid.flat().find(c => c && c.day === day);
+    // Pás odehraných dnů přes zachráněný den, konce zakulacené (začátek týdne a konec úseku), mezi týdny se nespojuje
+    assert.deepEqual([cell('2026-11-12').band, cell('2026-11-13').band, cell('2026-11-14').band], ['played', 'played', 'played']);
+    assert.equal(cell('2026-11-13').status, 'saved');
+    assert.equal(cell('2026-11-13').joinLeft && cell('2026-11-13').joinRight, true);
+    assert.equal(cell('2026-11-16').joinLeft, false, 'pondělí začíná nový řádek');
+    assert.equal(cell('2026-11-15').joinRight, false, 'neděle končí řádek');
+    assert.equal(cell('2026-11-24').joinRight, false, 'úsek končí');
+    assert.equal(cell('2026-11-25').band, '');
+    assert.equal(cell('2026-11-25').status, 'missed');
+    assert.equal(cell(TODAY).band, 'current');
+    assert.equal(cell(TODAY).joinLeft, false);
+    assert.equal(cell('2026-11-27').status, null, 'budoucí den');
+    // Říjen bez dat: měsíc se nenabízí, dny před prvním záznamem jsou bez záznamu
+    assert.equal(view.statusOf('2026-10-31'), 'unknown');
+    const html = QS.dialogHtml(view, { month: '2026-11', selected: TODAY, freezes: 0, max: 2 });
+    assert.match(html, /data-qs-month-title aria-live="polite">Listopad 2026</);
+    assert.match(html, /<button type="button" disabled aria-label="Předchozí měsíc"/);
+    assert.match(html, /<button type="button" disabled aria-label="Další měsíc"/);
+    assert.equal((html.match(/data-qs-day="/g) || []).length, 26, 'dny do dneška jsou tlačítka');
+    assert.match(html, /<span aria-hidden="true" class="[^"]*text-slate-300[^"]*">27<\/span>/, 'budoucí den šedě, bez tlačítka');
+    assert.match(html, /data-qs-day="2026-11-26" data-qs-status="done" data-qs-band="current" aria-pressed="true" aria-label="čt 26\. 11\.: Dohráno, současná série, dnes" class="[^"]*bg-amber-300[^"]*rounded-l-full rounded-r-full"><span class="[^"]*ring-2 ring-inset/);
+    assert.match(html, /data-qs-day="2026-11-13" data-qs-status="saved" data-qs-band="played"[^>]*class="[^"]*bg-brand-200[^"]*"><span[^>]*>13<img src="icons\/topics\/ochrana-serie\.webp"/);
+    assert.match(html, /data-qs-day="2026-11-25" data-qs-status="missed" data-qs-band=""[^>]*><span class="[^"]*ring-rose-400[^"]*">25<span aria-hidden="true"[^>]*>×<\/span>/);
+    assert.match(html, /data-qs-detail-day="2026-11-26" role="status"><span><b>Čt 26\. 11\.<\/b> · 18:17 · 7\/10, 28 b<\/span>/);
     assert.match(html, /data-qs-current>1 den</);
-    assert.match(html, /data-qs-best>6 dní</);
+    assert.match(html, /data-qs-best>22 dní</);
     assert.match(html, /data-qs-freezes>0 z 2</);
-    // Současná série (26. 11.) zlatě, starší série vínově, legenda jen to podstatné
-    assert.match(html, /data-qs-day="2026-11-26" data-qs-status="done" aria-pressed="false" aria-label="čt 26\. 11\.: Dohráno, současná série" class="[^"]*bg-amber-400/);
-    assert.match(html, /data-qs-day="2026-11-24" data-qs-status="done" aria-pressed="false" aria-label="út 24\. 11\.: Dohráno" class="[^"]*bg-brand-600/);
-    assert.match(html, /Současná série<\/span>.*Odehráno<\/span>.*Zachráněno ochranou<\/span>.*Vynecháno<\/span>/s);
-    assert.doesNotMatch(html, /data-qs-runs/);
-    assert.match(html, /Den končí o půlnoci \(čas v Česku\), kvíz dohraný po ní patří k dalšímu dni/);
-    assert.match(html, /Dnešní otázky mají vlastní série po tématech\./);
-    assert.deepEqual([...view.currentDays], [TODAY]);
-    assert.match(html, /grid-cols-\[1\.1rem_repeat\(10,minmax\(0,1fr\)\)\]/);
+    // Krátce: legenda jedním řádkem, jedna věta dole, bez zdroje záznamu a bez dlouhého vysvětlování
+    assert.match(html, /série<\/span>.*odehráno<\/span>.*ochrana<\/span>.*vynecháno<\/span>/s);
+    assert.match(html, /data-qs-note>Den končí o půlnoci\.</);
+    assert.doesNotMatch(html, /v účtu|v zařízení|Klepni na den a uvidíš|patří k dalšímu dni/);
     assert.doesNotMatch(html, /style=/, 'CSP: bez inline stylů');
-    // Neplatný vybraný den → dnešek
-    assert.match(QS.dialogHtml(view, { selected: '2030-01-01' }), /data-qs-detail-day="2026-11-26"/);
+    // Vybraný den jinde než v zobrazeném měsíci: výzva klepnout
+    assert.match(QS.dialogHtml(view, { selected: '2030-01-01' }), /data-qs-detail-day=""[^>]*><span[^>]*>Klepni na den\.<\/span>/);
+});
+
+test('přepínání měsíců: šipky jen mezi měsíci s daty, nejdál dnešní; dny přes přelom měsíce', () => {
+    const server = [...range('2026-09-28', '2026-10-03').map(day => row(day)), row('2026-11-20')];
+    const view = QS.build({ today: TODAY, local: {}, server, account: 'ok' });
+    assert.deepEqual(view.months, ['2026-09', '2026-10', '2026-11']);
+    const nov = QS.dialogHtml(view, { month: '2026-11' });
+    assert.match(nov, /data-qs-month="2026-10" aria-label="Předchozí měsíc"/);
+    assert.match(nov, /disabled aria-label="Další měsíc"/);
+    const oct = QS.dialogHtml(view, { month: '2026-10' });
+    assert.match(oct, /data-qs-month="2026-09" aria-label="Předchozí měsíc"/);
+    assert.match(oct, /data-qs-month="2026-11" aria-label="Další měsíc"/);
+    assert.match(oct, />Říjen 2026</);
+    // Úsek 28. 9. – 3. 10.: v říjnu začíná 1. 10. zakulaceně (pás nepřetéká do jiného měsíce)
+    const grid = QS.monthGrid(view, '2026-10');
+    const first = grid.flat().find(c => c && c.day === '2026-10-01');
+    assert.equal(first.band, 'played');
+    assert.equal(first.joinLeft, false);
+    assert.equal(first.joinRight, true);
+    assert.equal(grid.length, 5);
+    // Vynechané dny: × a kroužek jen tam, kde série skončila (4. 10.), další jen červeným číslem (méně šumu)
+    const octCell = (day) => grid.flat().find(c => c && c.day === day);
+    assert.deepEqual([octCell('2026-10-04').status, octCell('2026-10-04').broke, octCell('2026-10-05').status, octCell('2026-10-05').broke], ['missed', true, 'missed', false]);
+    const octHtml = oct;
+    assert.equal((octHtml.match(/>×<\/span><\/span><\/button>/g) || []).length, 1);
+    // Měsíc mimo rozsah → poslední (dnešní)
+    assert.match(QS.dialogHtml(view, { month: '2025-01' }), /data-qs-shown="2026-11"/);
+    // Bez dat jen dnešní měsíc
+    assert.deepEqual(QS.build({ today: TODAY, account: 'none' }).months, ['2026-11']);
 });
 
 test('zapojení: index.html, service worker, Tailwind, Social.dailyQuizHistory, okno a vstupní místa v app.js', () => {

@@ -308,6 +308,14 @@
     };
     // Další otázka k hraní (-1 = všechny zodpovězené)
     const nextIndex = (attempt) => (attempt.results.length < QUESTIONS ? attempt.results.length : -1);
+    // Dnešní pokus s odpověďmi, které server ještě nemá (dopošlou se na pozadí, app.js flushQuiz): patří přihlášenému hráči, nebo je hostovský
+    // (přihlášený si ho převezme, jako při otevření Kvízu dne). Dřív se neodeslané odpovědi zkoušely poslat znovu jen při další odpovědi
+    // a při otevření Kvízu dne: po výpadku spojení při dohrání, obnovení stránky novou verzí uprostřed hry nebo hře před obnovením přihlášení
+    // je server nedostal, a když se Kvíz dne ten den už neotevřel, po půlnoci je odmítl (den v účtu chyběl, hlášení 26. 11. 2026)
+    const unsentAttempt = (attempt, userId, today) => Boolean(attempt && userId && attempt.day === today && Array.isArray(attempt.results) && attempt.results.length > 0
+        && (attempt.owner === 'host' || (attempt.owner === userId && attempt.synced < attempt.results.length)));
+    // Odstup dalšího pokusu o odeslání: 15 s, 30 s, 1 min, 2 min, 4 min, pak po 5 min
+    const retryDelay = (tries) => Math.min(300000, 15000 * 2 ** Math.min(10, Math.max(0, Math.floor(Number(tries) || 0))));
 
     // --- Vykreslení (HTML; h = pomocné funkce z app.js: avatarHtml, topicIcon, xpLine) ---
     const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
@@ -441,7 +449,7 @@
         isDay, addDays, pragueDay, formatDay, formatTime, pointsWord, daysWord, hash32, seededRandom, seedFor, questionSeed,
         slotsFor, tiersOf, pickFor, previousPicks, planDay,
         summarize, bitsOf, emojiGrid, shareText, poseFor, streakOf, bestStreakOf, xpFor,
-        parseState, newAttempt, attemptSummary, rollover, playedDays, startDay, nextIndex,
+        parseState, newAttempt, attemptSummary, rollover, playedDays, startDay, nextIndex, unsentAttempt, retryDelay,
         homeTile, introHtml, rankingHtml, resultHtml
     };
 });

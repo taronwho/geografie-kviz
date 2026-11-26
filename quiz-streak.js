@@ -1,5 +1,7 @@
-// Přehled série Kvízu dne: kalendář posledních týdnů s tím, jak který den dopadl (dohráno, rozehráno a počítá se, zachráněno ochranou série,
-// vynecháno, bez záznamu, dnes ještě nehráno), zvýrazněná současná série, nejdelší série a po klepnutí na den i čas dohrání.
+// Přehled série Kvízu dne: obyčejný měsíční kalendář (šipkami po měsících s daty, nejdál dnešní) s tím, jak který den dopadl: odehrané dny
+// jako souvislý pás (současná série zlatě), zachráněno ochranou (štít), vynecháno (jemně červeně s ×), dnes orámovaný, bez záznamu a budoucí
+// šedě; nahoře současná a nejdelší série a ochrany, po klepnutí na den krátký řádek s časem dohrání a výsledkem. Uživatel 26. 11. 2026:
+// předchozí podoba (mřížka týdnů jako heatmapa, dlouhé texty) byla nepřehledná.
 // Hráč si tak může sám ověřit, proč má sérii, jakou má (hlášení 26. 11. 2026: „myslel jsem, že jsem včera hrál, a přišel jsem o sérii“).
 // Zdroje: odehrané dny tohoto zařízení (mudrlant.dailyQuiz, daily-quiz.js; čas dohrání od 27. 11. 2026), řádky přihlášeného hráče
 // v účtu (daily_quiz_results, schéma 7: začátek, poslední odpověď a dohrání podle serveru) a zachráněné dny (rewards.js frozen a frozenQuiz,
@@ -13,8 +15,6 @@
     else root.MudrlantQuizStreak = api;
 })(typeof self !== 'undefined' ? self : this, () => {
     'use strict';
-    // Kalendář: posledních tolik týdnů (sloupce Po–Ne), vejde se na šířku telefonu 360 px
-    const WEEKS = 10;
     const QUESTIONS = 10;
     const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
     const isDay = (day) => DAY.test(String(day || '')) && Number.isFinite(Date.parse(`${day}T00:00:00Z`));
@@ -24,9 +24,7 @@
     const whole = (value, max) => (Number.isFinite(Number(value)) ? Math.max(0, Math.min(max, Math.floor(Number(value)))) : 0);
     const plural = (count, one, few, many) => `${count} ${count === 1 ? one : count >= 2 && count <= 4 ? few : many}`;
     const daysWord = (count) => plural(count, 'den', 'dny', 'dní');
-    const pointsWord = (count) => plural(count, 'bod', 'body', 'bodů');
     const WEEKDAYS = ['po', 'út', 'st', 'čt', 'pá', 'so', 'ne'];
-    const MONTHS_SHORT = ['led', 'úno', 'bře', 'dub', 'kvě', 'čvn', 'čvc', 'srp', 'zář', 'říj', 'lis', 'pro'];
     const formatDay = (day) => { const m = DAY.exec(String(day || '')); return m ? `${Number(m[3])}. ${Number(m[2])}.` : ''; };
     const weekdayOf = (day) => WEEKDAYS[(new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7];
     const longDay = (day) => `${weekdayOf(day)} ${formatDay(day)}`;
@@ -107,32 +105,29 @@
 
     // --- Přehled ---
     // input: { today, local (days ze zařízení), server (řádky účtu | null), account: 'none' (host) | 'ok' | 'failed' (účet se nenačetl),
-    //   'loading' (účet se načítá; dny bez záznamu jako u failed), frozen (zachráněné dny pro Kvíz dne), log (mudrlant.freezeLog: [{ day, at? }]), serverBest (nejlepší série podle serveru), weeks }
+    //   'loading' (účet se načítá; dny bez záznamu jako u failed), frozen (zachráněné dny pro Kvíz dne), log (mudrlant.freezeLog: [{ day, at? }]), serverBest (nejlepší série podle serveru) }
     // Stav dne: done (dohráno), partial (rozehráno, počítá se), saved (zachráněno ochranou), missed (vynecháno), unknown (bez záznamu),
     // today (dnes ještě nehráno), progress (dnes rozehráno), null = budoucí den
     const build = (input = {}) => {
-        const today = isDay(input.today) ? input.today : addDays(new Date().toISOString().slice(0, 10), 0);
+        const today = isDay(input.today) ? input.today : new Date().toISOString().slice(0, 10);
         const account = ['ok', 'failed', 'loading'].includes(input.account) ? input.account : 'none';
         const days = merge(input.local, account === 'ok' ? input.server : null);
         // Ze zachráněných dnů se počítají jen ty, které nejsou odehrané a nejsou v budoucnosti
         const saved = new Set((Array.isArray(input.frozen) ? input.frozen : []).filter(day => isDay(day) && day < today && !(days[day] && days[day].answered > 0)));
         const playedList = playedOf(days, today);
         const played = new Set(playedList);
-        const known = [...Object.keys(days).filter(day => days[day].answered > 0), ...saved].sort();
+        const known = [...Object.keys(days).filter(day => days[day].answered > 0 && day <= today), ...saved].sort();
         const first = known[0] || '';
         const usedAt = {};
         for (const entry of Array.isArray(input.log) ? input.log : []) if (entry && isDay(entry.day) && Number.isFinite(entry.at) && !usedAt[entry.day]) usedAt[entry.day] = entry.at;
         const runs = runsOf(played, saved);
         const current = currentOf(played, saved, today);
-        // Dny současné série (odehrané i zachráněné), v kalendáři zvýrazněné
+        // Dny současné série (odehrané i zachráněné), v kalendáři zlatě
         const currentDays = new Set();
         if (current) for (let day = played.has(today) ? today : addDays(today, -1), guard = 0; guard < 4000 && (played.has(day) || saved.has(day)); guard++, day = addDays(day, -1)) currentDays.add(day);
         const best = Math.max(current, whole(input.serverBest, 100000), ...runs.map(run => run.length));
-        // Úsek, který skončil den před vynechaným dnem (u vynechaného dne se ukáže, jaká série tam skončila)
-        const endedBefore = {};
-        for (const run of runs) endedBefore[addDays(run.to, 1)] = run;
         const statusOf = (day) => {
-            if (day > today) return null;
+            if (!isDay(day) || day > today) return null;
             const entry = days[day];
             if (day === today) return entry && entry.done ? 'done' : entry && entry.answered > 0 ? 'progress' : 'today';
             if (entry && entry.answered > 0) return entry.done ? 'done' : 'partial';
@@ -141,103 +136,143 @@
             if (!first || day < first || account === 'failed' || account === 'loading') return 'unknown';
             return 'missed';
         };
-        const weeks = Math.max(1, Math.min(26, whole(input.weeks, 26) || WEEKS));
-        const start = addDays(weekOf(today), -7 * (weeks - 1));
-        const columns = [];
-        const counts = { done: 0, partial: 0, saved: 0, missed: 0, unknown: 0 };
-        for (let w = 0; w < weeks; w++) {
-            const column = [];
-            for (let d = 0; d < 7; d++) {
-                const day = addDays(start, w * 7 + d);
-                const status = statusOf(day);
-                if (!status) { column.push(null); continue; }
-                if (counts[status] !== undefined) counts[status] += 1;
-                column.push({ day, status, current: currentDays.has(day) });
-            }
-            columns.push(column);
+        // Měsíce kalendáře: od měsíce prvního záznamu po dnešní (nejvýš 6 zpět, víc dní zařízení ani účet nedrží)
+        const months = [];
+        const last = today.slice(0, 7);
+        for (let month = first ? first.slice(0, 7) : last, guard = 0; month <= last && guard < 24; guard++) {
+            months.push(month);
+            const [y, m] = month.split('-').map(Number);
+            month = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
         }
-        return { today, start, account, days, saved: [...saved].sort(), usedAt, played: playedList, first, runs, current, currentDays, best, endedBefore, columns, counts, statusOf };
+        return { today, account, days, saved: [...saved].sort(), usedAt, played: playedList, first, runs, current, currentDays, best, months: months.slice(-6), statusOf };
     };
 
-    // Popis dne (řádek pod kalendářem): co se ten den stalo a kdy, odkud záznam je
-    const sourceText = (entry) => (entry.account && entry.device ? 'v účtu i v zařízení' : entry.account ? 'v účtu' : 'jen v tomto zařízení');
-    // Kdy: „v 21:47“, nebo s datem, když to bylo jiný den (po půlnoci, záchrana ochranou ráno)
+    // Den v pásu série: odehraný (dnešek dohraný) nebo zachráněný; pás spojí sousední dny stejné barvy (současná série zlatě)
+    const BANDED = new Set(['done', 'partial', 'saved']);
+    const bandOf = (view, day) => {
+        const status = view.statusOf(day);
+        if (!BANDED.has(status)) return '';
+        return view.currentDays.has(day) ? 'current' : 'played';
+    };
+    // Mřížka měsíce RRRR-MM: týdny (Po–Ne) po 7 buňkách, null = den mimo měsíc; buňka { day, n (číslo dne), status, band, broke, joinLeft, joinRight }
+    const monthGrid = (view, month) => {
+        const firstDay = `${month}-01`;
+        if (!isDay(firstDay)) return [];
+        const rows = [];
+        for (let start = weekOf(firstDay); start.slice(0, 7) <= month && rows.length < 6; start = addDays(start, 7)) {
+            rows.push(Array.from({ length: 7 }, (_, d) => {
+                const day = addDays(start, d);
+                if (day.slice(0, 7) !== month) return null;
+                const band = bandOf(view, day);
+                const prev = addDays(day, -1);
+                const next = addDays(day, 1);
+                const status = view.statusOf(day);
+                // Vynechaný den hned po odehraném (tady série skončila) dostane × a kroužek; další vynechané dny jen červené číslo (méně šumu)
+                return { day, n: Number(day.slice(8)), status, band, broke: status === 'missed' && BANDED.has(view.statusOf(prev)),
+                    joinLeft: Boolean(band) && d > 0 && prev.slice(0, 7) === month && bandOf(view, prev) === band,
+                    joinRight: Boolean(band) && d < 6 && next.slice(0, 7) === month && bandOf(view, next) === band };
+            }));
+        }
+        return rows;
+    };
+    const MONTHS = ['Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen', 'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'];
+    const monthTitle = (month) => `${MONTHS[Number(month.slice(5, 7)) - 1]} ${month.slice(0, 4)}`;
+
+    // Detail dne pod kalendářem: jen krátce, co se ten den stalo („St 25. 11. · vynecháno“, „Čt 26. 11. · 18:17 · 7/10, 28 b“)
+    // Kdy: „18:17“, nebo s datem, když to bylo jiný den
     const whenText = (day, at) => {
         const clock = pragueClock(at);
         if (!clock) return '';
-        return clock.day === day ? `v ${clock.time}` : `${formatDay(clock.day)} v ${clock.time}`;
+        return clock.day === day ? clock.time : `${formatDay(clock.day)} ${clock.time}`;
     };
     const dayDetail = (view, day) => {
         const status = view.statusOf(day);
         const entry = view.days[day];
-        const title = day === view.today ? `Dnes (${longDay(day)})` : longDay(day).replace(/^./, char => char.toUpperCase());
-        const run = view.endedBefore[day];
-        const score = entry ? `${entry.correct}/${QUESTIONS} správně, ${pointsWord(entry.score)}` : '';
-        let text = '';
-        // Dohráno krátce po půlnoci: patří k tomuto dni, ne k předchozímu večeru (nejčastější důvod „hrál jsem, a série spadla“)
-        const clock = entry && entry.at && entry.atDone ? pragueClock(entry.at) : null;
-        const night = clock && clock.day === day && Number(clock.time.split(':')[0]) < 5 ? ' (po půlnoci, patří k tomuto dni, ne k předchozímu večeru)' : '';
-        if (status === 'done') text = [`Dohráno${clock ? ` ${whenText(day, entry.at)}${night}` : ''}`, score, sourceText(entry)].join(' · ');
-        else if (status === 'partial') text = [`Rozehráno (${entry.answered} z ${QUESTIONS} otázek), do série se počítá`, entry.at ? `poslední odpověď ${whenText(day, entry.at)}` : '', sourceText(entry)].filter(Boolean).join(' · ');
-        else if (status === 'saved') text = `Nehráno, sérii zachránila ochrana série${view.usedAt[day] ? ` (použita ${whenText(day, view.usedAt[day])})` : ''}`;
-        else if (status === 'missed') text = `Kvíz dne nebyl odehraný${run ? `, tady skončila série ${daysWord(run.length)} (${formatDay(run.from)} – ${formatDay(run.to)})` : ''}${run && run.length >= 3 ? '. Ochrana série nebyla k mání, nebo šlo o druhý vynechaný den' : ''}`;
-        else if (status === 'unknown') text = view.account === 'loading' ? 'Bez záznamu v tomto zařízení; načítám záznamy z účtu…' : view.account === 'failed' ? 'Bez záznamu v tomto zařízení; záznamy z účtu se teď nenačetly' : 'Bez záznamu (dřív než první uložený Kvíz dne)';
-        else if (status === 'progress') text = `Rozehráno (${entry.answered} z ${QUESTIONS} otázek): dohraj ho do půlnoci a série poroste`;
-        else if (status === 'today') text = 'Ještě nehráno, na Kvíz dne je čas do půlnoci';
-        return { day, status, title, text };
+        const title = longDay(day).replace(/^./, char => char.toUpperCase());
+        const when = entry && entry.at ? whenText(day, entry.at) : '';
+        let parts = [];
+        if (status === 'done') parts = [entry.atDone ? when : '', `${entry.correct}/${QUESTIONS}, ${entry.score} b`];
+        else if (status === 'partial') parts = [`rozehráno ${entry.answered}/${QUESTIONS}, počítá se`];
+        else if (status === 'saved') parts = ['zachráněno ochranou'];
+        else if (status === 'missed') parts = ['vynecháno'];
+        else if (status === 'unknown') parts = [view.account === 'loading' ? 'načítám účet…' : view.account === 'failed' ? 'bez záznamu, účet se nenačetl' : 'bez záznamu'];
+        else if (status === 'progress') parts = [`rozehráno ${entry.answered}/${QUESTIONS}, dohraj do půlnoci`];
+        else if (status === 'today') parts = ['ještě nehráno'];
+        const text = parts.filter(Boolean).join(' · ');
+        return { day, status, title, text, line: status ? `${title} · ${text}` : '' };
     };
 
     // --- HTML okna ---
     const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
     const STATUS = {
-        done: { label: 'Dohráno', cls: 'bg-brand-600 text-white dark:bg-brand-500', mark: '✓' },
-        partial: { label: 'Rozehráno, počítá se', cls: 'bg-brand-600 text-white dark:bg-brand-500', mark: '✓' },
-        saved: { label: 'Zachráněno ochranou série', short: 'Zachráněno ochranou', cls: 'bg-sky-200 text-sky-900 dark:bg-sky-800 dark:text-sky-100', mark: '' },
-        missed: { label: 'Vynecháno', cls: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300', mark: '×' },
-        unknown: { label: 'Bez záznamu', cls: 'bg-slate-100 text-slate-400 dark:bg-slate-700/60 dark:text-slate-400', mark: '' },
-        today: { label: 'Dnes ještě nehráno', cls: 'bg-white text-slate-500 ring-2 ring-inset ring-amber-400 dark:bg-slate-900 dark:text-slate-300', mark: '?' },
-        progress: { label: 'Dnes rozehráno', cls: 'bg-white text-slate-500 ring-2 ring-inset ring-amber-400 dark:bg-slate-900 dark:text-slate-300', mark: '…' }
+        done: 'Dohráno', partial: 'Rozehráno, počítá se', saved: 'Zachráněno ochranou série', missed: 'Vynecháno', unknown: 'Bez záznamu',
+        today: 'Dnes ještě nehráno', progress: 'Dnes rozehráno'
     };
-    // Den současné série (odehraný): zlatý; legenda jen to podstatné
-    const CURRENT_CLS = 'bg-amber-400 text-amber-950 dark:bg-amber-400 dark:text-amber-950';
-    const LEGEND = [['current', 'Současná série'], ['done', 'Odehráno'], ['saved', 'Zachráněno ochranou'], ['missed', 'Vynecháno']];
-    const clsOf = (cell) => (cell.current && (cell.status === 'done' || cell.status === 'partial') ? CURRENT_CLS : STATUS[cell.status].cls);
+    // Barvy: pás série (zlatá = současná, tlumená barva hábitu = starší), vynechaný den jemně červeně (kde série skončila, s × a kroužkem),
+    // bez záznamu šedě
+    const BAND = {
+        current: 'bg-amber-300 text-amber-950 dark:bg-amber-400 dark:text-amber-950',
+        played: 'bg-brand-200 text-brand-900 dark:bg-brand-800 dark:text-brand-50'
+    };
+    const INNER = {
+        missed: 'text-rose-700 dark:text-rose-300',
+        unknown: 'text-slate-500 dark:text-slate-400',
+        today: 'text-slate-800 dark:text-slate-100',
+        progress: 'text-slate-800 dark:text-slate-100'
+    };
     const shieldImg = (cls) => `<img src="icons/topics/ochrana-serie.webp" alt="" class="${cls} object-contain">`;
-    const mark = (status) => (status === 'saved' ? shieldImg('h-4 w-4') : esc(STATUS[status].mark));
-    const cellHtml = (cell, selected) => {
+    const cellHtml = (cell, selected, today) => {
         if (!cell) return '<span aria-hidden="true"></span>';
-        const meta = STATUS[cell.status];
-        const ring = cell.day === selected ? ' outline outline-2 outline-offset-1 outline-amber-500' : '';
-        return `<button type="button" data-qs-day="${cell.day}" data-qs-status="${cell.status}" aria-pressed="${cell.day === selected}" aria-label="${esc(`${longDay(cell.day)}: ${meta.label}${cell.current ? ', současná série' : ''}`)}" class="flex h-[1.55rem] w-full items-center justify-center rounded-[5px] text-[11px] font-black leading-none short:h-[1.35rem] ${clsOf(cell)}${ring}">${mark(cell.status)}</button>`;
+        if (!cell.status) return `<span aria-hidden="true" class="flex h-8 items-center justify-center text-[13px] font-semibold text-slate-300 short:h-7 dark:text-slate-600">${cell.n}</span>`;
+        const band = cell.band ? `${BAND[cell.band]} ${cell.joinLeft ? '' : 'rounded-l-full'} ${cell.joinRight ? '' : 'rounded-r-full'}` : '';
+        const ring = cell.day === today ? ' ring-2 ring-inset ring-slate-800 dark:ring-slate-100' : '';
+        const pick = cell.day === selected ? ' outline outline-2 outline-offset-1 outline-sky-500' : '';
+        const badge = cell.status === 'saved' ? shieldImg('absolute -right-1.5 -top-1 h-4 w-4')
+            : cell.broke ? '<span aria-hidden="true" class="absolute -right-1 -top-1 text-[10px] font-black leading-none text-rose-600 dark:text-rose-300">×</span>' : '';
+        const broke = cell.broke ? ' ring-1 ring-inset ring-rose-400 dark:ring-rose-400/80' : '';
+        const label = `${longDay(cell.day)}: ${STATUS[cell.status]}${cell.band === 'current' ? ', současná série' : ''}${cell.day === today ? ', dnes' : ''}`;
+        return `<button type="button" data-qs-day="${cell.day}" data-qs-status="${cell.status}" data-qs-band="${cell.band}" aria-pressed="${cell.day === selected}" aria-label="${esc(label)}" class="flex h-8 w-full items-center justify-center short:h-7 ${band}"><span class="relative flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-bold leading-none short:h-6 short:w-6 ${cell.band ? '' : INNER[cell.status] || ''}${broke}${ring}${pick}">${cell.n}${badge}</span></button>`;
     };
-    // view = build(...), selected = vybraný den, freezes = ochrany k mání (0–2), max = strop
-    const dialogHtml = (view, { selected = view.today, freezes = 0, max = 2, topicStreak = 0 } = {}) => {
-        const pick = view.statusOf(selected) ? selected : view.today;
-        const detail = dayDetail(view, pick);
-        const months = view.columns.map((column, w) => {
-            const firstDay = column.map(cell => cell && cell.day).find(day => day && day.slice(8) === '01') || (w === 0 ? view.start : '');
-            return `<span class="truncate text-[9px] font-bold leading-none text-slate-500 dark:text-slate-400">${firstDay ? MONTHS_SHORT[Number(firstDay.slice(5, 7)) - 1] : ''}</span>`;
-        }).join('');
-        const rows = [0, 1, 2, 3, 4, 5, 6].map(d => `<span class="flex items-center text-[9px] font-bold leading-none text-slate-500 dark:text-slate-400">${d % 2 === 0 ? WEEKDAYS[d].replace(/^./, c => c.toUpperCase()) : ''}</span>${view.columns.map(column => cellHtml(column[d], pick)).join('')}`).join('');
-        const legend = LEGEND.map(([status, label]) => `<span class="inline-flex items-center gap-1"><span class="flex h-3.5 w-3.5 items-center justify-center rounded-[3px] text-[8px] font-black leading-none ${status === 'current' ? CURRENT_CLS : STATUS[status].cls}">${status === 'saved' ? shieldImg('h-3 w-3') : esc(STATUS[status === 'current' ? 'done' : status].mark)}</span>${esc(label)}</span>`).join('');
-        const source = view.account === 'ok' ? '' : view.account === 'loading' ? 'Načítám záznamy z účtu…' : view.account === 'failed' ? 'Záznamy z účtu se nenačetly, ukazuji jen toto zařízení.' : 'Ze záznamů v tomto zařízení.';
+    const WEEK_HEAD = ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'];
+    const swatch = (cls) => `<span class="inline-block h-2.5 w-4 rounded-full ${cls}"></span>`;
+    // view = build(...), month = zobrazený měsíc RRRR-MM, selected = vybraný den (jen v zobrazeném měsíci), freezes = ochrany k mání (0–2), max = strop
+    const dialogHtml = (view, { month = view.today.slice(0, 7), selected = view.today, freezes = 0, max = 2 } = {}) => {
+        const shown = view.months.includes(month) ? month : view.months[view.months.length - 1];
+        const at = view.months.indexOf(shown);
+        const prev = at > 0 ? view.months[at - 1] : '';
+        const next = at < view.months.length - 1 ? view.months[at + 1] : '';
+        const pick = selected && selected.slice(0, 7) === shown && view.statusOf(selected) ? selected : '';
+        const detail = pick ? dayDetail(view, pick) : null;
+        const rows = monthGrid(view, shown);
+        const arrow = (target, icon, label) => `<button type="button" ${target ? `data-qs-month="${target}"` : 'disabled'} aria-label="${label}" class="flex h-10 w-10 items-center justify-center rounded-xl text-slate-700 hover:bg-slate-100 disabled:opacity-25 dark:text-slate-200 dark:hover:bg-slate-700"><i data-lucide="${icon}" class="h-5 w-5"></i></button>`;
+        const source = view.account === 'loading' ? ' Načítám účet…' : view.account === 'failed' ? ' Účet se nenačetl, ukazuji toto zařízení.' : '';
+        const chip = (cls, label, value, attr) => `<p class="rounded-xl px-0.5 py-1 font-bold ${cls}">${label} <b class="text-[13px]" ${attr}>${esc(value)}</b></p>`;
         return `
             <div class="flex flex-col gap-2 text-[13px] leading-snug text-slate-700 short:gap-1.5 dark:text-slate-200" data-quiz-streak-view>
                 <div class="grid grid-cols-3 gap-1.5 whitespace-nowrap text-center text-[11.5px] leading-tight" data-qs-summary>
-                    <p class="rounded-xl bg-amber-50 px-0.5 py-1.5 font-bold text-amber-900 dark:bg-amber-900/30 dark:text-amber-100">Teď <b class="text-[13px]" data-qs-current>${esc(daysWord(view.current))}</b></p>
-                    <p class="rounded-xl bg-amber-50 px-0.5 py-1.5 font-bold text-amber-900 dark:bg-amber-900/30 dark:text-amber-100">Nejdelší <b class="text-[13px]" data-qs-best>${esc(daysWord(view.best))}</b></p>
-                    <p class="rounded-xl bg-sky-50 px-0.5 py-1.5 font-bold text-sky-900 dark:bg-sky-900/30 dark:text-sky-100">Ochrana <b class="text-[13px]" data-qs-freezes>${esc(`${freezes} z ${max}`)}</b></p>
+                    ${chip('bg-amber-50 text-amber-900 dark:bg-amber-900/30 dark:text-amber-100', 'Teď', daysWord(view.current), 'data-qs-current')}
+                    ${chip('bg-amber-50 text-amber-900 dark:bg-amber-900/30 dark:text-amber-100', 'Nejdelší', daysWord(view.best), 'data-qs-best')}
+                    ${chip('bg-sky-50 text-sky-900 dark:bg-sky-900/30 dark:text-sky-100', 'Ochrana', `${freezes} z ${max}`, 'data-qs-freezes')}
                 </div>
-                <div class="rounded-2xl bg-white p-2 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
-                    <div class="grid ${view.columns.length === WEEKS ? 'grid-cols-[1.1rem_repeat(10,minmax(0,1fr))]' : 'grid-flow-col'} gap-[3px]" data-qs-calendar role="group" aria-label="${esc(`Kalendář Kvízu dne od ${longDay(view.start)} do ${longDay(view.today)}`)}">
-                        <span aria-hidden="true"></span>${months}${rows}
+                <div class="rounded-2xl bg-white px-2 pb-2 pt-1 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70" data-qs-calendar data-qs-shown="${shown}">
+                    <div class="flex items-center justify-between">
+                        ${arrow(prev, 'chevron-left', 'Předchozí měsíc')}
+                        <p class="text-[15px] font-black text-slate-800 dark:text-slate-100" data-qs-month-title aria-live="polite">${esc(monthTitle(shown))}</p>
+                        ${arrow(next, 'chevron-right', 'Další měsíc')}
                     </div>
-                    <div class="mt-1.5 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400" aria-hidden="true">${legend}</div>
+                    <div class="grid grid-cols-7 text-center text-[11px] font-bold text-slate-500 dark:text-slate-400" aria-hidden="true">${WEEK_HEAD.map(day => `<span>${day}</span>`).join('')}</div>
+                    <div class="mt-1 grid grid-cols-7 gap-y-1" role="group" aria-label="${esc(`Kvíz dne, ${monthTitle(shown)}`)}">${rows.map(row => row.map(cell => cellHtml(cell, pick, view.today)).join('')).join('')}</div>
+                    <p class="mt-1.5 flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 whitespace-nowrap text-[11px] font-semibold text-slate-500 dark:text-slate-400" aria-hidden="true" data-qs-legend>
+                        <span class="inline-flex items-center gap-0.5">${swatch(BAND.current)}série</span>
+                        <span class="inline-flex items-center gap-0.5">${swatch(BAND.played)}odehráno</span>
+                        <span class="inline-flex items-center gap-0.5">${shieldImg('h-3 w-3')}ochrana</span>
+                        <span class="inline-flex items-center gap-0.5"><span class="font-black text-rose-600 dark:text-rose-300">×</span>vynecháno</span>
+                    </p>
                 </div>
-                <p class="min-h-[2.6rem] rounded-2xl bg-white px-2.5 py-1.5 shadow-sm short:py-1 short:text-[12.5px] ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70" data-qs-detail data-qs-detail-day="${detail.day}" role="status"><b>${esc(detail.title)}:</b> ${esc(detail.text)}</p>
-                <p class="text-[11.5px] text-slate-500 dark:text-slate-400" data-qs-note>Klepni na den a uvidíš, co se ten den stalo. Den končí o půlnoci (čas v Česku), kvíz dohraný po ní patří k dalšímu dni.${source ? ` ${esc(source)}` : ''}${topicStreak > 0 ? ' Dnešní otázky mají vlastní série po tématech.' : ''}</p>
+                <p class="flex min-h-[2.25rem] items-center rounded-2xl bg-white px-3 py-1.5 font-semibold shadow-sm ring-1 ring-slate-200/70 short:min-h-[2rem] short:py-1 dark:bg-slate-800/70 dark:ring-slate-700/70" data-qs-detail data-qs-detail-day="${detail ? detail.day : ''}" role="status">${detail ? `<span><b>${esc(detail.title)}</b> · ${esc(detail.text)}</span>` : '<span class="text-slate-500 dark:text-slate-400">Klepni na den.</span>'}</p>
+                <p class="text-center text-[11.5px] text-slate-500 dark:text-slate-400" data-qs-note>Den končí o půlnoci.${esc(source)}</p>
             </div>`;
     };
 
-    return { WEEKS, isDay, addDays, weekOf, formatDay, longDay, pragueClock, whenText, merge, playedOf, serverPlayed, currentOf, runsOf, build, dayDetail, dialogHtml, STATUS };
+    return { isDay, addDays, weekOf, formatDay, longDay, pragueClock, whenText, merge, playedOf, serverPlayed, currentOf, runsOf, build, monthGrid, monthTitle, dayDetail, dialogHtml, STATUS };
 });

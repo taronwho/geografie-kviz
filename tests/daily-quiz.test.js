@@ -237,3 +237,29 @@ test('Kvíz dne od 30. 11. 2026: kategorie podle odmocniny z počtu položek, d�
     assert.ok(Math.abs(share(2024, 0, 1) - 0.5) < 0.1);
     assert.ok(share(2026, 11, 1) < 0.2);
 });
+
+// Reprodukce (hlášení 26. 11. 2026): odpovědi, které server nedostal (výpadek spojení, obnovení stránky novou verzí uprostřed hry, hra před
+// obnovením přihlášení), se dřív posílaly znovu jen při dalším otevření Kvízu dne; unsentAttempt říká, že je app.js má dopsat na pozadí
+test('neodeslané odpovědi dnešního pokusu se poznají a zkoušejí znovu s rostoucím odstupem', () => {
+    const today = '2026-11-25';
+    const answers = (count) => Array.from({ length: count }, () => ({ correct: true, points: 4, ms: 3000 }));
+    const attempt = (extra) => ({ ...DQ.newAttempt(today, 'u-1'), ...extra });
+    // Dohráno v zařízení, server nemá nic (start se nepovedl) / má jen část
+    assert.equal(DQ.unsentAttempt(attempt({ results: answers(10), synced: -1, done: true }), 'u-1', today), true);
+    assert.equal(DQ.unsentAttempt(attempt({ results: answers(10), synced: 6, done: true }), 'u-1', today), true);
+    assert.equal(DQ.unsentAttempt(attempt({ results: answers(3), synced: 0 }), 'u-1', today), true);
+    // Hostovský pokus: přihlášený si ho převezme
+    assert.equal(DQ.unsentAttempt({ ...DQ.newAttempt(today, 'host'), results: answers(4) }, 'u-1', today), true);
+    // Není co posílat: vše odesláno, bez odpovědi, cizí pokus, včerejší pokus (server by ho odmítl), host bez účtu
+    assert.equal(DQ.unsentAttempt(attempt({ results: answers(10), synced: 10, done: true }), 'u-1', today), false);
+    assert.equal(DQ.unsentAttempt(attempt({ results: [], synced: -1 }), 'u-1', today), false);
+    assert.equal(DQ.unsentAttempt(attempt({ results: answers(5), synced: 0, owner: 'u-2' }), 'u-1', today), false);
+    assert.equal(DQ.unsentAttempt(attempt({ results: answers(5), synced: 0 }), 'u-1', '2026-11-26'), false);
+    assert.equal(DQ.unsentAttempt(attempt({ results: answers(5), synced: 0 }), null, today), false);
+    assert.equal(DQ.unsentAttempt(null, 'u-1', today), false);
+    // Uložený pokus po načtení ze zařízení (parseState) se pozná stejně
+    const stored = DQ.parseState(JSON.parse(JSON.stringify({ v: 1, days: {}, attempt: attempt({ results: answers(10), synced: 2, done: true }) })));
+    assert.equal(DQ.unsentAttempt(stored.attempt, 'u-1', today), true);
+    assert.deepEqual([0, 1, 2, 3, 4, 5, 50].map(DQ.retryDelay), [15000, 30000, 60000, 120000, 240000, 300000, 300000]);
+    assert.equal(DQ.retryDelay(undefined), 15000);
+});
