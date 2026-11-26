@@ -31,6 +31,8 @@ const ICONS = [
     'archive',
     // Pomůcka Záchrana navíc do Řetězovky (conquest.js ITEMS.chain_rescue, chain.js)
     'shield-plus',
+    // Seřaď to (sorting.js): posun karty nahoru a dolů
+    'chevron-up',
     // Pomůcka Vzkříšení do Dobývání (conquest.js ITEMS.revive; zástupná pečeť do dodání obrázku č. 361)
     'heart-pulse',
     // Boti v Dobývání (conquest.js BOT_LEVELS; štítek bota do dodání obrázků č. 459–468)

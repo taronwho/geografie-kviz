@@ -27,6 +27,8 @@
     const Chronicle = window.MudrlantChronicle || null;
     // Režimy Bleskovka a Přežití (modes.js) a zvuky s vibracemi (sound.js); bez skriptu se jen nenabídnou, hra zůstane potichu
     const Modes = window.MudrlantModes || null;
+    // Minihra Seřaď to (sorting.js): klidné řazení karet podle vlastnosti, bez časovače; bez skriptu se jen nenabídne
+    const Sorting = window.MudrlantSorting || null;
     const Sound = window.MudrlantSound || null;
     // Jednohubka (snack.js): jedna otázka na jedno klepnutí; bez skriptu (nebo bez modes.js) se čip na záložce Hrát neukáže
     const Snack = window.MudrlantSnack || null;
@@ -2732,6 +2734,7 @@
         if ((screen === 'boss' || screen === 'boss-done') && Boss) return { icon: 'swords', art: Boss.artFor(Boss.bossForWeek(Boss.weekOf()).id, 1), text: 'Boss týdne', topic: null };
         if (screen === 'conquest') return { icon: 'swords', art: 'dobyvani', text: 'Dobývání', topic: null };
         if (screen === 'chain' && chainCtl) return { ...chainCtl.place(), topic: null };
+        if (screen === 'sorting' && sortingCtl) return { ...sortingCtl.place(), topic: null };
         // Úvod: sova z loga, název a dnešní datum
         if (screen !== 'round' || !current) return { logo: true, text: `${APP_NAME} · ${shortDay(getDayKey())}`, date: shortDay(getDayKey()), topic: null };
         const topic = TOPIC_BY_ID[current.topic];
@@ -3051,6 +3054,7 @@
         if (screen === 'mode') leaveMode();
         else if (screen === 'boss' || screen === 'boss-done') leaveBoss();
         else if (screen === 'chain' && chainCtl) chainCtl.leave();
+        else if (screen === 'sorting' && sortingCtl) sortingCtl.leave();
         else renderHome();
         if (navTab === 'souperi') refreshTournaments();
     };
@@ -3059,7 +3063,7 @@
     // otázky (výsledek otázky, výsledek výzvy). Skrytá je, dokud hráč odpovídá: u jedné otázky od zadání po odpověď, v režimech
     // na čas a v sérii (Kvíz dne, Řetězovka, souboj s bossem, Bleskovka, Přežití) od první otázky po výsledek, a v běžící hře
     // Dobývání (mapa přes celou plochu a tahy na čas). Výsledek jedné otázky ji má jen na vyšším displeji (viz níž).
-    const CALM_SCREENS = '[data-tab-root], #quiz-intro, #quiz-result, #chain-intro, #chain-result, #boss-intro, #boss-result, [data-mode-intro], [data-mode-result], #conquest-hub, #mystery-screen';
+    const CALM_SCREENS = '[data-tab-root], #quiz-intro, #quiz-result, #chain-intro, #chain-result, #boss-intro, #boss-result, [data-mode-intro], [data-mode-result], #conquest-hub, #mystery-screen, [data-sorting="intro"]';
     const barShown = () => {
         if (screen === 'welcome' || !appContent.firstElementChild) return false;
         if (screen === 'home') return mainShown();
@@ -3260,6 +3264,7 @@
             </button>`;
     // Řádky Řetězovky dne a Bosse týdne (doplní je jejich moduly; prázdný řetězec = řádek se nevykreslí)
     let chainCtl = null; // ovladač Řetězovky (chain.js), založí se níž u Kvízu dne a Tajemné otázky
+    let sortingCtl = null; // ovladač minihry Seřaď to (sorting.js), založí se níž za Řetězovkou
     const chainSnapshotSeed = (day) => `mudrlant-retezovka-${day}`;
     const chainHomeTile = () => (chainCtl ? chainCtl.homeTile() : '');
     const bossHomeTile = () => (Boss ? bossTileHtml() : '');
@@ -3465,6 +3470,8 @@
         const modes = [
             ...(Modes ? Modes.IDS.map(id => modeTile(`data-action="mode-tile" data-mode="${id}" title="${escapeHtml(`${Modes.MODES[id].title}: ${Modes.MODES[id].tagline}`)}"`, modeBadge(id, 'h-9 w-9 short:h-8 short:w-8', 'h-5 w-5'), escapeHtml(Modes.MODES[id].title))) : []),
             ...(MapQuestion ? [modeTile('data-action="map-tile" title="Ukaž na mapě: jen otázky na mapě, zkušební režim"', uiArt('rezim-mapa', 'h-9 w-9 short:h-8 short:w-8'), 'Na mapě')] : []),
+            // Seřaď to (sorting.js): do dodání vlastního obrázku kolečko s ikonou
+            ...(sortingCtl ? [modeTile('data-action="sorting-open" title="Seřaď to: seřaď karty podle vlastnosti, bez časovače"', '<span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-600 text-white short:h-8 short:w-8"><i data-lucide="list-ordered" class="h-5 w-5"></i></span>', 'Seřaď to')] : []),
             modeTile(`data-action="open-learn" title="Učení: okruhy, atlas a chyby k zopakování" aria-label="${due ? `Učení – k procvičení: ${due}` : 'Učení'}"`, uiArt('ucit-procvicit', 'h-9 w-9 short:h-8 short:w-8'), 'Učení',
                 due ? `<span data-review-due title="K procvičení: ${due}" class="absolute right-1.5 top-1.5 ${BADGE}"><span class="sr-only">K procvičení: </span>${due}</span>` : '')
         ];
@@ -3473,7 +3480,7 @@
             <section id="topic-grid" aria-label="Témata" class="grid max-h-[22rem] flex-1 grid-cols-4 auto-rows-fr gap-2 short:gap-1.5">${ordered.map(tile).join('')}</section>
             <section aria-label="Režimy" class="flex shrink-0 flex-col gap-2 short:gap-1.5">
                 <div class="flex items-center justify-between gap-2"><h2 class="${SEC_LABEL}">Režimy</h2>${snackChip()}</div>
-                <div id="mode-tiles" class="grid ${['grid-cols-1', 'grid-cols-1', 'grid-cols-2', 'grid-cols-3', 'grid-cols-4'][Math.min(4, modes.length)]} gap-2 short:gap-1.5">${modes.join('')}</div>
+                <div id="mode-tiles" class="grid ${['grid-cols-1', 'grid-cols-1', 'grid-cols-2', 'grid-cols-3', 'grid-cols-4', 'grid-cols-5'][Math.min(5, modes.length)]} gap-2 short:gap-1.5">${(modes.length > 4 ? modes.map(html => html.replace('text-[12px] font-black', 'text-[11px] font-black tracking-tight max-[359px]:text-[10px]')) : modes).join('')}</div>
             </section>`;
     };
 
@@ -4776,6 +4783,7 @@
         if (screen === 'home' || screen === 'learn' || screen === 'challenge-done' || screen === 'quiz-done' || screen === 'welcome' || screen === 'mystery') return true;
         if (screen === 'conquest') return !(ConquestUI && ConquestUI.busy());
         if (screen === 'chain') return !(chainCtl && chainCtl.isPlaying());
+        if (screen === 'sorting') return !(sortingCtl && sortingCtl.isPlaying());
         if (mode === 'challenge' || mode === 'quiz') return false;
         return Boolean(round && round.answered);
     };
@@ -13421,6 +13429,17 @@
         });
     }
 
+    // --- Seřaď to (sorting.js): klidná minihra na záložce Hrát mezi Režimy; výběr karet, přesuny, kontrola, XP a obrazovky má sorting.js ---
+    if (Sorting) {
+        sortingCtl = Sorting.createController({
+            appContent, setScreen: (name) => { screen = name; }, getScreen: () => screen, renderHome, renderIcons, updateControlsUI, closePlaceInfo,
+            uiArt, topics: () => TOPICS, loadTopic, readJson, writeJson, getDayKey, xpLine, isLoading: () => isLoading,
+            style: styleOf(MIX), card: CARD, cardTitle: CARD_TITLE, sound: Sound,
+            // XP jako u Bleskovky (den hraní, odznaky, cíle, sezóna); strop a výši hlídá sorting.js
+            awardXp: (xp) => awardModeXp(xp)
+        });
+    }
+
     // --- Týdenní turnaje ---
     // Pravidla a posun kol dělá databáze (supabase/schema.sql) a čistá logika je v tournament.js; tady se zobrazí karta na záložce Soupeři,
     // okno s koly a zápasy a hra zápasu (otázky z pevného semínka stejně jako ve výzvě, ale bez zápisu do tabulky výzev).
@@ -13971,6 +13990,8 @@
             // Počet přátel (tip Přátelé se pak nenabízí tomu, kdo přátele má; tip na pozvání přátel do Dobývání naopak jen jemu)
             friends: friendRows ? friendRows.filter(row => row.status === 'accepted').length : 0,
             chain: Boolean(chainCtl),
+            // Seřaď to: tip, dokud hráč nedohrál žádné kolo
+            sorting: Boolean(sortingCtl), sortingGames: sortingCtl ? sortingCtl.games() : 0,
             // Hlasování o speciálním turnaji: jen když ho správce zveřejnil (schéma 34) a hráč ho viděl načtené
             poll: Boolean(Tournament && Tournament.pollView(tournamentPollState))
         });
@@ -13994,6 +14015,7 @@
         mystery: () => { closeDialog(); openMystery(); },
         boss: () => { closeDialog(); openBoss(); },
         chain: () => { closeDialog(); if (chainCtl) chainCtl.open(); },
+        sorting: () => { closeDialog(); if (sortingCtl) sortingCtl.open(); },
         leagueSeasons: () => { closeDialog(); openLeagueSeasons(); },
         groups: () => { closeDialog(); goTab('souperi'); if (GroupsUI) GroupsUI.openList(); },
         gold: () => { closeDialog(); openGoldInfo(); },
@@ -15395,6 +15417,8 @@
         },
         // Řetězovka dne (chain.js)
         ...(chainCtl ? chainCtl.actions : {}),
+        // Seřaď to (sorting.js)
+        ...(sortingCtl ? sortingCtl.actions : {}),
         'challenge-retry': () => finishChallenge(true),
         'challenge-home': () => challengeHome(),
         'challenge-breakdown': () => { if (challenge && !challenge.tournament) openChallengeBreakdown(challenge, challenge.lastResults || []); },
@@ -15612,6 +15636,8 @@
             if (!ConquestUI || !ConquestUI.back()) renderHome();
         } else if (screen === 'chain') {
             if (chainCtl) chainCtl.leave(); else renderHome();
+        } else if (screen === 'sorting') {
+            if (sortingCtl) sortingCtl.back(); else renderHome();
         } else if (screen === 'mode') {
             confirmLeaveMode();
         } else if (screen === 'snack') {

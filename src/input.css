@@ -449,7 +449,28 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 }
 @keyframes sealStamp { 0% { opacity: 0; scale: 2.4; rotate: -24deg; } 60% { opacity: 1; scale: 0.88; rotate: 4deg; } 100% { opacity: 1; scale: 1; rotate: 0deg; } }
 @keyframes sealShine { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.25) drop-shadow(0 0 0.6rem rgb(232 174 56 / 0.8)); } }
-@keyframes sealRing { 0% { opacity: 0.9; scale: 0.8; } 100% { opacity: 0; scale: 1.9; } }
+@keyframes sealRing { 0% { opacity: 0.9; scale: 0.8; } 100% { opacity: 0; scale: 1.9; } },
+/* Seřaď to (sorting.js): zvednutá karta při přetahování, zelené „zapadnutí“ správné karty, jemné zhoupnutí ostatních a postupné odhalení
+   hodnot na konci. Animují se vlastnosti scale a translate (ne transform), ať se nepřepíšou s posunem karet (FLIP v sorting.js glide);
+   při „omezit pohyb“ bez animací */
+.sort-lift { position: relative; z-index: 20; box-shadow: 0 12px 24px -10px rgb(0 0 0 / 0.45); cursor: grabbing; }
+@media (prefers-reduced-motion: no-preference) {
+    .sort-lift { scale: 1.03; }
+    .sort-snap { animation: sortSnap 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+    .sort-nudge { animation: sortNudge 0.55s ease-in-out both; }
+    .sort-reveal { animation: sortReveal 0.55s cubic-bezier(0.2, 1.3, 0.4, 1) both; }
+    .sort-pop { animation: modePop 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+    .sort-d1 { animation-delay: 0.05s; }
+    .sort-d2 { animation-delay: 0.15s; }
+    .sort-d3 { animation-delay: 0.25s; }
+    .sort-d4 { animation-delay: 0.35s; }
+    .sort-d5 { animation-delay: 0.45s; }
+    .sort-d6 { animation-delay: 0.55s; }
+    .sort-d7 { animation-delay: 0.65s; }
+}
+@keyframes sortSnap { 0% { scale: 1; } 40% { scale: 1.04; } 100% { scale: 1; } }
+@keyframes sortNudge { 0%, 100% { translate: 0 0; } 30% { translate: -5px 0; } 65% { translate: 4px 0; } }
+@keyframes sortReveal { 0% { opacity: 0.4; translate: 0 -8px; scale: 0.96; } 60% { opacity: 1; translate: 0 1px; scale: 1.02; } 100% { opacity: 1; translate: 0 0; scale: 1; } }
 
 /* Truhla Mudrlanta (rewards.js chestHtml, app.js openChestOverlay). Okno je ukotvené shora (ne na střed), aby truhla po otevření
    zůstala na místě, i když pod ní přibude popis a tlačítka; 31rem ≈ výška otevřené truhly s věcí, ochranou a tlačítky.
