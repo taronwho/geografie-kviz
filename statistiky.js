@@ -492,8 +492,9 @@
         const rows = sortRows(view.topics, sort.key, sort.dir);
         const head = (key, short, extra = '') => {
             const on = sort.key === key;
+            const arrow = sort.dir === 'asc' ? 'arrow-up' : 'arrow-down';
             const aria = on ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none';
-            return `<th scope="col" aria-sort="${aria}" class="${TH} ${extra}"><button type="button" data-st-sort="${key}" aria-label="Seřadit podle: ${SORT_LABELS[key]}${on ? (sort.dir === 'asc' ? ', teď vzestupně' : ', teď sestupně') : ''}" class="flex min-h-[2.5rem] w-full items-center gap-0.5 ${key === 'title' ? '' : 'justify-end'} ${on ? 'text-brand-700 dark:text-brand-300' : ''}">${short}${on ? `<i data-lucide="${sort.dir === 'asc' ? 'arrow-up' : 'arrow-down'}" class="h-3 w-3 shrink-0"></i>` : ''}</button></th>`;
+            return `<th scope="col" aria-sort="${aria}" class="${TH} ${extra}"><button type="button" data-st-sort="${key}" aria-label="Seřadit podle: ${SORT_LABELS[key]}${on ? (sort.dir === 'asc' ? ', teď vzestupně' : ', teď sestupně') : ''}" class="flex min-h-[2.5rem] w-full items-center gap-0.5 ${key === 'title' ? '' : 'justify-end'} ${on ? 'text-brand-700 dark:text-brand-300' : ''}">${short}${on ? `<i data-lucide="${arrow}" class="h-3 w-3 shrink-0"></i>` : ''}</button></th>`;
         };
         const body = rows.map(row => {
             const open = ui.open === row.id;
