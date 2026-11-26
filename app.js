@@ -8044,7 +8044,7 @@
                         ${ShareCard && game.score > 0 ? `<button type="button" data-action="mode-share-image" class="flex min-h-[2.75rem] ${game.xp && (game.xp.total || game.xp.note) ? 'w-[5.5rem] shrink-0 flex-col' : 'flex-1'} items-center justify-center gap-1 rounded-2xl btn-3d-light bg-white px-2 py-1.5 text-center text-[12px] font-bold leading-tight text-slate-800 dark:bg-slate-800 dark:text-slate-100"><i data-lucide="image" class="h-4 w-4 shrink-0"></i> Sdílet obrázek</button>` : ''}
                     </div>
                     ${goldModeResult(game)}
-                    ${passportModeResult(game)}
+                    ${missedHtml ? '' : passportModeResult(game)}
                     ${missedHtml}
                 </div>
                 <div class="sticky bottom-0 z-20 flex gap-2 border-t border-slate-200/70 bg-slate-50/95 px-4 pb-4 pt-3 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
@@ -10780,6 +10780,7 @@
         return postupTile({ attrs: `data-open-passport aria-label="${escapeHtml(view.label)}"`, art: view.art, title: 'Pas', value: escapeHtml(view.value), valueAttrs: 'data-passport-value', ready: view.ready });
     };
     // Souhrn Bleskovky a Přežití: nová razítka hry (celá razítka s vlajkou) a tlačítko do pasu
+    // Karta nových razítek ve výsledku režimu; s kartou Co ti uteklo se na nízký telefon nevejde, pak ji nahradí čip během hry a zlatá dlaždice Pas
     const passportModeResult = (game) => (Passport && game ? Passport.modeResultHtml(game.stamps, { reduced: reducedMotion(), card: CARD, cardTitle: CARD_TITLE }) : '');
 
     // Mistrovství jednoho tématu: co to je, kolik už hráč poznal, kolik chybí do další hvězdičky a co hvězdičky přinášejí (jen to, co hra opravdu dává)
