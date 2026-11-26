@@ -68,7 +68,9 @@ const ICONS = [
     // Vlajky a znaky: kategorie Měny a bankovky
     'banknote',
     // Statistiky pro nadšence (statistiky.js): ikona tipu a šipka směru řazení tabulky témat
-    'chart-column', 'arrow-up', 'arrow-down'
+    'chart-column', 'arrow-up', 'arrow-down',
+    // Cestovní pas (passport.js): razítka států
+    'stamp'
 ];
 
 const toPascalCase = (name) => name.replace(/(^|-)(\w)/g, (_, __, letter) => letter.toUpperCase());

@@ -83,6 +83,9 @@
             action: { kind: 'progress', label: 'Postup' }, ready: (u) => u.season, used: (u) => Boolean(u.visited.season) },
         { id: 'album', icon: 'book-open', art: 'album', after: 70, title: 'Album sbírky', text: 'Na záložce Postup najdeš Album sbírky se vším, co můžeš pro Mudrlanta a svůj profil získat. Uvidíš, co ti ještě chybí, a za každý milník sbírky dostaneš odznak Sběratel.',
             action: { kind: 'progress', label: 'Postup' }, ready: (u) => u.album, used: (u) => Boolean(u.visited.album) },
+        // Cestovní pas (passport.js): razítka za poznané státy; kdo pas otevřel, tip nepotřebuje
+        { id: 'pas', icon: 'stamp', after: 25, title: 'Cestovní pas', text: 'Za každý stát, který poznáš v Zeměpisu nebo ve Vlajkách a znacích (stát, vlajku, státní znak či hlavní město), dostaneš razítko do pasu. Najdeš ho na záložce Postup.',
+            action: { kind: 'progress', label: 'Postup' }, used: (u) => Boolean(u.visited.passport) },
         { id: 'kronika', icon: 'book-open', after: 40, title: 'Mudrlantova kronika', text: 'Každou neděli večer ti Mudrlant shrne uplynulý týden: kolik otázek máš za sebou, téma a titul týdne a tvoje nové objevy. Kroniku najdeš i na záložce Postup a můžeš ji sdílet jako obrázek.',
             action: { kind: 'chronicle', label: 'Otevřít kroniku' }, ready: (u) => u.chronicle && num(u.counters.days) >= 2, used: (u) => Boolean(u.visited.chronicle) },
         { id: 'statistiky', icon: 'chart-column', after: 80, title: 'Statistiky pro nadšence', text: 'Na záložce Postup najdeš Statistiky: přesnou úspěšnost po tématech a okruzích, kalendář hraní, vývoj po týdnech, co si nejčastěji pleteš a rekordy ze všech her.',
@@ -189,7 +192,7 @@
 
     const EMPTY = { seen: [], day: '', n: 0, lastAt: 0, off: false, visited: {} };
     // Navštívené části hry (tip o nich už není potřeba): Učení, Postup, Vzhled, Diplomy, Sezóna, Album, Vitrína, Kronika týdne, skupina Postavičky…
-    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle', 'gold', 'conquest', 'bets', 'conquestInvite', 'poll', 'referral', 'perks', 'robeColor', 'characters', 'tourShare', 'robots', 'snack', 'obor', 'stats', 'puzzle'];
+    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle', 'gold', 'conquest', 'bets', 'conquestInvite', 'poll', 'referral', 'perks', 'robeColor', 'characters', 'tourShare', 'robots', 'snack', 'obor', 'stats', 'puzzle', 'passport'];
     const parse = (value) => {
         const v = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
         const visited = {};

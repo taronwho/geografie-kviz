@@ -44,6 +44,8 @@
         bossStage: [n(440, 0, 0.4, { to: 110, gain: 0.18 }), n(220, 0.05, 0.45, { gain: 0.16 }), n(164.81, 0.05, 0.5, { type: 'sine', gain: 0.16 })],
         bossLaugh: [n(392, 0, 0.09, { to: 349.23 }), n(392, 0.13, 0.09, { to: 349.23 }), n(466.16, 0.26, 0.16, { to: 311.13 })],
         bossDown: [n(392, 0, 0.24, { to: 370, gain: 0.16 }), n(349.23, 0.26, 0.24, { to: 329.63, gain: 0.16 }), n(293.66, 0.52, 0.5, { to: 196, gain: 0.16 }), n(98, 0.52, 0.5, { type: 'sine', gain: 0.2 })],
+        // Cestovní pas (passport.js): bouchnutí razítka – hluboké tupé ťuknutí s krátkým klapnutím
+        stamp: [n(150, 0, 0.14, { to: 70, type: 'sine', gain: 0.32 }), n(420, 0, 0.04, { to: 200, gain: 0.07 })],
         // Kamarádské sázky (bets.js): mince se sypou k vítězi a cinkají (krátké vysoké tóny s tichým podtónem, nepravidelně po sobě)
         coins: [n(1975.53, 0, 0.06, { type: 'sine', gain: 0.16 }), n(1318.51, 0, 0.05, { type: 'sine', gain: 0.06 }), n(1760, 0.1, 0.06, { type: 'sine', gain: 0.15 }),
             n(1174.66, 0.1, 0.05, { type: 'sine', gain: 0.05 }), n(1864.66, 0.19, 0.05, { type: 'sine', gain: 0.14 }), n(1567.98, 0.27, 0.07, { type: 'sine', gain: 0.15 }),
