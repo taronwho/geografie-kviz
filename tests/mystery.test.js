@@ -245,7 +245,7 @@ test('napojení: modul v index.html, service workeru, nasazení a Tailwindu; sch
     const Tips = require('../tips.js');
     assert.equal(Tips.BY_ID.get('tajemna').action.kind, 'mystery');
     // Řádek mezi dnešními výzvami na záložce Dnes (třetí, mezi Řetězovkou a Bossem); včerejší odpověď je zvlášť mezi příležitostnými pruhy
-    assert.match(read('app.js'), /\[quizHomeCard\(\), chainHomeTile\(\), mysteryHomeCard\(\), bossHomeTile\(\)\]/);
+    assert.match(read('app.js'), /\[quizHomeCard\(\), chainHomeTile\(\), mysteryHomeCard\(\), minisHomeRow\(\), bossHomeTile\(\)\]/);
     assert.match(read('app.js'), /const reveal = Mystery \? mysteryRevealView\(\) : null;/);
     assert.match(read('app.js'), /id: 'mystery-reveal'[\s\S]{0,400}Mystery\.homeText\(reveal\)/, 'řádek Včerejší záhada na záložce Dnes');
     assert.match(read('docs/SUPABASE.md'), /## Tajemná otázka dne \(schéma 19\)/);

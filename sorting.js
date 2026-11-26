@@ -281,6 +281,34 @@
     // --- Vzhled (HTML) ---
     const plural = (n, one, few, many) => `${n} ${n === 1 ? one : n >= 2 && n <= 4 ? few : many}`;
     const attemptsText = (n) => plural(n, 'pokus', 'pokusy', 'pokusů');
+    // Řazení dne mezi dnešními výzvami na záložce Dnes (app.js, Minihry dne): stav dne, text řádku, krátký text pro polovinu řádku
+    // (short, když je vedle Skládačka dne), popisek pro čtečku a tlačítko.
+    // new = ještě nehráno (vlastnost dne), progress = rozehráno (kolik karet už sedí), done = seřazeno (počet pokusů, fajfka)
+    // Krátký název vlastnosti do řádku na záložce Dnes: text se nesmí useknout a na 360 i 390 px se vejde jen asi 28 znaků. Bez závorky,
+    // dlouhé názvy Řazení dne mají kratší podobu; celý název je v popisku pro čtečku (e2e-sorting kontroluje, že se vejdou všechny)
+    const ROW_TEXT = {
+        'literatura-spisovatele-narozeni': 'Spisovatelé podle narození', 'zemepis-mesto-obyvatele': 'Česká města podle velikosti',
+        'architektura-mrakodrapy-vyska': 'Mrakodrapy podle výšky', 'sport-sportoviste-kapacita': 'Stadiony podle kapacity'
+    };
+    const rowText = (spec) => ROW_TEXT[spec.id] || specLabel(spec).replace(/\s*\([^)]*\)$/, '');
+    const homeView = (state, day) => {
+        const spec = SPEC_BY_ID.get(dailySpecId(day));
+        const what = spec ? specLabel(spec) : 'Řazení dne';
+        const cards = LEVELS[DAILY_LEVEL].cards;
+        const done = dailyDone(state, day);
+        const streak = dailyStreak(state, day);
+        const series = streak > 1 ? `, série ${streak} dní` : '';
+        if (done) {
+            const result = done.attempts === 1 ? 'napoprvé' : attemptsText(done.attempts);
+            return { status: 'done', text: `Seřazeno ${result}`, short: done.attempts === 1 ? 'Napoprvé' : attemptsText(done.attempts), cta: 'Ukázat', label: `Řazení dne: hotovo, seřazeno ${result}${series}. Ukázat výsledek` };
+        }
+        const play = state.play && state.play.day === day ? state.play : null;
+        if (play) {
+            const placed = play.locked.filter(Boolean).length;
+            return { status: 'progress', text: `Rozehráno · ${placed}/${cards} na místě`, short: `${placed}/${cards} na místě`, cta: 'Hrát dál', label: `Řazení dne: rozehráno, ${placed} z ${cards} karet na místě (${what}). Hrát dál` };
+        }
+        return { status: 'new', text: spec ? rowText(spec) : what, short: `${cards} karet`, cta: 'Hrát', label: `Řazení dne: seřaď ${cards} karet – ${what}. Stejné pro všechny, bez časovače${series}. Hrát` };
+    };
     const CARD_FREE = 'border-slate-200 bg-white dark:border-slate-600 dark:bg-slate-700';
     const CARD_PICKED = 'border-gold-500 bg-gold-50 ring-2 ring-gold-400 dark:border-gold-400 dark:bg-gold-900/30';
     const CARD_LOCKED = 'border-emerald-400 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/30';
@@ -465,6 +493,7 @@
         let token = 0;
         let drag = null;
         let draggedAt = 0;
+        let fromHome = false; // Řazení dne otevřené ze záložky Dnes: Zpět vede zpátky tam, ne na úvod Seřaď to
         const calm = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
         const load = () => parse(deps.readJson(KEY));
         const save = (state) => deps.writeJson(KEY, state);
@@ -513,9 +542,9 @@
             else if (round) paint(playHtml(round, ui(), options.marks), { top: false, ...options });
         };
 
-        const open = () => { stopDrag(); view = 'intro'; round = null; picked = null; render(); };
-        const leave = () => { stopDrag(); token++; view = null; round = null; deps.renderHome(); };
-        const back = () => { if (view === 'intro' || view === null) leave(); else open(); };
+        const open = () => { stopDrag(); fromHome = false; view = 'intro'; round = null; picked = null; render(); };
+        const leave = () => { stopDrag(); token++; fromHome = false; view = null; round = null; deps.renderHome(); };
+        const back = () => { if (view === 'intro' || view === null || fromHome) leave(); else open(); };
 
         // Uloží rozehrané Řazení dne (po každém přesunu i kontrole)
         const keep = () => { if (round && round.mode === 'daily') save(savePlay(load(), round)); };
@@ -546,6 +575,7 @@
             }
         };
         const startPractice = async () => {
+            fromHome = false;
             const state = load();
             const settings = state.last;
             const mine = ++token;
@@ -703,6 +733,8 @@
             'sorting-open': () => { if (!deps.isLoading || !deps.isLoading()) open(); },
             'sorting-intro': () => open(),
             'sorting-daily': () => startDaily(),
+            // Řádek Řazení dne na záložce Dnes: rovnou kolo (nebo výsledek), bez úvodu
+            'sorting-today': () => { if (deps.isLoading && deps.isLoading()) return; stopDrag(); fromHome = true; startDaily(); },
             'sorting-start': () => startPractice(),
             'sorting-level': (button) => {
                 const state = load();
@@ -717,6 +749,8 @@
         };
         return {
             actions, open, leave, back,
+            // Řazení dne pro záložku Dnes (Minihry dne v app.js): stav a texty; akce sorting-today otevře rovnou kolo
+            today: () => ({ ...homeView(load(), today()), action: 'sorting-today' }),
             // Rozehrané kolo (oslavy úrovně počkají na výsledek); spodní lišta je jen na úvodu (app.js CALM_SCREENS), ať se 7 karet vejde
             isPlaying: () => deps.getScreen() === 'sorting' && (view === 'play' || view === 'loading'),
             place: () => ({ icon: 'list-ordered', text: round && view !== 'intro' && round.mode === 'daily' ? 'Řazení dne' : 'Seřaď to' }),
@@ -730,7 +764,7 @@
         KEY, LEVELS, LEVEL_IDS, XP_PER_CARD, FIRST_TRY_XP, DAILY_XP_CAP, DAILY_XP, DAILY_FIRST_XP, DAILY_SPECS, DAILY_LEVEL, TOPIC_IDS,
         SPEC_BY_ID, specsFor, specLabel, dirOf, dailySpecId, apart, chooseCards, makeRound, dailyRound, placedCount,
         freePositions, movedOrder, moveCard, stepCard, swapCards, neighbour, check,
-        parse, forDay, xpLeftToday, dailyDone, dailyStreak, restorePlay, savePlay, finish,
+        parse, forDay, xpLeftToday, dailyDone, dailyStreak, restorePlay, savePlay, finish, homeView, rowText,
         introHtml, playHtml, doneHtml, createController
     };
 });

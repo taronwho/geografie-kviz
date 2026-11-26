@@ -3199,16 +3199,28 @@
         };
         // Bloky navíc (data-optional: nejbližší odznaky na záložce Postup) se ukážou, jen když se vejdou; schovávají se od posledního
         const optional = [...wrap.querySelectorAll('[data-optional]')];
+        // Minihry dne (Řazení dne, Skládačka dne): celý řádek, nebo (když se nevejde ani s čipy místo pruhů) čipy v nadpisu Dnešních výzev
+        const minisRow = wrap.querySelector('[data-minis-row]');
+        const minisChips = wrap.querySelector('[data-minis-pills]');
+        const setMinis = (compact) => {
+            if (!minisRow || !minisChips) return;
+            minisRow.classList.toggle('hidden', compact);
+            minisChips.classList.toggle('hidden', !compact);
+        };
         const over = () => wrap.scrollHeight > appContent.clientHeight + 1;
         const relax = () => {
+            setMinis(false);
             optional.forEach(block => block.classList.remove('hidden'));
             if (extras && extras.dataset.mode === 'chips' && appContent.clientHeight - wrap.scrollHeight + extras.offsetHeight >= Number(extras.dataset.stripsHeight || Infinity)) setExtras('strips');
         };
         const squeeze = () => {
             if (extras && extras.dataset.mode === 'strips') {
                 extras.dataset.stripsHeight = String(extras.offsetHeight);
-                if (over()) setExtras('chips');
+                // Celé pruhy mají přednost před celým řádkem Miniher dne (ty zůstanou jako čipy v nadpisu); až když nestačí ani to, čipy
+                if (over()) setMinis(true);
+                if (over()) { setMinis(false); setExtras('chips'); }
             }
+            if (over()) setMinis(true);
             for (let index = optional.length - 1; index >= 0 && over(); index--) optional[index].classList.add('hidden');
         };
         // Měří se bez přechodů (dlaždice mají transition): jinak by se hned po odebrání třídy změřila ještě zhuštěná výška (fit-measure v src/input.css)
@@ -3268,9 +3280,10 @@
     // Řádek dnešní výzvy (Kvíz dne, Řetězovka, Tajemná otázka, Boss týdne): obrázek, název, krátký stav a vpravo akce; celý stav
     // v popisku pro čtečku. done = dnes už není co hrát (ztlumený řádek s fajfkou), cta = popisek tlačítka, dot = atribut značky
     // „dnes ještě nehráno“ (zlatá tečka jen s dotShown: nová nápověda Tajemné otázky; jinak to říká tlačítko Hrát), extra = obsah navíc pod stavem (lišta životů bosse). První nehotový řádek zvýrazní specialsSection (data-hot).
-    const specialTile = ({ id, action, art, title, text, label = '', dot = '', dotShown = false, attrs = '', extra = '', done = false, cta = 'Hrát', doneIcon = 'circle-check', textAttr = '' }) => `
+    // artHtml = hotový obrázek místo uiArt(art) (Řazení dne: kolečko s ikonou jako dlaždice Seřaď to na záložce Hrát)
+    const specialTile = ({ id, action, art, artHtml = '', title, text, label = '', dot = '', dotShown = false, attrs = '', extra = '', done = false, cta = 'Hrát', doneIcon = 'circle-check', textAttr = '' }) => `
             <button type="button" id="${id}" data-action="${action}" data-special-tile data-done="${done ? 1 : 0}" ${attrs} aria-label="${escapeHtml(label || `${title}: ${text}`)}" class="${HOME_ROW} ${HOME_ROW_HOT} min-h-[3.75rem] short:min-h-[3.1rem] short:py-1.5 tiny:min-h-[2.75rem] tiny:py-1${done ? ' opacity-60' : ''}">
-                <span class="relative flex shrink-0">${uiArt(art, 'h-10 w-10 short:h-9 short:w-9 tiny:h-8 tiny:w-8')}${dot ? `<span aria-hidden="true" ${dot} class="${dotShown ? 'absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-gold-500 ring-2 ring-white dark:ring-slate-800' : 'hidden'}"></span>` : ''}</span>
+                <span class="relative flex shrink-0">${artHtml || uiArt(art, 'h-10 w-10 short:h-9 short:w-9 tiny:h-8 tiny:w-8')}${dot ? `<span aria-hidden="true" ${dot} class="${dotShown ? 'absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-gold-500 ring-2 ring-white dark:ring-slate-800' : 'hidden'}"></span>` : ''}</span>
                 <span class="min-w-0 flex-1">
                     <span class="${ROW_TITLE}">${escapeHtml(title)}</span>
                     <span data-special-text ${textAttr} class="${ROW_SUB}">${escapeHtml(text)}</span>
@@ -3285,15 +3298,76 @@
     const chainSnapshotSeed = (day) => `mudrlant-retezovka-${day}`;
     const chainHomeTile = () => (chainCtl ? chainCtl.homeTile() : '');
     const bossHomeTile = () => (Boss ? bossTileHtml() : '');
+    // Minihry dne (stejné pro všechny, jednou denně, dají se odškrtnout): Řazení dne (sorting.js) a Skládačka dne (puzzle.js).
+    // Jedna minihra = běžný řádek dnešní výzvy (název, stav, tlačítko vpravo, hotová s fajfkou). Dvě = jeden řádek rozdělený na dvě
+    // poloviny (#daily-minis: obrázek, název, krátký stav, vpravo fajfka nebo šipka), ať se záložka Dnes i s oběma vejde na 360×640.
+    // Každá polovina je samostatná dnešní výzva (data-special-tile, počítá se do „x/N hotovo“). Bez modulu (nebo jeho API) se minihra
+    // neukáže. Položka: { id, action, art(třídy velikosti) → HTML, title, half (název v polovině řádku), text, short, label, cta, status, done }.
+    const MINI_ART = 'h-10 w-10 short:h-9 short:w-9 tiny:h-8 tiny:w-8';
+    const HALF_ART = 'h-9 w-9 short:h-8 short:w-8 max-[379px]:h-8 max-[379px]:w-8';
+    const sortingToday = () => {
+        if (!sortingCtl) return null;
+        const view = sortingCtl.today();
+        return { ...view, id: 'sorting-card', title: 'Řazení dne', half: 'Řazení', done: view.status === 'done', attrs: `data-sorting-status="${view.status}"`,
+            // Obrázek jako dlaždice Seřaď to na záložce Hrát (kolečko s ikonou, do dodání vlastního obrázku)
+            art: (cls) => `<span class="flex ${cls} shrink-0 items-center justify-center rounded-full bg-sky-600 text-white"><i data-lucide="list-ordered" class="h-5 w-5 tiny:h-4 tiny:w-4"></i></span>` };
+    };
+    // NAPOJENÍ Skládačky dne: puzzleCtl.daily() → { done, moves, label } (případně action); dokud puzzle.js API nemá, vrátí null a nic
+    // se neukáže. Akce otevře rovnou Skládačku dne (ne úvod Skládačky): název akce dodá puzzle.js (daily().action), jinak PUZZLE_TODAY_ACTION.
+    const PUZZLE_TODAY_ACTION = 'puzzle-daily';
+    const puzzleToday = () => {
+        const daily = puzzleCtl && typeof puzzleCtl.daily === 'function' ? puzzleCtl.daily() : null;
+        if (!daily) return null;
+        const done = Boolean(daily.done);
+        const moves = Number(daily.moves) || 0;
+        const result = moves ? plural(moves, 'tah', 'tahy', 'tahů') : '';
+        return { id: 'puzzle-card', action: daily.action || PUZZLE_TODAY_ACTION, title: 'Skládačka dne', half: 'Skládačka', done, status: done ? 'done' : 'new', attrs: `data-puzzle-status="${done ? 'done' : 'new'}"`,
+            text: done ? `Složeno${result ? ` · ${result}` : ''}` : 'Dílky 4×4, stejná pro všechny', short: done ? (result || 'Složeno') : 'Dílky 4×4', cta: done ? 'Ukázat' : 'Hrát',
+            label: daily.label || `Skládačka dne: ${done ? `složeno${result ? `, ${result}` : ''}` : 'stejná pro všechny'}`, art: (cls) => puzzleCtl.homeTile().art(cls) };
+    };
+    // Polovina řádku Miniher dne: místo tlačítka vpravo fajfka (hotovo), nebo šipka (zvýrazněná jako ostatní řádky přes data-hot)
+    const miniHalf = (item) => `
+            <button type="button" id="${item.id}" data-action="${item.action}" data-special-tile data-done="${item.done ? 1 : 0}" ${item.attrs || ''} aria-label="${escapeHtml(item.label)}" class="${MINI_ROW} ${HOME_ROW_HOT} min-h-[3.75rem] short:min-h-[3.1rem] short:py-1.5 tiny:min-h-[2.75rem] tiny:py-1${item.done ? ' opacity-60' : ''}">
+                <span class="flex shrink-0">${item.art(HALF_ART)}</span>
+                <span class="min-w-0 flex-1">
+                    <span class="block truncate text-[14px] font-extrabold leading-tight text-slate-800 max-[379px]:text-[13px] dark:text-slate-100">${escapeHtml(item.half)}</span>
+                    <span data-special-text class="${ROW_SUB}">${escapeHtml(item.short)}</span>
+                </span>
+                ${item.done ? '<span data-cta-done class="flex shrink-0 text-emerald-600 dark:text-emerald-400"><i data-lucide="circle-check" class="h-5 w-5"></i></span>'
+                    : '<span aria-hidden="true" class="flex shrink-0 text-brand-700 dark:text-cream"><i data-lucide="chevron-right" class="h-5 w-5"></i></span>'}
+            </button>`;
+    // Jako HOME_ROW, jen s menšími mezerami (polovina šířky)
+    const MINI_ROW = `group relative flex w-full min-w-0 items-center gap-2 ${CARD_R} ${SURFACE} px-2.5 py-2 text-left max-[379px]:gap-1.5 max-[379px]:px-2 transition-transform active:scale-[0.985]`;
+    const minisToday = () => [sortingToday(), puzzleToday()].filter(Boolean);
+    const minisHomeRow = () => {
+        const items = minisToday();
+        if (items.length === 1) return specialTile({ ...items[0], art: '', artHtml: items[0].art(MINI_ART), attrs: `${items[0].attrs || ''} data-minis-row` });
+        return items.length ? `<div id="daily-minis" data-minis-row aria-label="Minihry dne" role="group" class="grid grid-cols-2 gap-2 short:gap-1.5">${items.map(miniHalf).join('')}</div>` : '';
+    };
+    // Úsporná podoba Miniher dne: malé čipy vpravo v nadpisu Dnešních výzev (obrázek a fajfka, nebo šipka; dotyková plocha 44 px,
+    // řádek nadpisu nezvětší). fitHome ji zapne, jen když se záložka nevejde ani s příležitostnými pruhy jako čipy (malý displej,
+    // hodně pruhů najednou); v dokumentu jsou obě podoby, vidět je vždy jen jedna
+    const minisPills = () => {
+        const items = minisToday();
+        if (!items.length) return '';
+        const pill = (item) => `<button type="button" id="${item.id.replace(/-card$/, '-pill')}" data-action="${item.action}" data-minis-pill data-done="${item.done ? 1 : 0}" aria-label="${escapeHtml(item.label)}" title="${escapeHtml(item.title)}" class="-my-3 flex min-h-[2.75rem] min-w-[2.75rem] shrink-0 items-center justify-center active:scale-95">
+                <span class="flex items-center gap-1 rounded-full bg-white py-0.5 pl-0.5 pr-1.5 shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-800 dark:ring-slate-700/70${item.done ? ' opacity-70' : ''}">${item.art('h-6 w-6')}${item.done
+                    ? '<i data-lucide="circle-check" class="h-4 w-4 text-emerald-600 dark:text-emerald-400"></i>' : '<i data-lucide="chevron-right" class="h-4 w-4 text-brand-700 dark:text-cream"></i>'}</span></button>`;
+        return `<div data-minis-pills role="group" aria-label="Minihry dne" class="ml-auto flex hidden shrink-0 items-center">${items.map(pill).join('')}</div>`;
+    };
     const specialsSection = () => {
-        const rows = [quizHomeCard(), chainHomeTile(), mysteryHomeCard(), bossHomeTile()].filter(Boolean);
+        // Minihry dne mezi denními hrami, před týdenním Bossem
+        const rows = [quizHomeCard(), chainHomeTile(), mysteryHomeCard(), minisHomeRow(), bossHomeTile()].filter(Boolean);
         if (!rows.length) return '';
-        const done = rows.filter(html => html.includes('data-done="1"')).length;
+        // Výzvy se počítají po řádcích i polovinách řádku (Minihry dne); zvýrazní se první nehotová
+        const count = (html, text) => html.split(text).length - 1;
+        const total = rows.reduce((sum, html) => sum + count(html, 'data-special-tile'), 0);
+        const done = rows.reduce((sum, html) => sum + count(html, 'data-special-tile data-done="1"'), 0);
         const hot = rows.findIndex(html => html.includes('data-done="0"'));
         return `
             <section id="home-specials" aria-label="Dnešní výzvy" data-specials-done="${done}" class="flex flex-col gap-2 short:gap-1.5">
-                <h2 class="${SEC_LABEL}">Dnešní výzvy <span class="font-bold">· ${done}/${rows.length} hotovo</span></h2>
-                ${rows.map((html, index) => (index === hot ? html.replace('data-special-tile', 'data-special-tile data-hot').replace(`data-cta class="${CTA_SOFT}"`, `data-cta class="${CTA_BRAND}"`) : html)).join('')}
+                <div class="flex items-center gap-1"><h2 class="${SEC_LABEL}">Dnešní výzvy <span class="font-bold">· ${done}/${total} hotovo</span></h2>${minisPills()}</div>
+                ${rows.map((html, index) => (index === hot ? html.replace('data-special-tile data-done="0"', 'data-special-tile data-hot data-done="0"').replace(`data-cta class="${CTA_SOFT}"`, `data-cta class="${CTA_BRAND}"`) : html)).join('')}
             </section>`;
     };
     const dailyStats = () => {
