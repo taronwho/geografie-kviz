@@ -1710,3 +1710,38 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 @keyframes cqAnkhGlow { 0% { opacity: 0; transform: scale(0.3); } 35% { opacity: 1; transform: scale(1.3); } 100% { opacity: 0; transform: scale(2.2); } }
 @keyframes cqShieldPulse { 0% { opacity: 0.8; transform: scale(1); } 100% { opacity: 0; transform: scale(1.6); } }
 @keyframes cqShieldIn { 0% { opacity: 0; transform: scale(0.2); } 100% { opacity: 1; transform: scale(1); } }
+
+/* Záložka Postup s víc než 9 dlaždicemi (přihlášený hráč s Vitrínou a Pasem): na nízkém displeji všechny dlaždice bez obrázků,
+   jen název a hodnota, ať se záložka vejde bez posouvání (app.js renderPostup, třída postup-many) */
+@media (max-height: 770px) { #postup-tiles.postup-many > button { min-height: 3.1rem; } #postup-tiles.postup-many > button > :first-child { display: none; } }
+.fit-short #postup-tiles.postup-many > button { min-height: 3.1rem; }
+.fit-short #postup-tiles.postup-many > button > :first-child { display: none; }
+@media (max-height: 600px) { #postup-tiles.postup-many > button { min-height: 2.6rem; } }
+
+/* Cestovní pas (passport.js): nové razítko „bouchne“ – dopadne shora zvětšené a mírně pootočené, krátce se zhoupne a zanechá otisk
+   (kroužek inkoustu, který se rozplyne). Razítka na stránce bouchají po sobě (pas-d0 … pas-d7). Rotace razítka je na obalu,
+   animace na vnitřním .pas-ink, ať se nepřepíšou. Při „omezit pohyb“ bez animace: razítko jen stojí se štítkem Nové. */
+.pas-ink { position: relative; }
+@media (prefers-reduced-motion: no-preference) {
+    .pas-thud { animation: pasThud 0.42s cubic-bezier(0.2, 0.9, 0.3, 1.25) both; }
+    .pas-thud::after { content: ''; position: absolute; inset: -3px; border-radius: inherit; border: 3px solid currentColor; opacity: 0; animation: pasInk 0.6s ease-out both; animation-delay: inherit; pointer-events: none; }
+    .pas-d1 { animation-delay: 0.16s; }
+    .pas-d2 { animation-delay: 0.32s; }
+    .pas-d3 { animation-delay: 0.48s; }
+    .pas-d4 { animation-delay: 0.64s; }
+    .pas-d5 { animation-delay: 0.8s; }
+    .pas-d6 { animation-delay: 0.96s; }
+    .pas-d7 { animation-delay: 1.12s; }
+    .pas-big.pas-thud { animation-duration: 0.55s; }
+}
+@keyframes pasThud {
+    0% { opacity: 0; transform: scale(1.9) rotate(-9deg); }
+    55% { opacity: 1; transform: scale(0.9) rotate(1deg); }
+    78% { transform: scale(1.05) rotate(0deg); }
+    100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+@keyframes pasInk {
+    0%, 45% { opacity: 0; transform: scale(1); }
+    55% { opacity: 0.45; }
+    100% { opacity: 0; transform: scale(1.18); }
+}

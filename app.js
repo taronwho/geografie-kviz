@@ -4177,8 +4177,9 @@
         }).catch(() => {});
     };
     // Řádek „+30 XP“ s rozpisem (odpověď, dnešní otázka, série…) pod výsledkem
-    const xpLine = (xp, tone) => xp && (xp.total || (xp.badges && xp.badges.length))
-        ? `<div class="mt-0.5 text-xs font-bold ${tone}">${xp.total ? `<span class="inline-block rounded-md bg-gold-500 px-1.5 py-0.5 font-black text-brand-950">+${xp.total} XP</span>` : ''}${(xp.badges || []).map(title => `<span class="ml-1 inline-flex items-center gap-1 rounded-md bg-brand-700 px-1.5 py-0.5 font-black text-white"><i data-lucide="award" class="h-3 w-3"></i>${escapeHtml(title)}</span>`).join('')}${xp.parts.length === 1 && !(xp.badges || []).length && xp.parts[0].xp === xp.total ? ` <span class="ml-0.5 font-semibold opacity-90">${escapeHtml(xp.parts[0].label)}</span>` : xp.parts.length ? `<ul class="mt-1 space-y-0.5 font-semibold opacity-90">${xp.parts.map(part => `<li>+${part.xp} XP ${escapeHtml(part.label)}</li>`).join('')}</ul>` : ''}</div>` : '';
+    // xp.stamp = nové razítko do Cestovního pasu (název státu): malý čip s razítkem, celé razítko až v pasu
+    const xpLine = (xp, tone) => xp && (xp.total || (xp.badges && xp.badges.length) || xp.stamp)
+        ? `<div class="mt-0.5 text-xs font-bold ${tone}">${xp.total ? `<span class="inline-block rounded-md bg-gold-500 px-1.5 py-0.5 font-black text-brand-950">+${xp.total} XP</span>` : ''}${(xp.badges || []).map(title => `<span class="ml-1 inline-flex items-center gap-1 rounded-md bg-brand-700 px-1.5 py-0.5 font-black text-white"><i data-lucide="award" class="h-3 w-3"></i>${escapeHtml(title)}</span>`).join('')}${xp.stamp && Passport ? `<span data-stamp-chip class="ml-1 inline-flex items-center gap-1 rounded-md border border-current px-1.5 py-px font-black" title="${escapeHtml(Passport.chipText(xp.stamp))}"><i data-lucide="stamp" class="h-3 w-3"></i>${escapeHtml(xp.stamp)}</span>` : ''}${xp.parts.length === 1 && !(xp.badges || []).length && xp.parts[0].xp === xp.total ? ` <span class="ml-0.5 font-semibold opacity-90">${escapeHtml(xp.parts[0].label)}</span>` : xp.parts.length ? `<ul class="mt-1 space-y-0.5 font-semibold opacity-90">${xp.parts.map(part => `<li>+${part.xp} XP ${escapeHtml(part.label)}</li>`).join('')}</ul>` : ''}</div>` : '';
 
     const renderResultBanner = (data) => {
         if (data.question.type === 'map' && MapQuestion) return MapQuestion.resultBanner(data, round, { uiArt, xpLine, totalLine: scoreTotalLine });
@@ -5259,6 +5260,8 @@
     const Rewards = window.MudrlantRewards || null;
     // Album sbírky (album.js): co všechno jde sbírat, co hráč má a co chybí; okno a napojení v oddílu „Album sbírky“ u Mého postupu
     const Album = window.MudrlantAlbum || null;
+    // Cestovní pas (passport.js): razítka za poznané státy; napojení v oddílu „Cestovní pas“ u Alba sbírky
+    const Passport = window.MudrlantPassport || null;
     const loadRewards = () => (Rewards ? Rewards.parse(readJson(Rewards.KEY)) : null);
     const saveRewards = (state) => {
         if (!Rewards) return;
@@ -6270,6 +6273,8 @@
             pool.done += 1;
             if (round.correct) pool.mastered += 1;
         }
+        // Cestovní pas: razítko za nově poznaný stát (malý čip ve výsledku, celé razítko v pasu)
+        const stamp = round.correct ? notePassport(current.topic, current.id) : null;
         if (round.correct) {
             const learned = loadLearned();
             const ids = new Set(learned[current.topic] || []);
@@ -6279,6 +6284,7 @@
             writeJson(KEYS.learned, learned);
         }
         awardXp(stats);
+        if (stamp && round.xp) round.xp.stamp = stamp;
     };
 
     // answerRef: položka (nebo stát) ze špatné odpovědi – výsledek k ní nabídne okno s popisem
@@ -7502,6 +7508,9 @@
         writeJson(KEYS.mistakes, updateMistakes(loadMistakes(), key, correct));
         if (reviewEnabled()) saveReview(Review.onAnswer(loadReview(), key, correct, getDayKey(), { force: false }));
         if (correct) {
+            // Cestovní pas: nová razítka hry se ukážou v souhrnu Bleskovky a Přežití
+            const stamp = notePassport(data.topic, data.id);
+            if (stamp && modeGame && modeLive(modeGame)) modeGame.stamps = [...(modeGame.stamps || []), stamp];
             const learned = loadLearned();
             learned[data.topic] = [...new Set([...(learned[data.topic] || []), data.id])];
             writeJson(KEYS.learned, learned);
@@ -7756,6 +7765,7 @@
                         ${ShareCard && game.score > 0 ? `<button type="button" data-action="mode-share-image" class="flex min-h-[2.75rem] ${game.xp && (game.xp.total || game.xp.note) ? 'w-[5.5rem] shrink-0 flex-col' : 'flex-1'} items-center justify-center gap-1 rounded-2xl btn-3d-light bg-white px-2 py-1.5 text-center text-[12px] font-bold leading-tight text-slate-800 dark:bg-slate-800 dark:text-slate-100"><i data-lucide="image" class="h-4 w-4 shrink-0"></i> Sdílet obrázek</button>` : ''}
                     </div>
                     ${goldModeResult(game)}
+                    ${passportModeResult(game)}
                     ${missedHtml}
                 </div>
                 <div class="sticky bottom-0 z-20 flex gap-2 border-t border-slate-200/70 bg-slate-50/95 px-4 pb-4 pt-3 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
@@ -7815,6 +7825,7 @@
         'mode-again': () => { if (modeGame) startModeGame(modeGame.kind, modeGame.pool); },
         'mode-home': () => leaveMode(),
         'mode-share-image': () => shareModeImage(),
+        'open-passport': () => openPassport(),
         'mode-retry': () => { if (modeGame && modeGame.phase === 'error') { modeGame.phase = 'loading'; showNextModeQuestion(modeGame); } }
     };
 
@@ -9794,6 +9805,7 @@
             postupTile({ attrs: 'data-open-mastery-all aria-label="Mistrovství témat: hvězdy za poznané položky"', art: postupArt('odznak-hvezdy'), title: 'Mistrovství', value: `${stars} / ${TOPICS.length * MASTERY_STEPS.length} hvězd`, valueAttrs: 'data-mastery-stars' }),
             ...(Rewards ? [postupTile({ attrs: 'data-rewards-info="diplomas"', art: postupArt('diplom'), title: 'Diplomy', value: `${diplomas} / ${TOPICS.length}`, valueAttrs: 'data-diploma-count' })] : []),
             ...(Album && Rewards ? [postupTile({ attrs: 'data-rewards-info="album"', art: postupArt(Album.ALBUM_ART || 'album'), title: 'Album', value: `${album} %`, valueAttrs: 'data-album-percent' })] : []),
+            ...(Passport ? [passportTile()] : []),
             ...(Showcase && signedUser() && myShowcase !== null ? [postupTile({ attrs: 'data-open-showcase', art: postupArt('vitrina'), title: 'Vitrína', value: `${myShowcase.length} / ${Showcase.MAX}` })] : []),
             ...(Chronicle ? [postupTile({ attrs: 'data-open-chronicle aria-label="Kronika týdne: můj týden v kostce"', art: postupArt('sova-kronika'), title: 'Kronika', value: 'týden v kostce' })] : []),
             ...(Rewards ? [
@@ -9815,7 +9827,7 @@
             </button>
             ${season ? `<div class="shrink-0">${Season.cardHtml(season)}</div>` : ''}
             ${renderGoalsCard()}
-            <section id="postup-tiles" aria-label="Sbírky a odměny" class="grid shrink-0 grid-cols-3 gap-2 short:gap-1.5">${tiles.join('')}</section>
+            <section id="postup-tiles" aria-label="Sbírky a odměny" class="${tiles.length > 9 ? 'postup-many ' : ''}grid shrink-0 grid-cols-3 gap-2 short:gap-1.5">${tiles.join('')}</section>
             ${goals.length ? `
             <section data-optional aria-label="Nejbližší odznaky" class="flex shrink-0 flex-col gap-1.5">
                 <h2 class="${SEC_LABEL}">Nejbližší odznaky</h2>
@@ -9855,6 +9867,7 @@
         if (event.target.closest('[data-open-mastery-all]')) { openMasteryAll(); return true; }
         if (event.target.closest('[data-open-showcase]')) { openShowcase(); return true; }
         if (event.target.closest('[data-open-chronicle]')) { openChronicle(); return true; }
+        if (event.target.closest('[data-open-passport]')) { openPassport(); return true; }
         if (event.target.closest('[data-season-claim]')) { openSeasonReveal(); return true; }
         if (event.target.closest('[data-season-open]')) { openSeason(); return true; }
         const info = event.target.closest('[data-rewards-info]');
@@ -10258,6 +10271,134 @@
             renderAlbum(null, '[data-album-back]');
         }
     };
+
+    // --- Cestovní pas (passport.js): razítko za každý poznaný stát (Zeměpis: stát a hlavní město, Vlajky: vlajka a státní znak) ---
+    // Zápis po správné odpovědi (notePassport), okno z dlaždice Pas v Mém postupu, malý čip ve výsledku a razítka v souhrnu Bleskovky a Přežití
+    const loadPassport = () => (Passport ? Passport.parse(readJson(Passport.KEY)) : null);
+    // Zpětné doplnění z poznaných položek pro načtená témata; téma bez poznaných položek se jen označí. Vrací stav.
+    const fillPassport = (state, countries) => {
+        const learned = loadLearned();
+        for (const topicId of Passport.TOPICS) {
+            if (state.filled[topicId]) continue;
+            const ids = learned[topicId] || [];
+            const ctx = loadedTopics.get(topicId);
+            if (ids.length && !ctx) continue;
+            state = Passport.backfill(state, topicId, ids, ctx ? ctx.byId : new Map(), countries).state;
+        }
+        return state;
+    };
+    // Správná odpověď na položku: razítko, pokud stát ještě nemá; vrací název státu nového razítka (jinak null). Volá se před zápisem do poznaných.
+    const notePassport = (topicId, id) => {
+        if (!Passport || !Passport.TOPICS.includes(topicId)) return null;
+        const ctx = loadedTopics.get(topicId);
+        const item = ctx && ctx.byId.get(id);
+        if (!item || !Passport.stampOf(topicId, item, ctx.countries)) return null;
+        const state = fillPassport(loadPassport(), ctx.countries);
+        const result = Passport.record(state, topicId, item, ctx.countries, getDayKey());
+        writeJson(Passport.KEY, result.state);
+        // Druhé téma s poznanými položkami se doplní, až se načte (na pozadí, ať pas brzy sedí i se staršími razítky)
+        if (Passport.TOPICS.some(other => !result.state.filled[other])) preparePassport().catch(() => {});
+        return result.stamp ? ctx.countries[result.stamp].name : null;
+    };
+    // Načte témata pasu, která ještě nejsou doplněná, a doplní je; vrací { state, countries }
+    let passportCountries = null;
+    const preparePassport = async () => {
+        const learned = loadLearned();
+        const missing = Passport.TOPICS.filter(topicId => !loadPassport().filled[topicId] && (learned[topicId] || []).length);
+        const countries = await loadCountries();
+        passportCountries = countries;
+        await Promise.all(missing.map(topicId => loadTopic(topicId).catch(() => null)));
+        const state = fillPassport(loadPassport(), countries);
+        writeJson(Passport.KEY, state);
+        return { state, countries };
+    };
+    let passportPage = 0;
+    // Okno pasu: otevře se na první stránce s novým razítkem (jinak na obálce, nebo kde hráč minule skončil)
+    const openPassport = async () => {
+        if (!Passport) return;
+        touchTip('passport');
+        let ready;
+        try { ready = await preparePassport(); } catch (error) { showToast('Pas se teď nepodařilo načíst. Zkus to za chvíli.'); return; }
+        const pass = Passport.book(ready.state, ready.countries);
+        const fresh = Passport.firstFreshPage(pass);
+        passportPage = fresh || Math.min(passportPage, pass.pages.length - 1);
+        renderPassport();
+    };
+    // Listování klávesami šipek, dokud je pas otevřený (jeden posluchač pro celou aplikaci)
+    let passportKeys = false;
+    const renderPassport = () => {
+        if (!passportKeys) {
+            passportKeys = true;
+            document.addEventListener('keydown', (event) => {
+                if (!document.querySelector('#dialog-overlay [data-pas]') || event.altKey || event.ctrlKey || event.metaKey) return;
+                if (event.key === 'ArrowRight') { event.preventDefault(); turnPassport(1); }
+                if (event.key === 'ArrowLeft') { event.preventDefault(); turnPassport(-1); }
+            });
+        }
+        renderPassportWith(passportCountries);
+    };
+    const renderPassportWith = (countries) => {
+        const state = loadPassport();
+        const pass = Passport.book(state, countries);
+        passportPage = Math.max(0, Math.min(pass.pages.length - 1, passportPage));
+        const reduced = reducedMotion();
+        const overlay = showDialog('Cestovní pas', `${Passport.passHtml(pass, passportPage, { reduced, canShare: Boolean(ShareCard) && pass.have > 0 })}${dialogBackButton('mt-2')}`, { onClick: passportClick });
+        applyProgress(overlay);
+        Passport.bindSwipe(overlay.querySelector('[data-pas-book]'), turnPassport);
+        // Nová razítka na této stránce bouchnou jednou (zvuk razítka), pak jsou viděná; velké razítko kontinentu také
+        const page = pass.pages[passportPage];
+        if (page.kind === 'continent') {
+            const freshIds = page.cells.filter(cell => cell.fresh).map(cell => cell.id);
+            const freshBig = page.part === 0 && page.continent.doneFresh ? [page.continent.id] : [];
+            if (freshIds.length || freshBig.length) {
+                writeJson(Passport.KEY, Passport.markSeen(state, freshIds, freshBig));
+                if (Sound) Sound.play('stamp');
+                // Dlaždice Pas pod oknem (záložka Postup) přestane hlásit nová razítka
+                const tile = document.querySelector('#postup-tiles [data-open-passport]');
+                if (tile) { tile.outerHTML = passportTile(); renderIcons(document.getElementById('postup-tiles')); }
+            }
+        }
+    };
+    const turnPassport = (step) => {
+        const countries = passportCountries;
+        if (!countries) return;
+        const total = Passport.book(loadPassport(), countries).pages.length;
+        const next = Math.max(0, Math.min(total - 1, passportPage + step));
+        if (next === passportPage) return;
+        passportPage = next;
+        renderPassportWith(countries);
+        // Zaměření zůstane na šipce (na krajní stránce na té druhé), ať jde listovat dál z klávesnice
+        const button = (step > 0 ? ['[data-pas-next]', '[data-pas-prev]'] : ['[data-pas-prev]', '[data-pas-next]']).map(selector => document.querySelector(selector)).find(node => node && !node.disabled);
+        if (button) button.focus({ preventScroll: true });
+    };
+    const passportClick = (event) => {
+        if (event.target.closest('[data-pas-prev]')) { turnPassport(-1); return; }
+        if (event.target.closest('[data-pas-next]')) { turnPassport(1); return; }
+        const go = event.target.closest('[data-pas-go]');
+        if (go) { turnPassport(Number(go.dataset.pasGo) - passportPage); return; }
+        if (event.target.closest('[data-pas-share]') && ShareCard) {
+            const countries = passportCountries;
+            if (countries) ShareCard.shareText({ text: `${Passport.shareText(Passport.book(loadPassport(), countries))}\n${appUrl()}` }, { toast: showToast, copied: 'Pas je zkopírovaný ve schránce' });
+        }
+    };
+    // Dlaždice v Mém postupu: počet států, se zlatým lemem, když v pasu čekají nová razítka
+    // Pas ještě není doplněný z dřívějška: doplní se na pozadí (jednou) a dlaždice se pak překreslí
+    let passportFilling = null;
+    const passportTile = () => {
+        const state = loadPassport();
+        if (!passportFilling && Passport.TOPICS.some(topicId => !state.filled[topicId])) {
+            passportFilling = preparePassport().then(() => {
+                const tile = document.querySelector('[data-open-passport]');
+                if (!tile) return;
+                tile.outerHTML = passportTile();
+                renderIcons(document.getElementById('postup-tiles') || document);
+            }).catch(() => { passportFilling = null; });
+        }
+        const view = Passport.tile(state);
+        return postupTile({ attrs: `data-open-passport aria-label="${escapeHtml(view.label)}"`, art: view.art, title: 'Pas', value: escapeHtml(view.value), valueAttrs: 'data-passport-value', ready: view.ready });
+    };
+    // Souhrn Bleskovky a Přežití: nová razítka hry (celá razítka s vlajkou) a tlačítko do pasu
+    const passportModeResult = (game) => (Passport && game ? Passport.modeResultHtml(game.stamps, { reduced: reducedMotion(), card: CARD, cardTitle: CARD_TITLE }) : '');
 
     // Mistrovství jednoho tématu: co to je, kolik už hráč poznal, kolik chybí do další hvězdičky a co hvězdičky přinášejí (jen to, co hra opravdu dává)
     const openMastery = (topicId) => {

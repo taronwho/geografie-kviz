@@ -60,7 +60,9 @@ const ICONS = [
     // Mytologie: kategorie Náboženství, Světci a světice, Záhady a legendy
     'sun-moon', 'cross', 'search',
     // Vlajky a znaky: kategorie Měny a bankovky
-    'banknote'
+    'banknote',
+    // Cestovní pas (passport.js): razítka států
+    'stamp'
 ];
 
 const toPascalCase = (name) => name.replace(/(^|-)(\w)/g, (_, __, letter) => letter.toUpperCase());

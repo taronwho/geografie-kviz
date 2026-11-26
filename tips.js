@@ -80,6 +80,9 @@
             action: { kind: 'progress', label: 'Postup' }, ready: (u) => u.season, used: (u) => Boolean(u.visited.season) },
         { id: 'album', icon: 'book-open', art: 'album', after: 70, title: 'Album sbírky', text: 'Na záložce Postup najdeš Album sbírky se vším, co můžeš pro Mudrlanta a svůj profil získat. Uvidíš, co ti ještě chybí, a za každý milník sbírky dostaneš odznak Sběratel.',
             action: { kind: 'progress', label: 'Postup' }, ready: (u) => u.album, used: (u) => Boolean(u.visited.album) },
+        // Cestovní pas (passport.js): razítka za poznané státy; kdo pas otevřel, tip nepotřebuje
+        { id: 'pas', icon: 'stamp', after: 25, title: 'Cestovní pas', text: 'Za každý stát, který poznáš v Zeměpisu nebo ve Vlajkách a znacích (stát, vlajku, státní znak či hlavní město), dostaneš razítko do pasu. Najdeš ho na záložce Postup.',
+            action: { kind: 'progress', label: 'Postup' }, used: (u) => Boolean(u.visited.passport) },
         { id: 'kronika', icon: 'book-open', after: 40, title: 'Mudrlantova kronika', text: 'Každou neděli večer ti Mudrlant shrne uplynulý týden: kolik otázek máš za sebou, téma a titul týdne a tvoje nové objevy. Kroniku najdeš i na záložce Postup a můžeš ji sdílet jako obrázek.',
             action: { kind: 'chronicle', label: 'Otevřít kroniku' }, ready: (u) => u.chronicle && num(u.counters.days) >= 2, used: (u) => Boolean(u.visited.chronicle) },
         { id: 'ligove-sezony', icon: 'calendar-days', art: 'ligova-sezona', multi: true, account: true, after: 40, title: 'Ligové sezóny', text: 'Každý kalendářní měsíc je jedna ligová sezóna. Po jejím skončení dostaneš rámeček profilu podle nejvyšší ligy, které v ní dosáhneš, od Stříbra až po Mistra. Rámeček ti zůstane navždy. Výsledky sezón si můžeš vystavit ve vitríně.',
@@ -175,7 +178,7 @@
 
     const EMPTY = { seen: [], day: '', n: 0, lastAt: 0, off: false, visited: {} };
     // Navštívené části hry (tip o nich už není potřeba): Učení, Postup, Vzhled, Diplomy, Sezóna, Album, Vitrína, Kronika týdne, skupina Postavičky…
-    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle', 'gold', 'conquest', 'bets', 'conquestInvite', 'poll', 'referral', 'perks', 'robeColor', 'characters', 'tourShare', 'robots'];
+    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle', 'gold', 'conquest', 'bets', 'conquestInvite', 'poll', 'referral', 'perks', 'robeColor', 'characters', 'tourShare', 'robots', 'passport'];
     const parse = (value) => {
         const v = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
         const visited = {};
