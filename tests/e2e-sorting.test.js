@@ -112,9 +112,9 @@ test('Seřaď to: úvod, Řazení dne, přesuny, kontrola, výsledek a volná hr
     // --- Světlý režim 360×640: záložka Hrát, úvod, Řazení dne ---
     const { context, tab, problems } = await open();
     await nav.go(tab, 'hrat');
-    assert.equal(await tab.$$eval('#mode-tiles > button', tiles => tiles.length), 5);
+    assert.equal(await tab.$$eval('#mode-tiles > button', tiles => tiles.length), 6); // Bleskovka, Přežití, Na mapě, Seřaď to, Skládačka, Učení
     assert.match(await tab.textContent('#mode-tiles [data-action="sorting-open"]'), /Seřaď to/);
-    await assertFits(tab, 'záložka Hrát s pěti režimy');
+    await assertFits(tab, 'záložka Hrát se šesti režimy');
     await shot(tab, 'hrat-svetly-360');
     await openSorting(tab);
     await assertFits(tab, 'úvod');
