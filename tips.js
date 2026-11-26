@@ -33,6 +33,9 @@
             action: { kind: 'learn', label: 'Do Učení' }, used: (u) => Boolean(u.visited.learn) },
         { id: 'rezimy', icon: 'zap', after: 10, title: 'Bleskovka a Přežití', text: 'V Bleskovce máš 60 sekund na co nejvíc správných odpovědí. V Přežití máš 3 životy a každá chyba ti jeden vezme. Obě hry najdeš na záložce Hrát mezi Režimy, s jedním tématem v okně po klepnutí na jeho dlaždici. Rekordy se ti ukládají.',
             action: { kind: 'play', label: 'Na záložku Hrát' }, ready: (u) => u.modes, used: (u) => num(u.counters.blitzGames) + num(u.counters.survivalGames) > 0 },
+        // Skládačka (puzzle.js): kdo ji už otevřel, tip nepotřebuje
+        { id: 'skladacka', icon: 'puzzle', after: 8, title: 'Skládačka', text: 'Na záložce Hrát mezi Režimy je Skládačka: slož vlajku nebo obrys státu ze 4, 9 nebo 16 dílků. Dílek přetáhni, nebo ho klepnutím vyber a polož. Bez časovače. Poznáš dřív, co skládáš?',
+            action: { kind: 'play', label: 'Na záložku Hrát' }, used: (u) => Boolean(u.visited.puzzle) },
         { id: 'turnaj', icon: 'trophy', multi: true, account: true, after: 14, title: 'Týdenní turnaj', text: 'Každý týden začíná turnaj. Každý den se hraje jedno kolo: 10 otázek proti jednomu soupeři a kdo vyhraje, postupuje do dalšího kola. Přihlásit se můžeš na záložce Soupeři v okně Turnaje.',
             action: { kind: 'tournaments', label: 'Zobrazit' }, used: (u) => num(u.counters.tourPlayed) > 0 },
         // Obrázek s umístěním po skončení turnaje: jen tomu, kdo už v turnaji hrál; kdo ho sdílel nebo stáhl, tip nepotřebuje
@@ -175,7 +178,7 @@
 
     const EMPTY = { seen: [], day: '', n: 0, lastAt: 0, off: false, visited: {} };
     // Navštívené části hry (tip o nich už není potřeba): Učení, Postup, Vzhled, Diplomy, Sezóna, Album, Vitrína, Kronika týdne, skupina Postavičky…
-    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle', 'gold', 'conquest', 'bets', 'conquestInvite', 'poll', 'referral', 'perks', 'robeColor', 'characters', 'tourShare', 'robots'];
+    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle', 'gold', 'conquest', 'bets', 'conquestInvite', 'poll', 'referral', 'perks', 'robeColor', 'characters', 'tourShare', 'robots', 'puzzle'];
     const parse = (value) => {
         const v = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
         const visited = {};

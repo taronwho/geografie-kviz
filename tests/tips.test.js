@@ -60,14 +60,14 @@ test('funkci, kterou hráč už používá, tip nenabídne; tip se ukáže jen j
     const offered = [];
     let state = { ...Tips.EMPTY, visited: { learn: true, progress: true, look: true, diplomas: true, season: true, album: true, showcase: true, leagueSeasons: true, legends: true, looks: true, groups: true, conquest: true } };
     let now = NOW;
-    for (let day = 0; day < 20; day++) {
+    for (let day = 0; day < 21; day++) {
         const tip = Tips.pick(state, { ...ctx, today: `2026-12-${String(day + 1).padStart(2, '0')}`, now });
         if (!tip) break;
         offered.push(tip.id);
         state = Tips.markShown(state, tip.id, `2026-12-${String(day + 1).padStart(2, '0')}`, now);
         now += 86400000;
     }
-    assert.deepEqual(offered, ['turnaj-obrazek', 'hlasovani', 'reakce', 'pratele', 'postavicky', 'dobyvani-hrad', 'dobyvani-blesk', 'dobyvani-bitvy', 'dobyvani-pomucky', 'dobyvani-vzkriseni', 'dobyvani-vzory', 'dobyvani-stavby', 'dobyvani-boti', 'dobyvani-hrady', 'retezovka-zachrana', 'vikend', 'reakce-plus', 'technika', 'jidlo', 'hry'], 'zkušený hráč dostane jen to, co ještě nezná (nová pravidla Dobývání a motivace zná málokdo, nová témata Technika a Jídlo ještě nehrál, nové kategorie Sportu a her)');
+    assert.deepEqual(offered, ['skladacka', 'turnaj-obrazek', 'hlasovani', 'reakce', 'pratele', 'postavicky', 'dobyvani-hrad', 'dobyvani-blesk', 'dobyvani-bitvy', 'dobyvani-pomucky', 'dobyvani-vzkriseni', 'dobyvani-vzory', 'dobyvani-stavby', 'dobyvani-boti', 'dobyvani-hrady', 'retezovka-zachrana', 'vikend', 'reakce-plus', 'technika', 'jidlo', 'hry'], 'zkušený hráč dostane jen to, co ještě nezná (nová pravidla Dobývání a motivace zná málokdo, nová témata Technika a Jídlo ještě nehrál, nové kategorie Sportu a her, Skládačka ještě neotevřená)');
     assert.equal(new Set(offered).size, offered.length);
 });
 

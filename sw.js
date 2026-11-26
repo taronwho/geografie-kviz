@@ -40,6 +40,8 @@ const APP_SHELL = [
     'data/countries.json', 'data/world.json', 'data/mapa.json', 'data/mapa-tvary.json', 'data/mapa-opravy.json', 'data/regiony.json', 'data/photo-text.json', 'data/photo-masks.json',
     // Režimy Bleskovka a Přežití, zvuky a vibrace
     'modes.js', 'sound.js',
+    // Skládačka (puzzle.js): vlajka nebo obrys státu z dílků (obrysy států jsou v data/mapa-tvary.json výš)
+    'puzzle.js',
     // Fotky otázek jako blob: bez názvu souboru (photo-blob.js; samotné fotky z Commons se do mezipaměti neukládají)
     'photo-blob.js',
     // Dobývání (conquest.js, conquest-ui.js) a jeho mapy (scripts/build-dobyvani.js)

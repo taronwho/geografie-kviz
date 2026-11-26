@@ -29,6 +29,8 @@ const ICONS = [
     'list-ordered',
     // Archiv turnajů
     'archive',
+    // Skládačka (puzzle.js): odznak režimu, tažení dílku a tip, co se skládá
+    'puzzle', 'hand', 'circle-help',
     // Pomůcka Záchrana navíc do Řetězovky (conquest.js ITEMS.chain_rescue, chain.js)
     'shield-plus',
     // Pomůcka Vzkříšení do Dobývání (conquest.js ITEMS.revive; zástupná pečeť do dodání obrázku č. 361)
