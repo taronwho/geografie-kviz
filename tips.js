@@ -154,8 +154,8 @@
         // Řetězovka dne (chain.js); art = č. 212 retezovka (jako chain.js ART.tile)
         { id: 'retezovka', icon: 'trophy', art: 'retezovka', after: 7, title: 'Řetězovka dne', text: 'Mezi dnešními výzvami čeká Řetězovka: 7 otázek z různých oborů, odpověď na jednu je začátkem další. U otázky je fotka a pár vět o předchozí odpovědi. Článek 7 dává sedm bodů, špatná odpověď řetěz přetrhne, jednou za hru pomůže Záchrana.',
             action: { kind: 'chain', label: 'Zkusit Řetězovku' }, ready: (u) => u.chain, used: (u) => num(u.counters.chainDone) > 0 },
-        // Minihra Seřaď to (sorting.js): dlaždice na záložce Hrát mezi Režimy
-        { id: 'serad-to', icon: 'list-ordered', after: 12, title: 'Seřaď to', text: 'Na záložce Hrát mezi Režimy najdeš Seřaď to: seřadíš karty podle výšky, roku nebo rozlohy. Bez časovače, zelené karty už sedí a zbytek opravuješ, kolikrát chceš.',
+        // Minihra Seřaď to (sorting.js): dlaždice na záložce Hrát mezi Režimy, Řazení dne i mezi dnešními výzvami na záložce Dnes
+        { id: 'serad-to', icon: 'list-ordered', after: 12, title: 'Seřaď to', text: 'Na záložce Hrát mezi Režimy najdeš Seřaď to: seřadíš karty podle výšky, roku nebo rozlohy, bez časovače. Řazení dne, stejné pro všechny, čeká i mezi dnešními výzvami na záložce Dnes.',
             action: { kind: 'sorting', label: 'Zkusit' }, ready: (u) => u.sorting, used: (u) => num(u.sortingGames) > 0 },
         // Pomůcka Záchrana navíc do Řetězovky (schéma 37): pro přihlášené, kdo Řetězovku už pár dní hraje
         { id: 'retezovka-zachrana', icon: 'shield-plus', art: 'retezovka', account: true, after: 25, title: 'Záchrana navíc', text: 'Když už je v Řetězovce Záchrana použitá a znovu odpovíš špatně, pomůcka Záchrana navíc podrží řetěz: dostaneš jinou otázku na stejný článek, za 0 bodů. Mít můžeš jen jednu. Získáš ji třeba za milníky Řetězovky nebo 12. stupeň Sezóny.',

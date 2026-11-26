@@ -530,6 +530,7 @@
         let game = null;      // právě ukázaná skládačka (volná, Skládačka dne, nebo jen prohlížený výsledek Skládačky dne)
         let freeGame = null;  // rozehraná volná skládačka (jen v paměti: po odchodu jde dohrát, dokud se aplikace nezavře)
         let dailyGame = null; // rozehraná Skládačka dne (také jen v paměti, zvlášť, ať se volnou hrou neztratí)
+        let fromHome = false; // Skládačka dne otevřená ze záložky Dnes (akce puzzle-today): Zpět vede zpátky tam, ne na úvod Skládačky
         let phase = 'intro';  // 'intro' | 'loading' | 'play' | 'done' | 'error'
         let selected = null;  // vybraný dílek (klepnutím)
         let message = '';     // řádek stavu pod deskou (i pro čtečku)
@@ -1066,6 +1067,7 @@
 
         // --- Akce ---
         const open = () => {
+            fromHome = false;
             deps.setScreen('puzzle');
             state = parse(deps.readJson(STORAGE_KEY));
             phase = 'intro';
@@ -1075,6 +1077,7 @@
             refreshCounts();
         };
         const start = async (avoid = '') => {
+            fromHome = false;
             if (deps.sound && deps.sound.unlock) deps.sound.unlock();
             clearTimeout(doneTimer);
             const token = ++loadToken;
@@ -1203,6 +1206,7 @@
             selected = null; guessing = false;
             if (drag && drag.ghost) drag.ghost.remove();
             drag = null;
+            fromHome = false;
             deps.renderHome();
         };
         const actions = {
@@ -1211,7 +1215,8 @@
             'puzzle-resume': () => { if (freeGame && !freeGame.done) { game = freeGame; phase = 'play'; message = ''; render(); } },
             'puzzle-next': () => start(game && !game.daily ? game.item.id : ''),
             'puzzle-daily': () => openDaily(),
-            'puzzle-intro': () => { loadToken++; phase = 'intro'; render(); refreshCounts(); },
+            'puzzle-today': () => { fromHome = true; openDaily(); },
+            'puzzle-intro': () => { if (fromHome) { leave(); return; } loadToken++; phase = 'intro'; render(); refreshCounts(); },
             'puzzle-variant': (button) => {
                 state = choose(state, { variant: button.dataset.variant });
                 save();
@@ -1241,13 +1246,15 @@
             loadToken++;
             clearTimeout(doneTimer);
             if (game && game.done && phase === 'play') { completeGame(); return; }
+            if (fromHome) { leave(); return; }
             phase = 'intro';
             guessing = false;
             render();
             refreshCounts();
         };
         // Veřejné API Skládačky dne (např. pro záložku Dnes): daily() = { day, done, moves, variant, playing, xp, title, label };
-        // openDaily() nebo akce data-action="puzzle-daily" otevře rovnou Skládačku dne (dohranou jako výsledek)
+        // openDaily() nebo akce data-action="puzzle-daily" otevře rovnou Skládačku dne (dohranou jako výsledek); puzzle-today totéž ze záložky
+        // Dnes (Zpět pak vede na Dnes)
         const daily = () => { if (phase !== 'play') state = parse(deps.readJson(STORAGE_KEY)); return dailyInfo(); };
         return { actions, open, openDaily, daily, leave, back, place: placeLabel, homeTile, isPlaying: () => live() && phase === 'play', calm: () => phase !== 'play' && phase !== 'loading' };
     };

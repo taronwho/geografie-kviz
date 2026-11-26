@@ -318,10 +318,10 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
             const { context, tab, problems } = await open(scheme, { viewport });
             const scene = `záložky ${viewport.width}×${viewport.height}`;
             const side = (selector) => tab.evaluate((s) => Math.min(...[...document.querySelectorAll(s)].map(el => { const r = el.getBoundingClientRect(); return Math.min(r.width, r.height); })), selector);
-            // Dnes: čtyři dnešní výzvy a karta Dnešní otázky
+            // Dnes: šest dnešních výzev a karta Dnešní otázky
             await check(tab, `${scene}: Dnes`, scheme);
             await fitsScreen(tab, `${scene}: Dnes`, scheme);
-            assert.equal(await tab.locator('#home-specials [data-special-tile]').count(), 4);
+            assert.equal(await tab.locator('#home-specials [data-special-tile]').count(), 6); // Kvíz dne, Řetězovka, Tajemná otázka, Řazení dne, Skládačka dne, Boss týdne
             assert.ok(await side('#home-specials [data-special-tile]') >= 40, `${scheme} / ${scene}: řádek dnešní výzvy`);
             assert.ok(await side('#daily-card [data-action="play-daily"]') >= 36, `${scheme} / ${scene}: tlačítko Hrát vše`);
             assert.ok(await side('#app-nav [data-nav]') >= 44, `${scheme} / ${scene}: tlačítka spodní lišty`);

@@ -1012,7 +1012,7 @@ test('stránka se neposouvá: obrazovky a okna ve světlém i tmavém režimu', 
                 await tabScenes(tab, key);
                 // Záložka Dnes: řádek Truhla čeká a dnešní výzvy; Soupeři: to nejnaléhavější a „+N další“; lišta má odznak u Soupeřů
                 await nav.go(tab, 'dnes');
-                assert.equal(await tab.locator('#home-specials [data-special-tile]').count(), 4, 'čtyři dnešní výzvy');
+                assert.equal(await tab.locator('#home-specials [data-special-tile]').count(), 6, 'šest dnešních výzev (s Řazením a Skládačkou dne)');
                 assert.equal(await tab.locator('#home-specials [data-special-tile][data-hot]').count(), 1, 'jeden zvýrazněný řádek');
                 assert.equal(await tab.locator('#chest-row[data-chest-ready]').count(), 1, 'Truhla čeká');
                 assert.ok(Number(await tab.textContent('#app-nav [data-nav="souperi"] [data-nav-badge]')) >= 2, 'odznak s počtem čekajících u Soupeřů');
@@ -1106,7 +1106,8 @@ test('stránka se neposouvá: obrazovky a okna ve světlém i tmavém režimu', 
         });
     }
     // Záložka Dnes se vším najednou: Truhla čeká, Zlatá truhla, odměna Sezóny, včerejší Tajemná otázka a tematický víkend. Příležitostné
-    // pruhy se ukážou celé, jen když se vejdou; jinak z nich zbydou čipy v jedné řadě. Posouvat se nesmí nikdy a nic nesmí zmizet.
+    // pruhy se ukážou celé, jen když se vejdou; jinak z nich zbydou čipy v jedné řadě. Posouvat se nesmí nikdy a nic nesmí zmizet:
+    // když nestačí ani to, z řádku Minihry dne (Řazení dne) zbude čip v nadpisu Dnešních výzev.
     await t.test('záložka Dnes s příležitostnými pruhy: celé pruhy, nebo čipy, nikdy posouvání', async () => {
         const Weekend = require('../weekend.js');
         // Nejbližší sobota po TODAY, na kterou připadá tematický víkend
@@ -1129,9 +1130,12 @@ test('stránka se neposouvá: obrazovky a okna ve světlém i tmavém režimu', 
                 const actions = (root) => [...root.querySelectorAll('[data-action]')].map(el => el.dataset.action).filter(name => name !== 'mystery-dismiss' && name !== 'chronicle-dismiss').sort();
                 const live = extras.querySelector(':scope > [data-live]');
                 return { mode: extras.dataset.mode, shown: shown(live), live: actions(live), stored: actions(extras.querySelector(':scope > template').content), chest: shown(document.getElementById('chest-row')),
+                    minis: [shown(document.querySelector('[data-minis-row]')), shown(document.querySelector('[data-minis-pills]'))],
                     twice: [...document.querySelectorAll('#app-content [data-action]')].map(el => el.dataset.action).filter((name, index, all) => ['gold-chest', 'mystery-reveal', 'season-claim', 'weekend-play'].includes(name) && all.indexOf(name) !== index) };
             });
             assert.equal(state.chest, true, `${key}: řádek Truhla čeká je vidět vždy`);
+            // Řazení dne (Minihry dne): celý řádek, nebo (když se nevejde) čip v nadpisu Dnešních výzev – vždy právě jedno
+            assert.equal(state.minis.filter(Boolean).length, 1, `${key}: Minihry dne jako řádek, nebo čip (${state.minis})`);
             assert.equal(state.shown, true, `${key}: pruhy nebo čipy jsou vidět`);
             assert.deepEqual(state.stored, state.live, `${key}: čipy vedou na stejná místa jako pruhy`);
             assert.deepEqual(state.twice, [], `${key}: každá akce je na záložce jen jednou`);
