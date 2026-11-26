@@ -12023,6 +12023,7 @@
     let quizAccountLoading = null;
     let quizAccountTried = 0;
     let quizStreakPick = null; // vybraný den v přehledu
+    let quizStreakMonth = null; // zobrazený měsíc v přehledu (RRRR-MM)
     const quizAccountFor = () => {
         const user = signedUser();
         if (!user) return null;
@@ -12086,11 +12087,25 @@
         if (!QuizStreak || !DailyQuiz) return;
         const paint = () => {
             const view = quizStreakView();
-            showDialog(QUIZ_STREAK_TITLE, `${QuizStreak.dialogHtml(view, { selected: quizStreakPick || view.today, freezes: Rewards ? loadRewards().freezes : 0, max: Rewards ? Rewards.MAX_FREEZES : 2, topicStreak: longestStreak() })}${dialogBackButton('mt-2.5 !py-2')}`, {
-                onClick: (event) => { const cell = event.target.closest('[data-qs-day]'); if (cell) { quizStreakPick = cell.dataset.qsDay; paint(); const again = document.querySelector(`#dialog-overlay [data-qs-day="${quizStreakPick}"]`); if (again) again.focus({ preventScroll: true }); } }
+            showDialog(QUIZ_STREAK_TITLE, `${QuizStreak.dialogHtml(view, { month: quizStreakMonth || view.today.slice(0, 7), selected: quizStreakPick || view.today, freezes: Rewards ? loadRewards().freezes : 0, max: Rewards ? Rewards.MAX_FREEZES : 2 })}${dialogBackButton('mt-2 !py-2')}`, {
+                onClick: (event) => {
+                    const cell = event.target.closest('[data-qs-day]');
+                    const month = event.target.closest('[data-qs-month]');
+                    if (!cell && !month) return;
+                    // Klepnutý den (nebo šipka měsíce) zůstane zaměřený i po překreslení
+                    const focus = cell ? `[data-qs-day="${cell.dataset.qsDay}"]` : `[aria-label="${month.getAttribute('aria-label')}"]`;
+                    if (cell) quizStreakPick = cell.dataset.qsDay;
+                    else { quizStreakMonth = month.dataset.qsMonth; quizStreakPick = null; }
+                    paint();
+                    // Šipka na konci rozsahu je vypnutá: zaměří se druhá
+                    const again = document.querySelector(`#dialog-overlay ${focus}`);
+                    const target = again && again.disabled ? document.querySelector('#dialog-overlay [data-qs-month]') : again;
+                    if (target) target.focus({ preventScroll: true });
+                }
             });
         };
         quizStreakPick = null;
+        quizStreakMonth = null;
         bumpCounter('quizStreakViewed');
         const loading = loadQuizAccount(true);
         paint();
@@ -12165,6 +12180,32 @@
         }
     };
     const syncQuiz = (attempt = quiz) => { quizSync = quizSync.then(() => flushPendingSnapshots()).then(() => pushQuiz(attempt)).catch(() => false); return quizSync; };
+    // Neodeslané odpovědi dnešního Kvízu dne se dopošlou samy (DailyQuiz.unsentAttempt): po spuštění a přihlášení, po obnovení spojení,
+    // po návratu do aplikace a dál s rostoucím odstupem, dokud je server nemá – ne až při dalším otevření Kvízu dne (po půlnoci je server odmítne)
+    let quizRetryTimer = null;
+    let quizRetryTries = 0;
+    const flushQuiz = async () => {
+        clearTimeout(quizRetryTimer);
+        quizRetryTimer = null;
+        if (!DailyQuiz || !quizRanked()) return;
+        const user = signedUser();
+        const today = DailyQuiz.pragueDay();
+        // Hraný pokus v paměti má přednost (jeho odpovědi jsou nejnovější), jinak uložený v zařízení
+        if (!quiz || quiz.day !== today) {
+            const stored = quizState().attempt;
+            if (!stored || stored.day !== today) return;
+            quiz = stored;
+        }
+        const attempt = quiz;
+        if (!DailyQuiz.unsentAttempt(attempt, user.id, today)) { quizRetryTries = 0; return; }
+        // Hostovský pokus si přihlášený převezme (jako reconcileQuiz při otevření Kvízu dne); server ho dostane celý od začátku
+        if (attempt.owner === 'host') { attempt.owner = user.id; attempt.synced = -1; storeQuiz(attempt); }
+        const done = await syncQuiz(attempt);
+        if (done === true || done === null) { quizRetryTries = 0; if (attempt.done && attempt === quiz && screen === 'quiz-done') renderQuizResult(); if (mainShown()) paintQuizCard(); return; }
+        if (attempt !== quiz || DailyQuiz.pragueDay() !== today) return;
+        quizRetryTimer = setTimeout(flushQuiz, DailyQuiz.retryDelay(quizRetryTries));
+        quizRetryTries += 1;
+    };
 
     // Stav serveru pro kartu na úvodu (nejvýš jednou za 5 minut; po dohrání a přihlášení hned)
     const refreshQuizServer = async (force = false) => {
@@ -16300,7 +16341,7 @@
             } else if (GroupsUI) GroupsUI.afterLogin();
             if (ConquestUI) ConquestUI.afterLogin();
             refreshChallenges();
-            if (state.user) { flushReports(); flushAnswerStats(); }
+            if (state.user) { flushReports(); flushAnswerStats(); flushQuiz(); }
             // Přihlášení z výsledku Kvízu dne („Přihlas se a uvidíš se v pořadí“): výsledek se otevře znovu a zapíše na účet
             if (DailyQuiz && readJson(QUIZ_LOGIN_KEY)) {
                 try { localStorage.removeItem(QUIZ_LOGIN_KEY); } catch (e) { /* bez úložiště se nic nepamatuje */ }
@@ -16310,6 +16351,9 @@
         window.addEventListener('online', flushReports);
         // Po obnovení připojení se dopošlou odpovědi z dohraných her (rozehraná hra počká na svůj konec)
         window.addEventListener('online', () => { if (screen !== 'round') flushAnswerStats(); });
+        // Neodeslané odpovědi Kvízu dne hned po obnovení spojení a po návratu do aplikace (hraná otázka si je pošle sama)
+        window.addEventListener('online', () => { if (screen !== 'round') flushQuiz(); });
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && screen !== 'round') flushQuiz(); });
         Auth.init().then(state => {
             // Novinka (jednorázové okno) chvíli po otevření, až nic jiného neběží
             scheduleNews();
