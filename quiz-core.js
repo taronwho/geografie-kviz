@@ -1327,6 +1327,135 @@
         const aliases = masked.flatMap(segment => unmarked(segment).split(INNER_ALIAS)).map(unmarked).filter(part => /\p{Lu}/u.test(part.replaceAll('[***]', '')));
         return { text: `${prefix ? `${prefix} ` : ''}[***]${kept.map(part => `, ${part}`).join('')}${kept.length ? ',' : ''} ${value.slice(verb.index)}`, aliases };
     };
+    // --- Shoda přísudku se zakrytým podmětem (od AGREEMENT_FROM) ---
+    // Přísudek hned za zakrytým podmětem na začátku věty prozradí číslo a v minulém čase i rod odpovědi: „[***] jsou město v okrese
+    // Praha-východ“ mezi Pískem, Kyjovem, Mikulovem a Říčany ukáže na jediný pomnožný název. Tvar se proto přepíše na ten, který sedí
+    // na nejvíc možností („[***] je město…“); když sedí stejně dobře, zůstane. Mluvnická třída možnosti se odhadne z hlavního
+    // podstatného jména názvu (agreementClass: pl = pomnožný či množný název, m/f/n = rod v jednotném čísle; null = nejisté – pak se
+    // nic nemění). Rod se přepisuje jen u míst a věcí (ne u jmen osob) a jen tam, kde ho hned následující slovo neprozradí stejně
+    // („[***] byla polská vědkyně“, „[***] byla bitva“ zůstane: rod nese i jmenný přísudek). Mění se jen text, který hráč vidí;
+    // možnosti ne. Otázky dne před AGREEMENT_FROM (composeRound: legacyAgreement) zůstanou jako dřív.
+    const AGREEMENT_FROM = '2026-11-26';
+    const PLURAL_HEADS = new Set(['lázně', 'krkonoše', 'pyreneje', 'čechy', 'vary', 'hory', 'státy', 'ostrovy', 'emiráty', 'helsinky', 'benátky', 'athény', 'dardanely', 'kanáry', 'pardubice', 'teplice', 'litoměřice', 'lázně', 'budějovice', 'katovice', 'gliwice']);
+    const ARTICLE_WORDS = new Set(['the', 'la', 'le', 'les', 'el', 'los', 'las', 'il', 'lo', 'die', 'der', 'das']);
+    // Přivlastňovací přídavná jména (Karlův most, Karlovy Vary) mají číslo a rod jako hlavní slovo: hledat dál netřeba
+    const ADJECTIVE_HEAD = /[ýáéí]$/u;
+    const ENGLISH_WORDS = new Set(['in', 'of', 'to', 'my', 'for', 'love', 'and', 'on', 'with', 'from', 'you', 'me', 'is', 'it', 'heart', 'devil']);
+    const ENGLISH_Y = new Set(['lady', 'mary', 'henry', 'harry', 'gatsby', 'crosby', 'monty', 'snoopy', 'birdy', 'hedy', 'moby', 'bathory', 'itzy', 'eazy', 'ingenuity', 'derby', 'city', 'sydney', 'party', 'story', 'baby', 'body', 'lucy', 'jerry', 'tony', 'billy', 'ruby', 'kirby', 'emmy', 'grammy', 'tommy', 'sixty']);
+    const PREPOSITION_WORD = /^(?:nad|pod|u|v|ve|na|při|za|ze|z|de|del|di|do|of|am|an|im|en|sur|upon)$/u;
+    const agreementClass = (label) => {
+        const words = stripBrackets(String(label || '')).trim().split(/\s+/).filter(Boolean).filter(word => !ARTICLE_WORDS.has(word.toLowerCase()));
+        // Anglický název (My Heart Will Go On, Dangerously in Love): české tvary se na něj nedají odhadnout
+        if (!words.length || words.some(word => ENGLISH_WORDS.has(word.toLowerCase()))) return null;
+        // Hlavní slovo: první, které není přídavné jméno před dalším slovem (Spojené státy, České Budějovice, Nové Město, Karlovy Vary);
+        // Ústí nad Labem, Hradec Králové: první slovo
+        let index = 0;
+        // Na -í jen přídavná jména (Jižní, Letní, Vyšší), ne podstatná (Ústí, Pobřeží, Dobytí, Obležení, Povstání)
+        const adjective = (word) => ADJECTIVE_HEAD.test(word) && (!/í$/u.test(word) || /(?:[^eěá]ní|cí|ší|čí)$/u.test(word));
+        while (index < words.length - 1 && adjective(words[index].toLocaleLowerCase('cs')) && !PREPOSITION_WORD.test(words[index + 1].toLowerCase())) index++;
+        const head = words[index].toLocaleLowerCase('cs').replace(/[^\p{L}-]/gu, '').split('-').pop();
+        if (!head || /\d/.test(head)) return null;
+        // Jméno osoby (Henry Ford, Tony Blair): jednotné číslo; pomnožný název města, který vypadá jako jméno (Mariánské Lázně), ne
+        const person = index === 0 && isPersonName(stripBrackets(String(label || '')).split(',')[0].trim());
+        if (PLURAL_HEADS.has(head) || (words.length > 1 && PLURAL_HEADS.has(words[words.length - 1].toLocaleLowerCase('cs')))) return 'pl';
+        // Osoba: jednotné číslo, rod podle příjmení (-ová, -á) nebo křestního jména (-a, -ie)
+        if (person) return /(?:á|ová)$/u.test(words[words.length - 1].toLocaleLowerCase('cs')) || /(?:a|ie)$/u.test(head) ? 'f' : 'm';
+        // -ovice: pomnožné město (Hořovice), ne Borovice lesní
+        if (PLURAL_HEADS.has(head) || (/ovice$/u.test(head) && words.length === 1)) return 'pl';
+        // Jiné -ice: pomnožné město (Pardubice, Teplice) i obyčejné slovo v jednotném čísle (Kukuřice, Bystřice, Nemocnice) – nejisté
+        if (/ice$/u.test(head)) return null;
+        // Souhláska + y: pomnožný název (Alpy, Tatry, Athény, Maledivy); anglické jméno (Kentucky, Sydney, Nelly, Harry, PSY) ne
+        if (/[bdfghklmnprstvzčďňřšťž]y$/u.test(head) && !/[wxq]/u.test(head) && !/(?:cky|ey|ay|oy|uy)$/u.test(head) && !/([bdfglmnprst])\1y$/u.test(head)
+            && words[index] !== words[index].toUpperCase() && !ENGLISH_Y.has(head)) return 'pl';
+        if (/a$/u.test(head)) return 'f';
+        if (/(?:ie|[eě])$/u.test(head)) return 'f';
+        if (/[oiuíéy]$/u.test(head)) return 'n';
+        if (/(?:[ňžďť]|ost)$/u.test(head)) return 'f';
+        if (/[bcdfghjklmnpqrstvwxzčřš]$/u.test(head)) return 'm';
+        return null;
+    };
+    // Tvary přísudku: kind = present (je/jsou), past (byl…), lpart (vznikl…), verb (mají/má, nacházejí/nachází); forms[třída]
+    const PAST_FORMS = { m: 'byl', f: 'byla', n: 'bylo', pl: 'byly' };
+    const L_PARTICIPLE = /^(\p{Ll}{2,})l(a|o|y|i)?$/u;
+    const L_NOT_VERB = new Set(['pravidla', 'čísla', 'křídla', 'sklo', 'kola', 'kolo', 'tělo', 'těla', 'dílo', 'díla', 'čelo', 'sedla', 'světla', 'světlo', 'jedla', 'kyvadla', 'zrcadla', 'zrcadlo', 'kostel', 'hotel', 'model', 'skály', 'anděl', 'orel']);
+    const PASSIVE_PARTICIPLE = /^(\p{Ll}{3,}(?:[eě]n|[áa]n|[iíy]t|ut))(a|o|y|i)?$/u;
+    const ENDING_OF = { m: '', f: 'a', n: 'o', pl: 'y' };
+    const CLASS_OF_ENDING = { '': 'm', a: 'f', o: 'n', y: 'pl', i: 'pl' };
+    const predicateOf = (word) => {
+        const lower = word.toLowerCase();
+        if (lower === 'je') return { kind: 'present', own: 'sg' };
+        if (lower === 'jsou') return { kind: 'present', own: 'pl' };
+        if (lower === 'byli') return { kind: 'past', own: 'pl' };
+        const past = Object.keys(PAST_FORMS).find(key => PAST_FORMS[key] === lower);
+        if (past) return { kind: 'past', own: past };
+        if (lower === 'má') return { kind: 'verb', own: 'sg', forms: { sg: 'má', pl: 'mají' } };
+        if (lower === 'mají') return { kind: 'verb', own: 'pl', forms: { sg: 'má', pl: 'mají' } };
+        let match = /^(\p{Ll}{2,})(ají)$/u.exec(lower);
+        if (match) return { kind: 'verb', own: 'pl', forms: { sg: lower === 'hrají' ? 'hraje' : `${match[1]}á`, pl: lower } };
+        match = /^(\p{Ll}{2,})([eě]jí)$/u.exec(lower);
+        if (match) return { kind: 'verb', own: 'pl', forms: { sg: `${match[1]}í`, pl: lower } };
+        match = L_PARTICIPLE.exec(lower);
+        if (match && !L_NOT_VERB.has(lower)) return { kind: 'lpart', own: CLASS_OF_ENDING[match[2] || ''], stem: `${match[1]}l` };
+        return null;
+    };
+    // Sedí tvar třídy own na možnost třídy cls? Přítomný čas (je) má jen číslo
+    const fitsClass = (kind, own, cls) => (kind === 'present' || kind === 'verb' ? (own === 'pl') === (cls === 'pl') : own === cls);
+    const GENDER_NEUTRAL_NEXT = /^(?:v|ve|na|do|od|po|za|pro|při|u|z|ze|k|ke|o|s|se|si|mezi|nad|pod|před|roku|až|již|už|jako|kolem|okolo|během|asi|přibližně|zhruba|\d[\d.,]*|\p{Lu}.*)$/u;
+    const SUBJECT_PREDICATE = /(^|[.!?]\s+|\s(?:a|ale)\s+)(\[\*\*\*\](?:,\s[^,.;:!?[\]]{1,80},)?\s+(?:(?:se|si)\s+)?)(\p{Ll}+)((?:\s+\p{Ll}+)?)(?=((?:\s+[^\s.,;:!?]+)?))/gu;
+    // Prozrazující tvary přísudku v textu (audit, testy): tvar sedí na správnou možnost a na méně možností než jiný tvar.
+    // only = sedí jen na správnou možnost
+    const agreementTells = (text, choices) => {
+        const list = choices || [];
+        const correct = list.find(choice => choice.correct);
+        const classes = list.map(choice => agreementClass(choice.label));
+        if (!correct || classes.some(cls => !cls)) return [];
+        const own = classes[list.indexOf(correct)];
+        const tells = [];
+        for (const match of String(text || '').matchAll(SUBJECT_PREDICATE)) {
+            const predicate = predicateOf(match[3]);
+            if (!predicate || !fitsClass(predicate.kind, predicate.own, own)) continue;
+            const candidates = predicate.kind === 'present' || predicate.kind === 'verb' ? ['sg', 'pl'] : ['m', 'f', 'n', 'pl'];
+            const score = (form) => classes.filter(cls => fitsClass(predicate.kind, form, cls)).length;
+            const best = candidates.reduce((top, form) => (score(form) > score(top) ? form : top), predicate.own);
+            // number = tvar se od většiny liší číslem (jsou × je), jinak jen rodem (byla × byl)
+            if (best !== predicate.own) tells.push({ verb: match[3], only: score(predicate.own) === 1, number: (best === 'pl') !== (predicate.own === 'pl') });
+        }
+        return tells;
+    };
+    const neutralizeAgreement = (text, choices) => {
+        const value = String(text || '');
+        if (!value.includes('[***]')) return value;
+        const list = choices || [];
+        const correct = list.find(choice => choice.correct);
+        if (!correct || list.length < 2) return value;
+        const classes = list.map(choice => agreementClass(choice.label));
+        if (classes.some(cls => !cls)) return value;
+        const own = classes[list.indexOf(correct)];
+        const persons = list.some(choice => isPersonName(choice.label) && agreementClass(choice.label) !== 'pl');
+        return value.replace(SUBJECT_PREDICATE, (match, start, subject, verb, second, third) => {
+            const predicate = predicateOf(verb);
+            if (!predicate || !fitsClass(predicate.kind, predicate.own, own)) return match;
+            const candidates = predicate.kind === 'present' || predicate.kind === 'verb' ? ['sg', 'pl'] : ['m', 'f', 'n', 'pl'];
+            const score = (form) => classes.filter(cls => fitsClass(predicate.kind, form, cls)).length;
+            const best = candidates.reduce((top, form) => (score(form) > score(top) ? form : top), predicate.own);
+            if (best === predicate.own) return match;
+            const numberChange = (best === 'pl') !== (predicate.own === 'pl');
+            // Rod jen u věcí a míst, a jen když ho nenese hned následující slovo (přídavné jméno, podstatné jméno)
+            const participle = (predicate.kind === 'present' || predicate.kind === 'past') && second ? PASSIVE_PARTICIPLE.exec(second.trim()) : null;
+            const after = (participle ? third : second).trim();
+            if (!numberChange && (persons || !GENDER_NEUTRAL_NEXT.test(after))) return match;
+            // Nový tvar: přítomný čas se v jednotném čísle rodem neliší (je), příčestí ano – rod podle většiny možností jednotného čísla
+            const singular = ['m', 'f', 'n'].reduce((top, cls) => (classes.filter(entry => entry === cls).length > classes.filter(entry => entry === top).length ? cls : top), 'm');
+            const target = best === 'sg' ? singular : best;
+            let newVerb = verb;
+            if (predicate.kind === 'present') newVerb = best === 'pl' ? 'jsou' : 'je';
+            else if (predicate.kind === 'past') newVerb = PAST_FORMS[target];
+            else if (predicate.kind === 'lpart') newVerb = `${predicate.stem}${ENDING_OF[target]}`;
+            else newVerb = predicate.forms[best];
+            const newSecond = participle ? second.replace(participle[0], `${participle[1]}${ENDING_OF[target]}`) : second;
+            return `${start}${subject}${newVerb}${newSecond}`;
+        });
+    };
     // Další názvy odpovědi v závorce úvodní věty článku (před prvním je/byl…): „(polsky Stadion Miejski)“, „(německy Veitsdom,
     // latinsky …)“, „(též …)“. Závorky processWikiText z textu vypustí, názvy ale zůstanou známé a zakryjí se, kdekoli se v textu objeví.
     const leadAliases = (extract) => {
@@ -3839,7 +3968,7 @@
     // Wikipedie načetla. Rozlišující údaj (jen zobrazení) se vybírá podle textu, který hráč opravdu vidí.
     const composeRound = ({ item, ctx, question, special = false, fetched, fallback = null, stableChoices = false, stableSwaps = false, shown = null, rng = Math.random,
         photoUrl = null, describeVisual = () => null, photoMasks = {}, textPhotos = new Set(), swaps = true, fixed = false, plain = false, unique = true, legacyChoices = false,
-        legacyBare = false, photoReady = false }) => {
+        legacyBare = false, legacyAgreement = false, photoReady = false }) => {
         const { topic } = ctx;
         const category = (topic.categories || []).find(entry => entry.key === item.c) || { one: topic.words.one };
         let isSpecial = Boolean(special);
@@ -3929,6 +4058,12 @@
                 }
             }
         }
+        // Přísudek za zakrytým názvem v čísle či rodu, který sedí jen na správnou možnost („[***] jsou město…“ mezi jednotnými názvy),
+        // se přepíše na tvar podle většiny možností (neutralizeAgreement, od AGREEMENT_FROM). Jen zobrazení: možnosti se vybraly výše.
+        if (!legacyAgreement && question.type === 'name' && !question.showName && !question.match) {
+            const neutral = (value) => neutralizeAgreement(value, question.choices);
+            texts = { ...texts, questionText: neutral(texts.questionText), moreText: neutral(texts.moreText) };
+        }
         let plan = planOf(texts, leadPhoto || shown);
         let ambiguous = false;
         if (unique && plan.unresolved.length) {
@@ -3954,7 +4089,7 @@
         getDayKey, pragueDayKey, itemsAsOf, dailyPick, hashText, fuzzyTwins, shiftDayKey, formatDayKey, createSeededRandom, pickRandom, pickWeighted, shuffle,
         ELEMENT_FAMILIES, elementFamily, periodicPosition,
         maskLeaks, findLeaks, answerTokens, foldKeys, isPersonName, genericWordsOf, isGenericWord, specificWords, absorbGenericWords, hideNicknames, CHOICE_MARK, hideOtherChoices,
-        censorForItem, censorItemName, isFieldWord, MASK_RULES_FROM, withLegacyMasking, tooManyMasks, MAX_DESCRIPTION_MASKS, MAX_READABLE_MASK_SHARE, answerNamesOf, answerNamesFor, hideAnswer, leadSubject, leadAliases, aliasWords, sealAnswerWords, answerWordsLeft, leakFreeText, OUT_OF_CONTEXT, buildQuestionTexts, factRevealsAnswer, GENERIC_NAME_WORDS,
+        censorForItem, censorItemName, isFieldWord, MASK_RULES_FROM, withLegacyMasking, tooManyMasks, MAX_DESCRIPTION_MASKS, MAX_READABLE_MASK_SHARE, answerNamesOf, answerNamesFor, hideAnswer, leadSubject, AGREEMENT_FROM, agreementClass, agreementTells, neutralizeAgreement, leadAliases, aliasWords, sealAnswerWords, answerWordsLeft, leakFreeText, OUT_OF_CONTEXT, buildQuestionTexts, factRevealsAnswer, GENERIC_NAME_WORDS,
         JOINING_WORDS, distinctiveTokens, structureLeaks, sealStructure, contentWords, newWords, addsInformation, commonChoiceText,
         choicePoints, choicesView, fitMapToChoices, FIT_SHARE, WORLD_MIN_SPAN, buildHints, planRound, MIN_DESCRIPTION_WORDS, MIN_EXCERPT_WORDS,
         composeRound, BARE_TEXT_FROM, isBareText, rankLeadFacts, swapSimilar, clueFactsOf, contradicts, identifyAnswer, clueFor, pickClue, clueCandidates, uniqueChoices, uniqueInfo, needsUniqueness, wrongItemsOf, isSpecificText, parseClueFact,
