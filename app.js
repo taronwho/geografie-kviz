@@ -53,6 +53,8 @@
     const Chain = window.MudrlantChain || null;
     // Skládačka (puzzle.js): minihra skládání vlajky nebo obrysu státu z dílků; bez skriptu se dlaždice nevykreslí
     const Puzzle = window.MudrlantPuzzle || null;
+    // Postup bonusových funkcí v účtu (bonus-sync.js, schéma 52): pas, poznané položky a obory, Skládačka, Seřaď to, Jednohubka a Statistiky
+    const BonusSync = window.MudrlantBonusSync || null;
     // Motivace (blok 32): tematické víkendy, prestiž po úrovni 100 a Pozvi kamarády
     const Weekend = window.MudrlantWeekend || null;
     const Prestige = window.MudrlantPrestige || null;
@@ -121,7 +123,9 @@
     // za započítanou hru, sérii Kvízu dne, 8. stupeň Sezóny a truhly; se starší databází se hráč bez území vrátí sám jako dřív).
     // 51 = Emblémy dalších bossů týdne (boss-herold … boss-sefkuchar) v katalogu odznaků předem (se starší databází se emblém nového bosse
     // do účtu neuloží, zůstane jen v zařízení).
-    const REQUIRED_SCHEMA = 51;
+    // 52 = Postup bonusových funkcí v účtu (bonus_progress, bonus_progress_save; bonus-sync.js): pas, poznané položky a Můj obor, Skládačka,
+    // Seřaď to, Jednohubka a Statistiky (se starší databází zůstanou jen v zařízení jako dřív).
+    const REQUIRED_SCHEMA = 52;
     // Naposledy hrané položky (trénink se jim vyhýbá, dokud nejsou vyčerpané všechny v kategorii)
     const HISTORY_SIZE = 1500;
     const REQUEST_TIMEOUT = 12000;
@@ -5098,6 +5102,7 @@
         } catch (error) { /* bez účtu nebo bez nových sloupců se postup jen drží v zařízení */ } finally { syncingProgress = false; }
         syncRewards();
         syncChainCounts();
+        syncBonus();
     };
     // Odznaky Řetězovky (blok 36): po prvním sloučení postupu v tomto spuštění se počítadla dorovnají podle serveru (dny a celé řetězy bez
     // Záchrany ze všech zařízení, i ze dnů před odznaky). Vezme se větší číslo (jako u turnajů), takže hry bez účtu v zařízení zůstanou.
@@ -5118,6 +5123,77 @@
         const level = levelProgress(progress.xp).level;
         announce(level, level, titles);
         if (titles.length) { applyLook(); updateControlsUI(); syncProgress(); }
+    };
+    // --- Postup bonusových funkcí v účtu (bonus-sync.js, schéma 52) ---
+    // Cestovní pas, poznané položky (odškrtávací seznam okruhu, hvězdičky), Můj obor, Skládačka, Seřaď to, Jednohubka a souhrny Statistik se po
+    // přihlášení slučují s dokumentem v účtu (bonus_progress): množiny se sjednotí, rekordy jsou maxima, počítadla po zařízeních (nic se nezdvojí).
+    // Zápis jen ke stejné verzi řádku: když mezitím zapsalo jiné zařízení, sloučí se znovu s novým stavem účtu (nejvýš třikrát).
+    // Spouští se se syncProgress; síť nejvýš jednou za BONUS_GAP ms (změna během čekání se odešle po něm), ze sítě aspoň po BONUS_PULL ms.
+    // Se starší databází (bez tabulky) se nic neděje a postup zůstává jen v zařízení jako dřív.
+    const BONUS_GAP = 20000;
+    const BONUS_PULL = 5 * 60000;
+    let bonusBusy = false;
+    let bonusLast = { user: null, at: 0, local: '' };
+    let bonusTimer = null;
+    const bonusLocal = () => ({
+        learned: loadLearned(),
+        passport: Passport ? Passport.parse(readJson(Passport.KEY)) : null,
+        obor: Obor ? loadObor() : null,
+        skladacka: Puzzle ? Puzzle.parse(readJson(Puzzle.STORAGE_KEY)) : null,
+        sorting: Sorting ? Sorting.parse(readJson(Sorting.KEY)) : null,
+        snack: Snack ? Snack.parse(readJson(Snack.STORAGE_KEY)) : null,
+        stats: Stats ? Stats.parse(readJson(Stats.KEY)) : null
+    });
+    // Sloučené stavy do zařízení přes parse modulů; vrací, jestli se něco změnilo
+    const bonusWrite = (states) => {
+        const parsers = { learned: null, passport: Passport && Passport.parse, obor: Obor && Obor.parse, skladacka: Puzzle && Puzzle.parse, sorting: Sorting && Sorting.parse, snack: Snack && Snack.parse, stats: Stats && Stats.parse };
+        const keys = { learned: KEYS.learned, passport: Passport && Passport.KEY, obor: Obor && Obor.STORAGE_KEY, skladacka: Puzzle && Puzzle.STORAGE_KEY, sorting: Sorting && Sorting.KEY, snack: Snack && Snack.STORAGE_KEY, stats: Stats && Stats.KEY };
+        let changed = false;
+        for (const [part, value] of Object.entries(states)) {
+            if (!keys[part] || !value) continue;
+            const next = parsers[part] ? parsers[part](value) : value;
+            if (JSON.stringify(next) === JSON.stringify(readJson(keys[part]) || (parsers[part] ? parsers[part](null) : {}))) continue;
+            if (part === 'obor') saveObor(next); else writeJson(keys[part], next);
+            changed = true;
+        }
+        return changed;
+    };
+    const syncBonus = async () => {
+        try {
+            const user = signedUser();
+            if (!BonusSync || !Social || !Social.getBonusProgress || !user || devActive()) return;
+            const localText = JSON.stringify(bonusLocal());
+            const now = Date.now();
+            const fresh = bonusLast.user === user.id;
+            if (fresh && bonusLast.local === localText && now - bonusLast.at < BONUS_PULL) return;
+            // Rozehraná Skládačka drží stav v paměti a po dohrání by ho přepsala: sloučí se, až z ní hráč odejde
+            const wait = screen === 'puzzle' ? BONUS_GAP : fresh ? BONUS_GAP - (now - bonusLast.at) : 0;
+            if (bonusBusy || wait > 0) {
+                if (!bonusTimer) bonusTimer = setTimeout(() => { bonusTimer = null; syncBonus(); }, Math.max(1000, wait));
+                return;
+            }
+            bonusBusy = true;
+            bonusLast = { user: user.id, at: now, local: localText };
+            let changed = false;
+            try {
+                for (let attempt = 0; attempt < 3; attempt++) {
+                    const remote = await Social.getBonusProgress(user.id);
+                    if (!remote || !signedUser() || signedUser().id !== user.id) return;
+                    const result = BonusSync.sync({ local: bonusLocal(), remote: remote.data, meta: readJson(BonusSync.META_KEY), user: user.id });
+                    // Do zařízení se zapíše i bez úspěšného zápisu do účtu: meta (base) odpovídá tomu, co je teď v zařízení započítané
+                    if (bonusWrite(result.local)) changed = true;
+                    writeJson(BonusSync.META_KEY, result.meta);
+                    if (!result.upload) break;
+                    const saved = await Social.saveBonusProgress(result.doc, remote.rev);
+                    if (!saved || saved.rev) break;
+                }
+            } finally {
+                bonusBusy = false;
+                bonusLast = { user: user.id, at: Date.now(), local: JSON.stringify(bonusLocal()) };
+            }
+            // Z účtu přibylo něco nového: překreslí se úvod (dlaždice Pas, Statistiky, postup okruhů)
+            if (changed && screen === 'home') paintGoalsCard();
+        } catch (error) { bonusBusy = false; /* bez sítě nebo tabulky zůstává postup v zařízení */ }
     };
     // --- Týdenní cíle (goals.js): tři cíle na týden, postup z počítadel rozdílem od snímku na začátku týdne ---
     const goalMetrics = (progress) => {

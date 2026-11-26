@@ -1153,6 +1153,28 @@
         return true;
     });
 
+    // ===== Postup bonusových funkcí (schéma 52, bonus-sync.js): jeden dokument na účet v bonus_progress, zápis jen ke stejné verzi =====
+    // Dokud databáze tabulku nebo funkci nemá (starší schéma: 404, případně 400), vrací se null a dál se o ně nežádá (po novém načtení zkusí znovu).
+    let bonusMissing = false;
+    const guardBonus = async (run) => {
+        if (bonusMissing) return null;
+        try { return await run(); } catch (error) {
+            if (error.status === 400 || error.status === 404) { bonusMissing = true; return null; }
+            throw error;
+        }
+    };
+    // { data: objekt (bez řádku prázdný), rev: verze řádku (bez řádku 0) }, nebo null bez tabulky
+    const getBonusProgress = (userId) => guardBonus(async () => {
+        const row = ((await request('GET', `bonus_progress?user_id=eq.${encodeURIComponent(userId)}&select=data,rev`)) || [])[0];
+        const rev = row && Number.isInteger(row.rev) && row.rev >= 0 ? row.rev : 0;
+        return { data: row && row.data && typeof row.data === 'object' && !Array.isArray(row.data) ? row.data : {}, rev };
+    });
+    // Zápis k verzi rev: { rev: nová verze } | { conflict: true } (mezitím zapsalo jiné zařízení) | null (bez funkce v databázi)
+    const saveBonusProgress = (data, rev) => guardBonus(async () => {
+        const result = await request('POST', 'rpc/bonus_progress_save', { body: { p_data: data, p_rev: rev } });
+        return Number.isInteger(result) && result > 0 ? { rev: result } : { conflict: true };
+    });
+
     // ===== Ligové sezóny a vitrína v profilu (schéma 18, league-seasons.js a showcase.js) =====
     // Dokud je databáze nemá (funkce 404, sloupec 400), vrací se null (aplikace sezóny a vitrínu neukáže) a dál se o ně nežádá
     // (po novém načtení stránky se zkusí znovu); jiné chyby (síť) se vyhodí.
@@ -1544,6 +1566,8 @@
         myGroups, groupDetail, groupCreate, groupPreview, groupJoin, groupLeave, groupUpdate, groupNewCode, groupRemoveMember, groupDelete, groupSetChallenge,
         // Odměny (schéma 9)
         getRewards, saveRewards,
+        // Postup bonusových funkcí (schéma 52)
+        getBonusProgress, saveBonusProgress,
         // Ligové sezóny a vitrína (schéma 18)
         leagueSeasons, SHOWCASE_ENTRY, cleanShowcase, getShowcase, saveShowcase,
         // Boss týdne (schéma 21)

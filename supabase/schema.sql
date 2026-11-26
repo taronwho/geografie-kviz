@@ -1652,7 +1652,9 @@ begin
             'kod', (select c.code from public.referral_codes c where c.user_id = uid),
             'pozval_me', (select jsonb_build_object('hrac', r.inviter, 'kdy', r.created_at) from public.referrals r where r.invitee = uid),
             'pozvani', coalesce((select jsonb_agg(jsonb_build_object('hrac', r.invitee, 'kdy', r.created_at) order by r.created_at) from public.referrals r where r.inviter = uid), '[]'::jsonb),
-            'odmeny', coalesce((select jsonb_agg(to_jsonb(x) order by x.claimed_at) from public.referral_rewards x where x.user_id = uid), '[]'::jsonb))
+            'odmeny', coalesce((select jsonb_agg(to_jsonb(x) order by x.claimed_at) from public.referral_rewards x where x.user_id = uid), '[]'::jsonb)),
+        -- Postup bonusových funkcí (schéma 52, tabulka na konci souboru): pas, poznané položky, obory, Skládačka, Seřaď to, Jednohubka, Statistiky
+        'bonusovy_postup', (select jsonb_build_object('data', b.data, 'verze', b.rev, 'zmeneno', b.updated_at) from public.bonus_progress b where b.user_id = uid)
     ) into result;
     return result;
 end;
@@ -10104,11 +10106,55 @@ end;
 $$;
 -- ===== 51b: Večerní připomínka — KONEC BLOKU =====
 
+-- ===== 52: Postup bonusových funkcí v účtu (bonus-sync.js) =====
+-- Cestovní pas, poznané položky (odškrtávací seznam okruhu) a Můj obor, Skládačka, Seřaď to, Jednohubka a souhrny Statistik pro nadšence
+-- přihlášeného hráče: jeden dokument jsonb na účet. Slučuje ho aplikace (sjednocení množin, maxima rekordů, počítadla po zařízeních), server
+-- jen hlídá tvar, velikost a souběh: bonus_progress_save zapíše jen ke stejné verzi řádku (rev), jinak vrátí null a aplikace sloučí znovu,
+-- takže dvě zařízení zapisující současně nic nepřepíšou. Vlastní tabulka (ne sloupec v profiles): data vidí jen hráč sám (RLS),
+-- ne ostatní přihlášení jako profil. Smazání účtu je smaže s profilem (on delete cascade), export_my_data je má v 'bonusovy_postup'.
+create table if not exists public.bonus_progress (
+    user_id uuid primary key references public.profiles (id) on delete cascade,
+    data jsonb not null default '{}'::jsonb,
+    rev integer not null default 0,
+    updated_at timestamptz not null default now()
+);
+alter table public.bonus_progress drop constraint if exists bonus_progress_shape;
+alter table public.bonus_progress add constraint bonus_progress_shape check (jsonb_typeof(data) = 'object' and octet_length(data::text) <= 524288 and rev >= 0);
+alter table public.bonus_progress enable row level security;
+drop policy if exists "bonusový postup: jen vlastní" on public.bonus_progress;
+create policy "bonusový postup: jen vlastní" on public.bonus_progress for select to authenticated using (user_id = auth.uid());
+revoke all on public.bonus_progress from anon, authenticated;
+grant select on public.bonus_progress to authenticated;
+
+-- Zápis dokumentu k verzi, ze které aplikace slučovala (bez řádku = 0). Vrací novou verzi, nebo null, když mezitím zapsalo jiné zařízení.
+create or replace function public.bonus_progress_save(p_data jsonb, p_rev integer) returns integer
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); result integer;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if p_data is null or jsonb_typeof(p_data) <> 'object' then raise exception 'Neplatný postup.' using errcode = '22023'; end if;
+    if octet_length(p_data::text) > 524288 then raise exception 'Postup je příliš velký.' using errcode = '22023'; end if;
+    if p_rev is null or p_rev < 0 then raise exception 'Neplatná verze postupu.' using errcode = '22023'; end if;
+    if not exists (select 1 from public.profiles where id = uid) then raise exception 'Profil neexistuje.' using errcode = '42501'; end if;
+    if p_rev = 0 then
+        insert into public.bonus_progress (user_id, data, rev) values (uid, p_data, 1) on conflict (user_id) do nothing returning rev into result;
+        return result;
+    end if;
+    update public.bonus_progress set data = p_data, rev = rev + 1, updated_at = now() where user_id = uid and rev = p_rev returning rev into result;
+    return result;
+end;
+$$;
+revoke all on function public.bonus_progress_save(jsonb, integer) from public, anon;
+grant execute on function public.bonus_progress_save(jsonb, integer) to authenticated;
+-- ===== 52: Postup bonusových funkcí — KONEC BLOKU =====
+
 -- 51: emblémy osmi dalších bossů týdne v katalogu odznaků předem (boss-herold, boss-permonik, boss-stavitel, boss-malir, boss-kronikar,
 --     boss-trener, boss-vynalezce, boss-sefkuchar v badge_catalog() a badge_tiers()). Do hry (rotace, quiz-core.js BOSS_EMBLEMS) je pustí
 --     až scripts/boss-zapoj.mjs, až budou mít obrázky; server je tak uloží hned od prvního souboje bez dalšího spuštění schématu.
 --     Večerní připomínka neodehraného turnajového zápasu od 19:00 v aplikaci (tournament_notices 'unplayed') i jako push (blok 51b).
+-- 52: postup bonusových funkcí v účtu (bonus_progress, bonus_progress_save; export_my_data má i 'bonusovy_postup'): Cestovní pas, poznané položky
+--     a Můj obor, Skládačka, Seřaď to, Jednohubka a souhrny Statistik, slučuje bonus-sync.js.
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 51 $$;
+language sql immutable as $$ select 52 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;
