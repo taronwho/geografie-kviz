@@ -449,7 +449,7 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 }
 @keyframes sealStamp { 0% { opacity: 0; scale: 2.4; rotate: -24deg; } 60% { opacity: 1; scale: 0.88; rotate: 4deg; } 100% { opacity: 1; scale: 1; rotate: 0deg; } }
 @keyframes sealShine { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.25) drop-shadow(0 0 0.6rem rgb(232 174 56 / 0.8)); } }
-@keyframes sealRing { 0% { opacity: 0.9; scale: 0.8; } 100% { opacity: 0; scale: 1.9; } },
+@keyframes sealRing { 0% { opacity: 0.9; scale: 0.8; } 100% { opacity: 0; scale: 1.9; } }
 /* Seřaď to (sorting.js): zvednutá karta při přetahování, zelené „zapadnutí“ správné karty, jemné zhoupnutí ostatních a postupné odhalení
    hodnot na konci. Animují se vlastnosti scale a translate (ne transform), ať se nepřepíšou s posunem karet (FLIP v sorting.js glide);
    při „omezit pohyb“ bez animací */
@@ -1755,7 +1755,7 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 }
 @keyframes pzSnap { 0% { scale: 1.08; filter: brightness(1.25); } 100% { scale: 1; filter: none; } }
 @keyframes pzHint { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
-@keyframes pzComplete { 0% { scale: 1; } 40% { scale: 1.03; } 100% { scale: 1; } },
+@keyframes pzComplete { 0% { scale: 1; } 40% { scale: 1.03; } 100% { scale: 1; } }
 /* Záložka Postup s víc než 9 dlaždicemi (přihlášený hráč s Vitrínou a Pasem): na nízkém displeji všechny dlaždice bez obrázků,
    jen název a hodnota, ať se záložka vejde bez posouvání (app.js renderPostup, třída postup-many) */
 @media (max-height: 770px) { #postup-tiles.postup-many > button { min-height: 3.1rem; } #postup-tiles.postup-many > button > :first-child { display: none; } }

@@ -97,6 +97,11 @@ test('statistiky pro nadšence: dlaždice, okno s pěti částmi, řazení, graf
         return { hscroll: panel.scrollWidth - panel.clientWidth, page: document.documentElement.scrollWidth - window.innerWidth, wide: wide.slice(0, 5), headSeen };
     });
     const smallButtons = (tab) => tab.$$eval('#dialog-overlay [data-stats] button', nodes => nodes.filter(el => { const r = el.getBoundingClientRect(); return r.width > 0 && Math.min(r.width, r.height) < 39.5; }).map(el => el.textContent.trim()));
+    // Zavře okna (Statistiky otevřené z Mistrovství se zavřou zpět do Mistrovství, pak i to)
+    const closeAll = async (tab) => {
+        for (let i = 0; i < 3 && await tab.$('#dialog-overlay'); i++) { await tab.click('#dialog-overlay [data-close]'); await tab.waitForTimeout(400); }
+        await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
+    };
     const text = (tab, selector) => tab.evaluate((sel) => document.querySelector(sel).innerText.replace(/\s+/g, ' ').trim(), selector);
 
     for (const [name, viewport, colorScheme] of [['390×780', { width: 390, height: 780 }, 'light'], ['360×640 tmavý', { width: 360, height: 640 }, 'dark']]) {
@@ -104,17 +109,18 @@ test('statistiky pro nadšence: dlaždice, okno s pěti částmi, řazení, graf
             const { context, tab, problems } = await open({ viewport, colorScheme, seed: { 'mudrlant.statistiky': seedState() } });
             const tag = `${viewport.width}x${viewport.height}-${colorScheme}`;
             await nav.go(tab, 'postup');
-            const tile = tab.locator('#postup-tiles [data-open-stats]');
-            await tile.waitFor();
-            assert.match(await tile.getAttribute('aria-label'), /^Statistiky pro nadšence/);
-            assert.equal((await tile.textContent()).replace(/\s+/g, ' ').trim(), 'Statistiky pro nadšence');
-            assert.ok(await tabFits(tab), 'záložka Postup s dlaždicí se vejde bez posouvání');
+            assert.equal(await tab.locator('#postup-tiles [data-open-stats]').count(), 0, 'Statistiky nemají na Postupu dlaždici (místo má Pas)');
+            assert.ok(await tabFits(tab), 'záložka Postup se vejde bez posouvání');
             await shot(tab, `statistiky-postup-${tag}`);
 
-            await tile.click();
+            await tab.click('#postup-tiles [data-open-mastery-all]');
+            await tab.click('[data-mastery-dialog] [data-open-stats]');
             await tab.waitForSelector('#dialog-overlay [data-stats]');
             assert.equal(await tab.getAttribute('#dialog-overlay', 'data-title'), 'Statistiky pro nadšence');
-            assert.equal(await tab.getAttribute('[data-stats]', 'data-st-current'), 'prehled');
+            // Z Mistrovství se Statistiky otevřou na části Témata; přepne se na Přehled
+            assert.equal(await tab.getAttribute('[data-stats]', 'data-st-current'), 'temata');
+            await tab.click('[data-st-tab="prehled"]');
+            await tab.waitForSelector('[data-stats][data-st-current="prehled"]');
             // Přehled: souhrn jako text (8 týdnů, 37 dní × 7 odpovědí + 4 záměny)
             const days = 56 - Math.floor(56 / 3) - (56 % 3 > 1 ? 1 : 0);
             const answered = days * 7 + 4;
@@ -194,11 +200,11 @@ test('statistiky pro nadšence: dlaždice, okno s pěti částmi, řazení, graf
             await shot(tab, `statistiky-rekordy-${tag}`);
 
             // Zavřením zpět na záložce Postup; při dalším otevření stejná část
-            await tab.click('#dialog-overlay [data-close]');
-            await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
+            await closeAll(tab);
             assert.equal(await nav.currentTab(tab), 'postup');
-            await tab.click('#postup-tiles [data-open-stats]');
-            assert.equal(await tab.getAttribute('[data-stats]', 'data-st-current'), 'rekordy');
+            await tab.click('#postup-tiles [data-open-mastery-all]');
+            await tab.click('[data-mastery-dialog] [data-open-stats]');
+            await tab.waitForSelector('[data-stats]');
             assert.deepEqual(problems, []);
             await context.close();
         });
@@ -207,15 +213,17 @@ test('statistiky pro nadšence: dlaždice, okno s pěti částmi, řazení, graf
     await t.test('bez souhrnu: prázdné části se srozumitelným textem, odpověď se zapíše', async () => {
         const { context, tab, problems } = await open({ viewport: { width: 360, height: 640 } });
         await nav.go(tab, 'postup');
-        await tab.click('#postup-tiles [data-open-stats]');
+        await tab.click('#postup-tiles [data-open-mastery-all]');
+        await tab.click('[data-mastery-dialog] [data-open-stats]');
         await tab.waitForSelector('[data-stats]');
+        await tab.click('[data-st-tab="prehled"]');
+        await tab.waitForSelector('[data-stats][data-st-current="prehled"]');
         assert.match(await text(tab, '[data-st-timing]'), /Doba odpovědi se zatím neměřila/);
         await tab.click('[data-st-tab="zameny"]');
         await tab.waitForSelector('[data-st-pairs-empty]');
         assert.match(await text(tab, '[data-st-pairs-empty]'), /^Zatím tu žádné záměny nejsou\./);
         await shot(tab, 'statistiky-prazdne-360x640');
-        await tab.click('#dialog-overlay [data-close]');
-        await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
+        await closeAll(tab);
 
         // Druhá cesta (vždy, i když se desátá dlaždice na nízký telefon nevejde): Mistrovství témat → Statistiky na části Témata, zpět do Mistrovství
         await tab.click('#postup-tiles [data-open-mastery-all]');
@@ -225,8 +233,7 @@ test('statistiky pro nadšence: dlaždice, okno s pěti částmi, řazení, graf
         await tab.waitForSelector('[data-stats][data-st-current="temata"]');
         await tab.click('#dialog-overlay [data-dialog-back]');
         await tab.waitForSelector('[data-mastery-dialog]');
-        await tab.click('#dialog-overlay [data-close]');
-        await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
+        await closeAll(tab);
 
         // Dnešní otázka ze Zeměpisu: odpověď se zapíše do souhrnu (den, téma, okruh, druh hry, doba)
         await nav.daily(tab, 'zemepis');

@@ -10116,9 +10116,6 @@
             ...(Passport ? [passportTile()] : []),
             ...(Showcase && signedUser() && myShowcase !== null ? [postupTile({ attrs: 'data-open-showcase', art: postupArt('vitrina'), title: 'Vitrína', value: `${myShowcase.length} / ${Showcase.MAX}` })] : []),
             ...(Chronicle ? [postupTile({ attrs: 'data-open-chronicle aria-label="Kronika týdne: můj týden v kostce"', art: postupArt('sova-kronika'), title: 'Kronika', value: 'týden v kostce' })] : []),
-            // Statistiky: desátá dlaždice se na nízkém telefonu (přihlášený hráč se všemi dlaždicemi) nemusí vejít – pak ji fitHome schová
-            // (data-optional) a Statistiky zůstanou v okně Mistrovství témat (statsMasteryLink)
-            ...(Stats ? [postupTile({ attrs: 'data-open-stats data-optional aria-label="Statistiky pro nadšence: přesná čísla o hraní"', art: STATS_ART, title: 'Statistiky', value: 'pro nadšence' })] : []),
             ...(Rewards ? [
                 postupTile({ attrs: 'data-rewards-info="freeze"', art: postupArt('ochrana-serie'), title: 'Ochrana série', value: `${rewardsState.freezes} z ${Rewards.MAX_FREEZES}`, valueAttrs: 'data-freeze-count' }),
                 postupTile({ attrs: 'data-rewards-info="chest"', art: postupArt('truhla'), title: 'Truhla', value: chest ? 'Čeká!' : escapeHtml(lastChestText(rewardsState) || 'za cíle týdne'), valueAttrs: 'data-chest-value', ready: Boolean(chest) })

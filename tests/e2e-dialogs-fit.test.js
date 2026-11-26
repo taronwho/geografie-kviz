@@ -649,11 +649,10 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
             };
             for (const pageName of ['titul', 'cisla', 'tema', 'souboje', 'zaver']) await scene(tab, `Kronika týdne – ${pageName}`, size, () => chronicle(pageName));
             // Statistiky pro nadšence (statistiky.js): pět částí přepínačem nahoře; dlouhé části se posouvají uvnitř okna (výjimky výše)
-            // Přihlášený hráč se všemi dlaždicemi: na 360×640 se desátá dlaždice nevejde (fitHome ji schová), Statistiky pak vedou z Mistrovství témat
+            // Statistiky vedou z okna Mistrovství témat (na Postupu nemají dlaždici)
             const stats = async (part) => {
                 await progress();
-                if (await tab.isVisible('#postup-tiles [data-open-stats]')) await tab.click('#postup-tiles [data-open-stats]');
-                else { assert.equal(size.height, 640, 'dlaždice Statistiky chybí jen na nízkém telefonu'); await tab.click('[data-open-mastery-all]'); await tab.click('[data-mastery-dialog] [data-open-stats]'); }
+                await tab.click('[data-open-mastery-all]'); await tab.click('[data-mastery-dialog] [data-open-stats]');
                 await tab.waitForSelector('[data-stats]'); await tab.click(`[data-st-tab="${part}"]`); await tab.waitForSelector(`[data-stats][data-st-current="${part}"]`); };
             await scene(tab, 'Statistiky pro nadšence', size, () => stats('prehled'));
             await scene(tab, 'Statistiky – Témata', size, () => stats('temata'));
