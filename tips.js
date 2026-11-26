@@ -169,13 +169,16 @@
             action: { kind: 'play', label: 'Na záložku Hrát' }, used: (u) => num((u.counters.topics || {}).jidlo) > 0 },
         // Téma Sport se rozrostlo na Sport a hry (topics/sport.js, scripts/lib/sport-hry.mjs): nové kategorie her
         { id: 'hry', icon: 'dices', after: 5, title: 'Sport a hry: nové kategorie', text: 'Téma Sport se rozrostlo na Sport a hry: přibyly deskové a karetní hry, šachy a videohry. Poznáš Dostihy a sázky, Sicilskou obranu nebo Mafii?',
-            action: { kind: 'play', label: 'Na záložku Hrát' }, used: () => false }
+            action: { kind: 'play', label: 'Na záložku Hrát' }, used: () => false },
+        // Můj obor a odškrtávací seznam okruhu (obor.js); kdo stránku Můj obor otevřel, tip nepotřebuje
+        { id: 'obor', icon: 'target', after: 25, title: 'Můj obor', text: 'V Učení si vyber okruh a klepni na Udělat z toho můj obor. Projdeš ho celý popořadě a příště navážeš, kde hra skončila. Seznam ukáže, co už umíš, a za 100 % dostaneš zlatou pečeť.',
+            action: { kind: 'learn', label: 'Do Učení' }, used: (u) => Boolean(u.visited.obor) }
     ];
     const BY_ID = new Map(TIPS.map(tip => [tip.id, tip]));
 
     const EMPTY = { seen: [], day: '', n: 0, lastAt: 0, off: false, visited: {} };
     // Navštívené části hry (tip o nich už není potřeba): Učení, Postup, Vzhled, Diplomy, Sezóna, Album, Vitrína, Kronika týdne, skupina Postavičky…
-    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle', 'gold', 'conquest', 'bets', 'conquestInvite', 'poll', 'referral', 'perks', 'robeColor', 'characters', 'tourShare', 'robots'];
+    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle', 'gold', 'conquest', 'bets', 'conquestInvite', 'poll', 'referral', 'perks', 'robeColor', 'characters', 'tourShare', 'robots', 'obor'];
     const parse = (value) => {
         const v = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
         const visited = {};

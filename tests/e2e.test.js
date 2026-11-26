@@ -641,7 +641,8 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click(`[data-action="choice"]:has-text("${first.question.answerLabel}")`);
         await waitForResult(tab);
         await openCollection(tab, 'zemepis', 'velkomesta');
-        assert.match(await appText(tab), /3 položek · uhodnuto 1/);
+        // Karta okruhu s odškrtávacím seznamem (obor.js): 1 / 3, chybí 2 položky
+        assert.match(await tab.textContent('[data-checklist-count]'), /^1\s*\/\s*3$/);
 
         // Chyba z dnešní otázky se objeví v seznamu chyb
         await tab.click('#btn-home');
@@ -837,7 +838,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
 
         // Známost i méně známé: v učení se kategorie počítají celé; kategorie jsou nad okruhy
         await openCollection(tab, 'zemepis', 'c:hora');
-        assert.match(await appText(tab), /4 položek/);
+        assert.match(await tab.textContent('[data-checklist-count]'), /\/\s*4$/);
         await tab.click('[data-action="learn-topic"]');
         const order = await tab.$$eval('[data-action="learn-collection"]', rows => rows.map(row => row.dataset.collection));
         assert.ok(order.indexOf('c:hora') < order.indexOf('cesko'), 'kategorie před okruhy');

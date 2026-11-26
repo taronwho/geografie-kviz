@@ -441,6 +441,16 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 @keyframes modeHeartLost { 0% { scale: 1.35; opacity: 1; } 60% { scale: 0.8; } 100% { scale: 1; opacity: 1; } }
 @keyframes modeUrgent { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
+/* Zlatá pečeť okruhu (obor.js sealHtml, app.js Učení): při prvním udělení dopadne jako razítko, pak jednou zazáří a kolem se rozejde kruh.
+   Vlastnosti scale a rotate (ne transform); při „omezit pohyb“ pečeť rovnou stojí na místě */
+@media (prefers-reduced-motion: no-preference) {
+    .seal-stamp { animation: sealStamp 0.7s cubic-bezier(0.3, 1.3, 0.5, 1) both, sealShine 1.6s ease-in-out 0.7s 2; }
+    .seal-stamp::after { content: ''; position: absolute; inset: -0.25rem; border-radius: 9999px; border: 3px solid #e8ae38; animation: sealRing 1s ease-out 0.55s both; pointer-events: none; }
+}
+@keyframes sealStamp { 0% { opacity: 0; scale: 2.4; rotate: -24deg; } 60% { opacity: 1; scale: 0.88; rotate: 4deg; } 100% { opacity: 1; scale: 1; rotate: 0deg; } }
+@keyframes sealShine { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.25) drop-shadow(0 0 0.6rem rgb(232 174 56 / 0.8)); } }
+@keyframes sealRing { 0% { opacity: 0.9; scale: 0.8; } 100% { opacity: 0; scale: 1.9; } }
+
 /* Truhla Mudrlanta (rewards.js chestHtml, app.js openChestOverlay). Okno je ukotvené shora (ne na střed), aby truhla po otevření
    zůstala na místě, i když pod ní přibude popis a tlačítka; 31rem ≈ výška otevřené truhly s věcí, ochranou a tlačítky.
    1. Čeká (.chest-waiting): truhla dýchá a pohupuje se, za ní pulzuje zlatá záře a vlna, kolem se třpytí jiskry, nápověda pulzuje.
