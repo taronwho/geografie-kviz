@@ -16,7 +16,7 @@
         buildHints: CoreBuildHints, planRound
     } = window.MudrlantCore;
     // Sestavení otázky z textu s jednoznačností (quiz-core.js composeRound): rozlišující údaj, výměna nesprávných možností
-    const { composeRound, MASK_RULES_FROM } = window.MudrlantCore;
+    const { composeRound, MASK_RULES_FROM, BARE_TEXT_FROM } = window.MudrlantCore;
     const Visuals = window.MudrlantVisuals;
     // Opakování karet (review.js) a týdenní cíle (goals.js); bez skriptu se jen nezobrazí
     const Review = window.MudrlantReview || null;
@@ -25,9 +25,18 @@
     const Goals = window.MudrlantGoals || null;
     // Mudrlantova kronika (chronicle.js): týden v kostce z denních záznamů v zařízení; bez skriptu se jen nenabídne
     const Chronicle = window.MudrlantChronicle || null;
+    // Statistiky pro nadšence (statistiky.js): souhrn odpovědí v zařízení a okno s čísly (Postup → Statistiky); bez skriptu se jen nenabídnou
+    const Stats = window.MudrlantStatistiky || null;
     // Režimy Bleskovka a Přežití (modes.js) a zvuky s vibracemi (sound.js); bez skriptu se jen nenabídnou, hra zůstane potichu
     const Modes = window.MudrlantModes || null;
+    // Minihra Seřaď to (sorting.js): klidné řazení karet podle vlastnosti, bez časovače; bez skriptu se jen nenabídne
+    const Sorting = window.MudrlantSorting || null;
     const Sound = window.MudrlantSound || null;
+    // Jednohubka (snack.js): jedna otázka na jedno klepnutí; bez skriptu (nebo bez modes.js) se čip na záložce Hrát neukáže
+    const Snack = window.MudrlantSnack || null;
+    let snackCtl = null; // ovladač Jednohubky, založí se níž u Bleskovky a Přežití
+    // Odškrtávací seznam okruhu a Můj obor v Učení (obor.js); bez skriptu se jen nenabídnou
+    const Obor = window.MudrlantObor || null;
     // Otázka „Ukaž na mapě“ (question-map.js); bez skriptu se hraje bez ní
     const MapQuestion = window.MudrlantMapQuestion || null;
     // Číselné otázky Seřaď a Odhadni číslo (numeric-questions.js); bez skriptu jen nejsou
@@ -42,6 +51,8 @@
     const Boss = window.MudrlantBoss || null;
     // Řetězovka dne (chain.js): napojení je níž („Řetězovka dne“); tady kvůli odznakům Řetězovky (badgeContext, symbol medaile)
     const Chain = window.MudrlantChain || null;
+    // Skládačka (puzzle.js): minihra skládání vlajky nebo obrysu státu z dílků; bez skriptu se dlaždice nevykreslí
+    const Puzzle = window.MudrlantPuzzle || null;
     // Motivace (blok 32): tematické víkendy, prestiž po úrovni 100 a Pozvi kamarády
     const Weekend = window.MudrlantWeekend || null;
     const Prestige = window.MudrlantPrestige || null;
@@ -148,8 +159,9 @@
     let settings = null;
     // Téma poslední otevřené dnešní otázky (pro „Zkusit znovu“ po chybě spojení)
     let lastDailyTopic = null;
-    // Učení: view = 'home' | 'topic' | 'collection' | 'atlas' | 'mistakes'; order = ID položek v pořadí procházení
-    const learn = { view: 'home', topic: null, collection: null, order: [], index: 0 };
+    // Učení: view = 'home' | 'topic' | 'collection' | 'atlas' | 'mistakes' | 'list' (odškrtávací seznam) | 'obor' (Můj obor); order = ID položek
+    // v pořadí procházení; filter = filtr odškrtávacího seznamu (all | missing | done)
+    const learn = { view: 'home', topic: null, collection: null, order: [], index: 0, filter: 'all' };
 
     class NetworkError extends Error {}
 
@@ -628,7 +640,10 @@
             stableSwaps: (options.mode || mode) === 'challenge', shown, rng, photoUrl, describeVisual, photoMasks, textPhotos: ctx.textPhotos || new Set(),
             swaps: uniqueSwapsNow(options), fixed: Boolean(options.wrong), plain: Boolean(options.plain),
             // Den otázky před MASK_RULES_FROM: možnosti denních módů se vyberou se zakrýváním jako dřív (dnešní sada zůstane stejná)
-            legacyChoices: String(options.day || getDayKey()) < MASK_RULES_FROM });
+            legacyChoices: String(options.day || getDayKey()) < MASK_RULES_FROM,
+            // Neinformativní popis se neukáže a u zvířat a rostlin je místo něj ověřená fotka zdarma (leadPhoto); otázky dne před BARE_TEXT_FROM
+            // (denní módy podle dne otázky, výzvy a turnaj podle dneška) jako dřív, trénink hned
+            legacyBare: String(options.day || ((options.mode || mode) === 'challenge' ? getDayKey() : BARE_TEXT_FROM)) < BARE_TEXT_FROM, photoReady: Boolean(settled && settled.result) });
         question = composed.question;
         const { conflict, ambiguous, typeLabel } = composed;
         const { text, questionText, moreText, origin } = composed.texts;
@@ -657,11 +672,14 @@
             // Rozlišující údaj: ukáže se hned, když popis a fakta odpověď mezi možnostmi neurčí
             ...(clue && clue.length ? { clue } : {}),
             questionText,
+            // Neinformativní popis se neukazuje (quiz-core.js isBareText)
+            ...(composed.texts.bare ? { bareText: true } : {}),
             // Odkud popis je: 'article' (úvod článku z Wikipedie), 'fallback' (krátký popis z Wikidat), 'withheld' (téma ho neukazuje)
             textOrigin: origin,
             photoUrl,
             // label a icon = záložka obrázku (Obraz, Vlajka…); url null = obrázek se nenačetl
-            questionImage: shown ? { url: shownUrl, label: shown.label || 'Obrázek', icon: shown.icon || 'image', same: shown.file === item.im, masks: photoMasks[shown.file] || null } : null,
+            questionImage: shown ? { url: shownUrl, label: shown.label || 'Obrázek', icon: shown.icon || 'image', same: shown.file === item.im, masks: photoMasks[shown.file] || null }
+                : composed.leadPhoto ? { url: photoUrl, label: composed.leadPhoto.label, icon: composed.leadPhoto.icon, same: true, lead: true, masks: photoMasks[item.im] || null } : null,
             // Rozmazané nápisy s odpovědí na fotce nápovědy (jen před odpovědí)
             photoMasks: photoMasks[item.im] || null,
             visual,
@@ -2721,10 +2739,13 @@
         if (screen === 'challenge-done') return { icon: 'trophy', art: challenge && challenge.tournament ? 'turnaj' : 'vyzva', text: challenge && challenge.tournament ? 'Zápas hotový' : 'Výzva hotová', topic: null };
         if (screen === 'quiz' || screen === 'quiz-done') return { icon: 'timer', art: 'stopky', text: `Kvíz dne · ${shortDay(quiz ? quiz.day : getDayKey())}`, topic: null };
         if (screen === 'mode' && modeGame) return modePlace(modeGame);
+        if (screen === 'snack' && snackCtl) return snackCtl.place();
         if (screen === 'mystery') return { icon: 'telescope', art: 'sova-dalekohled', text: 'Tajemná otázka', topic: null };
         if ((screen === 'boss' || screen === 'boss-done') && Boss) return { icon: 'swords', art: Boss.artFor(Boss.bossForWeek(Boss.weekOf()).id, 1), text: 'Boss týdne', topic: null };
         if (screen === 'conquest') return { icon: 'swords', art: 'dobyvani', text: 'Dobývání', topic: null };
         if (screen === 'chain' && chainCtl) return { ...chainCtl.place(), topic: null };
+        if (screen === 'sorting' && sortingCtl) return { ...sortingCtl.place(), topic: null };
+        if (screen === 'puzzle' && puzzleCtl) return { ...puzzleCtl.place(), topic: null };
         // Úvod: sova z loga, název a dnešní datum
         if (screen !== 'round' || !current) return { logo: true, text: `${APP_NAME} · ${shortDay(getDayKey())}`, date: shortDay(getDayKey()), topic: null };
         const topic = TOPIC_BY_ID[current.topic];
@@ -2738,6 +2759,7 @@
             const ctx = loadedTopics.get(pool.topic);
             return { icon: 'layers', text: ctx ? `${ctx.topic.title} · ${collectionLabel(ctx, pool.collection)}` : 'Procvičování', topic };
         }
+        if (pool.kind === 'obor') return oborPlace(topic);
         // Mix: symbol tématu právě hrané otázky (bez obrázku tématu šipky Mixu)
         if (pool.kind === 'mix') return { icon: 'shuffle', topicArt: true, text: `Mix · ${topic.title}`, topic, switch: true };
         const chosen = selectedCategories(topic);
@@ -2752,7 +2774,7 @@
 
     const updateControlsUI = () => {
         // Procvičování okruhu nebo chyb patří k učení
-        const fromLearn = mode === 'practice' && (pool.kind === 'collection' || pool.kind === 'mistakes' || pool.kind === 'review');
+        const fromLearn = mode === 'practice' && (pool.kind === 'collection' || pool.kind === 'mistakes' || pool.kind === 'review' || pool.kind === 'obor');
         const section = screen === 'learn' ? 'learn' : screen === 'mode' ? 'practice' : screen === 'round' ? (mode === 'daily' || mode === 'challenge' || mode === 'quiz' ? 'home' : fromLearn ? 'learn' : 'practice') : 'home';
         updateProfileButton();
         const settingsButton = document.getElementById('btn-settings');
@@ -2772,7 +2794,7 @@
         const place = describePlace();
         const style = place.topic ? styleOf(place.topic) : null;
         updateFactHint();
-        document.getElementById('app-header').className = `${HEADER_BASE} ${style && (screen === 'round' || screen === 'mode') ? style.accent : 'border-brand-200 dark:border-brand-900'}`;
+        document.getElementById('app-header').className = `${HEADER_BASE} ${style && (screen === 'round' || screen === 'mode' || screen === 'snack') ? style.accent : 'border-brand-200 dark:border-brand-900'}`;
         const badge = document.getElementById('status-badge');
         badge.className = place.logo ? BADGE_LOGO
             : `${BADGE_BASE} ${style ? `${style.soft} border-transparent` : 'bg-white text-slate-700 border-slate-200/60 dark:bg-slate-800 dark:border-slate-700'}`;
@@ -3043,6 +3065,8 @@
         if (screen === 'mode') leaveMode();
         else if (screen === 'boss' || screen === 'boss-done') leaveBoss();
         else if (screen === 'chain' && chainCtl) chainCtl.leave();
+        else if (screen === 'sorting' && sortingCtl) sortingCtl.leave();
+        else if (screen === 'puzzle' && puzzleCtl) puzzleCtl.leave();
         else renderHome();
         if (navTab === 'souperi') refreshTournaments();
     };
@@ -3051,7 +3075,7 @@
     // otázky (výsledek otázky, výsledek výzvy). Skrytá je, dokud hráč odpovídá: u jedné otázky od zadání po odpověď, v režimech
     // na čas a v sérii (Kvíz dne, Řetězovka, souboj s bossem, Bleskovka, Přežití) od první otázky po výsledek, a v běžící hře
     // Dobývání (mapa přes celou plochu a tahy na čas). Výsledek jedné otázky ji má jen na vyšším displeji (viz níž).
-    const CALM_SCREENS = '[data-tab-root], #quiz-intro, #quiz-result, #chain-intro, #chain-result, #boss-intro, #boss-result, [data-mode-intro], [data-mode-result], #conquest-hub, #mystery-screen';
+    const CALM_SCREENS = '[data-tab-root], #quiz-intro, #quiz-result, #chain-intro, #chain-result, #boss-intro, #boss-result, [data-mode-intro], [data-mode-result], #conquest-hub, #mystery-screen, [data-sorting="intro"], #puzzle-intro, #puzzle-done, #puzzle-error';
     const barShown = () => {
         if (screen === 'welcome' || !appContent.firstElementChild) return false;
         if (screen === 'home') return mainShown();
@@ -3252,6 +3276,8 @@
             </button>`;
     // Řádky Řetězovky dne a Bosse týdne (doplní je jejich moduly; prázdný řetězec = řádek se nevykreslí)
     let chainCtl = null; // ovladač Řetězovky (chain.js), založí se níž u Kvízu dne a Tajemné otázky
+    let sortingCtl = null; // ovladač minihry Seřaď to (sorting.js), založí se níž za Řetězovkou
+    let puzzleCtl = null; // ovladač Skládačky (puzzle.js), založí se níž za Řetězovkou
     const chainSnapshotSeed = (day) => `mudrlant-retezovka-${day}`;
     const chainHomeTile = () => (chainCtl ? chainCtl.homeTile() : '');
     const bossHomeTile = () => (Boss ? bossTileHtml() : '');
@@ -3420,7 +3446,9 @@
     // Rozehraná otázka tréninku (Domů uprostřed otázky, obnovená relace) jde dohrát tlačítkem vedle Mixu
     const practiceOpen = () => Boolean(current && mode === 'practice' && round && !round.answered && TOPIC_BY_ID[current.topic]);
     const MODE_TILE = `relative flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-1 ${CARD_R} ${TILE_3D} px-0.5 py-1.5 text-center short:min-h-[3.75rem] short:gap-0.5 tiny:min-h-[3.25rem]`;
-    const modeTile = (attrs, art, title, extra = '') => `<button type="button" ${attrs} class="${MODE_TILE}">${art}<span class="block max-w-full truncate text-[12px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span>${extra}</button>`;
+    const modeTile = (attrs, art, title, extra = '') => `<button type="button" ${attrs} class="${MODE_TILE}">${art}<span data-mode-title class="block max-w-full truncate text-[12px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span>${extra}</button>`;
+    // Čip u nadpisu Režimy na záložce Hrát: řádek nadpisu nezvětší (záporný okraj), dotyková plocha 44 px
+    const snackChip = () => !snackCtl ? '' : `<button type="button" data-action="snack-open" title="Jednohubka: jedna otázka na jedno klepnutí" aria-label="Jednohubka: jedna otázka na jedno klepnutí" class="-my-3 flex min-h-[2.75rem] shrink-0 items-center px-1"><span class="flex items-center gap-1 rounded-full bg-gold-100 px-2.5 py-1 text-[12px] font-black text-brand-950 ring-1 ring-gold-300 dark:bg-gold-500/20 dark:text-gold-200 dark:ring-gold-700/60"><i data-lucide="${Snack.ICON}" class="h-3.5 w-3.5"></i>Jednohubka</span></button>`;
     const renderHrat = () => {
         // Dlouhý název („Výtvarné umění“) má na dlaždici krátký název tématu (shortTitle), celý zůstane v popisku pro čtečku
         const tileTitle = (topic) => (topic.shortTitle ? `<span aria-label="${escapeHtml(topic.title)}">${escapeHtml(topic.shortTitle)}</span>` : escapeHtml(topic.title));
@@ -3455,6 +3483,10 @@
         const modes = [
             ...(Modes ? Modes.IDS.map(id => modeTile(`data-action="mode-tile" data-mode="${id}" title="${escapeHtml(`${Modes.MODES[id].title}: ${Modes.MODES[id].tagline}`)}"`, modeBadge(id, 'h-9 w-9 short:h-8 short:w-8', 'h-5 w-5'), escapeHtml(Modes.MODES[id].title))) : []),
             ...(MapQuestion ? [modeTile('data-action="map-tile" title="Ukaž na mapě: jen otázky na mapě, zkušební režim"', uiArt('rezim-mapa', 'h-9 w-9 short:h-8 short:w-8'), 'Na mapě')] : []),
+            // Seřaď to (sorting.js): do dodání vlastního obrázku kolečko s ikonou
+            ...(sortingCtl ? [modeTile('data-action="sorting-open" title="Seřaď to: seřaď karty podle vlastnosti, bez časovače"', '<span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-600 text-white short:h-8 short:w-8"><i data-lucide="list-ordered" class="h-5 w-5"></i></span>', 'Seřaď to')] : []),
+            // Skládačka (puzzle.js): vlajka nebo obrys státu z dílků
+            ...(puzzleCtl ? [modeTile(`data-action="puzzle-open" title="${escapeHtml(puzzleCtl.homeTile().label)}"`, puzzleCtl.homeTile().art('h-9 w-9 short:h-8 short:w-8'), 'Skládačka')] : []),
             modeTile(`data-action="open-learn" title="Učení: okruhy, atlas a chyby k zopakování" aria-label="${due ? `Učení – k procvičení: ${due}` : 'Učení'}"`, uiArt('ucit-procvicit', 'h-9 w-9 short:h-8 short:w-8'), 'Učení',
                 due ? `<span data-review-due title="K procvičení: ${due}" class="absolute right-1.5 top-1.5 ${BADGE}"><span class="sr-only">K procvičení: </span>${due}</span>` : '')
         ];
@@ -3462,8 +3494,8 @@
             ${mixRow}
             <section id="topic-grid" aria-label="Témata" class="grid max-h-[22rem] flex-1 grid-cols-4 auto-rows-fr gap-2 short:gap-1.5">${ordered.map(tile).join('')}</section>
             <section aria-label="Režimy" class="flex shrink-0 flex-col gap-2 short:gap-1.5">
-                <h2 class="${SEC_LABEL}">Režimy</h2>
-                <div id="mode-tiles" class="grid ${['grid-cols-1', 'grid-cols-1', 'grid-cols-2', 'grid-cols-3', 'grid-cols-4'][Math.min(4, modes.length)]} gap-2 short:gap-1.5">${modes.join('')}</div>
+                <div class="flex items-center justify-between gap-2"><h2 class="${SEC_LABEL}">Režimy</h2>${snackChip()}</div>
+                <div id="mode-tiles" class="grid ${['grid-cols-1', 'grid-cols-1', 'grid-cols-2', 'grid-cols-3', 'grid-cols-4', 'grid-cols-5', 'grid-cols-6'][Math.min(6, modes.length)]} ${modes.length > 5 ? 'gap-1 [&_[data-mode-title]]:text-[9.5px] [&_[data-mode-title]]:tracking-tighter' : modes.length > 4 ? 'gap-1.5 [&_[data-mode-title]]:text-[10.5px] [&_[data-mode-title]]:tracking-tight' : 'gap-2 short:gap-1.5'}">${modes.join('')}</div>
             </section>`;
     };
 
@@ -3660,8 +3692,8 @@
     // Záložka nápovědy: „Fakta“ místo dlouhého „Čísla a fakta“, jinak název nápovědy
     const tabLabel = (hint) => hint.kind === 'facts' && !hint.extra ? 'Fakta' : capitalize(hint.label);
 
-    const renderFactsList = (facts) => `
-        <dl class="grid grid-cols-2 gap-2">
+    const renderFactsList = (facts, label = '') => `
+        <dl class="grid grid-cols-2 gap-2"${label ? ` aria-label="${escapeHtml(label)}"` : ''}>
             ${facts.map(fact => `
                 <div class="rounded-xl bg-slate-50 p-2.5 dark:bg-slate-900/60">
                     <dt class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">${escapeHtml(fact.label)}</dt>
@@ -3707,8 +3739,9 @@
                 </div>` : ''}
             ${text
                 ? `<p class="text-[15px] font-medium italic leading-snug text-slate-700 dark:text-slate-200">„${escapeHtml(text)}“</p>`
-                : hint ? '' : '<p class="text-sm text-slate-500 dark:text-slate-400">Popis se teď nepodařilo načíst z Wikipedie – pomůžou nápovědy.</p>'}
-            ${!hint && (data.leadFacts || []).length ? `
+                : hint || name || (data.leadFacts || []).length ? '' : `<p class="text-sm text-slate-500 dark:text-slate-400">${data.bareText ? 'Popis z Wikipedie by nic neřekl – pomůžou nápovědy.' : 'Popis se teď nepodařilo načíst z Wikipedie – pomůžou nápovědy.'}</p>`}
+            ${!hint && !text && (data.leadFacts || []).length ? renderFactsList(data.leadFacts, 'Co o tom víme') : ''}
+            ${!hint && text && (data.leadFacts || []).length ? `
                 <dl class="mt-2.5 flex flex-wrap gap-1.5" aria-label="Co o tom víme">
                     ${data.leadFacts.map(fact => `<div class="rounded-lg bg-slate-100 px-2 py-1 text-xs dark:bg-slate-900/60"><dt class="inline font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">${escapeHtml(fact.label)}:</dt> <dd class="inline font-bold text-slate-800 dark:text-slate-100">${escapeHtml(fact.value)}</dd></div>`).join('')}
                 </dl>` : ''}
@@ -3777,7 +3810,8 @@
         const textAsHint = data.hints.some(hint => hint.kind === 'text');
         // Časové souvislosti: místo popisu osobnost či věc, na kterou se otázka ptá (u otázek bez ní čtyři položky s obrázky)
         const free = isTime(data) ? [{ key: 'text', label: TimeQ.leadLabel(data), icon: TimeQ.ICON, html: TimeQ.leadHtml(data) }]
-            : !textAsHint && !data.questionImage ? [{ key: 'text', label: 'Popis', icon: 'quote', html: textPane(data, style) }] : [];
+            // Bez popisu (neinformativní popis se neukazuje, quiz-core.js isBareText) jen fakta ukázaná hned: záložka Fakta
+            : !textAsHint && !data.questionImage ? [{ key: 'text', ...(!data.questionText && (data.leadFacts || []).length ? { label: 'Fakta', icon: 'info' } : { label: 'Popis', icon: 'quote' }), html: textPane(data, style) }] : [];
         const panes = [...image, ...free, ...hintPanes(unlocked, data, style)];
         return renderTabbedPanel(panes, round.tab || panes[0].key, 'hint-tab', isTime(data) ? TIME_PANEL_HEIGHT : QUESTION_PANEL_HEIGHT, clueStrip(data, style));
     };
@@ -4177,8 +4211,9 @@
         }).catch(() => {});
     };
     // Řádek „+30 XP“ s rozpisem (odpověď, dnešní otázka, série…) pod výsledkem
-    const xpLine = (xp, tone) => xp && (xp.total || (xp.badges && xp.badges.length))
-        ? `<div class="mt-0.5 text-xs font-bold ${tone}">${xp.total ? `<span class="inline-block rounded-md bg-gold-500 px-1.5 py-0.5 font-black text-brand-950">+${xp.total} XP</span>` : ''}${(xp.badges || []).map(title => `<span class="ml-1 inline-flex items-center gap-1 rounded-md bg-brand-700 px-1.5 py-0.5 font-black text-white"><i data-lucide="award" class="h-3 w-3"></i>${escapeHtml(title)}</span>`).join('')}${xp.parts.length === 1 && !(xp.badges || []).length && xp.parts[0].xp === xp.total ? ` <span class="ml-0.5 font-semibold opacity-90">${escapeHtml(xp.parts[0].label)}</span>` : xp.parts.length ? `<ul class="mt-1 space-y-0.5 font-semibold opacity-90">${xp.parts.map(part => `<li>+${part.xp} XP ${escapeHtml(part.label)}</li>`).join('')}</ul>` : ''}</div>` : '';
+    // xp.stamp = nové razítko do Cestovního pasu (název státu): malý čip s razítkem, celé razítko až v pasu
+    const xpLine = (xp, tone) => xp && (xp.total || (xp.badges && xp.badges.length) || xp.stamp)
+        ? `<div class="mt-0.5 text-xs font-bold ${tone}">${xp.total ? `<span class="inline-block rounded-md bg-gold-500 px-1.5 py-0.5 font-black text-brand-950">+${xp.total} XP</span>` : ''}${(xp.badges || []).map(title => `<span class="ml-1 inline-flex items-center gap-1 rounded-md bg-brand-700 px-1.5 py-0.5 font-black text-white"><i data-lucide="award" class="h-3 w-3"></i>${escapeHtml(title)}</span>`).join('')}${xp.stamp && Passport ? `<span data-stamp-chip class="ml-1 inline-flex items-center gap-1 rounded-md border border-current px-1.5 py-px font-black" title="${escapeHtml(Passport.chipText(xp.stamp))}"><i data-lucide="stamp" class="h-3 w-3"></i>${escapeHtml(xp.stamp)}</span>` : ''}${xp.parts.length === 1 && !(xp.badges || []).length && xp.parts[0].xp === xp.total ? ` <span class="ml-0.5 font-semibold opacity-90">${escapeHtml(xp.parts[0].label)}</span>` : xp.parts.length ? `<ul class="mt-1 space-y-0.5 font-semibold opacity-90">${xp.parts.map(part => `<li>+${part.xp} XP ${escapeHtml(part.label)}</li>`).join('')}</ul>` : ''}</div>` : '';
 
     const renderResultBanner = (data) => {
         if (data.question.type === 'map' && MapQuestion) return MapQuestion.resultBanner(data, round, { uiArt, xpLine, totalLine: scoreTotalLine });
@@ -4373,6 +4408,7 @@
             return remaining ? `Další chyba (zbývá ${remaining})` : 'Hotovo – zpět do učení';
         }
         if (pool.kind === 'review') return pool.keys.length ? `Další karta (zbývá ${pool.keys.length})` : 'Hotovo – souhrn procvičování';
+        if (pool.kind === 'obor') return oborSealDue() ? 'Uzavřít okruh zlatou pečetí' : 'Další z oboru';
         return pool.kind === 'collection' ? 'Další z okruhu' : pool.kind === 'map' ? 'Další na mapě' : 'Další otázka';
     };
 
@@ -4674,7 +4710,7 @@
     };
     const persistState = () => {
         // Souboj s bossem a Bleskovka s Přežitím mají vlastní uložení (mudrlant.boss), nebo se neukládají: relace běžné hry zůstane, jak byla
-        if (!current || screen === 'boss' || screen === 'mode') return;
+        if (!current || screen === 'boss' || screen === 'mode' || screen === 'snack') return;
         if (mode === 'challenge' && challenge && !challenge.done) rememberOpenChallenge(challenge);
         if (mode === 'quiz') quizKeepOpen();
         // Rozehraný zápas turnaje se ukládá také: po návratu v den kola nabídne karta turnaje Pokračovat (od další otázky)
@@ -4757,6 +4793,7 @@
     const celebrationCalm = () => {
         // Otevřené okno (třeba rozpis otázek po výzvě, nebo Nastavení, kde hráč obléká Mudrlanta) má přednost: oslavy počkají, až se zavře
         if (document.getElementById('dialog-overlay') || document.getElementById('settings-overlay')) return false;
+        if (screen === 'snack') return !snackCtl || snackCtl.calm();
         if (mode === 'blitz' || mode === 'survival') return !modeGame || modeGame.phase === 'result' || screen !== 'mode';
         // Boss týdne: během souboje ne, na úvodu a výsledku ano
         if (screen === 'boss') return !bossFight;
@@ -4764,6 +4801,8 @@
         if (screen === 'home' || screen === 'learn' || screen === 'challenge-done' || screen === 'quiz-done' || screen === 'welcome' || screen === 'mystery') return true;
         if (screen === 'conquest') return !(ConquestUI && ConquestUI.busy());
         if (screen === 'chain') return !(chainCtl && chainCtl.isPlaying());
+        if (screen === 'sorting') return !(sortingCtl && sortingCtl.isPlaying());
+        if (screen === 'puzzle') return !puzzleCtl || puzzleCtl.calm();
         if (mode === 'challenge' || mode === 'quiz') return false;
         return Boolean(round && round.answered);
     };
@@ -5259,6 +5298,8 @@
     const Rewards = window.MudrlantRewards || null;
     // Album sbírky (album.js): co všechno jde sbírat, co hráč má a co chybí; okno a napojení v oddílu „Album sbírky“ u Mého postupu
     const Album = window.MudrlantAlbum || null;
+    // Cestovní pas (passport.js): razítka za poznané státy; napojení v oddílu „Cestovní pas“ u Alba sbírky
+    const Passport = window.MudrlantPassport || null;
     const loadRewards = () => (Rewards ? Rewards.parse(readJson(Rewards.KEY)) : null);
     const saveRewards = (state) => {
         if (!Rewards) return;
@@ -6270,6 +6311,8 @@
             pool.done += 1;
             if (round.correct) pool.mastered += 1;
         }
+        // Cestovní pas: razítko za nově poznaný stát (malý čip ve výsledku, celé razítko v pasu)
+        const stamp = round.correct ? notePassport(current.topic, current.id) : null;
         if (round.correct) {
             const learned = loadLearned();
             const ids = new Set(learned[current.topic] || []);
@@ -6278,7 +6321,10 @@
             learned[current.topic] = [...ids];
             writeJson(KEYS.learned, learned);
         }
+        // Můj obor: zodpovězená položka je nová pozice v oboru, příště se naváže za ní
+        if (mode === 'practice' && pool.kind === 'obor' && Obor) saveObor(Obor.noteAnswer(loadObor(), pool.key, current.id));
         awardXp(stats);
+        if (stamp && round.xp) round.xp.stamp = stamp;
     };
 
     // answerRef: položka (nebo stát) ze špatné odpovědi – výsledek k ní nabídne okno s popisem
@@ -6293,6 +6339,7 @@
         // Zvuk odpovědi (Nevím = bez zvuku); oslavy nové úrovně a odznaku zazní až po něm
         if (Sound && !gaveUp) Sound.answer(correct);
         recordResult();
+        statsLog();
         recordAnswerStat({ correct, answerRef, gaveUp });
         renderRound();
         // Odpověď výzvy (zápasu turnaje) hned na server; bez spojení počká v zařízení
@@ -6854,6 +6901,17 @@
                     pool = { kind: 'topic', topic: pool.topic };
                 }
             }
+            if (pool.kind === 'obor') {
+                // Můj obor: popořadě první položka, kterou hráč ještě neumí (za naposledy zodpovězenou), bez náhody (obor.js next)
+                const picked = await pickOborItem(pool.key);
+                if (!picked) {
+                    showToast('Tenhle okruh teď nic neobsahuje');
+                    return { abort: () => openLearn('obor') };
+                }
+                ({ ctx, item } = picked);
+                pool.step = picked.step;
+                pool.total = picked.total;
+            }
             if (pool.kind === 'map') {
                 // Jen místa, která jde ukázat na mapě (podle známosti z nastavení, když jich je dost); pár pokusů, kdyby místo nebylo na kreslené mapě
                 // Nejdřív druh místa (město, řeka, bitva, stát…) – každý přijde zhruba stejně často, ne samé stadiony –, pak místo
@@ -6883,7 +6941,7 @@
             }
             if (item) rememberPlayed(item);
             return { item, ctx, rng: Math.random, numeric, time };
-        }, pool.kind === 'topic' || pool.kind === 'collection' || (pool.kind === 'map' && pool.topic) ? TOPIC_BY_ID[pool.topic] : pool.kind === 'mix' || pool.kind === 'map' ? MIX : null);
+        }, pool.kind === 'topic' || pool.kind === 'collection' || pool.kind === 'obor' || (pool.kind === 'map' && pool.topic) ? TOPIC_BY_ID[pool.topic] : pool.kind === 'mix' || pool.kind === 'map' ? MIX : null);
     };
 
     // Opakování karet, které jsou dnes na řadě (review.js): hra s pevným seznamem položek, po dohrání souhrn v učení
@@ -6936,6 +6994,11 @@
         }
         if (pool.kind === 'mistakes' && !loadMistakes().length) {
             openLearn('mistakes');
+            return;
+        }
+        // Obor právě dokončený: na stránku oboru, kde se okruh uzavře pečetí
+        if (pool.kind === 'obor' && oborSealDue()) {
+            openLearn('obor');
             return;
         }
         startPractice();
@@ -7017,19 +7080,22 @@
             ${reviewSection}
             <div class="grid max-h-[22rem] flex-1 grid-cols-4 auto-rows-fr gap-2">
                 ${tiles}
-                <button type="button" data-action="learn-mistakes" class="${MISTAKES_SPAN[TOPICS.length % 4]} flex min-h-[4rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl border border-rose-200 bg-rose-50 p-2 text-center shadow-sm transition-all active:scale-[0.98] dark:border-rose-900/60 dark:bg-rose-900/20">
+                <button type="button" data-action="learn-mistakes" class="${Obor ? MISTAKES_SPAN[4 - oborSpans().mistakes] : MISTAKES_SPAN[TOPICS.length % 4]} flex min-h-[4rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl border border-rose-200 bg-rose-50 p-2 text-center shadow-sm transition-all active:scale-[0.98] dark:border-rose-900/60 dark:bg-rose-900/20">
                     ${uiArt('chyby', 'h-11 w-11')}
-                    <span class="text-[11.5px] font-black leading-tight text-slate-800 dark:text-slate-100">Moje chyby${mistakes.length ? ` (${mistakes.length})` : ''}${TOPICS.length % 4 === 3 ? '' : '<span class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">Co ti nevyšlo, ze všech témat</span>'}</span>
+                    <span class="text-[11.5px] font-black leading-tight text-slate-800 dark:text-slate-100">Moje chyby${mistakes.length ? ` (${mistakes.length})` : ''}${(Obor ? oborSpans().mistakes < 2 : TOPICS.length % 4 === 3) ? '' : '<span class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">Co ti nevyšlo, ze všech témat</span>'}</span>
                 </button>
+                ${oborTile()}
             </div>`;
     };
 
     const collectionRow = (ctx, collectionId, label, text, icon) => {
         const items = collectionItems(ctx, collectionId);
         const done = learnedCount(ctx.topic.id, items);
+        // Uzavřený okruh (100 % nebo dřív udělená pečeť) má u symbolu zlatou pečeť
+        const sealed = Obor && ((items.length && done === items.length) || Obor.isSealed(loadObor(), oborKey(ctx.topic.id, collectionId)));
         return `
-            <button type="button" data-action="learn-collection" data-collection="${escapeHtml(collectionId || '')}" class="${LEARN_ROW}">
-                <span class="shrink-0 rounded-xl p-2 ${styleOf(ctx.topic).soft}"><i data-lucide="${icon}" class="h-5 w-5"></i></span>
+            <button type="button" data-action="learn-collection" data-collection="${escapeHtml(collectionId || '')}" class="${LEARN_ROW}"${sealed ? ' data-sealed' : ''}>
+                <span class="relative shrink-0 rounded-xl p-2 ${styleOf(ctx.topic).soft}"><i data-lucide="${icon}" class="h-5 w-5"></i>${sealed ? `<span class="absolute -bottom-1.5 -right-1.5">${Obor.sealHtml({ size: 'sm' })}</span>` : ''}</span>
                 <span class="min-w-0 flex-1">
                     <span class="flex items-baseline justify-between gap-2">
                         <span class="min-w-0 font-bold leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(label)}</span>
@@ -7072,14 +7138,19 @@
                 <button type="button" data-action="learn-topic" data-topic="${ctx.topic.id}" class="${BACK_LINK}"><i data-lucide="chevron-left" class="h-4 w-4"></i> ${escapeHtml(ctx.topic.title)}</button>
                 <section class="${CARD} p-6 text-center text-sm text-slate-500 dark:text-slate-400">Tenhle okruh teď nic neobsahuje.</section>`;
         }
+        const back = `<button type="button" data-action="learn-topic" data-topic="${ctx.topic.id}" class="${BACK_LINK}"><i data-lucide="chevron-left" class="h-4 w-4"></i> ${escapeHtml(ctx.topic.title)}</button>`;
+        if (Obor) return `${back}${checklistCard(ctx, collection)}${learnCollectionTiles(ctx)}${oborButton(ctx)}`;
         return `
-            <button type="button" data-action="learn-topic" data-topic="${ctx.topic.id}" class="${BACK_LINK}"><i data-lucide="chevron-left" class="h-4 w-4"></i> ${escapeHtml(ctx.topic.title)}</button>
+            ${back}
             <section class="${CARD} p-5">
                 <h2 class="text-2xl font-black leading-tight text-slate-800 dark:text-slate-50">${escapeHtml(collectionLabel(ctx, learn.collection))}</h2>
                 ${collection && collection.text ? `<p class="mt-1 text-sm text-slate-500 dark:text-slate-400">${escapeHtml(collection.text)}</p>` : ''}
                 <p class="mt-3 text-sm font-semibold text-slate-600 dark:text-slate-300">${items.length} položek · uhodnuto ${done}</p>
                 ${progressBar(done, items.length)}
-            </section>
+            </section>${learnCollectionButtons(ctx)}`;
+    };
+    // Prohlížet a Procvičit okruh
+    const learnCollectionButtons = (ctx) => `
             <button type="button" data-action="learn-browse" class="flex w-full items-center gap-3 rounded-[1.5rem] border-2 bg-white p-4 text-left shadow-sm transition-all active:scale-[0.98] dark:bg-slate-800 ${styleOf(ctx.topic).on}">
                 ${uiArt('ucit-prohlizet', 'h-12 w-12')}
                 <span><span class="block text-lg font-black">Prohlížet</span><span class="block text-sm opacity-80">${learn.collection ? 'Popořadě, s fotkou, mapou a fakty' : 'Náhodně, s fotkou, mapou a fakty'}</span></span>
@@ -7088,6 +7159,214 @@
                 ${uiArt('ucit-procvicit', 'h-12 w-12')}
                 <span><span class="block text-lg font-black">Procvičit</span><span class="block text-sm text-white/90">Otázky jen z tohoto okruhu</span></span>
             </button>`;
+
+    // --- Odškrtávací seznam okruhu a Můj obor (obor.js) ---
+    // Seznam: všechny položky okruhu v pořadí prohlížení, zaškrtnuté = aspoň jednou správně poznané (mudrlant.learned, jako postup
+    // okruhu a Mistrovství). Pečeť za 100 % se zapíše při prvním zobrazení hotového okruhu (razítko a zvuk, s omezeným pohybem bez animace).
+    // Můj obor: okruh nebo kategorie hraná popořadě, nejdřív co hráč neumí; pozice a rozpracované obory jsou v mudrlant.obor.
+    const oborStore = () => { try { return window.localStorage; } catch (e) { return null; } };
+    const loadObor = () => (Obor && oborStore() ? Obor.load(oborStore()) : Obor ? Obor.parse(null) : null);
+    const saveObor = (state) => { if (Obor && oborStore()) Obor.save(oborStore(), state); };
+    // Celé téma má v klíči hvězdičku (pečeť za celé téma; jako obor ho hrát nejde)
+    const oborKey = (topicId, collectionId) => Obor.keyOf(topicId, collectionId || '*');
+    const knownOf = (topicId) => new Set(loadLearned()[topicId] || []);
+    // Položky okruhu v pořadí prohlížení (zvláštní okruh a kategorie podle svého řazení, celé téma podle abecedy)
+    const orderedCollection = (ctx, collectionId) => {
+        const items = collectionItems(ctx, collectionId);
+        if (!collectionId) return sortItems(items, { by: 'name' });
+        if (collectionId.startsWith('c:')) return sortItems(items, categoryOf(ctx.topic, collectionId.slice(2)).sort);
+        return sortItems(items, (ctx.collections.find(c => c.id === collectionId) || {}).sort);
+    };
+    // Stav okruhu pro seznam a pečeť; hotový okruh bez pečeti ji dostane teď (sealFx: po vykreslení zvuk a hláška)
+    let sealFx = false;
+    const checklistState = (ctx, collectionId) => {
+        const items = orderedCollection(ctx, collectionId);
+        const known = knownOf(ctx.topic.id);
+        const summary = Obor.summarize(items, known);
+        const key = oborKey(ctx.topic.id, collectionId);
+        let state = loadObor();
+        const animate = Obor.needsSeal(state, key, summary);
+        if (animate) {
+            state = Obor.seal(state, key, getDayKey());
+            saveObor(state);
+            sealFx = true;
+        }
+        return { items, known, summary, key, sealed: Obor.isSealed(state, key), animate };
+    };
+    const sealCelebrate = () => {
+        if (!sealFx) return;
+        sealFx = false;
+        if (Sound) { Sound.play('record'); Sound.vibrate('record'); }
+        showToast('Okruh uzavřen zlatou pečetí');
+    };
+
+    // Karta okruhu v Učení: název, velký ukazatel X / Y a klepnutím odškrtávací seznam
+    const checklistCard = (ctx, collection) => {
+        const view = checklistState(ctx, learn.collection);
+        return `
+            <button type="button" data-action="learn-list" data-checklist-card class="${CARD} w-full p-4 text-left transition-all active:scale-[0.99] short:p-3.5">
+                <h2 class="text-2xl font-black leading-tight text-slate-800 short:text-xl dark:text-slate-50">${escapeHtml(collectionLabel(ctx, learn.collection))}</h2>
+                ${collection && collection.text ? `<p class="mt-0.5 line-clamp-2 text-sm text-slate-500 dark:text-slate-400">${escapeHtml(collection.text)}</p>` : ''}
+                <div class="mt-2">${Obor.meterHtml(view.summary, { sealed: view.sealed, animate: view.animate,
+                    link: '<span class="flex shrink-0 items-center gap-0.5 text-[13px] font-black text-brand-700 dark:text-brand-300">Seznam položek <i data-lucide="chevron-right" class="h-4 w-4"></i></span>' })}</div>
+            </button>`;
+    };
+    // Prohlížet a Procvičit vedle sebe (pod nimi je Můj obor, celé se to vejde bez posouvání i na 360×640)
+    const learnCollectionTiles = (ctx) => `
+        <div class="grid grid-cols-2 gap-3 short:gap-2">
+            <button type="button" data-action="learn-browse" class="flex min-h-[6.5rem] flex-col items-start gap-1 rounded-[1.5rem] border-2 bg-white p-3 text-left shadow-sm transition-all active:scale-[0.98] short:min-h-0 dark:bg-slate-800 ${styleOf(ctx.topic).on}">
+                ${uiArt('ucit-prohlizet', 'h-10 w-10 short:h-9 short:w-9')}
+                <span class="block text-lg font-black leading-tight">Prohlížet</span><span class="block text-xs leading-snug opacity-80">${learn.collection ? 'Popořadě, s fotkou a fakty' : 'Náhodně, s fotkou a fakty'}</span>
+            </button>
+            <button type="button" data-action="learn-practice" class="flex min-h-[6.5rem] flex-col items-start gap-1 rounded-[1.5rem] p-3 text-left text-white shadow-lg transition-all active:scale-[0.98] short:min-h-0 ${styleOf(ctx.topic).button} btn-3d">
+                ${uiArt('ucit-procvicit', 'h-10 w-10 short:h-9 short:w-9')}
+                <span class="block text-lg font-black leading-tight">Procvičit</span><span class="block text-xs leading-snug text-white/90">Otázky jen z okruhu, náhodně</span>
+            </button>
+        </div>`;
+    // Tlačítko Můj obor u okruhu a kategorie (celé téma je na obor moc široké)
+    const oborButton = (ctx) => {
+        if (!learn.collection) return '';
+        const key = oborKey(ctx.topic.id, learn.collection);
+        const state = loadObor();
+        return Obor.chooseButtonHtml({ mine: state.current === key, started: Boolean(state.fields[key]) });
+    };
+
+    // Odškrtávací seznam (učení → okruh → Seznam položek): ukazatel, filtr a položky v okně s vlastním posouváním
+    const checklistBody = (ctx, view) => `
+        ${Obor.filterHtml(view.summary, learn.filter)}
+        ${Obor.listHtml(Obor.rows(view.items, view.known, learn.filter), { topic: ctx.topic.id, filter: learn.filter })}`;
+    const renderLearnList = (ctx) => {
+        const view = checklistState(ctx, learn.collection);
+        return `
+            <button type="button" data-action="learn-collection" data-collection="${escapeHtml(learn.collection || '')}" class="${BACK_LINK} -my-1 shrink-0"><i data-lucide="chevron-left" class="h-4 w-4"></i> ${escapeHtml(collectionLabel(ctx, learn.collection))}</button>
+            <section class="${CARD} shrink-0 p-4 short:p-3">
+                <h2 class="truncate text-lg font-black leading-tight text-slate-800 dark:text-slate-50">${escapeHtml(collectionLabel(ctx, learn.collection))} <span class="text-sm font-bold text-slate-500 dark:text-slate-400">· ${escapeHtml(ctx.topic.title)}</span></h2>
+                <div class="mt-2">${Obor.meterHtml(view.summary, { sealed: view.sealed, animate: view.animate })}</div>
+            </section>
+            ${checklistBody(ctx, view)}`;
+    };
+
+    // Další otázka oboru: položka podle pořadí okruhu a kurzoru; null = obor neexistuje nebo je prázdný
+    const pickOborItem = async (key) => {
+        const field = Obor && Obor.parseKey(key);
+        if (!field || !TOPIC_BY_ID[field.topic] || field.collection === '*') return null;
+        const ctx = await loadTopic(field.topic);
+        const ordered = orderedCollection(ctx, field.collection);
+        const state = loadObor();
+        const step = Obor.next(ordered.map(item => item.q), knownOf(field.topic), state.fields[key] ? state.fields[key].cursor : null);
+        const item = step ? ctx.byId.get(step.id) : null;
+        return item ? { ctx, item, step, total: ordered.length } : null;
+    };
+    // Hlavička při hře oboru: název okruhu a pořadí položky v okruhu
+    const oborPlace = (topic) => {
+        const ctx = loadedTopics.get(pool.topic);
+        const field = Obor.parseKey(pool.key);
+        const label = ctx && field ? collectionLabel(ctx, field.collection) : 'Můj obor';
+        return { icon: 'target', text: `Můj obor · ${label}${pool.step ? ` · ${pool.step.index + 1}/${pool.total}` : ''}`, topic };
+    };
+    // Obor právě dohraný na 100 % a ještě bez pečeti (tlačítko pod výsledkem vede na stránku oboru, kde se pečeť udělí)
+    const oborSealDue = () => {
+        if (!Obor || pool.kind !== 'obor') return false;
+        const field = Obor.parseKey(pool.key);
+        const ctx = field && loadedTopics.get(field.topic);
+        if (!ctx) return false;
+        return Obor.needsSeal(loadObor(), pool.key, Obor.summarize(orderedCollection(ctx, field.collection), knownOf(field.topic)));
+    };
+    // Dlaždice Můj obor v Učení: dělí si poslední řádek mřížky s Mými chybami (počty sloupců jako celé třídy kvůli Tailwindu)
+    const oborSpans = () => {
+        const rest = 4 - (TOPICS.length % 4);
+        const mistakes = Math.ceil(rest / 2);
+        return { mistakes, obor: rest - mistakes || 4 };
+    };
+    const OBOR_SPAN = ['', 'col-span-1', 'col-span-2', 'col-span-3', 'col-span-4'];
+    const oborTile = () => {
+        if (!Obor) return '';
+        const state = loadObor();
+        const field = state.current ? Obor.parseKey(state.current) : null;
+        const ctx = field && loadedTopics.get(field.topic);
+        const label = field ? (ctx ? collectionLabel(ctx, field.collection) : state.fields[state.current].label || (TOPIC_BY_ID[field.topic] ? TOPIC_BY_ID[field.topic].title : '')) : '';
+        return Obor.tileHtml({ span: OBOR_SPAN[oborSpans().obor], label, wide: oborSpans().obor >= 2 });
+    };
+
+    // Stránka Můj obor: aktuální obor s ukazatelem, Pokračovat a odškrtávacím seznamem; bez oboru vysvětlení a rozpracované obory
+    const renderLearnObor = (ctx) => {
+        const state = loadObor();
+        const back = `<button type="button" data-action="learn-back" class="${BACK_LINK} -my-1"><i data-lucide="chevron-left" class="h-4 w-4"></i> Učení</button>`;
+        const others = Obor.fieldList(state).filter(field => field.key !== state.current).length;
+        const change = `<button type="button" data-action="obor-change" class="-my-1 flex min-h-[2.75rem] items-center gap-1.5 rounded-xl px-2 text-sm font-bold text-brand-700 dark:text-brand-300"><i data-lucide="repeat" class="h-4 w-4"></i> ${state.current ? 'Změnit obor' : 'Rozpracované'}${others ? ` (${others})` : ''}</button>`;
+        if (!ctx) {
+            return `
+                <div class="flex shrink-0 items-center justify-between">${back}${others ? change : ''}</div>
+                ${Obor.introHtml()}`;
+        }
+        const field = Obor.parseKey(state.current);
+        const view = checklistState(ctx, field.collection);
+        const step = Obor.next(view.items.map(item => item.q), view.known, state.fields[state.current].cursor);
+        const play = Obor.playButtonHtml(step, { started: Boolean(state.fields[state.current].cursor), total: view.items.length, buttonClass: styleOf(ctx.topic).button });
+        return `
+            <div class="flex shrink-0 items-center justify-between">${back}${change}</div>
+            <section data-obor-card class="${CARD} shrink-0 p-4 short:p-3">
+                <p class="text-[11px] font-black uppercase tracking-widest text-gold-700 dark:text-gold-300">Můj obor · ${escapeHtml(ctx.topic.title)}</p>
+                <h2 class="truncate text-xl font-black leading-tight text-slate-800 dark:text-slate-50">${escapeHtml(collectionLabel(ctx, field.collection))}</h2>
+                <div class="mt-2">${Obor.meterHtml(view.summary, { sealed: view.sealed, animate: view.animate })}</div>
+            </section>
+            ${play}
+            ${checklistBody(ctx, view)}`;
+    };
+    // Aktuální obor, jehož okruh v nových datech už není, se tiše zahodí (stránka pak ukáže výběr)
+    const oborContext = async () => {
+        const state = loadObor();
+        const field = state.current ? Obor.parseKey(state.current) : null;
+        if (!field || !TOPIC_BY_ID[field.topic]) { learn.topic = null; return null; }
+        const ctx = await loadTopic(field.topic);
+        if (field.collection === '*' || !collectionItems(ctx, field.collection).length) {
+            saveObor(Obor.remove(state, state.current));
+            learn.topic = null;
+            return null;
+        }
+        learn.topic = field.topic;
+        learn.collection = field.collection;
+        return ctx;
+    };
+    const chooseObor = () => {
+        if (!Obor || !learn.topic || !learn.collection) return;
+        const ctx = loadedTopics.get(learn.topic);
+        saveObor(Obor.choose(loadObor(), oborKey(learn.topic, learn.collection), Date.now(), ctx ? collectionLabel(ctx, learn.collection) : ''));
+        learn.filter = 'all';
+        openLearn('obor');
+    };
+    const playObor = () => {
+        const state = loadObor();
+        if (!state.current) return;
+        const field = Obor.parseKey(state.current);
+        saveObor(Obor.choose(state, state.current));
+        startPractice({ kind: 'obor', key: state.current, topic: field.topic });
+    };
+    // Okno Změnit obor: rozpracované obory s postupem a pečetí, přepnutí klepnutím, odebrání ze seznamu; jiný okruh se vybírá v Učení
+    const openOborChange = async () => {
+        const fields = Obor.fieldList(loadObor());
+        const contexts = new Map();
+        await Promise.all([...new Set(fields.map(field => field.topic))].filter(id => TOPIC_BY_ID[id]).map(async id => { contexts.set(id, await loadTopic(id).catch(() => null)); }));
+        const render = () => {
+            const state = loadObor();
+            const rows = Obor.fieldList(state).map(field => {
+                const ctx = contexts.get(field.topic);
+                if (!ctx || field.collection === '*') return '';
+                const summary = Obor.summarize(orderedCollection(ctx, field.collection), knownOf(field.topic));
+                return Obor.fieldRowHtml({ key: field.key, label: collectionLabel(ctx, field.collection), topicTitle: ctx.topic.title, summary,
+                    sealed: summary.complete || Obor.isSealed(state, field.key), current: state.current === field.key, softClass: styleOf(ctx.topic).soft });
+            }).join('');
+            showDialog('Změnit obor', Obor.changeBodyHtml(rows), {
+                onClick: (event) => {
+                    const pick = event.target.closest('[data-obor-switch]');
+                    const drop = event.target.closest('[data-obor-remove]');
+                    if (pick) { saveObor(Obor.choose(loadObor(), pick.dataset.oborSwitch)); learn.filter = 'all'; closeDialog(); openLearn('obor'); }
+                    else if (drop) { saveObor(Obor.remove(loadObor(), drop.dataset.oborRemove)); render(); if (screen === 'learn') renderLearn(); }
+                    else if (event.target.closest('[data-obor-new]')) { closeDialog(); openLearn('home'); }
+                }
+            });
+        };
+        render();
     };
 
     const renderLearnAtlas = (ctx) => {
@@ -7177,11 +7456,15 @@
                 const topicIds = [...new Set(loadMistakes().map(key => key.split(':')[0]))];
                 const contexts = new Map(await Promise.all(topicIds.map(async id => [id, await loadTopic(id)])));
                 body = renderLearnMistakes(contexts);
+            } else if (learn.view === 'obor' && Obor) {
+                ctx = await oborContext();
+                body = renderLearnObor(ctx);
             } else if (learn.view === 'home' || !learn.topic) {
                 body = renderLearnHome();
             } else {
                 ctx = await loadTopic(learn.topic);
-                body = learn.view === 'atlas' ? renderLearnAtlas(ctx) : learn.view === 'collection' ? renderLearnCollection(ctx) : renderLearnTopic(ctx);
+                body = learn.view === 'atlas' ? renderLearnAtlas(ctx) : learn.view === 'collection' ? renderLearnCollection(ctx)
+                    : learn.view === 'list' && Obor ? renderLearnList(ctx) : renderLearnTopic(ctx);
             }
         } catch (error) {
             if (renderId === learnRenderId && screen === 'learn') renderError(error);
@@ -7190,14 +7473,19 @@
         if (screen !== 'learn' || renderId !== learnRenderId) return;
         // V atlasu je dole přilepená lišta s listováním, mezera pod obsahem by pod ní jen překážela
         const atlas = learn.view === 'atlas';
-        const learnHome = learn.view === 'home' || (!learn.topic && learn.view !== 'mistakes');
+        const learnHome = learn.view === 'home' || (!learn.topic && learn.view !== 'mistakes' && learn.view !== 'obor');
+        // Odškrtávací seznam a Můj obor: stránka na výšku okna, dlouhý seznam se posouvá ve vlastním okně
+        const fixed = Obor && (learn.view === 'list' || learn.view === 'obor');
+        // Okruh s odškrtávacím seznamem a Mým oborem: hustší rozestupy, ať se vejde bez posouvání
+        const compact = Obor && learn.view === 'collection';
         appContent.innerHTML = `
-            <div class="fade-in flex min-h-full w-full flex-col ${learnHome ? 'gap-2.5 p-3' : `gap-4 p-5 ${atlas ? 'pb-0' : 'pb-6'}`} bg-slate-50 dark:bg-slate-900">
+            <div class="fade-in flex w-full flex-col ${fixed ? 'min-h-0 flex-1 gap-3 p-4 short:gap-2 short:p-3' : compact ? 'min-h-full gap-3 p-4 short:gap-2.5 short:p-3' : `min-h-full ${learnHome ? 'gap-2.5 p-3' : `gap-4 p-5 ${atlas ? 'pb-0' : 'pb-6'}`}`} bg-slate-50 dark:bg-slate-900">
                 ${body}
-                ${atlas || learnHome ? '' : '<!-- Bezpečnostní mezera pro spodní okraj displeje --><div class="h-12 w-full shrink-0"></div>'}
+                ${atlas || learnHome || fixed || compact ? '' : '<!-- Bezpečnostní mezera pro spodní okraj displeje --><div class="h-12 w-full shrink-0"></div>'}
             </div>`;
         renderIcons(appContent);
         applyProgress(appContent);
+        sealCelebrate();
         if (learn.view === 'atlas' && ctx) {
             const item = ctx.byId.get(learn.order[learn.index]);
             if (item) hydrateItemCard(document.getElementById('learn-card'), item, ctx, 960);
@@ -7208,6 +7496,7 @@
     const openLearn = (view = learn.view, topicId = learn.topic) => {
         if (isLoading) return;
         touchTip('learn');
+        if (view === 'obor') touchTip('obor');
         closeChooser();
         learn.view = view;
         learn.topic = topicId;
@@ -7218,11 +7507,7 @@
     // Prohlížení okruhu: zvláštní okruhy a kategorie popořadě (podle výšky, roku, abecedy…), celé téma náhodně
     const browseCollection = async () => {
         const ctx = await loadTopic(learn.topic);
-        const items = collectionItems(ctx, learn.collection);
-        let ordered;
-        if (!learn.collection) ordered = shuffle(items, Math.random);
-        else if (learn.collection.startsWith('c:')) ordered = sortItems(items, categoryOf(ctx.topic, learn.collection.slice(2)).sort);
-        else ordered = sortItems(items, (ctx.collections.find(c => c.id === learn.collection) || {}).sort);
+        const ordered = learn.collection ? orderedCollection(ctx, learn.collection) : shuffle(collectionItems(ctx, null), Math.random);
         learn.order = ordered.map(item => item.q);
         learn.index = 0;
         openLearn('atlas');
@@ -7502,6 +7787,9 @@
         writeJson(KEYS.mistakes, updateMistakes(loadMistakes(), key, correct));
         if (reviewEnabled()) saveReview(Review.onAnswer(loadReview(), key, correct, getDayKey(), { force: false }));
         if (correct) {
+            // Cestovní pas: nová razítka hry se ukážou v souhrnu Bleskovky a Přežití
+            const stamp = notePassport(data.topic, data.id);
+            if (stamp && modeGame && modeLive(modeGame)) modeGame.stamps = [...(modeGame.stamps || []), stamp];
             const learned = loadLearned();
             learned[data.topic] = [...new Set([...(learned[data.topic] || []), data.id])];
             writeJson(KEYS.learned, learned);
@@ -7756,6 +8044,7 @@
                         ${ShareCard && game.score > 0 ? `<button type="button" data-action="mode-share-image" class="flex min-h-[2.75rem] ${game.xp && (game.xp.total || game.xp.note) ? 'w-[5.5rem] shrink-0 flex-col' : 'flex-1'} items-center justify-center gap-1 rounded-2xl btn-3d-light bg-white px-2 py-1.5 text-center text-[12px] font-bold leading-tight text-slate-800 dark:bg-slate-800 dark:text-slate-100"><i data-lucide="image" class="h-4 w-4 shrink-0"></i> Sdílet obrázek</button>` : ''}
                     </div>
                     ${goldModeResult(game)}
+                    ${missedHtml ? '' : passportModeResult(game)}
                     ${missedHtml}
                 </div>
                 <div class="sticky bottom-0 z-20 flex gap-2 border-t border-slate-200/70 bg-slate-50/95 px-4 pb-4 pt-3 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
@@ -7815,8 +8104,38 @@
         'mode-again': () => { if (modeGame) startModeGame(modeGame.kind, modeGame.pool); },
         'mode-home': () => leaveMode(),
         'mode-share-image': () => shareModeImage(),
+        'open-passport': () => openPassport(),
         'mode-retry': () => { if (modeGame && modeGame.phase === 'error') { modeGame.phase = 'loading'; showNextModeQuestion(modeGame); } }
     };
+
+    // --- Jednohubka (snack.js): jedna otázka na jedno klepnutí (série, XP se stropem a obrazovka jsou v snack.js) ---
+    // Otázka se chystá stejně jako v Bleskovce (prepareModeQuestion: náhodné téma z povolených v Mixu, kategorie a obtížnost z nastavení,
+    // vždy výběr z možností), panely otázky a odpovědi jsou z běžné hry. Chyby jdou do Mých chyb a procvičování jako v režimech.
+    // Při vstupu se uloží rozehraná otázka tréninku (mode, pool, current, round) a Hotovo ji vrátí, ať tlačítko Pokračovat nezmizí.
+    if (Snack && Modes) {
+        snackCtl = Snack.createController({
+            appContent, escapeHtml, CARD, BACK_LINK, loadingArt: LOADING_OWL,
+            readJson, writeJson, dayKey: () => getDayKey(), sound: Sound, isLoading: () => isLoading,
+            setScreen: (name) => { screen = name; }, getScreen: () => screen, renderHome, renderIcons, updateControlsUI,
+            closeOverlays: () => { closeChooser(); closeSettings(); closePlaceInfo(); },
+            touch: () => touchTip('snack'),
+            prepare: (seen) => prepareModeQuestion({ kind: 'snack', pool: { kind: 'mix' }, seen, asked: 0 }),
+            snapshot: () => ({ mode, pool, current, round }),
+            restore: (saved) => { ({ mode, pool, current, round } = saved); },
+            enter: (data) => {
+                mode = 'snack';
+                current = data;
+                round = { hintLevel: 1, variant: 'choices', answered: false, correct: false, points: 0, typed: false, answer: null, gaveUp: false, review: false, gold: false };
+            },
+            answered: (data, choice, correct) => {
+                Object.assign(round, { answered: true, correct, answer: choice.label, resultTab: 'about' });
+                noteModeAnswer(data, correct);
+            },
+            awardXp: (xp) => awardModeXp(xp),
+            topicOf: (id) => TOPIC_BY_ID[id], styleOf, categoryOf, questionPanel, answerPanel, mountPanels,
+            offline: (error) => error instanceof NetworkError || !navigator.onLine
+        });
+    }
 
     // --- Profil a výzvy (hra více hráčů) ---
     // Výzva = téma (nebo mix), semínko a počet otázek. Otázky se z něj losují stejně všem hráčům, takže stačí sdílet kód;
@@ -9794,6 +10113,7 @@
             postupTile({ attrs: 'data-open-mastery-all aria-label="Mistrovství témat: hvězdy za poznané položky"', art: postupArt('odznak-hvezdy'), title: 'Mistrovství', value: `${stars} / ${TOPICS.length * MASTERY_STEPS.length} hvězd`, valueAttrs: 'data-mastery-stars' }),
             ...(Rewards ? [postupTile({ attrs: 'data-rewards-info="diplomas"', art: postupArt('diplom'), title: 'Diplomy', value: `${diplomas} / ${TOPICS.length}`, valueAttrs: 'data-diploma-count' })] : []),
             ...(Album && Rewards ? [postupTile({ attrs: 'data-rewards-info="album"', art: postupArt(Album.ALBUM_ART || 'album'), title: 'Album', value: `${album} %`, valueAttrs: 'data-album-percent' })] : []),
+            ...(Passport ? [passportTile()] : []),
             ...(Showcase && signedUser() && myShowcase !== null ? [postupTile({ attrs: 'data-open-showcase', art: postupArt('vitrina'), title: 'Vitrína', value: `${myShowcase.length} / ${Showcase.MAX}` })] : []),
             ...(Chronicle ? [postupTile({ attrs: 'data-open-chronicle aria-label="Kronika týdne: můj týden v kostce"', art: postupArt('sova-kronika'), title: 'Kronika', value: 'týden v kostce' })] : []),
             ...(Rewards ? [
@@ -9815,7 +10135,7 @@
             </button>
             ${season ? `<div class="shrink-0">${Season.cardHtml(season)}</div>` : ''}
             ${renderGoalsCard()}
-            <section id="postup-tiles" aria-label="Sbírky a odměny" class="grid shrink-0 grid-cols-3 gap-2 short:gap-1.5">${tiles.join('')}</section>
+            <section id="postup-tiles" aria-label="Sbírky a odměny" class="${tiles.length > 9 ? 'postup-many ' : ''}grid shrink-0 grid-cols-3 gap-2 short:gap-1.5">${tiles.join('')}</section>
             ${goals.length ? `
             <section data-optional aria-label="Nejbližší odznaky" class="flex shrink-0 flex-col gap-1.5">
                 <h2 class="${SEC_LABEL}">Nejbližší odznaky</h2>
@@ -9841,9 +10161,10 @@
         showDialog('Mistrovství témat', `
             <div class="flex flex-col gap-2.5" data-mastery-dialog>
                 <p class="text-[12.5px] font-semibold leading-snug text-slate-600 dark:text-slate-300">Za poznané položky tématu sbíráš hvězdy. Pět hvězd je plné mistrovství a přináší diplom.</p>
-                <ul class="grid grid-cols-3 gap-2 short:gap-1.5">${rows}</ul>
+                <ul class="grid grid-cols-3 gap-2 short:gap-1.5">${rows}${statsMasteryLink()}</ul>
                 ${dialogBackButton()}
             </div>`, { onClick: (event) => {
+            if (event.target.closest('[data-open-stats]')) { openChild('Zpět na Mistrovství', openMasteryAll, () => openStats('temata')); return; }
             const mastery = event.target.closest('[data-mastery]');
             if (mastery) openChild('Zpět na Mistrovství', openMasteryAll, () => openMastery(mastery.dataset.mastery));
         } });
@@ -9855,6 +10176,8 @@
         if (event.target.closest('[data-open-mastery-all]')) { openMasteryAll(); return true; }
         if (event.target.closest('[data-open-showcase]')) { openShowcase(); return true; }
         if (event.target.closest('[data-open-chronicle]')) { openChronicle(); return true; }
+        if (event.target.closest('[data-open-stats]')) { openStats(); return true; }
+        if (event.target.closest('[data-open-passport]')) { openPassport(); return true; }
         if (event.target.closest('[data-season-claim]')) { openSeasonReveal(); return true; }
         if (event.target.closest('[data-season-open]')) { openSeason(); return true; }
         const info = event.target.closest('[data-rewards-info]');
@@ -10070,6 +10393,78 @@
         } });
         applyProgress(document.getElementById('dialog-overlay'));
     };
+    // --- Statistiky pro nadšence (statistiky.js): každá odpověď se zapíše do souhrnu v zařízení (téma a okruh, obtížnost, nápovědy, doba,
+    // záměna), okno z dlaždice Statistiky na záložce Postup ukazuje čísla v pěti částech (Přehled, Témata, Vývoj, Záměny, Rekordy).
+    // Okno je dlouhé jako seznam odznaků: posouvá se uvnitř, nadpis s křížkem zůstává nahoře (výjimka v tests/e2e-dialogs-fit.test.js) ---
+    // Ikona dlaždice: sloupcový graf kreslený v kódu (barvy třídami, bez nového obrázku)
+    const STATS_ART = '<svg viewBox="0 0 36 36" class="h-9 w-9 shrink-0 drop-shadow-sm short:h-8 short:w-8 tiny:h-6 tiny:w-6" aria-hidden="true"><rect x="3" y="3" width="30" height="30" rx="7" class="fill-white stroke-slate-300 dark:fill-slate-700 dark:stroke-slate-500" stroke-width="1.5"/><rect x="8" y="18" width="5" height="10" rx="1.5" class="fill-gold-400"/><rect x="15.5" y="12" width="5" height="16" rx="1.5" class="fill-brand-600 dark:fill-brand-400"/><rect x="23" y="8" width="5" height="20" rx="1.5" class="fill-emerald-500"/><path d="M7 28.5h22" class="stroke-slate-500 dark:stroke-slate-300" stroke-width="1.5" stroke-linecap="round"/></svg>';
+    // Odkaz v okně Mistrovství témat: na volném místě za posledním tématem (mřížka po třech; když volné místo není, odkaz se nepřidá)
+    const statsMasteryLink = () => {
+        const free = (3 - (TOPICS.length % 3)) % 3;
+        if (!Stats || !free) return '';
+        return `<li class="${free === 2 ? 'col-span-2' : ''}"><button type="button" data-open-stats class="flex h-full min-h-[4.25rem] w-full items-center gap-2 rounded-2xl bg-white px-2 py-1.5 text-left shadow-sm ring-1 ring-slate-200/70 active:scale-95 short:min-h-[3.6rem] dark:bg-slate-800 dark:ring-slate-700/70">${STATS_ART.replace('h-9 w-9', 'h-8 w-8')}<span class="min-w-0 flex-1"><span class="block text-[12px] font-black leading-tight text-slate-800 dark:text-slate-100">Statistiky</span><span class="block text-[10.5px] font-semibold leading-tight text-slate-500 dark:text-slate-400">úspěšnost po tématech a okruzích</span></span><i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-400"></i></button></li>`;
+    };
+    const statsLog = () => {
+        if (!Stats || !current || !round || devActive()) return;
+        try {
+            const choices = (current.question && current.question.choices) || [];
+            const right = choices.find(choice => choice && choice.correct && choice.id);
+            const ref = round.answerRef;
+            const refItem = ref && loadedTopics.get(ref.topic) ? loadedTopics.get(ref.topic).byId.get(ref.id) : null;
+            const details = answerDetails();
+            writeJson(Stats.KEY, Stats.record(readJson(Stats.KEY), {
+                topic: current.topic, category: current.category, correct: round.correct === true, gaveUp: Boolean(round.gaveUp), typed: Boolean(round.typed),
+                hints: details.hints, known: typeof current.known === 'boolean' ? current.known : null, ms: details.ms, mode,
+                right: right ? { id: right.id, label: right.label } : { id: current.id, label: current.name },
+                wrong: ref && ref.id ? { id: ref.id, label: (round.typed && refItem && refItem.n) || round.answer } : null
+            }, getDayKey()));
+        } catch (error) { console.error(error); }
+    };
+    // Stav okna: část, řazení tabulky témat, rozbalené téma a období grafu; po zavření zůstane (při dalším otevření stejné místo)
+    const statsUi = { tab: 'prehled', sort: { key: 'answered', dir: 'desc' }, open: null, period: 'weeks' };
+    const statsView = () => {
+        const progress = loadProgress();
+        const quizState = DailyQuiz ? DailyQuiz.parseState(readJson(DailyQuiz.KEY)) : null;
+        const mysteryState = Mystery ? Mystery.parseState(readJson(Mystery.KEY)) : null;
+        const chainState = Chain ? Chain.parseState(readJson(Chain.KEY)) : null;
+        // Dny jen s Tajemnou otázkou nebo Řetězovkou (bez odpovědí v souhrnu) se v kalendáři ukážou taky
+        const extra = {};
+        const note = (day, label) => { (extra[day] = extra[day] || []).push(label); };
+        if (mysteryState) Object.entries(mysteryState.days).forEach(([day, entry]) => { if (entry.tips.length) note(day, 'Tajemná otázka'); });
+        if (chainState) Object.entries(chainState.days).forEach(([day, row]) => { if (row.links || row.score) note(day, 'Řetězovka'); });
+        return Stats.build({
+            state: readJson(Stats.KEY), chronicle: Chronicle ? Chronicle.parse(readJson(Chronicle.KEY)) : null,
+            legacy: { daily: loadStats().daily, quiz: quizState ? quizState.days : {} },
+            topics: TOPICS.map(topic => ({ id: topic.id, title: topic.title, shortTitle: topic.shortTitle, categories: topic.categories.map(category => ({ key: category.key, label: category.label })) })),
+            learned: Object.fromEntries(Object.entries(loadLearned()).map(([id, ids]) => [id, (ids || []).length])),
+            counters: progress.counters, modes: Modes ? Modes.parse(readJson(Modes.STORAGE_KEY)) : null,
+            quiz: quizState ? { days: quizState.days, max: DailyQuiz.MAX_SCORE } : null,
+            mystery: mysteryState ? { days: mysteryState.days, max: Mystery.MAX_POINTS } : null,
+            chain: chainState ? { days: chainState.days, max: Chain.MAX_SCORE } : null,
+            extra, today: getDayKey()
+        });
+    };
+    const openStats = (tab = '') => {
+        if (!Stats) return;
+        touchTip('stats');
+        if (tab) statsUi.tab = tab;
+        const paint = (focus = '') => {
+            const overlay = showDialog('Statistiky pro nadšence', `${Stats.pageHtml(statsView(), statsUi)}${dialogBackButton('mt-3')}`, { onClick: (event) => {
+                const tab = event.target.closest('[data-st-tab]');
+                if (tab) { statsUi.tab = tab.dataset.stTab; paint(`[data-st-tab="${statsUi.tab}"]`); const panel = document.querySelector('#dialog-overlay > div'); if (panel) panel.scrollTop = 0; return; }
+                const sort = event.target.closest('[data-st-sort]');
+                if (sort) { statsUi.sort = Stats.nextSort(statsUi.sort, sort.dataset.stSort); paint(`[data-st-sort="${sort.dataset.stSort}"]`); return; }
+                const open = event.target.closest('[data-st-open]');
+                if (open) { statsUi.open = statsUi.open === open.dataset.stOpen ? null : open.dataset.stOpen; paint(`[data-st-open="${open.dataset.stOpen}"]`); return; }
+                const period = event.target.closest('[data-st-period]');
+                if (period) { statsUi.period = period.dataset.stPeriod; paint(`[data-st-period="${statsUi.period}"]`); }
+            } });
+            // Překreslení po klepnutí vrátí zaměření na stejné tlačítko (klávesnice a čtečka nepřeskočí na začátek okna)
+            const again = focus && overlay ? overlay.querySelector(focus) : null;
+            if (again) again.focus({ preventScroll: true });
+        };
+        paint();
+    };
     // Diplomy: mřížka všech témat (získané barevně, ostatní se zámkem), klepnutím diplom nebo co chybí
     const openDiplomas = () => {
         if (!Rewards) return;
@@ -10258,6 +10653,135 @@
             renderAlbum(null, '[data-album-back]');
         }
     };
+
+    // --- Cestovní pas (passport.js): razítko za každý poznaný stát (Zeměpis: stát a hlavní město, Vlajky: vlajka a státní znak) ---
+    // Zápis po správné odpovědi (notePassport), okno z dlaždice Pas v Mém postupu, malý čip ve výsledku a razítka v souhrnu Bleskovky a Přežití
+    const loadPassport = () => (Passport ? Passport.parse(readJson(Passport.KEY)) : null);
+    // Zpětné doplnění z poznaných položek pro načtená témata; téma bez poznaných položek se jen označí. Vrací stav.
+    const fillPassport = (state, countries) => {
+        const learned = loadLearned();
+        for (const topicId of Passport.TOPICS) {
+            if (state.filled[topicId]) continue;
+            const ids = learned[topicId] || [];
+            const ctx = loadedTopics.get(topicId);
+            if (ids.length && !ctx) continue;
+            state = Passport.backfill(state, topicId, ids, ctx ? ctx.byId : new Map(), countries).state;
+        }
+        return state;
+    };
+    // Správná odpověď na položku: razítko, pokud stát ještě nemá; vrací název státu nového razítka (jinak null). Volá se před zápisem do poznaných.
+    const notePassport = (topicId, id) => {
+        if (!Passport || !Passport.TOPICS.includes(topicId)) return null;
+        const ctx = loadedTopics.get(topicId);
+        const item = ctx && ctx.byId.get(id);
+        if (!item || !Passport.stampOf(topicId, item, ctx.countries)) return null;
+        const state = fillPassport(loadPassport(), ctx.countries);
+        const result = Passport.record(state, topicId, item, ctx.countries, getDayKey());
+        writeJson(Passport.KEY, result.state);
+        // Druhé téma s poznanými položkami se doplní, až se načte (na pozadí, ať pas brzy sedí i se staršími razítky)
+        if (Passport.TOPICS.some(other => !result.state.filled[other])) preparePassport().catch(() => {});
+        return result.stamp ? ctx.countries[result.stamp].name : null;
+    };
+    // Načte témata pasu, která ještě nejsou doplněná, a doplní je; vrací { state, countries }
+    let passportCountries = null;
+    const preparePassport = async () => {
+        const learned = loadLearned();
+        const missing = Passport.TOPICS.filter(topicId => !loadPassport().filled[topicId] && (learned[topicId] || []).length);
+        const countries = await loadCountries();
+        passportCountries = countries;
+        await Promise.all(missing.map(topicId => loadTopic(topicId).catch(() => null)));
+        const state = fillPassport(loadPassport(), countries);
+        writeJson(Passport.KEY, state);
+        return { state, countries };
+    };
+    let passportPage = 0;
+    // Okno pasu: otevře se na první stránce s novým razítkem (jinak na obálce, nebo kde hráč minule skončil)
+    const openPassport = async () => {
+        if (!Passport) return;
+        touchTip('passport');
+        let ready;
+        try { ready = await preparePassport(); } catch (error) { showToast('Pas se teď nepodařilo načíst. Zkus to za chvíli.'); return; }
+        const pass = Passport.book(ready.state, ready.countries);
+        const fresh = Passport.firstFreshPage(pass);
+        passportPage = fresh || Math.min(passportPage, pass.pages.length - 1);
+        renderPassport();
+    };
+    // Listování klávesami šipek, dokud je pas otevřený (jeden posluchač pro celou aplikaci)
+    let passportKeys = false;
+    const renderPassport = () => {
+        if (!passportKeys) {
+            passportKeys = true;
+            document.addEventListener('keydown', (event) => {
+                if (!document.querySelector('#dialog-overlay [data-pas]') || event.altKey || event.ctrlKey || event.metaKey) return;
+                if (event.key === 'ArrowRight') { event.preventDefault(); turnPassport(1); }
+                if (event.key === 'ArrowLeft') { event.preventDefault(); turnPassport(-1); }
+            });
+        }
+        renderPassportWith(passportCountries);
+    };
+    const renderPassportWith = (countries) => {
+        const state = loadPassport();
+        const pass = Passport.book(state, countries);
+        passportPage = Math.max(0, Math.min(pass.pages.length - 1, passportPage));
+        const reduced = reducedMotion();
+        const overlay = showDialog('Cestovní pas', `${Passport.passHtml(pass, passportPage, { reduced, canShare: Boolean(ShareCard) && pass.have > 0 })}${dialogBackButton('mt-2')}`, { onClick: passportClick });
+        applyProgress(overlay);
+        Passport.bindSwipe(overlay.querySelector('[data-pas-book]'), turnPassport);
+        // Nová razítka na této stránce bouchnou jednou (zvuk razítka), pak jsou viděná; velké razítko kontinentu také
+        const page = pass.pages[passportPage];
+        if (page.kind === 'continent') {
+            const freshIds = page.cells.filter(cell => cell.fresh).map(cell => cell.id);
+            const freshBig = page.part === 0 && page.continent.doneFresh ? [page.continent.id] : [];
+            if (freshIds.length || freshBig.length) {
+                writeJson(Passport.KEY, Passport.markSeen(state, freshIds, freshBig));
+                if (Sound) Sound.play('stamp');
+                // Dlaždice Pas pod oknem (záložka Postup) přestane hlásit nová razítka
+                const tile = document.querySelector('#postup-tiles [data-open-passport]');
+                if (tile) { tile.outerHTML = passportTile(); renderIcons(document.getElementById('postup-tiles')); }
+            }
+        }
+    };
+    const turnPassport = (step) => {
+        const countries = passportCountries;
+        if (!countries) return;
+        const total = Passport.book(loadPassport(), countries).pages.length;
+        const next = Math.max(0, Math.min(total - 1, passportPage + step));
+        if (next === passportPage) return;
+        passportPage = next;
+        renderPassportWith(countries);
+        // Zaměření zůstane na šipce (na krajní stránce na té druhé), ať jde listovat dál z klávesnice
+        const button = (step > 0 ? ['[data-pas-next]', '[data-pas-prev]'] : ['[data-pas-prev]', '[data-pas-next]']).map(selector => document.querySelector(selector)).find(node => node && !node.disabled);
+        if (button) button.focus({ preventScroll: true });
+    };
+    const passportClick = (event) => {
+        if (event.target.closest('[data-pas-prev]')) { turnPassport(-1); return; }
+        if (event.target.closest('[data-pas-next]')) { turnPassport(1); return; }
+        const go = event.target.closest('[data-pas-go]');
+        if (go) { turnPassport(Number(go.dataset.pasGo) - passportPage); return; }
+        if (event.target.closest('[data-pas-share]') && ShareCard) {
+            const countries = passportCountries;
+            if (countries) ShareCard.shareText({ text: `${Passport.shareText(Passport.book(loadPassport(), countries))}\n${appUrl()}` }, { toast: showToast, copied: 'Pas je zkopírovaný ve schránce' });
+        }
+    };
+    // Dlaždice v Mém postupu: počet států, se zlatým lemem, když v pasu čekají nová razítka
+    // Pas ještě není doplněný z dřívějška: doplní se na pozadí (jednou) a dlaždice se pak překreslí
+    let passportFilling = null;
+    const passportTile = () => {
+        const state = loadPassport();
+        if (!passportFilling && Passport.TOPICS.some(topicId => !state.filled[topicId])) {
+            passportFilling = preparePassport().then(() => {
+                const tile = document.querySelector('[data-open-passport]');
+                if (!tile) return;
+                tile.outerHTML = passportTile();
+                renderIcons(document.getElementById('postup-tiles') || document);
+            }).catch(() => { passportFilling = null; });
+        }
+        const view = Passport.tile(state);
+        return postupTile({ attrs: `data-open-passport aria-label="${escapeHtml(view.label)}"`, art: view.art, title: 'Pas', value: escapeHtml(view.value), valueAttrs: 'data-passport-value', ready: view.ready });
+    };
+    // Souhrn Bleskovky a Přežití: nová razítka hry (celá razítka s vlajkou) a tlačítko do pasu
+    // Karta nových razítek ve výsledku režimu; s kartou Co ti uteklo se na nízký telefon nevejde, pak ji nahradí čip během hry a zlatá dlaždice Pas
+    const passportModeResult = (game) => (Passport && game ? Passport.modeResultHtml(game.stamps, { reduced: reducedMotion(), card: CARD, cardTitle: CARD_TITLE }) : '');
 
     // Mistrovství jednoho tématu: co to je, kolik už hráč poznal, kolik chybí do další hvězdičky a co hvězdičky přinášejí (jen to, co hra opravdu dává)
     const openMastery = (topicId) => {
@@ -13140,6 +13664,41 @@
         });
     }
 
+    // --- Seřaď to (sorting.js): klidná minihra na záložce Hrát mezi Režimy; výběr karet, přesuny, kontrola, XP a obrazovky má sorting.js ---
+    if (Sorting) {
+        sortingCtl = Sorting.createController({
+            appContent, setScreen: (name) => { screen = name; }, getScreen: () => screen, renderHome, renderIcons, updateControlsUI, closePlaceInfo,
+            uiArt, topics: () => TOPICS, loadTopic, readJson, writeJson, getDayKey, xpLine, isLoading: () => isLoading,
+            style: styleOf(MIX), card: CARD, cardTitle: CARD_TITLE, sound: Sound,
+            // XP jako u Bleskovky (den hraní, odznaky, cíle, sezóna); strop a výši hlídá sorting.js
+            awardXp: (xp) => awardModeXp(xp)
+        });
+    }
+
+    // --- Skládačka (puzzle.js): vlajka nebo obrys státu z dílků; obrazovky, tažení a sbírku má puzzle.js, sem patří jen napojení ---
+    // Data: vlajky států z tématu Vlajky (obrázek z Commons jako blob přes photo-blob.js), obrysy z data/mapa-tvary.json pro státy Zeměpisu.
+    // XP za složení s denním stropem počítá puzzle.js; tady se připíše do postupu (den hraní jako u režimů) a synchronizuje.
+    if (Puzzle) {
+        puzzleCtl = Puzzle.createController({
+            appContent, setScreen: (name) => { screen = name; }, getScreen: () => screen, renderHome, renderIcons, updateControlsUI, uiArt, xpLine,
+            readJson, writeJson, getDayKey, loadTopic, loadCountries, loadShapes: () => loadMapData().then(data => data.shapes || {}),
+            commonsPhotoUrl, commonsFileUrl, photoBlob: PhotoBlob, sound: Sound, touchTip: (feature) => touchTip(feature),
+            awardXp: (xp) => {
+                const before = loadProgress();
+                const progress = { ...before, xp: before.xp + xp.total };
+                if (progress.counters.lastDay !== getDayKey()) { progress.counters.days += 1; progress.counters.lastDay = getDayKey(); }
+                chronicleLog({ xp: xp.total });
+                const badges = grantBadges(progress);
+                saveProgress(progress);
+                announce(levelProgress(before.xp).level, levelProgress(progress.xp).level, badges);
+                settleGoals();
+                applyLook();
+                syncProgress();
+                return { ...xp, badges };
+            }
+        });
+    }
+
     // --- Týdenní turnaje ---
     // Pravidla a posun kol dělá databáze (supabase/schema.sql) a čistá logika je v tournament.js; tady se zobrazí karta na záložce Soupeři,
     // okno s koly a zápasy a hra zápasu (otázky z pevného semínka stejně jako ve výzvě, ale bez zápisu do tabulky výzev).
@@ -13678,7 +14237,7 @@
             counters: loadProgress().counters, today: getDayKey(), now: Date.now(), launches: promoLaunches,
             signedIn: Boolean(signedUser()), multiAvailable: Boolean(Auth && Auth.isConfigured() && Social), reviewOn: reviewEnabled(),
             quiz: Boolean(DailyQuiz), mystery: Boolean(Mystery), modes: Boolean(Modes), goals: Boolean(Goals && Rewards), freezes: Rewards ? loadRewards().freezes : 0,
-            season: Boolean(Season && Rewards), album: Boolean(Album), chronicle: Boolean(Chronicle), showcase: Boolean(Showcase && myShowcase !== null), leagueSeasons: Boolean(LeagueSeasons && leagueSeasons),
+            season: Boolean(Season && Rewards), album: Boolean(Album), chronicle: Boolean(Chronicle), stats: Boolean(Stats), showcase: Boolean(Showcase && myShowcase !== null), leagueSeasons: Boolean(LeagueSeasons && leagueSeasons),
             // Motivace (blok 32): tematický víkend, prestiž (úroveň a počet prestiží), Pozvi kamarády a reakce navíc (jen s databází, která je má)
             weekend: Boolean(Weekend), level: levelProgress(loadProgress().xp).level, prestige: loadPrestige().n,
             referral: Boolean(Referral && referralState), invited: referralState ? referralState.invited.length : 0, perks: Boolean(Friends && Friends.perksHtml),
@@ -13690,6 +14249,8 @@
             // Počet přátel (tip Přátelé se pak nenabízí tomu, kdo přátele má; tip na pozvání přátel do Dobývání naopak jen jemu)
             friends: friendRows ? friendRows.filter(row => row.status === 'accepted').length : 0,
             chain: Boolean(chainCtl),
+            // Seřaď to: tip, dokud hráč nedohrál žádné kolo
+            sorting: Boolean(sortingCtl), sortingGames: sortingCtl ? sortingCtl.games() : 0,
             // Hlasování o speciálním turnaji: jen když ho správce zveřejnil (schéma 34) a hráč ho viděl načtené
             poll: Boolean(Tournament && Tournament.pollView(tournamentPollState))
         });
@@ -13710,9 +14271,11 @@
         modes: () => { closeDialog(); openChooser({ kind: 'mix' }); },
         goals: () => { closeDialog(); openGoals(); },
         chronicle: () => { closeDialog(); openChronicle(); },
+        stats: () => { closeDialog(); openStats(); },
         mystery: () => { closeDialog(); openMystery(); },
         boss: () => { closeDialog(); openBoss(); },
         chain: () => { closeDialog(); if (chainCtl) chainCtl.open(); },
+        sorting: () => { closeDialog(); if (sortingCtl) sortingCtl.open(); },
         leagueSeasons: () => { closeDialog(); openLeagueSeasons(); },
         groups: () => { closeDialog(); goTab('souperi'); if (GroupsUI) GroupsUI.openList(); },
         gold: () => { closeDialog(); openGoldInfo(); },
@@ -15050,6 +15613,7 @@
         'bets-help': () => openBetsHelp(),
         ...tournamentActions,
         ...modeActions,
+        ...(snackCtl ? snackCtl.actions : {}),
         'new-challenge': () => openNewChallenge(),
         'random-challenge': () => openNewChallenge({ who: 'random' }),
         'recent-more': () => { recentExpanded = !recentExpanded; paintChallenges(); },
@@ -15113,6 +15677,10 @@
         },
         // Řetězovka dne (chain.js)
         ...(chainCtl ? chainCtl.actions : {}),
+        // Seřaď to (sorting.js)
+        ...(sortingCtl ? sortingCtl.actions : {}),
+        // Skládačka (puzzle.js)
+        ...(puzzleCtl ? puzzleCtl.actions : {}),
         'challenge-retry': () => finishChallenge(true),
         'challenge-home': () => challengeHome(),
         'challenge-breakdown': () => { if (challenge && !challenge.tournament) openChallengeBreakdown(challenge, challenge.lastResults || []); },
@@ -15157,6 +15725,13 @@
         'learn-browse': () => browseCollection(),
         'learn-practice': () => startPractice({ kind: 'collection', topic: learn.topic, collection: learn.collection }),
         'learn-mistakes': () => openLearn('mistakes'),
+        // Odškrtávací seznam okruhu a Můj obor (obor.js)
+        'learn-list': () => { learn.filter = 'all'; openLearn('list'); },
+        'checklist-filter': (button) => { learn.filter = Obor && Obor.FILTERS.includes(button.dataset.filter) ? button.dataset.filter : 'all'; renderLearn(); },
+        'learn-obor': () => { learn.filter = 'all'; openLearn('obor'); },
+        'obor-choose': () => chooseObor(),
+        'obor-play': () => playObor(),
+        'obor-change': () => openOborChange(),
         'learn-next': () => moveAtlas(1),
         'learn-prev': () => moveAtlas(-1),
         'practice-mistakes': () => startPractice({ kind: 'mistakes' }),
@@ -15312,8 +15887,8 @@
             if (navSub) goTab(navTab);
             else if (navTab !== 'dnes') goTab('dnes');
         } else if (screen === 'round') {
-            const fromLearn = mode === 'practice' && (pool.kind === 'collection' || pool.kind === 'mistakes' || pool.kind === 'review');
-            if (fromLearn) openLearn(pool.kind === 'mistakes' ? 'mistakes' : pool.kind === 'review' ? 'home' : learn.view);
+            const fromLearn = mode === 'practice' && (pool.kind === 'collection' || pool.kind === 'mistakes' || pool.kind === 'review' || pool.kind === 'obor');
+            if (fromLearn) openLearn(pool.kind === 'mistakes' ? 'mistakes' : pool.kind === 'review' ? 'home' : pool.kind === 'obor' ? 'obor' : learn.view);
             else renderHome();
         } else if (screen === 'challenge-done') {
             challengeHome();
@@ -15323,12 +15898,18 @@
             if (!ConquestUI || !ConquestUI.back()) renderHome();
         } else if (screen === 'chain') {
             if (chainCtl) chainCtl.leave(); else renderHome();
+        } else if (screen === 'sorting') {
+            if (sortingCtl) sortingCtl.back(); else renderHome();
+        } else if (screen === 'puzzle') {
+            if (puzzleCtl) puzzleCtl.back(); else renderHome();
         } else if (screen === 'mode') {
             confirmLeaveMode();
+        } else if (screen === 'snack') {
+            if (snackCtl) snackCtl.leave(); else renderHome();
         } else if (screen === 'boss' || screen === 'boss-done') {
             leaveBoss();
         } else if (screen === 'learn') {
-            const up = { atlas: 'collection', collection: 'topic', topic: 'home', mistakes: 'home' }[learn.view];
+            const up = { atlas: 'collection', collection: 'topic', topic: 'home', mistakes: 'home', list: 'collection', obor: 'home' }[learn.view];
             if (up) openLearn(up);
             else renderHome();
         }

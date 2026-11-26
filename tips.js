@@ -33,6 +33,9 @@
             action: { kind: 'learn', label: 'Do Učení' }, used: (u) => Boolean(u.visited.learn) },
         { id: 'rezimy', icon: 'zap', after: 10, title: 'Bleskovka a Přežití', text: 'V Bleskovce máš 60 sekund na co nejvíc správných odpovědí. V Přežití máš 3 životy a každá chyba ti jeden vezme. Obě hry najdeš na záložce Hrát mezi Režimy, s jedním tématem v okně po klepnutí na jeho dlaždici. Rekordy se ti ukládají.',
             action: { kind: 'play', label: 'Na záložku Hrát' }, ready: (u) => u.modes, used: (u) => num(u.counters.blitzGames) + num(u.counters.survivalGames) > 0 },
+        // Skládačka (puzzle.js): kdo ji už otevřel, tip nepotřebuje
+        { id: 'skladacka', icon: 'puzzle', after: 8, title: 'Skládačka', text: 'Na záložce Hrát mezi Režimy je Skládačka: slož vlajku nebo obrys státu ze 4, 9 nebo 16 dílků. Dílek přetáhni, nebo ho klepnutím vyber a polož. Bez časovače. Poznáš dřív, co skládáš?',
+            action: { kind: 'play', label: 'Na záložku Hrát' }, used: (u) => Boolean(u.visited.puzzle) },
         { id: 'turnaj', icon: 'trophy', multi: true, account: true, after: 14, title: 'Týdenní turnaj', text: 'Každý týden začíná turnaj. Každý den se hraje jedno kolo: 10 otázek proti jednomu soupeři a kdo vyhraje, postupuje do dalšího kola. Přihlásit se můžeš na záložce Soupeři v okně Turnaje.',
             action: { kind: 'tournaments', label: 'Zobrazit' }, used: (u) => num(u.counters.tourPlayed) > 0 },
         // Obrázek s umístěním po skončení turnaje: jen tomu, kdo už v turnaji hrál; kdo ho sdílel nebo stáhl, tip nepotřebuje
@@ -80,8 +83,13 @@
             action: { kind: 'progress', label: 'Postup' }, ready: (u) => u.season, used: (u) => Boolean(u.visited.season) },
         { id: 'album', icon: 'book-open', art: 'album', after: 70, title: 'Album sbírky', text: 'Na záložce Postup najdeš Album sbírky se vším, co můžeš pro Mudrlanta a svůj profil získat. Uvidíš, co ti ještě chybí, a za každý milník sbírky dostaneš odznak Sběratel.',
             action: { kind: 'progress', label: 'Postup' }, ready: (u) => u.album, used: (u) => Boolean(u.visited.album) },
+        // Cestovní pas (passport.js): razítka za poznané státy; kdo pas otevřel, tip nepotřebuje
+        { id: 'pas', icon: 'stamp', after: 25, title: 'Cestovní pas', text: 'Za každý stát, který poznáš v Zeměpisu nebo ve Vlajkách a znacích (stát, vlajku, státní znak či hlavní město), dostaneš razítko do pasu. Najdeš ho na záložce Postup.',
+            action: { kind: 'progress', label: 'Postup' }, used: (u) => Boolean(u.visited.passport) },
         { id: 'kronika', icon: 'book-open', after: 40, title: 'Mudrlantova kronika', text: 'Každou neděli večer ti Mudrlant shrne uplynulý týden: kolik otázek máš za sebou, téma a titul týdne a tvoje nové objevy. Kroniku najdeš i na záložce Postup a můžeš ji sdílet jako obrázek.',
             action: { kind: 'chronicle', label: 'Otevřít kroniku' }, ready: (u) => u.chronicle && num(u.counters.days) >= 2, used: (u) => Boolean(u.visited.chronicle) },
+        { id: 'statistiky', icon: 'chart-column', after: 80, title: 'Statistiky pro nadšence', text: 'V Postupu v okně Mistrovství najdeš Statistiky: přesnou úspěšnost po tématech a okruzích, kalendář hraní, vývoj po týdnech, co si nejčastěji pleteš a rekordy ze všech her.',
+            action: { kind: 'stats', label: 'Otevřít statistiky' }, ready: (u) => u.stats && num(u.counters.days) >= 3, used: (u) => Boolean(u.visited.stats) },
         { id: 'ligove-sezony', icon: 'calendar-days', art: 'ligova-sezona', multi: true, account: true, after: 40, title: 'Ligové sezóny', text: 'Každý kalendářní měsíc je jedna ligová sezóna. Po jejím skončení dostaneš rámeček profilu podle nejvyšší ligy, které v ní dosáhneš, od Stříbra až po Mistra. Rámeček ti zůstane navždy. Výsledky sezón si můžeš vystavit ve vitríně.',
             action: { kind: 'leagueSeasons', label: 'Ligové sezóny' }, ready: (u) => u.leagueSeasons && num(u.counters.challenges) >= 2, used: (u) => Boolean(u.visited.leagueSeasons) },
         // Postavičky (look.js AVATARS, i další z NEW_AVATARS): odměny z různých částí hry; kdo skupinu Postavičky otevřel, tip nepotřebuje
@@ -143,6 +151,9 @@
         // Řetězovka dne (chain.js); art = č. 212 retezovka (jako chain.js ART.tile)
         { id: 'retezovka', icon: 'trophy', art: 'retezovka', after: 7, title: 'Řetězovka dne', text: 'Mezi dnešními výzvami čeká Řetězovka: 7 otázek z různých oborů, odpověď na jednu je začátkem další. U otázky je fotka a pár vět o předchozí odpovědi. Článek 7 dává sedm bodů, špatná odpověď řetěz přetrhne, jednou za hru pomůže Záchrana.',
             action: { kind: 'chain', label: 'Zkusit Řetězovku' }, ready: (u) => u.chain, used: (u) => num(u.counters.chainDone) > 0 },
+        // Minihra Seřaď to (sorting.js): dlaždice na záložce Hrát mezi Režimy
+        { id: 'serad-to', icon: 'list-ordered', after: 12, title: 'Seřaď to', text: 'Na záložce Hrát mezi Režimy najdeš Seřaď to: seřadíš karty podle výšky, roku nebo rozlohy. Bez časovače, zelené karty už sedí a zbytek opravuješ, kolikrát chceš.',
+            action: { kind: 'sorting', label: 'Zkusit' }, ready: (u) => u.sorting, used: (u) => num(u.sortingGames) > 0 },
         // Pomůcka Záchrana navíc do Řetězovky (schéma 37): pro přihlášené, kdo Řetězovku už pár dní hraje
         { id: 'retezovka-zachrana', icon: 'shield-plus', art: 'retezovka', account: true, after: 25, title: 'Záchrana navíc', text: 'Když už je v Řetězovce Záchrana použitá a znovu odpovíš špatně, pomůcka Záchrana navíc podrží řetěz: dostaneš jinou otázku na stejný článek, za 0 bodů. Mít můžeš jen jednu. Získáš ji třeba za milníky Řetězovky nebo 12. stupeň Sezóny.',
             action: { kind: 'chain', label: 'Do Řetězovky' }, ready: (u) => u.chain && num(u.counters.chainDone) >= 3, used: () => false },
@@ -169,13 +180,19 @@
             action: { kind: 'play', label: 'Na záložku Hrát' }, used: (u) => num((u.counters.topics || {}).jidlo) > 0 },
         // Téma Sport se rozrostlo na Sport a hry (topics/sport.js, scripts/lib/sport-hry.mjs): nové kategorie her
         { id: 'hry', icon: 'dices', after: 5, title: 'Sport a hry: nové kategorie', text: 'Téma Sport se rozrostlo na Sport a hry: přibyly deskové a karetní hry, šachy a videohry. Poznáš Dostihy a sázky, Sicilskou obranu nebo Mafii?',
-            action: { kind: 'play', label: 'Na záložku Hrát' }, used: () => false }
+            action: { kind: 'play', label: 'Na záložku Hrát' }, used: () => false },
+        // Jednohubka (snack.js): čip u nadpisu Režimy na záložce Hrát; kdo ji otevřel, tip nepotřebuje
+        { id: 'jednohubka', icon: 'cookie', after: 6, title: 'Jednohubka', text: 'Máš chvilku? Na záložce Hrát klepni u Režimů na Jednohubku: hned jedna otázka, odpověď a výsledek. Pak Ještě jednu, nebo Hotovo a jsi zpátky. Žádný čas, žádné tresty, jen série správných v řadě.',
+            action: { kind: 'play', label: 'Na záložku Hrát' }, used: (u) => Boolean(u.visited.snack) },
+        // Můj obor a odškrtávací seznam okruhu (obor.js); kdo stránku Můj obor otevřel, tip nepotřebuje
+        { id: 'obor', icon: 'target', after: 25, title: 'Můj obor', text: 'V Učení si vyber okruh a klepni na Udělat z toho můj obor. Projdeš ho celý popořadě a příště navážeš, kde hra skončila. Seznam ukáže, co už umíš, a za 100 % dostaneš zlatou pečeť.',
+            action: { kind: 'learn', label: 'Do Učení' }, used: (u) => Boolean(u.visited.obor) }
     ];
     const BY_ID = new Map(TIPS.map(tip => [tip.id, tip]));
 
     const EMPTY = { seen: [], day: '', n: 0, lastAt: 0, off: false, visited: {} };
     // Navštívené části hry (tip o nich už není potřeba): Učení, Postup, Vzhled, Diplomy, Sezóna, Album, Vitrína, Kronika týdne, skupina Postavičky…
-    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle', 'gold', 'conquest', 'bets', 'conquestInvite', 'poll', 'referral', 'perks', 'robeColor', 'characters', 'tourShare', 'robots'];
+    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle', 'gold', 'conquest', 'bets', 'conquestInvite', 'poll', 'referral', 'perks', 'robeColor', 'characters', 'tourShare', 'robots', 'snack', 'obor', 'stats', 'puzzle', 'passport'];
     const parse = (value) => {
         const v = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
         const visited = {};
@@ -209,12 +226,13 @@
         if (ctx.now - state.lastAt < MIN_GAP_MS) return null;
         const u = { counters: ctx.counters || {}, visited: state.visited, reviewOn: ctx.reviewOn !== false, friends: ctx.friends, signedIn: Boolean(ctx.signedIn),
             quiz: ctx.quiz !== false, mystery: ctx.mystery !== false, modes: ctx.modes !== false, goals: ctx.goals !== false, freezes: ctx.freezes, maxStars: ctx.maxStars,
-            season: ctx.season !== false, album: ctx.album !== false, showcase: ctx.showcase !== false, chronicle: ctx.chronicle !== false, leagueSeasons: Boolean(ctx.leagueSeasons),
+            season: ctx.season !== false, album: ctx.album !== false, showcase: ctx.showcase !== false, chronicle: ctx.chronicle !== false, stats: ctx.stats !== false, leagueSeasons: Boolean(ctx.leagueSeasons),
             gold: ctx.gold !== false,
             boss: ctx.boss !== false,
             bets: Boolean(ctx.bets),
             poll: ctx.poll !== false,
             chain: ctx.chain !== false,
+            sorting: Boolean(ctx.sorting), sortingGames: num(ctx.sortingGames),
             weekend: ctx.weekend !== false, level: ctx.level, prestige: ctx.prestige, referral: Boolean(ctx.referral), invited: ctx.invited, perks: ctx.perks !== false };
         const answered = num(u.counters.answered);
         return TIPS.find(tip => {

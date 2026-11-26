@@ -6,7 +6,7 @@ const path = require('node:path');
 const Tips = require('../tips.js');
 
 const NOW = Date.parse('2026-11-09T10:00:00Z');
-const ACTIONS = ['settings', 'learn', 'progress', 'multi', 'single', 'play', 'challenges', 'tournaments', 'friends', 'quiz', 'mystery', 'modes', 'goals', 'chronicle', 'leagueSeasons', 'groups', 'gold', 'boss', 'conquest', 'chain'];
+const ACTIONS = ['settings', 'learn', 'progress', 'multi', 'single', 'play', 'challenges', 'tournaments', 'friends', 'quiz', 'mystery', 'modes', 'goals', 'chronicle', 'leagueSeasons', 'groups', 'gold', 'boss', 'conquest', 'chain', 'sorting', 'stats'];
 const base = (over = {}) => ({ counters: { answered: 0 }, today: '2026-11-09', now: NOW, launches: 1, signedIn: false, multiAvailable: true, reviewOn: true, ...over });
 
 test('každý tip má id, titulek, text a ikonu, která existuje v icons.js; akce míří na známé místo', () => {
@@ -58,16 +58,16 @@ test('funkci, kterou hráč už používá, tip nenabídne; tip se ukáže jen j
         quizDone: 9, blitzGames: 2, orderAnswered: 8, mapAnswered: 6, sharedImages: 1, freezesUsed: 1, chestsOpened: 1, mysterySolved: 2, goldCorrect: 3, bossFights: 1, chainDone: 3 };
     const ctx = base({ counters: player, signedIn: true });
     const offered = [];
-    let state = { ...Tips.EMPTY, visited: { learn: true, progress: true, look: true, diplomas: true, season: true, album: true, showcase: true, leagueSeasons: true, legends: true, looks: true, groups: true, conquest: true } };
+    let state = { ...Tips.EMPTY, visited: { learn: true, progress: true, look: true, diplomas: true, season: true, album: true, showcase: true, leagueSeasons: true, legends: true, looks: true, groups: true, conquest: true, passport: true } };
     let now = NOW;
-    for (let day = 0; day < 20; day++) {
+    for (let day = 0; day < 21; day++) {
         const tip = Tips.pick(state, { ...ctx, today: `2026-12-${String(day + 1).padStart(2, '0')}`, now });
         if (!tip) break;
         offered.push(tip.id);
         state = Tips.markShown(state, tip.id, `2026-12-${String(day + 1).padStart(2, '0')}`, now);
         now += 86400000;
     }
-    assert.deepEqual(offered, ['turnaj-obrazek', 'hlasovani', 'reakce', 'pratele', 'postavicky', 'dobyvani-hrad', 'dobyvani-blesk', 'dobyvani-bitvy', 'dobyvani-pomucky', 'dobyvani-vzkriseni', 'dobyvani-vzory', 'dobyvani-stavby', 'dobyvani-boti', 'dobyvani-hrady', 'retezovka-zachrana', 'vikend', 'reakce-plus', 'technika', 'jidlo', 'hry'], 'zkušený hráč dostane jen to, co ještě nezná (nová pravidla Dobývání a motivace zná málokdo, nová témata Technika a Jídlo ještě nehrál, nové kategorie Sportu a her)');
+    assert.deepEqual(offered, ['skladacka', 'turnaj-obrazek', 'hlasovani', 'reakce', 'pratele', 'postavicky', 'dobyvani-hrad', 'dobyvani-blesk', 'dobyvani-bitvy', 'dobyvani-pomucky', 'dobyvani-vzkriseni', 'dobyvani-vzory', 'dobyvani-stavby', 'dobyvani-boti', 'dobyvani-hrady', 'retezovka-zachrana', 'vikend', 'reakce-plus', 'technika', 'jidlo', 'hry'], 'zkušený hráč dostane jen to, co ještě nezná (nová pravidla Dobývání a motivace zná málokdo, nová témata Technika a Jídlo ještě nehrál, nové kategorie Sportu a her, Skládačka ještě neotevřená)');
     assert.equal(new Set(offered).size, offered.length);
 });
 

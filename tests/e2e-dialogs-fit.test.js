@@ -11,6 +11,7 @@ const path = require('node:path');
 const fixtures = require('./fixtures.js');
 const nav = require('./nav.js');
 const DQ = require('../daily-quiz.js');
+const Stats = require('../statistiky.js');
 
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
@@ -49,7 +50,13 @@ const EXEMPT = {
     'Přátelé': { reason: 'seznam všech přátel (posouvá se uvnitř okna)', size: '360×640' },
     'Skupiny – detail': { reason: 'pořadí všech členů skupiny (devět se na 390×780 vejde)', size: '360×640', keep: '[data-group-challenge-new]' },
     'Skupiny – detail (Týden)': { reason: 'týdenní pořadí všech členů skupiny', keep: '[data-group-challenge-new]' },
-    'Skupiny – správa': { reason: 'seznam všech členů s odebráním' }
+    'Skupiny – správa': { reason: 'seznam všech členů s odebráním' },
+    // Statistiky pro nadšence (statistiky.js): samostatná obrazovka s tabulkami a grafy, posouvá se uvnitř okna pod lepkavým nadpisem
+    'Statistiky pro nadšence': { reason: 'přehled čísel o hraní (souhrn, obtížnost, nápovědy, doba odpovědi)' },
+    'Statistiky – Témata': { reason: 'tabulka všech témat s okruhy' },
+    'Statistiky – Vývoj': { reason: 'kalendář hraní, graf a tabulka 12 týdnů' },
+    'Statistiky – Záměny': { reason: 'seznam nejčastějších záměn (až 15 dvojic)' },
+    'Statistiky – Rekordy': { reason: 'rekordy ze všech her' }
 };
 const exempt = (name, key) => (EXEMPT[name] && (!EXEMPT[name].size || EXEMPT[name].size === key) ? EXEMPT[name] : null);
 
@@ -320,8 +327,24 @@ const richStorage = () => {
             gifts: { frames: ['sezona-10', 'sezona-10-b', 'duha-mracky'], avatars: ['drakpa'], titles: ['sampion-sezony'] },
             season: { id: '2026-11', startXp: 15000, claimed: { 1: 'robes:fialova', 2: 'accessories:kvetina', 3: 'freeze', 4: 'themes:fialova', 5: 'colors:ruzova' } } }),
         // Zlatá otázka (gold.js): Zlatá truhla čeká (nejvyšší podoba okna Zlatá otázka i dlaždice v Mém postupu), minule dala rámeček
-        'mudrlant.gold': JSON.stringify({ v: 1, total: 14, correct: 11, found: 10, shards: 0, ready: 1, chests: 1, intro: true, last: 'frames:ruze' })
+        'mudrlant.gold': JSON.stringify({ v: 1, total: 14, correct: 11, found: 10, shards: 0, ready: 1, chests: 1, intro: true, last: 'frames:ruze' }),
+        // Statistiky pro nadšence: tři měsíce odpovědí ve čtyřech tématech s okruhy, doba odpovědi a dlouhé názvy v záměnách
+        'mudrlant.statistiky': JSON.stringify(statsState())
     };
+};
+const statsState = () => {
+    let state = Stats.parse(null);
+    const plan = [['zemepis', ['stat', 'mesto', 'hora', 'reka', 'ostrov']], ['historie', ['panovnik', 'bitva']], ['architektura', ['stavba']], ['hudba', ['skladatele']]];
+    for (let i = 90; i >= 0; i--) {
+        if (i % 4 === 3) continue;
+        const day = Stats.addDays(TODAY, -i);
+        plan.forEach(([topic, cats], t) => cats.forEach((category, k) => {
+            state = Stats.record(state, { topic, category, correct: (i + k + t) % 3 !== 0, hints: (i + k) % 5, known: k % 2 === 0, ms: 2500 + ((i * 7 + k) % 40) * 1000, mode: Stats.MODES[(i + t) % 4] }, day);
+        }));
+    }
+    const long = [['Chrám Svaté rodiny (Sagrada Família)', 'Katedrála Notre-Dame v Paříži'], ['Svatá říše římská', 'Velkomoravská říše'], ['Lotyšsko', 'Litva']];
+    long.forEach(([right, wrong], i) => { for (let k = 0; k <= i; k++) state = Stats.record(state, { topic: 'architektura', category: 'stavba', correct: false, right: { id: `Q${10 + i}`, label: right }, wrong: { id: `Q${20 + i}`, label: wrong } }, Stats.addDays(TODAY, -k)); });
+    return state;
 };
 
 // start = záložka po načtení (výchozí Soupeři: většina oken se otevírá odtud; '' = nechat Dnes), now = čas aplikace, scale = hustota snímků
@@ -625,6 +648,17 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
                 await tab.waitForSelector(`[data-chronicle][data-kr-page="${pageName}"]`);
             };
             for (const pageName of ['titul', 'cisla', 'tema', 'souboje', 'zaver']) await scene(tab, `Kronika týdne – ${pageName}`, size, () => chronicle(pageName));
+            // Statistiky pro nadšence (statistiky.js): pět částí přepínačem nahoře; dlouhé části se posouvají uvnitř okna (výjimky výše)
+            // Statistiky vedou z okna Mistrovství témat (na Postupu nemají dlaždici)
+            const stats = async (part) => {
+                await progress();
+                await tab.click('[data-open-mastery-all]'); await tab.click('[data-mastery-dialog] [data-open-stats]');
+                await tab.waitForSelector('[data-stats]'); await tab.click(`[data-st-tab="${part}"]`); await tab.waitForSelector(`[data-stats][data-st-current="${part}"]`); };
+            await scene(tab, 'Statistiky pro nadšence', size, () => stats('prehled'));
+            await scene(tab, 'Statistiky – Témata', size, () => stats('temata'));
+            await scene(tab, 'Statistiky – Vývoj', size, () => stats('vyvoj'));
+            await scene(tab, 'Statistiky – Záměny', size, () => stats('zameny'));
+            await scene(tab, 'Statistiky – Rekordy', size, () => stats('rekordy'));
             // Album sbírky (album.js): sekce s nejvíc věcmi (doplňky), Odznaky (posouvají se), podrobnosti postavičky (s Nasadit) a odměny alba
             const album = async (section) => { await progress(); await tab.click('[data-rewards-info="album"]'); await tab.waitForSelector('[data-album]'); await tab.click(`[data-album-tab="${section}"]`); await tab.waitForSelector(`[data-album-section="${section}"]`); };
             await scene(tab, 'Album sbírky', size, () => album('accessories'));

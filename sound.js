@@ -35,12 +35,17 @@
             n(1975.53, 0.18, 0.32, { type: 'sine', gain: 0.13 }), n(783.99, 0, 0.5, { gain: 0.07 })],
         // Zlatý střípek: dvojí jasné cinknutí, když střípek doletí do počítadla
         shard: [n(1318.51, 0, 0.06, { type: 'sine', gain: 0.13 }), n(1975.53, 0.07, 0.26, { type: 'sine', gain: 0.14 }), n(987.77, 0.07, 0.26, { gain: 0.06 })],
+        // Skládačka (puzzle.js): krátké dřevěné cvaknutí, když dílek zapadne, a vlídné stoupání, když je obrázek složený
+        snap: [n(1567.98, 0, 0.035, { type: 'sine', gain: 0.12 }), n(392, 0, 0.05, { to: 261.63, gain: 0.12 })],
+        puzzle: [n(523.25, 0, 0.1, { type: 'sine' }), n(659.25, 0.08, 0.1, { type: 'sine' }), n(783.99, 0.16, 0.1, { type: 'sine' }), n(1046.5, 0.24, 0.35, { type: 'sine', gain: 0.16 }), n(523.25, 0.24, 0.35, { gain: 0.07 })],
         // Boss týdne (boss.js): zavrčení při nástupu, úder do bosse, zlom stupně (dramatický pád tónu), posměšný smích a pád bosse
         bossRoar: [n(196, 0, 0.32, { to: 130.81, gain: 0.12 }), n(130.81, 0, 0.6, { to: 87.31, gain: 0.2 }), n(98, 0.03, 0.6, { to: 82.41, type: 'sine', gain: 0.22 })],
         bossHit: [n(185, 0, 0.13, { to: 87.31, gain: 0.24 }), n(1567.98, 0.02, 0.08, { type: 'sine', gain: 0.12 }), n(1975.53, 0.06, 0.07, { type: 'sine', gain: 0.08 })],
         bossStage: [n(440, 0, 0.4, { to: 110, gain: 0.18 }), n(220, 0.05, 0.45, { gain: 0.16 }), n(164.81, 0.05, 0.5, { type: 'sine', gain: 0.16 })],
         bossLaugh: [n(392, 0, 0.09, { to: 349.23 }), n(392, 0.13, 0.09, { to: 349.23 }), n(466.16, 0.26, 0.16, { to: 311.13 })],
         bossDown: [n(392, 0, 0.24, { to: 370, gain: 0.16 }), n(349.23, 0.26, 0.24, { to: 329.63, gain: 0.16 }), n(293.66, 0.52, 0.5, { to: 196, gain: 0.16 }), n(98, 0.52, 0.5, { type: 'sine', gain: 0.2 })],
+        // Cestovní pas (passport.js): bouchnutí razítka – hluboké tupé ťuknutí s krátkým klapnutím
+        stamp: [n(150, 0, 0.14, { to: 85, type: 'sine', gain: 0.32 }), n(420, 0, 0.04, { to: 200, gain: 0.07 })],
         // Kamarádské sázky (bets.js): mince se sypou k vítězi a cinkají (krátké vysoké tóny s tichým podtónem, nepravidelně po sobě)
         coins: [n(1975.53, 0, 0.06, { type: 'sine', gain: 0.16 }), n(1318.51, 0, 0.05, { type: 'sine', gain: 0.06 }), n(1760, 0.1, 0.06, { type: 'sine', gain: 0.15 }),
             n(1174.66, 0.1, 0.05, { type: 'sine', gain: 0.05 }), n(1864.66, 0.19, 0.05, { type: 'sine', gain: 0.14 }), n(1567.98, 0.27, 0.07, { type: 'sine', gain: 0.15 }),
@@ -48,7 +53,7 @@
             n(1318.51, 0.45, 0.12, { type: 'sine', gain: 0.07 })]
     };
     // Vibrace: krátké cvrnknutí při chybě, rytmus při novém rekordu
-    const VIBRATIONS = { wrong: 40, record: [70, 50, 70, 50, 160], bossHit: 25, bossStage: [60, 40, 110] };
+    const VIBRATIONS = { wrong: 40, record: [70, 50, 70, 50, 160], bossHit: 25, bossStage: [60, 40, 110], snap: 12, puzzle: [30, 40, 70] };
     const lengthOf = (name) => Math.max(...SOUNDS[name].map(note => note.at + note.dur));
 
     const readPrefs = (storage) => {

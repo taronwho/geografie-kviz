@@ -29,8 +29,12 @@ const ICONS = [
     'list-ordered',
     // Archiv turnajů
     'archive',
+    // Skládačka (puzzle.js): odznak režimu, tažení dílku a tip, co se skládá
+    'puzzle', 'hand', 'circle-help',
     // Pomůcka Záchrana navíc do Řetězovky (conquest.js ITEMS.chain_rescue, chain.js)
     'shield-plus',
+    // Seřaď to (sorting.js): posun karty nahoru a dolů
+    'chevron-up',
     // Pomůcka Vzkříšení do Dobývání (conquest.js ITEMS.revive; zástupná pečeť do dodání obrázku č. 361)
     'heart-pulse',
     // Boti v Dobývání (conquest.js BOT_LEVELS; štítek bota do dodání obrázků č. 459–468)
@@ -39,6 +43,8 @@ const ICONS = [
     'cog', 'car', 'train-front', 'plane', 'ship', 'cpu', 'code', 'factory',
     // Téma Jídlo a pití (topics/jidlo.js: ikona tématu a kategorií)
     'utensils', 'soup', 'croissant', 'milk', 'apple', 'carrot', 'leafy-green', 'coffee', 'wine', 'chef-hat',
+    // Jednohubka (snack.js: čip na záložce Hrát a štítek v hlavičce)
+    'cookie',
     // Architektura: kategorie Mosty a tunely
     'bridge',
     // Biologie – člověk a zdraví: Lékařství, Slavní lékaři, Psychologie
@@ -60,7 +66,11 @@ const ICONS = [
     // Mytologie: kategorie Náboženství, Světci a světice, Záhady a legendy
     'sun-moon', 'cross', 'search',
     // Vlajky a znaky: kategorie Měny a bankovky
-    'banknote'
+    'banknote',
+    // Statistiky pro nadšence (statistiky.js): ikona tipu a šipka směru řazení tabulky témat
+    'chart-column', 'arrow-up', 'arrow-down',
+    // Cestovní pas (passport.js): razítka států
+    'stamp'
 ];
 
 const toPascalCase = (name) => name.replace(/(^|-)(\w)/g, (_, __, letter) => letter.toUpperCase());
