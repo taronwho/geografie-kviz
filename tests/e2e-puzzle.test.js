@@ -25,6 +25,10 @@ const STATES = Object.keys(fixtures.files['/data/countries.json'].countries);
 // Vlajky států z data/vlajky.json (téma Vlajky se v testu bere ze skutečných dat; ne každý stát v nich vlajku má)
 const FLAG_STATES = STATES.filter(q => JSON.parse(fs.readFileSync(path.join(ROOT, 'data/vlajky.json'), 'utf8')).items.some(item => item.c === 'vlajka' && item.co && item.co.length === 1 && item.co[0] === q));
 const OTHERS = FLAG_STATES.filter(q => q !== 'Q213');
+const Puzzle = require('../puzzle.js');
+// Dny Skládačky dne: 26. 11. 2026 obrys, 27. 11. 2026 vlajka (střídá se po dnech)
+const OUTLINE_DAY = '2026-11-26';
+const FLAG_DAY = '2026-11-27';
 
 const startServer = () => new Promise(resolve => {
     const server = http.createServer((request, response) => {
@@ -46,8 +50,10 @@ test('Skládačka: vlajka a obrys státu z dílků', { skip: !chromium && 'Playw
     const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
     t.after(async () => { await browser.close(); server.close(); });
 
-    const open = async ({ viewport = { width: 390, height: 780 }, colorScheme = 'light', seed = {}, reducedMotion = 'no-preference' } = {}) => {
+    const open = async ({ viewport = { width: 390, height: 780 }, colorScheme = 'light', seed = {}, reducedMotion = 'no-preference', day = '', flagsOff = false } = {}) => {
         const context = await browser.newContext({ serviceWorkers: 'block', viewport, colorScheme, hasTouch: true, reducedMotion });
+        // Pevné datum (Skládačka dne); časovače běží dál
+        if (day) await context.clock.setFixedTime(new Date(`${day}T12:00:00+01:00`));
         await context.addInitScript((seed) => {
             window.__tones = [];
             window.__vibrations = [];
@@ -74,6 +80,7 @@ test('Skládačka: vlajka a obrys státu z dílků', { skip: !chromium && 'Playw
         await context.route('**/*', route => {
             const url = new URL(route.request().url());
             if (url.origin === origin) return route.fallback();
+            if (url.hostname === 'upload.wikimedia.org' && flagsOff) return route.abort();
             if (url.hostname === 'upload.wikimedia.org') { flagRequests.push(url.pathname); return route.fulfill({ contentType: 'image/svg+xml', body: FLAG, headers: { 'access-control-allow-origin': '*' } }); }
             if (url.hostname === 'cs.wikipedia.org') return route.fulfill({ json: { query: { pages: { 7: { pageid: 7, title: 'Zkouška', extract: fixtures.extractFor(url.searchParams.get('titles')) } } } } });
             return route.abort();
@@ -246,6 +253,11 @@ test('Skládačka: vlajka a obrys státu z dílků', { skip: !chromium && 'Playw
         assert.ok(await tab.evaluate(() => window.__tones.includes(1046.5)), 'tón složení');
         assert.deepEqual(await tab.evaluate(() => window.__vibrations), [[30, 40, 70]]);
         assert.equal((await tab.textContent('[data-pz-name]')).trim(), 'Česko');
+        // Malá vlajka u názvu (u vlajky z obrázku skládačky)
+        await tab.waitForSelector('[data-pz-flag="shown"] img');
+        const mini = await tab.$eval('[data-pz-flag]', el => ({ h: el.getBoundingClientRect().height, src: el.querySelector('img').getAttribute('src') }));
+        assert.ok(mini.h >= 20 && mini.h <= 24.5, JSON.stringify(mini));
+        assert.match(mini.src, /^blob:/);
         const done = (await tab.textContent('#puzzle-done')).replace(/\s+/g, ' ');
         assert.match(done, /Vlajka · 4 dílky · 7 tahů/);
         assert.match(done, /Stát v Evropě · hlavní město Praha/);
@@ -325,9 +337,113 @@ test('Skládačka: vlajka a obrys státu z dílků', { skip: !chromium && 'Playw
             assert.match(await tab.textContent('#puzzle-done'), /Rozloha \d/);
             assert.match(await tab.textContent('#puzzle-done'), /Nové ve sbírce · 1 \/ 7/);
             assert.match(await tab.textContent('#puzzle-done'), /\+6\sXP/);
+            // Malá vlajka u obrysu (náhled z Commons jako blob, s rámečkem)
+            await tab.waitForSelector('[data-pz-flag="shown"] img');
+            assert.match(await tab.getAttribute('[data-pz-flag] img', 'src'), /^blob:/);
+            assert.deepEqual(await fits(tab), { scroll: 0, wide: 0 });
             await shot(tab, `skladacka-hotovo-360-${colorScheme}`);
             assert.deepEqual(problems, []);
             await context.close();
         });
     }
+
+    // Složí celou rozehranou skládačku klepnutím
+    const solve = async (tab) => {
+        for (let i = 0; i < 40 && await tab.$('[data-pz-piece]'); i++) await tapPlace(tab, await tab.getAttribute('[data-pz-piece]', 'data-pz-piece'));
+        await tab.waitForSelector('#puzzle-done');
+    };
+    const dailyCases = [
+        { day: OUTLINE_DAY, viewport: { width: 360, height: 640 }, colorScheme: 'light' },
+        { day: OUTLINE_DAY, viewport: { width: 390, height: 780 }, colorScheme: 'dark' },
+        { day: FLAG_DAY, viewport: { width: 390, height: 780 }, colorScheme: 'light' },
+        { day: FLAG_DAY, viewport: { width: 360, height: 640 }, colorScheme: 'dark' }
+    ];
+    for (const { day, viewport, colorScheme } of dailyCases) {
+        const variant = Puzzle.dailyVariant(day);
+        const size = `${viewport.width}`;
+        await t.test(`Skládačka dne ${day} (${variant}) ${viewport.width}×${viewport.height} ${colorScheme}: karta na úvodu, 4 × 4, XP jednou, výsledek s vlajkou`, async () => {
+            const { tab, context, problems } = await open({ viewport, colorScheme, day, seed: { 'mudrlant.skladacka': { variant: 'flag', size: 4, day, xp: 40 } } });
+            await openIntro(tab);
+            // Karta Skládačka dne nahoře: nesplněná, tlačítko Hrát; úvod se vejde
+            const card = tab.locator('[data-puzzle-daily="open"]');
+            assert.equal(await card.count(), 1);
+            assert.match((await card.textContent()).replace(/\s+/g, ' '), new RegExp(`Skládačka dne ${variant === 'flag' ? 'Vlajka' : 'Obrys státu'} · 16 dílků · \\+15 XP Hrát`));
+            const order = await tab.$$eval('#puzzle-intro > *', list => list.map(el => (el.dataset.puzzleDaily ? 'daily' : el.getAttribute('role') || el.tagName.toLowerCase())));
+            assert.equal(order[1], 'daily', `karta hned pod nadpisem: ${order.join(', ')}`);
+            assert.deepEqual(await fits(tab), { scroll: 0, wide: 0 });
+            await shot(tab, `skladacka-dne-uvod-${size}-${colorScheme}-${variant}`);
+            await tab.click('[data-action="puzzle-daily"]');
+            await tab.waitForSelector('#puzzle-screen [data-pz-piece]', { timeout: 15000 });
+            assert.equal(await tab.getAttribute('#puzzle-screen', 'data-size'), '16');
+            assert.equal(await tab.getAttribute('#puzzle-screen', 'data-variant'), variant);
+            assert.equal(await tab.locator('[data-pz-piece]').count(), 16);
+            assert.match(await tab.textContent('#status-badge'), /Skládačka dne/);
+            assert.deepEqual(await fits(tab), { scroll: 0, wide: 0 });
+            // Stejné zamíchání pro všechny: pořadí zásobníku je ze semínka dne
+            const tray = await tab.$$eval('[data-pz-piece]', list => list.map(el => Number(el.dataset.pzPiece)));
+            assert.deepEqual(tray, Puzzle.createGame({ variant, size: 16, item: {}, rng: Puzzle.seeded(`skladacka-dne|${day}`) }).tray);
+            await shot(tab, `skladacka-dne-hra-${size}-${colorScheme}-${variant}`);
+            // Odchod a návrat: rozehraná Skládačka dne pokračuje (karta ukazuje Pokračovat)
+            await tapPlace(tab, tray[0]);
+            await tab.click('#btn-home');
+            await tab.waitForSelector('[data-puzzle-daily="open"]');
+            assert.match(await tab.textContent('[data-action="puzzle-daily"]'), /Pokračovat/);
+            await tab.click('[data-action="puzzle-daily"]');
+            await tab.waitForSelector('#puzzle-screen');
+            assert.equal(await placed(tab), 1);
+            await solve(tab);
+            const done = (await tab.textContent('#puzzle-done')).replace(/\s+/g, ' ');
+            assert.match(done, /Skládačka dne · 16 dílků · \d+ tahů/);
+            assert.match(done, /\+15\sXP/);
+            assert.match(done, /za Skládačku dne/);
+            assert.match(done, /Hrát volně/);
+            // Malá vlajka státu u názvu, s rámečkem (bílá vlajka je vidět i v tmavém režimu)
+            await tab.waitForSelector('[data-pz-flag="shown"] img');
+            const mini = await tab.$eval('[data-pz-flag]', el => { const r = el.getBoundingClientRect(); return { h: r.height, w: r.width, ring: getComputedStyle(el).boxShadow, name: el.nextElementSibling.textContent.trim() }; });
+            assert.ok(mini.h >= 20 && mini.h <= 24.5 && mini.w >= 20, JSON.stringify(mini));
+            assert.notEqual(mini.ring, 'none', 'rámeček');
+            assert.deepEqual(await fits(tab), { scroll: 0, wide: 0 });
+            await shot(tab, `skladacka-dne-hotovo-${size}-${colorScheme}-${variant}`);
+            const saved = await storage(tab, 'mudrlant.skladacka');
+            const entry = saved.daily[day];
+            assert.equal(entry.v, variant);
+            assert.ok(entry.moves >= 16);
+            assert.equal(saved.xp, 40, 'mimo denní strop volné hry');
+            assert.ok(saved.got[variant].includes(entry.id), 've sbírce');
+            assert.equal(mini.name, fixtures.files['/data/countries.json'].countries[entry.id].name);
+            assert.equal((await storage(tab, 'mudrlant.progress')).xp, 15);
+            // Zpět na úvod: splněná karta s fajfkou a počtem tahů; Ukázat ukáže výsledek bez XP
+            await tab.click('[data-action="puzzle-intro"]');
+            await tab.waitForSelector('[data-puzzle-daily="done"]');
+            assert.match((await tab.textContent('[data-puzzle-daily="done"]')).replace(/\s+/g, ' '), new RegExp(`Hotovo · ${entry.moves} tahů Ukázat`));
+            assert.equal(await tab.locator('[data-puzzle-daily="done"] .lucide-circle-check, [data-puzzle-daily="done"] [data-lucide="circle-check"]').count(), 1, 'fajfka');
+            assert.deepEqual(await fits(tab), { scroll: 0, wide: 0 });
+            await shot(tab, `skladacka-dne-uvod-hotovo-${size}-${colorScheme}-${variant}`);
+            await tab.click('[data-action="puzzle-daily"]');
+            await tab.waitForSelector('#puzzle-done [data-pz-daily-done]');
+            assert.match(await tab.textContent('#puzzle-done'), new RegExp(`${entry.moves} tahů`));
+            assert.equal(await tab.locator('#puzzle-done [data-pz-xp]').count(), 0, 'bez XP podruhé');
+            await tab.waitForSelector('[data-pz-flag="shown"] img');
+            assert.deepEqual(await fits(tab), { scroll: 0, wide: 0 });
+            await shot(tab, `skladacka-dne-vysledek-${size}-${colorScheme}-${variant}`);
+            assert.equal((await storage(tab, 'mudrlant.progress')).xp, 15);
+            assert.deepEqual(problems, []);
+            await context.close();
+        });
+    }
+
+    await t.test('Skládačka dne v den vlajky bez internetu: skládá se obrys téhož státu, malá vlajka chybí a nic se nerozbije', async () => {
+        const { tab, context, problems } = await open({ viewport: { width: 360, height: 640 }, day: FLAG_DAY, flagsOff: true });
+        await openIntro(tab);
+        await tab.click('[data-action="puzzle-daily"]');
+        await tab.waitForSelector('#puzzle-screen [data-pz-piece]', { timeout: 20000 });
+        assert.equal(await tab.getAttribute('#puzzle-screen', 'data-variant'), 'outline');
+        assert.match(await tab.textContent('[data-pz-status]'), /Vlajka se teď nenačetla, dnes se skládá obrys státu/);
+        await solve(tab);
+        assert.equal(await tab.locator('[data-pz-flag="shown"]').count(), 0);
+        assert.deepEqual(await fits(tab), { scroll: 0, wide: 0 });
+        assert.equal((await storage(tab, 'mudrlant.skladacka')).daily[FLAG_DAY].v, 'outline');
+        assert.deepEqual(problems, []);
+        await context.close();
+    });
 });
