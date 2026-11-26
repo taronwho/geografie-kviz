@@ -638,17 +638,21 @@ const currentImage = (statements) => {
     return ranked[0] ? ranked[0].file : null;
 };
 
-const states = new Map(STATE_IDS.map(q => [q, { flagImgs: [], armsImgs: [], cap: [] }]));
+// Položek vlajky (P163) a znaku (P237) může mít stát víc (Švýcarsko: vlajka Q124020 i obchodní vlajka Q97752545 bez
+// článku na české Wikipedii) – schovají se všechny a vybere se až podle podrobností (chooseSymbol); dřív vyhrála poslední
+// vrácená a vlajka Švýcarska podle pořadí výsledků dotazu vypadla
+const states = new Map(STATE_IDS.map(q => [q, { flagImgs: [], armsImgs: [], cap: [], flagIds: [], armsIds: [] }]));
 for (const row of stateRows) {
     const state = states.get(row.item);
     if (!state || row.v === undefined) continue;
     if (row.p === 'flagImg' || row.p === 'armsImg') state[`${row.p}s`].push({ file: fileName(row.v), rank: row.rank, end: row.end });
     else if (row.p === 'cap') { if (!state.cap.includes(row.v)) state.cap.push(row.v); }
+    else if (row.p === 'flag' || row.p === 'arms') { if (!state[`${row.p}Ids`].includes(row.v)) state[`${row.p}Ids`].push(row.v); }
     else state[row.p] = row.v;
 }
 
 // --- 2. krok: položky vlajek a znaků (článek na české Wikipedii, popis, co zobrazují, známost) ---
-const symbolIds = [...states.values()].flatMap(state => [state.flag, state.arms]).filter(q => /^Q\d+$/.test(q || ''));
+const symbolIds = [...states.values()].flatMap(state => [...state.flagIds, ...state.armsIds]).filter(q => /^Q\d+$/.test(q || ''));
 
 // --- 3. krok: Česko – kraje, města a historické země ---
 const czechRows = await cached(`vlajky-czech-${CZ_MUNICIPALITY_MIN_POPULATION}`, async () => {
@@ -706,7 +710,7 @@ for (const row of otherRows) {
     else if (!(row.p in other)) other[row.p] = row.v;
 }
 // Vlajka území, ne státu, k němuž patří (u zámořských území Wikidata uvádějí i vlajku Francie)
-const stateFlags = new Set([...states.values()].map(state => state.flag));
+const stateFlags = new Set([...states.values()].flatMap(state => state.flagIds));
 for (const other of others.values()) {
     other.flag = other.flags.find(q => !stateFlags.has(q));
     if (other.flag) symbolIds.push(other.flag);
@@ -732,6 +736,13 @@ for (const row of symbolRows) {
     if (row.p === 'shows') symbol.shows.push(row.v);
     else if (!(row.p in symbol)) symbol[row.p] = row.v;
     symbols.set(row.item, symbol);
+}
+// Z více položek vlajky či znaku státu ta s článkem na české Wikipedii, při shodě s víc jazykovými verzemi
+const chooseSymbol = (ids) => [...ids].filter(q => (symbols.get(q) || {}).t)
+    .sort((a, b) => (Number(symbols.get(b).sl) || 0) - (Number(symbols.get(a).sl) || 0) || a.localeCompare(b))[0];
+for (const state of states.values()) {
+    state.flag = chooseSymbol(state.flagIds);
+    state.arms = chooseSymbol(state.armsIds);
 }
 
 // --- 5. krok: položky ---

@@ -1,5 +1,5 @@
 // Vlajky států pro vlaječku sovy: id (malé q Wikidat) → [název státu, soubor na Wikimedia Commons, hash cesty].
-// Vygenerováno skriptem scripts/build-flags.mjs z data/vlajky.json (196 států, podle abecedy); ručně se needituje.
+// Vygenerováno skriptem scripts/build-flags.mjs z data/vlajky.json (197 států, podle abecedy); ručně se needituje.
 // Adresu miniatury skládá MudrlantCore.commonsPhotoUrl(soubor, hash, šířka) – stejně jako u fotek v kvízu.
 (function (root, factory) {
     const api = factory();
@@ -182,6 +182,7 @@
         q75374: ["Šalomounovy ostrovy","Flag of the Solomon Islands.svg","74"],
         q121688: ["Španělsko","Flag of Spain.svg","9a"],
         q81286: ["Švédsko","Flag of Sweden.svg","4c"],
+        q124020: ["Švýcarsko","Flag of Switzerland.svg","f3"],
         q160124: ["Tádžikistán","Flag of Tajikistan.svg","d0"],
         q170809: ["Tanzanie","Flag of Tanzania.svg","38"],
         q134885: ["Thajsko","Flag of Thailand.svg","a9"],
