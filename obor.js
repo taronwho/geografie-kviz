@@ -4,7 +4,8 @@
 // Odškrtávací seznam: každý okruh Učení (zvláštní okruh z data/<téma>.json collections i kategorie) jako úplný seznam položek v pořadí
 // prohlížení (sort okruhu nebo kategorie). Zaškrtnutá = hráč ji „umí“ podle stávajícího záznamu aplikace: aspoň jednou správně poznaná
 // položka (mudrlant.learned, totéž, z čeho počítá postup okruhu v Učení a hvězdičky Mistrovství). Nic nového se nepočítá ani nestahuje.
-// Seznam ukazuje jména všech položek (stejně jako Prohlížet v Učení), nezaškrtnuté mají prázdné políčko; filtr Vše / Chybí / Hotovo.
+// Seznam není tahák: jméno ukáže jen u poznaných položek (s fajfkou), nepoznané mají prázdné políčko a místo jména „???“ a nedají se
+// otevřít (okno s popisem by jméno prozradilo); počet X / Y a postup k 100 % jsou vidět vždy. Filtr Vše / Chybí / Hotovo.
 // Po 100 % se okruh uzavře zlatou pečetí: zapíše se při prvním zobrazení hotového okruhu (s animací razítka; s omezeným pohybem bez ní)
 // a zůstane i tehdy, když do okruhu v nových datech přibude položka (pečeť je za dokončení, ukazatel pak poctivě ukáže nové X / Y).
 //
@@ -64,9 +65,11 @@
         return { total, done, missing: total - done, percent: total ? Math.floor(done / total * 100) : 0, complete: total > 0 && done === total };
     };
 
-    // Řádky seznamu v pořadí okruhu: číslo (pořadí v celém okruhu, i ve filtru), id, jméno a jestli ji hráč umí
+    // Řádky seznamu v pořadí okruhu: číslo (pořadí v celém okruhu, i ve filtru), id, jestli ji hráč umí a jméno – jen u poznané
+    // (nepoznaná má name null, v seznamu „???“)
+    const HIDDEN_NAME = '???';
     const rows = (items, known, filter = 'all') => items
-        .map((item, index) => ({ n: index + 1, id: item.q, name: item.n, known: known.has(item.q) }))
+        .map((item, index) => ({ n: index + 1, id: item.q, name: known.has(item.q) ? item.n : null, known: known.has(item.q) }))
         .filter(row => filter === 'missing' ? !row.known : filter === 'done' ? row.known : true);
 
     // Další položka oboru: první neznámá za kurzorem (popořadě, na konci seznamu se pokračuje od začátku); když hráč umí všechno,
@@ -163,21 +166,28 @@
         </div>`;
     };
 
-    // Seznam v okně s vlastním posouváním; klepnutím na řádek se položka otevře v okně s popisem (data-action item-info v app.js)
-    // Položka, na kterou obor čeká, se v seznamu nezvýrazní (jméno by prozradilo odpověď další otázky)
+    // Seznam v okně s vlastním posouváním; klepnutím na poznanou položku se otevře okno s popisem (data-action item-info v app.js),
+    // nepoznaná je jen řádek s číslem, prázdným políčkem a „???“ (jméno se neukáže ani čtečce obrazovky)
+    // Položka, na kterou obor čeká, se v seznamu nezvýrazní (prozradilo by to, která otázka přijde)
     const listHtml = (list, { topic, filter = 'all' } = {}) => {
         if (!list.length) {
             const text = filter === 'missing' ? 'Nic nechybí – všechno umíš.' : filter === 'done' ? 'Zatím tu nic není. Co poznáš správně, zaškrtne se.' : 'Okruh je prázdný.';
             return `<p data-checklist-empty class="flex flex-1 items-center justify-center p-4 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">${text}</p>`;
         }
         return `<ul data-checklist class="relative min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto overscroll-contain rounded-2xl border border-slate-100 bg-white dark:divide-slate-700/70 dark:border-slate-700 dark:bg-slate-800" aria-label="Položky okruhu">
-            ${list.map(row => `<li>
-                <button type="button" data-action="item-info" data-topic="${escapeHtml(topic)}" data-id="${escapeHtml(row.id)}" data-known="${row.known ? 1 : 0}" class="flex min-h-[2.75rem] w-full items-center gap-2.5 px-3 py-1.5 text-left">
+            ${list.map(row => `<li>${row.known && row.name !== null ? `
+                <button type="button" data-checklist-row data-action="item-info" data-topic="${escapeHtml(topic)}" data-id="${escapeHtml(row.id)}" data-known="1" class="flex min-h-[2.75rem] w-full items-center gap-2.5 px-3 py-1.5 text-left">
                     <span class="w-8 shrink-0 text-right text-[11px] font-bold tabular-nums text-slate-400 dark:text-slate-500">${row.n}.</span>
-                    ${row.known ? CHECKED : UNCHECKED}
-                    <span class="min-w-0 flex-1 truncate text-[14px] ${row.known ? 'font-bold text-slate-800 dark:text-slate-100' : 'font-semibold text-slate-600 dark:text-slate-300'}">${escapeHtml(row.name)}</span>
-                    <span class="sr-only">${row.known ? 'umíš' : 'ještě ne'}</span>
-                </button>
+                    ${CHECKED}
+                    <span class="min-w-0 flex-1 truncate text-[14px] font-bold text-slate-800 dark:text-slate-100">${escapeHtml(row.name)}</span>
+                    <span class="sr-only">umíš</span>
+                </button>` : `
+                <div data-checklist-row data-id="${escapeHtml(row.id)}" data-known="0" class="flex min-h-[2.75rem] w-full items-center gap-2.5 px-3 py-1.5">
+                    <span class="w-8 shrink-0 text-right text-[11px] font-bold tabular-nums text-slate-400 dark:text-slate-500">${row.n}.</span>
+                    ${UNCHECKED}
+                    <span class="min-w-0 flex-1 truncate text-[14px] font-black tracking-widest text-slate-400 dark:text-slate-500" aria-hidden="true">${HIDDEN_NAME}</span>
+                    <span class="sr-only">zatím nepoznaná položka</span>
+                </div>`}
             </li>`).join('')}
         </ul>`;
     };
@@ -237,6 +247,6 @@
         ${rowsHtml ? `<ul data-obor-fields class="flex max-h-[45dvh] flex-col gap-2 overflow-y-auto overscroll-contain">${rowsHtml}</ul>` : '<p class="text-sm font-semibold text-slate-500 dark:text-slate-400">Zatím žádný rozpracovaný obor.</p>'}
         <button type="button" data-obor-new class="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl btn-3d-light bg-white px-4 py-3 text-base font-bold text-slate-800 dark:bg-slate-800 dark:text-slate-100"><i data-lucide="graduation-cap" class="h-5 w-5"></i> Vybrat jiný okruh v Učení</button>`;
 
-    return { STORAGE_KEY, FILTERS, MAX_FIELDS, EMPTY, keyOf, parseKey, parse, load, save, summarize, rows, next, choose, noteAnswer, remove, leave, fieldList,
+    return { STORAGE_KEY, FILTERS, MAX_FIELDS, EMPTY, HIDDEN_NAME, keyOf, parseKey, parse, load, save, summarize, rows, next, choose, noteAnswer, remove, leave, fieldList,
         isSealed, needsSeal, seal, num, items, sealHtml, meterHtml, filterHtml, listHtml, chooseButtonHtml, tileHtml, introHtml, playButtonHtml, fieldRowHtml, changeBodyHtml };
 });

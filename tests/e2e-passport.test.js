@@ -104,7 +104,7 @@ test('cestovní pas: obálka, stránky kontinentů, listování, nová razítka 
             const scroll = await tab.evaluate(() => { const content = document.getElementById('app-content'); return { y: content.firstElementChild.scrollHeight - content.clientHeight, x: document.documentElement.scrollWidth - document.documentElement.clientWidth }; });
             assert.deepEqual(scroll, { x: 0, y: 0 }, 'záložka Postup s dlaždicí Pas bez posouvání');
             await shot(tab, `postup-${tag}`);
-            // Přihlášený hráč má navíc Vitrínu: s 10 dlaždicemi (postup-many) se záložka vejde také (na nízkém displeji dlaždice bez obrázků)
+            // Přihlášený hráč má navíc Vitrínu: s 10 dlaždicemi (postup-many) se záložka vejde také (na nízkém displeji dlaždice bez obrázků); Statistiky jsou v Mistrovství
             const tenTiles = await tab.evaluate(() => {
                 const grid = document.getElementById('postup-tiles');
                 const extra = grid.querySelector('[data-open-chronicle]').cloneNode(true);
@@ -112,10 +112,13 @@ test('cestovní pas: obálka, stránky kontinentů, listování, nová razítka 
                 grid.appendChild(extra);
                 grid.classList.add('postup-many');
                 const content = document.getElementById('app-content');
-                const over = content.firstElementChild.scrollHeight - content.clientHeight;
-                extra.remove();
+                return { over: content.firstElementChild.scrollHeight - content.clientHeight, tiles: grid.children.length };
+            });
+            await shot(tab, `postup-10-dlazdic-${tag}`);
+            await tab.evaluate(() => {
+                const grid = document.getElementById('postup-tiles');
+                grid.lastElementChild.remove();
                 grid.classList.remove('postup-many');
-                return { over, tiles: grid.children.length + 1 };
             });
             assert.equal(tenTiles.tiles, 10);
             assert.ok(tenTiles.over <= 0, `10 dlaždic bez posouvání (${tenTiles.over} px)`);

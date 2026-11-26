@@ -102,8 +102,9 @@ test('kniha: obálka, stránky kontinentů po nejvýš 18 státech, všechny st�
     assert.equal(czech.have, true);
     assert.equal(czech.fresh, true);
     assert.ok(czech.flag && czech.flag.file, 'vlajka Česka z look-flags.js');
-    // Všechny státy kromě Švýcarska (ve Vlajkách není vlajka) mají vlajku
-    assert.deepEqual(cells.filter(cell => !cell.flag).map(cell => cell.name), ['Švýcarsko']);
+    // Všech 197 států má vlajku (i Švýcarsko, které ve Vlajkách dřív chybělo)
+    assert.deepEqual(cells.filter(cell => !cell.flag).map(cell => cell.name), []);
+    assert.equal(cells.length, 197);
     assert.equal(pass.pages[Passport.firstFreshPage(pass)].continent.id, 'EU');
     state = Passport.markSeen(state, ['Q213']);
     assert.equal(Passport.firstFreshPage(Passport.book(state, COUNTRIES)), 0);

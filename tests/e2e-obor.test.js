@@ -1,5 +1,5 @@
 // Odškrtávací seznam okruhu a Můj obor (obor.js) v prohlížeči: Učení → okruh → seznam a filtr, volba oboru, hra popořadě,
-// navázání po znovuotevření, zlatá pečeť za 100 % (s animací i s omezeným pohybem), změna oboru; bez posouvání stránky na 390×780 i 360×640.
+// navázání po znovuotevření, zlatá pečeť za 100 % (s animací i s omezeným pohybem), změna oboru; bez posouvání stránky na 390×780 i 360×640; nepoznané položky seznamu jsou „???“.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -12,6 +12,9 @@ let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
 
 const ROOT = path.join(__dirname, '..');
+// Screenshoty seznamu a Mého oboru do složky z OBOR_SHOTS (jen když je nastavená)
+const SHOTS = process.env.OBOR_SHOTS || '';
+if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true });
 const CSP = fs.readFileSync(path.join(ROOT, '_headers'), 'utf8').match(/Content-Security-Policy: (.+)/)[1];
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp', '.webmanifest': 'application/manifest+json' };
 
@@ -77,7 +80,7 @@ test('odškrtávací seznam okruhu a Můj obor', { skip: !chromium && 'Playwrigh
         return data;
     };
 
-    for (const [name, viewport, colorScheme] of [['390×780', { width: 390, height: 780 }, 'light'], ['360×640 tmavý režim', { width: 360, height: 640 }, 'dark']]) {
+    for (const [name, viewport, colorScheme] of [['390×780', { width: 390, height: 780 }, 'light'], ['360×640', { width: 360, height: 640 }, 'light'], ['360×640 tmavý režim', { width: 360, height: 640 }, 'dark']]) {
         await t.test(`seznam okruhu, filtr a stránka oboru bez posouvání (${name})`, async () => {
             const { context, tab, problems } = await open({ viewport, colorScheme });
             await nav.learn(tab);
@@ -89,15 +92,19 @@ test('odškrtávací seznam okruhu a Můj obor', { skip: !chromium && 'Playwrigh
             assert.match(await tab.textContent('[data-checklist-count]'), /^1\s*\/\s*2$/);
             assert.match(await tab.textContent('[data-checklist-percent]'), /50 %/);
             assert.equal(await noScroll(tab), true, 'okruh bez posouvání');
-            // Seznam: obě položky v pořadí okruhu, zaškrtnutá jen známá
+            // Seznam: obě položky v pořadí okruhu, zaškrtnutá jen známá; nepoznaná bez jména („???“) a nejde otevřít
             await tab.click('[data-action="learn-list"]');
             await tab.waitForSelector('[data-checklist]');
-            const rows = await tab.$$eval('[data-checklist] [data-action="item-info"]', list => list.map(row => [row.textContent.replace(/\s+/g, ' ').trim(), row.dataset.known]));
-            assert.deepEqual(rows, [['1. Přemysl Otakar II. ještě ne', '0'], ['2. Václav II. umíš', '1']]);
+            const rows = await tab.$$eval('[data-checklist] [data-checklist-row]', list => list.map(row => [row.textContent.replace(/\s+/g, ' ').trim(), row.dataset.known, row.dataset.action || '']));
+            assert.deepEqual(rows, [['1. ??? zatím nepoznaná položka', '0', ''], ['2. Václav II. umíš', '1', 'item-info']]);
+            assert.doesNotMatch(await tab.textContent('[data-checklist]'), /Přemysl Otakar/, 'jméno nepoznané položky v seznamu není');
+            assert.match(await tab.textContent('[data-checklist-count]'), /^1\s*\/\s*2$/, 'počet X / Y zůstává');
             assert.equal(await noScroll(tab), true, 'seznam bez posouvání stránky');
+            if (SHOTS) await tab.screenshot({ path: path.join(SHOTS, `seznam-${colorScheme === 'dark' ? 'tmavy' : 'svetly'}-${viewport.width}x${viewport.height}.png`) });
             await tab.click('[data-action="checklist-filter"][data-filter="missing"]');
             await tab.waitForSelector('[data-filter="missing"][aria-pressed="true"]');
-            assert.deepEqual(await tab.$$eval('[data-checklist] [data-action="item-info"]', list => list.map(row => row.dataset.id)), ['Q130005']);
+            assert.deepEqual(await tab.$$eval('[data-checklist] [data-checklist-row]', list => list.map(row => row.dataset.id)), ['Q130005']);
+            assert.equal(await tab.locator('[data-checklist] [data-action="item-info"]').count(), 0, 'nepoznaná položka nemá okno s popisem');
             await tab.click('[data-action="checklist-filter"][data-filter="done"]');
             await tab.waitForSelector('[data-filter="done"][aria-pressed="true"]');
             assert.deepEqual(await tab.$$eval('[data-checklist] [data-action="item-info"]', list => list.map(row => row.dataset.id)), ['Q130006']);
@@ -114,7 +121,9 @@ test('odškrtávací seznam okruhu a Můj obor', { skip: !chromium && 'Playwrigh
             assert.match(await tab.textContent('[data-obor-card]'), /Můj obor · Historie\s*Přemyslovci/);
             assert.match(await tab.textContent('[data-action="obor-play"]'), /Začít\s*Na řadě č\. 1 z 2/);
             assert.equal(await tab.locator('[data-checklist] li').count(), 2);
+            assert.match(await tab.textContent('[data-checklist]'), /\?\?\?/, 'i v Mém oboru je nepoznaná položka skrytá');
             assert.equal(await noScroll(tab), true, 'Můj obor bez posouvání');
+            if (SHOTS) await tab.screenshot({ path: path.join(SHOTS, `muj-obor-${colorScheme === 'dark' ? 'tmavy' : 'svetly'}-${viewport.width}x${viewport.height}.png`) });
             assert.equal((await store(tab)).current, KEY);
             assert.deepEqual(problems, []);
             await context.close();
