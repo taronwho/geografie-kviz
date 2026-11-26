@@ -5,7 +5,8 @@
 // polské vlajky, moře kolem obrysu) jsou zaměnitelné: pozná se to z pixelů (pieceGroups), takže hráč nikdy nepoloží „správný“ dílek
 // na „špatné“ místo, které vypadá stejně. Dvakrát nesedící dílek ukáže, kam patří. Bez časovače, bez trestů, tahy se jen počítají.
 // Po složení název, krátký fakt a velké Další; předem jde jednou tipnout, co to je (bonus XP). Sbírka složených (X / Y) a malé XP
-// s denním stropem (jako modes.js) se ukládají jen v zařízení (mudrlant.skladacka); do účtu se synchronizují jen XP.
+// s denním stropem (jako modes.js) se ukládají v zařízení (mudrlant.skladacka) a sbírka i Skládačky dne se synchronizují do účtu (bonus-sync.js).
+// Skládačka dne: jednou denně stejná pro všechny, 4 × 4, střídavě vlajka a obrys; API daily() / openDaily() pro jiné obrazovky.
 // Čistá logika bez DOMu je nahoře (testy v Node: tests/puzzle.test.js), obrazovky a ovládání v createController; app.js dodá jen napojení
 // (data témat, obrysy, XP, hlavička) a dlaždici Skládačka na záložce Hrát mezi Režimy.
 (function (root, factory) {
@@ -36,6 +37,15 @@
     // Podpis dílku pro zaměnitelnost: S × S vzorků na dílek; dílky jsou stejné, když se žádný vzorek neliší víc než o SAME_MAX
     const SAMPLE = 24;
     const SAME_MAX = 16;
+    // Skládačka dne: jednou denně stejná pro všechny, 4 × 4 dílky; XP jednou za den mimo denní strop (bonus za tip také),
+    // ve sbírce se počítá jako obyčejné složení. Den se střídá: sudý den (od 1. 1. 1970) vlajka, lichý obrys státu.
+    const DAILY_SIZE = 16;
+    const DAILY_XP = 15;
+    const DAILY_DAYS = 62;
+    // Kolik vlajek dne se zkusí (stejné pořadí pro všechny), než se místo vlajky skládá obrys téhož státu (bez internetu)
+    const DAILY_FLAG_TRIES = 3;
+    // Pro výběr dne stačí známé státy, když jich je aspoň tolik
+    const DAILY_KNOWN_MIN = 20;
 
     const plural = (count, one, few, many) => `${count} ${count === 1 ? one : count >= 2 && count <= 4 ? few : many}`;
     const sideOf = (size) => Math.round(Math.sqrt(size));
@@ -44,13 +54,26 @@
     // --- Pravidla na úvodní obrazovku (ikona Lucide a věta) ---
     const rules = () => [
         { icon: 'hand', text: 'Dílek přetáhni na jeho místo, nebo ho klepnutím vyber a klepni na místo.' },
-        { icon: 'check', text: 'Dílek na správném místě zapadne a už se nehne.' },
+        { icon: 'check', text: 'Na svém místě dílek zapadne a už se nehne.' },
         { icon: 'lightbulb', text: `Když dílek ${HINT_AFTER}× nesedí, ukáže se, kam patří.` },
-        { icon: 'circle-help', text: 'Víš dřív, co skládáš? Jednou si tipni a získej bonus.' }
+        { icon: 'circle-help', text: 'Víš dřív, co skládáš? Jednou si tipni o bonus.' }
     ];
 
     // --- Uložený stav: sbírka složených (podle varianty), naposledy složené, zvolená varianta a velikost, dnešní XP ---
     const ID = /^Q\d{1,12}$/;
+    const DAY = /^\d{4}-\d{2}-\d{2}$/;
+    // Odehrané Skládačky dne: den → { moves, v (varianta), id }; drží se posledních DAILY_DAYS dní
+    const trimDaily = (daily) => Object.fromEntries(Object.entries(daily).sort((a, b) => (a[0] < b[0] ? 1 : -1)).slice(0, DAILY_DAYS));
+    const parseDaily = (raw) => {
+        const daily = {};
+        if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+            for (const [day, entry] of Object.entries(raw)) {
+                if (!DAY.test(day) || !entry || typeof entry !== 'object' || !count(entry.moves, 10000)) continue;
+                daily[day] = { moves: count(entry.moves, 10000), v: VARIANT_IDS.includes(entry.v) ? entry.v : '', id: typeof entry.id === 'string' && ID.test(entry.id) ? entry.id : '' };
+            }
+        }
+        return trimDaily(daily);
+    };
     const count = (value, max = 100000) => Number.isFinite(value) && value > 0 ? Math.min(max, Math.floor(value)) : 0;
     const ids = (list, max) => Array.isArray(list) ? [...new Set(list.filter(id => typeof id === 'string' && ID.test(id)))].slice(-max) : [];
     const parse = (raw) => {
@@ -68,8 +91,9 @@
             got, recent,
             done: count(data.done),
             guessed: count(data.guessed),
-            day: typeof data.day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(data.day) ? data.day : '',
-            xp: count(data.xp, DAILY_XP_CAP)
+            day: typeof data.day === 'string' && DAY.test(data.day) ? data.day : '',
+            xp: count(data.xp, DAILY_XP_CAP),
+            daily: parseDaily(data.daily)
         };
     };
     const forDay = (state, dayKey) => state.day === dayKey ? state : { ...state, day: dayKey, xp: 0 };
@@ -126,10 +150,11 @@
         const first = new Map();
         return list.map((group, index) => { if (!first.has(group)) first.set(group, index); return first.get(group); });
     };
-    const createGame = ({ variant, size, item, groups = null, rng = Math.random }) => {
+    // daily = den Skládačky dne ('' = volná hra)
+    const createGame = ({ variant, size, item, groups = null, rng = Math.random, daily = '' }) => {
         const n = SIZES.includes(size) ? size : 9;
         return {
-            variant, size: n, side: sideOf(n), item,
+            variant, size: n, side: sideOf(n), item, daily,
             groups: normalGroups(groups, n),
             slots: Array(n).fill(null),
             tray: shuffleOrder(n, rng),
@@ -160,8 +185,9 @@
     const canGuess = (game) => !game.done && !game.guess;
     const guess = (game, option) => canGuess(game) && option ? { ...game, guess: { id: option.id, name: option.name, correct: Boolean(option.correct) } } : game;
 
-    // Konec skládačky: sbírka, naposledy složené, XP s rozpisem a denním stropem
+    // Konec skládačky: sbírka, naposledy složené, XP s rozpisem a denním stropem; Skládačka dne (game.daily = její den) jen jednou
     const finish = (state, game, dayKey) => {
+        if (game.daily) return finishDaily(state, game, dayKey);
         const day = forDay(state, dayKey);
         const variant = game.variant;
         const id = game.item.id;
@@ -187,6 +213,71 @@
             xp: day.xp + paid
         };
         return { state: next, fresh, guessed, xp: { total: paid, parts, note } };
+    };
+    const finishDaily = (state, game, dayKey) => {
+        const day = forDay(state, dayKey);
+        const variant = game.variant;
+        const id = game.item.id;
+        const fresh = !day.got[variant].includes(id);
+        const guessed = Boolean(game.guess && game.guess.correct);
+        // Dohrané už jinde (jiné zařízení, účet): bez XP, zapíše se jen sbírka
+        const already = Boolean(day.daily[game.daily]);
+        const parts = already ? [] : [{ label: 'za Skládačku dne', xp: DAILY_XP }, ...(guessed ? [{ label: 'za uhodnutí předem', xp: GUESS_XP }] : [])];
+        const next = {
+            ...day,
+            got: { ...day.got, [variant]: fresh ? [...day.got[variant], id] : day.got[variant] },
+            done: day.done + 1,
+            guessed: day.guessed + (guessed ? 1 : 0),
+            daily: already ? day.daily : trimDaily({ ...day.daily, [game.daily]: { moves: Math.max(1, game.moves), v: variant, id } })
+        };
+        return { state: next, fresh, guessed, already, xp: { total: parts.reduce((sum, part) => sum + part.xp, 0), parts, note: already ? 'Skládačka dne už je dnes dohraná – XP za ni byly připsané.' : '' } };
+    };
+
+    // --- Skládačka dne: stejná pro všechny (pořadí států z pevného semínka, den po dni dál), varianta podle dne ---
+    const dayNumber = (day) => { const [y, m, d] = String(day).split('-').map(Number); return Math.round(Date.UTC(y, m - 1, d) / 86400000); };
+    // Generátor se semínkem (stejný jako createSeededRandom v quiz-core.js)
+    const seeded = (seedText) => {
+        let value = 2166136261;
+        for (let i = 0; i < seedText.length; i++) value = Math.imul(value ^ seedText.charCodeAt(i), 16777619);
+        value >>>= 0;
+        return () => {
+            value = (value + 0x6D2B79F5) >>> 0;
+            let t = value;
+            t = Math.imul(t ^ (t >>> 15), t | 1);
+            t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+    };
+    const mod = (a, n) => ((a % n) + n) % n;
+    const dailyVariant = (day) => (mod(dayNumber(day), 2) === 0 ? 'flag' : 'outline');
+    // Státy pro Skládačku dne: s vlajkou z Commons i s obrysem (v den vlajky jde bez internetu složit obrys téhož státu); známé, když jich je dost
+    const dailyPool = (flags, outlines) => {
+        const outlineIds = new Set(outlines.map(item => item.id));
+        const both = flags.filter(item => outlineIds.has(item.id));
+        const base = both.length ? both : [...flags, ...outlines];
+        const known = base.filter(item => item.known);
+        return [...new Set((known.length >= DAILY_KNOWN_MIN ? known : base).map(item => item.id))].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
+    };
+    // Plán dne: varianta a pořadí států (první je skládačka dne, další jen když se vlajka nenačte); dílky zamíchané semínkem dne
+    const dailyPlan = (day, flags, outlines) => {
+        const pool = dailyPool(flags, outlines);
+        if (!pool.length) return null;
+        const rng = seeded('skladacka-dne');
+        const order = pool.map(id => ({ id, key: rng() })).sort((a, b) => a.key - b.key).map(entry => entry.id);
+        const start = mod(dayNumber(day), order.length);
+        const ids = Array.from({ length: Math.min(DAILY_FLAG_TRIES, order.length) }, (_, i) => order[(start + i) % order.length]);
+        return { day, variant: dailyVariant(day), ids, size: DAILY_SIZE, seed: `skladacka-dne|${day}` };
+    };
+    const dailyDone = (state, day) => state.daily[day] || null;
+    // Pořadí pokusů o obrázek dne [varianta, stát]: dohraná = její varianta a stát (pak obrys/vlajka téhož); jinak plán dne
+    // (vlajka: až DAILY_FLAG_TRIES států v pevném pořadí, pak obrys prvního – jde i bez internetu; obrys: obrys, pak vlajka)
+    const dailyAttempts = (plan, entry) => {
+        const other = (variant) => (variant === 'flag' ? 'outline' : 'flag');
+        const list = [];
+        if (entry && entry.v && entry.id) list.push([entry.v, entry.id], [other(entry.v), entry.id]);
+        if (plan.variant === 'flag') { plan.ids.forEach(id => list.push(['flag', id])); list.push(['outline', plan.ids[0]]); }
+        else list.push(['outline', plan.ids[0]], ['flag', plan.ids[0]]);
+        return list;
     };
 
     // --- Zaměnitelné dílky z pixelů: pixels = RGBA (Uint8ClampedArray) obrázku side*S × side*S, průhledné = bílé ---
@@ -436,7 +527,9 @@
     const createController = (deps) => {
         const doc = root.document;
         let state = parse(deps.readJson(STORAGE_KEY));
-        let game = null;      // rozehraná skládačka (jen v paměti: po odchodu jde dohrát, dokud se aplikace nezavře)
+        let game = null;      // právě ukázaná skládačka (volná, Skládačka dne, nebo jen prohlížený výsledek Skládačky dne)
+        let freeGame = null;  // rozehraná volná skládačka (jen v paměti: po odchodu jde dohrát, dokud se aplikace nezavře)
+        let dailyGame = null; // rozehraná Skládačka dne (také jen v paměti, zvlášť, ať se volnou hrou neztratí)
         let phase = 'intro';  // 'intro' | 'loading' | 'play' | 'done' | 'error'
         let selected = null;  // vybraný dílek (klepnutím)
         let message = '';     // řádek stavu pod deskou (i pro čtečku)
@@ -445,7 +538,6 @@
         let error = null;
         let snapSlot = -1;    // místo, kam dílek právě zapadl (animace)
         let flyFrom = null;   // odkud dílek letí do místa (po tažení)
-        let ownUrl = null;    // vlastní blob vlajky (uvolní se s další skládačkou)
         let loadToken = 0;
         let layoutObserver = null;
         let doneTimer = null;
@@ -494,9 +586,27 @@
             }
             return null;
         };
-        const releaseOwn = () => {
-            if (ownUrl) { try { root.URL.revokeObjectURL(ownUrl); } catch (err) { /* nic */ } }
-            ownUrl = null;
+        const revoke = (src) => { try { root.URL.revokeObjectURL(src); } catch (err) { /* nic */ } };
+        // Nová skládačka na místo (slot 'free' / 'daily' / '' = jen prohlížená); vlastní blob vlajky, kterou už nic nedrží, se uvolní
+        const setGame = (next, slot) => {
+            const before = [game, freeGame, dailyGame];
+            game = next;
+            if (slot === 'free') freeGame = next;
+            if (slot === 'daily') dailyGame = next;
+            for (const old of new Set(before)) {
+                if (old && old !== game && old !== freeGame && old !== dailyGame && old.item.art.own && old.item.art.src !== next.item.art.src) revoke(old.item.art.src);
+            }
+        };
+        // Tah nebo tip: nový stav téže skládačky (i na jejím místě, aby šla po odchodu dohrát)
+        const updateGame = (next) => {
+            if (freeGame === game) freeGame = next;
+            if (dailyGame === game) dailyGame = next;
+            game = next;
+        };
+        // Obrázek skládačky: vlajka (null, když se nenačte) nebo obrys; s podpisy dílků
+        const makeArt = async (variant, candidate, side) => {
+            if (variant === 'flag') return prepareFlag(candidate, side);
+            return candidate.art ? { art: candidate.art, groups: groupsByPixels(side, drawOutline(candidate.art)) } : null;
         };
 
         // --- Úvod ---
@@ -518,12 +628,29 @@
             const side = sideOf(size);
             return `<button type="button" data-action="puzzle-size" data-size="${size}" aria-pressed="${on}" aria-label="${plural(size, 'dílek', 'dílky', 'dílků')} (${side} × ${side})" class="flex min-h-[3rem] flex-col items-center justify-center rounded-2xl border-2 px-2 py-1 leading-tight transition-colors short:min-h-[2.75rem] ${on ? 'border-teal-600 bg-teal-600 text-white dark:border-teal-500 dark:bg-teal-600' : 'border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'}"><span class="text-lg font-black tabular-nums">${size}</span><span class="text-[11px] font-bold ${on ? 'text-white/85' : 'text-slate-500 dark:text-slate-400'}">${side} × ${side}</span></button>`;
         };
+        // Karta Skládačka dne nahoře na úvodu: nesplněná = Hrát (nebo Pokračovat), splněná = fajfka, počet tahů a Ukázat
+        const dailyCard = () => {
+            const info = dailyInfo();
+            const button = info.done
+                ? 'btn-3d-light bg-white text-slate-700 dark:bg-slate-700 dark:text-slate-100'
+                : 'btn-3d bg-gradient-to-b from-teal-500 to-teal-700 text-white';
+            return `
+                <section data-puzzle-daily="${info.done ? 'done' : 'open'}" class="${CARD} flex items-center gap-3 px-3 py-2.5 short:py-2" aria-labelledby="puzzle-daily-title">
+                    <div class="min-w-0 flex-1">
+                        <h3 id="puzzle-daily-title" class="flex items-center gap-1.5 text-[15px] font-black leading-tight text-slate-800 dark:text-slate-50"><i data-lucide="${info.done ? 'circle-check' : 'calendar-days'}" class="h-4 w-4 shrink-0 ${info.done ? 'text-emerald-600 dark:text-emerald-400' : 'text-teal-600 dark:text-teal-400'}"></i> Skládačka dne</h3>
+                        <p data-puzzle-daily-label class="mt-0.5 truncate text-[13px] font-bold leading-snug ${info.done ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-600 dark:text-slate-300'}">${esc(info.done ? info.label : `${info.label} · +${DAILY_XP} XP`)}</p>
+                    </div>
+                    <button type="button" data-action="puzzle-daily" class="${button} flex min-h-[2.75rem] shrink-0 items-center gap-1.5 rounded-2xl px-4 text-sm font-black">
+                        <i data-lucide="${info.done ? 'eye' : 'play'}" class="h-4 w-4"></i> ${info.done ? 'Ukázat' : info.playing ? 'Pokračovat' : 'Hrát'}
+                    </button>
+                </section>`;
+        };
         const renderIntro = () => {
             const left = xpLeftToday(state, today());
-            const resume = game && !game.done;
+            const resume = freeGame && !freeGame.done;
             const xpText = left > 0
-                ? `Za složení ${SIZE_XP[4]}–${SIZE_XP[16]} XP podle počtu dílků, za uhodnutí předem +${GUESS_XP} XP (dnes ještě až ${left} XP).`
-                : `Dnešní strop ${DAILY_XP_CAP} XP za Skládačku je vyčerpaný – sbírka roste dál.`;
+                ? `Za složení ${SIZE_XP[4]}–${SIZE_XP[16]} XP, za tip +${GUESS_XP} XP · dnes ještě až ${left} XP`
+                : `Dnešní strop ${DAILY_XP_CAP} XP je vyčerpaný – sbírka roste dál.`;
             deps.appContent.innerHTML = `
                 <div id="puzzle-intro" data-puzzle-phase="intro" class="fade-in flex min-h-full w-full flex-col gap-3 bg-slate-50 p-4 short:gap-2 short:p-3 dark:bg-slate-900">
                     <div class="flex items-center gap-3">
@@ -533,6 +660,7 @@
                             <p class="text-[13px] font-semibold leading-snug text-slate-600 dark:text-slate-300">Slož obrázek z dílků. Bez časovače, v klidu.</p>
                         </div>
                     </div>
+                    ${dailyCard()}
                     <div class="grid grid-cols-2 gap-2" role="group" aria-label="Co skládat">${VARIANT_IDS.map(variantCard).join('')}</div>
                     <div class="grid grid-cols-3 gap-2" role="group" aria-label="Počet dílků">${SIZES.map(sizeButton).join('')}</div>
                     <ul class="${CARD} flex flex-col gap-2 p-3 short:gap-1.5 short:p-2.5">
@@ -663,7 +791,7 @@
             if (!game || game.done) return 'none';
             const { game: next, result } = place(game, piece, slot);
             if (result === 'none' || result === 'taken') return result;
-            game = next;
+            updateGame(next);
             if (result === 'placed') {
                 selected = null;
                 snapSlot = slot;
@@ -699,6 +827,8 @@
             doneTimer = setTimeout(() => { if (game === g && live()) completeGame(); }, stillMotion() ? 400 : 750);
         };
         const completeGame = () => {
+            // Stav znovu ze zařízení: Skládačku dne mohl mezitím dohrát jiné zařízení (synchronizace účtu)
+            state = parse(deps.readJson(STORAGE_KEY));
             const result = finish(state, game, today());
             state = result.state;
             save();
@@ -868,22 +998,55 @@
                         ${wholeSvg(g.item.art, 'pz-reveal max-h-[34dvh] w-full max-w-[20rem] rounded-lg drop-shadow-md short:max-h-[28dvh]')}
                     </div>
                     <div data-verdict tabindex="-1" class="flex flex-col gap-1 outline-none">
-                        <p class="text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">${esc(variant.title)} · ${plural(g.size, 'dílek', 'dílky', 'dílků')} · ${plural(g.moves, 'tah', 'tahy', 'tahů')}</p>
-                        <h2 data-pz-name class="text-2xl font-black leading-tight text-slate-800 dark:text-slate-50">${esc(g.item.name)}</h2>
+                        <p class="text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">${esc(g.daily ? 'Skládačka dne' : variant.title)} · ${plural(g.size, 'dílek', 'dílky', 'dílků')} · ${plural(g.moves, 'tah', 'tahy', 'tahů')}</p>
+                        <div class="flex items-center gap-2.5">
+                            <span data-pz-flag aria-hidden="true" class="hidden h-6 max-w-[3.25rem] shrink-0 overflow-hidden rounded-[5px] bg-white ring-1 ring-slate-300 dark:ring-slate-500"></span>
+                            <h2 data-pz-name class="min-w-0 text-2xl font-black leading-tight text-slate-800 dark:text-slate-50">${esc(g.item.name)}</h2>
+                        </div>
                         ${(g.item.facts || []).map(line => `<p class="text-[13.5px] font-semibold leading-snug text-slate-600 dark:text-slate-300">${esc(line)}</p>`).join('')}
                         ${guessLine}
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
+                        ${g.review ? `<span data-pz-daily-done class="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-[13px] font-black text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200"><i data-lucide="circle-check" class="h-4 w-4"></i> Skládačka dne je hotová</span>` : ''}
                         <span data-pz-collection class="inline-flex items-center gap-1.5 rounded-full ${outcome && outcome.fresh ? 'bg-gold-400 text-brand-950' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200'} px-3 py-1 text-[13px] font-black"><i data-lucide="${outcome && outcome.fresh ? 'sparkles' : 'layers'}" class="h-4 w-4"></i> ${outcome && outcome.fresh ? (stats.full ? 'Celá sbírka je složená' : 'Nové ve sbírce') : 'Už ve sbírce'} · ${stats.have} / ${stats.total}</span>
                     </div>
                     ${outcome && (outcome.xp.total || outcome.xp.note) ? `<div data-pz-xp class="rounded-2xl bg-white px-3 py-2 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:ring-slate-700/70">${deps.xpLine(outcome.xp, 'text-slate-700 dark:text-slate-200')}${outcome.xp.note ? `<p class="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">${esc(outcome.xp.note)}</p>` : ''}</div>` : ''}
                     <div class="flex items-center gap-2">
-                        <button type="button" data-action="puzzle-intro" class="flex min-h-[3.25rem] shrink-0 items-center justify-center gap-1.5 rounded-[1.2rem] bg-slate-200 px-4 text-base font-bold text-slate-700 active:scale-95 dark:bg-slate-800 dark:text-slate-200"><i data-lucide="settings-2" class="h-5 w-5"></i> Změnit</button>
-                        <button type="button" data-action="puzzle-next" class="${BUTTON} min-h-[3.25rem] min-w-0 flex-1 text-xl">Další <i data-lucide="arrow-right" class="h-6 w-6"></i></button>
+                        <button type="button" data-action="puzzle-intro" class="flex min-h-[3.25rem] shrink-0 items-center justify-center gap-1.5 rounded-[1.2rem] bg-slate-200 px-4 text-base font-bold text-slate-700 active:scale-95 dark:bg-slate-800 dark:text-slate-200"><i data-lucide="${g.daily ? 'chevron-left' : 'settings-2'}" class="h-5 w-5"></i> ${g.daily ? 'Zpět' : 'Změnit'}</button>
+                        ${g.daily
+                            ? `<button type="button" data-action="puzzle-start" class="${BUTTON} min-h-[3.25rem] min-w-0 flex-1">Hrát volně <i data-lucide="arrow-right" class="h-6 w-6"></i></button>`
+                            : `<button type="button" data-action="puzzle-next" class="${BUTTON} min-h-[3.25rem] min-w-0 flex-1 text-xl">Další <i data-lucide="arrow-right" class="h-6 w-6"></i></button>`}
                     </div>
                 </div>`;
+            miniFlag(g);
             const verdict = deps.appContent.querySelector('[data-verdict]');
             if (verdict) verdict.focus({ preventScroll: true });
+        };
+        // Malá vlajka státu u názvu: u vlajky ze skládačky samé, u obrysu z tématu Vlajky (náhled z Commons přes photo-blob.js).
+        // Když se nenačte, zůstane skrytá. Rámeček, aby byla vidět i bílá vlajka v tmavém režimu.
+        const miniFlag = (g) => {
+            const holder = deps.appContent.querySelector('[data-pz-flag]');
+            if (!holder) return;
+            const show = (src) => {
+                if (!holder.isConnected || !src) return;
+                const img = doc.createElement('img');
+                img.alt = '';
+                img.className = 'block h-full w-auto max-w-none';
+                img.onload = () => { holder.classList.remove('hidden'); holder.dataset.pzFlag = 'shown'; };
+                img.onerror = () => holder.remove();
+                img.src = src;
+                holder.appendChild(img);
+            };
+            if (g.item.art.kind === 'image') { show(g.item.art.src); return; }
+            if (!deps.commonsPhotoUrl) return;
+            // Obrázek vlajky státu z tématu Vlajky (stejná data jako varianta Vlajka)
+            const imageOf = g.item.flagImage ? Promise.resolve(g.item.flagImage)
+                : loadCandidates('flag').then(list => { const flag = list.find(item => item.id === g.item.id); return flag ? flag.image : null; });
+            imageOf.then(image => {
+                if (!image || !holder.isConnected) return null;
+                const url = deps.commonsPhotoUrl(image.file, image.hash, 120);
+                return (deps.photoBlob && deps.photoBlob.attach ? deps.photoBlob.attach(url, holder) : Promise.resolve({ src: url })).then(result => show(result && result.src));
+            }).catch(() => null);
         };
 
         const render = () => {
@@ -932,27 +1095,17 @@
                     const candidate = pickNext(candidates.filter(item => !tried.has(item.id)), state, variant, Math.random, avoid);
                     if (!candidate) break;
                     tried.add(candidate.id);
-                    const side = sideOf(size);
-                    let art = candidate.art || null;
-                    let groups = null;
-                    if (variant === 'flag') {
-                        const picture = await prepareFlag(candidate, side);
-                        if (token !== loadToken) { if (picture && picture.art.own) root.URL.revokeObjectURL(picture.art.src); return; }
-                        if (!picture) continue;
-                        art = picture.art;
-                        groups = picture.groups;
-                    } else {
-                        groups = groupsByPixels(side, drawOutline(art));
-                    }
-                    made = { candidate, art, groups };
+                    const picture = await makeArt(variant, candidate, sideOf(size));
+                    if (token !== loadToken) { if (picture && picture.art.own) revoke(picture.art.src); return; }
+                    if (!picture) continue;
+                    made = { candidate, art: picture.art, groups: picture.groups };
                 }
-                if (token !== loadToken || !live()) return;
+                if (token !== loadToken || !live()) { if (made && made.art.own) revoke(made.art.src); return; }
                 if (!made) throw new Error('Skládačka se nepřipravila');
-                releaseOwn();
-                if (made.art.own) ownUrl = made.art.src;
                 const item = { ...made.candidate, art: made.art };
-                game = createGame({ variant, size, item, groups: made.groups });
-                game.options = guessOptions(made.candidate, candidates);
+                const created = createGame({ variant, size, item, groups: made.groups });
+                created.options = guessOptions(made.candidate, candidates);
+                setGame(created, 'free');
                 phase = 'play';
                 render();
             } catch (err) {
@@ -962,6 +1115,87 @@
                 render();
             }
         };
+        // --- Skládačka dne ---
+        const dailyInfo = () => {
+            const day = today();
+            const entry = dailyDone(state, day);
+            const variant = entry && entry.v ? entry.v : dailyVariant(day);
+            const playing = Boolean(!entry && dailyGame && dailyGame.daily === day && !dailyGame.done);
+            return {
+                day, done: Boolean(entry), moves: entry ? entry.moves : 0, variant, playing, xp: entry ? 0 : DAILY_XP, title: 'Skládačka dne',
+                label: entry ? `Hotovo · ${plural(entry.moves, 'tah', 'tahy', 'tahů')}` : `${VARIANTS[variant].title} · ${plural(DAILY_SIZE, 'dílek', 'dílky', 'dílků')}`
+            };
+        };
+        const startDaily = async () => {
+            if (deps.sound && deps.sound.unlock) deps.sound.unlock();
+            clearTimeout(doneTimer);
+            const token = ++loadToken;
+            const day = today();
+            state = parse(deps.readJson(STORAGE_KEY));
+            const entry = dailyDone(state, day);
+            selected = null; message = ''; guessing = false; outcome = null; snapSlot = -1;
+            deps.setScreen('puzzle');
+            if (deps.touchTip) deps.touchTip('puzzleDaily');
+            // Rozehraná Skládačka dne pokračuje
+            if (!entry && dailyGame && dailyGame.daily === day && !dailyGame.done) {
+                game = dailyGame;
+                phase = 'play';
+                render();
+                return;
+            }
+            phase = 'loading';
+            render();
+            try {
+                const [flags, outlines] = await Promise.all([loadCandidates('flag').catch(() => []), loadCandidates('outline').catch(() => [])]);
+                if (token !== loadToken || !live()) return;
+                if (flags.length) knownCounts.flag = flags.map(item => item.id);
+                if (outlines.length) knownCounts.outline = outlines.map(item => item.id);
+                const plan = dailyPlan(day, flags, outlines);
+                if (!plan) throw new Error('Skládačka dne nejde sestavit');
+                const side = sideOf(DAILY_SIZE);
+                let made = null;
+                for (const [variant, id] of dailyAttempts(plan, entry)) {
+                    const candidate = (variant === 'flag' ? flags : outlines).find(item => item.id === id);
+                    if (!candidate) continue;
+                    const picture = await makeArt(variant, candidate, side);
+                    if (token !== loadToken || !live()) { if (picture && picture.art.own) revoke(picture.art.src); return; }
+                    if (picture) { made = { variant, candidate, ...picture }; break; }
+                }
+                if (!made) throw new Error('Skládačka dne se nepřipravila');
+                // U obrysu malá vlajka z tématu Vlajky
+                const flagItem = flags.find(item => item.id === made.candidate.id);
+                const item = { ...made.candidate, art: made.art, flagImage: flagItem ? flagItem.image : null };
+                const created = createGame({ variant: made.variant, size: DAILY_SIZE, item, groups: made.groups, rng: seeded(plan.seed), daily: day });
+                created.options = guessOptions(made.candidate, made.variant === 'flag' ? flags : outlines, seeded(`${plan.seed}|tip`));
+                if (entry) {
+                    // Už dohraná: jen výsledek (bez XP)
+                    created.slots = created.slots.map((_, index) => index);
+                    created.tray = created.tray.map(() => null);
+                    created.moves = entry.moves;
+                    created.done = true;
+                    created.review = true;
+                    setGame(created, '');
+                    phase = 'done';
+                } else {
+                    setGame(created, 'daily');
+                    if (plan.variant === 'flag' && made.variant === 'outline') message = 'Vlajka se teď nenačetla, dnes se skládá obrys státu.';
+                    phase = 'play';
+                }
+                render();
+            } catch (err) {
+                if (token !== loadToken) return;
+                error = err;
+                phase = 'error';
+                render();
+            }
+        };
+        const openDaily = () => {
+            deps.setScreen('puzzle');
+            watchLayout();
+            startDaily();
+            refreshCounts();
+        };
+
         const leave = () => {
             loadToken++;
             clearTimeout(doneTimer);
@@ -974,8 +1208,9 @@
         const actions = {
             'puzzle-open': () => open(),
             'puzzle-start': () => start(),
-            'puzzle-resume': () => { if (game && !game.done) { phase = 'play'; message = ''; render(); } },
-            'puzzle-next': () => start(game ? game.item.id : ''),
+            'puzzle-resume': () => { if (freeGame && !freeGame.done) { game = freeGame; phase = 'play'; message = ''; render(); } },
+            'puzzle-next': () => start(game && !game.daily ? game.item.id : ''),
+            'puzzle-daily': () => openDaily(),
             'puzzle-intro': () => { loadToken++; phase = 'intro'; render(); refreshCounts(); },
             'puzzle-variant': (button) => {
                 state = choose(state, { variant: button.dataset.variant });
@@ -989,7 +1224,7 @@
                 if (!game || !canGuess(game)) return;
                 const option = (game.options || []).find(entry => entry.id === button.dataset.id);
                 if (!option) return;
-                game = { ...guess(game, option), options: game.options };
+                updateGame({ ...guess(game, option), options: game.options });
                 guessing = false;
                 message = option.correct ? `Správně, je to ${game.item.name}! Bonus +${GUESS_XP} XP po složení.` : 'Tohle to není. Skládej dál, uvidíš.';
                 if (deps.sound && option.correct) deps.sound.play('correct');
@@ -998,7 +1233,7 @@
             }
         };
         // Popis místa v hlavičce aplikace
-        const placeLabel = () => ({ icon: 'puzzle', text: game && phase !== 'intro' ? `Skládačka · ${VARIANTS[game.variant].title}` : 'Skládačka' });
+        const placeLabel = () => ({ icon: 'puzzle', text: game && phase !== 'intro' ? (game.daily ? 'Skládačka dne' : `Skládačka · ${VARIANTS[game.variant].title}`) : 'Skládačka' });
         const homeTile = () => ({ title: 'Skládačka', label: 'Skládačka: slož vlajku nebo obrys státu z dílků', art: (cls) => badge(cls, 'h-5 w-5', deps.uiArt) });
         // Šipka zpět: ze hry (načítání, chyby, výsledku) na úvod Skládačky (rozehraná skládačka zůstane), z úvodu domů
         const back = () => {
@@ -1011,13 +1246,17 @@
             render();
             refreshCounts();
         };
-        return { actions, open, leave, back, place: placeLabel, homeTile, isPlaying: () => live() && phase === 'play', calm: () => phase !== 'play' && phase !== 'loading' };
+        // Veřejné API Skládačky dne (např. pro záložku Dnes): daily() = { day, done, moves, variant, playing, xp, title, label };
+        // openDaily() nebo akce data-action="puzzle-daily" otevře rovnou Skládačku dne (dohranou jako výsledek)
+        const daily = () => { if (phase !== 'play') state = parse(deps.readJson(STORAGE_KEY)); return dailyInfo(); };
+        return { actions, open, openDaily, daily, leave, back, place: placeLabel, homeTile, isPlaying: () => live() && phase === 'play', calm: () => phase !== 'play' && phase !== 'loading' };
     };
 
     return {
         STORAGE_KEY, ART, VARIANTS, VARIANT_IDS, SIZES, SIZE_XP, GUESS_XP, DAILY_XP_CAP, HINT_AFTER, RECENT, TRAY_SCALE, SAMPLE, SAME_MAX,
+        DAILY_SIZE, DAILY_XP, DAILY_DAYS, DAILY_FLAG_TRIES, DAILY_KNOWN_MIN,
         MIN_KM2, MIN_FILL, rules, parse, forDay, xpLeftToday, choose, collection, pickNext, guessOptions, shuffleOrder, createGame, placedCount, fits, place,
-        hintFor, canGuess, guess, finish, pieceGroups, decodeRings, outlineArt, layoutFor, factsFor, flagCandidates, outlineCandidates, sideOf,
+        hintFor, canGuess, guess, finish, dailyVariant, dailyPool, dailyPlan, dailyDone, dailyAttempts, seeded, pieceGroups, decodeRings, outlineArt, layoutFor, factsFor, flagCandidates, outlineCandidates, sideOf,
         createController
     };
 });
