@@ -60,7 +60,9 @@ const ICONS = [
     // Mytologie: kategorie Náboženství, Světci a světice, Záhady a legendy
     'sun-moon', 'cross', 'search',
     // Vlajky a znaky: kategorie Měny a bankovky
-    'banknote'
+    'banknote',
+    // Statistiky pro nadšence (statistiky.js): ikona tipu a šipka směru řazení tabulky témat
+    'chart-column', 'arrow-up', 'arrow-down'
 ];
 
 const toPascalCase = (name) => name.replace(/(^|-)(\w)/g, (_, __, letter) => letter.toUpperCase());

@@ -25,6 +25,8 @@
     const Goals = window.MudrlantGoals || null;
     // Mudrlantova kronika (chronicle.js): týden v kostce z denních záznamů v zařízení; bez skriptu se jen nenabídne
     const Chronicle = window.MudrlantChronicle || null;
+    // Statistiky pro nadšence (statistiky.js): souhrn odpovědí v zařízení a okno s čísly (Postup → Statistiky); bez skriptu se jen nenabídnou
+    const Stats = window.MudrlantStatistiky || null;
     // Režimy Bleskovka a Přežití (modes.js) a zvuky s vibracemi (sound.js); bez skriptu se jen nenabídnou, hra zůstane potichu
     const Modes = window.MudrlantModes || null;
     const Sound = window.MudrlantSound || null;
@@ -6293,6 +6295,7 @@
         // Zvuk odpovědi (Nevím = bez zvuku); oslavy nové úrovně a odznaku zazní až po něm
         if (Sound && !gaveUp) Sound.answer(correct);
         recordResult();
+        statsLog();
         recordAnswerStat({ correct, answerRef, gaveUp });
         renderRound();
         // Odpověď výzvy (zápasu turnaje) hned na server; bez spojení počká v zařízení
@@ -9796,6 +9799,9 @@
             ...(Album && Rewards ? [postupTile({ attrs: 'data-rewards-info="album"', art: postupArt(Album.ALBUM_ART || 'album'), title: 'Album', value: `${album} %`, valueAttrs: 'data-album-percent' })] : []),
             ...(Showcase && signedUser() && myShowcase !== null ? [postupTile({ attrs: 'data-open-showcase', art: postupArt('vitrina'), title: 'Vitrína', value: `${myShowcase.length} / ${Showcase.MAX}` })] : []),
             ...(Chronicle ? [postupTile({ attrs: 'data-open-chronicle aria-label="Kronika týdne: můj týden v kostce"', art: postupArt('sova-kronika'), title: 'Kronika', value: 'týden v kostce' })] : []),
+            // Statistiky: desátá dlaždice se na nízkém telefonu (přihlášený hráč se všemi dlaždicemi) nemusí vejít – pak ji fitHome schová
+            // (data-optional) a Statistiky zůstanou v okně Mistrovství témat (statsMasteryLink)
+            ...(Stats ? [postupTile({ attrs: 'data-open-stats data-optional aria-label="Statistiky pro nadšence: přesná čísla o hraní"', art: STATS_ART, title: 'Statistiky', value: 'pro nadšence' })] : []),
             ...(Rewards ? [
                 postupTile({ attrs: 'data-rewards-info="freeze"', art: postupArt('ochrana-serie'), title: 'Ochrana série', value: `${rewardsState.freezes} z ${Rewards.MAX_FREEZES}`, valueAttrs: 'data-freeze-count' }),
                 postupTile({ attrs: 'data-rewards-info="chest"', art: postupArt('truhla'), title: 'Truhla', value: chest ? 'Čeká!' : escapeHtml(lastChestText(rewardsState) || 'za cíle týdne'), valueAttrs: 'data-chest-value', ready: Boolean(chest) })
@@ -9841,9 +9847,10 @@
         showDialog('Mistrovství témat', `
             <div class="flex flex-col gap-2.5" data-mastery-dialog>
                 <p class="text-[12.5px] font-semibold leading-snug text-slate-600 dark:text-slate-300">Za poznané položky tématu sbíráš hvězdy. Pět hvězd je plné mistrovství a přináší diplom.</p>
-                <ul class="grid grid-cols-3 gap-2 short:gap-1.5">${rows}</ul>
+                <ul class="grid grid-cols-3 gap-2 short:gap-1.5">${rows}${statsMasteryLink()}</ul>
                 ${dialogBackButton()}
             </div>`, { onClick: (event) => {
+            if (event.target.closest('[data-open-stats]')) { openChild('Zpět na Mistrovství', openMasteryAll, () => openStats('temata')); return; }
             const mastery = event.target.closest('[data-mastery]');
             if (mastery) openChild('Zpět na Mistrovství', openMasteryAll, () => openMastery(mastery.dataset.mastery));
         } });
@@ -9855,6 +9862,7 @@
         if (event.target.closest('[data-open-mastery-all]')) { openMasteryAll(); return true; }
         if (event.target.closest('[data-open-showcase]')) { openShowcase(); return true; }
         if (event.target.closest('[data-open-chronicle]')) { openChronicle(); return true; }
+        if (event.target.closest('[data-open-stats]')) { openStats(); return true; }
         if (event.target.closest('[data-season-claim]')) { openSeasonReveal(); return true; }
         if (event.target.closest('[data-season-open]')) { openSeason(); return true; }
         const info = event.target.closest('[data-rewards-info]');
@@ -10069,6 +10077,78 @@
             if (mastery) child(() => openMastery(mastery.dataset.mastery));
         } });
         applyProgress(document.getElementById('dialog-overlay'));
+    };
+    // --- Statistiky pro nadšence (statistiky.js): každá odpověď se zapíše do souhrnu v zařízení (téma a okruh, obtížnost, nápovědy, doba,
+    // záměna), okno z dlaždice Statistiky na záložce Postup ukazuje čísla v pěti částech (Přehled, Témata, Vývoj, Záměny, Rekordy).
+    // Okno je dlouhé jako seznam odznaků: posouvá se uvnitř, nadpis s křížkem zůstává nahoře (výjimka v tests/e2e-dialogs-fit.test.js) ---
+    // Ikona dlaždice: sloupcový graf kreslený v kódu (barvy třídami, bez nového obrázku)
+    const STATS_ART = '<svg viewBox="0 0 36 36" class="h-9 w-9 shrink-0 drop-shadow-sm short:h-8 short:w-8 tiny:h-6 tiny:w-6" aria-hidden="true"><rect x="3" y="3" width="30" height="30" rx="7" class="fill-white stroke-slate-300 dark:fill-slate-700 dark:stroke-slate-500" stroke-width="1.5"/><rect x="8" y="18" width="5" height="10" rx="1.5" class="fill-gold-400"/><rect x="15.5" y="12" width="5" height="16" rx="1.5" class="fill-brand-600 dark:fill-brand-400"/><rect x="23" y="8" width="5" height="20" rx="1.5" class="fill-emerald-500"/><path d="M7 28.5h22" class="stroke-slate-500 dark:stroke-slate-300" stroke-width="1.5" stroke-linecap="round"/></svg>';
+    // Odkaz v okně Mistrovství témat: na volném místě za posledním tématem (mřížka po třech; když volné místo není, odkaz se nepřidá)
+    const statsMasteryLink = () => {
+        const free = (3 - (TOPICS.length % 3)) % 3;
+        if (!Stats || !free) return '';
+        return `<li class="${free === 2 ? 'col-span-2' : ''}"><button type="button" data-open-stats class="flex h-full min-h-[4.25rem] w-full items-center gap-2 rounded-2xl bg-white px-2 py-1.5 text-left shadow-sm ring-1 ring-slate-200/70 active:scale-95 short:min-h-[3.6rem] dark:bg-slate-800 dark:ring-slate-700/70">${STATS_ART.replace('h-9 w-9', 'h-8 w-8')}<span class="min-w-0 flex-1"><span class="block text-[12px] font-black leading-tight text-slate-800 dark:text-slate-100">Statistiky</span><span class="block text-[10.5px] font-semibold leading-tight text-slate-500 dark:text-slate-400">úspěšnost po tématech a okruzích</span></span><i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-400"></i></button></li>`;
+    };
+    const statsLog = () => {
+        if (!Stats || !current || !round || devActive()) return;
+        try {
+            const choices = (current.question && current.question.choices) || [];
+            const right = choices.find(choice => choice && choice.correct && choice.id);
+            const ref = round.answerRef;
+            const refItem = ref && loadedTopics.get(ref.topic) ? loadedTopics.get(ref.topic).byId.get(ref.id) : null;
+            const details = answerDetails();
+            writeJson(Stats.KEY, Stats.record(readJson(Stats.KEY), {
+                topic: current.topic, category: current.category, correct: round.correct === true, gaveUp: Boolean(round.gaveUp), typed: Boolean(round.typed),
+                hints: details.hints, known: typeof current.known === 'boolean' ? current.known : null, ms: details.ms, mode,
+                right: right ? { id: right.id, label: right.label } : { id: current.id, label: current.name },
+                wrong: ref && ref.id ? { id: ref.id, label: (round.typed && refItem && refItem.n) || round.answer } : null
+            }, getDayKey()));
+        } catch (error) { console.error(error); }
+    };
+    // Stav okna: část, řazení tabulky témat, rozbalené téma a období grafu; po zavření zůstane (při dalším otevření stejné místo)
+    const statsUi = { tab: 'prehled', sort: { key: 'answered', dir: 'desc' }, open: null, period: 'weeks' };
+    const statsView = () => {
+        const progress = loadProgress();
+        const quizState = DailyQuiz ? DailyQuiz.parseState(readJson(DailyQuiz.KEY)) : null;
+        const mysteryState = Mystery ? Mystery.parseState(readJson(Mystery.KEY)) : null;
+        const chainState = Chain ? Chain.parseState(readJson(Chain.KEY)) : null;
+        // Dny jen s Tajemnou otázkou nebo Řetězovkou (bez odpovědí v souhrnu) se v kalendáři ukážou taky
+        const extra = {};
+        const note = (day, label) => { (extra[day] = extra[day] || []).push(label); };
+        if (mysteryState) Object.entries(mysteryState.days).forEach(([day, entry]) => { if (entry.tips.length) note(day, 'Tajemná otázka'); });
+        if (chainState) Object.entries(chainState.days).forEach(([day, row]) => { if (row.links || row.score) note(day, 'Řetězovka'); });
+        return Stats.build({
+            state: readJson(Stats.KEY), chronicle: Chronicle ? Chronicle.parse(readJson(Chronicle.KEY)) : null,
+            legacy: { daily: loadStats().daily, quiz: quizState ? quizState.days : {} },
+            topics: TOPICS.map(topic => ({ id: topic.id, title: topic.title, shortTitle: topic.shortTitle, categories: topic.categories.map(category => ({ key: category.key, label: category.label })) })),
+            learned: Object.fromEntries(Object.entries(loadLearned()).map(([id, ids]) => [id, (ids || []).length])),
+            counters: progress.counters, modes: Modes ? Modes.parse(readJson(Modes.STORAGE_KEY)) : null,
+            quiz: quizState ? { days: quizState.days, max: DailyQuiz.MAX_SCORE } : null,
+            mystery: mysteryState ? { days: mysteryState.days, max: Mystery.MAX_POINTS } : null,
+            chain: chainState ? { days: chainState.days, max: Chain.MAX_SCORE } : null,
+            extra, today: getDayKey()
+        });
+    };
+    const openStats = (tab = '') => {
+        if (!Stats) return;
+        touchTip('stats');
+        if (tab) statsUi.tab = tab;
+        const paint = (focus = '') => {
+            const overlay = showDialog('Statistiky pro nadšence', `${Stats.pageHtml(statsView(), statsUi)}${dialogBackButton('mt-3')}`, { onClick: (event) => {
+                const tab = event.target.closest('[data-st-tab]');
+                if (tab) { statsUi.tab = tab.dataset.stTab; paint(`[data-st-tab="${statsUi.tab}"]`); const panel = document.querySelector('#dialog-overlay > div'); if (panel) panel.scrollTop = 0; return; }
+                const sort = event.target.closest('[data-st-sort]');
+                if (sort) { statsUi.sort = Stats.nextSort(statsUi.sort, sort.dataset.stSort); paint(`[data-st-sort="${sort.dataset.stSort}"]`); return; }
+                const open = event.target.closest('[data-st-open]');
+                if (open) { statsUi.open = statsUi.open === open.dataset.stOpen ? null : open.dataset.stOpen; paint(`[data-st-open="${open.dataset.stOpen}"]`); return; }
+                const period = event.target.closest('[data-st-period]');
+                if (period) { statsUi.period = period.dataset.stPeriod; paint(`[data-st-period="${statsUi.period}"]`); }
+            } });
+            // Překreslení po klepnutí vrátí zaměření na stejné tlačítko (klávesnice a čtečka nepřeskočí na začátek okna)
+            const again = focus && overlay ? overlay.querySelector(focus) : null;
+            if (again) again.focus({ preventScroll: true });
+        };
+        paint();
     };
     // Diplomy: mřížka všech témat (získané barevně, ostatní se zámkem), klepnutím diplom nebo co chybí
     const openDiplomas = () => {
@@ -13678,7 +13758,7 @@
             counters: loadProgress().counters, today: getDayKey(), now: Date.now(), launches: promoLaunches,
             signedIn: Boolean(signedUser()), multiAvailable: Boolean(Auth && Auth.isConfigured() && Social), reviewOn: reviewEnabled(),
             quiz: Boolean(DailyQuiz), mystery: Boolean(Mystery), modes: Boolean(Modes), goals: Boolean(Goals && Rewards), freezes: Rewards ? loadRewards().freezes : 0,
-            season: Boolean(Season && Rewards), album: Boolean(Album), chronicle: Boolean(Chronicle), showcase: Boolean(Showcase && myShowcase !== null), leagueSeasons: Boolean(LeagueSeasons && leagueSeasons),
+            season: Boolean(Season && Rewards), album: Boolean(Album), chronicle: Boolean(Chronicle), stats: Boolean(Stats), showcase: Boolean(Showcase && myShowcase !== null), leagueSeasons: Boolean(LeagueSeasons && leagueSeasons),
             // Motivace (blok 32): tematický víkend, prestiž (úroveň a počet prestiží), Pozvi kamarády a reakce navíc (jen s databází, která je má)
             weekend: Boolean(Weekend), level: levelProgress(loadProgress().xp).level, prestige: loadPrestige().n,
             referral: Boolean(Referral && referralState), invited: referralState ? referralState.invited.length : 0, perks: Boolean(Friends && Friends.perksHtml),
@@ -13710,6 +13790,7 @@
         modes: () => { closeDialog(); openChooser({ kind: 'mix' }); },
         goals: () => { closeDialog(); openGoals(); },
         chronicle: () => { closeDialog(); openChronicle(); },
+        stats: () => { closeDialog(); openStats(); },
         mystery: () => { closeDialog(); openMystery(); },
         boss: () => { closeDialog(); openBoss(); },
         chain: () => { closeDialog(); if (chainCtl) chainCtl.open(); },
