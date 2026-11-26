@@ -147,6 +147,32 @@ test('XP: volná hra 2 za kartu a 4 napoprvé s denním stropem 60, Řazení dne
     assert.equal(Sorting.parse({ last: { topic: 'neco', spec: 'x', level: 'nejtezsi' } }).last.level, 'medium');
 });
 
+test('řádek Řazení dne na záložce Dnes: nehrané, rozehrané a seřazené (počet pokusů, série)', () => {
+    const day = '2026-11-26';
+    const label = Sorting.specLabel(Sorting.SPEC_BY_ID.get(Sorting.dailySpecId(day)));
+    let view = Sorting.homeView(Sorting.parse(null), day);
+    assert.deepEqual({ status: view.status, text: view.text, cta: view.cta }, { status: 'new', text: Sorting.rowText(Sorting.SPEC_BY_ID.get(Sorting.dailySpecId(day))), cta: 'Hrát' });
+    // Krátký název do řádku: bez závorky, dlouhé zkrácené, nejvýš 29 znaků; v popisku pro čtečku celý
+    for (const id of Sorting.DAILY_SPECS) assert.ok(Sorting.rowText(Sorting.SPEC_BY_ID.get(id)).length <= 29, id);
+    assert.equal(Sorting.rowText(Sorting.SPEC_BY_ID.get('geologie-nerosty-tvrdost')), 'Nerosty podle tvrdosti');
+    assert.equal(view.short, '6 karet', 'krátký stav pro polovinu řádku Miniher dne');
+    assert.match(view.label, new RegExp(`Řazení dne: seřaď 6 karet – ${label}\\. Stejné pro všechny, bez časovače\\. Hrát`));
+    // Rozehrané dnes: kolik karet už sedí; včerejší rozehrané se nepočítá
+    const play = { day, order: [1, 0, 2, 3, 4, 5], locked: [false, false, true, true, false, false], attempts: 1, checks: [2] };
+    view = Sorting.homeView(Sorting.parse({ play }), day);
+    assert.deepEqual({ status: view.status, text: view.text, cta: view.cta }, { status: 'progress', text: 'Rozehráno · 2/6 na místě', cta: 'Hrát dál' });
+    assert.equal(view.short, '2/6 na místě');
+    assert.equal(Sorting.homeView(Sorting.parse({ play: { ...play, day: '2026-11-25' } }), day).status, 'new');
+    // Seřazené: fajfka (status done), počet pokusů, série jen v popisku pro čtečku
+    view = Sorting.homeView(Sorting.parse({ daily: { [day]: { attempts: 3 } }, play }), day);
+    assert.deepEqual({ status: view.status, text: view.text }, { status: 'done', text: 'Seřazeno 3 pokusy' });
+    view = Sorting.homeView(Sorting.parse({ daily: { '2026-11-25': { attempts: 2 }, [day]: { attempts: 1 } } }), day);
+    assert.equal(view.text, 'Seřazeno napoprvé');
+    assert.equal(view.short, 'Napoprvé');
+    assert.equal(view.label, 'Řazení dne: hotovo, seřazeno napoprvé, série 2 dní. Ukázat výsledek');
+    assert.equal(Sorting.homeView(Sorting.parse({ daily: { [day]: { attempts: 5 } } }), day).text, 'Seřazeno 5 pokusů');
+});
+
 test('HTML: úvod, hra a výsledek bez vložených stylů, s popisky pro čtečku a hodnotami až na konci', () => {
     const ui = { uiArt: (name, cls) => `<img src="icons/topics/${name}.webp" class="${cls}" alt="">`, style: { button: 'bg-brand-700', text: 'text-brand-700', on: 'border-brand-500' }, card: 'card', cardTitle: 'title', picked: null, live: '', xpHtml: '', day: '2026-11-26', topics: [{ id: 'zemepis', title: 'Zeměpis' }], streak: 0 };
     const intro = Sorting.introHtml(Sorting.parse(null), ui);
@@ -179,6 +205,7 @@ test('napojení: index.html, service worker, nasazení, Tailwind, ikony, styly, 
     const app = read('app.js');
     assert.match(app, /\.\.\.\(sortingCtl \? sortingCtl\.actions : \{\}\)/);
     assert.match(app, /data-action="sorting-open"/);
+    assert.match(app, /mysteryHomeCard\(\), minisHomeRow\(\), bossHomeTile\(\)/, 'Minihry dne (Řazení dne) mezi dnešními výzvami');
     const Tips = require('../tips.js');
     const tip = Tips.TIPS.find(one => one.id === 'serad-to');
     assert.ok(tip && tip.text.length < 260);

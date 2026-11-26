@@ -887,6 +887,16 @@
         const data = (await request('POST', 'rpc/daily_quiz_friends', { body: { for_day: cleanDay(day) } })) || {};
         return { day: cleanDay(data.day), friends: wholeNumber(data.friends, 100000), rows: (Array.isArray(data.rows) ? data.rows : []).map(cleanQuizRow) };
     });
+    // Moje výsledky Kvízu dne po dnech od from (přehled série, quiz-streak.js): řádky daily_quiz_results čte hráč sám (RLS jen vlastní, schéma 7);
+    // null = databáze Kvíz dne nemá (404)
+    const dailyQuizHistory = (userId, from) => guardQuiz(async () => {
+        const since = cleanDay(from);
+        const rows = await request('GET', `daily_quiz_results?user_id=eq.${encodeURIComponent(userId)}${since ? `&day=gte.${since}` : ''}&select=day,answered,correct,score,time_ms,started_at,last_at,finished_at&order=day.asc&limit=400`);
+        return (Array.isArray(rows) ? rows : []).filter(row => row && cleanDay(row.day)).map(row => ({
+            day: cleanDay(row.day), answered: wholeNumber(row.answered, 10), correct: wholeNumber(row.correct, 10), score: wholeNumber(row.score, 40), time_ms: wholeNumber(row.time_ms, 3000000),
+            started_at: typeof row.started_at === 'string' ? row.started_at : null, last_at: typeof row.last_at === 'string' ? row.last_at : null, finished_at: typeof row.finished_at === 'string' ? row.finished_at : null
+        }));
+    });
     // --- Tajemná otázka dne (schéma 19, mystery.js): můj stav, tip, statistiky dne a výsledky přátel ---
     // Databáze bez funkcí (404): vrací se null a dál se o ně nežádá (aplikace hraje jen v zařízení, bez výsledků ostatních); jiné chyby se vyhodí
     let mysteryMissing = false;
@@ -1560,7 +1570,7 @@
         touchSeen, friendsList, addFriend, acceptFriend, removeFriend, REACTIONS, react, reactionsFor, lastReactionFrom, blockedPlayers, blockPlayer, unblockPlayer, REPORT_REASONS, reportPlayer, devReports, devResolveReport,
         submitAnswerStats, answerStatsTopic, devSuspiciousQuestions,
         // Kvíz dne (schéma 7)
-        dailyQuizState, dailyQuizStart, dailyQuizAnswer, dailyQuizDetails, dailyQuizBoard, dailyQuizFriends,
+        dailyQuizState, dailyQuizStart, dailyQuizAnswer, dailyQuizDetails, dailyQuizBoard, dailyQuizFriends, dailyQuizHistory,
         mysteryState, mysteryGuess, mysteryStats, mysteryFriends,
         // Skupiny (schéma 8)
         myGroups, groupDetail, groupCreate, groupPreview, groupJoin, groupLeave, groupUpdate, groupNewCode, groupRemoveMember, groupDelete, groupSetChallenge,

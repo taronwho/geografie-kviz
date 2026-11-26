@@ -274,7 +274,8 @@
         if (raw.days && typeof raw.days === 'object' && !Array.isArray(raw.days)) {
             Object.keys(raw.days).filter(isDay).sort().slice(-HISTORY_DAYS).forEach(day => {
                 const row = raw.days[day];
-                if (row && typeof row === 'object') state.days[day] = { ...cleanSummary(row), done: Boolean(row.done), xp: Boolean(row.xp) };
+                // at = kdy se kvíz v tomto zařízení dohrál (ms; od 27. 11. 2026, starší dny ho nemají), pro přehled série (quiz-streak.js)
+                if (row && typeof row === 'object') state.days[day] = { ...cleanSummary(row), done: Boolean(row.done), xp: Boolean(row.xp), ...(Number.isFinite(row.at) && row.at > 0 ? { at: Math.floor(row.at) } : {}) };
             });
         }
         state.attempt = cleanAttempt(raw.attempt);
@@ -298,6 +299,13 @@
     };
     // Dny, které se počítají do série (odehraný aspoň kus kvízu; dnešek jen dohraný)
     const playedDays = (state, today) => Object.keys(state.days).filter(day => state.days[day].answered > 0 && (day !== today || state.days[day].done));
+    // Den, pro který se má začít hrát: den ze serveru platí (telefon může mít jiný čas), ale jen ze stejného dne zařízení, kdy se načetl.
+    // Úvod otevřený před půlnocí a Začít klepnuté po ní by jinak rozehrálo včerejší kvíz, který už server nepřijme (odpovědi by se
+    // neuložily a den by v účtu chyběl). null = stav ze serveru je z minulého dne, je potřeba ho načíst znovu.
+    const startDay = ({ serverDay = null, fetchedOn = null, today }) => {
+        if (!serverDay) return today;
+        return fetchedOn && fetchedOn !== today ? null : serverDay;
+    };
     // Další otázka k hraní (-1 = všechny zodpovězené)
     const nextIndex = (attempt) => (attempt.results.length < QUESTIONS ? attempt.results.length : -1);
 
@@ -412,10 +420,11 @@
                     <button type="button" data-action="quiz-share" class="${SECONDARY}"><i data-lucide="share-2" class="h-4 w-4 shrink-0"></i> Sdílet výsledek</button>
                     <button type="button" data-action="quiz-share-image" class="${SECONDARY}"><i data-lucide="image" class="h-4 w-4 shrink-0"></i> Sdílet obrázek</button>
                 </div>
-                <div data-quiz-streak class="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
+                <button type="button" data-quiz-streak data-action="quiz-streak-history" aria-label="Moje série Kvízu dne: ${esc(daysWord(streak))}${best > streak ? `, nejlepší ${esc(daysWord(best))}` : ''}. Přehled dnů" class="flex w-full items-center gap-3 rounded-2xl bg-white p-3 text-left shadow-sm ring-1 ring-slate-200/70 active:scale-[0.99] dark:bg-slate-800/70 dark:ring-slate-700/70">
                     ${art('serie', 'h-10 w-10')}
-                    <div class="min-w-0 flex-1"><p class="flex items-center gap-1.5 ${LABEL}">Moje série Kvízu dne${freezes}</p><p class="text-lg font-black leading-tight text-slate-800 dark:text-slate-100">${esc(daysWord(streak))}${best > streak ? ` <span class="text-xs font-bold text-slate-500 dark:text-slate-400">· nejlepší ${esc(daysWord(best))}</span>` : ''}</p></div>
-                </div>
+                    <span class="min-w-0 flex-1"><span class="flex items-center gap-1.5 ${LABEL}">Moje série Kvízu dne${freezes}</span><span class="block text-lg font-black leading-tight text-slate-800 dark:text-slate-100">${esc(daysWord(streak))}${best > streak ? ` <span class="text-xs font-bold text-slate-500 dark:text-slate-400">· nejlepší ${esc(daysWord(best))}</span>` : ''}</span></span>
+                    <span class="flex shrink-0 items-center gap-0.5 text-xs font-black text-brand-700 dark:text-brand-300">Dny<i data-lucide="chevron-right" class="h-4 w-4"></i></span>
+                </button>
                 ${guest ? `
                     <div data-quiz-login class="flex flex-col items-center gap-2 rounded-[1.4rem] bg-white p-4 text-center shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
                         ${art('sova-vyzva', 'h-16 w-16')}
@@ -432,7 +441,7 @@
         isDay, addDays, pragueDay, formatDay, formatTime, pointsWord, daysWord, hash32, seededRandom, seedFor, questionSeed,
         slotsFor, tiersOf, pickFor, previousPicks, planDay,
         summarize, bitsOf, emojiGrid, shareText, poseFor, streakOf, bestStreakOf, xpFor,
-        parseState, newAttempt, attemptSummary, rollover, playedDays, nextIndex,
+        parseState, newAttempt, attemptSummary, rollover, playedDays, startDay, nextIndex,
         homeTile, introHtml, rankingHtml, resultHtml
     };
 });

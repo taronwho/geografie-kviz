@@ -3202,16 +3202,28 @@
         };
         // Bloky navíc (data-optional: nejbližší odznaky na záložce Postup) se ukážou, jen když se vejdou; schovávají se od posledního
         const optional = [...wrap.querySelectorAll('[data-optional]')];
+        // Minihry dne (Řazení dne, Skládačka dne): celý řádek, nebo (když se nevejde ani s čipy místo pruhů) čipy v nadpisu Dnešních výzev
+        const minisRow = wrap.querySelector('[data-minis-row]');
+        const minisChips = wrap.querySelector('[data-minis-pills]');
+        const setMinis = (compact) => {
+            if (!minisRow || !minisChips) return;
+            minisRow.classList.toggle('hidden', compact);
+            minisChips.classList.toggle('hidden', !compact);
+        };
         const over = () => wrap.scrollHeight > appContent.clientHeight + 1;
         const relax = () => {
+            setMinis(false);
             optional.forEach(block => block.classList.remove('hidden'));
             if (extras && extras.dataset.mode === 'chips' && appContent.clientHeight - wrap.scrollHeight + extras.offsetHeight >= Number(extras.dataset.stripsHeight || Infinity)) setExtras('strips');
         };
         const squeeze = () => {
             if (extras && extras.dataset.mode === 'strips') {
                 extras.dataset.stripsHeight = String(extras.offsetHeight);
-                if (over()) setExtras('chips');
+                // Celé pruhy mají přednost před celým řádkem Miniher dne (ty zůstanou jako čipy v nadpisu); až když nestačí ani to, čipy
+                if (over()) setMinis(true);
+                if (over()) { setMinis(false); setExtras('chips'); }
             }
+            if (over()) setMinis(true);
             for (let index = optional.length - 1; index >= 0 && over(); index--) optional[index].classList.add('hidden');
         };
         // Měří se bez přechodů (dlaždice mají transition): jinak by se hned po odebrání třídy změřila ještě zhuštěná výška (fit-measure v src/input.css)
@@ -3271,9 +3283,10 @@
     // Řádek dnešní výzvy (Kvíz dne, Řetězovka, Tajemná otázka, Boss týdne): obrázek, název, krátký stav a vpravo akce; celý stav
     // v popisku pro čtečku. done = dnes už není co hrát (ztlumený řádek s fajfkou), cta = popisek tlačítka, dot = atribut značky
     // „dnes ještě nehráno“ (zlatá tečka jen s dotShown: nová nápověda Tajemné otázky; jinak to říká tlačítko Hrát), extra = obsah navíc pod stavem (lišta životů bosse). První nehotový řádek zvýrazní specialsSection (data-hot).
-    const specialTile = ({ id, action, art, title, text, label = '', dot = '', dotShown = false, attrs = '', extra = '', done = false, cta = 'Hrát', doneIcon = 'circle-check', textAttr = '' }) => `
+    // artHtml = hotový obrázek místo uiArt(art) (Řazení dne: kolečko s ikonou jako dlaždice Seřaď to na záložce Hrát)
+    const specialTile = ({ id, action, art, artHtml = '', title, text, label = '', dot = '', dotShown = false, attrs = '', extra = '', done = false, cta = 'Hrát', doneIcon = 'circle-check', textAttr = '' }) => `
             <button type="button" id="${id}" data-action="${action}" data-special-tile data-done="${done ? 1 : 0}" ${attrs} aria-label="${escapeHtml(label || `${title}: ${text}`)}" class="${HOME_ROW} ${HOME_ROW_HOT} min-h-[3.75rem] short:min-h-[3.1rem] short:py-1.5 tiny:min-h-[2.75rem] tiny:py-1${done ? ' opacity-60' : ''}">
-                <span class="relative flex shrink-0">${uiArt(art, 'h-10 w-10 short:h-9 short:w-9 tiny:h-8 tiny:w-8')}${dot ? `<span aria-hidden="true" ${dot} class="${dotShown ? 'absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-gold-500 ring-2 ring-white dark:ring-slate-800' : 'hidden'}"></span>` : ''}</span>
+                <span class="relative flex shrink-0">${artHtml || uiArt(art, 'h-10 w-10 short:h-9 short:w-9 tiny:h-8 tiny:w-8')}${dot ? `<span aria-hidden="true" ${dot} class="${dotShown ? 'absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-gold-500 ring-2 ring-white dark:ring-slate-800' : 'hidden'}"></span>` : ''}</span>
                 <span class="min-w-0 flex-1">
                     <span class="${ROW_TITLE}">${escapeHtml(title)}</span>
                     <span data-special-text ${textAttr} class="${ROW_SUB}">${escapeHtml(text)}</span>
@@ -3288,15 +3301,78 @@
     const chainSnapshotSeed = (day) => `mudrlant-retezovka-${day}`;
     const chainHomeTile = () => (chainCtl ? chainCtl.homeTile() : '');
     const bossHomeTile = () => (Boss ? bossTileHtml() : '');
+    // Minihry dne (stejné pro všechny, jednou denně, dají se odškrtnout): Řazení dne (sorting.js) a Skládačka dne (puzzle.js).
+    // Jedna minihra = běžný řádek dnešní výzvy (název, stav, tlačítko vpravo, hotová s fajfkou). Dvě = jeden řádek rozdělený na dvě
+    // poloviny (#daily-minis: obrázek, název, krátký stav, vpravo fajfka nebo šipka), ať se záložka Dnes i s oběma vejde na 360×640.
+    // Každá polovina je samostatná dnešní výzva (data-special-tile, počítá se do „x/N hotovo“). Bez modulu (nebo jeho API) se minihra
+    // neukáže. Položka: { id, action, art(třídy velikosti) → HTML, title, half (název v polovině řádku), text, short, label, cta, status, done }.
+    const MINI_ART = 'h-10 w-10 short:h-9 short:w-9 tiny:h-8 tiny:w-8';
+    const HALF_ART = 'h-9 w-9 short:h-8 short:w-8 max-[379px]:h-8 max-[379px]:w-8';
+    const sortingToday = () => {
+        if (!sortingCtl) return null;
+        const view = sortingCtl.today();
+        return { ...view, id: 'sorting-card', title: 'Řazení dne', half: 'Řazení', done: view.status === 'done', attrs: `data-sorting-status="${view.status}"`,
+            // Obrázek jako dlaždice Seřaď to na záložce Hrát (kolečko s ikonou, do dodání vlastního obrázku)
+            art: (cls) => `<span class="flex ${cls} shrink-0 items-center justify-center rounded-full bg-sky-600 text-white"><i data-lucide="list-ordered" class="h-5 w-5 tiny:h-4 tiny:w-4"></i></span>` };
+    };
+    // Skládačka dne (puzzle.js): puzzleCtl.daily() → { done, moves, variant, playing, label… }; akce puzzle-today otevře rovnou
+    // Skládačku dne (ne úvod Skládačky) a Zpět vede zpátky na Dnes. Bez puzzle.js (nebo jeho API) se neukáže.
+    const puzzleToday = () => {
+        const daily = puzzleCtl && typeof puzzleCtl.daily === 'function' ? puzzleCtl.daily() : null;
+        if (!daily) return null;
+        const done = Boolean(daily.done);
+        const moves = Number(daily.moves) || 0;
+        const result = moves ? plural(moves, 'tah', 'tahy', 'tahů') : '';
+        const status = done ? 'done' : daily.playing ? 'progress' : 'new';
+        return { id: 'puzzle-card', action: 'puzzle-today', title: 'Skládačka dne', half: 'Skládačka', done, status, attrs: `data-puzzle-status="${status}"`,
+            text: done ? `Složeno${result ? ` · ${result}` : ''}` : daily.playing ? 'Rozehráno' : daily.label, short: done ? (result || 'Složeno') : daily.playing ? 'Rozehráno' : String(daily.label || '').split(' · ')[0],
+            cta: done ? 'Ukázat' : daily.playing ? 'Hrát dál' : 'Hrát',
+            label: `Skládačka dne: ${done ? `hotovo${result ? `, ${result}` : ''}. Ukázat výsledek` : `${daily.playing ? 'rozehráno' : `${daily.label}, stejná pro všechny`}. ${daily.playing ? 'Hrát dál' : 'Hrát'}`}`,
+            art: (cls) => puzzleCtl.homeTile().art(cls) };
+    };
+    // Polovina řádku Miniher dne: místo tlačítka vpravo fajfka (hotovo), nebo šipka (zvýrazněná jako ostatní řádky přes data-hot)
+    const miniHalf = (item) => `
+            <button type="button" id="${item.id}" data-action="${item.action}" data-special-tile data-done="${item.done ? 1 : 0}" ${item.attrs || ''} aria-label="${escapeHtml(item.label)}" class="${MINI_ROW} ${HOME_ROW_HOT} min-h-[3.75rem] short:min-h-[3.1rem] short:py-1.5 tiny:min-h-[2.75rem] tiny:py-1${item.done ? ' opacity-60' : ''}">
+                <span class="flex shrink-0">${item.art(HALF_ART)}</span>
+                <span class="min-w-0 flex-1">
+                    <span class="block truncate text-[14px] font-extrabold leading-tight text-slate-800 max-[379px]:text-[13px] dark:text-slate-100">${escapeHtml(item.half)}</span>
+                    <span data-special-text class="${ROW_SUB}">${escapeHtml(item.short)}</span>
+                </span>
+                ${item.done ? '<span data-cta-done class="flex shrink-0 text-emerald-600 dark:text-emerald-400"><i data-lucide="circle-check" class="h-5 w-5"></i></span>'
+                    : '<span aria-hidden="true" class="flex shrink-0 text-brand-700 dark:text-cream"><i data-lucide="chevron-right" class="h-5 w-5"></i></span>'}
+            </button>`;
+    // Jako HOME_ROW, jen s menšími mezerami (polovina šířky)
+    const MINI_ROW = `group relative flex w-full min-w-0 items-center gap-2 ${CARD_R} ${SURFACE} px-2.5 py-2 text-left max-[379px]:gap-1.5 max-[379px]:px-2 transition-transform active:scale-[0.985]`;
+    const minisToday = () => [sortingToday(), puzzleToday()].filter(Boolean);
+    const minisHomeRow = () => {
+        const items = minisToday();
+        if (items.length === 1) return specialTile({ ...items[0], art: '', artHtml: items[0].art(MINI_ART), attrs: `${items[0].attrs || ''} data-minis-row` });
+        return items.length ? `<div id="daily-minis" data-minis-row aria-label="Minihry dne" role="group" class="grid grid-cols-2 gap-2 short:gap-1.5">${items.map(miniHalf).join('')}</div>` : '';
+    };
+    // Úsporná podoba Miniher dne: malé čipy vpravo v nadpisu Dnešních výzev (obrázek a fajfka, nebo šipka; dotyková plocha 44 px,
+    // řádek nadpisu nezvětší; na 320 px nadpis vynechá slovo „hotovo“). fitHome ji zapne, jen když se záložka nevejde ani s příležitostnými pruhy jako čipy (malý displej,
+    // hodně pruhů najednou); v dokumentu jsou obě podoby, vidět je vždy jen jedna
+    const minisPills = () => {
+        const items = minisToday();
+        if (!items.length) return '';
+        const pill = (item) => `<button type="button" id="${item.id.replace(/-card$/, '-pill')}" data-action="${item.action}" data-minis-pill data-done="${item.done ? 1 : 0}" aria-label="${escapeHtml(item.label)}" title="${escapeHtml(item.title)}" class="-my-3 flex min-h-[2.75rem] min-w-[2.75rem] shrink-0 items-center justify-center active:scale-95">
+                <span class="flex items-center gap-1 rounded-full bg-white py-0.5 pl-0.5 pr-1.5 shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-800 dark:ring-slate-700/70${item.done ? ' opacity-70' : ''}">${item.art('h-6 w-6')}${item.done
+                    ? '<i data-lucide="circle-check" class="h-4 w-4 text-emerald-600 dark:text-emerald-400"></i>' : '<i data-lucide="chevron-right" class="h-4 w-4 text-brand-700 dark:text-cream"></i>'}</span></button>`;
+        return `<div data-minis-pills role="group" aria-label="Minihry dne" class="ml-auto flex hidden shrink-0 items-center">${items.map(pill).join('')}</div>`;
+    };
     const specialsSection = () => {
-        const rows = [quizHomeCard(), chainHomeTile(), mysteryHomeCard(), bossHomeTile()].filter(Boolean);
+        // Minihry dne mezi denními hrami, před týdenním Bossem
+        const rows = [quizHomeCard(), chainHomeTile(), mysteryHomeCard(), minisHomeRow(), bossHomeTile()].filter(Boolean);
         if (!rows.length) return '';
-        const done = rows.filter(html => html.includes('data-done="1"')).length;
+        // Výzvy se počítají po řádcích i polovinách řádku (Minihry dne); zvýrazní se první nehotová
+        const count = (html, text) => html.split(text).length - 1;
+        const total = rows.reduce((sum, html) => sum + count(html, 'data-special-tile'), 0);
+        const done = rows.reduce((sum, html) => sum + count(html, 'data-special-tile data-done="1"'), 0);
         const hot = rows.findIndex(html => html.includes('data-done="0"'));
         return `
             <section id="home-specials" aria-label="Dnešní výzvy" data-specials-done="${done}" class="flex flex-col gap-2 short:gap-1.5">
-                <h2 class="${SEC_LABEL}">Dnešní výzvy <span class="font-bold">· ${done}/${rows.length} hotovo</span></h2>
-                ${rows.map((html, index) => (index === hot ? html.replace('data-special-tile', 'data-special-tile data-hot').replace(`data-cta class="${CTA_SOFT}"`, `data-cta class="${CTA_BRAND}"`) : html)).join('')}
+                <div class="flex items-center gap-1"><h2 class="${SEC_LABEL} whitespace-nowrap">Dnešní výzvy <span class="font-bold">· ${done}/${total}<span class="max-[339px]:hidden"> hotovo</span></span></h2>${minisPills()}</div>
+                ${rows.map((html, index) => (index === hot ? html.replace('data-special-tile data-done="0"', 'data-special-tile data-hot data-done="0"').replace(`data-cta class="${CTA_SOFT}"`, `data-cta class="${CTA_BRAND}"`) : html)).join('')}
             </section>`;
     };
     const dailyStats = () => {
@@ -5412,7 +5488,16 @@
     const longestStreak = () => { const stats = loadStats(); return Math.max(0, ...TOPICS.map(topic => topicStreak(stats.daily[topic.id], undefined, topic.id))); };
     // Popisek štítku série na úvodu (úvod je bez posouvání plný, řádek se tam nevejde)
     const streakRewardTitle = (streak, badges) => { const next = nextStreakReward(streak, badges); return `Série ${streak} ${streak === 1 ? 'den' : streak <= 4 ? 'dny' : 'dní'}${next ? ` · ${Rewards.streakRewardText(next)}` : ''}`; };
-    const quizStreakOf = (played, today) => (DailyQuiz ? DailyQuiz.streakOf(played, today, frozenQuizDays()) : 0);
+    // Série Kvízu dne ze sjednocení dnů tohoto zařízení a účtu (quizAccountDays: řádky daily_quiz_results přihlášeného hráče), přes zachráněné dny.
+    // Dřív se počítala jen ze zařízení (a vedle ní série ze serveru bez zachráněných dnů): kdo hrál na dvou zařízeních, mohl po použité ochraně
+    // vidět sérii jen od zachráněného dne a automatická ochrana mohla zabrat zbytečně za den odehraný na jiném zařízení
+    const quizStreakOf = (played, today) => (DailyQuiz ? DailyQuiz.streakOf([...played, ...quizAccountDays(today)], today, frozenQuizDays()) : 0);
+    // Nejdelší série Kvízu dne (i přes zachráněné dny) ze sjednocení zařízení a účtu
+    const quizBestOf = (played, today) => {
+        const all = [...new Set([...played, ...quizAccountDays(today)])];
+        if (!QuizStreak) return DailyQuiz.bestStreakOf(all);
+        return Math.max(0, ...QuizStreak.runsOf(new Set(all), new Set(frozenQuizDays())).map(run => run.length));
+    };
     // Počítadla odměn (otevřené truhly, použité ochrany, sdílené obrázky) jsou s ostatními počítadly postupu (tipy, odznaky)
     const bumpCounter = (key, by = 1) => {
         const progress = loadProgress();
@@ -5422,11 +5507,15 @@
     // Ochrana série. Kvíz dne: jednou denně po spuštění; včera nevyšel a před ním běžela série aspoň tří dní → ochrana se použije sama (rewards.js).
     // Dnešní otázky se samy nechrání: když včera nevyšla série tématu, nabídne se Zachránit sérii (openStreakRescue) a hráč ochranu použije ručně
     const FREEZE_LOG_KEY = 'mudrlant.freezeLog';
-    const logFreeze = (day, reasons) => writeJson(FREEZE_LOG_KEY, [{ day, reasons }, ...(readJson(FREEZE_LOG_KEY) || [])].slice(0, 10));
+    // at = kdy ochrana zabrala (od 27. 11. 2026; přehled série Kvízu dne ho ukáže u zachráněného dne)
+    const logFreeze = (day, reasons) => writeJson(FREEZE_LOG_KEY, [{ day, reasons, at: Date.now() }, ...(readJson(FREEZE_LOG_KEY) || [])].slice(0, 10));
     const checkStreakFreeze = () => {
         if (!Rewards || !DailyQuiz || devActive()) return;
+        // Přihlášený hráč: nejdřív se načtou jeho dny z účtu (mohl včera hrát na jiném zařízení); bez nich by ochrana zabrala zbytečně
+        if (!quizAccountReady()) { loadQuizAccount().then(ok => { if (ok && quizAccountReady()) checkStreakFreeze(); }); return; }
         try {
-            const quizDays = new Set(DailyQuiz.playedDays(quizState(), DailyQuiz.pragueDay()));
+            const today = DailyQuiz.pragueDay();
+            const quizDays = new Set([...DailyQuiz.playedDays(quizState(), today), ...quizAccountDays(today)]);
             const series = [{ id: 'kviz-dne', ok: (day) => quizDays.has(day) }];
             const before = loadRewards();
             const result = Rewards.checkFreeze(before, getDayKey(), series);
@@ -5677,8 +5766,13 @@
     };
     const openFreezeHelp = () => {
         if (!Rewards) return;
-        showDialog('Série a ochrana série', `${Rewards.freezeHelpHtml(loadRewards().freezes, dayStreakNow(), readJson(FREEZE_LOG_KEY) || [], rescuableTopics().length)}${streakRewardLine(longestStreak(), 'mt-2.5 rounded-xl bg-white px-2.5 py-2 shadow-sm dark:bg-slate-800')}${dialogBackButton('mt-3')}`,
-            { onClick: (event) => { if (event.target.closest('[data-action="streak-rescue"]')) openStreakRescue(); } });
+        // Přehled dnů Kvízu dne (quiz-streak.js): kalendář, kdy se hrálo, kdy ochrana zabrala a kde série skončila
+        // (dlaždice Série v okně je tlačítko s „Dny ›“; samostatné tlačítko by se na 360×640 nevešlo)
+        showDialog('Série a ochrana série', `${Rewards.freezeHelpHtml(loadRewards().freezes, dayStreakNow(), readJson(FREEZE_LOG_KEY) || [], rescuableTopics().length, Boolean(QuizStreak && DailyQuiz))}${streakRewardLine(longestStreak(), 'mt-2.5 rounded-xl bg-white px-2.5 py-2 shadow-sm dark:bg-slate-800')}${dialogBackButton('mt-3')}`,
+            { onClick: (event) => {
+                if (event.target.closest('[data-action="streak-rescue"]')) openStreakRescue();
+                if (event.target.closest('[data-quiz-streak-open]')) openChild('Zpět na Sérii a ochranu série', openFreezeHelp, openQuizStreak);
+            } });
     };
     const lastChestText = (state) => {
         const week = Object.keys(state.chests).sort().pop();
@@ -11918,6 +12012,90 @@
     const quizState = () => DailyQuiz.rollover(DailyQuiz.parseState(readJson(DailyQuiz.KEY)), DailyQuiz.pragueDay());
     const storeQuiz = (attempt = quiz) => { const state = quizState(); if (attempt) state.attempt = attempt; writeJson(DailyQuiz.KEY, state); return state; };
     const quizServerState = (day) => { const user = signedUser(); return user && quizServer && quizServer.userId === user.id && quizServer.state && quizServer.state.day === day ? quizServer.state : null; };
+
+    // --- Přehled série Kvízu dne (quiz-streak.js): dny z účtu (daily_quiz_results, posledních 120 dní) a kalendář s časy dohrání ---
+    // Řádky účtu se drží i v zařízení (mudrlant.quizAccount, jen pro přihlášeného hráče, jemuž patří), načítají se nejvýš jednou za 10 minut
+    // (při otevření přehledu hned) a počítají se do série spolu s dny tohoto zařízení (quizStreakOf, checkStreakFreeze)
+    const QuizStreak = window.MudrlantQuizStreak || null;
+    const QUIZ_ACCOUNT_KEY = 'mudrlant.quizAccount';
+    const QUIZ_STREAK_TITLE = 'Přehled série Kvízu dne';
+    let quizAccount = null; // { userId, rows, on (pražský den načtení), at, missing (databáze Kvíz dne nemá) }
+    let quizAccountLoading = null;
+    let quizAccountTried = 0;
+    let quizStreakPick = null; // vybraný den v přehledu
+    const quizAccountFor = () => {
+        const user = signedUser();
+        if (!user) return null;
+        if (!quizAccount || quizAccount.userId !== user.id) {
+            const raw = readJson(QUIZ_ACCOUNT_KEY);
+            quizAccount = raw && raw.userId === user.id && Array.isArray(raw.rows) ? raw : null;
+        }
+        return quizAccount;
+    };
+    const quizAccountDays = (today) => {
+        if (!QuizStreak || !quizRanked() || !Social.dailyQuizHistory) return [];
+        const account = quizAccountFor();
+        return account ? QuizStreak.serverPlayed(account.rows, today) : [];
+    };
+    // Dny z účtu jsou dnes načtené (nebo je nemá odkud načíst: host, bez Supabase)
+    const quizAccountReady = () => !QuizStreak || !quizRanked() || !Social.dailyQuizHistory || (quizAccountFor() || {}).on === DailyQuiz.pragueDay();
+    const loadQuizAccount = (force = false) => {
+        if (!QuizStreak || !quizRanked() || !Social.dailyQuizHistory) return Promise.resolve(false);
+        const user = signedUser();
+        const today = DailyQuiz.pragueDay();
+        const cached = quizAccountFor();
+        if (!force && cached && cached.on === today && Date.now() - cached.at < 10 * 60000) return Promise.resolve(true);
+        if (quizAccountLoading) return quizAccountLoading;
+        // Bez spojení se nezkouší při každém překreslení úvodu, nejvýš jednou za minutu
+        if (!force && Date.now() - quizAccountTried < 60000) return Promise.resolve(false);
+        quizAccountTried = Date.now();
+        quizAccountLoading = (async () => {
+            try {
+                const rows = await Social.dailyQuizHistory(user.id, DailyQuiz.addDays(today, -120));
+                const now = signedUser();
+                if (!now || now.id !== user.id) return false;
+                quizAccount = { userId: user.id, rows: rows || [], on: today, at: Date.now(), missing: rows === null };
+                writeJson(QUIZ_ACCOUNT_KEY, quizAccount);
+                // Série v hlavičce může být teď delší (dny z jiného zařízení)
+                if (mainShown()) renderHeaderChips();
+                return true;
+            } catch (error) { return false; } finally { quizAccountLoading = null; }
+        })();
+        return quizAccountLoading;
+    };
+    const quizStreakView = () => {
+        const today = DailyQuiz.pragueDay();
+        const state = quizState();
+        const local = { ...state.days };
+        // Dnešní rozehraný pokus (ještě není mezi dny)
+        if (state.attempt && state.attempt.day === today && !local[today]) {
+            const summary = DailyQuiz.attemptSummary(state.attempt);
+            if (summary.answered) local[today] = { ...summary, done: state.attempt.done };
+        }
+        const ranked = quizRanked() && Boolean(Social.dailyQuizHistory);
+        const account = ranked ? quizAccountFor() : null;
+        const server = quizServerState(today);
+        return QuizStreak.build({
+            today, local, server: account && !account.missing ? account.rows : null,
+            account: !ranked || (account && account.missing) ? 'none' : account ? 'ok' : quizAccountLoading ? 'loading' : 'failed',
+            frozen: frozenQuizDays(), log: readJson(FREEZE_LOG_KEY) || [], serverBest: server ? server.best_streak : 0
+        });
+    };
+    // Okno přehledu (z karty Moje série Kvízu dne a z okna Série a ochrana série): klepnutí na den ukáže, co se ten den stalo a kdy
+    const openQuizStreak = () => {
+        if (!QuizStreak || !DailyQuiz) return;
+        const paint = () => {
+            const view = quizStreakView();
+            showDialog(QUIZ_STREAK_TITLE, `${QuizStreak.dialogHtml(view, { selected: quizStreakPick || view.today, freezes: Rewards ? loadRewards().freezes : 0, max: Rewards ? Rewards.MAX_FREEZES : 2, topicStreak: longestStreak() })}${dialogBackButton('mt-2.5 !py-2')}`, {
+                onClick: (event) => { const cell = event.target.closest('[data-qs-day]'); if (cell) { quizStreakPick = cell.dataset.qsDay; paint(); const again = document.querySelector(`#dialog-overlay [data-qs-day="${quizStreakPick}"]`); if (again) again.focus({ preventScroll: true }); } }
+            });
+        };
+        quizStreakPick = null;
+        bumpCounter('quizStreakViewed');
+        const loading = loadQuizAccount(true);
+        paint();
+        loading.then(() => { const overlay = document.getElementById('dialog-overlay'); if (overlay && overlay.dataset.title === QUIZ_STREAK_TITLE) paint(); });
+    };
     const within = (promise, ms) => Promise.race([promise, new Promise(resolve => setTimeout(() => resolve(undefined), ms))]);
     const appUrl = () => `${window.location.origin}${window.location.pathname}`;
     const robeNow = () => document.documentElement.dataset.robe || 'vinova';
@@ -12088,6 +12266,8 @@
                 server = await within(Social.dailyQuizState().catch(() => undefined), 6000);
                 if (server) { quizServer = { userId: signedUser().id, day: server.day, state: server }; quizServerAt = Date.now(); }
                 if (server === null) quizServer = { userId: signedUser().id, day: today, state: null };
+                // Bez spojení: stav ze serveru z minulého dne neplatí (den určí zařízení)
+                if (server === undefined && quizServer && quizServerAt && DailyQuiz.pragueDay(new Date(quizServerAt)) !== DailyQuiz.pragueDay()) quizServer = null;
                 // Den určuje server (telefon může mít jiný čas)
                 if (server && server.day) today = server.day;
             }
@@ -12118,7 +12298,9 @@
         if (!DailyQuiz || isLoading) return;
         const user = signedUser();
         const server = user && quizServer && quizServer.userId === user.id ? quizServer.state : null;
-        const today = server && server.day ? server.day : DailyQuiz.pragueDay();
+        // Úvod otevřený před půlnocí, Začít po ní: stav ze serveru je včerejší, načte se znovu (jinak by se hrál včerejší kvíz, který server nepřijme)
+        const today = DailyQuiz.startDay({ serverDay: server && server.day, fetchedOn: quizServerAt ? DailyQuiz.pragueDay(new Date(quizServerAt)) : null, today: DailyQuiz.pragueDay() });
+        if (today === null) { quizServer = null; quiz = null; showToast('Začal nový den, načítám dnešní Kvíz dne.'); openQuiz(); return; }
         if (!quiz || quiz.day !== today) quiz = DailyQuiz.newAttempt(today, user ? user.id : 'host');
         if (quiz.done) { showQuizResult(); return; }
         storeQuiz(quiz);
@@ -12248,7 +12430,8 @@
         const day = attempt.day;
         const summary = DailyQuiz.attemptSummary(attempt);
         const record = state.days[day] || {};
-        state.days[day] = { ...summary, done: true, xp: Boolean(record.xp || attempt.xp) };
+        // at = kdy se kvíz v tomto zařízení dohrál (přehled série); u dne, který už záznam má, zůstane původní
+        state.days[day] = { ...summary, done: true, xp: Boolean(record.xp || attempt.xp), at: record.at || Date.now() };
         state.attempt = attempt;
         if (record.xp || attempt.xp) { writeJson(DailyQuiz.KEY, state); return; }
         const server = quizServerState(day);
@@ -12295,7 +12478,7 @@
         const server = ranked ? quizServerState(attempt.day) : null;
         const played = DailyQuiz.playedDays(state, today);
         const streak = Math.max(server ? server.streak : 0, quizStreakOf(played, today));
-        const best = Math.max(streak, server ? server.best_streak : DailyQuiz.bestStreakOf(played));
+        const best = Math.max(streak, server ? server.best_streak : 0, quizBestOf(played, today));
         return { attempt, summary, ranked, streak, best, pending: ranked && quizServer && quizServer.state !== null && (attempt.synced < 0 || attempt.synced < attempt.results.length) };
     };
     const renderQuizResult = () => {
@@ -15723,6 +15906,7 @@
         'quiz-home': () => renderHome(),
         'quiz-tab': (button) => { if (quizView) { quizView.tab = button.dataset.tab === 'friends' ? 'friends' : 'all'; paintQuizRanking(); } },
         'quiz-share': () => shareQuiz(),
+        'quiz-streak-history': () => openQuizStreak(),
         'quiz-share-image': () => shareQuizImage(),
         'quiz-login': () => { writeJson(QUIZ_LOGIN_KEY, DailyQuiz.pragueDay()); if (Auth) startLogin(); },
         'share-image': () => shareDailyImage(),

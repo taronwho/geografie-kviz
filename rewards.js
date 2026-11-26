@@ -497,12 +497,20 @@
         return !rows.length ? '' : `<div data-freeze-log><b>Kdy ochrana zabrala:</b>
             <ul class="mt-0.5 flex flex-col gap-1">${rows.map(entry => `<li class="rounded-xl bg-sky-50 px-2 py-1 dark:bg-sky-900/30"><b>${esc(formatDay(entry.day))}</b>: ${entry.reasons.map(esc).join('; ')}</li>`).join('')}</ul></div>`;
     };
-    // rescue = kolik sérií Dnešních otázek jde teď ručně zachránit (tlačítko nahoře, jen když nějaká jde)
-    const freezeHelpHtml = (freezes, streak = null, log = [], rescue = 0) => `
+    // rescue = kolik sérií Dnešních otázek jde teď ručně zachránit (tlačítko nahoře, jen když nějaká jde); history = dlaždice Série otevře
+    // Přehled série Kvízu dne (quiz-streak.js, data-quiz-streak-open)
+    const streakTileHtml = (streak, history) => {
+        const inner = `<img src="icons/topics/serie.webp" alt="" class="-my-1 h-8 w-8 shrink-0 object-contain drop-shadow-sm"><span class="min-w-0 leading-tight">Série<br><b class="text-[15px]">${streak ? daysWordOf(streak) : 'zatím žádná'}</b></span>`;
+        const cls = 'flex items-center gap-1.5 rounded-2xl bg-amber-50 p-2 font-bold text-amber-900 dark:bg-amber-900/30 dark:text-amber-100';
+        return history
+            ? `<button type="button" data-quiz-streak-open aria-label="Série: ${streak ? daysWordOf(streak) : 'zatím žádná'}. Přehled dnů Kvízu dne" class="${cls} text-left ring-1 ring-amber-200 active:scale-[0.98] dark:ring-amber-800">${inner}<span class="ml-auto flex shrink-0 items-center text-[11px] font-black text-brand-700 dark:text-brand-300">Dny<i data-lucide="chevron-right" class="h-3.5 w-3.5"></i></span></button>`
+            : `<p class="${cls}">${inner}</p>`;
+    };
+    const freezeHelpHtml = (freezes, streak = null, log = [], rescue = 0, history = false) => `
         <div class="flex flex-col gap-2 text-[13px] leading-snug text-slate-700 dark:text-slate-200" data-freeze-help>
             ${rescue > 0 ? `<button type="button" data-action="streak-rescue" class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-brand-700 px-4 py-2.5 text-[14px] font-black text-white">${freezeArt('h-6 w-6')} Zachránit sérii (${rescue})</button>` : ''}
             <div class="grid grid-cols-2 gap-1.5" data-streak-now>
-                ${streak === null ? '' : `<p class="flex items-center gap-1.5 rounded-2xl bg-amber-50 p-2 font-bold text-amber-900 dark:bg-amber-900/30 dark:text-amber-100"><img src="icons/topics/serie.webp" alt="" class="-my-1 h-8 w-8 shrink-0 object-contain drop-shadow-sm"><span class="min-w-0 leading-tight">Série<br><b class="text-[15px]">${streak ? daysWordOf(streak) : 'zatím žádná'}</b></span></p>`}
+                ${streak === null ? '' : streakTileHtml(streak, history)}
                 <p class="${streak === null ? 'col-span-2 ' : ''}flex items-center gap-1.5 rounded-2xl bg-sky-50 p-2 font-bold text-sky-900 dark:bg-sky-900/30 dark:text-sky-100">${freezeArt('h-8 w-8 -my-1')}<span class="min-w-0 leading-tight">Ochrana série<br><b class="text-[15px]">${freezes} z ${MAX_FREEZES}</b></span></p>
             </div>
             <p data-streak-what><b>Série</b> = kolik dní v řadě hraješ. Každé téma Dnešních otázek má svou sérii (stačí v něm každý den správně odpovědět na dnešní otázku), Kvíz dne má vlastní (stačí ho každý den dohrát). Plamen nahoře ukazuje tvou nejdelší. Vynechaný den ji vynuluje.</p>
