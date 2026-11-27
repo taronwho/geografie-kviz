@@ -159,6 +159,9 @@
         // Minihra Seřaď to (sorting.js): dlaždice na záložce Hrát mezi Režimy, Řazení dne i mezi dnešními výzvami na záložce Dnes
         { id: 'serad-to', icon: 'list-ordered', after: 12, title: 'Seřaď to', text: 'Na záložce Hrát mezi Režimy najdeš Seřaď to: seřadíš karty podle výšky, roku nebo rozlohy, bez časovače. Řazení dne, stejné pro všechny, čeká i mezi dnešními výzvami na záložce Dnes.',
             action: { kind: 'sorting', label: 'Zkusit' }, ready: (u) => u.sorting, used: (u) => num(u.sortingGames) > 0 },
+        // Pořadí dne v Řazení dne a Skládačce dne (minigame-rank.js, schéma 53): pro přihlášené, kdo už Seřaď to hrál; kdo okno pořadí otevřel, tip nepotřebuje
+        { id: 'minihry-poradi', icon: 'list-ordered', account: true, after: 14, title: 'Pořadí v Minihrách dne', text: 'Řazení dne a Skládačka dne mají pořadí jako Kvíz dne. Po dohrání uvidíš ve výsledku své místo a v okně Pořadí ostatní hráče i přátele. Srovnává se jen stejná vlastnost nebo stejný obrázek, ať je to fér.',
+            action: { kind: 'single', label: 'Na záložku Dnes' }, ready: (u) => u.sorting && num(u.sortingGames) > 0, used: (u) => Boolean(u.visited.minigameRank) },
         // Pomůcka Záchrana navíc do Řetězovky (schéma 37): pro přihlášené, kdo Řetězovku už pár dní hraje
         { id: 'retezovka-zachrana', icon: 'shield-plus', art: 'retezovka', account: true, after: 25, title: 'Záchrana navíc', text: 'Když už je v Řetězovce Záchrana použitá a znovu odpovíš špatně, pomůcka Záchrana navíc podrží řetěz: dostaneš jinou otázku na stejný článek, za 0 bodů. Mít můžeš jen jednu. Získáš ji třeba za milníky Řetězovky nebo 12. stupeň Sezóny.',
             action: { kind: 'chain', label: 'Do Řetězovky' }, ready: (u) => u.chain && num(u.counters.chainDone) >= 3, used: () => false },
@@ -197,7 +200,7 @@
 
     const EMPTY = { seen: [], day: '', n: 0, lastAt: 0, off: false, visited: {} };
     // Navštívené části hry (tip o nich už není potřeba): Učení, Postup, Vzhled, Diplomy, Sezóna, Album, Vitrína, Kronika týdne, skupina Postavičky…
-    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle', 'gold', 'conquest', 'bets', 'conquestInvite', 'poll', 'referral', 'perks', 'robeColor', 'characters', 'tourShare', 'robots', 'snack', 'obor', 'stats', 'puzzle', 'puzzleDaily', 'passport'];
+    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle', 'gold', 'conquest', 'bets', 'conquestInvite', 'poll', 'referral', 'perks', 'robeColor', 'characters', 'tourShare', 'robots', 'snack', 'obor', 'stats', 'puzzle', 'puzzleDaily', 'passport', 'minigameRank'];
     const parse = (value) => {
         const v = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
         const visited = {};

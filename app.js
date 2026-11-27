@@ -125,7 +125,7 @@
     // do účtu neuloží, zůstane jen v zařízení).
     // 52 = Postup bonusových funkcí v účtu (bonus_progress, bonus_progress_save; bonus-sync.js): pas, poznané položky a Můj obor, Skládačka,
     // Seřaď to, Jednohubka a Statistiky (se starší databází zůstanou jen v zařízení jako dřív).
-    const REQUIRED_SCHEMA = 52;
+    const REQUIRED_SCHEMA = 53;
     // Naposledy hrané položky (trénink se jim vyhýbá, dokud nejsou vyčerpané všechny v kategorii)
     const HISTORY_SIZE = 1500;
     const REQUEST_TIMEOUT = 12000;
@@ -3298,6 +3298,7 @@
     let chainCtl = null; // ovladač Řetězovky (chain.js), založí se níž u Kvízu dne a Tajemné otázky
     let sortingCtl = null; // ovladač minihry Seřaď to (sorting.js), založí se níž za Řetězovkou
     let puzzleCtl = null; // ovladač Skládačky (puzzle.js), založí se níž za Řetězovkou
+    let minigameRankCtl = null; // pořadí dne v Řazení dne a Skládačce dne (minigame-rank.js), založí se před nimi
     const chainSnapshotSeed = (day) => `mudrlant-retezovka-${day}`;
     const chainHomeTile = () => (chainCtl ? chainCtl.homeTile() : '');
     const bossHomeTile = () => (Boss ? bossTileHtml() : '');
@@ -13967,12 +13968,20 @@
         });
     }
 
+    // --- Pořadí dne v Řazení dne a Skládačce dne (minigame-rank.js, blok 53): pruh ve výsledku a okno Všichni / Přátelé jako u Kvízu dne ---
+    if (window.MudrlantMinigameRank && Social) {
+        minigameRankCtl = window.MudrlantMinigameRank.createController({
+            social: Social, auth: Auth, signedUser, startLogin, showDialog, renderIcons, avatarHtml, meRow: () => quizHelpers().meRow, appContent,
+            touchTip: (feature) => touchTip(feature)
+        });
+    }
+
     // --- Seřaď to (sorting.js): klidná minihra na záložce Hrát mezi Režimy; výběr karet, přesuny, kontrola, XP a obrazovky má sorting.js ---
     if (Sorting) {
         sortingCtl = Sorting.createController({
             appContent, setScreen: (name) => { screen = name; }, getScreen: () => screen, renderHome, renderIcons, updateControlsUI, closePlaceInfo,
             uiArt, topics: () => TOPICS, loadTopic, readJson, writeJson, getDayKey, xpLine, isLoading: () => isLoading,
-            style: styleOf(MIX), card: CARD, cardTitle: CARD_TITLE, sound: Sound,
+            style: styleOf(MIX), card: CARD, cardTitle: CARD_TITLE, sound: Sound, rank: minigameRankCtl,
             // XP jako u Bleskovky (den hraní, odznaky, cíle, sezóna); strop a výši hlídá sorting.js
             awardXp: (xp) => awardModeXp(xp)
         });
@@ -13985,7 +13994,7 @@
         puzzleCtl = Puzzle.createController({
             appContent, setScreen: (name) => { screen = name; }, getScreen: () => screen, renderHome, renderIcons, updateControlsUI, uiArt, xpLine,
             readJson, writeJson, getDayKey, loadTopic, loadCountries, loadShapes: () => loadMapData().then(data => data.shapes || {}),
-            commonsPhotoUrl, commonsFileUrl, photoBlob: PhotoBlob, sound: Sound, touchTip: (feature) => touchTip(feature),
+            commonsPhotoUrl, commonsFileUrl, photoBlob: PhotoBlob, sound: Sound, touchTip: (feature) => touchTip(feature), rank: minigameRankCtl,
             awardXp: (xp) => {
                 const before = loadProgress();
                 const progress = { ...before, xp: before.xp + xp.total };
@@ -15985,6 +15994,8 @@
         ...(sortingCtl ? sortingCtl.actions : {}),
         // Skládačka (puzzle.js)
         ...(puzzleCtl ? puzzleCtl.actions : {}),
+        // Pořadí dne v Řazení dne a Skládačce dne (minigame-rank.js)
+        ...(minigameRankCtl ? minigameRankCtl.actions : {}),
         'challenge-retry': () => finishChallenge(true),
         'challenge-home': () => challengeHome(),
         'challenge-breakdown': () => { if (challenge && !challenge.tournament) openChallengeBreakdown(challenge, challenge.lastResults || []); },
