@@ -1654,7 +1654,10 @@ begin
             'pozvani', coalesce((select jsonb_agg(jsonb_build_object('hrac', r.invitee, 'kdy', r.created_at) order by r.created_at) from public.referrals r where r.inviter = uid), '[]'::jsonb),
             'odmeny', coalesce((select jsonb_agg(to_jsonb(x) order by x.claimed_at) from public.referral_rewards x where x.user_id = uid), '[]'::jsonb)),
         -- Postup bonusových funkcí (schéma 52, tabulka na konci souboru): pas, poznané položky, obory, Skládačka, Seřaď to, Jednohubka, Statistiky
-        'bonusovy_postup', (select jsonb_build_object('data', b.data, 'verze', b.rev, 'zmeneno', b.updated_at) from public.bonus_progress b where b.user_id = uid)
+        'bonusovy_postup', (select jsonb_build_object('data', b.data, 'verze', b.rev, 'zmeneno', b.updated_at) from public.bonus_progress b where b.user_id = uid),
+        -- Řazení dne a Skládačka dne (schéma 53, tabulka na konci souboru): moje výsledky po dnech (pokusy / tahy, varianta)
+        'minihry_dne', coalesce((select jsonb_agg(jsonb_build_object('hra', m.game, 'den', m.day, 'vysledek', m.value, 'varianta', m.variant, 'odeslano', m.created_at)
+            order by m.day, m.game) from public.minigame_results m where m.user_id = uid), '[]'::jsonb)
     ) into result;
     return result;
 end;
@@ -10148,13 +10151,162 @@ revoke all on function public.bonus_progress_save(jsonb, integer) from public, a
 grant execute on function public.bonus_progress_save(jsonb, integer) to authenticated;
 -- ===== 52: Postup bonusových funkcí — KONEC BLOKU =====
 
+-- ===== 53: Pořadí dne v Řazení dne a Skládačce dne (minigame-rank.js) =====
+-- Obě minihry dne jsou stejné pro všechny; přihlášený hráč po dohrání pošle jedno číslo: Řazení dne počet pokusů do správného pořadí
+-- (1–200), Skládačka dne počet tahů (4 × 4 dílky: 16–2000, každé položení je tah). variant = co přesně hrál: u Řazení vlastnost dne
+-- (id ze sorting.js), u Skládačky varianta a stát ('flag:Q…' / 'outline:Q…'; bez internetu se místo vlajky skládá obrys). Pořadí se počítá
+-- jen mezi hráči se stejnou variantou (jiný obrázek není stejně těžký), ostatní se jen spočítají ('other'). Jeden řádek na hráče, hru a den:
+-- první odeslaný výsledek platí, další (druhé zařízení, synchronizace bonus-sync.js) se jen vrátí. Den určuje server (Praha): dnešek,
+-- po půlnoci do 1:00 ještě včerejšek (hra dohraná těsně před půlnocí). Tabulku hráč jen čte (svůj řádek), zapisuje jen minigame_submit.
+-- Pořadí dne (minigame_board, minigame_friends) za posledních 30 dní jen s veřejnými údaji profilu. Smazání účtu řádky smaže s profilem
+-- (on delete cascade), export_my_data je má v 'minihry_dne'.
+create table if not exists public.minigame_results (
+    game text not null,
+    day date not null,
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    value smallint not null,
+    variant text not null,
+    created_at timestamptz not null default now(),
+    primary key (user_id, game, day)
+);
+alter table public.minigame_results drop constraint if exists minigame_results_values;
+alter table public.minigame_results add constraint minigame_results_values check (
+    (game = 'sorting' and value between 1 and 200 and variant ~ '^[a-z0-9-]{1,40}$')
+    or (game = 'puzzle' and value between 16 and 2000 and variant ~ '^(flag|outline):Q[0-9]{1,12}$'));
+create index if not exists minigame_results_day on public.minigame_results (game, day, variant, value, created_at);
+alter table public.minigame_results enable row level security;
+drop policy if exists "minihry dne: vlastní řádky" on public.minigame_results;
+create policy "minihry dne: vlastní řádky" on public.minigame_results for select to authenticated using (user_id = auth.uid());
+revoke all on public.minigame_results from anon, authenticated;
+grant select on public.minigame_results to authenticated;
+
+-- Den miniher (Praha); čas z mystery_now (testy ho nastaví přes mudrlant.test_now)
+create or replace function public.minigame_today() returns date
+language sql stable set search_path = public as $$
+    select (public.mystery_now() at time zone 'Europe/Prague')::date
+$$;
+-- Nejlepší možný výsledek (napoprvé / bez chybného tahu)
+create or replace function public.minigame_best_value(p_game text) returns integer
+language sql immutable as $$
+    select case p_game when 'sorting' then 1 when 'puzzle' then 16 else null end
+$$;
+-- Můj výsledek s místem mezi hráči stejné varianty (místo = počet lepších + 1, stejný výsledek = stejné místo)
+create or replace function public.minigame_json(r public.minigame_results) returns jsonb
+language sql stable set search_path = public as $$
+    select case when r.user_id is null then null else jsonb_build_object('day', r.day, 'value', r.value, 'variant', r.variant,
+        'rank', 1 + (select count(*) from public.minigame_results o where o.game = r.game and o.day = r.day and o.variant = r.variant and o.value < r.value)) end
+$$;
+
+-- Odeslání výsledku: odeslání podruhé nic nezmění a vrátí uložený výsledek
+create or replace function public.minigame_submit(p_game text, for_day date, p_value integer, p_variant text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); now_prague timestamp := public.mystery_now() at time zone 'Europe/Prague'; d date := now_prague::date; r public.minigame_results;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if p_game is null or p_game not in ('sorting', 'puzzle') then raise exception 'Neznámá minihra.' using errcode = '22023'; end if;
+    if for_day is null or not (for_day = d or (for_day = d - 1 and now_prague::time < time '01:00')) then
+        raise exception 'Výsledek se dá poslat jen za dnešní den.' using errcode = '22023';
+    end if;
+    if p_value is null or p_variant is null or length(p_variant) > 40
+        or (p_game = 'sorting' and (p_value < 1 or p_value > 200 or p_variant !~ '^[a-z0-9-]{1,40}$'))
+        or (p_game = 'puzzle' and (p_value < 16 or p_value > 2000 or p_variant !~ '^(flag|outline):Q[0-9]{1,12}$')) then
+        raise exception 'Neplatný výsledek.' using errcode = '22023';
+    end if;
+    if not exists (select 1 from public.profiles where id = uid) then raise exception 'Profil neexistuje.' using errcode = '42501'; end if;
+    insert into public.minigame_results (game, day, user_id, value, variant) values (p_game, for_day, uid, p_value, p_variant)
+    on conflict (user_id, game, day) do nothing;
+    select * into r from public.minigame_results m where m.user_id = uid and m.game = p_game and m.day = for_day;
+    return public.minigame_json(r);
+end;
+$$;
+
+-- Varianta, ve které se pořadí ukazuje: moje, jinak nejčastější toho dne (při shodě abecedně první)
+create or replace function public.minigame_group(p_game text, d date, uid uuid) returns text
+language sql stable set search_path = public as $$
+    select coalesce(
+        (select m.variant from public.minigame_results m where m.user_id = uid and m.game = p_game and m.day = d),
+        (select m.variant from public.minigame_results m where m.game = p_game and m.day = d group by m.variant order by count(*) desc, m.variant limit 1))
+$$;
+
+-- Pořadí dne: hráči mé varianty (players), kolik hrálo jinou (other), kolik to dalo nejlépe možně (first, first_pct), nejlepší výsledek,
+-- můj výsledek s místem a nejlepších 10 (při shodě dřívější odeslání výš)
+create or replace function public.minigame_board(p_game text, for_day date default null) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare uid uuid := auth.uid(); today date := public.minigame_today(); d date := coalesce(for_day, public.minigame_today()); grp text; mine public.minigame_results; result jsonb;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if p_game is null or p_game not in ('sorting', 'puzzle') then raise exception 'Neznámá minihra.' using errcode = '22023'; end if;
+    if d > today or d < today - 30 then raise exception 'Pořadí je jen za posledních 30 dní.' using errcode = '22023'; end if;
+    grp := public.minigame_group(p_game, d, uid);
+    select * into mine from public.minigame_results m where m.user_id = uid and m.game = p_game and m.day = d;
+    with ranked as (
+        select m.user_id, m.value, m.created_at,
+            (rank() over (order by m.value))::integer as place,
+            (row_number() over (order by m.value, m.created_at, m.user_id))::integer as pos
+        from public.minigame_results m where m.game = p_game and m.day = d and m.variant = grp
+    )
+    select jsonb_build_object(
+        'day', d, 'game', p_game,
+        'players', (select count(*) from ranked),
+        'other', (select count(*) from public.minigame_results m where m.game = p_game and m.day = d and m.variant is distinct from grp),
+        'first', (select count(*) from ranked where value = public.minigame_best_value(p_game)),
+        'first_pct', coalesce((select round(100.0 * count(*) filter (where value = public.minigame_best_value(p_game)) / nullif(count(*), 0))::integer from ranked), 0),
+        'best', (select min(value) from ranked),
+        'me', public.minigame_json(mine),
+        'top', coalesce((select jsonb_agg(jsonb_build_object('rank', k.place, 'id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color,
+                'frame', p.frame, 'title_pref', p.title_pref, 'owl', p.owl, 'prestige', p.prestige, 'value', k.value, 'me', k.user_id = uid) order by k.pos)
+            from ranked k join public.profiles p on p.id = k.user_id where k.pos <= 10), '[]'::jsonb)
+    ) into result;
+    return result;
+end;
+$$;
+
+-- Pořadí mezi přáteli (přijatá přátelství oběma směry) a mnou ve stejné variantě; friends = počet přátel, other = přátelé s jinou variantou
+create or replace function public.minigame_friends(p_game text, for_day date default null) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare uid uuid := auth.uid(); today date := public.minigame_today(); d date := coalesce(for_day, public.minigame_today()); grp text; result jsonb;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if p_game is null or p_game not in ('sorting', 'puzzle') then raise exception 'Neznámá minihra.' using errcode = '22023'; end if;
+    if d > today or d < today - 30 then raise exception 'Pořadí je jen za posledních 30 dní.' using errcode = '22023'; end if;
+    grp := public.minigame_group(p_game, d, uid);
+    with circle as (
+        select case when f.user_id = uid then f.friend_id else f.user_id end as id
+        from public.friendships f where f.status = 'accepted' and uid in (f.user_id, f.friend_id)
+    ), ranked as (
+        select m.user_id, m.value,
+            (rank() over (order by m.value))::integer as place,
+            (row_number() over (order by m.value, m.created_at, m.user_id))::integer as pos
+        from public.minigame_results m where m.game = p_game and m.day = d and m.variant = grp and (m.user_id = uid or m.user_id in (select id from circle))
+    )
+    select jsonb_build_object(
+        'day', d, 'game', p_game,
+        'friends', (select count(*) from circle),
+        'other', (select count(*) from public.minigame_results m where m.game = p_game and m.day = d and m.variant is distinct from grp and m.user_id in (select id from circle)),
+        'rows', coalesce((select jsonb_agg(jsonb_build_object('rank', k.place, 'id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color,
+                'frame', p.frame, 'title_pref', p.title_pref, 'owl', p.owl, 'prestige', p.prestige, 'value', k.value, 'me', k.user_id = uid) order by k.pos)
+            from ranked k join public.profiles p on p.id = k.user_id where k.pos <= 200), '[]'::jsonb)
+    ) into result;
+    return result;
+end;
+$$;
+
+-- Pomocné funkce jen interně; hráč volá jen odeslání a pořadí (anon nic)
+revoke all on function public.minigame_today(), public.minigame_best_value(text), public.minigame_json(public.minigame_results),
+    public.minigame_group(text, date, uuid) from public, anon, authenticated;
+revoke all on function public.minigame_submit(text, date, integer, text), public.minigame_board(text, date), public.minigame_friends(text, date) from public, anon;
+grant execute on function public.minigame_submit(text, date, integer, text), public.minigame_board(text, date), public.minigame_friends(text, date) to authenticated;
+-- ===== 53: Pořadí dne v minihrách — KONEC BLOKU =====
+
 -- 51: emblémy osmi dalších bossů týdne v katalogu odznaků předem (boss-herold, boss-permonik, boss-stavitel, boss-malir, boss-kronikar,
 --     boss-trener, boss-vynalezce, boss-sefkuchar v badge_catalog() a badge_tiers()). Do hry (rotace, quiz-core.js BOSS_EMBLEMS) je pustí
 --     až scripts/boss-zapoj.mjs, až budou mít obrázky; server je tak uloží hned od prvního souboje bez dalšího spuštění schématu.
 --     Večerní připomínka neodehraného turnajového zápasu od 19:00 v aplikaci (tournament_notices 'unplayed') i jako push (blok 51b).
 -- 52: postup bonusových funkcí v účtu (bonus_progress, bonus_progress_save; export_my_data má i 'bonusovy_postup'): Cestovní pas, poznané položky
 --     a Můj obor, Skládačka, Seřaď to, Jednohubka a souhrny Statistik, slučuje bonus-sync.js.
+-- 53: pořadí dne v Řazení dne a Skládačce dne (minigame_results, minigame_submit, minigame_board, minigame_friends; export_my_data má
+--     i 'minihry_dne'), jen mezi hráči stejné varianty (vlastnost dne, vlajka / obrys státu), zobrazuje minigame-rank.js.
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 52 $$;
+language sql immutable as $$ select 53 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;
