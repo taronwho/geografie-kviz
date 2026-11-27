@@ -260,6 +260,17 @@
     // Fakt, který říká, kde to je nebo odkud to je (stát, město, kraj), nebo jméno, se kterým to souvisí, prozradí víc než číslo:
     // přijde až po mapě; slavné dílo, kapela nebo hlavní město skoro až před fotkou
     const PLACE_LABELS = new Set(['Stát', 'Státy', 'Země', 'Země původu', 'Země vynálezce', 'Místo', 'Místo vzniku', 'Město', 'Kraj', 'Hlavní město', 'Pořadatel', 'Umístění', 'Naleziště v Česku', 'Známá naleziště']);
+    // Od PLACE_ORDER_FROM (28. 11. 2026, zpětná vazba hráče: „nejdřív jen ten směr a vzdálenost a pak až ty státy“; dřívější dny,
+    // rozehrané nebo zamrzlé na serveru, zůstávají, jak byly): fakt o poloze (stát, země, kraj, pohoří…) se nespojí do jedné nápovědy
+    // se vzdáleností a směrem od Prahy – dohromady by místo skoro určily – a fakt, který odpověď zúží na pár možností (stát, země,
+    // kraj, město, pohoří, země původu nebo kuchyně jídla), dostane přirážku, ať přijde až po kompasu a slabších nápovědách. Kontinent,
+    // moře a ústí řeky jsou hrubé (kompas je stejně napoví): přirážku nemají, jen se s kompasem nespojí. Oblast bohů (nebe, moře) polohou není.
+    const PLACE_ORDER_FROM = '2026-11-28';
+    const LOCATION_LABELS = new Set([...PLACE_LABELS, 'Kontinent', 'Krajské město', 'Správní centrum', 'Sídlo', 'Patří k', 'Kde', 'Kde to je', 'Kde je dnes', 'Kde vzniklo',
+        'Pohoří', 'Ostrov', 'Region', 'Moře', 'Oceán', 'Ústí do']);
+    const NARROW_LABELS = new Set(['Stát', 'Státy', 'Země', 'Země původu', 'Země vynálezce', 'Místo', 'Místo vzniku', 'Město', 'Kraj', 'Krajské město', 'Hlavní město',
+        'Správní centrum', 'Sídlo', 'Umístění', 'Pořadatel', 'Patří k', 'Kde', 'Kde to je', 'Kde je dnes', 'Kde vzniklo', 'Pohoří', 'Ostrov', 'Region', 'Kuchyně']);
+    const PLACE_BOOST = 0.35;
     // Vědecký a latinský název bývá odpovědi podobný (Canis familiaris, Hydrogenium, Origanum vulgare = oregano): u známé položky silný
     // fakt (až za větami popisu jako značka), u méně známé slabší
     const NAME_LABELS = new Set(['Vědecký název', 'Latinsky']);
@@ -784,7 +795,9 @@
     // popisu (odpověď i vlastní jména zakrytá) – seřazené od nejslabší; předposlední rozmazaná fotka; poslední ostrá fotka.
     // Každá nápověda: { n, hour, title, icon, parts: [{ type: 'type' | 'facts' | 'text' | 'visual' | 'photo' | 'yesno' | 'compass' | 'era'
     // | 'keywords' | 'related' | 'pattern' | 'choices' | 'note', … }] }
-    const buildClues = (data, { topicTitle = '' } = {}) => {
+    // day = den otázky (pravidla podle dne, PLACE_ORDER_FROM); bez dne jako dřív
+    const buildClues = (data, { topicTitle = '', day = '' } = {}) => {
+        const placeOrder = String(day) >= PLACE_ORDER_FROM;
         const hints = (data && Array.isArray(data.hints)) ? data.hints : [];
         const riddle = cleanRiddle(data && data.riddle);
         // Fakt, ze kterého je indicie, odpadne celý (indicie je jeho hádankovou podobou); související jméno z výčtu ve faktu chybí
@@ -802,7 +815,8 @@
             // Výčet (Kluby: Real Madrid CF, Juventus FC) bez jména, které už je souvisejícím jménem
             .map(fact => (listOf(fact.value).length > 1 && listOf(fact.value).some(part => used.has(fold(part))) ? { ...fact, value: listOf(fact.value).filter(part => !used.has(fold(part))).join(', ') } : fact))
             .filter(fact => fact.value && !used.has(fold(fact.value)) && !(riddle.era && fact.label === 'Století'));
-        const weight = (fact) => factScore(fact) + (covered.has(fact.label) ? 0.15 : 0);
+        const narrow = (fact) => placeOrder && NARROW_LABELS.has(fact.label);
+        const weight = (fact) => factScore(fact) + (covered.has(fact.label) ? 0.15 : 0) + (narrow(fact) ? PLACE_BOOST : 0);
         // Jména souvisejících osob, která zůstanou vidět (riddle.names, od NAMES_FROM)
         const keepNames = riddle.names.length ? new Set(riddle.names) : null;
         // Dodatečná jména (data.shownNames: otázka sestavená bez riddle.names) se jen ukážou: pořadí nápověd se počítá z textu
@@ -841,7 +855,7 @@
         const factQueue = ranked.filter(fact => fact !== opener);
         const takeFacts = (count, keep) => {
             const part = factQueue.splice(0, count);
-            if (part.length) queue.push({ title: 'Fakta', icon: 'info', keep, bonus: part.filter(fact => covered.has(fact.label)).length * 0.15, parts: [{ type: 'facts', facts: part }] });
+            if (part.length) queue.push({ title: 'Fakta', icon: 'info', keep, bonus: part.filter(fact => covered.has(fact.label)).length * 0.15 + part.filter(narrow).length * PLACE_BOOST, parts: [{ type: 'facts', facts: part }] });
         };
         if (riddle.yesno.length) queue.push({ title: 'Ano, nebo ne', icon: 'circle-check', keep: 0, parts: [{ type: 'yesno', items: riddle.yesno }] });
         const compass = compassFor(data);
@@ -899,7 +913,10 @@
                 : part.type === 'visual' ? 2.5 : part.type === 'yesno' ? 1 + 0.2 * part.items.length : part.type === 'facts' ? 0.6 + 0.4 * part.facts.length : 1), 0), 0);
             const coarse = (group) => group.some(entry => entry.parts.some(part => part.type === 'yesno' || part.type === 'era'));
             const exact = (group) => group.some(entry => entry.parts.some(part => part.type === 'facts' && part.facts.some(fact => covered.has(fact.label))));
-            const clash = (a, b) => (coarse(a) && exact(b)) || (exact(a) && coarse(b));
+            // Od PLACE_ORDER_FROM ani vzdálenost a směr od Prahy s faktem o poloze (stát, země, kraj…)
+            const compassIn = (group) => placeOrder && group.some(entry => entry.parts.some(part => part.type === 'compass'));
+            const located = (group) => placeOrder && group.some(entry => entry.parts.some(part => part.type === 'facts' && part.facts.some(fact => LOCATION_LABELS.has(fact.label))));
+            const clash = (a, b) => (coarse(a) && exact(b)) || (exact(a) && coarse(b)) || (compassIn(a) && located(b)) || (located(a) && compassIn(b));
             // Dva texty spolu jen v nouzi (byla by z nich zase stěna textu)
             const texts = (group) => group.filter(entry => entry.parts.some(part => part.type === 'text')).length;
             const groups = chosen.map(entry => [entry]);
@@ -1163,7 +1180,7 @@
         CLUES, CLUE_HOURS, MAX_TIPS, NEAR_MISSES, MAX_POINTS, XP_BASE, XP_PER_POINT, KEY, ART,
         isDay, addDays, pragueClock, pragueDay, pragueTime, cluesAt, clueTime, hourLabel, nextClue, formatClock, formatDay, pointsWord, tipsWord, withClues, cluesWord,
         hash32, seededRandom, seedFor, topicForDay, hasPhoto, candidatesOf, pickItem, leftWord,
-        sentencesOf, answerPattern, letterCount, strongMask, NAMES_FROM, SHOWN_NAMES_FROM, shownNamesOf, relatedNames, roundTexts, cleanRiddle, textScore, revealScore, buildClues, pointsFor, xpFor,
+        sentencesOf, answerPattern, letterCount, strongMask, NAMES_FROM, SHOWN_NAMES_FROM, PLACE_ORDER_FROM, shownNamesOf, relatedNames, roundTexts, cleanRiddle, textScore, revealScore, buildClues, pointsFor, xpFor,
         PRAGUE, haversineKm, bearingDeg, roundKm, compassOf, compassFor, eraOfYear, eraOfSpan, eraOf, yesNoOf, riddleOf, answerGuard,
         parseState, newEntry, cleanEntry, statusOf, tipsLeft, addTip, wrongTips, shareGrid, shareText, cardInput,
         homeText, statsHtml, screenHtml, MARK
