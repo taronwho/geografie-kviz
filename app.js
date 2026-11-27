@@ -864,12 +864,22 @@
     const DEV_LEARNED_BACKUP = 'mudrlant.dev.backup.learned';
     // Prestiž na zkoušku: stav prestiže a poslední oslavená úroveň se zálohují se zkušebním postupem (do účtu se nic nezapíše)
     const DEV_PRESTIGE_BACKUP = 'mudrlant.dev.backup.prestige';
+    // Zkouška jen odměn (Truhla Mudrlanta, Zlatá truhla, sezóna, náhled prestiže): postup (XP, počítadla, odznaky) zůstává skutečný. Příznak vzniká se
+    // zálohou a zmizí prvním nástrojem, který postup mění (úroveň, odznaky, hvězdičky, prestiž). Pak XP sezóny dál přibývá a Vrátit můj postup
+    // nechá XP získané během zkoušky. Zkouška založená starší verzí příznak nemá: XP sezóny stojí na záloze (jako dřív).
+    const DEV_PLAIN = 'mudrlant.dev.plain';
     const PRESTIGE_KEYS = ['mudrlant.prestige', 'mudrlant.prestige-seen'];
     const devOn = () => { try { return localStorage.getItem(DEV_KEY) === '1'; } catch (e) { return false; } };
     const devActive = () => { try { return localStorage.getItem(DEV_BACKUP) !== null; } catch (e) { return false; } };
+    const devPlain = () => { try { return devActive() && localStorage.getItem(DEV_PLAIN) === '1'; } catch (e) { return false; } };
+    // Zkušební postup ve vývojářském režimu: XP sezóny se nepočítá (stojí na XP před zkouškou), jen jde-li o zkoušku postupu
+    const devSeasonFrozen = () => devActive() && !devPlain();
     const devApply = (kind) => {
         try {
-            if (kind === 'restore') {
+            // restore = Vrátit můj postup (u zkoušky jen odměn postup zůstane); keep = Ukončit zkoušku a XP si nechat (postup i poznané položky zůstanou)
+            if (kind === 'restore' || kind === 'keep') {
+                const keep = kind === 'keep' || devPlain();
+                localStorage.removeItem(DEV_PLAIN);
                 localStorage.removeItem(DEV_ALL);
                 localStorage.removeItem(DEV_SEASON_XP);
                 // Odměny jako před zkušebním postupem (truhly a stupně sezóny otevřené na zkoušku zmizí)
@@ -888,6 +898,19 @@
                     localStorage.removeItem(DEV_PRESTIGE_BACKUP);
                     applyLook();
                 }
+                // Pojistka: zkušební úroveň 100 nebo všechny odznaky (nástroje Vše, Všechny odznaky) se do skutečného postupu nepřevezmou
+                const saved = (() => { try { return JSON.parse(localStorage.getItem(DEV_BACKUP)) || {}; } catch (e) { return {}; } })();
+                const now = loadProgress();
+                const allOf = (badges) => BADGES.every(badge => badges && badges[badge.id]);
+                const fake = (allOf(now.badges) && !allOf(saved.badges)) || (now.xp >= xpForLevel(MAX_LEVEL) && !(Number(saved.xp) >= xpForLevel(MAX_LEVEL)));
+                if (keep && !fake) {
+                    // Postup zůstává (XP aspoň jako v záloze, odznaky ze zálohy se neztratí); vymyšlené poznané položky (dev0, dev1…) se odstraní
+                    saveProgress({ ...now, xp: Math.max(now.xp, Number.isFinite(saved.xp) ? Math.floor(saved.xp) : 0), badges: { ...(saved.badges && typeof saved.badges === 'object' ? saved.badges : {}), ...now.badges } });
+                    localStorage.removeItem(DEV_BACKUP);
+                    localStorage.removeItem(DEV_LEARNED_BACKUP);
+                    writeJson(KEYS.learned, loadLearned());
+                    return;
+                }
                 const backup = localStorage.getItem(DEV_BACKUP);
                 if (backup !== null) { if (backup === 'null') localStorage.removeItem(KEYS.progress); else localStorage.setItem(KEYS.progress, backup); localStorage.removeItem(DEV_BACKUP); }
                 // Poznané položky se vrátí také (vývojářské „Vše“ je přepisuje); bez zálohy se vymyšlené jen odstraní
@@ -896,7 +919,9 @@
                 else writeJson(KEYS.learned, loadLearned());
                 return;
             }
-            if (localStorage.getItem(DEV_BACKUP) === null) { localStorage.setItem(DEV_BACKUP, localStorage.getItem(KEYS.progress) ?? 'null'); localStorage.setItem(DEV_LEARNED_BACKUP, localStorage.getItem(KEYS.learned) ?? 'null'); }
+            if (localStorage.getItem(DEV_BACKUP) === null) { localStorage.setItem(DEV_BACKUP, localStorage.getItem(KEYS.progress) ?? 'null'); localStorage.setItem(DEV_LEARNED_BACKUP, localStorage.getItem(KEYS.learned) ?? 'null'); localStorage.setItem(DEV_PLAIN, '1'); }
+            // Nástroj, který mění postup (úroveň, odznaky, hvězdičky, prestiž na zkoušku): od teď zkouška postupu (XP sezóny stojí, Vrátit vrátí zálohu)
+            if (!['chest', 'gold-chest', 'season'].includes(kind) && !kind.startsWith('pv:')) localStorage.removeItem(DEV_PLAIN);
             if (Rewards && localStorage.getItem(DEV_REWARDS_BACKUP) === null) localStorage.setItem(DEV_REWARDS_BACKUP, localStorage.getItem(Rewards.KEY) ?? 'null');
             if (localStorage.getItem(DEV_PRESTIGE_BACKUP) === null) localStorage.setItem(DEV_PRESTIGE_BACKUP, JSON.stringify(Object.fromEntries(PRESTIGE_KEYS.map(key => [key, localStorage.getItem(key)]))));
             // Prestiž: náhled (pv:N): stupeň prestiže N jen v zařízení, úroveň v ní od 1 (prestiž začíná na nynějších XP); oslava úrovně se nespustí
@@ -1247,9 +1272,9 @@
     const devAgeRow = () => `<div data-dev-age class="mt-1.5 flex flex-wrap items-center gap-1"><span class="mr-auto text-[11px] font-black text-amber-800 dark:text-amber-200">Věk sovy: náhled</span>${[[null, 'Podle dní'], ...Look.AGE_STAGES.map(item => [item.stage, String(item.stage)])].map(([stage, text]) => `<button type="button" data-dev="age:${stage === null ? 'auto' : stage}" aria-pressed="${devAgeNow === stage}" title="${escapeHtml(stage === null ? 'Podle dní ve hře' : Look.AGE_STAGES[stage - 1].title)}" class="min-w-[2rem] rounded-lg px-1.5 py-1 text-[11px] font-black ${devAgeNow === stage ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'}">${text}</button>`).join('')}</div>`;
     const renderDevPanel = () => !devOn() ? '' : `
         <div class="mt-3 rounded-2xl border-2 border-dashed border-amber-400/70 p-2.5">
-            <p class="mb-1.5 flex items-center justify-between text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400"><span>Vývojářský režim</span><span class="font-bold normal-case tracking-normal">${devActive() ? 'zkušební postup' : 'tvůj postup'}</span></p>
+            <p class="mb-1.5 flex items-center justify-between text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400"><span>Vývojářský režim</span><span class="font-bold normal-case tracking-normal">${devPlain() ? 'zkušební odměny' : devActive() ? 'zkušební postup' : 'tvůj postup'}</span></p>
             ${Social ? `<p data-dev-schema class="mb-1.5 text-[11px] font-semibold leading-snug ${schemaHave === REQUIRED_SCHEMA ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-800 dark:text-amber-200'}">Databáze: ${schemaHave === undefined ? 'verze schématu zatím nezjištěna' : schemaHave === null ? 'schéma bez verze (starší než 1)' : `schéma ${schemaHave}`} · aplikace potřebuje ${REQUIRED_SCHEMA}${schemaHave === REQUIRED_SCHEMA ? ' ✓' : schemaHave === undefined ? '' : schemaHave > REQUIRED_SCHEMA ? ' – aplikace je starší, obnov ji' : ' – spusť supabase/schema.sql'}</p>` : ''}
-            <div class="flex flex-wrap gap-1">${[['all', 'Odemknout úplně vše'], ['chest', 'Otevřít Truhlu Mudrlanta'], ['season', 'Sezóna: všech 20 stupňů'], ['max', 'Vše (úr. 100)'], ['level:10', 'Úr. 10'], ['level:25', 'Úr. 25'], ['level:50', 'Úr. 50'], ['level:75', 'Úr. 75'], ['badges', 'Všechny odznaky'], ['nobadges', 'Žádné odznaky'], ['nostars', 'Vymazat hvězdičky'], ['bulb', 'Vrátit žárovku'], ['tips', 'Obnovit tipy'], ['gold', 'Příští otázka zlatá'], ['gold-chest', 'Otevřít Zlatou truhlu'], ...(Prestige ? [['prestige', 'Prestiž na zkoušku']] : [])].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${label}</button>`).join('')}${devActive() ? '<button type="button" data-dev="restore" class="rounded-lg bg-amber-700 px-2 py-1 text-[11px] font-black text-white active:scale-95">Vrátit můj postup</button>' : ''}</div>
+            <div class="flex flex-wrap gap-1">${[['all', 'Odemknout úplně vše'], ['chest', 'Otevřít Truhlu Mudrlanta'], ['season', 'Sezóna: všech 20 stupňů'], ['max', 'Vše (úr. 100)'], ['level:10', 'Úr. 10'], ['level:25', 'Úr. 25'], ['level:50', 'Úr. 50'], ['level:75', 'Úr. 75'], ['badges', 'Všechny odznaky'], ['nobadges', 'Žádné odznaky'], ['nostars', 'Vymazat hvězdičky'], ['bulb', 'Vrátit žárovku'], ['tips', 'Obnovit tipy'], ['gold', 'Příští otázka zlatá'], ['gold-chest', 'Otevřít Zlatou truhlu'], ...(Prestige ? [['prestige', 'Prestiž na zkoušku']] : [])].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${label}</button>`).join('')}${devActive() ? '<button type="button" data-dev="restore" class="rounded-lg bg-amber-700 px-2 py-1 text-[11px] font-black text-white active:scale-95">Vrátit můj postup</button>' : ''}${devSeasonFrozen() ? '<button type="button" data-dev="keep" title="Ukončí zkoušku, odměny vrátí a XP i odznaky z doby zkoušky nechá (jen když jsi neměnil úroveň ani odznaky)" class="rounded-lg bg-amber-100 px-2 py-1 text-[11px] font-black text-amber-900 ring-1 ring-amber-400 active:scale-95 dark:bg-amber-900/40 dark:text-amber-100">Ukončit zkoušku, XP nechat</button>' : ''}</div>
             ${Prestige ? devPrestigeRow() : ''}
             ${Look && Look.setDevAge ? devAgeRow() : ''}
             ${Social ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Turnaj (boti)</p>
@@ -2451,7 +2476,7 @@
             }
             if (devButton && devButton.dataset.dev.startsWith('pv:')) { devApply(devButton.dataset.dev); applyLook(); updateControlsUI(); paintTab(); openSettings(); return; }
             if (devButton && devButton.dataset.dev === 'prestige') { devApply('prestige'); applyLook(); closeSettings(); updateControlsUI(); openLevels(); return; }
-            if (devButton) { devApply(devButton.dataset.dev); updateControlsUI(); openSettings(`Hotovo: ${devButton.textContent.trim()}`, `[data-dev="${devButton.dataset.dev}"]`); return; }
+            if (devButton) { devApply(devButton.dataset.dev); if (!devActive()) syncProgress(); updateControlsUI(); openSettings(`Hotovo: ${devButton.textContent.trim()}`, `[data-dev="${devButton.dataset.dev}"]`); return; }
             const lockedOwl = event.target.closest('[data-locked-owl]');
             if (lockedOwl && Look) {
                 const pose = Look.findPose(lockedOwl.dataset.lockedOwl);
@@ -5154,10 +5179,12 @@
         if (!user || !Social || syncingProgress || devActive()) return;
         syncingProgress = true;
         try {
-            const local = loadProgress();
             let remote = null;
             try { remote = await Social.getProgress(user.id); } catch (error) { return; }
             if (!remote) return;
+            // Postup ze zařízení až po odpovědi účtu: XP získané během čekání (odpověď, minihra, turnaj) se nesmí přepsat starším stavem
+            // ani posunout začátek sezóny (season.js shift) jako „XP z jiného zařízení“
+            const local = loadProgress();
             // Kamarádské sázky (bets.js): výhry a prohry sázek, které zařízení ještě nemá (vyrovnané na jiném zařízení), se připíšou dřív,
             // než se XP sloučí – jinak by starší vyšší XP ze zařízení prohru v účtu přepsalo
             const betXp = BetsCtl ? BetsCtl.reconcileXp(user.id, local.xp, remote) : local.xp;
@@ -6018,8 +6045,12 @@
     const Season = window.MudrlantSeason || null;
     // Album sbírky: sezónní věci (rámeček, doplněk a postavička měsíce) jdou získat jen v sezóně svého měsíce, dřívější jsou „už nejde získat“
     if (Album && Season) Album.setAvailability(Season.availability);
-    // XP pro sezónu: ve vývojářském režimu skutečné XP ze zálohy (zkušební úroveň se do sezóny nepočítá)
+    // XP pro sezónu: při zkoušce postupu ve vývojářském režimu skutečné XP ze zálohy (zkušební úroveň se do sezóny nepočítá, XP sezóny stojí);
+    // při zkoušce jen odměn (devPlain) skutečné XP. DEV_SEASON_XP přidá XP sezóny na zkoušku.
     const seasonXp = () => {
+        if (devPlain()) {
+            try { return loadProgress().xp + Math.max(0, Math.floor(Number(localStorage.getItem(DEV_SEASON_XP)) || 0)); } catch (e) { return loadProgress().xp; }
+        }
         if (devActive()) {
             try {
                 const backup = JSON.parse(localStorage.getItem(DEV_BACKUP));
@@ -6166,7 +6197,9 @@
                 if (before !== JSON.stringify(seasonPomucky()) && overlay && overlay.dataset.title === `Sezóna ${Season.label(view.id)}`) openSeason(selected);
             }).catch(() => { openSeason.loading = false; });
         }
-        showDialog(`Sezóna ${Season.label(view.id)}`, `${Season.pathHtml(view, { selected, h: chestHelpers() })}${dialogBackButton('mt-2')}`, {
+        // Zkušební režim vývojáře: je vidět, proč XP sezóny nepřibývá (zkouška postupu) a že odměny vyzvednuté na zkoušku zmizí
+        const notice = !devActive() ? '' : devSeasonFrozen() ? 'Zkušební režim: XP sezóny se nepočítá. Ukončíš ho v Nastavení.' : 'Zkušební režim: odměny teď vyzvednuté se po Vrátit můj postup vrátí.';
+        showDialog(`Sezóna ${Season.label(view.id)}`, `${Season.pathHtml(view, { selected, h: chestHelpers(), notice })}${dialogBackButton('mt-2')}`, {
             onClick: (event) => {
                 if (event.target.closest('[data-season-claim-past]')) { openSeasonReveal(view.pastPending[0], () => openSeason()); return; }
                 if (event.target.closest('[data-season-claim]')) { openSeasonReveal(null, () => openSeason()); return; }

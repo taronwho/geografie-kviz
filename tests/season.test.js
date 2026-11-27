@@ -297,6 +297,20 @@ test('XP z účtu se do sezóny nepočítá: posun začátku o XP načtené z ú
     assert.deepEqual(Season.shift(local, 0), Rewards.parse(local), 'bez posunu beze změny');
 });
 
+test('okno sezóny: poznámka zkušebního režimu (app.js notice) jen když je, s escapováním; XP sezóny podle XP zařízení', () => {
+    // Snímek od hráče: sezóna od 1 066 XP, 10 000 XP → stupeň 14, 8 934 XP, 184 / 1 300 do stupně 15
+    const view = Season.info(started(1066, Object.fromEntries(Array.from({ length: 14 }, (_, i) => [i + 1, 'xp:150']))), { today: '2026-11-27', xp: 10000 });
+    assert.deepEqual([view.progress.tier, view.progress.xp, view.progress.into, view.progress.needed, view.daysLeft], [14, 8934, 184, 1300, 4]);
+    assert.doesNotMatch(Season.pathHtml(view, { h: {} }), /data-season-notice/);
+    const html = Season.pathHtml(view, { h: {}, notice: 'Zkušební režim: XP sezóny se <nepočítá>.' });
+    assert.match(html, /data-season-notice role="note"[^>]*>[\s\S]*Zkušební režim: XP sezóny se &lt;nepočítá&gt;\./);
+    // Každé XP získané v zařízení se do sezóny počítá (bez stropu, po celých XP)
+    assert.equal(Season.info(started(1066), { today: '2026-11-27', xp: 10100.9 }).progress.xp, 9034);
+    // Zařízení se synchronizací: posun jen o XP, které přišlo z účtu navíc; po sloučení se záznamem sezóny z účtu (menší začátek) se XP vrátí
+    const shifted = Season.shift(started(1066), 50);
+    assert.equal(Season.info(Rewards.merge(shifted, started(1066)), { today: '2026-11-27', xp: 10050 }).progress.xp, 8984);
+});
+
 test('album: sezónní věc jde získat v sezóně svého měsíce, po ní skončila (vrátí se za rok), dřív než od spuštění skrytá', () => {
     const november = Look.find('frames', 'sezona-11');
     const january = Look.find('frames', 'sezona-01');
