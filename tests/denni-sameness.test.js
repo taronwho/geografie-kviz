@@ -108,16 +108,16 @@ test('stejnost: změna úrovní známosti (geologické věky) platí až od 17. 
     }
 });
 
-test('stejnost: Řetězovka dne je pro dva hráče s vlastními kopiemi dat stejná (i den před změnou úrovní)', () => {
+test('stejnost: Řetězovka dne je pro dva hráče s vlastními kopiemi dat stejná (i den před změnou úrovní a první den s Technikou a Jídlem)', () => {
     const chainFor = (data, day) => {
-        const sources = Object.fromEntries(Chain.SOURCES.map(id => [id, core.itemsAsOf(data[id], day)]));
+        const sources = Object.fromEntries(Chain.sourcesFor(day).map(id => [id, core.itemsAsOf(data[id], day)]));
         const graph = Chain.buildGraph(sources, countries, extra);
         const chain = Chain.dailyChain(graph, day);
         return chain ? [chain.start.id, ...chain.questions.map(question => `${question.to.id}|${question.options.map(option => option.id).join(',')}`)] : null;
     };
     const first = playerData();
     const second = playerData();
-    for (const day of ['2026-11-16', '2026-11-17']) {
+    for (const day of ['2026-11-16', '2026-11-17', Chain.TOPICS_FROM]) {
         const a = chainFor(first, day);
         assert.ok(a && a.length === Chain.LINKS + 1, day);
         assert.deepEqual(chainFor(second, day), a, day);
