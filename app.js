@@ -12761,7 +12761,7 @@
         const topic = TOPIC_BY_ID[data.topic];
         appContent.innerHTML = Mystery.screenHtml({
             day: view.day, past: view.past, shown, next: view.past ? null : Mystery.nextClue(now),
-            clues: Mystery.buildClues(data, { topicTitle: topic ? topic.title : '' }), entry, name: entry.name || data.name, info: { topic: data.topic, id: data.id },
+            clues: Mystery.buildClues(data, { topicTitle: topic ? topic.title : '', day: view.day }), entry, name: entry.name || data.name, info: { topic: data.topic, id: data.id },
             canGuess: !view.past && (status === 'new' || status === 'open'), finished: view.past || status === 'solved',
             guest: !mysteryRanked(), canLogin: Boolean(Auth && Auth.isConfigured() && Social) && !signedUser(),
             stats: view.stats, friends: view.friends, notice: view.notice,
@@ -12778,7 +12778,7 @@
         });
         appContent.querySelectorAll('[data-mystery-photo="sharp"]').forEach(element => { const url = element.dataset.url; delete element.dataset.url; showPhoto(element, url, null, false, data.photoMasks); });
         appContent.querySelectorAll('[id^="mystery-visual-"]').forEach(element => {
-            const clue = Mystery.buildClues(data).find(entry => `mystery-visual-${entry.n}` === element.id);
+            const clue = Mystery.buildClues(data, { day: view.day }).find(entry => `mystery-visual-${entry.n}` === element.id);
             const part = clue && clue.parts.find(item => item.type === 'visual');
             if (part) Visuals.render(element, part.spec, visualDeps);
         });

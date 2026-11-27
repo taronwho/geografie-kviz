@@ -557,6 +557,49 @@ test('starší uložená otázka bez krátkých nápověd i poškozená data: ni
     assert.ok(long.some(clue => clue.parts.some(part => part.type === 'yesno' && part.items[0].q.length === 80)));
 });
 
+// Průliv jako Tajemná otázka 21. 11. 2026 (kompas a státy byly v jedné nápovědě), s delším popisem z Wikipedie
+const straitRound = (over = {}) => roundData({
+    topic: 'zemepis', id: 'Q36124', name: 'Gibraltarský průliv', typeLabel: 'průliv', category: 'jezero', isCzech: false, coords: { lat: 35.974, lon: -5.516 },
+    questionText: 'Mořská úžina mezi Evropou a Afrikou. Spojuje Atlantský oceán se Středozemním mořem. V nejužším místě je široká jen čtrnáct kilometrů.',
+    leadFacts: [{ label: 'Státy', value: 'Španělsko, Spojené království, Maroko' }, { label: 'Délka', value: '59 km' }, { label: 'Největší hloubka', value: '1 000 m' }],
+    hints: [
+        { key: 'photo', kind: 'photo', label: 'fotka', icon: 'image' },
+        { key: 'visual', kind: 'visual', spec: { type: 'map', lat: 35.974, lon: -5.516 }, label: 'slepá mapa', icon: 'map' }
+    ],
+    riddle: { yesno: [{ q: 'Je to v Evropě?', a: true }], era: null, keywords: [], related: null },
+    ...over
+});
+
+test('od PLACE_ORDER_FROM: nejdřív směr a vzdálenost od Prahy, státy až později a nikdy ve stejné nápovědě; dřívější dny beze změny', () => {
+    assert.equal(M.PLACE_ORDER_FROM, '2026-11-28');
+    const at = (clues, test) => clues.findIndex(clue => clue.parts.some(test));
+    const compass = (part) => part.type === 'compass';
+    const states = (part) => part.type === 'facts' && part.facts.some(fact => fact.label === 'Státy');
+    const together = (clues) => clues.some(clue => clue.parts.some(compass) && clue.parts.some(states));
+    // Dnešní a minulé dny (i volání bez dne – starší kód aplikace) zůstávají přesně jako dřív: tam byly spojené
+    const legacy = M.buildClues(straitRound(), { topicTitle: 'Zeměpis' });
+    assert.deepEqual(M.buildClues(straitRound(), { topicTitle: 'Zeměpis', day: '2026-11-27' }), legacy);
+    assert.deepEqual(M.buildClues(straitRound(), { topicTitle: 'Zeměpis', day: '2026-11-21' }), legacy);
+    assert.ok(together(legacy), 'dřív: kompas a státy v jedné nápovědě');
+    for (const day of ['2026-11-28', '2027-03-01']) {
+        const clues = M.buildClues(straitRound(), { topicTitle: 'Zeměpis', day });
+        assert.equal(clues.length, 8);
+        assert.ok(!together(clues), `${day}: kompas a státy zvlášť`);
+        assert.ok(at(clues, states) > at(clues, compass), `${day}: státy až po kompasu`);
+        assert.ok(at(clues, states) > 2, `${day}: státy ne ve 3. nápovědě`);
+        assert.ok(at(clues, states) > at(clues, part => part.type === 'visual'), `${day}: státy až po slepé mapě`);
+        assert.ok(at(clues, states) < 6, `${day}: státy pořád před fotkou`);
+    }
+    // Ani jiný fakt o poloze (pohoří, kontinent) se s kompasem nespojí; stát hory přijde po kompasu
+    const mountain = M.buildClues(roundData({ coords: { lat: 45.976, lon: 7.658 } }), { topicTitle: 'Zeměpis', day: '2026-11-28' });
+    const located = (part) => part.type === 'facts' && part.facts.some(fact => ['Stát', 'Pohoří', 'Kontinent'].includes(fact.label));
+    assert.ok(!mountain.some(clue => clue.parts.some(compass) && clue.parts.some(located)), mountain.map(clue => clue.title).join(' / '));
+    const mountainState = at(mountain, part => part.type === 'facts' && part.facts.some(fact => fact.label === 'Stát'));
+    assert.ok(mountainState === -1 || mountainState > at(mountain, compass));
+    // Fakt, který zúží odpověď (stát), nesmí být v první nápovědě ani u nového dne
+    assert.ok(!mountain[0].parts.some(located));
+});
+
 test('vykreslení krátkých nápověd: ano/ne, růžice se šipkou, doba, indicie a souvislost bez inline stylů', () => {
     const h = { photoFrame: (attrs) => `<div ${attrs}></div>`, visualFrame: (spec, id) => `<div id="${id}"></div>`, avatarHtml: () => '<span></span>', xpLine: () => '' };
     const clues = M.buildClues(riddleRound({ coords: { lat: 50.736, lon: 15.74 } }), { topicTitle: 'Architektura' });
