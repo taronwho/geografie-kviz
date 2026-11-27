@@ -1011,6 +1011,7 @@
                         ${g.review ? `<span data-pz-daily-done class="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-[13px] font-black text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200"><i data-lucide="circle-check" class="h-4 w-4"></i> Skládačka dne je hotová</span>` : ''}
                         <span data-pz-collection class="inline-flex items-center gap-1.5 rounded-full ${outcome && outcome.fresh ? 'bg-gold-400 text-brand-950' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200'} px-3 py-1 text-[13px] font-black"><i data-lucide="${outcome && outcome.fresh ? 'sparkles' : 'layers'}" class="h-4 w-4"></i> ${outcome && outcome.fresh ? (stats.full ? 'Celá sbírka je složená' : 'Nové ve sbírce') : 'Už ve sbírce'} · ${stats.have} / ${stats.total}</span>
                     </div>
+                    ${g.daily && deps.rank ? deps.rank.strip('puzzle', g.daily) : ''}
                     ${outcome && (outcome.xp.total || outcome.xp.note) ? `<div data-pz-xp class="rounded-2xl bg-white px-3 py-2 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:ring-slate-700/70">${deps.xpLine(outcome.xp, 'text-slate-700 dark:text-slate-200')}${outcome.xp.note ? `<p class="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">${esc(outcome.xp.note)}</p>` : ''}</div>` : ''}
                     <div class="flex items-center gap-2">
                         <button type="button" data-action="puzzle-intro" class="flex min-h-[3.25rem] shrink-0 items-center justify-center gap-1.5 rounded-[1.2rem] bg-slate-200 px-4 text-base font-bold text-slate-700 active:scale-95 dark:bg-slate-800 dark:text-slate-200"><i data-lucide="${g.daily ? 'chevron-left' : 'settings-2'}" class="h-5 w-5"></i> ${g.daily ? 'Zpět' : 'Změnit'}</button>
@@ -1022,6 +1023,8 @@
             miniFlag(g);
             const verdict = deps.appContent.querySelector('[data-verdict]');
             if (verdict) verdict.focus({ preventScroll: true });
+            // Pořadí dne (minigame-rank.js): výsledek Skládačky dne na server (server vezme první) a pořadí mezi hráči stejného obrázku
+            if (g.daily && deps.rank) deps.rank.sync('puzzle', g.daily, { value: g.moves, variant: `${g.variant}:${g.item.id}` });
         };
         // Malá vlajka státu u názvu: u vlajky ze skládačky samé, u obrysu z tématu Vlajky (náhled z Commons přes photo-blob.js).
         // Když se nenačte, zůstane skrytá. Rámeček, aby byla vidět i bílá vlajka v tmavém režimu.

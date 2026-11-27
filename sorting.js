@@ -388,7 +388,7 @@
             const card = round.items[index];
             return `
                 <li>
-                    <button type="button" data-action="item-info" data-topic="${escapeHtml(round.topic)}" data-id="${escapeHtml(card.id)}" aria-label="${escapeHtml(`${position + 1}. ${card.name}, ${card.label}. Klepnutím zobrazíš popis.`)}" class="sort-reveal sort-d${Math.min(7, position + 1)} flex ${round.order.length >= 7 ? 'min-h-[2.75rem]' : 'min-h-[3rem]'} w-full items-center gap-2 rounded-2xl border-2 px-1.5 py-0.5 text-left ${CARD_LOCKED}">
+                    <button type="button" data-action="item-info" data-topic="${escapeHtml(round.topic)}" data-id="${escapeHtml(card.id)}" aria-label="${escapeHtml(`${position + 1}. ${card.name}, ${card.label}. Klepnutím zobrazíš popis.`)}" class="sort-reveal sort-d${Math.min(7, position + 1)} flex ${round.order.length >= 7 || ui.rankHtml ? 'min-h-[2.75rem]' : 'min-h-[3rem]'} w-full items-center gap-2 rounded-2xl border-2 px-1.5 py-0.5 text-left ${CARD_LOCKED}">
                         <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-black tabular-nums ${BADGE_LOCKED}" aria-hidden="true">${position + 1}</span>
                         <span class="min-w-0 flex-1">
                             <span class="line-clamp-1 break-words text-[15px] font-bold leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(card.name)}</span>
@@ -411,6 +411,7 @@
             </div>
             <ol class="flex flex-col gap-1.5" aria-label="Správné pořadí s hodnotami">${rows}</ol>
             <p class="text-center text-[11px] font-semibold text-slate-500 dark:text-slate-400">Klepnutím na kartu se o ní dozvíš víc.</p>
+            ${round.mode === 'daily' && ui.rankHtml ? ui.rankHtml : ''}
             <div class="mt-auto flex gap-2">
                 <button type="button" data-action="sorting-intro" class="btn-3d-light flex min-h-[3rem] shrink-0 items-center justify-center gap-1.5 rounded-2xl bg-white px-4 text-base font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-100"><i data-lucide="list-ordered" class="h-5 w-5"></i> Výběr</button>
                 <button type="button" data-action="sorting-start" class="btn-3d flex min-h-[3rem] min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl px-4 text-base font-black text-white ${ui.style.button}"><i data-lucide="shuffle" class="h-5 w-5"></i> ${round.mode === 'daily' ? 'Hrát volně' : 'Další karty'}</button>
@@ -483,7 +484,8 @@
 
     // --- Ovladač obrazovky (prohlížeč) ---
     // deps: appContent, setScreen, getScreen, renderHome, renderIcons, updateControlsUI, closePlaceInfo, uiArt, topics (seznam témat
-    // { id, title }), loadTopic, readJson, writeJson, getDayKey, xpLine, awardXp(xp) → xp s odznaky, style (barvy tlačítek), card, cardTitle, sound
+    // { id, title }), loadTopic, readJson, writeJson, getDayKey, xpLine, awardXp(xp) → xp s odznaky, style (barvy tlačítek), card, cardTitle, sound,
+    // rank (minigame-rank.js: pořadí dne ve výsledku Řazení dne; bez něj se srovnání neukáže)
     const createController = (deps) => {
         let view = null; // 'intro' | 'loading' | 'play' | 'done' | 'error'
         let round = null;
@@ -499,7 +501,9 @@
         const save = (state) => deps.writeJson(KEY, state);
         const today = () => deps.getDayKey();
         const topics = () => deps.topics().filter(topic => TOPIC_IDS.includes(topic.id));
-        const ui = () => ({ uiArt: deps.uiArt, style: deps.style, card: deps.card, cardTitle: deps.cardTitle, picked, live, xpHtml, day: today(), topics: topics(), streak: dailyStreak(load(), today()) });
+        // Pořadí dne (minigame-rank.js, deps.rank): pruh ve výsledku Řazení dne; výsledek se pošle na server při každém zobrazení (server vezme první)
+        const rankHtml = () => (deps.rank && round && round.mode === 'daily' && view === 'done' ? deps.rank.strip('sorting', round.day) : '');
+        const ui = () => ({ uiArt: deps.uiArt, style: deps.style, card: deps.card, cardTitle: deps.cardTitle, picked, live, xpHtml, day: today(), topics: topics(), streak: dailyStreak(load(), today()), rankHtml: rankHtml() });
         const root = () => deps.appContent.firstElementChild;
 
         // FLIP: karty se z původního místa plynule přesunou na nové (při „omezit pohyb“ hned)
@@ -533,6 +537,7 @@
             }
             if (focus) { const el = wrap.querySelector(focus); if (el) el.focus({ preventScroll: true }); }
             if (view === 'done') { const verdict = wrap.querySelector('[data-verdict]'); if (verdict) verdict.focus({ preventScroll: true }); }
+            if (view === 'done' && round && round.mode === 'daily' && deps.rank) deps.rank.sync('sorting', round.day, { value: round.attempts, variant: round.spec });
         };
         const render = (options = {}) => {
             if (view === 'intro') paint(introHtml(load(), ui()), options);

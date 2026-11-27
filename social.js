@@ -1035,6 +1035,40 @@
             throw error;
         }
     };
+    // --- Řazení dne a Skládačka dne (blok 53, minigame-rank.js): odeslání výsledku a pořadí dne (Všichni / Přátelé) ---
+    // game = 'sorting' (value = pokusy, variant = vlastnost dne) | 'puzzle' (value = tahy, variant = 'flag:Q…' / 'outline:Q…').
+    // Databáze bez funkcí (starší schéma, 404): null a dál se o ně nežádá (srovnání se neukáže); jiné chyby se vyhodí
+    let minigameMissing = false;
+    const guardMinigame = async (run) => {
+        if (minigameMissing) return null;
+        try { return await run(); } catch (error) {
+            if (error.status === 404) { minigameMissing = true; return null; }
+            throw error;
+        }
+    };
+    const MINIGAMES = ['sorting', 'puzzle'];
+    const cleanGame = (game) => (MINIGAMES.includes(game) ? game : 'sorting');
+    const cleanMinigameMe = (row) => (row && typeof row === 'object' && row.value
+        ? { value: wholeNumber(row.value, 2000), rank: wholeNumber(row.rank, 10000000) || null, variant: typeof row.variant === 'string' ? row.variant.slice(0, 40) : '' } : null);
+    const cleanMinigameRow = (row) => ({
+        rank: wholeNumber(row.rank, 10000000) || 1, id: String(row.id), display_name: String(row.display_name || 'Hráč'), avatar: row.avatar, color: row.color,
+        frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl), prestige: cleanPrestigeLevel(row.prestige),
+        value: wholeNumber(row.value, 2000), me: row.me === true
+    });
+    const minigameSubmit = (game, day, value, variant) => guardMinigame(async () => cleanMinigameMe(await request('POST', 'rpc/minigame_submit', {
+        body: { p_game: cleanGame(game), for_day: cleanDay(day), p_value: wholeNumber(value, 2000), p_variant: String(variant || '').slice(0, 40) }
+    })));
+    const minigameBoard = (game, day = null) => guardMinigame(async () => {
+        const data = (await request('POST', 'rpc/minigame_board', { body: { p_game: cleanGame(game), for_day: cleanDay(day) } })) || {};
+        return { day: cleanDay(data.day), players: wholeNumber(data.players, 10000000), other: wholeNumber(data.other, 10000000), first: wholeNumber(data.first, 10000000),
+            first_pct: wholeNumber(data.first_pct, 100), best: wholeNumber(data.best, 2000) || null, me: cleanMinigameMe(data.me),
+            top: (Array.isArray(data.top) ? data.top : []).filter(row => row && row.id).map(cleanMinigameRow) };
+    });
+    const minigameFriends = (game, day = null) => guardMinigame(async () => {
+        const data = (await request('POST', 'rpc/minigame_friends', { body: { p_game: cleanGame(game), for_day: cleanDay(day) } })) || {};
+        return { day: cleanDay(data.day), friends: wholeNumber(data.friends, 100000), other: wholeNumber(data.other, 100000),
+            rows: (Array.isArray(data.rows) ? data.rows : []).filter(row => row && row.id).map(cleanMinigameRow) };
+    });
     // --- Skupiny (schéma 8, groups.js): moje skupiny, detail s pořadím, založení, přidání kódem a správa zakladatelem ---
     // Databáze bez funkcí (404): seznam vrací null (aplikace Skupiny nenabídne) a dál se o ně nežádá; ostatní volání skončí srozumitelnou chybou.
     // Hlášky databáze jsou česky (limit skupin, plná skupina, jen zakladatel…) a předají se dál; jiné chyby nahradí obecný text.
@@ -1597,7 +1631,7 @@
         // Boti pro všechny (blok 42)
         conquestAddBots, conquestRemoveBot,
         // Řetězovka dne (blok 21) a Záchrana navíc (blok 37)
-        chainSubmit, chainDayStats, chainBadgeCounts, chainUseRescue,
+        chainSubmit, chainDayStats, chainBadgeCounts, chainUseRescue, minigameSubmit, minigameBoard, minigameFriends,
         // Motivace (blok 32): prestiž, pozvánky kamarádů, vítězný efekt
         getPrestige, prestigeUp, referralStatus, referralJoin, referralClaim, victoryFx, saveVictoryFx };
 });

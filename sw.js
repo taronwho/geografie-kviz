@@ -46,6 +46,8 @@ const APP_SHELL = [
     'obor.js',
     // Skládačka (puzzle.js): vlajka nebo obrys státu z dílků (obrysy států jsou v data/mapa-tvary.json výš)
     'puzzle.js',
+    // Pořadí dne v Řazení dne a Skládačce dne (minigame-rank.js)
+    'minigame-rank.js',
     // Postup bonusových funkcí v účtu (bonus-sync.js, schéma 52)
     'bonus-sync.js',
     // Fotky otázek jako blob: bez názvu souboru (photo-blob.js; samotné fotky z Commons se do mezipaměti neukládají)
