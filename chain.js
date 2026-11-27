@@ -1,6 +1,7 @@
 // Řetězovka: odpověď na jednu otázku je začátkem další („Které z těchto děl namaloval Jacques-Louis David?“ → Smrt Sokratova → „Ve kterém
-// muzeu nebo galerii je obraz Smrt Sokratova?“ → Metropolitní muzeum umění → …). Z dat 14 témat (státy, města, stavby a slohy, hory a řeky, osobnosti všech oborů, díla a autoři,
-// herci, kluby a stadiony, olympiády, panovníci a říše, prvky a tělesa a jejich objevitelé, postavy mytologie, drahokamy, plemena) a z vazeb
+// muzeu nebo galerii je obraz Smrt Sokratova?“ → Metropolitní muzeum umění → …). Z dat 16 témat (státy, města, stavby a slohy, hory a řeky, osobnosti všech oborů, díla a autoři,
+// herci, kluby a stadiony, olympiády, panovníci a říše, prvky a tělesa a jejich objevitelé, postavy mytologie, drahokamy, plemena; od TOPICS_FROM
+// i vynálezci a vynálezy, firmy a jejich zakladatelé, výrobky, letiště a elektrárny, jídla a kuchaři – dřívější dny jen ze 14 témat) a z vazeb
 // z Wikidat (data/retezovka.json: rodiště, manželé, rodiče, učitelé, nástupci, pohoří, endemity, koho dílo zobrazuje) se postaví graf a z něj
 // článek po článku řetěz. Každý článek je otázka se čtyřmi možnostmi (2–4 znění na vazbu): nesprávné možnosti jsou stejného druhu, vazbu
 // nesplňují a nejsou si podobné jménem. Řetěz nesmí dát odpověď zadarmo (co plyne z dřívějších článků – stavba v Londýně a pak „ve kterém
@@ -37,11 +38,18 @@
     const HISTORY_DAYS = 60;
     // Témata, ze kterých se graf staví (všechna se musí načíst, jinak by řetěz dne vyšel jinak než ostatním) a vazby z Wikidat
     // (scripts/build-retezovka.mjs), které data témat nemají (rodiště, manželé, rodiče, učitelé, nástupci, pohoří, endemity)
-    const SOURCES = ['zemepis', 'architektura', 'hudba', 'literatura', 'umeni', 'film', 'sport', 'historie', 'fyzika', 'chemie', 'biologie', 'mytologie', 'geologie', 'vlajky'];
+    // Od TOPICS_FROM i Technika a vynálezy a Jídlo a pití; dřívější dny (už odehrané) staví graf jen ze 14 původních témat (SOURCES_V2,
+    // sourcesFor) a se stejným výběrem začátků (START_GROUPS_V2), ať se jejich řetěz dne nezmění (hlídá tests/chain-v2-snapshot.json)
+    const SOURCES_V2 = ['zemepis', 'architektura', 'hudba', 'literatura', 'umeni', 'film', 'sport', 'historie', 'fyzika', 'chemie', 'biologie', 'mytologie', 'geologie', 'vlajky'];
+    const SOURCES = [...SOURCES_V2, 'technika', 'jidlo'];
+    const TOPICS_FROM = '2026-11-28';
     const EXTRA_FILE = 'data/retezovka.json';
     // Od tohoto dne (pražský čas) staví řetěz dne nový generátor; dřívější dny původní (chain-legacy.js), ať řetěz dne, který už někdo hrál,
     // vyjde všem stejně i po nasazení
     const NEW_FROM = '2026-11-15';
+    // Témata grafu pro daný den (prázdný den = cvičná řetězovka: všechna)
+    const newTopicsDay = (day) => !day || !DAY_PATTERN.test(String(day)) || day >= TOPICS_FROM;
+    const sourcesFor = (day) => (newTopicsDay(day) ? SOURCES : SOURCES_V2);
     // XP za Řetězovku dne: 2 XP za bod a 10 XP navíc za celý řetěz (28 bodů = 66 XP)
     const XP_PER_POINT = 2;
     const FULL_XP = 10;
@@ -261,7 +269,10 @@
         { topic: 'historie', c: 'osobnost', kind: 'figure', many: 'historických osobností' },
         { topic: 'fyzika', c: 'fyzici', kind: 'physicist', many: 'fyziků' },
         { topic: 'fyzika', c: 'astronomove', kind: 'astronomer', many: 'astronomů a kosmonautů' },
-        { topic: 'chemie', c: 'chemici', kind: 'chemist', many: 'chemiků' }
+        { topic: 'chemie', c: 'chemici', kind: 'chemist', many: 'chemiků' },
+        // Od TOPICS_FROM (v grafu starších dnů nejsou)
+        { topic: 'technika', c: 'vynalezci', kind: 'inventor', many: 'vynálezců a průkopníků techniky' },
+        { topic: 'jidlo', c: 'kuchari', kind: 'chef', many: 'kuchařů a gastronomů' }
     ];
     const PERSON_KINDS = new Set(PEOPLE.map(entry => entry.kind));
     const MANY = Object.fromEntries(PEOPLE.map(entry => [entry.kind, entry.many]));
@@ -273,7 +284,7 @@
         band: 'kapela', music: 'hudební dílo', book: 'literární dílo', artwork: 'výtvarné dílo', film: 'film', club: 'klub', games: 'olympiáda', character: 'literární postava',
         stadium: 'stadion', realm: 'historický stát', element: 'chemický prvek', planet: 'planeta', moon: 'měsíc', body: 'vesmírné těleso', invention: 'vynález',
         myth: 'postava mytologie', gem: 'drahokam', mineral: 'nerost', period: 'geologické období', breed: 'plemeno', species: 'živočich či rostlina', style: 'architektonický sloh',
-        movement: 'umělecký směr'
+        movement: 'umělecký směr', inventor: 'vynálezce', chef: 'kuchař', company: 'firma', product: 'výrobek', facility: 'technická stavba', food: 'jídlo či pití'
     };
     // Obor uzlu (řetěz má obory střídat); otázka patří k oboru odpovědi, u odpovědi stát, město nebo region k oboru otázky
     const KIND_DOMAIN = {
@@ -287,9 +298,11 @@
         physicist: 'veda', astronomer: 'veda', chemist: 'veda', element: 'veda', planet: 'veda', moon: 'veda', body: 'veda', invention: 'veda', gem: 'veda', mineral: 'veda', period: 'veda',
         peak: 'priroda', range: 'priroda', river: 'priroda', lake: 'priroda', island: 'priroda', breed: 'priroda', species: 'priroda',
         myth: 'mytologie',
+        inventor: 'technika', company: 'technika', product: 'technika', facility: 'technika',
+        chef: 'jidlo', food: 'jidlo',
         country: 'zemepis', city: 'zemepis', region: 'zemepis'
     };
-    const DOMAINS = ['architektura', 'hudba', 'literatura', 'umeni', 'film', 'sport', 'historie', 'veda', 'priroda', 'mytologie', 'zemepis'];
+    const DOMAINS = ['architektura', 'hudba', 'literatura', 'umeni', 'film', 'sport', 'historie', 'veda', 'priroda', 'mytologie', 'technika', 'jidlo', 'zemepis'];
     // Zeměpisné uzly (rozcestníky): odpověď stát, město nebo region je „zeměpisný skok“ – nejvýš dva v řetězu a nikdy dva po sobě
     const GEO_KINDS = new Set(['country', 'city', 'region']);
     // Hudební díla: 4. pád druhu („Kdo složil operu …?“) a skupina (vážná hudba / píseň / album)
@@ -360,6 +373,22 @@
     const BODY_TYPES = { planeta: ['planet', 'planetu'], 'trpasličí planeta': ['planet', 'trpasličí planetu'], 'měsíc': ['moon', 'měsíc'], planetka: ['body', 'planetku'], kometa: ['body', 'kometu'] };
     // Biologické kategorie s druhy (endemity z Wikidat)
     const SPECIES_CATEGORIES = new Set(['savci', 'ptaci', 'ryby', 'plazi', 'hmyz', 'bezobratli', 'rostliny', 'houby']);
+    // Technické stavby (technika stavby, f.ty) → [1. pád, skupina, 2. pád mn. č. skupiny]; metra ne (název „Metro v Praze“ prozradí město)
+    const FACILITY_TYPES = { 'letiště': ['letiště', 'letiste', 'letišť'], kosmodrom: ['kosmodrom', 'kosmodrom', 'kosmodromů'], 'jaderná elektrárna': ['jaderná elektrárna', 'elektrarna', 'elektráren'],
+        'tepelná elektrárna': ['tepelná elektrárna', 'elektrarna', 'elektráren'], 'vodní elektrárna': ['vodní elektrárna', 'elektrarna', 'elektráren'] };
+    const FACILITY_MANY = Object.fromEntries(Object.values(FACILITY_TYPES).map(([, group, many]) => [group, many]));
+    // Jídlo a pití (jidlo, kategorie) → [druh, začátek otázky „Který z těchto …“]. Ovoce, zelenina a koření ne: zemi původu data skoro
+    // nemají a botanická čeleď by byla uzlem bez dalších vazeb; suroviny (f.mat) ne: jsou neúplné a obecné (cukr, mléko, olej), nesprávná
+    // možnost by mohla vazbu splňovat
+    const FOOD_GROUPS = { pokrmy: ['pokrm', 'Který z těchto pokrmů'], sladkosti: ['sladkost', 'Která z těchto sladkostí'], syry: ['sýr', 'Který z těchto sýrů'],
+        napoje: ['nápoj', 'Který z těchto nápojů'], alkohol: ['alkoholický nápoj', 'Který z těchto alkoholických nápojů'] };
+    // Skupiny jídel (jidlo g), které zemi původu potvrdí
+    const FOOD_TAG_COUNTRY = { 'italska-kuchyne': ['Itálie'], 'italske-syry': ['Itálie'], 'francouzske-syry': ['Francie'], 'ceska-kuchyne': ['Česko'], 'ceske-sladkosti': ['Česko'],
+        'ceske-a-slovenske-syry': ['Česko', 'Slovensko'] };
+    // Jídla se spornou zemí i po potvrzení (hořčice není italský vynález) a zakladatelé, u kterých by otázka byla chyták (Cadillac vznikl
+    // z firmy, kterou Henry Ford opustil)
+    const SKIP_FOODS = new Set(['Hořčice']);
+    const SKIP_FOUNDERS = new Set(['Cadillac|Henry Ford']);
 
     const normCache = new Map();
     const norm = (text) => {
@@ -519,6 +548,8 @@
         const personByQid = new Map();
         for (const { topic, c, kind } of PEOPLE) {
             for (const item of known(topic, c)) {
+                // Vynálezce či kuchař, který už je osobností jiného tématu (Edison mezi fyziky), by jméno zdvojil (vazby podle jména by zmizely)
+                if ((kind === 'inventor' || kind === 'chef') && personByQid.has(item.q)) continue;
                 const f = item.f || {};
                 const country = countryOfName(f.land);
                 const mentioned = nationalitiesIn(`${item.d || ''} ${item.ty || ''}`);
@@ -683,6 +714,71 @@
             const country = countryByQ.get(endemicOf.get(item.q));
             if (!country || revealsCountry(item.n, country.name) || hasBrackets(item.n)) continue;
             add({ id: `species:${item.q}`, kind: 'species', name: item.n, topic: 'biologie', q: item.q, fame: fame('biologie', item), endemic: country.id, continent: country.continent, group: item.c });
+        }
+
+        // Technika (od TOPICS_FROM): firmy a automobilky (země, sídlo, kdo stál u zrodu), výrobky známé firmy, vynálezy, letiště, elektrárny
+        // a kosmodromy (stát). Jídlo a pití: pokrmy, sladkosti, sýry a nápoje s jednou zemí původu (kuchaři jsou mezi osobnostmi).
+        // Název, který prozradí stát nebo jeho město („Vídeňský řízek“, „Metro v Praze“), vazbu na místo nemá.
+        const citiesOf = new Map();
+        for (const city of byKind.get('city') || []) { if (!citiesOf.has(city.country)) citiesOf.set(city.country, []); citiesOf.get(city.country).push(city); }
+        const hintsPlace = (text, place) => {
+            const words = norm(text).split(' ').filter(word => word.length >= 4);
+            return norm(place).split(' ').filter(word => word.length >= 5).some(word => { const k = Math.min(5, word.length - 1); return words.some(entry => entry.slice(0, k) === word.slice(0, k)); });
+        };
+        const hintsCountry = (text, country) => revealsCountry(text, country.name) || (citiesOf.get(country.id) || []).some(city => revealsCity(text, city.name) || hintsPlace(text, city.name));
+        // Jedna země z dat: název státu (ne „Itálie, Rakousko“ ani „Skotsko“); popis nesmí zmiňovat jinou národnost. Původ jídla je
+        // v datech často sporný (Řízek z Francie, Slivovice ze Srbska): zemi musí potvrdit i popis, kuchyně nebo skupina („italský sýr“)
+        const originOf = (item, confirm = false) => {
+            const f = item.f || {};
+            const country = countryOfName(f.land);
+            const nations = nationalitiesIn(`${item.d || ''} ${item.ty || ''} ${f.cuisine || ''}`);
+            if (!country || (nations.length && !nations.includes(country.name))) return null;
+            if (confirm && !nations.includes(country.name) && !(item.g || []).some(tag => (FOOD_TAG_COUNTRY[tag] || []).includes(country.name))) return null;
+            return { country, nations };
+        };
+        const companyByName = new Map();
+        for (const item of [...known('technika', 'firmy'), ...known('technika', 'auta').filter(entry => entry.ty === 'automobilka')]) {
+            const f = item.f || {};
+            // Evropská firma (Airbus) nemá jednu zemi
+            const origin = /evropsk/i.test(item.d || '') ? null : originOf(item);
+            const city = origin ? cityIn(f.hq, origin.country.q) : null;
+            const node = add({ id: `company:${item.q}`, kind: 'company', name: item.n, topic: 'technika', q: item.q, fame: fame('technika', item), typeWord: item.c === 'auta' ? 'automobilka' : 'firma',
+                group: item.c === 'auta' ? 'auta' : 'firmy', country: origin ? origin.country.id : null, continent: origin ? origin.country.continent : '', nations: origin ? origin.nations : [],
+                city: city && !revealsCity(item.n, city.name) ? city.id : null, hqName: f.hq || '', gone: Boolean(f.to), year: f.from || f.y || 0, founderNames: String(f.fd || '').split(/,\s*/).filter(Boolean) });
+            if (node) companyByName.set(norm(item.n), node);
+        }
+        // Výrobky: elektronika, software a auta (letadla názvem prozradí výrobce, lokomotivy a tramvaje jsou jen čísla řad pro odborníky)
+        const PRODUCT_CATEGORIES = ['elektronika', 'software', 'auta'];
+        for (const item of PRODUCT_CATEGORIES.flatMap(c => known('technika', c))) {
+            const f = item.f || {};
+            const maker = companyByName.get(norm(f.mk));
+            if (!maker || item.ty === 'automobilka' || hasBrackets(item.n)) continue;
+            // Název nesmí prozradit výrobce ani jinou firmu (Škoda Octavia, Airbus A380, Citroën DS od Peugeotu, VAZ 2101 od AvtoVAZu)
+            const folded = norm(item.n);
+            if ([...companyByName.values()].some(company => reveals(item.n, company.name) || norm(company.name).split(' ').some(word => word.length >= 3 && folded.includes(word)) || (folded.split(' ')[0].length >= 3 && norm(company.name).includes(folded.split(' ')[0])))) continue;
+            add({ id: `product:${item.q}`, kind: 'product', name: item.n, topic: 'technika', q: item.q, fame: fame('technika', item), typeWord: item.ty || 'výrobek', group: item.c, maker: maker.id, makerName: maker.name, year: f.year || f.y || 0 });
+        }
+        for (const item of known('technika', 'vynalezy')) {
+            const f = item.f || {};
+            add({ id: `invention:${item.q}`, kind: 'invention', name: item.n, topic: 'technika', q: item.q, fame: fame('technika', item), byName: f.by || '', year: f.year || 0 });
+        }
+        for (const item of known('technika', 'stavby')) {
+            const f = item.f || {};
+            const country = (item.co || []).length === 1 ? countryByQ.get(item.co[0]) : countryOfName(f.land);
+            if (!country || hasBrackets(item.n) || !FACILITY_TYPES[item.ty]) continue;
+            // (město z dat je často obec u letiště – Kelsterbach u Frankfurtu –, proto jen stát)
+            add({ id: `facility:${item.q}`, kind: 'facility', name: item.n, topic: 'technika', q: item.q, fame: fame('technika', item), typeWord: item.ty, group: FACILITY_TYPES[item.ty][1],
+                country: hintsCountry(item.n, country) ? null : country.id, continent: country.continent, year: f.from || f.y || 0 });
+        }
+        for (const [c, word] of Object.entries(FOOD_GROUPS)) {
+            for (const item of known('jidlo', c)) {
+                const origin = originOf(item, true);
+                if (!origin || hasBrackets(item.n) || SKIP_FOODS.has(item.n) || hintsCountry(item.n, origin.country)) continue;
+                // Vlastní druh z dat („plísňový sýr“, „likér“), jen v jednotném čísle (ne „těstoviny“)
+                const own = /^[\p{Ll} ]+$/u.test(item.ty || '') && !nationalitiesIn(item.ty).length && item.ty.split(' ').length <= 2 && !/y$/.test(item.ty) ? item.ty : word[0];
+                add({ id: `food:${item.q}`, kind: 'food', name: item.n, topic: 'jidlo', q: item.q, fame: fame('jidlo', item), typeWord: own, group: c, country: origin.country.id,
+                    continent: origin.country.continent, nations: origin.nations, year: (item.f || {}).year || 0 });
+            }
         }
 
         // --- Hrany ---
@@ -868,6 +964,21 @@
                 if (discoverer && !samePrefix(body.name, surname(discoverer.name))) { body.discoverer = discoverer.id; pair('bodyDiscoverer', 'discovererBody', body, discoverer); }
             }
         }
+        // Vynálezci z Techniky (od TOPICS_FROM): vynález z jejich děl (Edison: žárovka, fonograf), jen když ho data nepřipisují nikomu jinému
+        // a hlásí se k němu jediný vynálezce
+        const inventionNamed = nameIndex(['invention']);
+        const inventors = (byKind.get('inventor') || []).map(person => {
+            const item = itemsOf('technika').find(entry => entry && entry.q === person.q && entry.c === 'vynalezci');
+            return { person, work: String(((item || {}).f || {}).work || '').split(/,\s*/).map(part => part.trim()).filter(Boolean) };
+        });
+        const claims = new Map();
+        for (const { person, work } of inventors) {
+            for (const title of work) {
+                const invention = inventionNamed(title);
+                if (invention && !invention.byName) claims.set(invention.id, [...(claims.get(invention.id) || []), person]);
+            }
+        }
+        for (const [id, people] of claims) if (people.length === 1) node(id).byName = people[0].name;
         for (const invention of byKind.get('invention') || []) {
             const inventor = personNamed(invention.byName);
             if (inventor && !reveals(invention.name, surname(inventor.name))) { invention.inventor = inventor.id; pair('inventionInventor', 'inventorInvention', invention, inventor); }
@@ -893,6 +1004,24 @@
         for (const period of byKind.get('period') || []) { const parent = periodNamed(period.parentName); if (parent && parent !== period) { period.parent = parent.id; pair('periodEra', 'eraPeriod', period, parent); } }
         for (const breed of byKind.get('breed') || []) { const country = node(breed.country); if (country && fromCountry(country.name)) pair('breedCountry', 'countryBreed', breed, country); }
         for (const species of byKind.get('species') || []) pair('speciesEndemic', 'endemicSpecies', species, node(species.endemic));
+        // Technika: firma ↔ stát a město sídla, kdo stál u zrodu (zakladatelé z dat a vynálezci, kteří firmu mají mezi svými díly: Steve Jobs –
+        // Apple), výrobek ↔ firma, letiště, elektrárny a kosmodromy ↔ stát
+        for (const company of byKind.get('company') || []) {
+            const country = node(company.country);
+            if (country && !revealsCountry(company.name, country.name)) { link('companyCountry', company, country); if (fromCountry(country.name)) link('countryCompany', country, company); }
+            if (company.city) pair('companyCity', 'cityCompany', company, node(company.city));
+            const founders = new Set(company.founderNames.map(name => personNamed(name)).filter(Boolean));
+            for (const { person, work } of inventors) if (work.some(title => norm(title) === norm(company.name))) founders.add(person);
+            company.founderIds = [...founders].map(person => person.id);
+            for (const person of founders) {
+                if (reveals(company.name, surname(person.name)) || samePrefix(company.name, surname(person.name)) || SKIP_FOUNDERS.has(`${company.name}|${person.name}`)) continue;
+                pair('companyFounder', 'founderCompany', company, person);
+            }
+        }
+        for (const product of byKind.get('product') || []) pair('productMaker', 'makerProduct', product, node(product.maker));
+        for (const facility of byKind.get('facility') || []) if (facility.country) pair('facilityCountry', 'countryFacility', facility, node(facility.country));
+        // Jídlo a pití: země původu
+        for (const food of byKind.get('food') || []) { const country = node(food.country); if (country && fromCountry(country.name)) pair('foodCountry', 'countryFood', food, country); }
         // Kdo má dílo se stejným názvem (Requiem, Carmen): u otázky na autora ho nejde nabídnout jako nesprávnou možnost
         const titlesBy = new Map();
         for (const kind of ['music', 'book', 'artwork', 'film', 'character']) {
@@ -979,11 +1108,17 @@
     const gamesLocative = (name) => (/^Letní olympijské hry \d{4}$/.test(name) ? name.replace(/^Letní olympijské hry/, 'na Letních olympijských hrách')
         : /^Zimní olympijské hry \d{4}$/.test(name) ? name.replace(/^Zimní olympijské hry/, 'na Zimních olympijských hrách') : '');
     const FEMALE_LABEL = { composer: 'skladatelka', musician: 'hudebnice', writer: 'spisovatelka', artist: 'výtvarnice', architect: 'architektka', director: 'režisérka', actor: 'herečka',
-        athlete: 'sportovkyně', ruler: 'panovnice', statesman: 'státnice', figure: 'osobnost', physicist: 'fyzička', astronomer: 'astronomka', chemist: 'chemička' };
+        athlete: 'sportovkyně', ruler: 'panovnice', statesman: 'státnice', figure: 'osobnost', physicist: 'fyzička', astronomer: 'astronomka', chemist: 'chemička',
+        inventor: 'vynálezkyně', chef: 'kuchařka' };
     const personRole = (node) => (node.role && node.role !== KIND_LABEL[node.kind] ? node.role : node.sex === 'f' ? FEMALE_LABEL[node.kind] || 'osobnost' : KIND_LABEL[node.kind] || 'osobnost');
     // Stavba v otázce: „stavba Allianz Arena“, ale jen „Katedrála svatého Izáka“ (název už říká, co je zač)
     const buildingName = (node) => (BUILDING_WORDS.test(norm(node.name)) ? node.name : `stavba ${node.name}`);
     const politics = (node) => node.kind === 'ruler' || node.kind === 'statesman';
+    // Výrobek a technická stavba v otázce: „herní konzole Wii“, ale jen „Letiště JFK“ a „Černobylská jaderná elektrárna“ (název druh už má)
+    const productSubject = (node) => {
+        const type = norm(node.typeWord || '');
+        return !type || ` ${norm(node.name)} `.includes(` ${type.split(' ').pop()} `) ? node.name : `${node.typeWord} ${node.name}`;
+    };
     // rel = { id, from: druhy, to: druhy, ask(a, b, graph): [znění otázky], explain(a, b, graph): věta po odpovědi, pool(b, graph): kandidáti na nesprávné
     // možnosti, fits(a, x, graph): x vazbu splňuje (nebo by mohl) – nesmí být nesprávnou možností, photo: false = fotka předchozí odpovědi by
     // mohla odpověď ukázat (fotka města se stavbou, obal alba se jménem kapely, hráč v dresu klubu), key(b, a): podskupina kandidátů }
@@ -1210,7 +1345,44 @@
         { id: 'speciesEndemic', from: ['species'], to: ['country'], ask: (a) => [`Ve kterém státě žije ${low(a.name)} ve volné přírodě a nikde jinde?`],
             explain: (a, b) => `${a.name} žije ve volné přírodě jen ${inCountry(b.name)}.`, pool: (b, graph) => kindOf(graph, 'country'), fits: (a, x) => x.id === a.endemic },
         { id: 'endemicSpecies', from: ['country'], to: ['species'], ask: (a) => [`Který z těchto druhů žije ve volné přírodě jen ${inCountry(a.name)}?`],
-            explain: (a, b) => `${b.name} žije ve volné přírodě jen ${inCountry(a.name)}.`, pool: (b, graph) => kindOf(graph, 'species'), fits: (a, x) => x.endemic === a.id }
+            explain: (a, b) => `${b.name} žije ve volné přírodě jen ${inCountry(a.name)}.`, pool: (b, graph) => kindOf(graph, 'species'), fits: (a, x) => x.endemic === a.id },
+        // Technika a Jídlo (od TOPICS_FROM; since: jejich „chuť“ v hledání nebere číslo z náhody dne, ať starší dny vyjdou stejně)
+        { id: 'companyCountry', since: TOPICS_FROM, from: ['company'], to: ['country'], ask: (a) => [`Ze které země pochází ${a.typeWord} ${a.name}?`, `Ve které zemi vznikla ${a.typeWord} ${a.name}?`],
+            explain: (a, b) => `${cap(a.typeWord)} ${a.name} pochází ${fromWord(b)}${yearNote(a.year)}.`, pool: (b, graph) => kindOf(graph, 'country'), fits: (a, x) => x.id === a.country || (a.nations || []).includes(x.name) },
+        { id: 'countryCompany', since: TOPICS_FROM, from: ['country'], to: ['company'], ask: (a, b) => [`Která z těchto ${b.group === 'auta' ? 'automobilek' : 'firem'} pochází ${fromCountry(a.name)}?`],
+            explain: (a, b) => `${cap(b.typeWord)} ${b.name} pochází ${fromWord(a)}.`, pool: (b, graph) => kindOf(graph, 'company').filter(x => x.country), key: (b) => b.group,
+            fits: (a, x) => x.country === a.id || (x.nations || []).includes(a.name) || revealsCountry(x.name, a.name) },
+        // (zaniklá firma – Laurin & Klement – v minulém čase)
+        { id: 'companyCity', since: TOPICS_FROM, from: ['company'], to: ['city'],
+            ask: (a) => (a.gone ? [`Ve kterém městě sídlila ${a.typeWord} ${a.name}?`, `Kde měla ${a.typeWord} ${a.name} své sídlo?`] : [`Ve kterém městě sídlí ${a.typeWord} ${a.name}?`, `Kde má ${a.typeWord} ${a.name} své sídlo?`]),
+            explain: (a, b) => `${cap(a.typeWord)} ${a.name} ${a.gone ? 'sídlila' : 'sídlí'} ve městě ${b.name}.`, pool: (b, graph) => kindOf(graph, 'city'), fits: (a, x) => x.id === a.city || norm(x.name) === norm(a.hqName) },
+        { id: 'cityCompany', since: TOPICS_FROM, from: ['city'], to: ['company'], ask: (a, b) => [`Která z těchto ${b.group === 'auta' ? 'automobilek' : 'firem'} ${b.gone ? 'sídlila' : 'sídlí'} ve městě ${a.name}?`],
+            explain: (a, b) => `${cap(b.typeWord)} ${b.name} ${b.gone ? 'sídlila' : 'sídlí'} ve městě ${a.name}.`, pool: (b, graph) => kindOf(graph, 'company'), key: (b) => b.group,
+            // Firma bez známého sídla smí být nesprávnou možností jen z jiného státu
+            fits: (a, x) => x.city === a.id || norm(x.hqName) === norm(a.name) || (!x.city && x.country === a.country) || revealsCity(x.name, a.name) },
+        { id: 'companyFounder', since: TOPICS_FROM, from: ['company'], to: [...PERSON_KINDS], ask: (a) => [`Kdo stál u zrodu ${a.typeWord === 'automobilka' ? 'automobilky' : 'firmy'} ${a.name}?`, `Kdo z nich stál u vzniku ${a.typeWord === 'automobilka' ? 'automobilky' : 'firmy'} ${a.name}?`],
+            explain: (a, b) => `${b.name} stál${she(b)} u zrodu ${a.typeWord === 'automobilka' ? 'automobilky' : 'firmy'} ${a.name}${yearNote(a.year)}.`, pool: (b, graph) => kindOf(graph, b.kind),
+            fits: (a, x) => (a.founderIds || []).includes(x.id) || a.founderNames.some(name => norm(name) === norm(x.name)) || reveals(a.name, surname(x.name)) },
+        { id: 'founderCompany', since: TOPICS_FROM, from: [...PERSON_KINDS], to: ['company'], ask: (a) => [`U zrodu které z těchto firem stál${she(a)} ${a.name}?`],
+            explain: (a, b) => `${a.name} stál${she(a)} u zrodu ${b.typeWord === 'automobilka' ? 'automobilky' : 'firmy'} ${b.name}${yearNote(b.year)}.`, pool: (b, graph) => kindOf(graph, 'company').filter(x => (x.founderIds || []).length),
+            fits: (a, x) => (x.founderIds || []).includes(a.id) || x.founderNames.some(name => norm(name) === norm(a.name)) || reveals(x.name, surname(a.name)) },
+        // Fotka výrobku často ukáže logo výrobce (photo: false)
+        { id: 'productMaker', since: TOPICS_FROM, from: ['product'], to: ['company'], photo: false, ask: (a) => [`Od které firmy je ${productSubject(a)}?`, `Pod kterou firmu patří ${productSubject(a)}?`],
+            explain: (a, b) => `${cap(productSubject(a))} je od firmy ${b.name}${yearNote(a.year)}.`, pool: (b, graph) => kindOf(graph, 'company'),
+            fits: (a, x) => x.id === a.maker || norm(x.name) === norm(a.makerName) || reveals(a.name, x.name) },
+        { id: 'makerProduct', since: TOPICS_FROM, from: ['company'], to: ['product'], ask: (a) => [`Který z těchto výrobků je od firmy ${a.name}?`],
+            explain: (a, b) => `${cap(productSubject(b))} je od firmy ${a.name}.`, pool: (b, graph) => kindOf(graph, 'product'), key: (b) => b.group,
+            fits: (a, x) => x.maker === a.id || norm(x.makerName) === norm(a.name) || reveals(x.name, a.name) },
+        { id: 'facilityCountry', since: TOPICS_FROM, from: ['facility'], to: ['country'], ask: (a) => [`Ve kterém státě je ${productSubject(a)}?`, `Ve které zemi stojí ${productSubject(a)}?`],
+            explain: (a, b) => `${cap(productSubject(a))} je ${inCountry(b.name)}.`, pool: (b, graph) => kindOf(graph, 'country'), fits: (a, x) => x.id === a.country },
+        { id: 'countryFacility', since: TOPICS_FROM, from: ['country'], to: ['facility'], ask: (a, b) => [`Které z těchto ${FACILITY_MANY[b.group]} je ${inCountry(a.name)}?`],
+            explain: (a, b) => `${cap(productSubject(b))} je ${inCountry(a.name)}.`, pool: (b, graph) => kindOf(graph, 'facility').filter(x => x.country), key: (b) => b.group,
+            fits: (a, x) => x.country === a.id || revealsCountry(x.name, a.name) },
+        { id: 'foodCountry', since: TOPICS_FROM, from: ['food'], to: ['country'], ask: (a) => [`Ze které země pochází ${a.typeWord} ${a.name}?`, `Odkud pochází ${a.typeWord} ${a.name}?`],
+            explain: (a, b) => `${cap(a.typeWord)} ${a.name} pochází ${fromWord(b)}.`, pool: (b, graph) => kindOf(graph, 'country'), fits: (a, x) => x.id === a.country || (a.nations || []).includes(x.name) },
+        { id: 'countryFood', since: TOPICS_FROM, from: ['country'], to: ['food'], ask: (a, b) => [`${FOOD_GROUPS[b.group][1]} pochází ${fromCountry(a.name)}?`],
+            explain: (a, b) => `${cap(b.typeWord)} ${b.name} pochází ${fromWord(a)}.`, pool: (b, graph) => kindOf(graph, 'food'), key: (b) => b.group,
+            fits: (a, x) => x.country === a.id || (x.nations || []).includes(a.name) || revealsCountry(x.name, a.name) }
     ];
     const RELATION_BY_ID = new Map(RELATIONS.map(rel => [rel.id, rel]));
     const RELATIONS_FROM = new Map();
@@ -1410,23 +1582,31 @@
     const FAME_LIMIT = { country: 0.75, city: 0.32, region: 0.2, landmark: 0.3, peak: 0.3, range: 0.3, river: 0.3, lake: 0.35, island: 0.3, composer: 0.5, musician: 0.3, writer: 0.3, artist: 0.35,
         architect: 0.35, director: 0.45, actor: 0.35, athlete: 0.25, band: 0.35, music: 0.4, book: 0.35, artwork: 0.45, film: 0.25, club: 0.4, games: 0.6, character: 0.6, stadium: 0.35,
         ruler: 0.3, statesman: 0.3, figure: 0.25, realm: 0.45, physicist: 0.35, astronomer: 0.35, chemist: 0.35, element: 0.6, planet: 1, moon: 0.8, body: 0.6, invention: 0.7, myth: 0.35,
-        gem: 0.7, mineral: 0.5, period: 0.8, breed: 0.45, species: 0.5, style: 0.9, movement: 0.7 };
+        gem: 0.7, mineral: 0.5, period: 0.8, breed: 0.45, species: 0.5, style: 0.9, movement: 0.7, inventor: 0.4, chef: 0.35, company: 0.45, product: 0.5, facility: 0.4, food: 0.4 };
     const famousEnough = (node, step, scale) => node.fame <= Math.min(0.95, (FAME_LIMIT[node.kind] || 0.3) * scale * (step <= 2 ? 0.8 : 1));
     // Kolikrát smí být druh uzlu v řetězu: stát nejvýš jednou, město dvakrát (zeměpisné skoky jsou nejvýš dva), skupinové uzly (sloh, směr,
     // olympiáda, historický stát, stadion) jednou
     const KIND_MAX = { country: 1, city: 2, region: 1, landmark: 2, artwork: 1, style: 1, movement: 1, games: 1, realm: 1, stadium: 1, period: 2 };
     const MAX_GEO = 2;
     // Obory, kterých je v grafu málo vazeb (mytologie, příroda, literatura, věda), dostanou při výběru přednost, stavby a slohy (vazeb nejvíc) méně
-    const DOMAIN_BOOST = { architektura: -0.9, zemepis: 0, hudba: 0.3, literatura: 0.6, umeni: 0, film: 0.3, sport: 0, historie: 0.3, veda: 0.5, priroda: 0.6, mytologie: 0.8 };
+    const DOMAIN_BOOST = { architektura: -0.9, zemepis: 0, hudba: 0.3, literatura: 0.6, umeni: 0, film: 0.3, sport: 0, historie: 0.3, veda: 0.5, priroda: 0.6, mytologie: 0.8, technika: 0.5, jidlo: 1.2 };
     // Vazby ze stejné skupiny jen jednou v řetězu (obraz → muzeum → město zapadá do sebe nejsnáz; země původu u osobností a plemen)
     const REL_GROUP = { artMuseum: 'museum', museumArt: 'museum', personCountry: 'origin', countryPerson: 'origin', breedCountry: 'origin', countryBreed: 'origin',
         landmarkCountry: 'where', countryLandmark: 'where', clubCountry: 'where', countryClub: 'where', gamesCountry: 'where', countryGames: 'where', natureCountry: 'where', countryNature: 'where',
         personBorn: 'born', cityBorn: 'born', personDied: 'died', cityDied: 'died', teacherOf: 'teacher', studentOf: 'teacher', successor: 'succession', predecessor: 'succession',
-        spouse: 'family', parentOf: 'family', childOf: 'family', artDepicts: 'depicts', depictedIn: 'depicts', athleteClub: 'team', clubAthlete: 'team' };
+        spouse: 'family', parentOf: 'family', childOf: 'family', artDepicts: 'depicts', depictedIn: 'depicts', athleteClub: 'team', clubAthlete: 'team',
+        companyCountry: 'made', countryCompany: 'made', foodCountry: 'made', countryFood: 'made', facilityCountry: 'made', countryFacility: 'made' };
     // Začátek řetězu: slavná stavba, dílo, osobnost, těleso… (začátek se jen ukáže, otázka na něj není); začátky se po dnech střídají po oborech
-    const START_GROUPS = [['landmark'], ['music', 'band', 'composer', 'musician'], ['book', 'writer', 'character'], ['artwork', 'artist'], ['film', 'director', 'actor'],
+    // (dny před TOPICS_FROM se střídají po deseti skupinách START_GROUPS_V2, od TOPICS_FROM přibude technika a jídlo)
+    const START_GROUPS_V2 = [['landmark'], ['music', 'band', 'composer', 'musician'], ['book', 'writer', 'character'], ['artwork', 'artist'], ['film', 'director', 'actor'],
         ['club', 'athlete', 'games', 'stadium'], ['ruler', 'statesman', 'realm', 'figure'], ['element', 'chemist', 'physicist', 'astronomer', 'planet', 'moon', 'invention'],
         ['myth'], ['peak', 'river', 'range', 'island', 'lake', 'breed', 'gem', 'species']];
+    // (jedna skupina navíc: 11 skupin se nepotká s osmidenním a třídenním střídáním rozcestníků, takže se den skupiny nepotká se stejným
+    // „rozvrhem“ rozcestníků a řetěz se neopakuje)
+    const START_GROUPS = [...START_GROUPS_V2, ['company', 'product', 'inventor', 'facility', 'food', 'chef']];
+    // Jídlo, kuchař a technická stavba mají jen vazbu na stát (jinou data nemají): začínají řetěz otázkou na zemi původu, jinak by mohly být
+    // jen jeho posledním článkem
+    const ONE_LINK_STARTS = new Set(['food', 'chef', 'facility']);
     const START_KINDS = START_GROUPS.flat();
     const edgesFrom = (graph, node) => (RELATIONS_FROM.get(node.kind) || [])
         .flatMap(rel => (graph.edges.get(rel.id).get(node.id) || []).map(to => ({ rel: rel.id, to: graph.nodes.get(to) })));
@@ -1471,14 +1651,18 @@
             if (period) return rules.hubs === 'strict' || (rules.hubs === 'loose' && (node.degree || 0) >= 12) ? slot(node, period, 'hub') === 0 : true;
             return !rules.rest || (node.degree || 0) < 2 || slot(node, 3, 'rest') !== 0;
         };
-        const startOk = (node) => dn === null || rules.start <= 1 || slot(node, rules.start, 'start') === 0;
+        // (jídlo, kuchař a technická stavba začínají jen ve dni své skupiny – starts – a jen se státem, který je ten den k dispozici: stačí
+        // jim tedy každý čtvrtý den místo jednoho z rules.start)
+        const startOk = (node) => dn === null || rules.start <= 1 || slot(node, ONE_LINK_STARTS.has(node.kind) ? Math.min(4, rules.start) : rules.start, 'start') === 0;
         // Chuť řetězu: každý řetěz má jiné oblíbené vazby (jeden den víc staveb, jiný víc hudby), ať se dny neopakují
-        const taste = new Map(RELATIONS.map(rel => [rel.id, rng()]));
-        const groupIndex = dn === null ? hash32(`${seed}|skupina`) % START_GROUPS.length : ((dn % START_GROUPS.length) + START_GROUPS.length) % START_GROUPS.length;
-        const group = START_GROUPS[groupIndex];
+        // (vazby přidané později – since – berou chuť ze semínka mimo náhodu dne, ať se pořadí náhody u starších dnů nezmění)
+        const taste = new Map(RELATIONS.map(rel => [rel.id, rel.since ? hash32(`${seed}|chut|${rel.id}`) / 4294967296 : rng()]));
+        const startGroups = newTopicsDay(day) ? START_GROUPS : START_GROUPS_V2;
+        const groupIndex = dn === null ? hash32(`${seed}|skupina`) % startGroups.length : ((dn % startGroups.length) + startGroups.length) % startGroups.length;
+        const group = startGroups[groupIndex];
         const startable = (kind) => kindOf(graph, kind).filter(node => !node.shared && available(node) && startOk(node) && node.fame <= (FAME_LIMIT[node.kind] || 0.3) * (practice ? 1 : 0.9) * rules.fame
-            && edgesFrom(graph, node).length >= 2);
-        const starts = [...shuffle(group.flatMap(startable), rng).slice(0, 30), ...shuffle(START_KINDS.filter(kind => !group.includes(kind)).flatMap(startable), rng)];
+            && edgesFrom(graph, node).length >= (ONE_LINK_STARTS.has(node.kind) ? 1 : 2));
+        const starts = [...shuffle(group.flatMap(startable), rng).slice(0, 30), ...shuffle(START_KINDS.filter(kind => !group.includes(kind) && !ONE_LINK_STARTS.has(kind)).flatMap(startable), rng)];
         let left = budget;
         const questions = [];
         const used = new Set();
@@ -1544,7 +1728,9 @@
                     const weight = rng() + 1.2 * taste.get(rel.id) + 1.4 * hash32(`${seed}|${to.id}`) / 4294967296 + (DOMAIN_BOOST[domain] || 0)
                         + ((domains.get(domain) || 0) ? -1.5 * (domains.get(domain) || 0) : 1.4) + ((kinds.get(to.kind) || 0) ? -0.3 : 0.3) - 0.6 * to.fame - (isGeo ? 0.9 : 0) - (!isGeo && isHub(to) ? 0.4 : 0)
                         // Řetěz dne: každý uzel má „svůj“ den ze tří, jinak ustoupí (ať se oblíbené mosty jako Stará národní galerie neopakují)
-                        - (dn !== null && slot(to, 3, 'fresh') !== 0 ? 1.2 : 0);
+                        - (dn !== null && slot(to, 3, 'fresh') !== 0 ? 1.2 : 0)
+                        // Jídlo, kuchař a technická stavba dál nevedou (jen zpět na stát): přednost mají jako poslední článek, jinde ustoupí
+                        + (ONE_LINK_STARTS.has(to.kind) ? (step === links ? 1.5 : -1) : 0);
                     candidates.push({ rel: rel.id, to, domain, isGeo, weight });
                 }
             }
@@ -1845,7 +2031,8 @@
         music: 'music-2', book: 'book-open', artwork: 'frame', film: 'film', club: 'shield', games: 'trophy', character: 'user-round',
         region: 'map', actor: 'drama', ruler: 'crown', statesman: 'landmark', figure: 'scroll', physicist: 'atom', astronomer: 'telescope', chemist: 'flask-conical',
         stadium: 'trophy', realm: 'castle', element: 'flask-conical', planet: 'orbit', moon: 'moon', body: 'star', invention: 'lightbulb', myth: 'sparkles', gem: 'gem',
-        mineral: 'pickaxe', period: 'hourglass', breed: 'paw-print', species: 'leaf', style: 'building', movement: 'palette'
+        mineral: 'pickaxe', period: 'hourglass', breed: 'paw-print', species: 'leaf', style: 'building', movement: 'palette',
+        inventor: 'cog', company: 'factory', product: 'cpu', facility: 'plane', food: 'utensils', chef: 'chef-hat'
     };
     const iconFor = (kind) => KIND_ICON[kind] || 'sparkles';
 
@@ -2210,22 +2397,27 @@
         // Graf ze všech témat řetězu a vazeb z Wikidat (data/retezovka.json); načte se jednou za spuštění aplikace. Všechno musí být k dispozici,
         // jinak by řetěz dne vyšel jinak než ostatním (bez dat se Řetězovka nenačte, jako když chybí téma). Položky se berou tak, jak byly
         // ve hraný den (core.itemsAsOf: změna úrovní známosti platí od svého dne), takže graf je jeden na každou takovou verzi dat.
+        // Témata podle dne (sourcesFor: dny před TOPICS_FROM bez Techniky a Jídla)
         let sourcesPromise = null;
         const graphs = new Map();
         const listIds = typeof WeakMap === 'function' ? new WeakMap() : null;
         let nextListId = 0;
         const listId = (list) => { if (!listIds) return 0; if (!listIds.has(list)) listIds.set(list, ++nextListId); return listIds.get(list); };
         const graph = (day = today()) => {
-            if (!sourcesPromise) {
-                sourcesPromise = Promise.all([Promise.all(SOURCES.map(id => deps.loadTopic(id))), deps.loadCountries(), deps.loadExtra ? deps.loadExtra() : null])
-                    .catch(error => { sourcesPromise = null; throw error; });
+            const topics = sourcesFor(day);
+            if (!sourcesPromise || sourcesPromise.topics.length < topics.length) {
+                const promise = Promise.all([Promise.all(topics.map(id => deps.loadTopic(id))), deps.loadCountries(), deps.loadExtra ? deps.loadExtra() : null])
+                    .catch(error => { if (sourcesPromise === promise) sourcesPromise = null; throw error; });
+                promise.topics = topics;
+                sourcesPromise = promise;
             }
-            return sourcesPromise.then(([contexts, countries, extra]) => {
+            return sourcesPromise.then(([loaded, countries, extra]) => {
+                const contexts = loaded.slice(0, topics.length);
                 const lists = contexts.map(ctx => (core.itemsAsOf ? core.itemsAsOf(ctx.items, day) : ctx.items));
-                const key = lists.map(listId).join(',');
+                const key = `${topics.length}:${lists.map(listId).join(',')}`;
                 if (!graphs.has(key)) {
                     const started = perfNow();
-                    graphs.set(key, buildGraph(Object.fromEntries(lists.map((items, i) => [SOURCES[i], items])), countries, extra));
+                    graphs.set(key, buildGraph(Object.fromEntries(lists.map((items, i) => [topics[i], items])), countries, extra));
                     perfSpan('graf', started);
                 }
                 return graphs.get(key);
@@ -2738,7 +2930,7 @@
         MAX_GEO, KIND_MAX, LEVELS, isHub, hubPeriod, containersOf, domainOf,
         isDay, addDays, pragueDay, formatDay, pointsWord, linksWord, playersWord, hash32, seededRandom, shuffle, seedFor,
         fromCountry, inCountry, ofCountry, nationalitiesIn, buildGraph, buildQuestion, buildRescue, rescueOptions, pickDistractors, generate, dailyChain, practiceChain, edgesFrom, chainIds,
-        isLegacyDay, legacy, legacyDailyChain, frozenSources, LEGACY_FREEZE_FILE, subjectText, maskShare,
+        isLegacyDay, legacy, legacyDailyChain, SOURCES_V2, TOPICS_FROM, sourcesFor, START_GROUPS_V2, frozenSources, LEGACY_FREEZE_FILE, subjectText, maskShare,
         newAttempt, nextLink, summaryOf, validSummary, currentAsk, answer, useRescue, giveUp, xpFor, shareGrid, shareText, poseFor, cardInput, parseState, cleanAttempt, cleanChain,
         BADGE_GROUPS, badgeCounts,
         iconFor, linkSvg, stripStates, homeTile, introHtml, loadingHtml, pathHtml, playHtml, cardHtml, subjectHtml, decideHtml, brokenHtml, resultHtml, statsHtml, stepHtml, rankingHtml,
