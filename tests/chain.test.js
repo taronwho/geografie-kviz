@@ -1,8 +1,9 @@
-// Řetězovka (chain.js): graf vazeb ze skutečných dat 14 témat a vazeb z Wikidat, řetězy dne na 60 dní (stejné pro všechny, správné vazby,
+// Řetězovka (chain.js): graf vazeb ze skutečných dat 16 témat (od TOPICS_FROM i Technika a Jídlo) a vazeb z Wikidat, řetězy dne na 60 dní
+// od TOPICS_FROM (stejné pro všechny, správné vazby,
 // nesprávné možnosti stejného druhu, které vazbu nesplňují a nejsou si podobné jménem, záchrana na každý článek), žádné odpovědi zadarmo
 // (co plyne z dřívějších článků, návrat k uzlu, odpověď mezi možnostmi nebo v textu dřívější otázky), nejvýš dva zeměpisné skoky a nikdy
 // dva po sobě, střídání oborů, rozcestníky se do týdne neopakují, původní generátor pro dny před NEW_FROM beze změny (snímek
-// tests/chain-legacy-snapshot.json), zakrytí úvodu z Wikipedie, hra (body, Záchrana, přetržení), uložený stav, sdílení, dlaždice
+// tests/chain-legacy-snapshot.json), dny NEW_FROM až TOPICS_FROM ze 14 témat beze změny (snímek tests/chain-v2-snapshot.json), zakrytí úvodu z Wikipedie, hra (body, Záchrana, přetržení), uložený stav, sdílení, dlaždice
 // a vykreslení bez inline stylů. Česká slova států (z Francie, ve Francii) a soubory aplikace.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -20,7 +21,7 @@ const extra = JSON.parse(read(Chain.EXTRA_FILE));
 const started = Date.now();
 const graph = Chain.buildGraph(sources, countries, extra);
 const graphMs = Date.now() - started;
-const DAYS = Array.from({ length: 60 }, (_, i) => Chain.addDays(Chain.NEW_FROM, i));
+const DAYS = Array.from({ length: 60 }, (_, i) => Chain.addDays(Chain.TOPICS_FROM, i));
 const chains = new Map();
 const chainFor = (day) => {
     if (!chains.has(day)) chains.set(day, Chain.dailyChain(graph, day));
@@ -32,12 +33,13 @@ const linked = (rel, a, x) => (graph.edges.get(rel).get(a) || []).includes(x);
 const fits = (relId, a, x) => Chain.RELATION_BY_ID.get(relId).fits(node(a), node(x), graph);
 const nodesOf = (chain) => [chain.start.id, ...chain.questions.map(question => question.to.id)];
 const plain = (text) => ` ${core.normalizeAnswer(text)} `;
-const PERSON_KINDS = new Set(['composer', 'musician', 'writer', 'artist', 'architect', 'director', 'actor', 'athlete', 'ruler', 'statesman', 'figure', 'physicist', 'astronomer', 'chemist']);
+const PERSON_KINDS = new Set(['composer', 'musician', 'writer', 'artist', 'architect', 'director', 'actor', 'athlete', 'ruler', 'statesman', 'figure', 'physicist', 'astronomer', 'chemist', 'inventor', 'chef']);
 
 test('graf: všechny druhy uzlů a vazeb ze skutečných dat i z Wikidat, rychle', () => {
     assert.ok(graphMs < 12000, `graf za ${graphMs} ms`);
     for (const kind of ['country', 'city', 'landmark', 'peak', 'river', 'composer', 'writer', 'artist', 'architect', 'band', 'music', 'book', 'artwork', 'film', 'club', 'games',
-        'actor', 'ruler', 'statesman', 'physicist', 'chemist', 'realm', 'element', 'moon', 'myth', 'gem', 'breed', 'style', 'movement', 'stadium', 'region']) {
+        'actor', 'ruler', 'statesman', 'physicist', 'chemist', 'realm', 'element', 'moon', 'myth', 'gem', 'breed', 'style', 'movement', 'stadium', 'region',
+        'inventor', 'chef', 'company', 'product', 'facility', 'food']) {
         assert.ok((graph.byKind.get(kind) || []).length >= 10, `druh ${kind}`);
     }
     for (const rel of Chain.RELATIONS) assert.ok(graph.edges.get(rel.id).size > 0, `vazba ${rel.id}`);
@@ -69,6 +71,71 @@ test('graf: všechny druhy uzlů a vazeb ze skutečných dat i z Wikidat, rychle
     assert.ok(!(graph.byKind.get('breed') || []).some(entry => entry.name === 'Německý ovčák'), 'plemeno s národností v názvu');
     // Stejně pojmenovaná místa (Birmingham, Pantheon) nejsou v řetězu ani mezi možnostmi
     for (const entry of graph.nodes.values()) if (entry.shared) assert.equal((graph.incoming.get(entry.id) || []).length, 0, entry.name);
+});
+
+test('Technika a Jídlo (od TOPICS_FROM): vynálezci, firmy, výrobky, technické stavby a jídla s vazbami, které dávají smysl a nic neprozradí', () => {
+    const byName = (kind, name) => (graph.byKind.get(kind) || []).find(entry => entry.name === name);
+    const to = (rel, id) => (graph.edges.get(rel).get(id) || []).map(target => node(target).name);
+    // Vynálezce z Techniky k vynálezu z Fyziky (Žárovka: Edison) i z vlastních děl; vynálezci a kuchaři jsou osobnosti se zemí původu
+    assert.ok(linked('inventionInventor', byName('invention', 'Žárovka').id, byName('inventor', 'Thomas Alva Edison').id));
+    assert.ok(linked('inventionInventor', byName('invention', 'Vznětový motor').id, byName('inventor', 'Rudolf Diesel').id));
+    assert.ok(linked('personCountry', byName('inventor', 'Otto Wichterle').id, byName('country', 'Česko').id));
+    assert.ok(linked('countryPerson', byName('country', 'Spojené království').id, byName('chef', 'Gordon Ramsay').id));
+    // Firmy: stát, sídlo, kdo stál u zrodu (zakladatelé z dat i vynálezci, kteří firmu mají mezi díly), výrobky
+    assert.ok(linked('companyFounder', byName('company', 'Apple').id, byName('inventor', 'Steve Jobs').id));
+    assert.ok(linked('companyFounder', byName('company', 'Apple').id, byName('inventor', 'Steve Wozniak').id));
+    assert.ok(linked('companyCity', byName('company', 'BMW Group').id, byName('city', 'Mnichov').id));
+    assert.ok(linked('companyCountry', byName('company', 'Nokia').id, byName('country', 'Finsko').id));
+    assert.ok(linked('productMaker', byName('product', 'Wii').id, byName('company', 'Nintendo').id));
+    assert.ok(Chain.RELATION_BY_ID.get('productMaker').photo === false, 'fotka výrobku by ukázala logo');
+    // Název, který výrobce nebo zakladatele prozradí, vazbu nemá (Škoda Octavia, Airbus A380, Citroën DS od Peugeotu, Enzo Ferrari – Ferrari)
+    for (const name of ['Škoda Octavia', 'Airbus A380', 'Citroën DS', 'Tesla Model 3', 'VAZ 2101/2102']) assert.equal(byName('product', name), undefined, name);
+    assert.ok(!to('companyFounder', byName('company', 'Ferrari').id).includes('Enzo Ferrari'));
+    assert.ok(!to('companyFounder', byName('company', 'Cadillac').id).includes('Henry Ford'), 'chyták: Cadillac vznikl z firmy, kterou Ford opustil');
+    // Evropská firma nemá jednu zemi; technická stavba, jejíž název prozradí město, nemá vazbu na stát (Metro v Praze, Letiště Vídeň)
+    assert.deepEqual(to('companyCountry', byName('company', 'Airbus').id), []);
+    assert.ok(linked('facilityCountry', byName('facility', 'Kosmodrom Bajkonur').id, byName('country', 'Kazachstán').id));
+    assert.deepEqual(to('facilityCountry', byName('facility', 'Letiště Vídeň').id), []);
+    assert.ok(!graph.byKind.get('facility').some(entry => /^Metro/.test(entry.name)), 'metra ne');
+    // Jídla: země potvrzená popisem, kuchyní nebo skupinou; sporný původ a název, který zemi či její město prozradí, nemají vazbu
+    assert.ok(linked('foodCountry', byName('food', 'Feta').id, byName('country', 'Řecko').id));
+    assert.ok(linked('foodCountry', byName('food', 'Parmezán').id, byName('country', 'Itálie').id), 'italské sýry (skupina)');
+    assert.ok(linked('countryFood', byName('country', 'Česko').id, byName('food', 'Svíčková na smetaně').id));
+    for (const name of ['Řízek', 'Slivovice', 'Hořčice', 'Vídeňský řízek', 'Řecký salát', 'Knedlík', 'Olomoucké tvarůžky', 'Jablko', 'Pepř']) assert.equal(byName('food', name), undefined, name);
+    assert.ok(graph.byKind.get('food').every(entry => !/y$/.test(entry.typeWord)), 'druh jídla v jednotném čísle');
+    // Otázky nových vazeb: věta s otazníkem, druh jen jednou („Černobylská jaderná elektrárna“, ne „jaderná elektrárna Černobylská…“)
+    const ask = (rel, a, b) => Chain.RELATION_BY_ID.get(rel).ask(byName(...a), byName(...b), graph);
+    assert.deepEqual(ask('facilityCountry', ['facility', 'Černobylská jaderná elektrárna'], ['country', 'Ukrajina']), ['Ve kterém státě je Černobylská jaderná elektrárna?', 'Ve které zemi stojí Černobylská jaderná elektrárna?']);
+    assert.equal(ask('productMaker', ['product', 'Wii'], ['company', 'Nintendo'])[0], 'Od které firmy je herní konzole Wii?');
+    assert.equal(ask('countryFood', ['country', 'Itálie'], ['food', 'Feta'])[0], 'Který z těchto sýrů pochází z Itálie?');
+    assert.equal(ask('foodCountry', ['food', 'Gorgonzola'], ['country', 'Itálie'])[0], 'Ze které země pochází plísňový sýr Gorgonzola?');
+    // Nové druhy mají ikonu, obor a popisek
+    for (const kind of ['inventor', 'chef', 'company', 'product', 'facility', 'food']) {
+        assert.ok(Chain.KIND_LABEL[kind] && Chain.DOMAINS.includes(Chain.KIND_DOMAIN[kind]) && Chain.iconFor(kind) !== 'sparkles', kind);
+    }
+    // Za 60 dní se nová témata dostanou do řetězu dne aspoň v desetině dní a začne jimi aspoň jeden den
+    const fresh = DAYS.filter(day => nodesOf(chainFor(day)).some(id => ['technika', 'jidlo'].includes(node(id).topic)));
+    assert.ok(fresh.length >= DAYS.length / 10, `Technika a Jídlo v ${fresh.length} dnech`);
+    assert.ok(DAYS.some(day => ['technika', 'jidlo'].includes(node(chainFor(day).start.id).topic)), 'začátek z Techniky nebo Jídla');
+});
+
+test('dny před TOPICS_FROM (15.–27. 11.): graf jen ze 14 témat a řetěz dne beze změny (snímek), od TOPICS_FROM i Technika a Jídlo', () => {
+    const snapshot = JSON.parse(read('tests/chain-v2-snapshot.json'));
+    assert.equal(Chain.TOPICS_FROM, '2026-11-28');
+    assert.deepEqual(Chain.sourcesFor('2026-11-27'), Chain.SOURCES_V2);
+    assert.deepEqual(Chain.sourcesFor('2026-11-28'), [...Chain.SOURCES_V2, 'technika', 'jidlo']);
+    assert.deepEqual(Chain.sourcesFor(''), Chain.SOURCES, 'cvičná řetězovka ze všech témat');
+    assert.equal(Chain.START_GROUPS_V2.length, 10);
+    const days = Object.keys(snapshot.hashes);
+    assert.deepEqual(days, Array.from({ length: 13 }, (_, i) => Chain.addDays(Chain.NEW_FROM, i)));
+    for (const day of days) {
+        // Jako ovladač v aplikaci: témata a položky ke dni (core.itemsAsOf)
+        const daySources = Object.fromEntries(Chain.sourcesFor(day).map(topic => [topic, core.itemsAsOf(sources[topic], day)]));
+        const chain = Chain.dailyChain(Chain.buildGraph(daySources, countries, extra), day);
+        if (snapshot.full[day]) assert.deepEqual(JSON.parse(JSON.stringify(chain)), snapshot.full[day], day);
+        assert.equal(crypto.createHash('sha256').update(JSON.stringify(chain)).digest('hex'), snapshot.hashes[day], `${day}: řetěz dne se změnil`);
+        assert.ok(nodesOf(chain).every(id => !/^(inventor|chef|company|product|facility|food):/.test(id)), day);
+    }
 });
 
 // Ověření jednoho řetězu: správné vazby, možnosti, záchrana, odpovědi zadarmo, zeměpisné skoky a opakování
@@ -160,7 +227,7 @@ const checkChain = (chain, where0) => {
     return { domains: domains.size };
 };
 
-test('řetěz dne na 60 dní od NEW_FROM: stejný pro všechny, správné vazby, možnosti, záchrana, bez odpovědí zadarmo a s nejvýš dvěma zeměpisnými skoky', () => {
+test('řetěz dne na 60 dní od TOPICS_FROM: stejný pro všechny, správné vazby, možnosti, záchrana, bez odpovědí zadarmo a s nejvýš dvěma zeměpisnými skoky', () => {
     let domainSum = 0;
     for (const day of DAYS) {
         const begun = Date.now();

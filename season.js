@@ -364,7 +364,8 @@
 
     // Okno sezóny: hlavička (znak, stupeň, ukazatel, dny), případně nevyzvednuté odměny minulé sezóny, celá cesta 20 stupňů (5 × 4)
     // a pod ní popis zvoleného stupně. Dlaždice: zamčená (šedá, XP potřebné na stupeň), čeká (zlatá, svítí), vyzvednutá (co dala).
-    const pathHtml = (view, { selected = null, h = {} } = {}) => {
+    // notice: krátká poznámka pod kartou postupu (app.js: zkušební režim vývojáře, kdy XP sezóny nepřibývá), '' = žádná
+    const pathHtml = (view, { selected = null, h = {}, notice = '' } = {}) => {
         const { id, record, progress, daysLeft: left, current, pastPending, past, pastUntil } = view;
         // Co čeká na 10. stupni: druhý rámeček měsíce, dokud ho hráč nemá (view.midFrame; starší přehled bez něj = podle sezóny)
         const frame = 'midFrame' in view ? view.midFrame : undefined;
@@ -404,6 +405,7 @@
                     <p class="mt-0.5 flex items-baseline justify-between gap-2 text-[11px] font-bold leading-tight text-white/85"><span class="min-w-0 truncate">${progress.next ? `${formatXp(progress.into)} / ${formatXp(progress.needed)} XP do stupně ${progress.next}` : 'Cesta je hotová!'}</span><span class="shrink-0">${left === 1 ? 'poslední den' : `zbývá ${left} ${daysWord(left)}`}</span></p>
                 </div>
             </div>
+            ${notice ? `<p data-season-notice role="note" class="flex items-center gap-1.5 rounded-xl bg-amber-50 px-2 py-1 text-[11px] font-bold leading-snug text-amber-900 ring-1 ring-amber-300 dark:bg-amber-900/30 dark:text-amber-100 dark:ring-amber-700"><i data-lucide="flask-conical" class="h-3.5 w-3.5 shrink-0"></i><span class="min-w-0">${esc(notice)}</span></p>` : ''}
             ${past && pastPending.length ? `<button type="button" data-season-claim-past class="flex min-h-[2.5rem] items-center gap-2 rounded-2xl bg-gold-100 px-2.5 py-1.5 text-left text-[12px] font-black leading-snug text-gold-900 ring-2 ring-gold-400 dark:bg-gold-900/40 dark:text-gold-100">${emblemHtml(past.id, 'h-7 w-7', 'text-[1.1rem]')}<span class="min-w-0 flex-1">Sezóna ${esc(label(past.id))}: ${countText(pastPending.length)} vyzvedni do ${formatDay(pastUntil)}</span><i data-lucide="chevron-right" class="h-4 w-4 shrink-0"></i></button>` : ''}
             <ol class="grid grid-cols-5 gap-1.5" aria-label="Cesta odměn sezóny">${tiers}</ol>
             <p class="min-h-[2.1rem] text-[12px] font-semibold leading-snug text-slate-700 dark:text-slate-200" data-season-detail role="status"><b>Stupeň ${pick}:</b> ${esc(detail)}</p>

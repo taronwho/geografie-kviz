@@ -26,6 +26,8 @@ const REQUIRED_SCHEMA = Number(/const REQUIRED_SCHEMA = (\d+);/.exec(fs.readFile
 const TODAY = '2026-11-16';
 const NOON = new Date('2026-11-16T12:00:00+01:00');
 const LEGACY_DAY = '2026-11-14';
+// Den s Technikou a Jídlem (od chain.js TOPICS_FROM), jehož řetěz začíná jídlem: Pizza → Ze které země pochází pokrm Pizza?
+const FOOD_DAY = '2027-02-28';
 const SHOTS = process.env.CHAIN_SHOTS || process.env.SCREENSHOT_DIR || '';
 
 // Skutečné soubory aplikace a dat (řetěz se staví ze všech témat)
@@ -203,8 +205,8 @@ test('Řetězovka dne v prohlížeči', { skip: !chromium && 'Playwright není n
         await nextQuestion(tab, 1);
         const chain = (await store(tab)).attempt.chain;
         assert.equal(chain.questions.length, 7);
-        // Stejný řetěz jako v Node (stejná data, stejné semínko dne)
-        const sources = Object.fromEntries(Chain.SOURCES.map(topic => [topic, JSON.parse(fs.readFileSync(path.join(ROOT, 'data', `${topic}.json`), 'utf8')).items]));
+        // Stejný řetěz jako v Node (stejná data a témata dne – před TOPICS_FROM bez Techniky a Jídla –, stejné semínko dne)
+        const sources = Object.fromEntries(Chain.sourcesFor(TODAY).map(topic => [topic, JSON.parse(fs.readFileSync(path.join(ROOT, 'data', `${topic}.json`), 'utf8')).items]));
         const extra = JSON.parse(fs.readFileSync(path.join(ROOT, Chain.EXTRA_FILE), 'utf8'));
         const expected = Chain.dailyChain(Chain.buildGraph(sources, JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'countries.json'), 'utf8')).countries, extra), TODAY);
         assert.deepEqual(chain.questions.map(question => question.to.id), expected.questions.map(question => question.to.id));
@@ -441,6 +443,30 @@ test('Řetězovka dne v prohlížeči', { skip: !chromium && 'Playwright není n
         const chain = (await store(tab)).attempt.chain;
         assert.deepEqual(chain.questions.map(question => question.to.id), snapshot.full[LEGACY_DAY].questions.map(question => question.to.id));
         assert.equal(await tab.evaluate(() => Boolean(window.MudrlantChainLegacy)), true);
+        const ask = await answers(tab);
+        await choose(tab, ask.right);
+        await nextQuestion(tab, 2);
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    await t.test(`den s Technikou a Jídlem (${FOOD_DAY}): témata se načtou, stejný řetěz jako v Node, otázka na jídlo se vejde`, async () => {
+        const { context, tab, log } = await open(browser, { 'mudrlant.chain': JSON.stringify({ intro: true }) }, { now: new Date(`${FOOD_DAY}T12:00:00+01:00`) });
+        await openChain(tab);
+        await nextQuestion(tab, 1);
+        const chain = (await store(tab)).attempt.chain;
+        const sources = Object.fromEntries(Chain.sourcesFor(FOOD_DAY).map(topic => [topic, JSON.parse(fs.readFileSync(path.join(ROOT, 'data', `${topic}.json`), 'utf8')).items]));
+        const extra = JSON.parse(fs.readFileSync(path.join(ROOT, Chain.EXTRA_FILE), 'utf8'));
+        const expected = Chain.dailyChain(Chain.buildGraph(sources, JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'countries.json'), 'utf8')).countries, extra), FOOD_DAY);
+        assert.deepEqual(chain.questions.map(question => question.to.id), expected.questions.map(question => question.to.id));
+        // (začátek je z dat Jídla, další články i z Techniky: témata se načetla)
+        assert.equal(chain.start.topic, 'jidlo', 'řetěz začíná jídlem');
+        assert.match(chain.questions[0].text, /^Ze které země pochází|^Odkud pochází/);
+        assert.match(await compact(tab, '[data-chain-path]'), /Pizza/);
+        assert.equal(await tab.$$eval('[data-action="chain-choice"]', buttons => buttons.length), 4);
+        await fitsScreen(tab, 'otázka na jídlo');
+        await shot(tab, 'retezovka-jidlo-360x640-light');
         const ask = await answers(tab);
         await choose(tab, ask.right);
         await nextQuestion(tab, 2);
