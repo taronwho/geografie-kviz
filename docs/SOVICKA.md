@@ -39,7 +39,20 @@ Dospělá sova v Sovím lese už nic nepotřebuje (žádná péče navíc), ale 
 | **Odpočinek** | 🌙 | Zhasnout lampičku (uspat) – sova je noční, spí přes den | ospalá, zívá |
 
 - Každá potřeba je 0–100 a **klesá jen po dnech**, ne po hodinách (výpočet z časových razítek, funguje offline).
-- **Zdraví** se nepočítá zvlášť – je to souhrn: když jsou potřeby dlouho nízko, sovička onemocní (teploměr, šála), a pak pomůže jen **lék** (běžný předmět, nikdy vzácný – nemoc nesmí být past).
+- **Zdraví** se nepočítá zvlášť: když je některá potřeba dlouho nízko, sovička onemocní **nemocí, která k té potřebě patří**,
+  a pomůže jen **správný lék** (běžný předmět, nikdy vzácný – nemoc nesmí být past). Vztah nemoc ↔ příčina ↔ lék je pevný a vidět
+  (předvídatelnost):
+
+| Nemoc | Příčina (dlouho nízko) | Jak se pozná (vrstva / animace) | Lék |
+|---|---|---|---|
+| **Bolení bříška** | hlad | drží se za bříško, nechce jíst | bylinkový čaj / heřmánek |
+| **Svědění peří** (blešky) | čistota | škrábe se, rozčepýřené peří, tečky | koupel s levandulí, hřebínek |
+| **Stesk** | nálada | sedí zády, šedý obláček | hudební skříňka + mazlení |
+| **Vyčerpání** | odpočinek | kruhy pod očima, klimbá | teplá deka a lampička |
+| **Rýma** | vejce/holátko bez tepla (u mláďat) | kýchá, šála, rudý zobáček | čaj s medem, teplý kámen |
+
+- Každá nemoc má 2 stupně (mírná → vážná); mírnou vyléčí lék hned, vážnou lék + 1 den klidu. Vzácný **Sovička lékárnička**
+  vyléčí cokoli (za bosse / sérii). Hráč dostane lék nejpozději s denním balíčkem, když je sovička nemocná – nikdy nezůstane bez léku.
 - Ukazatele jsou vidět vždy, s čísly i barvou (žádné skryté mechaniky).
 
 ## 4. Předměty a jak se získávají (napojení na kvíz)
@@ -69,16 +82,15 @@ Návrh (čísla jsou k doladění):
 |---|---|---|
 | 1–2 dny | nic se neděje | nic se neděje, jen klesají ukazatele |
 | 3–4 dny | vejce chladne (ikona), inkubace stojí | smutná, neroste |
-| 5–7 dní | upozornění (jen pokud jsou zapnutá) | onemocní, potřebuje lék |
+| 5–7 dní | upozornění (jen pokud jsou zapnutá) | onemocní nemocí podle zanedbané potřeby, potřebuje správný lék |
 | 8–13 dní | poslední varování | velmi slabá, sedí schoulená |
 | **14+ dní** | **vejce se nevylíhne** | **konec** (viz níže) |
 
 - Hlídání na dovolenou čas zastaví (ohlásí se dopředu).
 - Po návratu po 1–13 dnech jde vše plně napravit – žádné trvalé následky.
 - **Jak podat „konec“** (citlivé – je to rozhodnutí pro tebe, viz otázky):
-  - **A) Sovička odletí** – „Pírko se cítilo osaměle a odletělo do lesa k ostatním sovám. Možná se jednou vrátí.“ Je pryč, ale nezemřelo. Méně traumatizující, pořád je to následek.
-  - **B) Sovička zemře** – nejsilnější emoce, ale u části hráčů (děti, úzkostní) může být až zraňující.
-  - V obou případech: vzpomínka zůstane v Sovím lese (šedivý obrázek „Odletěla / Vzpomínka“), hráč dostane nové běžné vejce hned, ne trest.
+  - **Rozhodnuto: sovička odletí** – „Pírko se cítilo osaměle a odletělo do lesa k ostatním sovám. Možná se jednou vrátí.“ Je pryč, ale nezemřelo.
+  - Vzpomínka zůstane v Sovím lese (šedivý obrázek „Odletěla / Vzpomínka“), hráč dostane nové běžné vejce hned, ne trest.
 - Vejce, které se nevylíhne: „Vejce zchladlo“ – bez dramatu.
 
 ## 6. Vejce, druhy a barvy (sbírka)
@@ -124,10 +136,11 @@ Ověřený postup z výrazů Mudrlanta: **obrázek těla + průhledné vrstvy + 
 | Výrazové vrstvy očí: 4 fáze × ~8 výrazů | ~32 | lze sdílet mezi podobnými druhy |
 | Křídla (mávání) | 4–8 | podle fáze |
 | Vzácní tvorové: 4 × 3 fáze | 12 | dráček, fénix, gryf, axolotl |
-| Předměty (krmení, hračky, péče, doplňky) | ~25 | ikony ve stylu aplikace |
+| Předměty (krmení, hračky, péče, léky, doplňky) | ~32 | ikony ve stylu aplikace |
+| Vrstvy nemocí (5 nemocí × 2 stupně, sdílené mezi fázemi) | ~10 | |
 | Pozadí hnízda (den, večer, noc, zima) | 4 | |
 | Sovi les, ikona minihry, karta na Dnes | 3 | |
-| **Celkem** | **~110–120** | první fáze (MVP) jen ~25 |
+| **Celkem** | **~125–135** | první fáze (MVP) jen ~25 |
 
 ## 10. Technika (stručně)
 
@@ -148,9 +161,9 @@ Ověřený postup z výrazů Mudrlanta: **obrázek těla + průhledné vrstvy + 
 
 ## 12. Otevřené otázky
 
-- Konec při dlouhém zanedbání: odlet (A), nebo smrt (B)?
-- Kde v aplikaci: řádka na Dnes + obrazovka, nebo vlastní záložka?
-- Jedna sovička najednou, nebo víc?
+Rozhodnuto (27.–28. 11. 2026): konec = **odlet do lesa**; umístění = **řádek na Dnes + obrazovka Hnízdo**; **jedna aktivní sovička**;
+nemoci **ano, různé typy s různými léky** (tabulka v bodu 3).
+
+Zbývá:
 - Délka cyklu (3–4 týdny) a tolerance (14 dní) – sedí?
 - Jméno sovičky: jen v zařízení, nebo i vidět přátelům (pak filtr slov)?
-- Nemoc ano / ne (pro některé hráče může být stresující)?
